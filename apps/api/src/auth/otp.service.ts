@@ -27,11 +27,19 @@ export class OtpService {
   ) {}
 
   async issue(phone: string): Promise<OtpIssueResult> {
-    const code = generateOtpCode();
+    const code = generateOtpCode(6);
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-    await this.prisma.otpChallenge.create({
-      data: { phone, codeHash: this.hash(code), expiresAt },
-    });
+    // Supersede any earlier unconsumed challenges so only the newest code is
+    // valid — an attacker cannot keep old codes alive by requesting new ones.
+    await this.prisma.$transaction([
+      this.prisma.otpChallenge.updateMany({
+        where: { phone, consumedAt: null },
+        data: { consumedAt: new Date() },
+      }),
+      this.prisma.otpChallenge.create({
+        data: { phone, codeHash: this.hash(code), expiresAt },
+      }),
+    ]);
 
     const exposeDevCode = this.config.get('OTP_EXPOSE_DEV_CODE', { infer: true });
     if (exposeDevCode) {

@@ -2,9 +2,11 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put } from
 import {
   CollectionStatus,
   createCollectionSchema,
+  publishCollectionSchema,
   setCollectionProductsSchema,
   updateCollectionSchema,
   type CreateCollectionDto,
+  type PublishCollectionDto,
   type SetCollectionProductsDto,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
@@ -53,8 +55,12 @@ export class CollectionController {
   }
 
   @Post(':id/publish')
-  publish(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.collections.setStatus(companyId, id, CollectionStatus.Published);
+  publish(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(publishCollectionSchema)) dto: PublishCollectionDto,
+  ) {
+    return this.collections.publish(companyId, id, dto);
   }
 
   @Post(':id/archive')

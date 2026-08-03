@@ -10,6 +10,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // The generated Workbox SW precaches the app shell for offline use and
+      // imports our push handler so browser push works even when the tab is shut.
+      workbox: {
+        navigateFallback: 'index.html',
+        importScripts: ['push-sw.js'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+      },
       manifest: {
         name: 'Ekum',
         short_name: 'Ekum',
@@ -19,12 +26,26 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
+        categories: ['business', 'shopping'],
       },
     }),
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  build: {
+    // Split the rarely-changing vendor libs into their own chunk so app updates
+    // don't re-download React/Router/Query on every deploy (helps repeat loads on
+    // slow connections). Feature screens are already route-split via React.lazy.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+        },
+      },
     },
   },
   server: {

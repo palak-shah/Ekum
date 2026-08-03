@@ -43,17 +43,20 @@ export class JwtAuthGuard implements CanActivate {
     // that company if they still hold a membership. Otherwise drop the context so
     // company-scoped routes deny access rather than trust the claim outright.
     let companyId = payload.companyId;
+    let role: string | null = null;
     if (companyId) {
       const membership = await this.prisma.companyMembership.findUnique({
         where: { userId_companyId: { userId: payload.sub, companyId } },
-        select: { id: true },
+        select: { role: true },
       });
-      if (!membership) {
+      if (membership) {
+        role = membership.role;
+      } else {
         companyId = null;
       }
     }
 
-    request.user = { userId: payload.sub, phone: payload.phone, companyId };
+    request.user = { userId: payload.sub, phone: payload.phone, companyId, role };
     return true;
   }
 }

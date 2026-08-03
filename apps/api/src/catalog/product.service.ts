@@ -6,6 +6,7 @@ import {
   type UpdateProductDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { assertCanPublish } from './publish-capability';
 import { CatalogSerializer } from './catalog.serializer';
 
 @Injectable()
@@ -66,6 +67,9 @@ export class ProductService {
     status: (typeof ProductStatus)[keyof typeof ProductStatus],
   ): Promise<ProductView> {
     await this.owned(companyId, id);
+    if (status === ProductStatus.Published) {
+      await assertCanPublish(this.prisma, companyId);
+    }
     const product = await this.prisma.product.update({ where: { id }, data: { status } });
     return this.serializer.toProductView(product);
   }

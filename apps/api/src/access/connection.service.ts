@@ -38,16 +38,24 @@ export class ConnectionService {
       include: { owner: true, viewer: true },
     });
 
-    return connections.map((connection) => {
-      const isOwner = connection.ownerCompanyId === companyId;
-      return {
-        id: connection.id,
-        company: this.serializer.toPublicSummary(isOwner ? connection.viewer : connection.owner),
-        role: isOwner ? 'owner' : 'viewer',
-        status: connection.status,
-        createdAt: connection.createdAt.toISOString(),
-      };
-    });
+    return connections
+      .filter((connection) => {
+        // Pause and block are silent: from the viewer's side only active
+        // connections are visible, so a paused/blocked party gets no signal.
+        // The owner, who performed the action, sees every status.
+        const isOwner = connection.ownerCompanyId === companyId;
+        return isOwner || connection.status === ConnectionStatus.Active;
+      })
+      .map((connection) => {
+        const isOwner = connection.ownerCompanyId === companyId;
+        return {
+          id: connection.id,
+          company: this.serializer.toPublicSummary(isOwner ? connection.viewer : connection.owner),
+          role: isOwner ? 'owner' : 'viewer',
+          status: connection.status,
+          createdAt: connection.createdAt.toISOString(),
+        };
+      });
   }
 
   /**

@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { ConversationModule } from '../conversation/conversation.module';
 import { AccessController } from './access.controller';
 import { ConnectionController } from './connection.controller';
 import { AccessService } from './access.service';
@@ -13,6 +14,7 @@ import { CompanySerializer } from './company.serializer';
  * depend on the exported services rather than reimplementing visibility.
  */
 @Module({
+  imports: [forwardRef(() => ConversationModule)],
   controllers: [AccessController, ConnectionController],
   providers: [AccessService, ConnectionService, VisibilityService, CompanySerializer],
   exports: [VisibilityService, CompanySerializer],

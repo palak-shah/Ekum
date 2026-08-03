@@ -5,7 +5,12 @@ import type { PrismaService } from '../core/prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import type { AuthPrincipal } from '../auth/auth.types';
 
-const actor: AuthPrincipal = { userId: 'user-1', phone: '+910000000000', companyId: 'owner' };
+const actor: AuthPrincipal = {
+  userId: 'user-1',
+  phone: '+910000000000',
+  companyId: 'owner',
+  role: 'owner',
+};
 
 function setup(connection: { id: string; ownerCompanyId: string; status: string } | null) {
   const update = vi.fn(async () => ({
@@ -61,5 +66,54 @@ describe('ConnectionService.applyOwnerAction', () => {
       status: ConnectionStatus.Active,
     });
     await expect(service.applyOwnerAction('owner', 'conn-1', 'pause', actor)).rejects.toThrow();
+  });
+});
+
+describe('ConnectionService.list silent-block masking', () => {
+  it('hides paused/blocked connections from the viewer but not from the owner', async () => {
+    const summary = (id: string) => ({ id, name: id, city: 'Surat', verification: 'not_verified' });
+    const rows = [
+      // Caller is the owner here — a blocked connection stays visible to them.
+      {
+        id: 'owned-blocked',
+        ownerCompanyId: 'me',
+        viewerCompanyId: 'x',
+        status: ConnectionStatus.Blocked,
+        createdAt: new Date(),
+        owner: summary('me'),
+        viewer: summary('x'),
+      },
+      // Caller is the viewer here — a blocked connection must be hidden.
+      {
+        id: 'viewer-blocked',
+        ownerCompanyId: 'y',
+        viewerCompanyId: 'me',
+        status: ConnectionStatus.Blocked,
+        createdAt: new Date(),
+        owner: summary('y'),
+        viewer: summary('me'),
+      },
+      // Caller is the viewer of an active connection — visible.
+      {
+        id: 'viewer-active',
+        ownerCompanyId: 'z',
+        viewerCompanyId: 'me',
+        status: ConnectionStatus.Active,
+        createdAt: new Date(),
+        owner: summary('z'),
+        viewer: summary('me'),
+      },
+    ];
+    const prisma = {
+      connection: { findMany: async () => rows },
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn() } as unknown as AuditService;
+    const serializer = {
+      toPublicSummary: (company: { id: string }) => summary(company.id),
+    };
+    const service = new ConnectionService(prisma, audit, serializer as never);
+
+    const result = await service.list('me');
+    expect(result.map((view) => view.id)).toEqual(['owned-blocked', 'viewer-active']);
   });
 });

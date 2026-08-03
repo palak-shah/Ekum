@@ -23,7 +23,8 @@ export class CompanySerializer {
       city: company.city,
       about: company.about,
       verification: company.verification,
-      categories: company.sellCategories,
+      categories: company.sellCategories.length > 0 ? company.sellCategories : company.superCategories,
+      superCategories: company.superCategories,
     };
   }
 
@@ -36,12 +37,13 @@ export class CompanySerializer {
     };
   }
 
-  toOwnProfile(company: Company): OwnCompanyProfile {
+  toOwnProfile(company: Company, contactPerson: string | null = null): OwnCompanyProfile {
     return {
       ...this.toPublicProfile(company),
       gstNumber: company.gstNumber,
       sellCategories: company.sellCategories,
       buyCategories: company.buyCategories,
+      contactPerson,
       capabilities: {
         publish: company.canPublish,
         relist: company.canRelist,

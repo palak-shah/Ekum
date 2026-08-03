@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { unitValues } from './enums';
+import { publishAudienceValues, rateVisibilityValues, unitValues } from './enums';
 
 /**
  * Catalog contracts. A Product is the live entity: its name is required, its
@@ -39,6 +39,15 @@ export const setCollectionProductsSchema = z.object({
 });
 export type SetCollectionProductsDto = z.infer<typeof setCollectionProductsSchema>;
 
+/** Audience + rate visibility decided in the publish sheet (not a settings page). */
+export const publishCollectionSchema = z.object({
+  audience: z.enum(publishAudienceValues).default('connections'),
+  rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
+  /** Required the first time a company ever publishes — unlocks canPublish. */
+  consentToSell: z.boolean().optional(),
+});
+export type PublishCollectionDto = z.infer<typeof publishCollectionSchema>;
+
 export interface ProductView {
   id: string;
   name: string;
@@ -59,6 +68,8 @@ export interface CollectionView {
   description: string | null;
   coverImage: string | null;
   status: string;
+  audience: string;
+  rateVisibility: string;
   productCount: number;
   createdAt: string;
   updatedAt: string;

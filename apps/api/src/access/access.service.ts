@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import {
   AccessRequestStatus,
   ConnectionStatus,
@@ -12,7 +15,9 @@ import {
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { ThreadService } from '../conversation/thread.service';
 import { CompanySerializer } from './company.serializer';
+import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
 
 @Injectable()
@@ -21,6 +26,9 @@ export class AccessService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly serializer: CompanySerializer,
+    private readonly events: DomainEvents,
+    @Inject(forwardRef(() => ThreadService))
+    private readonly threads: ThreadService,
   ) {}
 
   async createRequest(
@@ -55,26 +63,53 @@ export class AccessService {
       });
     }
 
-    const existingPending = await this.prisma.accessRequest.findFirst({
-      where: {
+    const existingPending = await this.findPending(requesterCompanyId, targetCompanyId);
+    if (existingPending) {
+      await this.threads.openAccessRequestThread(
         requesterCompanyId,
         targetCompanyId,
-        status: AccessRequestStatus.Pending,
-      },
-    });
-    if (existingPending) {
+        existingPending.note,
+      );
       return this.toView(existingPending.id, 'target');
     }
 
-    const created = await this.prisma.accessRequest.create({
-      data: {
+    try {
+      const created = await this.prisma.accessRequest.create({
+        data: {
+          requesterCompanyId,
+          targetCompanyId,
+          note: dto.note ?? null,
+          referredBy: dto.referredBy ?? null,
+        },
+      });
+      await this.threads.openAccessRequestThread(
         requesterCompanyId,
         targetCompanyId,
-        note: dto.note ?? null,
-        referredBy: dto.referredBy ?? null,
-      },
+        created.note,
+      );
+      return this.toView(created.id, 'target');
+    } catch (error) {
+      // A concurrent request won the race against the partial unique index. Sending
+      // an access request is idempotent, so return the winning pending request.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const winner = await this.findPending(requesterCompanyId, targetCompanyId);
+        if (winner) {
+          await this.threads.openAccessRequestThread(
+            requesterCompanyId,
+            targetCompanyId,
+            winner.note,
+          );
+          return this.toView(winner.id, 'target');
+        }
+      }
+      throw error;
+    }
+  }
+
+  private findPending(requesterCompanyId: string, targetCompanyId: string) {
+    return this.prisma.accessRequest.findFirst({
+      where: { requesterCompanyId, targetCompanyId, status: AccessRequestStatus.Pending },
     });
-    return this.toView(created.id, 'target');
   }
 
   async listIncoming(companyId: string): Promise<AccessRequestView[]> {
@@ -161,6 +196,17 @@ export class AccessService {
       targetType: 'access_request',
       targetId: request.id,
       after: { status: AccessRequestStatus.Approved },
+    });
+
+    await this.threads.activateDirectParticipants(
+      request.requesterCompanyId,
+      request.targetCompanyId,
+    );
+
+    this.events.accessApproved({
+      requestId: request.id,
+      requesterCompanyId: request.requesterCompanyId,
+      targetCompanyId: request.targetCompanyId,
     });
 
     return this.toView(request.id, 'requester');

@@ -4,9 +4,11 @@ import {
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
+  type PublishCollectionDto,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { assertCanPublish, grantPublishCapability } from './publish-capability';
 import { CatalogSerializer } from './catalog.serializer';
 
 @Injectable()
@@ -58,12 +60,44 @@ export class CollectionService {
     return this.serializer.toCollectionView(collection);
   }
 
+  async publish(
+    companyId: string,
+    id: string,
+    dto: PublishCollectionDto,
+  ): Promise<CollectionView> {
+    await this.owned(companyId, id);
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { canPublish: true },
+    });
+    if (!company.canPublish) {
+      if (!dto.consentToSell) {
+        await assertCanPublish(this.prisma, companyId);
+      } else {
+        await grantPublishCapability(this.prisma, companyId);
+      }
+    }
+    const collection = await this.prisma.collection.update({
+      where: { id },
+      data: {
+        status: CollectionStatus.Published,
+        audience: dto.audience,
+        rateVisibility: dto.rateVisibility,
+      },
+      include: { _count: { select: { products: true } } },
+    });
+    return this.serializer.toCollectionView(collection);
+  }
+
   async setStatus(
     companyId: string,
     id: string,
     status: (typeof CollectionStatus)[keyof typeof CollectionStatus],
   ): Promise<CollectionView> {
     await this.owned(companyId, id);
+    if (status === CollectionStatus.Published) {
+      await assertCanPublish(this.prisma, companyId);
+    }
     const collection = await this.prisma.collection.update({
       where: { id },
       data: { status },

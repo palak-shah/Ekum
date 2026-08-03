@@ -12,6 +12,8 @@ export interface AuthPrincipal {
   userId: string;
   phone: string;
   companyId: string | null;
+  /** The user's role in the active company (owner | staff), null without one. */
+  role: string | null;
 }
 
 export interface AuthenticatedRequest extends Request {

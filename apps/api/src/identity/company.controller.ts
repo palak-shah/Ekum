@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   createCompanySchema,
+  cursorPageQuerySchema,
   updateCompanySchema,
   type CreateCompanyDto,
+  type CursorPageQuery,
   type UpdateCompanyDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -24,16 +26,17 @@ export class CompanyController {
   }
 
   @Get('me')
-  me(@CurrentCompanyId() companyId: string) {
-    return this.companies.getOwnProfile(companyId);
+  me(@CurrentCompanyId() companyId: string, @CurrentUser() user: AuthPrincipal) {
+    return this.companies.getOwnProfile(companyId, user.userId);
   }
 
   @Patch('me')
   update(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Body(new ZodValidationPipe(updateCompanySchema)) dto: UpdateCompanyDto,
   ) {
-    return this.companies.updateOwnProfile(companyId, dto);
+    return this.companies.updateOwnProfile(companyId, user.userId, dto);
   }
 
   @Get(':id')
@@ -44,5 +47,14 @@ export class CompanyController {
   @Get(':id/contact')
   contact(@CurrentCompanyId() viewerCompanyId: string, @Param('id') id: string) {
     return this.companies.getContactPoints(viewerCompanyId, id);
+  }
+
+  @Get(':id/collections')
+  collections(
+    @CurrentCompanyId() viewerCompanyId: string,
+    @Param('id') id: string,
+    @Query(new ZodValidationPipe(cursorPageQuerySchema)) query: CursorPageQuery,
+  ) {
+    return this.companies.listPublishedCollections(viewerCompanyId, id, query);
   }
 }

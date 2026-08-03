@@ -16,7 +16,7 @@ export const verifyOtpSchema = z.object({
   code: z
     .string()
     .trim()
-    .regex(/^[0-9]{4,6}$/, 'Enter the code sent to your phone'),
+    .regex(/^[0-9]{6}$/, 'Enter the 6-digit code sent to your phone'),
 });
 export type VerifyOtpDto = z.infer<typeof verifyOtpSchema>;
 

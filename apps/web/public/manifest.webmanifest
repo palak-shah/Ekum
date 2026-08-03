@@ -1,0 +1,29 @@
+{
+  "name": "Ekum",
+  "short_name": "Ekum",
+  "description": "B2B textile trade, organised.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EAF4F2",
+  "theme_color": "#27A9B5",
+  "icons": [
+    {
+      "src": "/brand/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

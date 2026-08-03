@@ -15,6 +15,10 @@ build/
 # Prisma
 apps/api/prisma/*.db
 
+# Local media uploads (dev storage driver)
+apps/api/.media/
+.media/
+
 # Logs
 *.log
 npm-debug.log*

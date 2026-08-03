@@ -189,6 +189,28 @@ export const ThreadVisibility = {
 export type ThreadVisibility = (typeof ThreadVisibility)[keyof typeof ThreadVisibility];
 export const threadVisibilityValues = values(ThreadVisibility);
 
+/**
+ * A company's standing in a thread. `pending` is the requests inbox: a first
+ * message from a company you are not connected to lands here for accept/decline.
+ * `archived` is silent — declined, left, or blocked threads never resurface.
+ */
+export const ThreadParticipantState = {
+  Active: 'active',
+  Pending: 'pending',
+  Archived: 'archived',
+} as const;
+export type ThreadParticipantState =
+  (typeof ThreadParticipantState)[keyof typeof ThreadParticipantState];
+export const threadParticipantStateValues = values(ThreadParticipantState);
+
+/** Per-thread notification level. Muting is local and never signalled to others. */
+export const ThreadAlertLevel = {
+  All: 'all',
+  Muted: 'muted',
+} as const;
+export type ThreadAlertLevel = (typeof ThreadAlertLevel)[keyof typeof ThreadAlertLevel];
+export const threadAlertLevelValues = values(ThreadAlertLevel);
+
 /** Messages carry references (not copies) of shared trade objects. */
 export const MessageType = {
   Text: 'text',
@@ -212,6 +234,7 @@ export const NotificationType = {
   Broadcast: 'broadcast',
   Complaint: 'complaint',
   Sample: 'sample',
+  Digest: 'digest',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 export const notificationTypeValues = values(NotificationType);
@@ -222,3 +245,65 @@ export const BroadcastStatus = {
 } as const;
 export type BroadcastStatus = (typeof BroadcastStatus)[keyof typeof BroadcastStatus];
 export const broadcastStatusValues = values(BroadcastStatus);
+
+/** Media is uploaded direct-to-blob, then a worker derives a thumbnail. */
+export const MediaKind = {
+  Image: 'image',
+} as const;
+export type MediaKind = (typeof MediaKind)[keyof typeof MediaKind];
+export const mediaKindValues = values(MediaKind);
+
+/**
+ * A media object's lifecycle. `pending` = upload URL minted, bytes not confirmed;
+ * `uploaded` = client confirmed the direct upload; `ready` = thumbnail derived;
+ * `failed` = processing gave up after retries.
+ */
+export const MediaStatus = {
+  Pending: 'pending',
+  Uploaded: 'uploaded',
+  Ready: 'ready',
+  Failed: 'failed',
+} as const;
+export type MediaStatus = (typeof MediaStatus)[keyof typeof MediaStatus];
+export const mediaStatusValues = values(MediaStatus);
+
+/** The background job types processed by the Postgres-backed job runner. */
+export const JobType = {
+  MediaThumbnail: 'media.thumbnail',
+  ReturnWindowExpire: 'return_window.expire',
+  NotificationDigest: 'notification.digest',
+} as const;
+export type JobType = (typeof JobType)[keyof typeof JobType];
+export const jobTypeValues = values(JobType);
+
+export const JobStatus = {
+  Pending: 'pending',
+  Running: 'running',
+  Done: 'done',
+  Failed: 'failed',
+} as const;
+export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
+export const jobStatusValues = values(JobStatus);
+
+/**
+ * Coarse "what do you deal in" chips collected at onboarding. Distinct from fine
+ * sell/buy product categories (sarees, kurtis, …) which are added later.
+ */
+export const SuperCategory = {
+  MensApparel: 'mens_apparel',
+  WomensApparel: 'womens_apparel',
+  HomeFurnishing: 'home_furnishing',
+  Accessories: 'accessories',
+  Others: 'others',
+} as const;
+export type SuperCategory = (typeof SuperCategory)[keyof typeof SuperCategory];
+export const superCategoryValues = values(SuperCategory);
+
+/** Human labels for onboarding/profile chips. */
+export const SUPER_CATEGORY_LABEL: Record<SuperCategory, string> = {
+  [SuperCategory.MensApparel]: "Men's apparel",
+  [SuperCategory.WomensApparel]: "Women's apparel",
+  [SuperCategory.HomeFurnishing]: 'Home Furnishing',
+  [SuperCategory.Accessories]: 'Accessories',
+  [SuperCategory.Others]: 'Others',
+};
