@@ -1,0 +1,19 @@
+import type { Request } from 'express';
+
+/** Claims carried by the short-lived JWT access token. */
+export interface JwtPayload {
+  sub: string;
+  phone: string;
+  companyId: string | null;
+}
+
+/** The authenticated principal attached to the request by JwtAuthGuard. */
+export interface AuthPrincipal {
+  userId: string;
+  phone: string;
+  companyId: string | null;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user?: AuthPrincipal;
+}

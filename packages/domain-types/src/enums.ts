@@ -1,0 +1,224 @@
+/**
+ * Canonical enums for the Ekum domain. These are the single source of truth for
+ * valid values shared between the API and the web app (and, later, the Flutter
+ * client via a generated contract).
+ *
+ * Each enum is a plain string-const object so the values are stable, readable in
+ * the database and on the wire, and safe to feed into `z.enum(...)`.
+ */
+
+function values<T extends Record<string, string>>(e: T): [T[keyof T], ...T[keyof T][]] {
+  return Object.values(e) as [T[keyof T], ...T[keyof T][]];
+}
+
+/** Company capabilities unlock progressively; stored as data, never a role enum. */
+export const CompanyCapability = {
+  Publish: 'publish',
+  Relist: 'relist',
+  Refer: 'refer',
+} as const;
+export type CompanyCapability = (typeof CompanyCapability)[keyof typeof CompanyCapability];
+export const companyCapabilityValues = values(CompanyCapability);
+
+/** A user's role within a company they are a member of. */
+export const MembershipRole = {
+  Owner: 'owner',
+  Staff: 'staff',
+} as const;
+export type MembershipRole = (typeof MembershipRole)[keyof typeof MembershipRole];
+export const membershipRoleValues = values(MembershipRole);
+
+/** Per-user permissions inside a company (owner-set hard caps). */
+export const MembershipPermission = {
+  Uploads: 'uploads',
+  Chats: 'chats',
+  Orders: 'orders',
+  Payments: 'payments',
+  Team: 'team',
+} as const;
+export type MembershipPermission =
+  (typeof MembershipPermission)[keyof typeof MembershipPermission];
+export const membershipPermissionValues = values(MembershipPermission);
+
+/** Access is the named, permissioned gate (distinct from permissionless Follow). */
+export const AccessRequestStatus = {
+  Pending: 'pending',
+  Approved: 'approved',
+  Declined: 'declined',
+} as const;
+export type AccessRequestStatus = (typeof AccessRequestStatus)[keyof typeof AccessRequestStatus];
+export const accessRequestStatusValues = values(AccessRequestStatus);
+
+/** The ongoing connection state once access is approved. Pause/block are silent. */
+export const ConnectionStatus = {
+  Active: 'active',
+  Paused: 'paused',
+  Blocked: 'blocked',
+} as const;
+export type ConnectionStatus = (typeof ConnectionStatus)[keyof typeof ConnectionStatus];
+export const connectionStatusValues = values(ConnectionStatus);
+
+export const VerificationStatus = {
+  NotVerified: 'not_verified',
+  GstVerified: 'gst_verified',
+} as const;
+export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
+export const verificationStatusValues = values(VerificationStatus);
+
+/** Catalog. Publish is a state; sharing is a separate event. */
+export const CollectionStatus = {
+  Draft: 'draft',
+  Published: 'published',
+  Archived: 'archived',
+} as const;
+export type CollectionStatus = (typeof CollectionStatus)[keyof typeof CollectionStatus];
+export const collectionStatusValues = values(CollectionStatus);
+
+/** A product carries the same lifecycle: a private draft, published, or archived. */
+export const ProductStatus = {
+  Draft: 'draft',
+  Published: 'published',
+  Archived: 'archived',
+} as const;
+export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus];
+export const productStatusValues = values(ProductStatus);
+
+/** Rates default to "on request" per standard trade practice. */
+export const RateVisibility = {
+  Visible: 'visible',
+  OnRequest: 'on_request',
+} as const;
+export type RateVisibility = (typeof RateVisibility)[keyof typeof RateVisibility];
+export const rateVisibilityValues = values(RateVisibility);
+
+export const PublishAudience = {
+  Everyone: 'everyone',
+  Connections: 'connections',
+  Selected: 'selected',
+} as const;
+export type PublishAudience = (typeof PublishAudience)[keyof typeof PublishAudience];
+export const publishAudienceValues = values(PublishAudience);
+
+/** Trade units. SKU/reference codes remain optional; units do not. */
+export const Unit = {
+  Piece: 'pc',
+  Set: 'set',
+  Metre: 'mtr',
+  Than: 'than',
+  Dozen: 'dozen',
+  Kilogram: 'kg',
+  Box: 'box',
+} as const;
+export type Unit = (typeof Unit)[keyof typeof Unit];
+export const unitValues = values(Unit);
+
+/**
+ * One Order object, viewed from two perspectives. Requested is the
+ * pre-confirmation phase; Confirmed -> Dispatched -> Delivered is the confirmed
+ * fulfillment progression. Declined/Cancelled are terminal.
+ */
+export const OrderStatus = {
+  Requested: 'requested',
+  Confirmed: 'confirmed',
+  Dispatched: 'dispatched',
+  Delivered: 'delivered',
+  Declined: 'declined',
+  Cancelled: 'cancelled',
+} as const;
+export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
+export const orderStatusValues = values(OrderStatus);
+
+/** A Photo Order shares the Order lifecycle; it is a variant entry point. */
+export const OrderKind = {
+  Standard: 'standard',
+  Photo: 'photo',
+} as const;
+export type OrderKind = (typeof OrderKind)[keyof typeof OrderKind];
+export const orderKindValues = values(OrderKind);
+
+/** The perspective of a company on a shared Order. */
+export const OrderDirection = {
+  Buying: 'buying',
+  Selling: 'selling',
+} as const;
+export type OrderDirection = (typeof OrderDirection)[keyof typeof OrderDirection];
+export const orderDirectionValues = values(OrderDirection);
+
+/** Samples map onto the same stages as orders rather than inventing vocabulary. */
+export const SampleStatus = {
+  Requested: 'requested',
+  Dispatched: 'dispatched',
+  Received: 'received',
+  Declined: 'declined',
+  Converted: 'converted',
+} as const;
+export type SampleStatus = (typeof SampleStatus)[keyof typeof SampleStatus];
+export const sampleStatusValues = values(SampleStatus);
+
+export const ReturnStatus = {
+  Requested: 'requested',
+  Approved: 'approved',
+  PartiallyApproved: 'partially_approved',
+  Declined: 'declined',
+  Resolved: 'resolved',
+} as const;
+export type ReturnStatus = (typeof ReturnStatus)[keyof typeof ReturnStatus];
+export const returnStatusValues = values(ReturnStatus);
+
+export const ComplaintStatus = {
+  Open: 'open',
+  Responded: 'responded',
+  Resolved: 'resolved',
+} as const;
+export type ComplaintStatus = (typeof ComplaintStatus)[keyof typeof ComplaintStatus];
+export const complaintStatusValues = values(ComplaintStatus);
+
+/** A thread supports direct (two-company) and group (trader + supplier + buyer). */
+export const ThreadType = {
+  Direct: 'direct',
+  Group: 'group',
+} as const;
+export type ThreadType = (typeof ThreadType)[keyof typeof ThreadType];
+export const threadTypeValues = values(ThreadType);
+
+/** Owner-only threads are hidden from staff even with chat permission. */
+export const ThreadVisibility = {
+  Shared: 'shared',
+  OwnerOnly: 'owner_only',
+} as const;
+export type ThreadVisibility = (typeof ThreadVisibility)[keyof typeof ThreadVisibility];
+export const threadVisibilityValues = values(ThreadVisibility);
+
+/** Messages carry references (not copies) of shared trade objects. */
+export const MessageType = {
+  Text: 'text',
+  Photo: 'photo',
+  Voice: 'voice',
+  CollectionCard: 'collection_card',
+  ProductCard: 'product_card',
+  OrderCard: 'order_card',
+  Rate: 'rate',
+  System: 'system',
+} as const;
+export type MessageType = (typeof MessageType)[keyof typeof MessageType];
+export const messageTypeValues = values(MessageType);
+
+export const NotificationType = {
+  Order: 'order',
+  Return: 'return',
+  Request: 'request',
+  Message: 'message',
+  Collection: 'collection',
+  Broadcast: 'broadcast',
+  Complaint: 'complaint',
+  Sample: 'sample',
+} as const;
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
+export const notificationTypeValues = values(NotificationType);
+
+/** Phase 1 broadcast sends immediately; scheduling/tiering is Phase 2. */
+export const BroadcastStatus = {
+  Sent: 'sent',
+} as const;
+export type BroadcastStatus = (typeof BroadcastStatus)[keyof typeof BroadcastStatus];
+export const broadcastStatusValues = values(BroadcastStatus);

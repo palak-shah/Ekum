@@ -1,0 +1,292 @@
+// Ekum database schema.
+//
+// Shared-schema multi-tenancy: Ekum is a cross-tenant marketplace, so every
+// business table carries an owning companyId (or two, for relationship
+// entities) and authorization is enforced in the application layer via the
+// Access & Trust domain, never through database-level tenant isolation.
+//
+// Enum-like columns are stored as String and validated against the shared
+// @ekum/domain-types enums at the application boundary, so those enums stay the
+// single source of truth and value changes do not require a DB migration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Identity & Access ------------------------------------------------------
+
+/// A person, authenticated by phone/OTP. Never a buyer/supplier "type".
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   CompanyMembership[]
+  refreshTokens RefreshToken[]
+}
+
+/// The tenant root. A company may buy, sell, or both — capabilities are data.
+model Company {
+  id           String  @id @default(cuid())
+  name         String
+  city         String
+  about        String?
+  gstNumber    String?
+  verification String  @default("not_verified") // VerificationStatus
+
+  // Capabilities unlock progressively as the business actually uses them.
+  canPublish Boolean @default(false)
+  canRelist  Boolean @default(false)
+  canRefer   Boolean @default(false)
+
+  sellCategories String[] @default([])
+  buyCategories  String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships CompanyMembership[]
+
+  accessRequestsSent     AccessRequest[] @relation("AccessRequester")
+  accessRequestsReceived AccessRequest[] @relation("AccessTarget")
+  connectionsAsOwner     Connection[]    @relation("ConnectionOwner")
+  connectionsAsViewer    Connection[]    @relation("ConnectionViewer")
+
+  products     Product[]
+  collections  Collection[]
+  addresses    Address[]
+  billingFirms BillingFirm[]
+  settings     CompanySettings?
+}
+
+/// The join between a User and a Company. Modelled many-to-many from day one so
+/// multi-user companies (and one person across businesses) never need a retrofit.
+model CompanyMembership {
+  id        String @id @default(cuid())
+  userId    String
+  companyId String
+  role      String @default("owner") // MembershipRole: owner | staff
+
+  // Owner-set permission hard caps.
+  canUploads  Boolean @default(true)
+  canChats    Boolean @default(true)
+  canOrders   Boolean @default(true)
+  canPayments Boolean @default(true)
+  canTeam     Boolean @default(true)
+
+  // Public-safe contact point tag (e.g. Sales, Accounts, Dispatch). Phone stays
+  // hidden unless the business explicitly opts in; the login phone is never shown.
+  contactRole  String?
+  showPhone    Boolean @default(false)
+  displayPhone String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+}
+
+/// A hashed refresh token (rotation). The raw token is only ever held by the client.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A short-lived OTP challenge. Codes are stored hashed, never in plaintext.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([phone])
+}
+
+// --- Access & Trust ---------------------------------------------------------
+
+/// The named Access gate. A requester (would-be viewer) asks a target (owner)
+/// to see controlled collections; approval creates a Connection.
+model AccessRequest {
+  id                 String    @id @default(cuid())
+  requesterCompanyId String
+  targetCompanyId    String
+  note               String?
+  referredBy         String?
+  status             String    @default("pending") // AccessRequestStatus
+  createdAt          DateTime  @default(now())
+  decidedAt          DateTime?
+
+  requester Company @relation("AccessRequester", fields: [requesterCompanyId], references: [id], onDelete: Cascade)
+  target    Company @relation("AccessTarget", fields: [targetCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([targetCompanyId, status])
+  @@index([requesterCompanyId])
+}
+
+/// A directional, approved access grant: the viewer company may see the owner
+/// company's controlled catalogue. Pausing and blocking are deliberately silent.
+model Connection {
+  id              String   @id @default(cuid())
+  ownerCompanyId  String
+  viewerCompanyId String
+  status          String   @default("active") // ConnectionStatus: active | paused | blocked
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  owner  Company @relation("ConnectionOwner", fields: [ownerCompanyId], references: [id], onDelete: Cascade)
+  viewer Company @relation("ConnectionViewer", fields: [viewerCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerCompanyId, viewerCompanyId])
+  @@index([viewerCompanyId, status])
+  @@index([ownerCompanyId, status])
+}
+
+// --- Catalog ----------------------------------------------------------------
+
+/// The live product entity. Name required; SKU optional forever; rate nullable
+/// ("on request"). Orders snapshot a product at order time rather than linking live.
+model Product {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  sku         String?
+  description String?
+  rate        Decimal? @db.Decimal(12, 2)
+  unit        String?
+  categories  String[] @default([])
+  images      String[] @default([])
+  status      String   @default("draft") // ProductStatus
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  collections CollectionProduct[]
+
+  @@index([companyId, status])
+}
+
+/// A curated set of products. Separate from Product and joined many-to-many, so
+/// a product can live in several collections without duplication.
+model Collection {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  description String?
+  coverImage  String?
+  status      String   @default("draft") // CollectionStatus
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products CollectionProduct[]
+
+  @@index([companyId, status])
+}
+
+/// The ordered many-to-many join between Collection and Product.
+model CollectionProduct {
+  id           String   @id @default(cuid())
+  collectionId String
+  productId    String
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, productId])
+  @@index([productId])
+}
+
+// --- Settings (reference data) ----------------------------------------------
+
+/// A dispatch/office address belonging to a company.
+model Address {
+  id        String   @id @default(cuid())
+  companyId String
+  label     String
+  line1     String
+  line2     String?
+  city      String
+  state     String?
+  pincode   String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+/// A GST/billing firm a company bills under (a company may have several).
+model BillingFirm {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  gstNumber   String?
+  addressLine String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+/// One-per-company settings blob: return policy and free-form trade defaults /
+/// "My Tools" toggles. Kept as JSON so the shape can evolve without migrations.
+model CompanySettings {
+  id            String   @id @default(cuid())
+  companyId     String   @unique
+  returnPolicy  String?
+  tradeDefaults Json?
+  myTools       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+// --- Audit ------------------------------------------------------------------
+
+/// Append-only record of trust-critical transitions (access approvals,
+/// connection blocks, permission changes). Cheap now, impossible to reconstruct
+/// later if a trust dispute arises.
+model AuditLog {
+  id             String   @id @default(cuid())
+  actorUserId    String?
+  actorCompanyId String?
+  action         String
+  targetType     String
+  targetId       String
+  before         Json?
+  after          Json?
+  createdAt      DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([actorCompanyId])
+}
