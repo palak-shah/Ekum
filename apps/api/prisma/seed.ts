@@ -35,13 +35,13 @@ async function main(): Promise<void> {
   // --- People -------------------------------------------------------------
   await prisma.user.upsert({
     where: { id: U_RAVI },
-    create: { id: U_RAVI, phone: '+919800000001', name: 'Ravi Sharma' },
-    update: { name: 'Ravi Sharma' },
+    create: { id: U_RAVI, phone: '+919800000001', name: 'Ravi' },
+    update: { name: 'Ravi' },
   });
   await prisma.user.upsert({
     where: { id: U_MEENA },
-    create: { id: U_MEENA, phone: '+919800000002', name: 'Meena Gupta' },
-    update: { name: 'Meena Gupta' },
+    create: { id: U_MEENA, phone: '+919800000002', name: 'Meena' },
+    update: { name: 'Meena' },
   });
 
   // --- Businesses ---------------------------------------------------------
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     where: { id: RAVI },
     create: {
       id: RAVI,
-      name: 'Ravi Textiles',
+      name: 'Ravi',
       city: 'Surat',
       about: 'Wholesale sarees and dress material. Weekly new designs.',
       gstNumber: '24ABCDE1234F1Z5',
@@ -57,11 +57,15 @@ async function main(): Promise<void> {
       canPublish: true,
       canRefer: true,
       sellCategories: ['Sarees', 'Dress Material'],
+      // Dual-role so Explore shows Buying / Selling scope for the supplier persona.
+      buyCategories: ['Fabric'],
       superCategories: [SuperCategory.WomensApparel, SuperCategory.Accessories],
     },
     update: {
+      name: 'Ravi',
       canPublish: true,
       verification: VerificationStatus.GstVerified,
+      buyCategories: ['Fabric'],
       superCategories: [SuperCategory.WomensApparel, SuperCategory.Accessories],
     },
   });
@@ -69,13 +73,16 @@ async function main(): Promise<void> {
     where: { id: MEENA },
     create: {
       id: MEENA,
-      name: 'Meena Fashions',
+      name: 'Meena',
       city: 'Jaipur',
       about: 'Multi-brand retail store.',
       buyCategories: ['Sarees', 'Dress Material'],
       superCategories: [SuperCategory.WomensApparel],
     },
-    update: { superCategories: [SuperCategory.WomensApparel] },
+    update: {
+      name: 'Meena',
+      superCategories: [SuperCategory.WomensApparel],
+    },
   });
 
   await prisma.companyMembership.upsert({
@@ -343,11 +350,43 @@ async function main(): Promise<void> {
       recipientCompanyId: RAVI,
       type: NotificationType.Order,
       title: 'New order request',
-      body: 'Meena Fashions placed an order request.',
+      body: 'Meena placed an order request.',
       refType: 'order',
       refId: 'seed-order-2',
     },
-    update: {},
+    update: { body: 'Meena placed an order request.' },
+  });
+  await prisma.notification.upsert({
+    where: { id: 'seed-notif-2' },
+    create: {
+      id: 'seed-notif-2',
+      recipientCompanyId: MEENA,
+      type: NotificationType.Order,
+      title: 'Rates on your order',
+      body: 'Ravi added rates — accept the quote to confirm.',
+      refType: 'order',
+      refId: 'seed-order-2',
+    },
+    update: {
+      title: 'Rates on your order',
+      body: 'Ravi added rates — accept the quote to confirm.',
+    },
+  });
+  await prisma.notification.upsert({
+    where: { id: 'seed-notif-3' },
+    create: {
+      id: 'seed-notif-3',
+      recipientCompanyId: MEENA,
+      type: NotificationType.Collection,
+      title: 'New drop from Ravi',
+      body: 'Wedding Edit 2026 is live.',
+      refType: 'collection',
+      refId: 'seed-col-1',
+    },
+    update: {
+      title: 'New drop from Ravi',
+      body: 'Wedding Edit 2026 is live.',
+    },
   });
 
   console.log('Seed complete: 2 companies, 3 products, 1 collection, 2 orders, 1 thread.');

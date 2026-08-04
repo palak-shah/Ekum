@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -26,16 +26,51 @@ import { CheckIcon, LockIcon } from '@/ui/icons';
 
 type Layout = 'feed' | 'grid';
 
+function shortlistKey(collectionId: string) {
+  return `ekum:shortlist:${collectionId}`;
+}
+
+function readShortlist(collectionId: string): Set<string> {
+  if (!collectionId || typeof sessionStorage === 'undefined') {
+    return new Set();
+  }
+  try {
+    const raw = sessionStorage.getItem(shortlistKey(collectionId));
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? new Set(parsed.filter((id) => typeof id === 'string')) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writeShortlist(collectionId: string, ids: Set<string>) {
+  if (!collectionId || typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(shortlistKey(collectionId), JSON.stringify([...ids]));
+  } catch {
+    // Ignore quota / private-mode failures — shortlist stays in memory.
+  }
+}
+
 export function CollectionViewerPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [layout, setLayout] = useState<Layout>('feed');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => readShortlist(id));
   const [gateOpen, setGateOpen] = useState(false);
   const [note, setNote] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelected(readShortlist(id));
+  }, [id]);
+
+  useEffect(() => {
+    writeShortlist(id, selected);
+  }, [id, selected]);
 
   const collection = useQuery({
     queryKey: ['collection-preview', id],

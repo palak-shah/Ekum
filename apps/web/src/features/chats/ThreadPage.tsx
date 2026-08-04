@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -24,6 +24,7 @@ export function ThreadPage() {
   const [attachOpen, setAttachOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<Set<string>>(() => new Set());
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const thread = useQuery({
     queryKey: ['thread', id],
@@ -31,8 +32,10 @@ export function ThreadPage() {
   });
   const messages = useQuery({
     queryKey: ['thread', id, 'messages'],
-    queryFn: () => api.get<CursorPage<MessageView>>(`/threads/${id}/messages`, { limit: 50 }),
-    refetchInterval: 15_000,
+    queryFn: () => api.get<CursorPage<MessageView>>(`/threads/${id}/messages`, { limit: 80 }),
+    // Fast poll so dual-session testing (and trade replies) feel live.
+    refetchInterval: 2_000,
+    refetchOnWindowFocus: true,
   });
   const myCollections = useQuery({
     queryKey: ['my-collections'],
@@ -53,9 +56,16 @@ export function ThreadPage() {
     }
   }, [thread.data, id, queryClient]);
 
+  const ordered = [...(messages.data?.results ?? [])].reverse();
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [ordered.length, id]);
+
   const refreshMessages = () => {
     void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
     void queryClient.invalidateQueries({ queryKey: ['thread', id] });
+    void queryClient.invalidateQueries({ queryKey: ['threads'] });
   };
 
   const send = useMutation({
@@ -72,7 +82,14 @@ export function ThreadPage() {
 
   const decide = useMutation({
     mutationFn: (action: 'accept' | 'decline') => api.post(`/threads/${id}/${action}`, {}),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['thread', id] }),
+    onSuccess: (_data, action) => {
+      void queryClient.invalidateQueries({ queryKey: ['thread', id] });
+      void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      if (action === 'decline') {
+        navigate('/chats');
+      }
+    },
   });
 
   const acceptQuote = useMutation({
@@ -116,85 +133,100 @@ export function ThreadPage() {
 
   const detail = thread.data;
   const title = detail.title ?? detail.counterpart?.name ?? 'Conversation';
-  const ordered = [...(messages.data?.results ?? [])].reverse();
   const canCompose = detail.state === 'active';
 
   return (
-    <div className="flex min-h-[calc(100vh-9rem)] flex-col">
+    <div className="flex min-h-[calc(100dvh-8.5rem)] flex-col">
       <PageHeader
         title={title}
-        subtitle={detail.type === 'group' ? `${detail.participantCount} businesses` : detail.counterpart?.city}
+        subtitle={
+          detail.type === 'group'
+            ? `${detail.participantCount} businesses`
+            : detail.counterpart?.city
+        }
       />
 
       {detail.state === 'pending' ? (
-        <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-          <p className="text-sm text-amber-800">This is a message request. Accept to start chatting.</p>
+        <div className="mb-2 flex flex-col gap-2 rounded-2xl border border-warning-soft bg-warning-soft p-3">
+          <p className="text-sm text-warning-ink">
+            This is a message request. Accept to reply — until then they only see their own
+            messages.
+          </p>
           <div className="flex gap-2">
             <Button onClick={() => decide.mutate('accept')} disabled={decide.isPending}>
               Accept
             </Button>
-            <Button variant="secondary" onClick={() => decide.mutate('decline')} disabled={decide.isPending}>
+            <Button
+              variant="secondary"
+              onClick={() => decide.mutate('decline')}
+              disabled={decide.isPending}
+            >
               Decline
             </Button>
           </div>
         </div>
       ) : null}
 
-      <div className="flex flex-1 flex-col gap-2 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-28 pt-1">
         {messages.isLoading ? (
           <LoadingBlock />
         ) : ordered.length > 0 ? (
-          ordered.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              onAcceptQuote={(orderId) => acceptQuote.mutate(orderId)}
-              accepting={acceptQuote.isPending}
-              onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)}
-              onCurate={(reference) => curate.mutate(reference)}
-              curating={curate.isPending}
-              curated={Boolean(message.reference && savedRefs.has(message.reference.id))}
-            />
-          ))
+          <>
+            {ordered.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                onAcceptQuote={(orderId) => acceptQuote.mutate(orderId)}
+                accepting={acceptQuote.isPending}
+                onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)}
+                onCurate={(reference) => curate.mutate(reference)}
+                curating={curate.isPending}
+                curated={Boolean(message.reference && savedRefs.has(message.reference.id))}
+              />
+            ))}
+            <div ref={bottomRef} />
+          </>
         ) : (
           <p className="py-10 text-center text-sm text-muted">No messages yet. Say hello.</p>
         )}
       </div>
 
-      {error ? <p className="mb-2 text-center text-xs text-danger">{error}</p> : null}
+      {error ? <p className="px-4 text-center text-xs text-danger">{error}</p> : null}
 
       {canCompose ? (
         <form
-          className="sticky bottom-20 flex items-center gap-1 rounded-full border border-line bg-surface py-1.5 pl-1.5 pr-1.5"
+          className="fixed inset-x-0 z-30 mx-auto flex w-full max-w-md items-center gap-1 bg-canvas/95 px-4 py-2 backdrop-blur-md bottom-[calc(4.25rem+env(safe-area-inset-bottom))]"
           onSubmit={(event) => {
             event.preventDefault();
-            if (draft.trim()) {
+            if (draft.trim() && !send.isPending) {
               send.mutate({ type: 'text', body: draft.trim() });
             }
           }}
         >
-          <button
-            type="button"
-            aria-label="Attach"
-            onClick={() => setAttachOpen(true)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam"
-          >
-            <PlusIcon width={20} height={20} />
-          </button>
-          <input
-            className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
-            placeholder="Message…"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <button
-            type="submit"
-            aria-label="Send"
-            disabled={!draft.trim() || send.isPending}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white disabled:opacity-40"
-          >
-            <SendIcon width={18} height={18} />
-          </button>
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
+            <button
+              type="button"
+              aria-label="Attach"
+              onClick={() => setAttachOpen(true)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-accent hover:bg-foam"
+            >
+              <PlusIcon width={20} height={20} />
+            </button>
+            <input
+              className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
+              placeholder="Message…"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <button
+              type="submit"
+              aria-label="Send"
+              disabled={!draft.trim() || send.isPending}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
+            >
+              <SendIcon width={18} height={18} />
+            </button>
+          </div>
         </form>
       ) : null}
 
@@ -289,16 +321,17 @@ function MessageBubble({
     message.type === 'collection_card' ||
     message.type === 'product_card';
 
+  const outgoing = message.mine;
+
   return (
-    <div className={cx('flex', message.mine ? 'justify-end' : 'justify-start')}>
+    <div className={cx('flex w-full', outgoing ? 'justify-end' : 'justify-start')}>
       <div
         className={cx(
           'max-w-[85%] rounded-2xl px-3.5 py-2 text-sm',
-          isCard
-            ? 'border border-line bg-surface text-ink'
-            : message.mine
-              ? 'bg-accent text-white'
-              : 'border border-line bg-surface text-ink',
+          outgoing
+            ? 'rounded-br-md bg-accent text-white'
+            : 'rounded-bl-md border border-line bg-foam text-ink',
+          isCard && 'min-w-[12rem] border border-line bg-surface text-ink',
         )}
       >
         {message.type === 'order_card' && ref ? (
@@ -336,13 +369,20 @@ function MessageBubble({
             curated={curated}
           />
         ) : null}
-        {!isCard && message.body ? (
-          <p className="whitespace-pre-wrap break-words">{message.body}</p>
+        {!isCard ? (
+          <p className="whitespace-pre-wrap break-words">
+            {message.body?.trim() ? message.body : 'Message'}
+          </p>
+        ) : null}
+        {isCard && !ref ? (
+          <p className="whitespace-pre-wrap break-words text-muted">
+            {message.body?.trim() ? message.body : 'Shared attachment'}
+          </p>
         ) : null}
         <p
           className={cx(
             'mt-0.5 text-right text-[10px]',
-            !isCard && message.mine ? 'text-white/70' : 'text-muted',
+            !isCard && outgoing ? 'text-white/70' : 'text-muted',
           )}
         >
           {timeAgo(message.createdAt)}

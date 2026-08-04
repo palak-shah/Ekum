@@ -35,6 +35,7 @@ export class CatalogSerializer {
       status: collection.status,
       audience: collection.audience,
       rateVisibility: collection.rateVisibility,
+      audienceCompanyIds: collection.audienceCompanyIds ?? [],
       productCount: productCount ?? collection._count?.products ?? 0,
       createdAt: collection.createdAt.toISOString(),
       updatedAt: collection.updatedAt.toISOString(),

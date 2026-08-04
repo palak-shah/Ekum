@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ekum dual test — Ravi · Meena</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #33271b;
+        --muted: #828282;
+        --line: #e7e8e6;
+        --canvas: #f7f3ea;
+        --accent: #2b7379;
+        --surface: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: 'DM Sans', system-ui, sans-serif;
+        background: var(--canvas);
+        color: var(--ink);
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem 1.25rem;
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+      header h1 {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 700;
+      }
+      header p {
+        margin: 0;
+        font-size: 0.75rem;
+        color: var(--muted);
+        flex: 1;
+        min-width: 12rem;
+      }
+      header code {
+        font-size: 0.7rem;
+        background: #e8f2f1;
+        color: var(--accent);
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.35rem;
+      }
+      .actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+      button {
+        border: 1.5px solid var(--accent);
+        background: var(--surface);
+        color: var(--accent);
+        font: inherit;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.4rem 0.75rem;
+        border-radius: 0.65rem;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #e8f2f1;
+      }
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        min-height: 0;
+      }
+      section {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        border-right: 1px solid var(--line);
+      }
+      section:last-child {
+        border-right: 0;
+      }
+      .pane-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+      }
+      .pane-head strong {
+        font-size: 0.85rem;
+      }
+      .pane-head span {
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+      iframe {
+        flex: 1;
+        width: 100%;
+        border: 0;
+        background: #fff;
+        /* Phone-ish width centered in each pane */
+        max-width: 430px;
+        margin: 0 auto;
+        display: block;
+        box-shadow: 0 0 0 1px var(--line);
+      }
+      .frame-wrap {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        background: #ebe6dc;
+        padding: 0.5rem 0 0;
+      }
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr 1fr;
+        }
+        section {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          min-height: 50vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Ekum dual test</h1>
+      <p>
+        Two origins so logins stay separate:
+        <code>localhost</code> (Ravi) · <code>127.0.0.1</code> (Meena). OTP Dev code
+        appears on each login screen.
+      </p>
+      <div class="actions">
+        <button type="button" id="reload-left">Reload Ravi</button>
+        <button type="button" id="reload-right">Reload Meena</button>
+        <button type="button" id="reload-both">Reload both</button>
+      </div>
+    </header>
+    <main>
+      <section>
+        <div class="pane-head">
+          <strong>Ravi</strong>
+          <span>+919800000001 · localhost</span>
+        </div>
+        <div class="frame-wrap">
+          <iframe
+            id="left"
+            title="Ravi"
+            src="http://localhost:5173/"
+          ></iframe>
+        </div>
+      </section>
+      <section>
+        <div class="pane-head">
+          <strong>Meena</strong>
+          <span>+919800000002 · 127.0.0.1</span>
+        </div>
+        <div class="frame-wrap">
+          <iframe
+            id="right"
+            title="Meena"
+            src="http://127.0.0.1:5173/"
+          ></iframe>
+        </div>
+      </section>
+    </main>
+    <script>
+      const left = document.getElementById('left');
+      const right = document.getElementById('right');
+      document.getElementById('reload-left').onclick = () => {
+        left.src = left.src;
+      };
+      document.getElementById('reload-right').onclick = () => {
+        right.src = right.src;
+      };
+      document.getElementById('reload-both').onclick = () => {
+        left.src = left.src;
+        right.src = right.src;
+      };
+    </script>
+  </body>
+</html>

@@ -46,6 +46,7 @@ const publishedCollection = {
   status: 'published',
   audience: 'connections',
   rateVisibility: 'on_request',
+  audienceCompanyIds: [] as string[],
   company: { id: 'owner' },
   _count: { products: 2 },
   products: [
@@ -97,5 +98,32 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.connected).toBe(false);
     expect(view.products).toHaveLength(2);
     expect(view.products?.[0]?.rate).toBeNull();
+  });
+
+  it('404s selected-audience collections for companies not on the list', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        audience: 'selected',
+        audienceCompanyIds: ['buyer-a'],
+      },
+      { blocked: false, connected: false },
+    );
+    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('unlocks products for a company on the selected list', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        audience: 'selected',
+        audienceCompanyIds: ['viewer'],
+      },
+      { blocked: false, connected: false },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toHaveLength(2);
   });
 });

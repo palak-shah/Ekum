@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CollectionDetailView,
+  ConnectionView,
   CreateCollectionDto,
   ProductView,
   PublishCollectionDto,
@@ -24,6 +25,7 @@ export function CollectionEditorPage() {
   const [form, setForm] = useState({ name: '', description: '', coverImage: '' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [audience, setAudience] = useState<string>(PublishAudience.Connections);
+  const [audienceCompanies, setAudienceCompanies] = useState<Set<string>>(new Set());
   const [rateVisibility, setRateVisibility] = useState<string>(RateVisibility.OnRequest);
   const [consent, setConsent] = useState(false);
 
@@ -37,8 +39,14 @@ export function CollectionEditorPage() {
     queryFn: () => api.get<ProductView[]>('/products'),
     enabled: editing,
   });
+  const connections = useQuery({
+    queryKey: ['connections'],
+    queryFn: () => api.get<ConnectionView[]>('/connections'),
+    enabled: publishOpen,
+  });
 
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
+  const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
 
   useEffect(() => {
     if (existing.data) {
@@ -49,6 +57,7 @@ export function CollectionEditorPage() {
       });
       setSelected(new Set(existing.data.products.map((product) => product.id)));
       setAudience(existing.data.audience || PublishAudience.Connections);
+      setAudienceCompanies(new Set(existing.data.audienceCompanyIds ?? []));
       setRateVisibility(existing.data.rateVisibility || RateVisibility.OnRequest);
     }
   }, [existing.data]);
@@ -90,6 +99,9 @@ export function CollectionEditorPage() {
       const dto: PublishCollectionDto = {
         audience: audience as PublishCollectionDto['audience'],
         rateVisibility: rateVisibility as PublishCollectionDto['rateVisibility'],
+        ...(audience === PublishAudience.Selected
+          ? { companyIds: [...audienceCompanies] }
+          : {}),
         ...(canPublishAlready ? {} : { consentToSell: true }),
       };
       return api.post(`/collections/${id}/publish`, dto);
@@ -125,7 +137,20 @@ export function CollectionEditorPage() {
       return next;
     });
 
-  const canSubmitPublish = canPublishAlready || consent;
+  const toggleAudienceCompany = (companyId: string) =>
+    setAudienceCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(companyId)) {
+        next.delete(companyId);
+      } else {
+        next.add(companyId);
+      }
+      return next;
+    });
+
+  const canSubmitPublish =
+    (canPublishAlready || consent) &&
+    (audience !== PublishAudience.Selected || audienceCompanies.size > 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -196,7 +221,7 @@ export function CollectionEditorPage() {
                 [
                   [PublishAudience.Everyone, 'Everyone'],
                   [PublishAudience.Connections, 'My connections'],
-                  [PublishAudience.Selected, 'Selected (pick later)'],
+                  [PublishAudience.Selected, 'Selected companies'],
                 ] as const
               ).map(([value, label]) => (
                 <button
@@ -212,6 +237,37 @@ export function CollectionEditorPage() {
                 </button>
               ))}
             </div>
+            {audience === PublishAudience.Selected ? (
+              <div className="mt-3 flex flex-col gap-1.5">
+                <p className="text-xs text-muted">
+                  {audienceCompanies.size} selected · only these businesses will see it
+                </p>
+                {connections.isLoading ? (
+                  <LoadingBlock />
+                ) : activeConnections.length > 0 ? (
+                  activeConnections.map((connection) => (
+                    <button
+                      key={connection.id}
+                      type="button"
+                      onClick={() => toggleAudienceCompany(connection.company.id)}
+                      className={cx(
+                        'rounded-xl border px-3 py-2.5 text-left text-sm',
+                        audienceCompanies.has(connection.company.id)
+                          ? 'border-accent bg-accent/5 font-medium text-ink'
+                          : 'border-line text-muted',
+                      )}
+                    >
+                      {connection.company.name}
+                      <span className="ml-2 text-xs font-normal text-muted">
+                        {connection.company.city}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted">Approve a connection first, then pick them here.</p>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div>

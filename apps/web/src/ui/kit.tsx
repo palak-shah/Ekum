@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react';
+import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
 
@@ -9,10 +10,11 @@ export function cx(...values: Array<string | false | null | undefined>): string 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-dark disabled:opacity-50',
-  secondary: 'bg-surface text-accent border-[1.5px] border-accent hover:bg-foam disabled:opacity-50',
-  ghost: 'text-accent hover:bg-foam disabled:opacity-50',
-  danger: 'bg-danger text-white hover:bg-danger/90 disabled:opacity-50',
+  primary: 'bg-accent text-white hover:bg-accent-dark active:bg-accent-dark disabled:opacity-45',
+  secondary:
+    'bg-surface text-accent border-[1.5px] border-accent hover:bg-foam active:bg-foam disabled:opacity-45',
+  ghost: 'text-accent hover:bg-foam active:bg-foam disabled:opacity-45',
+  danger: 'bg-danger text-white hover:bg-danger/90 disabled:opacity-45',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -24,7 +26,7 @@ export function Button({ variant = 'primary', fullWidth, className, ...props }: 
   return (
     <button
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed',
+        'inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[13px] px-4 text-sm font-bold tracking-tight transition-colors disabled:cursor-not-allowed',
         BUTTON_VARIANT[variant],
         fullWidth && 'w-full',
         className,
@@ -34,9 +36,50 @@ export function Button({ variant = 'primary', fullWidth, className, ...props }: 
   );
 }
 
+/** Prototype chip — one style system for filters and action cues. */
+export function Chip({
+  children,
+  active = false,
+  onClick,
+  className,
+  type = 'button',
+}: {
+  children: ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+  className?: string;
+  type?: 'button' | 'submit';
+}) {
+  const classes = cx(
+    'inline-flex h-8 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-bold tracking-tight transition-colors',
+    active
+      ? 'border-accent bg-accent text-white'
+      : 'border-line bg-surface text-slate hover:border-accent/40',
+    className,
+  );
+  // Span when nested in a Link (no button-in-anchor).
+  if (!onClick) {
+    return <span className={classes}>{children}</span>;
+  }
+  return (
+    <button type={type} onClick={onClick} className={classes}>
+      {children}
+    </button>
+  );
+}
+
+/** Horizontal filter rail — keeps chips intentional, not scattered. */
+export function FilterRail({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cx('-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]', className)}>
+      {children}
+    </div>
+  );
+}
+
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('rounded-2xl border border-line bg-surface p-4', className)}>
+    <div className={cx('rounded-2xl bg-surface p-4 shadow-[var(--shadow-soft)]', className)}>
       {children}
     </div>
   );
@@ -52,10 +95,10 @@ interface FieldProps {
 export function Field({ label, hint, error, children }: FieldProps) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-ink">{label}</span>
+      <span className="text-sm font-semibold text-ink">{label}</span>
       {children}
       {error ? (
-        <span className="text-xs text-danger">{error}</span>
+        <span className="text-xs font-medium text-danger">{error}</span>
       ) : hint ? (
         <span className="text-xs text-muted">{hint}</span>
       ) : null}
@@ -67,7 +110,7 @@ export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInput
   return (
     <input
       className={cx(
-        'rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent',
+        'min-h-[46px] rounded-[13px] border border-line bg-surface px-3.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
         className,
       )}
       {...props}
@@ -79,7 +122,7 @@ export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return (
     <textarea
       className={cx(
-        'min-h-24 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent',
+        'min-h-24 rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
         className,
       )}
       {...props}
@@ -91,7 +134,7 @@ export function StatusPill({ status }: { status: string }) {
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold',
         statusClasses(status),
       )}
     >
@@ -102,7 +145,12 @@ export function StatusPill({ status }: { status: string }) {
 
 export function Tag({ children, tone = 'neutral' }: { children: ReactNode; tone?: StatusTone }) {
   return (
-    <span className={cx('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium', toneClasses(tone))}>
+    <span
+      className={cx(
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        toneClasses(tone),
+      )}
+    >
       {children}
     </span>
   );
@@ -111,7 +159,7 @@ export function Tag({ children, tone = 'neutral' }: { children: ReactNode; tone?
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full bg-accent font-semibold text-white"
+      className="flex shrink-0 items-center justify-center rounded-full bg-accent font-bold text-white"
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {initials(name) || '?'}
@@ -121,8 +169,8 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
 
 export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between px-1">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+    <div className="flex items-center justify-between gap-3 px-0.5">
+      <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">{title}</h2>
       {action}
     </div>
   );
@@ -144,7 +192,7 @@ export function LoadingBlock({ label = 'Loading…' }: { label?: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-muted">
       <Spinner />
-      <span className="text-sm">{label}</span>
+      <span className="text-sm font-medium">{label}</span>
     </div>
   );
 }
@@ -163,18 +211,18 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line bg-surface/70 px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-ink">{title}</p>
+    <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+      <p className="text-sm font-bold text-ink">{title}</p>
       {message ? <p className="max-w-xs text-sm text-muted">{message}</p> : null}
-      {action ? <div className="mt-2">{action}</div> : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-6 py-10 text-center">
-      <p className="text-sm font-medium text-danger">{message}</p>
+    <div className="flex flex-col items-center gap-3 rounded-2xl bg-danger-soft px-6 py-10 text-center">
+      <p className="text-sm font-semibold text-danger">{message}</p>
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
           Try again
@@ -184,7 +232,11 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
-/** A bottom sheet — the app's primary way to surface contextual actions. */
+/**
+ * Bottom sheet. Portaled to document.body so it always stacks above the
+ * AppShell bottom nav (nav is z-20; sheets rendered inside <main> were trapped
+ * under it and hid primary CTAs like "Send request").
+ */
 export function Sheet({
   open,
   onClose,
@@ -196,21 +248,27 @@ export function Sheet({
   title?: string;
   children: ReactNode;
 }) {
-  if (!open) {
+  if (!open || typeof document === 'undefined') {
     return null;
   }
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
-      <button
-        aria-label="Close"
-        className="absolute inset-0 bg-ink/40"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full max-w-md rounded-t-3xl bg-surface p-5 pb-8 shadow-xl">
-        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-line" />
-        {title ? <h3 className="mb-4 text-base font-semibold text-ink">{title}</h3> : null}
-        {children}
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button aria-label="Close" className="absolute inset-0 bg-ink/35" onClick={onClose} />
+      <div
+        className="relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-[22px] bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]"
+        style={{ animation: 'ekum-sheet 280ms ease-out' }}
+      >
+        <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
+        {title ? (
+          <h3 className="mb-4 shrink-0 text-base font-bold tracking-tight text-ink">{title}</h3>
+        ) : null}
+        <div className="min-h-0 overflow-y-auto">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

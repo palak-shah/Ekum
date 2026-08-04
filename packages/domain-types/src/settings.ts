@@ -31,6 +31,9 @@ export const updateCompanySettingsSchema = z.object({
   returnPolicy: z.string().trim().max(2000).nullable().optional(),
   tradeDefaults: z.record(z.string(), z.unknown()).optional(),
   myTools: z.record(z.string(), z.boolean()).optional(),
+  /** Profile toggles — merged into tradeDefaults (default both true when unset). */
+  buyingEnabled: z.boolean().optional(),
+  sellingEnabled: z.boolean().optional(),
 });
 export type UpdateCompanySettingsDto = z.infer<typeof updateCompanySettingsSchema>;
 

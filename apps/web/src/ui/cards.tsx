@@ -21,8 +21,8 @@ export function CompanyRow({ company, to }: { company: PublicCompanySummary; to?
     <div className="flex items-center gap-3">
       <Avatar name={company.name} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
-        <p className="truncate text-xs text-muted">{company.city}</p>
+        <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
+        <p className="truncate text-xs font-medium text-muted">{company.city}</p>
       </div>
       <VerificationTag verification={company.verification} />
       {to ? <ChevronRightIcon className="text-muted" /> : null}
@@ -30,12 +30,12 @@ export function CompanyRow({ company, to }: { company: PublicCompanySummary; to?
   );
   if (to) {
     return (
-      <Link to={to} className="block rounded-2xl border border-line bg-surface p-3.5 hover:bg-foam">
+      <Link to={to} className="block rounded-2xl bg-surface p-3.5 hover:bg-foam/80">
         {inner}
       </Link>
     );
   }
-  return <div className="rounded-2xl border border-line bg-surface p-3.5">{inner}</div>;
+  return <div className="rounded-2xl bg-surface p-3.5">{inner}</div>;
 }
 
 /** Fills its parent; parent must set size + overflow-hidden. */
@@ -74,16 +74,16 @@ export function CollectionTile({
   return (
     <Link
       to={`/collections/${collection.id}`}
-      className="block w-44 shrink-0 overflow-hidden rounded-2xl border border-line bg-surface p-2.5 hover:bg-foam"
+      className="block w-44 shrink-0 overflow-hidden rounded-2xl bg-surface p-2 shadow-[var(--shadow-soft)]"
     >
       <div className="h-32 w-full overflow-hidden rounded-xl">
         <CoverImage src={cover} alt={collection.name} />
       </div>
-      <p className="mt-2 truncate text-sm font-semibold text-ink">{collection.name}</p>
+      <p className="mt-2 truncate text-sm font-bold tracking-tight text-ink">{collection.name}</p>
       {showCompany ? (
-        <p className="truncate text-xs text-muted">{collection.company.name}</p>
+        <p className="truncate text-xs font-medium text-muted">{collection.company.name}</p>
       ) : null}
-      <p className="mt-0.5 text-xs text-muted">{collection.productCount} designs</p>
+      <p className="mt-0.5 text-xs font-medium text-muted">{collection.productCount} designs</p>
     </Link>
   );
 }
@@ -93,7 +93,7 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
   return (
     <Link
       to={`/collections/${collection.id}`}
-      className="flex items-center gap-3 overflow-hidden rounded-2xl border border-line bg-surface p-2.5 hover:bg-foam"
+      className="flex items-center gap-3 overflow-hidden rounded-2xl bg-surface p-2.5 shadow-[var(--shadow-soft)]"
     >
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl">
         <CoverImage src={cover} alt={collection.name} />
@@ -184,14 +184,16 @@ export function AlbumGrid({
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
   return (
-    <article className="-mx-4 border-b border-line pb-3">
+    <article className="-mx-4 border-b border-line/80 pb-4">
       <div className="flex items-center gap-3 px-4 py-3">
         <Link to={`/company/${collection.company.id}`} className="shrink-0">
           <Avatar name={collection.company.name} size={40} />
         </Link>
         <Link to={`/company/${collection.company.id}`} className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{collection.company.name}</p>
-          <p className="truncate text-xs text-muted">
+          <p className="truncate text-sm font-bold tracking-tight text-ink">
+            {collection.company.name}
+          </p>
+          <p className="truncate text-xs font-medium text-muted">
             {collection.company.city}
             {collection.updatedAt ? ` · ${timeAgo(collection.updatedAt)}` : null}
           </p>
@@ -204,9 +206,9 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
           alt={collection.name}
         />
       </Link>
-      <Link to={`/collections/${collection.id}`} className="mt-2 block px-4">
-        <p className="text-sm font-semibold text-ink">{collection.name}</p>
-        <p className="text-xs text-muted">{collection.productCount} designs</p>
+      <Link to={`/collections/${collection.id}`} className="mt-2.5 block px-4">
+        <p className="text-sm font-bold tracking-tight text-ink">{collection.name}</p>
+        <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
       </Link>
     </article>
   );
@@ -219,13 +221,13 @@ export function ProductTile({
 }) {
   const image = 'images' in product ? product.images[0] ?? null : null;
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+    <div className="overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]">
       <div className="h-32 w-full overflow-hidden">
         <CoverImage src={image} alt={product.name} />
       </div>
       <div className="p-2.5">
-        <p className="truncate text-sm font-medium text-ink">{product.name}</p>
-        <p className="text-xs text-muted">{formatRate(product.rate, product.unit)}</p>
+        <p className="truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
+        <p className="text-xs font-medium text-muted">{formatRate(product.rate, product.unit)}</p>
       </div>
     </div>
   );

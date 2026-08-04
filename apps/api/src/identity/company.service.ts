@@ -1,8 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type Company } from '@prisma/client';
 import {
   CollectionStatus,
   MembershipRole,
+  PublishAudience,
   type AuthTokens,
   type CollectionCard,
   type CompanyContactPoint,
@@ -101,7 +102,7 @@ export class CompanyService {
 
     return {
       tokens,
-      company: this.serializer.toOwnProfile(company, user.name),
+      company: await this.toOwnProfile(company, user.name),
     };
   }
 
@@ -110,7 +111,7 @@ export class CompanyService {
       this.prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
       this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true } }),
     ]);
-    return this.serializer.toOwnProfile(company, user.name);
+    return this.toOwnProfile(company, user.name);
   }
 
   async updateOwnProfile(
@@ -141,7 +142,18 @@ export class CompanyService {
       where: { id: userId },
       select: { name: true },
     });
-    return this.serializer.toOwnProfile(company, user.name);
+    return this.toOwnProfile(company, user.name);
+  }
+
+  private async toOwnProfile(
+    company: Company,
+    contactPerson: string | null,
+  ): Promise<OwnCompanyProfile> {
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: company.id },
+      select: { tradeDefaults: true },
+    });
+    return this.serializer.toOwnProfile(company, contactPerson, settings?.tradeDefaults);
   }
 
   async getPublicProfile(viewerCompanyId: string, targetId: string): Promise<PublicCompanyProfile> {
@@ -194,6 +206,15 @@ export class CompanyService {
       where: {
         companyId: targetId,
         status: CollectionStatus.Published,
+        OR: [
+          { audience: { not: PublishAudience.Selected } },
+          {
+            audience: PublishAudience.Selected,
+            audienceCompanyIds: { has: viewerCompanyId },
+          },
+          // Owner browsing their own shop still sees every published collection.
+          ...(viewerCompanyId === targetId ? [{ companyId: targetId }] : []),
+        ],
       },
       include: collectionCardInclude,
       ...cursorArgs(query),

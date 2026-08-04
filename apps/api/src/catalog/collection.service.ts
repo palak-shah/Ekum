@@ -8,6 +8,7 @@ import {
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { ensureSellingEnabled } from '../identity/trade-presence';
 import { assertCanPublish, grantPublishCapability } from './publish-capability';
 import { CatalogSerializer } from './catalog.serializer';
 
@@ -27,6 +28,7 @@ export class CollectionService {
         coverImage: dto.coverImage ?? null,
       },
     });
+    await ensureSellingEnabled(this.prisma, companyId);
     return this.serializer.toCollectionView(collection, 0);
   }
 
@@ -77,12 +79,15 @@ export class CollectionService {
         await grantPublishCapability(this.prisma, companyId);
       }
     }
+    const audienceCompanyIds =
+      dto.audience === 'selected' ? [...new Set(dto.companyIds ?? [])] : [];
     const collection = await this.prisma.collection.update({
       where: { id },
       data: {
         status: CollectionStatus.Published,
         audience: dto.audience,
         rateVisibility: dto.rateVisibility,
+        audienceCompanyIds,
       },
       include: { _count: { select: { products: true } } },
     });

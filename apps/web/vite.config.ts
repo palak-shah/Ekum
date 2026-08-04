@@ -50,5 +50,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // So dual-test.html can load the app on both localhost and 127.0.0.1
+    // (separate origins → two independent login sessions side by side).
+    host: true,
   },
 });

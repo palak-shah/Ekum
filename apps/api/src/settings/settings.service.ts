@@ -9,6 +9,7 @@ import type {
   UpsertBillingFirmDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { asTradeDefaults, mergeTradeDefaults } from '../identity/trade-presence';
 
 @Injectable()
 export class SettingsService {
@@ -101,19 +102,34 @@ export class SettingsService {
     companyId: string,
     dto: UpdateCompanySettingsDto,
   ): Promise<CompanySettingsView> {
-    const tradeDefaults = dto.tradeDefaults as Prisma.InputJsonValue | undefined;
+    const existing = await this.prisma.companySettings.findUnique({ where: { companyId } });
+    const presencePatch: Record<string, unknown> = {};
+    if (dto.buyingEnabled !== undefined) {
+      presencePatch.buyingEnabled = dto.buyingEnabled;
+    }
+    if (dto.sellingEnabled !== undefined) {
+      presencePatch.sellingEnabled = dto.sellingEnabled;
+    }
+    const baseDefaults =
+      dto.tradeDefaults !== undefined
+        ? { ...asTradeDefaults(existing?.tradeDefaults), ...asTradeDefaults(dto.tradeDefaults) }
+        : asTradeDefaults(existing?.tradeDefaults);
+    const tradeDefaults =
+      Object.keys(presencePatch).length > 0 || dto.tradeDefaults !== undefined
+        ? mergeTradeDefaults(baseDefaults, presencePatch)
+        : undefined;
     const myTools = dto.myTools as Prisma.InputJsonValue | undefined;
     const settings = await this.prisma.companySettings.upsert({
       where: { companyId },
       create: {
         companyId,
         returnPolicy: dto.returnPolicy ?? null,
-        tradeDefaults,
+        tradeDefaults: tradeDefaults ?? {},
         myTools,
       },
       update: {
         returnPolicy: dto.returnPolicy,
-        tradeDefaults,
+        ...(tradeDefaults !== undefined ? { tradeDefaults } : {}),
         myTools,
       },
     });

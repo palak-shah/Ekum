@@ -5,7 +5,9 @@ import type {
   OwnCompanyProfile,
   PublicCompanyProfile,
   PublicCompanySummary,
+  TradePresence,
 } from '@ekum/domain-types';
+import { resolveTradePresence } from '../identity/trade-presence';
 
 type MembershipWithUser = CompanyMembership & { user: Pick<User, 'name' | 'phone'> };
 
@@ -37,7 +39,12 @@ export class CompanySerializer {
     };
   }
 
-  toOwnProfile(company: Company, contactPerson: string | null = null): OwnCompanyProfile {
+  toOwnProfile(
+    company: Company,
+    contactPerson: string | null = null,
+    tradeDefaults: unknown = null,
+  ): OwnCompanyProfile {
+    const tradePresence: TradePresence = resolveTradePresence(tradeDefaults);
     return {
       ...this.toPublicProfile(company),
       gstNumber: company.gstNumber,
@@ -49,6 +56,7 @@ export class CompanySerializer {
         relist: company.canRelist,
         refer: company.canRefer,
       },
+      tradePresence,
     };
   }
 

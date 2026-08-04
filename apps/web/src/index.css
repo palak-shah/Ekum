@@ -1,8 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 @import 'tailwindcss';
 
 /*
- * Tokens from brand presentation + v5 HTML:
- * teal #27A9B5 / #369594, orange #F8A12C, warm canvas.
+ * Market-sharp tokens aligned to v5 HTML prototype + brand presentation.
+ * Teal is the only accent; tangerine is alerts only.
  */
 @theme {
   --color-ink: #33271b;
@@ -10,13 +11,13 @@
   --color-slate: #3d3a37;
   --color-surface: #ffffff;
   --color-canvas: #f7f3ea;
-  --color-foam: #eaf4f2;
+  --color-foam: #e8f2f1;
   --color-linen: #e8e7d5;
   --color-line: #e7e8e6;
-  --color-brand: #369594;
-  --color-accent: #27a9b5;
-  --color-accent-dark: #369594;
-  --color-tangerine: #f8a12c;
+  --color-brand: #2b7379;
+  --color-accent: #2b7379;
+  --color-accent-dark: #1f5559;
+  --color-tangerine: #ff9700;
   --color-success: #22c55e;
   --color-success-soft: #e9f8ef;
   --color-success-ink: #1b7f43;
@@ -25,8 +26,8 @@
   --color-warning-ink: #9b5c00;
   --color-danger: #e5484d;
   --color-danger-soft: #fdecec;
-  --font-sans:
-    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --shadow-soft: 0 12px 28px rgb(51 39 27 / 0.1);
 }
 
 html,
@@ -36,25 +37,54 @@ body,
 }
 
 html {
-  background: var(--color-linen);
+  background: var(--color-canvas);
 }
 
 body {
   margin: 0;
-  background:
-    linear-gradient(160deg, var(--color-linen) 0%, var(--color-canvas) 45%, var(--color-foam) 100%);
-  background-attachment: fixed;
+  background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.42;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Soft teal focus ring (brand accent). */
 :focus-visible {
-  outline: 3px solid rgb(39 169 181 / 0.28);
+  outline: 2px solid rgb(43 115 121 / 0.45);
   outline-offset: 2px;
+}
+
+@keyframes ekum-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ekum-sheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.ekum-rise {
+  animation: ekum-rise 280ms ease-out both;
+}
+
+.ekum-glass {
+  background: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 @media (prefers-reduced-motion: reduce) {

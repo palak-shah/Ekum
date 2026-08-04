@@ -19,6 +19,7 @@ export function ChatsPage() {
         limit: 40,
         state: tab === 'requests' ? 'pending' : 'active',
       }),
+    refetchInterval: 5_000,
   });
 
   const filtered = useMemo(() => {
@@ -83,8 +84,8 @@ export function ChatsPage() {
             query.trim()
               ? 'Try another name or message.'
               : tab === 'requests'
-                ? 'Access requests and first messages from new businesses land here.'
-                : 'Message a business, or request access — the chat shows up here.'
+                ? 'First messages from businesses you are not connected with land here. Approve access in My buyers.'
+                : 'Open a connected chat, or check Requests for new message requests.'
           }
         />
       )}

@@ -40,12 +40,24 @@ export const setCollectionProductsSchema = z.object({
 export type SetCollectionProductsDto = z.infer<typeof setCollectionProductsSchema>;
 
 /** Audience + rate visibility decided in the publish sheet (not a settings page). */
-export const publishCollectionSchema = z.object({
-  audience: z.enum(publishAudienceValues).default('connections'),
-  rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
-  /** Required the first time a company ever publishes — unlocks canPublish. */
-  consentToSell: z.boolean().optional(),
-});
+export const publishCollectionSchema = z
+  .object({
+    audience: z.enum(publishAudienceValues).default('connections'),
+    rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
+    /** Required when audience is `selected` — company IDs that may see this collection. */
+    companyIds: z.array(z.string().min(1)).max(500).optional(),
+    /** Required the first time a company ever publishes — unlocks canPublish. */
+    consentToSell: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.audience === 'selected' && (!value.companyIds || value.companyIds.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Pick at least one company for a selected audience.',
+        path: ['companyIds'],
+      });
+    }
+  });
 export type PublishCollectionDto = z.infer<typeof publishCollectionSchema>;
 
 export interface ProductView {
@@ -70,6 +82,7 @@ export interface CollectionView {
   status: string;
   audience: string;
   rateVisibility: string;
+  audienceCompanyIds: string[];
   productCount: number;
   createdAt: string;
   updatedAt: string;

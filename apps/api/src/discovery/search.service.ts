@@ -62,6 +62,10 @@ export class SearchService {
         companyId: { not: viewerCompanyId },
         name: { contains: query.q, mode: 'insensitive' },
         company: { connectionsAsOwner: { none: { viewerCompanyId, status: ConnectionStatus.Blocked } } },
+        OR: [
+          { audience: { not: 'selected' } },
+          { audience: 'selected', audienceCompanyIds: { has: viewerCompanyId } },
+        ],
       },
       include: collectionCardInclude,
       ...cursorArgs(query),

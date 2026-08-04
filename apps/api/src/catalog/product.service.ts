@@ -6,6 +6,7 @@ import {
   type UpdateProductDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { ensureSellingEnabled } from '../identity/trade-presence';
 import { assertCanPublish } from './publish-capability';
 import { CatalogSerializer } from './catalog.serializer';
 
@@ -29,6 +30,7 @@ export class ProductService {
         images: dto.images,
       },
     });
+    await ensureSellingEnabled(this.prisma, companyId);
     return this.serializer.toProductView(product);
   }
 

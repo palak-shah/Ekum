@@ -2,6 +2,7 @@ import { Suspense, useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useMyCompany, useUnreadCount } from '@/lib/queries';
+import { useTradePresence } from '@/lib/tradePresence';
 import { BrandMark } from '@/ui/BrandMark';
 import { Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import {
@@ -22,16 +23,15 @@ const NAV = [
 ] as const;
 
 /**
- * The authenticated, mobile-first shell: a slim top bar (brand + notifications),
- * bottom navigation, and a Create sheet whose verbs adapt to buyer vs seller.
+ * Mobile-first shell: quiet header, glass bottom nav, one elevated ＋.
  */
 export function AppShell() {
   const navigate = useNavigate();
   const [sheetOpen, setSheetOpen] = useState(false);
   const company = useMyCompany();
   const unread = useUnreadCount();
+  const { buying, selling, canPublish } = useTradePresence();
   const capabilities = company.data?.capabilities;
-  const canPublish = Boolean(capabilities?.publish);
 
   const go = (path: string) => {
     setSheetOpen(false);
@@ -39,13 +39,13 @@ export function AppShell() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-transparent">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur">
+    <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/95 px-4 py-2.5 backdrop-blur-md">
         <BrandMark size="header" />
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             aria-label="Notifications"
-            className="relative rounded-full p-2 text-ink hover:bg-foam"
+            className="relative rounded-full p-2 text-slate hover:bg-foam"
             onClick={() => navigate('/notifications')}
           >
             <BellIcon />
@@ -57,7 +57,7 @@ export function AppShell() {
           </button>
           <button
             aria-label="Profile and settings"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-white"
             onClick={() => navigate('/more')}
           >
             {(company.data?.name ?? 'E').charAt(0).toUpperCase()}
@@ -65,19 +65,19 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="flex-1 px-4 pb-28 pt-4">
+      <main className="ekum-rise flex-1 px-4 pb-28 pt-3">
         <Suspense fallback={<LoadingBlock />}>
           <Outlet />
         </Suspense>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-center justify-around border-t border-line bg-surface/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5 backdrop-blur">
+      <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-end justify-around border-t border-line/80 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
         {NAV.slice(0, 2).map((item) => (
           <NavItem key={item.to} {...item} />
         ))}
         <button
           aria-label="Create"
-          className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/25"
+          className="-mt-5 mb-1 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-soft)]"
           onClick={() => setSheetOpen(true)}
         >
           <PlusIcon width={26} height={26} />
@@ -89,13 +89,17 @@ export function AppShell() {
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
         <div className="flex flex-col gap-2">
-          <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
-            Photo order
-          </Button>
-          <Button variant="secondary" fullWidth onClick={() => go('/explore')}>
-            Find a supplier
-          </Button>
-          {canPublish ? (
+          {buying ? (
+            <>
+              <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
+                Photo order
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => go('/explore')}>
+                Find a supplier
+              </Button>
+            </>
+          ) : null}
+          {selling ? (
             <>
               <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
                 Add designs
@@ -103,9 +107,11 @@ export function AppShell() {
               <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
                 New collection
               </Button>
-              <Button variant="secondary" fullWidth onClick={() => go('/broadcast/new')}>
-                Broadcast to buyers
-              </Button>
+              {canPublish ? (
+                <Button variant="secondary" fullWidth onClick={() => go('/broadcast/new')}>
+                  Broadcast to buyers
+                </Button>
+              ) : null}
             </>
           ) : null}
           {capabilities?.refer ? (
@@ -136,13 +142,24 @@ function NavItem({
       end={end}
       className={({ isActive }) =>
         cx(
-          'flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium',
+          'flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-bold tracking-tight',
           isActive ? 'text-accent' : 'text-muted',
         )
       }
     >
-      <Icon width={22} height={22} />
-      {label}
+      {({ isActive }) => (
+        <>
+          <span
+            className={cx(
+              'flex h-8 w-8 items-center justify-center rounded-full',
+              isActive && 'bg-foam',
+            )}
+          >
+            <Icon width={22} height={22} />
+          </span>
+          {label}
+        </>
+      )}
     </NavLink>
   );
 }

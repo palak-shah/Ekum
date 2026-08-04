@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { PrismaService } from '../core/prisma/prisma.service';
+import { rememberFirstPublishConsent } from '../identity/trade-presence';
 
 /**
  * Publishing unlocks on first consent (`canPublish`). Until then the publish
@@ -26,15 +27,5 @@ export async function grantPublishCapability(
     where: { id: companyId },
     data: { canPublish: true },
   });
-  // Remember first-publish consent on settings for audit / UI.
-  await prisma.companySettings.upsert({
-    where: { companyId },
-    create: {
-      companyId,
-      tradeDefaults: { firstPublishConsentedAt: new Date().toISOString() },
-    },
-    update: {
-      tradeDefaults: { firstPublishConsentedAt: new Date().toISOString() },
-    },
-  });
+  await rememberFirstPublishConsent(prisma, companyId);
 }

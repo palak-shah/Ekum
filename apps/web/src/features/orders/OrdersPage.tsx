@@ -5,26 +5,11 @@ import type { CursorPage, OrderView, SampleView } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
 import { Button, Card, EmptyState, LoadingBlock, StatusPill, cx } from '@/ui/kit';
+import { matchesCompleted, matchesNeeds, matchesProgress } from './orderAttention';
 
 type Segment = 'orders' | 'samples';
 type Direction = 'all' | 'buying' | 'selling';
 type StatusFilter = 'needs' | 'progress' | 'completed';
-
-const COMPLETED = new Set(['delivered', 'declined', 'cancelled']);
-
-function matchesNeeds(order: OrderView): boolean {
-  if (order.direction === 'selling' && order.status === 'requested') return true;
-  if (order.direction === 'buying' && order.status === 'dispatched') return true;
-  return false;
-}
-
-function matchesProgress(order: OrderView): boolean {
-  return order.status === 'confirmed' || order.status === 'dispatched';
-}
-
-function matchesCompleted(order: OrderView): boolean {
-  return COMPLETED.has(order.status);
-}
 
 export function OrdersPage() {
   const navigate = useNavigate();

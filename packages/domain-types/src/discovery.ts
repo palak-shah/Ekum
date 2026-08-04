@@ -16,10 +16,15 @@ const booleanFlag = z
   .transform((value) => value === 'true')
   .optional();
 
+export const exploreScopeValues = ['buy', 'sell'] as const;
+export type ExploreScope = (typeof exploreScopeValues)[number];
+
 export const exploreQuerySchema = cursorPageQuerySchema.extend({
   category: z.string().trim().min(1).max(80).optional(),
   city: z.string().trim().min(1).max(80).optional(),
   following: booleanFlag,
+  /** Buy = supplier collections; Sell = companies that buy (dual-role Explore toggle). */
+  scope: z.enum(exploreScopeValues).optional(),
 });
 export type ExploreQuery = z.infer<typeof exploreQuerySchema>;
 
@@ -38,6 +43,7 @@ export interface CompanyCard {
   city: string;
   verification: string;
   sellCategories: string[];
+  buyCategories: string[];
 }
 
 export interface CollectionCard {

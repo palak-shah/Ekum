@@ -222,10 +222,12 @@ model Collection {
   coverImage     String?
   status         String   @default("draft") // CollectionStatus
   // Decided at publish time (PublishAudience / RateVisibility).
-  audience       String   @default("connections")
-  rateVisibility String   @default("on_request")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  audience            String   @default("connections")
+  rateVisibility      String   @default("on_request")
+  /** When audience = selected, only these company IDs may discover/view the collection. */
+  audienceCompanyIds  String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   products CollectionProduct[]

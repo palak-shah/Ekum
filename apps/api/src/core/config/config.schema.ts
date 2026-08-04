@@ -9,7 +9,7 @@ export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(3000),
-    CORS_ORIGINS: z.string().default('http://localhost:5173'),
+    CORS_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
     DATABASE_URL: z.string().min(1),
     // Secrets must have real entropy; a weak secret makes JWT forgery practical.
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),

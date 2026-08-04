@@ -15,8 +15,25 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { CatalogSerializer } from '../catalog/catalog.serializer';
 import { DiscoverySerializer } from './discovery.serializer';
+import {
+  canDiscoverCollection,
+  canViewCollectionProducts,
+} from '../catalog/audience-visibility';
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
+
+/** Hide `selected`-audience collections from viewers who aren't on the list. */
+function audienceVisibility(viewerCompanyId: string): Prisma.CollectionWhereInput {
+  return {
+    OR: [
+      { audience: { not: PublishAudience.Selected } },
+      {
+        audience: PublishAudience.Selected,
+        audienceCompanyIds: { has: viewerCompanyId },
+      },
+    ],
+  };
+}
 
 @Injectable()
 export class ExploreService {
@@ -37,6 +54,7 @@ export class ExploreService {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
       company: this.companyFilter(viewerCompanyId, query),
+      AND: [audienceVisibility(viewerCompanyId)],
     };
 
     if (query.following) {
@@ -84,10 +102,17 @@ export class ExploreService {
   }
 
   async companies(viewerCompanyId: string, query: ExploreQuery): Promise<CursorPage<CompanyCard>> {
+    const lookingForBuyers = query.scope === 'sell';
     const where: Prisma.CompanyWhereInput = {
       id: { not: viewerCompanyId },
-      // Only selling businesses appear in the company browse.
-      sellCategories: query.category ? { has: query.category } : { isEmpty: false },
+      // Buy scope → suppliers; sell scope → businesses that buy (retailers).
+      ...(lookingForBuyers
+        ? {
+            buyCategories: query.category ? { has: query.category } : { isEmpty: false },
+          }
+        : {
+            sellCategories: query.category ? { has: query.category } : { isEmpty: false },
+          }),
       connectionsAsOwner: {
         none: { viewerCompanyId, status: ConnectionStatus.Blocked },
       },
@@ -132,12 +157,14 @@ export class ExploreService {
       if (collection.status !== CollectionStatus.Published) {
         throw notFound();
       }
+      if (!canDiscoverCollection(viewerCompanyId, collection)) {
+        throw notFound();
+      }
     }
 
     const connected =
       isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
-    const openToEveryone = collection.audience === PublishAudience.Everyone;
-    const showProducts = isOwner || connected || openToEveryone;
+    const showProducts = canViewCollectionProducts(viewerCompanyId, collection, connected);
 
     const products = showProducts
       ? collection.products.map((entry) => {

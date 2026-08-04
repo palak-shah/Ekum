@@ -1,10 +1,32 @@
 import { z } from 'zod';
 
+/**
+ * Canonical Indian mobile form used as the user identity key.
+ * Accepts 10-digit, 91…, 0…, or +91… and always stores +91XXXXXXXXXX.
+ */
+export function normalizePhone(input: string): string {
+  const digits = input.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return `+91${digits.slice(1)}`;
+  }
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+${digits}`;
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return input.trim();
+}
+
 /** Ekum authenticates a phone number (OTP), then binds it to a company. */
 export const phoneNumberSchema = z
   .string()
   .trim()
-  .regex(/^\+?[0-9]{10,15}$/, 'Enter a valid mobile number');
+  .transform(normalizePhone)
+  .refine((value) => /^\+[0-9]{10,15}$/.test(value), 'Enter a valid mobile number');
 
 export const requestOtpSchema = z.object({
   phone: phoneNumberSchema,

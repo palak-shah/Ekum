@@ -22,6 +22,7 @@ export class DiscoverySerializer {
       city: company.city,
       verification: company.verification,
       sellCategories: company.sellCategories,
+      buyCategories: company.buyCategories,
     };
   }
 

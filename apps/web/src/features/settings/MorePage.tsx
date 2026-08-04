@@ -1,23 +1,25 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useMyCompany } from '@/lib/queries';
+import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Button, Card, Tag } from '@/ui/kit';
 import { ChevronRightIcon } from '@/ui/icons';
-
-const MENU = [
-  { to: '/catalog', label: 'My collection' },
-  { to: '/buyers', label: 'My buyers' },
-  { to: '/broadcast', label: 'Broadcast' },
-  { to: '/referrals', label: 'Referrals' },
-  { to: '/settings', label: 'Settings' },
-  { to: '/settings/profile', label: 'Business profile' },
-] as const;
 
 export function MorePage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const company = useMyCompany();
+  const { buying, selling, canPublish } = useTradePresence();
+
+  const menu = [
+    ...(selling ? [{ to: '/catalog', label: 'My collection' }] : []),
+    ...(selling ? [{ to: '/buyers', label: 'My buyers' }] : []),
+    ...(selling && canPublish ? [{ to: '/broadcast', label: 'Broadcast' }] : []),
+    ...(company.data?.capabilities.refer ? [{ to: '/referrals', label: 'Referrals' }] : []),
+    { to: '/settings', label: 'Settings' },
+    { to: '/settings/profile', label: 'Business profile' },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -26,22 +28,23 @@ export function MorePage() {
       <Card className="flex items-center gap-3">
         <Avatar name={company.data?.name ?? 'E'} size={52} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-ink">{company.data?.name ?? 'Your business'}</p>
+          <p className="truncate text-base font-semibold text-ink">
+            {company.data?.name ?? 'Your business'}
+          </p>
           <p className="truncate text-xs text-muted">{company.data?.city}</p>
         </div>
         {company.data?.verification === 'gst_verified' ? <Tag tone="success">Verified</Tag> : null}
       </Card>
 
-      {company.data?.capabilities ? (
-        <div className="flex flex-wrap gap-1.5">
-          {company.data.capabilities.publish ? <Tag tone="info">Can publish</Tag> : null}
-          {company.data.capabilities.refer ? <Tag tone="info">Can refer</Tag> : null}
-          {company.data.capabilities.relist ? <Tag tone="info">Can relist</Tag> : null}
-        </div>
-      ) : null}
+      <div className="flex flex-wrap gap-1.5">
+        {buying ? <Tag tone="info">Buying</Tag> : null}
+        {selling ? <Tag tone="info">Selling</Tag> : null}
+        {canPublish ? <Tag tone="info">Can publish</Tag> : null}
+        {company.data?.capabilities.refer ? <Tag tone="info">Can refer</Tag> : null}
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        {MENU.map((item) => (
+        {menu.map((item) => (
           <Link
             key={item.to}
             to={item.to}

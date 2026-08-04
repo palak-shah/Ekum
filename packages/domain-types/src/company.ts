@@ -8,6 +8,16 @@ export interface CompanyCapabilities {
   refer: boolean;
 }
 
+/**
+ * Which trade sides the UI should show. Defaults both true (trader-shaped).
+ * Not a role enum — Profile can turn either side off; creating a product/
+ * collection forces selling back on.
+ */
+export interface TradePresence {
+  buying: boolean;
+  selling: boolean;
+}
+
 /** Per-user permissions inside a company (owner-set hard caps). */
 export interface CompanyPermissions {
   uploads: boolean;
@@ -75,4 +85,5 @@ export interface OwnCompanyProfile extends PublicCompanyProfile {
   buyCategories: string[];
   contactPerson: string | null;
   capabilities: CompanyCapabilities;
+  tradePresence: TradePresence;
 }

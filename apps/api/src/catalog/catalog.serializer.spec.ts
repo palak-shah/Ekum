@@ -40,11 +40,13 @@ describe('CatalogSerializer', () => {
       status: 'published',
       audience: 'connections',
       rateVisibility: 'on_request',
+      audienceCompanyIds: [],
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       _count: { products: 3 },
     } as unknown as Collection & { _count: { products: number } };
     expect(serializer.toCollectionView(collection).productCount).toBe(3);
+    expect(serializer.toCollectionView(collection).audienceCompanyIds).toEqual([]);
   });
 
   it('maps ordered products into a collection detail view', () => {
@@ -56,6 +58,7 @@ describe('CatalogSerializer', () => {
       status: 'draft',
       audience: 'everyone',
       rateVisibility: 'visible',
+      audienceCompanyIds: [],
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       products: [{ product: product(null) }],
