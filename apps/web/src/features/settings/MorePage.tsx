@@ -26,7 +26,11 @@ export function MorePage() {
       <PageHeader title="You" />
 
       <Card className="flex items-center gap-3">
-        <Avatar name={company.data?.name ?? 'E'} size={52} />
+        <Avatar
+          name={company.data?.name ?? 'E'}
+          imageUrl={company.data?.logoUrl}
+          size={52}
+        />
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold text-ink">
             {company.data?.name ?? 'Your business'}

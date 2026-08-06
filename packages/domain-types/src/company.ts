@@ -53,6 +53,7 @@ export const updateCompanySchema = z.object({
   buyCategories: z.array(z.string().trim().min(1)).max(40).optional(),
   about: z.string().trim().max(600).optional().nullable(),
   gstNumber: z.string().trim().max(20).optional().nullable(),
+  logoUrl: z.string().url().optional().nullable(),
 });
 export type UpdateCompanyDto = z.infer<typeof updateCompanySchema>;
 
@@ -66,6 +67,7 @@ export interface PublicCompanyProfile {
   name: string;
   city: string;
   about: string | null;
+  logoUrl: string | null;
   verification: string;
   categories: string[];
   superCategories: string[];

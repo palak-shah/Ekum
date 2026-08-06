@@ -9,10 +9,11 @@ import {
   type UpdateCompanyDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { uploadImage } from '@/lib/mediaUpload';
 import { useMyCompany } from '@/lib/queries';
 import { resolveTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
+import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
 
 function parseList(value: string): string[] {
   return value
@@ -27,6 +28,7 @@ export function ProfilePage() {
   const company = useMyCompany();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [form, setForm] = useState({
     name: '',
     contactPerson: '',
@@ -93,6 +95,32 @@ export function ProfilePage() {
       setError(err instanceof ApiError ? err.message : 'Could not update trade options.'),
   });
 
+  const setLogo = useMutation({
+    mutationFn: (logoUrl: string | null) =>
+      api.patch<OwnCompanyProfile>('/companies/me', { logoUrl }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+      setError(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not update photo.'),
+  });
+
+  const onPickLogo = async (fileList: FileList | null) => {
+    const file = fileList?.[0];
+    if (!file) return;
+    setLogoBusy(true);
+    setError(null);
+    try {
+      const url = await uploadImage(file);
+      await setLogo.mutateAsync(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload photo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
   if (company.isLoading) {
     return <LoadingBlock />;
   }
@@ -100,6 +128,45 @@ export function ProfilePage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Business profile" />
+
+      <Card className="flex items-center gap-3">
+        <Avatar
+          name={company.data?.name ?? 'E'}
+          imageUrl={company.data?.logoUrl}
+          size={64}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">Profile photo</p>
+          <p className="text-xs text-muted">Shown in chats and your header. Optional.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <label className="inline-flex cursor-pointer">
+              <span className="rounded-[13px] border-[1.5px] border-accent bg-surface px-3 py-1.5 text-xs font-bold text-accent">
+                {logoBusy || setLogo.isPending ? 'Uploading…' : 'Upload'}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={logoBusy || setLogo.isPending}
+                onChange={(event) => {
+                  void onPickLogo(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+            {company.data?.logoUrl ? (
+              <button
+                type="button"
+                className="text-xs font-bold text-muted"
+                disabled={setLogo.isPending}
+                onClick={() => setLogo.mutate(null)}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </Card>
 
       <Card className="flex items-center justify-between">
         <div>

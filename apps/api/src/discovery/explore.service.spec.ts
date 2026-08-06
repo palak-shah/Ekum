@@ -55,6 +55,57 @@ const publishedCollection = {
   ],
 };
 
+describe('ExploreService.collections follow-then-interest ranking', () => {
+  function feedRow(
+    id: string,
+    companyId: string,
+    sellCategories: string[],
+    superCategories: string[] = [],
+    city = 'Surat',
+  ) {
+    return {
+      feedId: `c:${id}`,
+      postedAt: new Date(),
+      kind: 'collection' as const,
+      company: { id: companyId, city, sellCategories, superCategories },
+      collection: { id },
+    };
+  }
+
+  const sareesInterest = {
+    tags: ['Sarees'],
+    supers: ['womens_apparel'],
+    preferFine: true,
+  };
+
+  it('keeps all followed before public, then interest public before unrelated public', () => {
+    const service = makeService(publishedCollection, {});
+    const followed = [
+      feedRow('f-fabric', 'followed-fabric', ['Fabric']),
+      feedRow('f-saree', 'followed-saree', ['Sarees']),
+    ];
+    const other = [
+      feedRow('p-saree', 'public-saree', ['Sarees']),
+      feedRow('p-fabric', 'public-fabric', ['Fabric']),
+    ];
+    const merged = service.mergeFollowThenInterest(followed as never, other as never, sareesInterest);
+    expect(merged.map((item) => item.feedId)).toEqual([
+      'c:f-fabric',
+      'c:f-saree',
+      'c:p-saree',
+      'c:p-fabric',
+    ]);
+  });
+
+  it('keeps followed outside interest above non-followed interest match', () => {
+    const service = makeService(publishedCollection, {});
+    const followed = [feedRow('f-other', 'followed', ['Fabric'])];
+    const other = [feedRow('p-match', 'public', ['Sarees'])];
+    const merged = service.mergeFollowThenInterest(followed as never, other as never, sareesInterest);
+    expect(merged.map((item) => item.feedId)).toEqual(['c:f-other', 'c:p-match']);
+  });
+});
+
 describe('ExploreService.collectionDetail trust rules', () => {
   it('returns a blurred preview (products null) to a non-connected viewer', async () => {
     const service = makeService(publishedCollection, { blocked: false, connected: false });

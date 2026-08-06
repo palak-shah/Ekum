@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Collection, Company, Product } from '@prisma/client';
-import type { CollectionCard, CompanyCard, DiscoveryProductCard } from '@ekum/domain-types';
+import type {
+  CollectionCard,
+  CompanyCard,
+  DiscoveryProductCard,
+  ExploreProductCard,
+} from '@ekum/domain-types';
 import { CompanySerializer } from '../access/company.serializer';
 import { collectionPreviewFromRow } from './collection-preview';
 
@@ -21,6 +26,7 @@ export class DiscoverySerializer {
       name: company.name,
       city: company.city,
       verification: company.verification,
+      logoUrl: company.logoUrl,
       sellCategories: company.sellCategories,
       buyCategories: company.buyCategories,
     };
@@ -48,6 +54,18 @@ export class DiscoverySerializer {
       images: product.images,
       rate: product.rate === null ? null : product.rate.toNumber(),
       unit: product.unit,
+      company: this.companySerializer.toPublicSummary(product.company),
+    };
+  }
+
+  toExploreProductCard(product: ProductCardRow): ExploreProductCard {
+    return {
+      id: product.id,
+      name: product.name,
+      images: product.images,
+      rate: product.rate === null ? null : product.rate.toNumber(),
+      unit: product.unit,
+      postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
       company: this.companySerializer.toPublicSummary(product.company),
     };
   }

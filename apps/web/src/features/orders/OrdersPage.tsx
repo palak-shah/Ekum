@@ -64,8 +64,7 @@ export function OrdersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-ink">Orders</h1>
+      <div className="flex justify-end">
         <Button onClick={() => navigate('/orders/new')}>New order</Button>
       </div>
 

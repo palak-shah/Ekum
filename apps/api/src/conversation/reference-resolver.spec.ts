@@ -16,14 +16,35 @@ function makeResolver() {
       findMany: async () => [{ id: 'p1', name: 'Banarasi Silk', images: ['img1'] }],
     },
     collection: {
-      findMany: async () => [{ id: 'c1', name: 'Wedding Edit', coverImage: 'cover1' }],
+      findMany: async () => [
+        {
+          id: 'c1',
+          name: 'Wedding Edit',
+          coverImage: 'cover1',
+          _count: { products: 2 },
+          products: [
+            { product: { images: ['d1'] } },
+            { product: { images: ['d2'] } },
+          ],
+        },
+      ],
     },
   } as unknown as PrismaService;
   return new ReferenceResolver(prisma);
 }
 
 const message = (over: Partial<Message>): Message =>
-  ({ id: 'm', threadId: 't', senderCompanyId: 'sender', type: 'text', body: null, referenceId: null, metadata: null, createdAt: new Date(), ...over }) as Message;
+  ({
+    id: 'm',
+    threadId: 't',
+    senderCompanyId: 'sender',
+    type: 'text',
+    body: null,
+    referenceId: null,
+    metadata: null,
+    createdAt: new Date(),
+    ...over,
+  }) as Message;
 
 describe('ReferenceResolver source masking', () => {
   it('resolves a product card without exposing the owning company', async () => {
@@ -34,9 +55,10 @@ describe('ReferenceResolver source masking', () => {
     const reference = references.get('m1');
     expect(reference).toBeDefined();
     expect(reference?.name).toBe('Banarasi Silk');
-    // The resolved card carries only kind/id/name/image/available — no source.
+    expect(reference?.images).toEqual(['img1']);
+    // The resolved card carries display fields — no source company.
     expect(Object.keys(reference ?? {}).sort()).toEqual(
-      ['available', 'id', 'image', 'kind', 'name'].sort(),
+      ['available', 'id', 'image', 'images', 'kind', 'name'].sort(),
     );
     const serialized = JSON.stringify(reference);
     expect(serialized).not.toMatch(/compan/i);

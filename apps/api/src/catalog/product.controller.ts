@@ -2,8 +2,10 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@ne
 import {
   ProductStatus,
   createProductSchema,
+  postProductToMarketSchema,
   updateProductSchema,
   type CreateProductDto,
+  type PostProductToMarketDto,
   type UpdateProductDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -44,6 +46,20 @@ export class ProductController {
   @Post(':id/publish')
   publish(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.products.setStatus(companyId, id, ProductStatus.Published);
+  }
+
+  @Post(':id/post-to-market')
+  postToMarket(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(postProductToMarketSchema)) dto: PostProductToMarketDto,
+  ) {
+    return this.products.postToMarket(companyId, id, dto);
+  }
+
+  @Post(':id/unpost-from-market')
+  unpostFromMarket(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+    return this.products.unpostFromMarket(companyId, id);
   }
 
   @Post(':id/archive')

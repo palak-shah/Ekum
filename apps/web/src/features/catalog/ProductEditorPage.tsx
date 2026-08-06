@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateProductDto, ProductView } from '@ekum/domain-types';
-import { Unit, unitValues } from '@ekum/domain-types';
+import type {
+  ConnectionView,
+  CreateProductDto,
+  PostProductToMarketDto,
+  ProductView,
+} from '@ekum/domain-types';
+import { PublishAudience, RateVisibility, Unit, unitValues } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput } from '@/ui/kit';
+import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { CameraIcon, PlusIcon } from '@/ui/icons';
 
 function parseList(value: string): string[] {
@@ -18,10 +24,12 @@ export function ProductEditorPage() {
   const editing = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const company = useMyCompany();
   const fileRef = useRef<HTMLInputElement>(null);
   const phone = isPhoneLike();
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
   const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
   const [uploading, setUploading] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -33,12 +41,24 @@ export function ProductEditorPage() {
     description: '',
     categories: '',
   });
+  const [audience, setAudience] = useState<string>(PublishAudience.Connections);
+  const [audienceCompanies, setAudienceCompanies] = useState<Set<string>>(new Set());
+  const [rateVisibility, setRateVisibility] = useState<string>(RateVisibility.OnRequest);
+  const [consent, setConsent] = useState(false);
 
   const existing = useQuery({
     queryKey: ['product', id],
     queryFn: () => api.get<ProductView>(`/products/${id}`),
     enabled: editing,
   });
+  const connections = useQuery({
+    queryKey: ['connections'],
+    queryFn: () => api.get<ConnectionView[]>('/connections'),
+    enabled: marketOpen,
+  });
+
+  const canPublishAlready = Boolean(company.data?.capabilities.publish);
+  const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
 
   useEffect(() => {
     if (existing.data) {
@@ -51,6 +71,9 @@ export function ProductEditorPage() {
         categories: existing.data.categories.join(', '),
       });
       setImageUrls(existing.data.images);
+      setAudience(existing.data.audience || PublishAudience.Connections);
+      setAudienceCompanies(new Set(existing.data.audienceCompanyIds ?? []));
+      setRateVisibility(existing.data.rateVisibility || RateVisibility.OnRequest);
     }
   }, [existing.data]);
 
@@ -86,6 +109,13 @@ export function ProductEditorPage() {
     }
   };
 
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['product', id] });
+    void queryClient.invalidateQueries({ queryKey: ['my-products'] });
+    void queryClient.invalidateQueries({ queryKey: ['explore', 'feed'] });
+    void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+  };
+
   const save = useMutation({
     mutationFn: () => {
       const dto: CreateProductDto = {
@@ -102,28 +132,76 @@ export function ProductEditorPage() {
         : api.post<ProductView>('/products', dto);
     },
     onSuccess: (product) => {
-      void queryClient.invalidateQueries({ queryKey: ['my-products'] });
-      navigate(`/products/${product.id}`, { replace: true });
+      invalidate();
+      navigate(`/catalog/products/${product.id}`, { replace: true });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save the design.'),
   });
 
-  const publish = useMutation({
+  const publishCatalog = useMutation({
     mutationFn: () => api.post<ProductView>(`/products/${id}/publish`, {}),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['product', id] });
-      void queryClient.invalidateQueries({ queryKey: ['my-products'] });
-    },
+    onSuccess: invalidate,
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not publish.'),
   });
+
+  const postToMarket = useMutation({
+    mutationFn: () => {
+      const dto: PostProductToMarketDto = {
+        audience: audience as PostProductToMarketDto['audience'],
+        rateVisibility: rateVisibility as PostProductToMarketDto['rateVisibility'],
+        ...(audience === PublishAudience.Selected
+          ? { companyIds: [...audienceCompanies] }
+          : {}),
+        ...(canPublishAlready ? {} : { consentToSell: true }),
+      };
+      return api.post<ProductView>(`/products/${id}/post-to-market`, dto);
+    },
+    onSuccess: () => {
+      setMarketOpen(false);
+      invalidate();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not post to Explore.'),
+  });
+
+  const unpost = useMutation({
+    mutationFn: () => api.post<ProductView>(`/products/${id}/unpost-from-market`, {}),
+    onSuccess: () => {
+      setMarketOpen(false);
+      invalidate();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not remove post.'),
+  });
+
+  const toggleAudienceCompany = (companyId: string) =>
+    setAudienceCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+
+  const canSubmitMarket =
+    (canPublishAlready || consent) &&
+    (audience !== PublishAudience.Selected || audienceCompanies.size > 0);
 
   if (editing && existing.isLoading) {
     return <LoadingBlock label="Loading design…" />;
   }
 
+  const onMarket = Boolean(existing.data?.postedToMarketAt);
+
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={editing ? 'Edit design' : 'Upload a design'} />
+      <PageHeader
+        title={editing ? 'Edit design' : 'Upload a design'}
+        action={
+          editing ? (
+            <button className="text-sm font-medium text-accent" onClick={() => setMarketOpen(true)}>
+              {onMarket ? 'Market post' : 'Post to Explore'}
+            </button>
+          ) : undefined
+        }
+      />
 
       {imageUrls.length === 0 ? (
         <button
@@ -201,8 +279,8 @@ export function ProductEditorPage() {
         {save.isPending ? 'Saving…' : editing ? 'Save changes' : 'Save design'}
       </Button>
       {editing && existing.data?.status === 'draft' ? (
-        <Button variant="secondary" fullWidth disabled={publish.isPending} onClick={() => publish.mutate()}>
-          {publish.isPending ? 'Publishing…' : 'Publish'}
+        <Button variant="secondary" fullWidth disabled={publishCatalog.isPending} onClick={() => publishCatalog.mutate()}>
+          {publishCatalog.isPending ? 'Publishing…' : 'Publish to catalogue'}
         </Button>
       ) : null}
 
@@ -224,6 +302,124 @@ export function ProductEditorPage() {
           <Button variant="secondary" fullWidth onClick={() => pick('gallery')}>
             Gallery
           </Button>
+        </div>
+      </Sheet>
+
+      <Sheet open={marketOpen} onClose={() => setMarketOpen(false)} title="Post design to Explore">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted">
+            Catalogue publish keeps the design in your shop. Posting puts it on the market feed.
+          </p>
+          <div>
+            <p className="mb-2 text-sm font-semibold text-ink">Who can see this?</p>
+            <div className="flex flex-col gap-1.5">
+              {(
+                [
+                  [PublishAudience.Everyone, 'Everyone'],
+                  [PublishAudience.Connections, 'My connections'],
+                  [PublishAudience.Selected, 'Selected companies'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setAudience(value)}
+                  className={cx(
+                    'rounded-xl border px-3 py-2.5 text-left text-sm',
+                    audience === value ? 'border-accent bg-accent/5 font-medium text-ink' : 'border-line text-muted',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {audience === PublishAudience.Selected ? (
+              <div className="mt-3 flex flex-col gap-1.5">
+                <p className="text-xs text-muted">
+                  {audienceCompanies.size} selected · only these businesses will see it
+                </p>
+                {connections.isLoading ? (
+                  <LoadingBlock />
+                ) : activeConnections.length > 0 ? (
+                  activeConnections.map((connection) => (
+                    <button
+                      key={connection.id}
+                      type="button"
+                      onClick={() => toggleAudienceCompany(connection.company.id)}
+                      className={cx(
+                        'rounded-xl border px-3 py-2.5 text-left text-sm',
+                        audienceCompanies.has(connection.company.id)
+                          ? 'border-accent bg-accent/5 font-medium text-ink'
+                          : 'border-line text-muted',
+                      )}
+                    >
+                      {connection.company.name}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted">Approve a connection first, then pick them here.</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold text-ink">Show rates?</p>
+            <div className="flex flex-col gap-1.5">
+              {(
+                [
+                  [RateVisibility.OnRequest, 'On request'],
+                  [RateVisibility.Visible, 'Visible'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setRateVisibility(value)}
+                  className={cx(
+                    'rounded-xl border px-3 py-2.5 text-left text-sm',
+                    rateVisibility === value
+                      ? 'border-accent bg-accent/5 font-medium text-ink'
+                      : 'border-line text-muted',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!canPublishAlready ? (
+            <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={consent}
+                onChange={(event) => setConsent(event.target.checked)}
+              />
+              <span>Your catalogue goes live — start selling?</span>
+            </label>
+          ) : null}
+
+          {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
+
+          <Button
+            fullWidth
+            disabled={!canSubmitMarket || postToMarket.isPending}
+            onClick={() => postToMarket.mutate()}
+          >
+            {postToMarket.isPending ? 'Posting…' : onMarket ? 'Update Explore post' : 'Post to Explore'}
+          </Button>
+          {onMarket ? (
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={unpost.isPending}
+              onClick={() => unpost.mutate()}
+            >
+              Remove from Explore
+            </Button>
+          ) : null}
         </div>
       </Sheet>
     </div>

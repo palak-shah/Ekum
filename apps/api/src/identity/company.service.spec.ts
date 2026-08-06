@@ -37,6 +37,7 @@ function makeService(opts: {
       name: company.name,
       city: 'Surat',
       verification: 'not_verified',
+      logoUrl: null,
     }),
   } as unknown as CompanySerializer;
   return new CompanyService(prisma, {} as TokenService, serializer, visibility);

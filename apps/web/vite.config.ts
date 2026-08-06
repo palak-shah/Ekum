@@ -10,6 +10,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Keep the SW off during `vite dev` so chat/API responses are never served
+      // from a stale Workbox cache while iterating on ThreadPage.
+      devOptions: { enabled: false },
       // The generated Workbox SW precaches the app shell for offline use and
       // imports our push handler so browser push works even when the tab is shut.
       workbox: {

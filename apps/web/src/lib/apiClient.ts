@@ -146,6 +146,7 @@ async function execute<T>(
     method,
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    cache: 'no-store',
   });
 
   if (response.status === 401 && retryOn401 && options.auth !== false) {

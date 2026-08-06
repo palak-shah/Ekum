@@ -13,6 +13,7 @@ describe('CompanySerializer contact protection', () => {
     name: 'Ravi Textiles',
     city: 'Surat',
     about: null,
+    logoUrl: null,
     gstNumber: '24ABCDE1234F1Z5',
     verification: 'gst_verified',
     sellCategories: ['Sarees'],

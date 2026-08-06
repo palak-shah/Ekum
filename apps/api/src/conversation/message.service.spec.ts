@@ -11,9 +11,10 @@ const activeMembership = { id: 'p', state: 'active' };
 const events = { messageSent: () => undefined } as unknown as DomainEvents;
 
 describe('MessageService.send', () => {
-  it('rejects sharing a product the sender does not own', async () => {
+  it('rejects sharing a product the sender does not own and has not received in chat', async () => {
     const prisma = {
       product: { findFirst: async () => null },
+      message: { findFirst: async () => null },
     } as unknown as PrismaService;
     const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
     const service = new MessageService(
@@ -25,6 +26,45 @@ describe('MessageService.send', () => {
     );
     const dto = { type: MessageType.ProductCard, referenceId: 'not-mine' } as SendMessageDto;
     await expect(service.send('me', 'owner', 't', dto)).rejects.toThrow();
+  });
+
+  it('allows forwarding a product already shared into the sender chat', async () => {
+    const created = {
+      id: 'm1',
+      threadId: 't2',
+      senderCompanyId: 'me',
+      type: MessageType.ProductCard,
+      body: 'Banarasi',
+      referenceId: 'p1',
+      metadata: null,
+      createdAt: new Date(),
+    };
+    const prisma = {
+      product: { findFirst: async () => null },
+      message: { findFirst: async () => ({ id: 'prior' }) },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          message: { create: async () => created },
+          thread: { update: async () => ({}) },
+          threadParticipant: { update: async () => ({}) },
+        }),
+      threadParticipant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = {
+      resolve: async () =>
+        new Map([['m1', { kind: 'product', id: 'p1', name: 'Banarasi', image: null, available: true }]]),
+    } as unknown as ReferenceResolver;
+    const service = new MessageService(prisma, threads, serializer, references, events);
+    const dto = {
+      type: MessageType.ProductCard,
+      referenceId: 'p1',
+      body: 'Banarasi',
+    } as SendMessageDto;
+    await expect(service.send('me', 'owner', 't2', dto)).resolves.toMatchObject({ id: 'm1' });
   });
 
   it('sends a text message through the thread transaction', async () => {

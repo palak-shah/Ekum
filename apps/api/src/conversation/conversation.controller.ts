@@ -15,6 +15,7 @@ import {
   listThreadsQuerySchema,
   sendMessageSchema,
   setAlertLevelSchema,
+  setThreadPinnedSchema,
   startDirectThreadSchema,
   type AddParticipantsDto,
   type CreateGroupThreadDto,
@@ -22,6 +23,7 @@ import {
   type ListThreadsQuery,
   type SendMessageDto,
   type SetAlertLevelDto,
+  type SetThreadPinnedDto,
   type StartDirectThreadDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -63,6 +65,12 @@ export class ConversationController {
     @Query(new ZodValidationPipe(listThreadsQuerySchema)) query: ListThreadsQuery,
   ) {
     return this.threads.list(companyId, user.role, query);
+  }
+
+  @Post('read-all')
+  @HttpCode(200)
+  markAllRead(@CurrentCompanyId() companyId: string) {
+    return this.threads.markAllRead(companyId);
   }
 
   @Get(':id')
@@ -112,6 +120,16 @@ export class ConversationController {
     @Body(new ZodValidationPipe(setAlertLevelSchema)) dto: SetAlertLevelDto,
   ) {
     return this.threads.setAlertLevel(companyId, user.role, id, dto);
+  }
+
+  @Patch(':id/pin')
+  setPin(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setThreadPinnedSchema)) dto: SetThreadPinnedDto,
+  ) {
+    return this.threads.setPinned(companyId, user.role, id, dto);
   }
 
   @Post(':id/accept')

@@ -29,6 +29,7 @@ function setup(connection: { id: string; ownerCompanyId: string; status: string 
       name: company.name,
       city: company.city,
       verification: company.verification,
+      logoUrl: null,
     }),
   };
   const service = new ConnectionService(prisma, audit, serializer as never);
@@ -71,7 +72,13 @@ describe('ConnectionService.applyOwnerAction', () => {
 
 describe('ConnectionService.list silent-block masking', () => {
   it('hides paused/blocked connections from the viewer but not from the owner', async () => {
-    const summary = (id: string) => ({ id, name: id, city: 'Surat', verification: 'not_verified' });
+    const summary = (id: string) => ({
+      id,
+      name: id,
+      city: 'Surat',
+      verification: 'not_verified',
+      logoUrl: null as string | null,
+    });
     const rows = [
       // Caller is the owner here — a blocked connection stays visible to them.
       {

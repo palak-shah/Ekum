@@ -21,6 +21,12 @@ export class CatalogSerializer {
       categories: product.categories,
       images: product.images,
       status: product.status,
+      audience: product.audience ?? 'connections',
+      rateVisibility: product.rateVisibility ?? 'on_request',
+      audienceCompanyIds: product.audienceCompanyIds ?? [],
+      postedToMarketAt: product.postedToMarketAt
+        ? product.postedToMarketAt.toISOString()
+        : null,
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),
     };

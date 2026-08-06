@@ -269,7 +269,10 @@ export function OrderBuilderPage() {
                       : 'border-line bg-surface',
                   )}
                 >
-                  <Avatar name={connection.company.name} />
+                  <Avatar
+                    name={connection.company.name}
+                    imageUrl={connection.company.logoUrl}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
                     <p className="truncate text-xs text-muted">{connection.company.city}</p>

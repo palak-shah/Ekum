@@ -42,6 +42,7 @@ model Company {
   name         String
   city         String
   about        String?
+  logoUrl      String?
   gstNumber    String?
   verification String  @default("not_verified") // VerificationStatus
 
@@ -203,13 +204,19 @@ model Product {
   categories  String[] @default([])
   images      String[] @default([])
   status      String   @default("draft") // ProductStatus
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  // Market post fields (Explore). Catalog publish can exist without these.
+  audience            String    @default("connections")
+  rateVisibility      String    @default("on_request")
+  audienceCompanyIds  String[]  @default([])
+  postedToMarketAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   collections CollectionProduct[]
 
   @@index([companyId, status])
+  @@index([postedToMarketAt])
 }
 
 /// A curated set of products. Separate from Product and joined many-to-many, so
@@ -290,13 +297,15 @@ model Thread {
 }
 
 /// A company's membership of a thread, holding its private per-thread state:
-/// requests-inbox status, mute level, and read watermark.
+/// requests-inbox status, mute level, pin, and read watermark.
 model ThreadParticipant {
   id         String    @id @default(cuid())
   threadId   String
   companyId  String
   state      String    @default("active") // ThreadParticipantState: active | pending | archived
   alertLevel String    @default("all") // ThreadAlertLevel: all | muted
+  /** When set, this chat is pinned for the company (private; sorted above unpinned). */
+  pinnedAt   DateTime?
   lastReadAt DateTime?
   invitedBy  String?
   joinedAt   DateTime  @default(now())
@@ -307,24 +316,30 @@ model ThreadParticipant {
 
   @@unique([threadId, companyId])
   @@index([companyId, state])
+  @@index([companyId, pinnedAt])
 }
 
 /// A single message. Cards reference a trade object by id (never a copy), so the
 /// rendered card always resolves to the live, permission-checked object.
 model Message {
-  id              String   @id @default(cuid())
-  threadId        String
-  senderCompanyId String
-  type            String   @default("text") // MessageType
-  body            String?
-  referenceId     String? // product / collection / order id for *_card types
-  metadata        Json?
-  createdAt       DateTime @default(now())
+  id               String  @id @default(cuid())
+  threadId         String
+  senderCompanyId  String
+  type             String  @default("text") // MessageType
+  body             String?
+  referenceId      String? // product / collection / order id for *_card types
+  metadata         Json?
+  /** Same-thread message this is a reply to (optional). */
+  replyToMessageId String?
+  createdAt        DateTime @default(now())
 
-  thread Thread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender Company @relation("MessageSender", fields: [senderCompanyId], references: [id], onDelete: Cascade)
+  thread  Thread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender  Company @relation("MessageSender", fields: [senderCompanyId], references: [id], onDelete: Cascade)
+  replyTo Message?  @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("MessageReplies")
 
   @@index([threadId, createdAt])
+  @@index([replyToMessageId])
 }
 
 // --- Orders & Fulfillment ---------------------------------------------------
@@ -343,9 +358,11 @@ model Order {
   transporter        String?
   lrNumber           String?
   parcelCount        Int?
-  confirmedAt        DateTime?
-  dispatchedAt       DateTime?
-  deliveredAt        DateTime?
+  confirmedAt          DateTime?
+  /** Company that moved the order to confirmed (seller confirm or buyer accept-quote). */
+  confirmedByCompanyId String?
+  dispatchedAt         DateTime?
+  deliveredAt          DateTime?
   // The buyer may raise returns until this instant; a background job closes the
   // window when it passes. Null until the order is delivered.
   returnWindowClosesAt DateTime?

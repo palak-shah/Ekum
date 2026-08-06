@@ -77,8 +77,32 @@ body {
   }
 }
 
+@keyframes ekum-msg-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  15%,
+  70% {
+    box-shadow: 0 0 0 3px rgb(43 115 121 / 0.5);
+  }
+}
+
 .ekum-rise {
   animation: ekum-rise 280ms ease-out both;
+}
+
+.ekum-msg-flash {
+  animation: ekum-msg-flash 1.4s ease-out;
+}
+
+/* Keep scroll; hide scrollbar chrome (chat / compact lists). */
+.ekum-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ekum-no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .ekum-glass {

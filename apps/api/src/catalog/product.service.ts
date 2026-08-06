@@ -2,12 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   ProductStatus,
   type CreateProductDto,
+  type PostProductToMarketDto,
   type ProductView,
   type UpdateProductDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ensureSellingEnabled } from '../identity/trade-presence';
-import { assertCanPublish } from './publish-capability';
+import { assertCanPublish, grantPublishCapability } from './publish-capability';
 import { CatalogSerializer } from './catalog.serializer';
 
 @Injectable()
@@ -72,7 +73,58 @@ export class ProductService {
     if (status === ProductStatus.Published) {
       await assertCanPublish(this.prisma, companyId);
     }
-    const product = await this.prisma.product.update({ where: { id }, data: { status } });
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: {
+        status,
+        ...(status !== ProductStatus.Published ? { postedToMarketAt: null } : {}),
+      },
+    });
+    return this.serializer.toProductView(product);
+  }
+
+  /**
+   * Posts a design to the Explore market. Catalog `publish` can happen without
+   * this; Explore only lists products with postedToMarketAt set.
+   */
+  async postToMarket(
+    companyId: string,
+    id: string,
+    dto: PostProductToMarketDto,
+  ): Promise<ProductView> {
+    await this.owned(companyId, id);
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { canPublish: true },
+    });
+    if (!company.canPublish) {
+      if (!dto.consentToSell) {
+        await assertCanPublish(this.prisma, companyId);
+      } else {
+        await grantPublishCapability(this.prisma, companyId);
+      }
+    }
+    const audienceCompanyIds =
+      dto.audience === 'selected' ? [...new Set(dto.companyIds ?? [])] : [];
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: {
+        status: ProductStatus.Published,
+        audience: dto.audience,
+        rateVisibility: dto.rateVisibility,
+        audienceCompanyIds,
+        postedToMarketAt: new Date(),
+      },
+    });
+    return this.serializer.toProductView(product);
+  }
+
+  async unpostFromMarket(companyId: string, id: string): Promise<ProductView> {
+    await this.owned(companyId, id);
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: { postedToMarketAt: null },
+    });
     return this.serializer.toProductView(product);
   }
 

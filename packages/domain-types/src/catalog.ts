@@ -60,6 +60,10 @@ export const publishCollectionSchema = z
   });
 export type PublishCollectionDto = z.infer<typeof publishCollectionSchema>;
 
+/** Same audience sheet as collections — posts a published product onto Explore. */
+export const postProductToMarketSchema = publishCollectionSchema;
+export type PostProductToMarketDto = z.infer<typeof postProductToMarketSchema>;
+
 export interface ProductView {
   id: string;
   name: string;
@@ -70,6 +74,11 @@ export interface ProductView {
   categories: string[];
   images: string[];
   status: string;
+  audience: string;
+  rateVisibility: string;
+  audienceCompanyIds: string[];
+  /** ISO time when posted to Explore; null = catalog-only. */
+  postedToMarketAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

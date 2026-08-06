@@ -45,7 +45,7 @@ export function MyBuyersPage() {
           requests.data.map((request) => (
             <Card key={request.id} className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <Avatar name={request.company.name} />
+                <Avatar name={request.company.name} imageUrl={request.company.logoUrl} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-ink">{request.company.name}</p>
                   <p className="truncate text-xs text-muted">{request.company.city}</p>
@@ -80,7 +80,7 @@ export function MyBuyersPage() {
           connections.data.map((connection) => (
             <Card key={connection.id} className="flex items-center gap-3">
               <Link to={`/company/${connection.company.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-                <Avatar name={connection.company.name} />
+                <Avatar name={connection.company.name} imageUrl={connection.company.logoUrl} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
                   <p className="truncate text-xs text-muted">

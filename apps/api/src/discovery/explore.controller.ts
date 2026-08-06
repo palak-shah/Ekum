@@ -8,6 +8,14 @@ import { ExploreService } from './explore.service';
 export class ExploreController {
   constructor(private readonly explore: ExploreService) {}
 
+  @Get('feed')
+  feed(
+    @CurrentCompanyId() companyId: string,
+    @Query(new ZodValidationPipe(exploreQuerySchema)) query: ExploreQuery,
+  ) {
+    return this.explore.feed(companyId, query);
+  }
+
   @Get('collections')
   collections(
     @CurrentCompanyId() companyId: string,
@@ -19,6 +27,11 @@ export class ExploreController {
   @Get('collections/:id')
   collectionDetail(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.explore.collectionDetail(companyId, id);
+  }
+
+  @Get('products/:id')
+  productDetail(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+    return this.explore.productDetail(companyId, id);
   }
 
   @Get('companies')

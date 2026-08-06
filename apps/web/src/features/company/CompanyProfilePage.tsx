@@ -141,7 +141,7 @@ export function CompanyProfilePage() {
       />
 
       <Card className="flex flex-col items-center gap-3 text-center">
-        <Avatar name={company.name} size={64} />
+        <Avatar name={company.name} imageUrl={company.logoUrl} size={64} />
         <div>
           <h2 className="text-lg font-semibold text-ink">{company.name}</h2>
           <p className="text-sm text-muted">{company.city}</p>

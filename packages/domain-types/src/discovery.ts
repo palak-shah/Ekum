@@ -42,6 +42,7 @@ export interface CompanyCard {
   name: string;
   city: string;
   verification: string;
+  logoUrl: string | null;
   sellCategories: string[];
   buyCategories: string[];
 }
@@ -69,6 +70,32 @@ export interface DiscoveryProductCard {
   company: PublicCompanySummary;
 }
 
+/** Product card in the Explore mixed feed (posted to market). */
+export interface ExploreProductCard {
+  id: string;
+  name: string;
+  images: string[];
+  rate: number | null;
+  unit: string | null;
+  postedAt: string;
+  company: PublicCompanySummary;
+}
+
+/** Discriminated Explore buy-feed item — collection album or single product. */
+export type ExplorePost =
+  | {
+      kind: 'collection';
+      id: string;
+      postedAt: string;
+      collection: CollectionCard;
+    }
+  | {
+      kind: 'product';
+      id: string;
+      postedAt: string;
+      product: ExploreProductCard;
+    };
+
 /**
  * A cross-company collection view. Non-connected viewers get a preview
  * (products is null — the "blurred preview" trust rule); connected viewers get
@@ -77,4 +104,12 @@ export interface DiscoveryProductCard {
 export interface CollectionPreviewView extends CollectionCard {
   connected: boolean;
   products: ProductView[] | null;
+}
+
+/** Cross-company product post. `visible=false` means body is gated (connections). */
+export interface ExploreProductPreviewView extends ExploreProductCard {
+  connected: boolean;
+  visible: boolean;
+  description?: string | null;
+  categories?: string[];
 }

@@ -156,7 +156,26 @@ export function Tag({ children, tone = 'neutral' }: { children: ReactNode; tone?
   );
 }
 
-export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
+export function Avatar({
+  name,
+  imageUrl,
+  size = 40,
+}: {
+  name: string;
+  imageUrl?: string | null;
+  size?: number;
+}) {
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        className="shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size }}
+        draggable={false}
+      />
+    );
+  }
   return (
     <span
       className="flex shrink-0 items-center justify-center rounded-full bg-accent font-bold text-white"

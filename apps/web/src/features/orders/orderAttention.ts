@@ -1,4 +1,4 @@
-import type { OrderView } from '@ekum/domain-types';
+import type { OrderView, ReturnView } from '@ekum/domain-types';
 
 const COMPLETED = new Set(['delivered', 'declined', 'cancelled']);
 
@@ -11,11 +11,44 @@ export function buyerCanAcceptQuote(order: OrderView): boolean {
   );
 }
 
+/** Seller still needs to put rates on a requested order. */
+export function sellerNeedsRate(order: OrderView): boolean {
+  return (
+    order.direction === 'selling' &&
+    order.status === 'requested' &&
+    order.items.some((item) => item.rate == null)
+  );
+}
+
+/** Seller has rates on a request and can confirm the order. */
+export function sellerCanConfirm(order: OrderView): boolean {
+  return (
+    order.direction === 'selling' &&
+    order.status === 'requested' &&
+    order.items.length > 0 &&
+    order.items.every((item) => item.rate != null)
+  );
+}
+
+export function sellerNeedsDispatch(order: OrderView): boolean {
+  return order.direction === 'selling' && order.status === 'confirmed';
+}
+
+export function buyerNeedsDelivery(order: OrderView): boolean {
+  return order.direction === 'buying' && order.status === 'dispatched';
+}
+
+/** Seller must decide an open return request. */
+export function sellerNeedsReturnReview(ret: ReturnView): boolean {
+  return ret.direction === 'selling' && ret.status === 'requested';
+}
+
 /** Orders that need the signed-in company's action right now. */
 export function matchesNeeds(order: OrderView): boolean {
-  if (order.direction === 'selling' && order.status === 'requested') return true;
+  if (sellerNeedsRate(order) || sellerCanConfirm(order)) return true;
   if (buyerCanAcceptQuote(order)) return true;
-  if (order.direction === 'buying' && order.status === 'dispatched') return true;
+  if (sellerNeedsDispatch(order)) return true;
+  if (buyerNeedsDelivery(order)) return true;
   return false;
 }
 
@@ -26,4 +59,12 @@ export function matchesProgress(order: OrderView): boolean {
 
 export function matchesCompleted(order: OrderView): boolean {
   return COMPLETED.has(order.status);
+}
+
+export function formatOrderQty(order: OrderView): string {
+  const total = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const unit = order.items[0]?.unit;
+  if (!total) return `${order.items.length} line${order.items.length === 1 ? '' : 's'}`;
+  const rounded = Number.isInteger(total) ? String(total) : total.toFixed(1);
+  return unit ? `${rounded} ${unit}` : `${rounded} pc`;
 }

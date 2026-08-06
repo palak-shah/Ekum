@@ -255,6 +255,28 @@ export function CollectionViewerPage() {
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
+      {data.products && data.connected ? (
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <button
+            type="button"
+            className="font-semibold text-accent"
+            onClick={() => setSelected(new Set(products.map((product) => product.id)))}
+          >
+            Select all
+          </button>
+          <button
+            type="button"
+            className="font-semibold text-accent"
+            onClick={() => setSelected(new Set())}
+          >
+            Clear all
+          </button>
+          <span className="text-muted">
+            {selectedCount} design{selectedCount === 1 ? '' : 's'} selected
+          </span>
+        </div>
+      ) : null}
+
       {selectedCount > 0 && data.connected ? (
         <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md items-center gap-3 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
           <p className="flex-1 text-sm font-medium text-ink">

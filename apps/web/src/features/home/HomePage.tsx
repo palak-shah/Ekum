@@ -1,283 +1,400 @@
+import { useMemo, useState, type ComponentType, type SVGProps } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type {
   AccessRequestView,
   CompanyCard,
   CursorPage,
-  NotificationView,
+  ExplorePost,
   OrderView,
-  CollectionCard,
+  ReturnView,
   ThreadSummary,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
-import { timeAgo } from '@/lib/format';
+import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
-import { buyerCanAcceptQuote, matchesNeeds } from '@/features/orders/orderAttention';
-import { CollectionTile, CompanyRow } from '@/ui/cards';
-import { Button, Chip, FilterRail, LoadingBlock, SectionHeader } from '@/ui/kit';
+import { CompanyRow } from '@/ui/cards';
+import { Button, LoadingBlock, SectionHeader } from '@/ui/kit';
+import {
+  ChatIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  OrdersIcon,
+} from '@/ui/icons';
+import {
+  buildHomeNeeds,
+  homeMetrics,
+  newFollowedPostsToday,
+  type HomeNeedItem,
+} from './homeAttention';
+
+const PREVIEW_LIMIT = 8;
+const FOLLOWED_PREVIEW = 5;
+const OPPORTUNITY_PREVIEW = 5;
 
 /**
- * Home (PDF + HTML HOME-01):
- * - Day one / empty: one welcome card → Explore (Needs/Addressed/Followed hidden)
- * - After Follow + activity: attention center — only sections with real items
- * Same tabs forever; content gates the surface.
+ * Home is state-driven:
+ * busy → Needs; quiet + followed updates → Followed hero;
+ * quiet with market → From the market (relevance-ranked);
+ * empty platform → Explore businesses.
  */
 export function HomePage() {
   const { buying, selling, isLoading: tradeLoading } = useTradePresence();
+  const company = useMyCompany();
+  const [showAllNeeds, setShowAllNeeds] = useState(false);
 
   const incoming = useQuery({
     queryKey: ['access-requests', 'incoming'],
     queryFn: () => api.get<AccessRequestView[]>('/access-requests/incoming'),
   });
-  const sellingRequested = useQuery({
-    queryKey: ['orders', { direction: 'selling', status: 'requested' }],
-    queryFn: () =>
-      api.get<CursorPage<OrderView>>('/orders', {
-        direction: 'selling',
-        status: 'requested',
-        limit: 10,
-      }),
+  const orders = useQuery({
+    queryKey: ['orders', { home: true }],
+    queryFn: () => api.get<CursorPage<OrderView>>('/orders', { limit: 50 }),
   });
-  const buyingOpen = useQuery({
-    queryKey: ['orders', { direction: 'buying', home: true }],
-    queryFn: () =>
-      api.get<CursorPage<OrderView>>('/orders', {
-        direction: 'buying',
-        limit: 20,
-      }),
+  const returns = useQuery({
+    queryKey: ['returns', { home: true }],
+    queryFn: () => api.get<CursorPage<ReturnView>>('/returns', { limit: 40 }),
   });
   const threadRequests = useQuery({
     queryKey: ['threads', { state: 'pending' }],
     queryFn: () => api.get<CursorPage<ThreadSummary>>('/threads', { state: 'pending', limit: 10 }),
   });
-  const notifications = useQuery({
-    queryKey: ['notifications', { home: true }],
-    queryFn: () => api.get<CursorPage<NotificationView>>('/notifications', { limit: 8 }),
-  });
   const following = useQuery({
     queryKey: ['follows', 'following'],
     queryFn: () => api.get<CompanyCard[]>('/follows/following'),
   });
-  const followed = useQuery({
-    queryKey: ['explore', 'collections', { following: true }],
-    queryFn: () =>
-      api.get<CursorPage<CollectionCard>>('/explore/collections', { following: true, limit: 12 }),
-  });
 
-  const accessCount = incoming.data?.length ?? 0;
-  const sellingNeed = sellingRequested.data?.results.length ?? 0;
-  const buyingOrders = buyingOpen.data?.results ?? [];
-  const buyingNeed = buyingOrders.filter(matchesNeeds).length;
-  const buyingWaiting = buyingOrders.filter(
-    (order) => order.status === 'requested' && !buyerCanAcceptQuote(order),
-  ).length;
-  const ordersNeed = sellingNeed + buyingNeed;
-  const chatRequests = threadRequests.data?.results.length ?? 0;
-  const needsCount = accessCount + ordersNeed + chatRequests;
-
-  const loadingNeeds =
-    incoming.isLoading ||
-    sellingRequested.isLoading ||
-    buyingOpen.isLoading ||
-    threadRequests.isLoading;
-
-  const notificationItems = notifications.data?.results ?? [];
-  const followedItems = followed.data?.results ?? [];
-  const followingList = following.data ?? [];
-  const followingCount = followingList.length;
-
-  const hasNeeds = needsCount > 0;
-  const hasWaitingOrders = buyingWaiting > 0;
-  const hasAddressed = notificationItems.length > 0;
-  const hasFollowedShelf = followedItems.length > 0;
+  const followingCount = following.data?.length ?? 0;
   const hasNetwork = followingCount > 0;
 
-  const stillBootstrapping =
-    loadingNeeds ||
-    following.isLoading ||
-    notifications.isLoading ||
-    followed.isLoading ||
-    tradeLoading;
+  const followed = useQuery({
+    queryKey: ['explore', 'feed', { following: true }],
+    queryFn: () =>
+      api.get<CursorPage<ExplorePost>>('/explore/feed', { following: true, limit: 40 }),
+    enabled: !following.isLoading && hasNetwork,
+  });
 
-  /**
-   * HTML isNewEmptyAccount(): no personal signal yet.
-   * Day-one doorway — not an empty attention dashboard.
-   */
-  const dayOne =
-    !stillBootstrapping &&
-    !hasNeeds &&
-    !hasWaitingOrders &&
-    !hasAddressed &&
-    !hasNetwork &&
-    !hasFollowedShelf;
+  const orderRows = orders.data?.results ?? [];
+  const returnRows = returns.data?.results ?? [];
+  const accessRequests = incoming.data ?? [];
+  const chatRequests = threadRequests.data?.results ?? [];
+
+  const needs = buildHomeNeeds({
+    orders: orderRows,
+    returns: returnRows,
+    accessRequests,
+    chatRequests,
+  });
+  const metrics = homeMetrics({
+    orders: orderRows,
+    returns: returnRows,
+    accessCount: accessRequests.length,
+    chatCount: chatRequests.length,
+  });
+
+  const followedItems = followed.data?.results ?? [];
+  const newToday = newFollowedPostsToday(followedItems);
+  const hasNeeds = needs.length > 0;
+  const isOpportunity = !hasNeeds;
+  const hasFollowedUpdates = newToday.length > 0;
+  const chipEntries = (
+    [
+      { label: 'Orders', value: metrics.orders, to: '/orders?filter=needs' },
+      {
+        label: 'Requests',
+        value: metrics.requests,
+        to: accessRequests.length > 0 ? '/buyers' : '/chats',
+      },
+      { label: 'Returns', value: metrics.returns, to: '/orders?filter=needs' },
+    ] as const
+  ).filter((chip) => chip.value > 0);
+  const hasChips = chipEntries.length > 0;
+
+  const stillBootstrapping =
+    incoming.isLoading ||
+    orders.isLoading ||
+    returns.isLoading ||
+    threadRequests.isLoading ||
+    following.isLoading ||
+    (hasNetwork && followed.isLoading) ||
+    tradeLoading ||
+    company.isLoading;
+
+  const suggestScope = buying || !selling ? 'buy' : 'sell';
+  const viewerCity = company.data?.city?.trim() || undefined;
+  const followingIds = useMemo(
+    () => new Set((following.data ?? []).map((row) => row.id)),
+    [following.data],
+  );
+
+  const marketFeed = useQuery({
+    queryKey: ['explore', 'feed', { homeOpportunity: true }],
+    queryFn: () => api.get<CursorPage<ExplorePost>>('/explore/feed', { limit: 20 }),
+    enabled: !stillBootstrapping && isOpportunity,
+  });
+
+  const suggested = useQuery({
+    queryKey: ['explore', 'companies', { homeOpportunity: true, scope: suggestScope, city: viewerCity }],
+    queryFn: async () => {
+      const base = { scope: suggestScope, limit: 8 } as const;
+      if (!viewerCity) {
+        return api.get<CursorPage<CompanyCard>>('/explore/companies', base);
+      }
+      const local = await api.get<CursorPage<CompanyCard>>('/explore/companies', {
+        ...base,
+        city: viewerCity,
+      });
+      if (local.results.length > 0) return local;
+      return api.get<CursorPage<CompanyCard>>('/explore/companies', base);
+    },
+    enabled: !stillBootstrapping && isOpportunity,
+  });
 
   if (stillBootstrapping) {
     return <LoadingBlock label="Opening home…" />;
   }
 
+  const visibleNeeds = showAllNeeds ? needs : needs.slice(0, PREVIEW_LIMIT);
+  const needsOverflow = needs.length > PREVIEW_LIMIT;
+  const greetName =
+    company.data?.contactPerson?.trim() || company.data?.name?.trim() || 'there';
+  const followedPreview = newToday.slice(0, FOLLOWED_PREVIEW);
+  const recentPosts = (marketFeed.data?.results ?? []).slice(0, OPPORTUNITY_PREVIEW);
+  const suggestedBusinesses = (suggested.data?.results ?? [])
+    .filter((row) => !followingIds.has(row.id))
+    .slice(0, OPPORTUNITY_PREVIEW);
+  const opportunityReady = isOpportunity && marketFeed.isSuccess && suggested.isSuccess;
+  const isEmptyPlatform =
+    opportunityReady &&
+    !hasFollowedUpdates &&
+    recentPosts.length === 0 &&
+    suggestedBusinesses.length === 0;
+
   return (
-    <div className="ekum-rise flex flex-col gap-7">
-      {dayOne ? <DayOneWelcome buying={buying} selling={selling} /> : null}
+    <div className="ekum-rise flex flex-col gap-5">
+      <header className="flex flex-col gap-1.5">
+        <h1 className="text-xl font-bold tracking-tight text-ink">Namaste, {greetName}</h1>
+        {hasNeeds ? (
+          <p className="text-sm text-muted">
+            <span className="font-semibold text-accent">
+              {needs.length} item{needs.length === 1 ? '' : 's'}
+            </span>{' '}
+            need your attention.
+          </p>
+        ) : (
+          <div className="mt-1 flex flex-col gap-2.5">
+            <p className="text-sm text-muted">Everything&apos;s up to date.</p>
+            <p className="text-sm leading-relaxed text-muted">
+              Explore what&apos;s new in the market.
+            </p>
+          </div>
+        )}
+      </header>
+
+      {hasNeeds && hasChips ? (
+        <div
+          className={`grid gap-2 ${chipEntries.length === 1 ? 'grid-cols-1' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
+        >
+          {chipEntries.map((chip) => (
+            <MetricCard key={chip.label} label={chip.label} value={chip.value} to={chip.to} />
+          ))}
+        </div>
+      ) : null}
 
       {hasNeeds ? (
         <section className="flex flex-col gap-2.5">
-          <SectionHeader title="Needs you" />
-          <FilterRail>
-            {ordersNeed > 0 ? (
-              <Link to="/orders?filter=needs">
-                <Chip active>
-                  {ordersNeed} order{ordersNeed === 1 ? '' : 's'} need you
-                </Chip>
-              </Link>
-            ) : null}
-            {accessCount > 0 ? (
-              <Link to="/buyers">
-                <Chip active>
-                  {accessCount} access request{accessCount === 1 ? '' : 's'}
-                </Chip>
-              </Link>
-            ) : null}
-            {chatRequests > 0 ? (
-              <Link to="/chats">
-                <Chip active>
-                  {chatRequests} chat request{chatRequests === 1 ? '' : 's'}
-                </Chip>
-              </Link>
-            ) : null}
-          </FilterRail>
+          {visibleNeeds.map((item) => (
+            <NeedCard key={item.id} item={item} />
+          ))}
+          {needsOverflow && !showAllNeeds ? (
+            <button
+              type="button"
+              onClick={() => setShowAllNeeds(true)}
+              className="self-start px-0.5 text-sm font-bold text-accent"
+            >
+              See all {needs.length} →
+            </button>
+          ) : null}
         </section>
       ) : null}
 
-      {hasWaitingOrders ? (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeader title="In progress" />
-          <FilterRail>
-            <Link to="/orders?filter=progress">
-              <Chip>
-                {buyingWaiting} order{buyingWaiting === 1 ? '' : 's'} awaiting quote
-              </Chip>
-            </Link>
-          </FilterRail>
-        </section>
+      {/* Busy day: Followed only when there is news */}
+      {hasNeeds && hasFollowedUpdates ? (
+        <PostListSection
+          title="Followed"
+          subtitle={`${newToday.length} new post${newToday.length === 1 ? '' : 's'} today`}
+          posts={followedPreview}
+          actionLabel="View more →"
+        />
       ) : null}
 
-      {hasAddressed ? (
-        <section className="flex flex-col gap-2">
-          <SectionHeader
-            title="Addressed to you"
-            action={
-              <Link to="/notifications" className="text-xs font-bold text-accent">
-                See all
-              </Link>
-            }
-          />
-          <div className="divide-y divide-line rounded-2xl bg-surface px-1 shadow-[var(--shadow-soft)]">
-            {notificationItems.map((item) => (
-              <NotificationLine key={item.id} item={item} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {isOpportunity ? (
+        isEmptyPlatform ? (
+          <EmptyPlatformSection selling={selling} buying={buying} />
+        ) : (
+          <>
+            {hasNetwork && hasFollowedUpdates ? (
+              <PostListSection
+                title="Followed"
+                subtitle={`${newToday.length} new post${newToday.length === 1 ? '' : 's'} today`}
+                posts={followedPreview}
+                actionLabel="View more →"
+              />
+            ) : null}
 
-      {hasFollowedShelf || hasNetwork ? (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeader
-            title="Followed"
-            action={
-              <Link to="/explore" className="text-xs font-bold text-accent">
-                Explore
-              </Link>
-            }
-          />
-          {hasFollowedShelf ? (
-            <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-              {followedItems.map((collection) => (
-                <CollectionTile key={collection.id} collection={collection} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {followingList.slice(0, 4).map((biz) => (
-                <CompanyRow key={biz.id} company={biz} to={`/company/${biz.id}`} />
-              ))}
-              <p className="text-sm leading-relaxed text-muted">
-                New collections from businesses you follow will show up here.
-              </p>
-            </div>
-          )}
-        </section>
+            {recentPosts.length > 0 ? (
+              <PostListSection
+                title="From the market"
+                posts={recentPosts}
+                actionLabel="View more →"
+              />
+            ) : null}
+
+            {suggestedBusinesses.length > 0 ? (
+              <section className="flex flex-col gap-2.5">
+                <SectionHeader title="Recommended companies" />
+                <div className="flex flex-col gap-2">
+                  {suggestedBusinesses.map((row) => (
+                    <CompanyRow key={row.id} company={row} to={`/company/${row.id}`} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </>
+        )
       ) : null}
     </div>
   );
 }
 
-/** Day-one doorway: both buy and sell paths when trade presence allows. */
-function DayOneWelcome({ buying, selling }: { buying: boolean; selling: boolean }) {
-  const support =
-    buying && selling
-      ? 'Follow businesses for drops, or add designs to start selling — one account does both.'
-      : buying
-        ? 'Follow your first business to start seeing drops and trade activity here.'
-        : 'Add designs to start your catalogue. Publish when you are ready.';
-
+function PostListSection({
+  title,
+  subtitle,
+  posts,
+  actionLabel,
+}: {
+  title: string;
+  subtitle?: string;
+  posts: ExplorePost[];
+  actionLabel: string;
+}) {
   return (
-    <section className="rounded-2xl bg-surface px-4 py-5 shadow-[var(--shadow-soft)]">
-      <h1 className="text-base font-bold tracking-tight text-ink">Welcome to Ekum.</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{support}</p>
-      {buying ? (
-        <Link to="/explore" className="mt-4 block">
-          <Button fullWidth>
-            {selling ? 'Explore the market' : 'Follow your first business to start'}
-          </Button>
-        </Link>
-      ) : null}
-      {selling ? (
-        buying ? (
-          <Link
-            to="/catalog/products/new"
-            className="mt-3 block text-center text-sm font-bold text-accent"
-          >
-            Add designs
+    <section className="flex flex-col gap-2.5">
+      <SectionHeader
+        title={title}
+        action={
+          <Link to="/explore" className="text-xs font-bold text-accent">
+            {actionLabel}
           </Link>
-        ) : (
-          <Link to="/catalog/products/new" className="mt-4 block">
-            <Button fullWidth>Add designs</Button>
-          </Link>
-        )
-      ) : null}
+        }
+      />
+      {subtitle ? <p className="px-0.5 text-sm font-medium text-muted">{subtitle}</p> : null}
+      <div className="overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]">
+        {posts.map((post) => (
+          <MarketPostRow key={post.id} post={post} />
+        ))}
+      </div>
     </section>
   );
 }
 
-function notificationLink(item: NotificationView): string {
-  switch (item.refType) {
-    case 'order':
-      return `/orders/${item.refId}`;
-    case 'thread':
-      return `/chats/${item.refId}`;
-    case 'company':
-      return `/company/${item.refId}`;
-    case 'collection':
-      return `/collections/${item.refId}`;
-    default:
-      return '/notifications';
-  }
+/** Brand-new / empty market: no follows, no catalogues, nothing to recommend. */
+function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: boolean }) {
+  return (
+    <section className="flex flex-col gap-2.5">
+      <SectionHeader title="Explore businesses" />
+      <div className="rounded-2xl bg-surface px-4 py-4 shadow-[var(--shadow-soft)]">
+        <p className="text-sm leading-relaxed text-muted">
+          Be the first to build your network.
+        </p>
+        <Link to="/explore" className="mt-3 block">
+          <Button fullWidth>Explore →</Button>
+        </Link>
+        {selling ? (
+          <Link
+            to="/catalog/products/new"
+            className="mt-3 block text-center text-sm font-bold text-accent"
+          >
+            {buying ? 'Add designs' : 'Add designs to start'}
+          </Link>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
-function NotificationLine({ item }: { item: NotificationView }) {
+function MetricCard({ label, value, to }: { label: string; value: number; to: string }) {
   return (
     <Link
-      to={notificationLink(item)}
-      className="flex items-start gap-2.5 px-3 py-3 hover:bg-foam/80"
+      to={to}
+      className="rounded-2xl bg-surface px-3 py-3 shadow-[var(--shadow-soft)] transition-colors hover:bg-foam"
     >
-      <span
-        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read ? 'bg-transparent' : 'bg-accent'}`}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
-        {item.body ? <p className="truncate text-xs text-muted">{item.body}</p> : null}
-      </div>
-      <span className="text-[11px] font-medium text-muted">{timeAgo(item.createdAt)}</span>
+      <p className="text-lg font-bold tracking-tight text-accent">{value}</p>
+      <p className="text-xs font-medium text-muted">{label}</p>
     </Link>
   );
+}
+
+function MarketPostRow({ post }: { post: ExplorePost }) {
+  const company = post.kind === 'product' ? post.product.company : post.collection.company;
+  const title = post.kind === 'product' ? post.product.name : post.collection.name;
+  const meta =
+    post.kind === 'product'
+      ? '1 design'
+      : `${post.collection.productCount} design${post.collection.productCount === 1 ? '' : 's'}`;
+  const to =
+    post.kind === 'product'
+      ? `/explore/products/${post.product.id}`
+      : `/collections/${post.collection.id}`;
+  const place = company.city?.trim();
+
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-foam active:bg-foam"
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="truncate text-sm font-semibold text-ink">
+          {company.name}
+          {place ? <span className="font-medium text-muted"> · {place}</span> : null}
+        </p>
+        <p className="truncate text-sm text-ink">{title}</p>
+        <p className="truncate text-xs text-muted">{meta}</p>
+      </div>
+      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+    </Link>
+  );
+}
+
+function NeedCard({ item }: { item: HomeNeedItem }) {
+  const Icon = needIcon(item.kind);
+  return (
+    <Link
+      to={item.to}
+      className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foam text-accent">
+        <Icon width={18} height={18} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+        {item.subtitle ? <p className="truncate text-xs text-muted">{item.subtitle}</p> : null}
+      </div>
+      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+    </Link>
+  );
+}
+
+function needIcon(kind: HomeNeedItem['kind']): ComponentType<SVGProps<SVGSVGElement>> {
+  switch (kind) {
+    case 'dispatch':
+    case 'mark_delivered':
+      return CheckIcon;
+    case 'chat_request':
+    case 'send_rate':
+    case 'accept_quote':
+      return ChatIcon;
+    default:
+      return OrdersIcon;
+  }
 }

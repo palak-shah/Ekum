@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type Thread, type ThreadParticipant } from '@prisma/client';
 import {
+  MAX_PINNED_THREADS,
   MembershipRole,
   MessageType,
   ThreadParticipantState,
@@ -12,6 +13,7 @@ import {
   type ListThreadsQuery,
   type MessageView,
   type SetAlertLevelDto,
+  type SetThreadPinnedDto,
   type StartDirectThreadDto,
   type ThreadDetail,
   type ThreadSummary,
@@ -165,7 +167,11 @@ export class ThreadService {
     const rows = await this.prisma.threadParticipant.findMany({
       where,
       include: { thread: { include: { participants: { include: { company: true } } } } },
-      orderBy: [{ thread: { lastMessageAt: 'desc' } }, { id: 'desc' }],
+      orderBy: [
+        { pinnedAt: { sort: 'desc', nulls: 'last' } },
+        { thread: { lastMessageAt: 'desc' } },
+        { id: 'desc' },
+      ],
       take: query.limit + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     });
@@ -206,6 +212,15 @@ export class ThreadService {
     return this.detail(threadId, actorCompanyId, role);
   }
 
+  /** Clears unread on every chat the company still belongs to. */
+  async markAllRead(actorCompanyId: string): Promise<{ ok: true }> {
+    await this.prisma.threadParticipant.updateMany({
+      where: { companyId: actorCompanyId, leftAt: null },
+      data: { lastReadAt: new Date() },
+    });
+    return { ok: true };
+  }
+
   async setAlertLevel(
     actorCompanyId: string,
     role: string | null,
@@ -217,6 +232,42 @@ export class ThreadService {
       where: { id: mine.id },
       data: { alertLevel: dto.alertLevel },
     });
+    return this.detail(threadId, actorCompanyId, role);
+  }
+
+  async setPinned(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    dto: SetThreadPinnedDto,
+  ): Promise<ThreadDetail> {
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    if (dto.pinned) {
+      if (!mine.pinnedAt) {
+        const pinnedCount = await this.prisma.threadParticipant.count({
+          where: {
+            companyId: actorCompanyId,
+            leftAt: null,
+            pinnedAt: { not: null },
+          },
+        });
+        if (pinnedCount >= MAX_PINNED_THREADS) {
+          throw new BadRequestException({
+            code: 'PIN_LIMIT',
+            message: `You can pin up to ${MAX_PINNED_THREADS} chats.`,
+          });
+        }
+      }
+      await this.prisma.threadParticipant.update({
+        where: { id: mine.id },
+        data: { pinnedAt: mine.pinnedAt ?? new Date() },
+      });
+    } else {
+      await this.prisma.threadParticipant.update({
+        where: { id: mine.id },
+        data: { pinnedAt: null },
+      });
+    }
     return this.detail(threadId, actorCompanyId, role);
   }
 
@@ -351,7 +402,7 @@ export class ThreadService {
     if (!message) {
       return null;
     }
-    const references = await this.references.resolve([message]);
+    const references = await this.references.resolve([message], viewerCompanyId);
     return this.serializer.toMessageView(message, viewerCompanyId, references.get(message.id) ?? null);
   }
 

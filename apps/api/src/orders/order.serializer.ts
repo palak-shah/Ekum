@@ -21,7 +21,10 @@ import { CompanySerializer } from '../access/company.serializer';
 
 type OrderWithRelations = Order & { buyer: Company; seller: Company; items: OrderItem[] };
 type SampleWithRelations = Sample & { buyer: Company; seller: Company };
-type ReturnWithRelations = Return & { items: ReturnItem[] };
+type ReturnWithRelations = Return & {
+  items: ReturnItem[];
+  order: { buyer: Company; seller: Company };
+};
 
 function decimal(value: Prisma.Decimal | null): number | null {
   return value === null ? null : value.toNumber();
@@ -37,6 +40,18 @@ export class OrderSerializer {
     threadId: string | null = null,
   ): OrderView {
     const buying = order.buyerCompanyId === viewerCompanyId;
+    const confirmedByCompanyId = order.confirmedByCompanyId ?? null;
+    let confirmedByRole: 'buyer' | 'seller' | null = null;
+    let confirmedByName: string | null = null;
+    if (confirmedByCompanyId === order.buyerCompanyId) {
+      confirmedByRole = 'buyer';
+      confirmedByName =
+        confirmedByCompanyId === viewerCompanyId ? 'you' : order.buyer.name;
+    } else if (confirmedByCompanyId === order.sellerCompanyId) {
+      confirmedByRole = 'seller';
+      confirmedByName =
+        confirmedByCompanyId === viewerCompanyId ? 'you' : order.seller.name;
+    }
     return {
       id: order.id,
       kind: order.kind,
@@ -45,6 +60,8 @@ export class OrderSerializer {
       note: order.note,
       buyerCompanyId: order.buyerCompanyId,
       sellerCompanyId: order.sellerCompanyId,
+      buyerName: order.buyer.name,
+      sellerName: order.seller.name,
       counterpart: this.companySerializer.toPublicSummary(buying ? order.seller : order.buyer),
       items: order.items.map((item) => this.toItemView(item)),
       dispatch: order.dispatchedAt
@@ -57,6 +74,8 @@ export class OrderSerializer {
         : null,
       threadId,
       confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
+      confirmedByName,
+      confirmedByRole,
       deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
@@ -90,15 +109,16 @@ export class OrderSerializer {
   }
 
   toReturnView(entity: ReturnWithRelations, viewerCompanyId: string): ReturnView {
+    const buying = entity.buyerCompanyId === viewerCompanyId;
     return {
       id: entity.id,
       orderId: entity.orderId,
       status: entity.status,
       reason: entity.reason,
-      direction:
-        entity.buyerCompanyId === viewerCompanyId
-          ? OrderDirection.Buying
-          : OrderDirection.Selling,
+      direction: buying ? OrderDirection.Buying : OrderDirection.Selling,
+      counterpart: this.companySerializer.toPublicSummary(
+        buying ? entity.order.seller : entity.order.buyer,
+      ),
       items: entity.items.map((item) => ({
         id: item.id,
         orderItemId: item.orderItemId,

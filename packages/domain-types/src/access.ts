@@ -40,4 +40,5 @@ export interface PublicCompanySummary {
   name: string;
   city: string;
   verification: string;
+  logoUrl: string | null;
 }

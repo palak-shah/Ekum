@@ -1,10 +1,9 @@
 import { Suspense, useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useMyCompany, useUnreadCount } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
-import { BrandMark } from '@/ui/BrandMark';
-import { Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import {
   BellIcon,
   ChatIcon,
@@ -22,16 +21,40 @@ const NAV = [
   { to: '/orders', label: 'Orders', Icon: OrdersIcon, end: false },
 ] as const;
 
+function shellTitle(pathname: string): string | null {
+  if (pathname === '/') return null;
+  if (pathname.startsWith('/chats')) return pathname === '/chats' ? 'Chats' : null;
+  if (pathname.startsWith('/orders')) return pathname === '/orders' ? 'Orders' : null;
+  if (pathname.startsWith('/explore') || pathname.startsWith('/search')) return 'Explore';
+  if (pathname.startsWith('/notifications')) return 'Notifications';
+  if (pathname.startsWith('/more') || pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
+    return 'More';
+  }
+  if (pathname.startsWith('/buyers')) return 'Buyers';
+  if (pathname.startsWith('/catalog')) return 'Catalogue';
+  if (pathname.startsWith('/company')) return 'Business';
+  if (pathname.startsWith('/collections')) return 'Collection';
+  if (pathname.startsWith('/products')) return 'Design';
+  if (pathname.startsWith('/broadcast')) return 'Broadcast';
+  if (pathname.startsWith('/referrals')) return 'Referrals';
+  return null;
+}
+
 /**
- * Mobile-first shell: quiet header, glass bottom nav, one elevated ＋.
+ * Mobile-first shell: quiet header (no brand mark), glass bottom nav, elevated ＋.
  */
 export function AppShell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
   const company = useMyCompany();
   const unread = useUnreadCount();
   const { buying, selling, canPublish } = useTradePresence();
   const capabilities = company.data?.capabilities;
+  const title = shellTitle(location.pathname);
+  const isHome = location.pathname === '/';
+  /** Thread detail: counterpart header owns the top chrome (WhatsApp-style). */
+  const isChatThread = /^\/chats\/[^/]+/.test(location.pathname);
 
   const go = (path: string) => {
     setSheetOpen(false);
@@ -39,33 +62,63 @@ export function AppShell() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas">
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/95 px-4 py-2.5 backdrop-blur-md">
-        <BrandMark size="header" />
-        <div className="flex items-center gap-0.5">
-          <button
-            aria-label="Notifications"
-            className="relative rounded-full p-2 text-slate hover:bg-foam"
-            onClick={() => navigate('/notifications')}
-          >
-            <BellIcon />
-            {unread.data && unread.data.count > 0 ? (
-              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
-                {unread.data.count > 9 ? '9+' : unread.data.count}
-              </span>
-            ) : null}
-          </button>
-          <button
-            aria-label="Profile and settings"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-white"
-            onClick={() => navigate('/more')}
-          >
-            {(company.data?.name ?? 'E').charAt(0).toUpperCase()}
-          </button>
-        </div>
-      </header>
+    <div
+      className={cx(
+        'mx-auto flex w-full max-w-md flex-col bg-canvas',
+        isChatThread ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
+      )}
+    >
+      {!isChatThread ? (
+        <header
+          className={cx(
+            'sticky top-0 z-20 flex items-center bg-canvas/95 px-4 py-2.5 backdrop-blur-md',
+            isHome || title ? 'justify-between' : 'justify-end',
+          )}
+        >
+          {title ? (
+            <h1 className="text-lg font-bold tracking-tight text-ink">{title}</h1>
+          ) : isHome ? (
+            <span className="min-w-0 flex-1" aria-hidden />
+          ) : (
+            <span className="min-w-0 flex-1" aria-hidden />
+          )}
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              aria-label="Notifications"
+              className="relative rounded-full p-2 text-slate hover:bg-foam"
+              onClick={() => navigate('/notifications')}
+            >
+              <BellIcon />
+              {unread.data && unread.data.count > 0 ? (
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
+                  {unread.data.count > 9 ? '9+' : unread.data.count}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              aria-label="Profile and settings"
+              className="rounded-full p-0.5"
+              onClick={() => navigate('/more')}
+            >
+              <Avatar
+                name={company.data?.name ?? 'E'}
+                imageUrl={company.data?.logoUrl}
+                size={36}
+              />
+            </button>
+          </div>
+        </header>
+      ) : null}
 
-      <main className="ekum-rise flex-1 px-4 pb-28 pt-3">
+      <main
+        className={cx(
+          'ekum-rise flex-1',
+          isChatThread
+            ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
+            : 'px-4 pb-28 pt-3',
+        )}
+      >
         <Suspense fallback={<LoadingBlock />}>
           <Outlet />
         </Suspense>

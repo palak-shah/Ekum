@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import type {
   CollectionCard,
   DiscoveryProductCard,
+  ExplorePost,
+  ExploreProductCard,
   ProductView,
   PublicCompanySummary,
 } from '@ekum/domain-types';
@@ -19,7 +21,7 @@ function VerificationTag({ verification }: { verification: string }) {
 export function CompanyRow({ company, to }: { company: PublicCompanySummary; to?: string }) {
   const inner = (
     <div className="flex items-center gap-3">
-      <Avatar name={company.name} />
+      <Avatar name={company.name} imageUrl={company.logoUrl} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
         <p className="truncate text-xs font-medium text-muted">{company.city}</p>
@@ -181,24 +183,34 @@ export function AlbumGrid({
   );
 }
 
+function PostHeader({
+  company,
+  postedAt,
+}: {
+  company: PublicCompanySummary;
+  postedAt: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Link to={`/company/${company.id}`} className="shrink-0">
+        <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+      </Link>
+      <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
+        <p className="truncate text-xs font-medium text-muted">
+          {company.city}
+          {postedAt ? ` · ${timeAgo(postedAt)}` : null}
+        </p>
+      </Link>
+    </div>
+  );
+}
+
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
   return (
     <article className="-mx-4 border-b border-line/80 pb-4">
-      <div className="flex items-center gap-3 px-4 py-3">
-        <Link to={`/company/${collection.company.id}`} className="shrink-0">
-          <Avatar name={collection.company.name} size={40} />
-        </Link>
-        <Link to={`/company/${collection.company.id}`} className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold tracking-tight text-ink">
-            {collection.company.name}
-          </p>
-          <p className="truncate text-xs font-medium text-muted">
-            {collection.company.city}
-            {collection.updatedAt ? ` · ${timeAgo(collection.updatedAt)}` : null}
-          </p>
-        </Link>
-      </div>
+      <PostHeader company={collection.company} postedAt={collection.updatedAt} />
       <Link to={`/collections/${collection.id}`} className="block px-3">
         <AlbumGrid
           images={collection.previewImages}
@@ -212,6 +224,29 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       </Link>
     </article>
   );
+}
+
+/** Single-design Explore post. */
+export function ProductPost({ product }: { product: ExploreProductCard }) {
+  return (
+    <article className="-mx-4 border-b border-line/80 pb-4">
+      <PostHeader company={product.company} postedAt={product.postedAt} />
+      <Link to={`/explore/products/${product.id}`} className="block px-3">
+        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+      </Link>
+      <Link to={`/explore/products/${product.id}`} className="mt-2.5 block px-4">
+        <p className="text-sm font-bold tracking-tight text-ink">{product.name}</p>
+        <p className="text-xs font-medium text-muted">Design</p>
+      </Link>
+    </article>
+  );
+}
+
+export function ExploreFeedPost({ post }: { post: ExplorePost }) {
+  if (post.kind === 'product') {
+    return <ProductPost product={post.product} />;
+  }
+  return <CollectionPost collection={post.collection} />;
 }
 
 export function ProductTile({

@@ -24,6 +24,7 @@ export class CompanySerializer {
       name: company.name,
       city: company.city,
       about: company.about,
+      logoUrl: company.logoUrl,
       verification: company.verification,
       categories: company.sellCategories.length > 0 ? company.sellCategories : company.superCategories,
       superCategories: company.superCategories,
@@ -36,6 +37,7 @@ export class CompanySerializer {
       name: company.name,
       city: company.city,
       verification: company.verification,
+      logoUrl: company.logoUrl,
     };
   }
 

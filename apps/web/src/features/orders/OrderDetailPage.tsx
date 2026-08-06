@@ -29,7 +29,9 @@ function OrderTimeline({ order }: { order: OrderView }) {
     },
     {
       key: 'confirmed',
-      label: 'Confirmed',
+      label: order.confirmedByName
+        ? `Confirmed by ${order.confirmedByName}`
+        : 'Confirmed',
       at: order.confirmedAt,
       done: Boolean(order.confirmedAt),
       current: order.status === 'confirmed',
@@ -198,6 +200,24 @@ export function OrderDetailPage() {
         subtitle={`${data.direction === 'buying' ? 'Buying from' : 'Selling to'} · ${data.kind}`}
         action={<StatusPill status={data.status} />}
       />
+
+      <Card className="flex flex-col gap-1 text-sm">
+        <p className="font-semibold text-ink">Parties</p>
+        <p className="text-muted">
+          Buyer · <span className="font-medium text-ink">{data.buyerName}</span>
+          {data.direction === 'buying' ? ' (you)' : ''}
+        </p>
+        <p className="text-muted">
+          Seller · <span className="font-medium text-ink">{data.sellerName}</span>
+          {data.direction === 'selling' ? ' (you)' : ''}
+        </p>
+        {data.status === 'confirmed' && data.confirmedByName ? (
+          <p className="pt-1 text-muted">
+            Confirmed by{' '}
+            <span className="font-medium text-ink">{data.confirmedByName}</span>
+          </p>
+        ) : null}
+      </Card>
 
       <Card className="flex flex-col gap-3">
         {data.items.map((item) => (

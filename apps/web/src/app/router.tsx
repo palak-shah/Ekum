@@ -20,6 +20,10 @@ function page<T extends Record<string, ComponentType<unknown>>>(
 
 const HomePage = page(() => import('@/features/home/HomePage'), 'HomePage');
 const ExplorePage = page(() => import('@/features/explore/ExplorePage'), 'ExplorePage');
+const ExploreProductPage = page(
+  () => import('@/features/explore/ExploreProductPage'),
+  'ExploreProductPage',
+);
 const SearchPage = page(() => import('@/features/explore/SearchPage'), 'SearchPage');
 const CompanyProfilePage = page(
   () => import('@/features/company/CompanyProfilePage'),
@@ -86,6 +90,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <HomePage /> },
           { path: 'explore', element: <ExplorePage /> },
+          { path: 'explore/products/:id', element: <ExploreProductPage /> },
           { path: 'search', element: <SearchPage /> },
           { path: 'company/:id', element: <CompanyProfilePage /> },
           { path: 'collections/:id', element: <CollectionViewerPage /> },

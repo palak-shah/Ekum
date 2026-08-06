@@ -3,6 +3,7 @@ import type { Company, Message, Thread, ThreadParticipant } from '@prisma/client
 import {
   ThreadType,
   type MessageReference,
+  type MessageReplyPreview,
   type MessageView,
   type ParticipantView,
   type ThreadDetail,
@@ -29,6 +30,7 @@ export class ConversationSerializer {
     message: Message,
     viewerCompanyId: string,
     reference: MessageReference | null,
+    replyTo: MessageReplyPreview | null = null,
   ): MessageView {
     return {
       id: message.id,
@@ -40,6 +42,7 @@ export class ConversationSerializer {
       metadata: message.metadata ?? null,
       createdAt: message.createdAt.toISOString(),
       mine: message.senderCompanyId === viewerCompanyId,
+      replyTo,
     };
   }
 
@@ -67,6 +70,7 @@ export class ConversationSerializer {
       title: thread.title,
       state: mine.state,
       alertLevel: mine.alertLevel,
+      pinned: Boolean(mine.pinnedAt),
       unreadCount,
       lastMessage,
       lastMessageAt: thread.lastMessageAt.toISOString(),

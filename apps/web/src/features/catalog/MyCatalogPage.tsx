@@ -5,13 +5,14 @@ import type { CollectionView, ProductView } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, Card, EmptyState, LoadingBlock, StatusPill, cx } from '@/ui/kit';
+import { Button, Card, EmptyState, LoadingBlock, Sheet, StatusPill, cx } from '@/ui/kit';
 
 type Tab = 'products' | 'collections';
 
 export function MyCatalogPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('products');
+  const [postOpen, setPostOpen] = useState(false);
 
   const products = useQuery({
     queryKey: ['my-products'],
@@ -29,13 +30,8 @@ export function MyCatalogPage() {
       <PageHeader
         title="My collection"
         action={
-          <button
-            className="text-sm font-medium text-accent"
-            onClick={() =>
-              navigate(tab === 'products' ? '/catalog/products/new' : '/catalog/collections/new')
-            }
-          >
-            {tab === 'products' ? 'Add designs' : 'Add'}
+          <button className="text-sm font-medium text-accent" onClick={() => setPostOpen(true)}>
+            New post
           </button>
         }
       />
@@ -61,7 +57,11 @@ export function MyCatalogPage() {
         ) : products.data && products.data.length > 0 ? (
           <div className="grid grid-cols-2 gap-3">
             {products.data.map((product) => (
-              <Link key={product.id} to={`/products/${product.id}`} className="overflow-hidden rounded-2xl border border-line bg-surface">
+              <Link
+                key={product.id}
+                to={`/catalog/products/${product.id}`}
+                className="overflow-hidden rounded-2xl border border-line bg-surface"
+              >
                 {product.images[0] ? (
                   <img src={product.images[0]} alt={product.name} className="h-32 w-full object-cover" />
                 ) : (
@@ -73,6 +73,9 @@ export function MyCatalogPage() {
                   <p className="truncate text-sm font-medium text-ink">{product.name}</p>
                   <p className="text-xs text-muted">{formatRate(product.rate, product.unit)}</p>
                   <StatusPill status={product.status} />
+                  {product.postedToMarketAt ? (
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-accent">On Explore</p>
+                  ) : null}
                 </div>
               </Link>
             ))}
@@ -80,8 +83,8 @@ export function MyCatalogPage() {
         ) : (
           <EmptyState
             title="No designs yet"
-            message="Upload your first design to start selling."
-            action={<Button onClick={() => navigate('/catalog/products/new')}>Upload a design</Button>}
+            message="Upload a design, then post it to Explore or group it into a collection."
+            action={<Button onClick={() => setPostOpen(true)}>New post</Button>}
           />
         )
       ) : collections.isLoading ? (
@@ -107,6 +110,33 @@ export function MyCatalogPage() {
           action={<Button onClick={() => navigate('/catalog/collections/new')}>New collection</Button>}
         />
       )}
+
+      <Sheet open={postOpen} onClose={() => setPostOpen(false)} title="What are you posting?">
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setPostOpen(false);
+              navigate('/catalog/products/new');
+            }}
+            className="rounded-2xl border border-line px-4 py-3.5 text-left"
+          >
+            <p className="text-sm font-bold text-ink">Single design</p>
+            <p className="mt-0.5 text-xs text-muted">One product post on Explore</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPostOpen(false);
+              navigate('/catalog/collections/new');
+            }}
+            className="rounded-2xl border border-line px-4 py-3.5 text-left"
+          >
+            <p className="text-sm font-bold text-ink">Collection</p>
+            <p className="mt-0.5 text-xs text-muted">Album of designs as one post</p>
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 }

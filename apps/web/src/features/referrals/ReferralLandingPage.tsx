@@ -44,7 +44,7 @@ export function ReferralLandingPage() {
     <div className="flex flex-col gap-4">
       <PageHeader title="You've been referred" />
       <Card className="flex flex-col items-center gap-3 text-center">
-        <Avatar name={data.referrer.name} size={56} />
+        <Avatar name={data.referrer.name} imageUrl={data.referrer.logoUrl} size={56} />
         <p className="text-sm text-ink">
           <span className="font-semibold">{data.referrer.name}</span> vouches for
         </p>

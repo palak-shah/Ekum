@@ -1,11 +1,13 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   approveReturnSchema,
   createReturnSchema,
   escalateReturnSchema,
+  listReturnsQuerySchema,
   type ApproveReturnDto,
   type CreateReturnDto,
   type EscalateReturnDto,
+  type ListReturnsQuery,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
@@ -21,6 +23,14 @@ export class ReturnController {
     @Body(new ZodValidationPipe(createReturnSchema)) dto: CreateReturnDto,
   ) {
     return this.returns.create(companyId, dto);
+  }
+
+  @Get()
+  list(
+    @CurrentCompanyId() companyId: string,
+    @Query(new ZodValidationPipe(listReturnsQuerySchema)) query: ListReturnsQuery,
+  ) {
+    return this.returns.list(companyId, query);
   }
 
   @Get(':id')

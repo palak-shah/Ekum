@@ -5,6 +5,7 @@ import {
   orderDirectionValues,
   orderKindValues,
   orderStatusValues,
+  returnStatusValues,
   unitValues,
 } from './enums';
 import type { PublicCompanySummary } from './access';
@@ -85,6 +86,12 @@ export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   status: z.enum(orderStatusValues).optional(),
 });
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
+
+export const listReturnsQuerySchema = cursorPageQuerySchema.extend({
+  direction: z.enum(orderDirectionValues).optional(),
+  status: z.enum(returnStatusValues).optional(),
+});
+export type ListReturnsQuery = z.infer<typeof listReturnsQuerySchema>;
 
 // --- Samples ----------------------------------------------------------------
 
@@ -183,6 +190,12 @@ export interface OrderView {
   /** Direct thread where the order/quote cards live, when found. */
   threadId: string | null;
   confirmedAt: string | null;
+  /** Display name of who confirmed (seller or buyer), when known. */
+  confirmedByName: string | null;
+  /** buyer | seller | null — role of who confirmed, from the order parties. */
+  confirmedByRole: 'buyer' | 'seller' | null;
+  buyerName: string;
+  sellerName: string;
   deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -218,6 +231,7 @@ export interface ReturnView {
   status: string;
   reason: string | null;
   direction: string;
+  counterpart: PublicCompanySummary;
   items: ReturnItemView[];
   escalatedFromReturnId: string | null;
   createdAt: string;

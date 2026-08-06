@@ -133,6 +133,7 @@ export class CompanyService {
         city: dto.city,
         about: dto.about === undefined ? undefined : dto.about,
         gstNumber: dto.gstNumber === undefined ? undefined : dto.gstNumber,
+        logoUrl: dto.logoUrl === undefined ? undefined : dto.logoUrl,
         sellCategories: dto.sellCategories,
         buyCategories: dto.buyCategories,
         superCategories: dto.superCategories,

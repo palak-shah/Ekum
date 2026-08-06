@@ -125,7 +125,7 @@ export class OrderService {
       actor: 'seller',
       from: [OrderStatus.Requested],
       next: OrderStatus.Confirmed,
-      data: { confirmedAt: new Date() },
+      data: { confirmedAt: new Date(), confirmedByCompanyId: actorCompanyId },
     });
   }
 
@@ -135,7 +135,7 @@ export class OrderService {
       actor: 'buyer',
       from: [OrderStatus.Requested],
       next: OrderStatus.Confirmed,
-      data: { confirmedAt: new Date() },
+      data: { confirmedAt: new Date(), confirmedByCompanyId: actorCompanyId },
     });
   }
 

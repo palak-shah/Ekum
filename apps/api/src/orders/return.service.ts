@@ -10,15 +10,22 @@ import {
   ReturnStatus,
   type ApproveReturnDto,
   type CreateReturnDto,
+  type CursorPage,
   type EscalateReturnDto,
+  type ListReturnsQuery,
   type ReturnView,
 } from '@ekum/domain-types';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { OrderSerializer } from './order.serializer';
 import { DomainEvents } from '../events/events.module';
 
-const RETURN_RELATIONS = { items: true } as const;
+const RETURN_RELATIONS = {
+  items: true,
+  order: { include: { buyer: true, seller: true } },
+} as const;
 
 @Injectable()
 export class ReturnService {
@@ -28,6 +35,29 @@ export class ReturnService {
     private readonly audit: AuditService,
     private readonly events: DomainEvents,
   ) {}
+
+  async list(actorCompanyId: string, query: ListReturnsQuery): Promise<CursorPage<ReturnView>> {
+    const where: Prisma.ReturnWhereInput = {};
+    if (query.direction === 'buying') {
+      where.buyerCompanyId = actorCompanyId;
+    } else if (query.direction === 'selling') {
+      where.sellerCompanyId = actorCompanyId;
+    } else {
+      where.OR = [{ buyerCompanyId: actorCompanyId }, { sellerCompanyId: actorCompanyId }];
+    }
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    const rows = await this.prisma.return.findMany({
+      where,
+      include: RETURN_RELATIONS,
+      ...cursorArgs(query),
+    });
+    return toCursorPage(rows, query.limit, (row) =>
+      this.serializer.toReturnView(row, actorCompanyId),
+    );
+  }
 
   async create(actorCompanyId: string, dto: CreateReturnDto): Promise<ReturnView> {
     const order = await this.prisma.order.findUnique({
