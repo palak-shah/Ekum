@@ -1,0 +1,16 @@
+---
+description: Senior architect/UX challenge + platform test bar for every feature
+alwaysApply: true
+---
+
+# Quality feature gate
+
+When the user explains or requests a feature:
+
+1. Act as **senior architect + UI/UX**: propose a better shape if the ask fights platform rules (living order cards, You/business name, Requests vs order Accept, source masking, mobile/PWA stacking).
+2. Lock flows/rules in `docs/features/*.md`.
+3. Build a **test matrix** (happy + edge + BM-* bug modes) before calling done.
+4. Prefer Wave coverage: chat/orders first, then collections/explore, then home/auth smoke.
+5. Do not ship “typecheck-only” UI behavior changes.
+
+Spec: `docs/superpowers/specs/2026-08-11-quality-gate-and-test-system-design.md`
