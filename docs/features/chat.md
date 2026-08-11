@@ -46,6 +46,12 @@ Message types: text, photo, voice, collection_card, product_card, order_card, ra
 2. Send a reply; confirm unread clears.
 3. As an unconnected test company: message Ravi → appears under Ravi’s chat requests.
 
+## Automated verification (Wave 1)
+
+- Web: `pnpm --filter @ekum/web test` — PhotoAlbum BM-01, order card copy/dedupe, thread search
+- E2E smoke: start PostgreSQL, migrate and seed the database, then run the API and web app with `OTP_EXPOSE_DEV_CODE=true`; run `pnpm test:e2e:smoke`
+- CI: web and API units run through `pnpm test`; E2E smoke is available from the manual `workflow_dispatch` CI job and is a local/PR requirement for chat and orders changes
+
 ## Where it lives
 
 - Web: `apps/web/src/features/chats/` (`ChatsPage`, `ThreadPage`, `messagePreview`, `chatMessageActions`)
