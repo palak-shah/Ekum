@@ -563,6 +563,7 @@ export function ThreadPage() {
               <PlusIcon width={20} height={20} />
             </button>
             <input
+              data-testid="chat-composer"
               ref={draftInputRef}
               className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
               placeholder="Message…"
@@ -572,6 +573,7 @@ export function ThreadPage() {
             <button
               type="submit"
               aria-label="Send"
+              data-testid="chat-send"
               disabled={!draft.trim() || send.isPending}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
             >
