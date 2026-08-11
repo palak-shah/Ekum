@@ -183,6 +183,15 @@ async function main(): Promise<void> {
       categories: ['Sarees'],
       images: ['https://picsum.photos/seed/organza/600/800'],
     },
+    {
+      id: 'seed-prod-no-image',
+      name: 'Sample swatch (no photo)',
+      sku: 'SWATCH-000',
+      rate: 100,
+      unit: 'pc',
+      categories: ['Sarees'],
+      images: [],
+    },
   ];
   for (const product of products) {
     await prisma.product.upsert({
