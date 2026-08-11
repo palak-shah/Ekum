@@ -1,7 +1,7 @@
 # Quality gate and test system — design
 
 **Date:** 2026-08-11  
-**Status:** Wave 1 implemented — web units run with API tests in `pnpm test`; seeded Playwright smoke runs locally and through manual CI dispatch  
+**Status:** Wave 1 done — web units run with API tests in `pnpm test`; seeded Playwright smoke passes locally and runs through manual CI dispatch  
 **Goal:** Every feature is challenged as senior architect / UI-UX against Ekum platform rules, then proven with automated coverage for UI regressions and critical buyer–seller journeys.
 
 ## Problem
