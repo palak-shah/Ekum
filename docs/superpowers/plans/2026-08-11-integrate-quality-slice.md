@@ -91,7 +91,7 @@ Next work on that WIP: Feature Completeness Review first, then implement.
 
 ## Todos
 
-- [ ] Step 1 — commit quality slice only
-- [ ] Step 2 — re-verify suites green
-- [ ] Step 3 — push + PR (or local merge)
-- [ ] Step 4 — park product WIP separately
+- [x] Step 1 — commit quality slice only (`bd38688`)
+- [x] Step 2 — re-verify suites green
+- [x] Step 3 — push `quality-gate-wave1` (gh CLI missing — open PR via GitHub URL)
+- [x] Step 4 — park product WIP in `stash@{0}` (`wip/product-ongoing: park outside quality PR`)
