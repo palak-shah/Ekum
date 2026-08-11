@@ -13,6 +13,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e:smoke": "pnpm --filter @ekum/e2e test:smoke",
+    "test:e2e:functional": "pnpm --filter @ekum/e2e test:functional",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\""
   },

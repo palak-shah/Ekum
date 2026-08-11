@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
@@ -372,10 +381,14 @@ function SupplierDirectory({
   );
 }
 
-/** Compact menu anchored under the ⋯ — not a bottom sheet. */
+/**
+ * Compact filter menu. Portaled to document.body so dismiss is not trapped by
+ * parent transforms (ekum-rise). Closes on outside tap, Escape, or scroll.
+ */
 function FilterMenu({
   open,
   onClose,
+  anchorRef,
   category,
   city,
   contentMode,
@@ -388,6 +401,7 @@ function FilterMenu({
 }: {
   open: boolean;
   onClose: () => void;
+  anchorRef: RefObject<HTMLElement | null>;
   category: string;
   city: string;
   contentMode: ContentMode;
@@ -400,6 +414,23 @@ function FilterMenu({
 }) {
   const [view, setView] = useState<MenuView>('root');
   const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 6,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open, anchorRef, view]);
 
   useEffect(() => {
     if (!open) {
@@ -409,28 +440,46 @@ function FilterMenu({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if (anchorRef.current?.contains(target)) return;
+      onClose();
+    };
+    const onScroll = () => onClose();
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, onClose, anchorRef]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   const subTitle =
     view === 'category' ? 'Category' : view === 'city' ? 'City' : view === 'show' ? 'Show' : '';
 
-  return (
+  return createPortal(
     <>
       <button
         type="button"
         aria-label="Close filter menu"
-        className="fixed inset-0 z-40 cursor-default bg-transparent"
+        className="fixed inset-0 z-[60] cursor-default bg-ink/15"
         onClick={onClose}
       />
       <div
         ref={panelRef}
         role="menu"
-        className="absolute right-0 top-[calc(100%+6px)] z-50 w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-        style={{ animation: 'ekum-rise 160ms ease-out' }}
+        data-testid="explore-filter-menu"
+        className="fixed z-[61] w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
+        style={{
+          top: pos.top,
+          right: pos.right,
+          animation: 'ekum-rise 160ms ease-out',
+        }}
       >
         {view === 'root' ? (
           <div className="py-1">
@@ -548,7 +597,8 @@ function FilterMenu({
           </div>
         )}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -581,6 +631,7 @@ export function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const company = useMyCompany();
   const [menuOpen, setMenuOpen] = useState(false);
+  const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
   const [category, setCategory] = useState('All');
   const [city, setCity] = useState<string>('All');
@@ -776,7 +827,9 @@ export function ExplorePage() {
               <span className="truncate">Search companies, city, GST…</span>
             </button>
             <button
+              ref={filterAnchorRef}
               type="button"
+              data-testid="explore-filter"
               aria-label="Filter"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
@@ -794,6 +847,7 @@ export function ExplorePage() {
             <FilterMenu
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
+              anchorRef={filterAnchorRef}
               category={activeCategory}
               city={city}
               contentMode={contentMode}

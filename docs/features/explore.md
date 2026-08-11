@@ -39,6 +39,11 @@ Primarily buyers (and dual-role companies browsing). Sellers appear as the sourc
 2. Follow Ravi’s company if not already; confirm Following feed on Home / Explore.
 3. As **Ravi**: post a design to Explore → confirm Meena can see it when audience is connections/everyone.
 
+## Automated verification
+
+- Functional: `pnpm test:e2e:functional` — `@explore` browse, filter dismiss, open collection
+- Completeness: `docs/superpowers/reviews/completeness/2026-08-11-explore-completeness.md`
+
 ## Where it lives
 
 - Web: `apps/web/src/features/explore/`

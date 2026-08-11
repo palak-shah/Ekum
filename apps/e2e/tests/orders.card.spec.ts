@@ -3,7 +3,7 @@ import { loginAs } from '../helpers/auth';
 import { PHONES } from '../helpers/env';
 import { createOrder } from '../helpers/orders';
 
-test.describe('order card album @smoke @orders', () => {
+test.describe('order card album @smoke @regression @orders', () => {
   test('shows +N when designs exceed preview images', async ({ page }) => {
     await loginAs(page, PHONES.meena);
     const tokensRaw = await page.evaluate(() => localStorage.getItem('ekum.tokens'));

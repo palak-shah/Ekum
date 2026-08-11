@@ -1,16 +1,48 @@
 ---
-description: Senior architect/UX challenge + platform test bar for every feature
+description: Feature Completeness Review + platform coherence before any feature work
 alwaysApply: true
 ---
 
 # Quality feature gate
 
-When the user explains or requests a feature:
+The goal is **platform coherence**, not making every request work.
 
-1. Act as **senior architect + UI/UX**: propose a better shape if the ask fights platform rules (living order cards, You/business name, Requests vs order Accept, source masking, mobile/PWA stacking).
-2. Lock flows/rules in `docs/features/*.md`.
-3. Build a **test matrix** (happy + edge + BM-* bug modes) before calling done.
-4. Prefer Wave coverage: chat/orders first, then collections/explore, then home/auth smoke.
-5. Do not ship “typecheck-only” UI behavior changes.
+## Hard gate — Feature Completeness Review
 
-Spec: `docs/superpowers/specs/2026-08-11-quality-gate-and-test-system-design.md`
+Before implementing or expanding a feature (including new product behaviour in e2e journeys):
+
+1. Complete a **Feature Completeness Review** using `docs/superpowers/reviews/completeness/TEMPLATE.md`.
+2. Save as `docs/superpowers/reviews/completeness/YYYY-MM-DD-<module>-completeness.md`.
+3. Review as **senior Product Manager + UX Designer + Solution Architect**. Do **not** assume the ask or existing docs are complete.
+4. Disposition must be **Proceed**, **Redesign**, or **Reject**. Do not implement on Reject or unresolved Redesign.
+
+### Checklist (scan every review)
+
+Missing: functionality, business rules, workflows, edge cases, permissions, user states, notifications, error handling, scalability, mobile interactions, accessibility.
+
+**Mobile / chrome (Required):** If the screen uses fixed or sticky bars (select, composer, CTAs above bottom nav), Completeness and implementation must ensure content is never clipped — see `ui-quality-bar` §2b and BM-07.
+
+### Platform consistency (required answers)
+
+1. Follow existing Ekum patterns (IA, trust ladder, card language, kit)?
+2. Duplicate another feature?
+3. Should reuse an existing workflow?
+4. Naming matches the app (You/business name; Requests vs Accept; no Seller/Buyer on chat card body)?
+
+If the ask **conflicts with Ekum product philosophy** (see `docs/features/00-concepts.md` and area docs): recommend **Reject** or **Redesign** — not document-and-build, not a green test of the wrong model.
+
+### Intentional other way
+
+Want a different shape that still fits Ekum → **Redesign**: update `docs/features` first, then build. Want to change philosophy → update concepts + related docs **before** code. Silent drift is not allowed.
+
+## After Completeness Proceed
+
+1. Lock approved flows/rules in `docs/features/*.md`.
+2. Implement **approved scope only**.
+3. Verify: **functional** (`@functional`) + **regression** (`@smoke @regression` / BM-* units) + docs/tests.
+4. Update `docs/superpowers/reviews/feature-gap-matrix.md`.
+
+## Specs
+
+- Design: `docs/superpowers/specs/2026-08-11-quality-gate-and-test-system-design.md`
+- Gap matrix: `docs/superpowers/reviews/feature-gap-matrix.md`

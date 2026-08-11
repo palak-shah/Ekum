@@ -1,25 +1,28 @@
 ---
-description: Features are done only when tests are written and passing
+description: Features are done only after Completeness, functional + regression tests, and docs
 alwaysApply: true
 ---
 
 # Feature tests required
 
-A feature is **not done** until tests exist and pass.
+A feature is **not done** until Completeness allows it and verification passes.
 
 ## Required before claiming done
 
-1. **Challenge** the ask (see `quality-feature-gate`) — better UX/architecture when it fights Ekum rules.
-2. **Update** `docs/features/*.md` when behavior/rules change.
-3. **Write a test matrix**: happy path, persona (Ravi/Meena/unconnected when trade), bug modes from the quality-gate catalog.
-4. **Automate**:
-   - API: colocated `*.spec.ts` (vitest)
-   - Web logic/UI: `apps/web` `*.test.ts(x)` (vitest + Testing Library)
-   - Journeys: `apps/e2e` Playwright with tags (`@smoke`, `@chat`, `@orders`, …)
-5. **Run** the relevant tests and confirm PASS.
-6. Pure copy/CSS with no behavior change may skip new tests — say so explicitly.
+1. **Feature Completeness Review** (see `quality-feature-gate`) — disposition Proceed; Required gaps closed or deferred in writing.
+2. **Challenge** platform consistency — Reject/Redesign when the ask fights Ekum philosophy.
+3. **Update** `docs/features/*.md` for approved shipped behaviour.
+4. **Test matrix** covering happy path, personas, and BM-* bug modes where relevant.
+5. **Automate both tracks**:
+   - **Regression:** API `*.spec.ts`, web units, Playwright `@smoke @regression`
+   - **Functional:** Playwright `@functional` (+ module tag `@chat`, `@orders`, …) proving the user journey
+6. **Run and confirm PASS:**
+   - `pnpm --filter @ekum/web test` / relevant API specs
+   - `pnpm test:e2e:smoke` (regression)
+   - `pnpm test:e2e:functional` (or filtered module tag)
+7. Pure copy/CSS with no behaviour change may skip new tests — say so explicitly.
 
 ## Bug modes
 
-When fixing a UI bug, add a regression test first (see BM-* in
+When fixing a UI bug, add a **regression** test first (BM-* in
 `docs/superpowers/specs/2026-08-11-quality-gate-and-test-system-design.md`).

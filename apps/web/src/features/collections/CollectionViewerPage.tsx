@@ -90,6 +90,10 @@ function readShortlist(collectionId: string): Set<string> {
 function writeShortlist(collectionId: string, ids: Set<string>) {
   if (!collectionId || typeof sessionStorage === 'undefined') return;
   try {
+    if (ids.size === 0) {
+      sessionStorage.removeItem(shortlistKey(collectionId));
+      return;
+    }
     sessionStorage.setItem(shortlistKey(collectionId), JSON.stringify([...ids]));
   } catch {
     // Ignore quota / private-mode failures — shortlist stays in memory.
@@ -111,14 +115,21 @@ export function CollectionViewerPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+  /** Prevents a stale persist after intentional clear (order / ask rates / Clear all). */
+  const skipShortlistPersist = useRef(false);
 
   useEffect(() => {
+    skipShortlistPersist.current = true;
     setSelected(readShortlist(id));
     setSelectMode(false);
     setQtyOpen(false);
   }, [id]);
 
   useEffect(() => {
+    if (skipShortlistPersist.current) {
+      skipShortlistPersist.current = false;
+      return;
+    }
     writeShortlist(id, selected);
   }, [id, selected]);
 
@@ -127,6 +138,13 @@ export function CollectionViewerPage() {
       setSelectMode(true);
     }
   }, [selected.size, selectMode]);
+
+  const clearSelection = () => {
+    skipShortlistPersist.current = true;
+    writeShortlist(id, new Set());
+    setSelected(new Set());
+    setSelectMode(false);
+  };
 
   const collection = useQuery({
     queryKey: ['collection-preview', id],
@@ -143,6 +161,11 @@ export function CollectionViewerPage() {
     [products, selected],
   );
   const selectedCount = selected.size;
+
+  const selectAllDesigns = () => {
+    setSelectMode(true);
+    setSelected(new Set(products.map((product) => product.id)));
+  };
   const companyId = collection.data?.company.id ?? '';
   const accessPending =
     Boolean(companyId) &&
@@ -187,10 +210,7 @@ export function CollectionViewerPage() {
       }),
     onSuccess: (order) => {
       setQtyOpen(false);
-      const empty = new Set<string>();
-      writeShortlist(id, empty);
-      setSelected(empty);
-      setSelectMode(false);
+      clearSelection();
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       if (order.threadId) {
@@ -220,10 +240,7 @@ export function CollectionViewerPage() {
       }),
     onSuccess: (order) => {
       setQtyOpen(false);
-      const empty = new Set<string>();
-      writeShortlist(id, empty);
-      setSelected(empty);
-      setSelectMode(false);
+      clearSelection();
       setOrderError(null);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
@@ -286,7 +303,13 @@ export function CollectionViewerPage() {
   const data = collection.data;
 
   return (
-    <div className={cx('flex flex-col gap-4', selectedCount > 0 && 'pb-24')}>
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        /* Clear fixed select bar (bottom-20) + bar height above bottom nav. */
+        selectedCount > 0 && data.connected && 'pb-[calc(5rem+5.5rem)]',
+      )}
+    >
       <PageHeader
         title={data.name}
         subtitle={`${data.productCount} designs`}
@@ -296,6 +319,7 @@ export function CollectionViewerPage() {
               {data.connected ? (
                 <button
                   type="button"
+                  data-testid="collection-select"
                   className={cx(
                     'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
                     selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
@@ -420,22 +444,11 @@ export function CollectionViewerPage() {
 
       {data.products && data.connected && selectMode ? (
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <button
-            type="button"
-            className="font-bold text-accent"
-            onClick={() => setSelected(new Set(products.map((product) => product.id)))}
-          >
+          <button type="button" className="font-bold text-accent" onClick={selectAllDesigns}>
             Select all
           </button>
-          <button
-            type="button"
-            className="font-bold text-accent"
-            onClick={() => {
-              setSelected(new Set());
-              setSelectMode(false);
-            }}
-          >
-            Clear
+          <button type="button" className="font-bold text-accent" onClick={clearSelection}>
+            Clear all
           </button>
           <span className="text-muted">
             {selectedCount} design{selectedCount === 1 ? '' : 's'} selected
@@ -444,18 +457,34 @@ export function CollectionViewerPage() {
       ) : null}
 
       {selectedCount > 0 && data.connected ? (
-        <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md items-center gap-3 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
-          <p className="flex-1 text-sm font-bold tracking-tight text-ink">
-            {selectedCount} selected
-          </p>
-          <Button
-            onClick={() => {
-              setOrderError(null);
-              setQtyOpen(true);
-            }}
-          >
-            Order
-          </Button>
+        <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md flex-col gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <p className="flex-1 text-sm font-bold tracking-tight text-ink">
+              {selectedCount} selected
+            </p>
+            <button
+              type="button"
+              className="text-xs font-bold text-accent"
+              onClick={selectAllDesigns}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="text-xs font-bold text-muted"
+              onClick={clearSelection}
+            >
+              Clear all
+            </button>
+            <Button
+              onClick={() => {
+                setOrderError(null);
+                setQtyOpen(true);
+              }}
+            >
+              Order
+            </Button>
+          </div>
         </div>
       ) : null}
 

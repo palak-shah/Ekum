@@ -46,6 +46,11 @@ Sellers building packs for shop / Explore. Buyers view published albums via Expl
 2. Create a draft album → quick-add photos → Publish → drafts become catalog-published with the album.
 3. As **Meena**: open the album from Explore / notification “New drop from Surat Silk House”.
 
+## Automated verification
+
+- Functional: `pnpm test:e2e:functional` — `@collections` shortlist → Ask rates clears selection
+- Completeness: `docs/superpowers/reviews/completeness/2026-08-11-collections-completeness.md`
+
 ## Where it lives
 
 - Web: `apps/web/src/features/catalog/CollectionEditorPage.tsx`, `MyCatalogPage.tsx`; viewer `apps/web/src/features/collections/`

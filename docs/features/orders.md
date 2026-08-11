@@ -20,11 +20,11 @@ Buyers place / accept quotes; sellers quote, confirm, dispatch, deliver. Both ma
 | **Photo** | **＋ → Photo order** — attach photos + notes when catalog lines aren’t enough |
 | **Inquiry** | From a collection: **Ask for rates** creates a `requested` trade with `intent: inquiry` (same lines/quote path). UI says **Inquiry** (not Order); chat card `Inquiry #… · Inquiry`. Soft until firmed. |
 
-Lifecycle actions (role-dependent): confirm, add rates / accept quote, decline, dispatch (LR/transporter), deliver, cancel. Buyer may **Edit inquiry/order** (qty / remove lines) until the seller quotes or confirms/declines — each edit posts an **Updated** chat card.
+Lifecycle actions (role-dependent): confirm, add rates / accept quote, decline, dispatch (LR/transporter), deliver, cancel. Buyer may **Edit inquiry/order** (qty / remove lines) until the seller quotes or confirms/declines — each edit **updates** the living chat card (**Updated**).
 
 **Inquiry firm-up:** `intent` flips to `order` when the seller sends a **quote**, confirms any lines, or the buyer **accepts quote**. Decline/cancel stay terminal. Later chat cards use `Order #`.
 
-**Clarity:** Lists and detail use **You buy** / **You sell**. Order detail shows a one-line **Next** cue for your role. Status **Confirmed** means agreed / ready to ship — but buyers never see “confirm” verbs: when they accepted a quote, timeline and Parties say **Quote accepted by …**; when the seller locked supply, **Confirmed by …**. CTAs stay role-owned (buyer: Accept quote / Cancel / Deliver; seller: Quote / Confirm lines / Dispatch) so the usual flow is not confused. Chat is an **append-only** action timeline: each verb is a **new** card with top line `Order #… · {Action}` and body **You** / the other party’s business name (never Seller/Buyer). **View order →** is a quiet text link; **Accept quote** is a solid button only while the quote is still live (`canAcceptQuote`).
+**Clarity:** Lists and detail use **You buy** / **You sell**. Order detail shows a one-line **Next** cue for your role (and the **full** action timeline). Status **Confirmed** means agreed / ready to ship — but buyers never see “confirm” verbs: when they accepted a quote, timeline and Parties say **Quote accepted by …**; when the seller locked supply, **Confirmed by …**. CTAs stay role-owned (buyer: Accept quote / Cancel / Deliver; seller: Quote / Confirm lines / Dispatch). Chat keeps **one living reference** per order: rich card for ask-rates / place-order / quote (designs clubbed, `Inquiry #` / `Order #`); later statuses update that same message into a compact chip (`Order #… · Part dispatched`). **View order →** / tap opens the order; **Accept quote** only while `canAcceptQuote`.
 
 ### Seller partial supply
 
@@ -73,6 +73,7 @@ Within return window after **full** deliver → request → seller approve / par
 | Snapshots | Name/sku/images frozen at place time; qty/rate may change via quote |
 | `requestedQuantity` | Original buyer ask; offer qty cannot exceed it |
 | Quote | At least one supplyable line; open lines omitted from payload are treated as unavailable |
+| Accept quote | Only after the seller posts a Rate card — catalog rates on lines (e.g. after Ask for rates) do not count |
 | Chat totals | Rate card `totalLabel` is frozen in message metadata — earlier order cards do not pick up later rates |
 | Shipments | Each dispatch is an `OrderShipment` with its own **LR** (required); transporter/parcels optional; history is not overwritten |
 | Action cards | Each transition posts a new `order_card` with frozen `event` / `status` / `actorLabel` / `orderLabel` — never patch older cards |
@@ -96,6 +97,12 @@ Within return window after **full** deliver → request → seller approve / par
 3. As **Meena**: Accept quote → order confirmed.
 4. As **Ravi**: Dispatch part of remaining qty with LR-1, then Dispatch more → status becomes dispatched when nothing remains.
 5. As **Meena**: Mark delivered → return window applies.
+
+## Automated verification
+
+- Functional: `pnpm test:e2e:functional` — `@orders` core trade (request → quote → accept → confirmed)
+- Regression: `pnpm test:e2e:smoke` — order card `+N` (BM-01); web units for order card copy/dedupe
+- Completeness: `docs/superpowers/reviews/completeness/2026-08-11-orders-completeness.md`
 
 ## Where it lives
 

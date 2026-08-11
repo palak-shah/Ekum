@@ -21,6 +21,15 @@ Before calling UI/product work done, check all four:
 - Avoid layout jump: `scrollbar-gutter: stable`; don’t crowd chips so “Done” (or similar) clips or forces horizontal scrollbar thrash.
 - Debounce URL sync while typing; don’t remount animated wrappers on every keystroke.
 
+## 2b. Fixed / sticky chrome must not cut content (Required)
+
+Before calling any screen with a fixed or sticky bar done (select bars, composers, CTAs, sheets above bottom nav):
+
+- **Content clearance:** scrollable body has enough bottom (and top) padding that the last card/row/title is fully readable above the chrome — never sliced mid-text.
+- **Account for stacked chrome:** bottom nav + sticky action bar heights must both be cleared (e.g. `bottom-20` bar ⇒ padding ≥ nav + bar + gap).
+- **Verify on mobile viewport** with the chrome in its active state (selection > 0, composer open, etc.), not only empty.
+- Treat clipped content as a **blocking bug** (BM-07), not polish.
+
 ## 3. End-to-end feature completes
 
 - Ship the full path: entry → primary UI → secondary homes (⋯ / You) → list/API wired → empty states that match the job.

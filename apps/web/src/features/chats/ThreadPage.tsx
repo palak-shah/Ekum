@@ -1,6 +1,12 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import type {
   CollectionView,
   CreateProductDto,
@@ -18,16 +24,18 @@ import { timeAgo } from '@/lib/format';
 import { uploadImage } from '@/lib/mediaUpload';
 import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
-import { Avatar, Button, ErrorState, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { Avatar, Button, Chip, ErrorState, FilterRail, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import {
   CameraIcon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronUpIcon,
   CollectionIcon,
   OrdersIcon,
   PinIcon,
   PlusIcon,
   ProductIcon,
+  SearchIcon,
   SendIcon,
 } from '@/ui/icons';
 import {
@@ -36,9 +44,18 @@ import {
   forwardPayload,
   replyComposerLabel,
 } from './chatMessageActions';
-import { buildOrderCardCopy } from './orderCardCopy';
+import {
+  buildOrderCardCopy,
+  dedupeOrderThreadMessages,
+  isRichOrderChatMessage,
+} from './orderCardCopy';
 import { chatTypeMeta } from './messagePreview';
 import { PhotoAlbum } from './PhotoAlbum';
+import {
+  highlightSearchText,
+  searchHitIdsNewestFirst,
+  type ThreadMessageViewScope,
+} from './threadMessageSearch';
 
 type AttachStep =
   | 'menu'
@@ -65,23 +82,58 @@ export function ThreadPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [forwardProgress, setForwardProgress] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchView, setSearchView] = useState<ThreadMessageViewScope>('all');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [hitIndex, setHitIndex] = useState(0);
   const highlightTimer = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const stickToBottom = useRef(true);
+
+  const listView: ThreadMessageViewScope = searchOpen ? searchView : 'all';
+  const listQ = searchOpen ? searchQ : '';
+  const messagesQueryKey = ['thread', id, 'messages', listView, listQ] as const;
 
   const thread = useQuery({
     queryKey: ['thread', id],
     queryFn: () => api.get<ThreadDetail>(`/threads/${id}`),
   });
-  const messages = useQuery({
-    queryKey: ['thread', id, 'messages'],
-    queryFn: () => api.get<CursorPage<MessageView>>(`/threads/${id}/messages`, { limit: 80 }),
+  /** Search + All + empty query: prompt to type — don't re-list the whole thread. */
+  const messagesEnabled =
+    Boolean(id) && (!searchOpen || searchView !== 'all' || Boolean(listQ));
+
+  const messages = useInfiniteQuery({
+    queryKey: messagesQueryKey,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<MessageView>>(`/threads/${id}/messages`, {
+        limit: 40,
+        view: listView,
+        ...(listQ ? { q: listQ } : {}),
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: messagesEnabled,
     staleTime: 0,
-    refetchInterval: 2_000,
-    refetchOnWindowFocus: true,
+    refetchInterval: searchOpen || listView !== 'all' || listQ ? false : 3_000,
+    refetchOnWindowFocus: !searchOpen,
   });
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setSearchQ(searchDraft.trim()), 250);
+    return () => window.clearTimeout(handle);
+  }, [searchDraft]);
+
+  useEffect(() => {
+    if (searchOpen) {
+      queueMicrotask(() => searchInputRef.current?.focus());
+    }
+  }, [searchOpen]);
   const myCollections = useQuery({
     queryKey: ['my-collections'],
     queryFn: () => api.get<CollectionView[]>('/collections'),
@@ -114,13 +166,28 @@ export function ThreadPage() {
     }
   }, [thread.data, id, queryClient]);
 
-  const ordered = [...(messages.data?.results ?? [])].reverse();
+  const ordered = useMemo(() => {
+    const pages = messages.data?.pages ?? [];
+    const chronological = [...pages]
+      .reverse()
+      .flatMap((page) => [...page.results].reverse());
+    return dedupeOrderThreadMessages(chronological);
+  }, [messages.data?.pages]);
+
+  const searchHits = useMemo(
+    () => (searchOpen && searchQ ? searchHitIdsNewestFirst(ordered, searchQ) : []),
+    [searchOpen, searchQ, ordered],
+  );
+
+  useEffect(() => {
+    setHitIndex(0);
+  }, [searchQ, searchView, id]);
 
   useEffect(() => {
     const list = listRef.current;
-    if (!list) return;
+    if (!list || !stickToBottom.current || searchOpen) return;
     list.scrollTop = list.scrollHeight;
-  }, [ordered.length, id]);
+  }, [ordered.length, id, searchOpen]);
 
   const refreshMessages = () => {
     void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
@@ -130,15 +197,31 @@ export function ThreadPage() {
   };
 
   const insertMessage = (message: MessageView) => {
-    queryClient.setQueryData<CursorPage<MessageView>>(['thread', id, 'messages'], (prev) => {
-      if (!prev) {
-        return { results: [message], nextCursor: null };
-      }
-      if (prev.results.some((row) => row.id === message.id)) {
-        return prev;
-      }
-      return { ...prev, results: [message, ...prev.results] };
-    });
+    queryClient.setQueryData<InfiniteData<CursorPage<MessageView>>>(
+      ['thread', id, 'messages', 'all', ''],
+      (prev) => {
+        if (!prev) {
+          return {
+            pages: [{ results: [message], nextCursor: null }],
+            pageParams: [null],
+          };
+        }
+        if (prev.pages.some((page) => page.results.some((row) => row.id === message.id))) {
+          return prev;
+        }
+        const [first, ...rest] = prev.pages;
+        if (!first) {
+          return {
+            pages: [{ results: [message], nextCursor: null }],
+            pageParams: prev.pageParams,
+          };
+        }
+        return {
+          ...prev,
+          pages: [{ ...first, results: [message, ...first.results] }, ...rest],
+        };
+      },
+    );
   };
 
   const send = useMutation({
@@ -253,24 +336,66 @@ export function ThreadPage() {
     queueMicrotask(() => draftInputRef.current?.focus());
   };
 
-  const jumpToMessage = (messageId: string) => {
+  const highlightMessage = (messageId: string, persist = false) => {
     const root = listRef.current;
-    if (!root) return;
+    if (!root) return false;
     const target = root.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
-    if (!target) {
-      setError('That message is not loaded in this chat view.');
-      return;
-    }
+    if (!target) return false;
+    stickToBottom.current = false;
     setError(null);
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (highlightTimer.current != null) {
       window.clearTimeout(highlightTimer.current);
+      highlightTimer.current = null;
     }
     setHighlightId(messageId);
-    highlightTimer.current = window.setTimeout(() => {
-      setHighlightId(null);
-      highlightTimer.current = null;
-    }, 1600);
+    if (!persist) {
+      highlightTimer.current = window.setTimeout(() => {
+        setHighlightId(null);
+        highlightTimer.current = null;
+      }, 1600);
+    }
+    return true;
+  };
+
+  const jumpToMessage = (messageId: string) => {
+    if (highlightMessage(messageId)) return;
+    setError('That message is not loaded in this chat view.');
+  };
+
+  const jumpToSearchHit = async (index: number) => {
+    if (searchHits.length === 0) return;
+    const next = ((index % searchHits.length) + searchHits.length) % searchHits.length;
+    setHitIndex(next);
+    const messageId = searchHits[next];
+    if (!messageId) return;
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if (highlightMessage(messageId, true)) return;
+      if (!messages.hasNextPage || messages.isFetchingNextPage) break;
+      stickToBottom.current = false;
+      await messages.fetchNextPage();
+    }
+    if (!highlightMessage(messageId, true)) {
+      setError('That message is not loaded in this chat view.');
+    }
+  };
+
+  useEffect(() => {
+    if (!searchOpen || !searchQ) return;
+    void jumpToSearchHit(0);
+    // Jump to newest hit when the query/scope result set changes — not on stepper clicks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [searchOpen, searchQ, searchView, messagesQueryKey.join('\0')]);
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchDraft('');
+    setSearchQ('');
+    setSearchView('all');
+    setHitIndex(0);
+    setHighlightId(null);
+    stickToBottom.current = true;
   };
 
   const startForwardOne = (message: MessageView) => {
@@ -372,20 +497,137 @@ export function ThreadPage() {
         titleTo={counterpartId ? `/company/${counterpartId}` : undefined}
         onBack={() => navigate('/chats')}
         action={
-          <button
-            type="button"
-            aria-label={detail.pinned ? 'Unpin chat' : 'Pin chat'}
-            disabled={pinThread.isPending}
-            onClick={() => pinThread.mutate(!detail.pinned)}
-            className={cx(
-              'rounded-full p-2',
-              detail.pinned ? 'text-accent' : 'text-muted hover:bg-foam hover:text-ink',
-            )}
-          >
-            <PinIcon width={20} height={20} />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              data-testid="thread-search-toggle"
+              aria-label={searchOpen ? 'Close search' : 'Search in chat'}
+              onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+              className={cx(
+                'rounded-full p-2',
+                searchOpen ? 'text-accent' : 'text-muted hover:bg-foam hover:text-ink',
+              )}
+            >
+              <SearchIcon width={20} height={20} />
+            </button>
+            <button
+              type="button"
+              aria-label={detail.pinned ? 'Unpin chat' : 'Pin chat'}
+              disabled={pinThread.isPending}
+              onClick={() => pinThread.mutate(!detail.pinned)}
+              className={cx(
+                'rounded-full p-2',
+                detail.pinned ? 'text-accent' : 'text-muted hover:bg-foam hover:text-ink',
+              )}
+            >
+              <PinIcon width={20} height={20} />
+            </button>
+          </div>
         }
       />
+
+      {searchOpen ? (
+        <div
+          data-testid="thread-search-band"
+          className="mb-2 flex shrink-0 flex-col gap-2 rounded-2xl border border-line bg-surface p-2.5"
+        >
+          <div className="flex items-center gap-2">
+            <input
+              ref={searchInputRef}
+              data-testid="thread-search-input"
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  closeSearch();
+                  return;
+                }
+                if (event.key === 'Enter' && searchHits.length > 0) {
+                  event.preventDefault();
+                  void jumpToSearchHit(event.shiftKey ? hitIndex + 1 : hitIndex - 1);
+                }
+              }}
+              placeholder="Search in chat"
+              className="min-w-0 flex-1 rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            />
+            {searchQ ? (
+              <button
+                type="button"
+                className="shrink-0 px-1 text-sm font-semibold text-muted"
+                onClick={() => {
+                  setSearchDraft('');
+                  setSearchQ('');
+                }}
+              >
+                Clear
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="shrink-0 px-1 text-sm font-semibold text-accent"
+                onClick={closeSearch}
+              >
+                Done
+              </button>
+            )}
+          </div>
+          <FilterRail>
+            {(
+              [
+                ['all', 'All'],
+                ['media', 'Media'],
+                ['orders', 'Orders'],
+              ] as const
+            ).map(([value, label]) => (
+              <Chip
+                key={value}
+                active={searchView === value}
+                onClick={() => {
+                  setSearchView(value);
+                  stickToBottom.current = value === 'all' && !searchQ;
+                }}
+              >
+                {label}
+              </Chip>
+            ))}
+          </FilterRail>
+          {searchQ ? (
+            <div className="flex items-center justify-end gap-1">
+              <span
+                data-testid="thread-search-hit-count"
+                className="mr-1 text-xs font-semibold tabular-nums text-muted"
+              >
+                {searchHits.length === 0 ? '0 of 0' : `${hitIndex + 1} of ${searchHits.length}`}
+              </span>
+              <button
+                type="button"
+                aria-label="Older match"
+                disabled={searchHits.length === 0}
+                className="rounded-full p-1.5 text-slate disabled:opacity-35"
+                onClick={() => void jumpToSearchHit(hitIndex + 1)}
+              >
+                <ChevronUpIcon width={18} height={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Newer match"
+                disabled={searchHits.length === 0}
+                className="rounded-full p-1.5 text-slate disabled:opacity-35"
+                onClick={() => void jumpToSearchHit(hitIndex - 1)}
+              >
+                <ChevronDownIcon width={18} height={18} />
+              </button>
+            </div>
+          ) : searchView === 'orders' ? (
+            <p className="text-xs font-medium text-muted">Showing orders in this chat</p>
+          ) : searchView === 'media' ? (
+            <p className="text-xs font-medium text-muted">Showing photos in this chat</p>
+          ) : (
+            <p className="text-xs font-medium text-muted">Type to search this chat</p>
+          )}
+        </div>
+      ) : null}
 
       {detail.state === 'pending' ? (
         <div className="mt-0 flex shrink-0 flex-col gap-3 rounded-2xl border border-warning-soft bg-warning-soft p-3.5">
@@ -430,10 +672,26 @@ export function ThreadPage() {
           </p>
         ) : ordered.length > 0 ? (
           <>
+            {messages.hasNextPage ? (
+              <div className="flex justify-center py-1">
+                <button
+                  type="button"
+                  disabled={messages.isFetchingNextPage}
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-foam disabled:opacity-50"
+                  onClick={() => {
+                    stickToBottom.current = false;
+                    void messages.fetchNextPage();
+                  }}
+                >
+                  {messages.isFetchingNextPage ? 'Loading…' : 'Load earlier messages'}
+                </button>
+              </div>
+            ) : null}
             {ordered.map((message) => (
               <TimelineItem
                 key={message.id}
                 message={message}
+                searchHighlight={searchOpen ? searchQ : ''}
                 senderLabel={
                   message.mine
                     ? 'You'
@@ -481,7 +739,17 @@ export function ThreadPage() {
             <div ref={bottomRef} />
           </>
         ) : (
-          <p className="py-10 text-center text-sm text-muted">No messages yet. Say hello.</p>
+          <p className="py-10 text-center text-sm text-muted">
+            {searchOpen && searchQ
+              ? 'No matches'
+              : searchOpen && searchView === 'media'
+                ? 'No photos yet'
+                : searchOpen && searchView === 'orders'
+                  ? 'No orders in this chat'
+                  : searchOpen && searchView === 'all'
+                    ? 'Type to search this chat'
+                    : 'No messages yet. Say hello.'}
+          </p>
         )}
       </div>
 
@@ -501,26 +769,50 @@ export function ThreadPage() {
       ) : null}
 
       {selecting ? (
-        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 items-center gap-3 border-t border-line bg-surface px-1 py-2.5">
-          <button
-            type="button"
-            className="text-sm font-semibold text-muted"
-            onClick={() => {
-              setSelecting(false);
-              setSelectedIds(new Set());
-            }}
-          >
-            Cancel
-          </button>
-          <span className="flex-1 text-center text-sm font-medium text-ink">
-            {selectedIds.size} selected
-          </span>
-          <Button
-            disabled={selectedIds.size === 0 || forward.isPending}
-            onClick={openMultiForward}
-          >
-            Forward
-          </Button>
+        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 flex-col gap-2 border-t border-line bg-surface px-1 py-2.5">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="text-sm font-semibold text-muted"
+              onClick={() => {
+                setSelecting(false);
+                setSelectedIds(new Set());
+              }}
+            >
+              Cancel
+            </button>
+            <span className="flex-1 text-center text-sm font-medium text-ink">
+              {selectedIds.size} selected
+            </span>
+            <Button
+              disabled={selectedIds.size === 0 || forward.isPending}
+              onClick={openMultiForward}
+            >
+              Forward
+            </Button>
+          </div>
+          <div className="flex items-center justify-center gap-4">
+            <button
+              type="button"
+              className="text-xs font-bold text-accent"
+              onClick={() => {
+                const next = new Set<string>();
+                for (const message of ordered) {
+                  if (canForwardMessage(message)) next.add(message.id);
+                }
+                setSelectedIds(next);
+              }}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="text-xs font-bold text-muted"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear all
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -585,6 +877,7 @@ export function ThreadPage() {
 
       <input
         ref={photoRef}
+        data-testid="chat-photo-input"
         type="file"
         accept="image/jpeg,image/png,image/webp,image/*"
         multiple
@@ -909,6 +1202,57 @@ function useLongPress(onLongPress?: () => void, ms = 420) {
   };
 }
 
+/** Compact living order reference for status pulses (tap → order). */
+function OrderActivityChip({
+  title,
+  subtitle,
+  mine,
+  createdAt,
+  onOpen,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  mine: boolean;
+  createdAt: string;
+  onOpen?: () => void;
+}) {
+  const className = cx(
+    'w-full rounded-lg border border-line border-l-[3px] px-2.5 py-2 text-left',
+    mine ? 'border-l-white/70 bg-accent/15' : 'border-l-accent bg-surface/90',
+    onOpen && (mine ? 'hover:bg-accent/25 active:bg-accent/30' : 'hover:bg-foam active:bg-linen'),
+  );
+  const body = (
+    <>
+      <p className={cx('text-sm font-bold tracking-tight', mine ? 'text-accent-dark' : 'text-accent')}>
+        {title}
+      </p>
+      {subtitle ? (
+        <p className={cx('mt-0.5 truncate text-sm', mine ? 'text-slate' : 'text-muted')}>
+          {subtitle}
+        </p>
+      ) : null}
+      <p className={cx('mt-1 text-right text-xs', mine ? 'text-muted' : 'text-muted')}>
+        {timeAgo(createdAt)}
+      </p>
+    </>
+  );
+  if (!onOpen) {
+    return <div className={className}>{body}</div>;
+  }
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen();
+      }}
+    >
+      {body}
+    </button>
+  );
+}
+
 function ReplyQuote({
   preview,
   mine,
@@ -1106,6 +1450,7 @@ function MessageChrome({
 
 function TimelineItem({
   message,
+  searchHighlight = '',
   senderLabel,
   onAcceptQuote,
   accepting,
@@ -1121,6 +1466,7 @@ function TimelineItem({
   actions,
 }: {
   message: MessageView;
+  searchHighlight?: string;
   senderLabel: string;
   onAcceptQuote: (orderId: string) => void;
   accepting: boolean;
@@ -1135,6 +1481,7 @@ function TimelineItem({
   onToggleSelect?: () => void;
   actions?: MessageActions;
 }) {
+  const hl = (text: string) => highlightSearchText(text, searchHighlight);
   const ref = message.reference;
   const meta =
     message.metadata && typeof message.metadata === 'object'
@@ -1231,7 +1578,7 @@ function TimelineItem({
               <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
             ) : null}
             <p className="whitespace-pre-wrap break-words">
-              {message.body?.trim() ? message.body : 'Message'}
+              {message.body?.trim() ? hl(message.body) : 'Message'}
             </p>
             <p
               className={cx(
@@ -1256,6 +1603,38 @@ function TimelineItem({
     ref.available
       ? () => onAcceptQuote(ref.id)
       : undefined;
+  const richOrder = isOrderLikeCard && isRichOrderChatMessage(message, ref);
+
+  if (isOrderLikeCard && orderCopy && !richOrder) {
+    return (
+      <MessageChrome
+        messageId={message.id}
+        mine={message.mine}
+        selecting={selecting}
+        selected={selected}
+        highlighted={highlighted}
+        onToggleSelect={onToggleSelect}
+        actions={actions}
+        className="max-w-[92%]"
+      >
+        <div className="flex flex-col gap-0.5">
+          {!message.mine ? (
+            <p className="px-1 text-sm font-semibold text-muted">{senderLabel}</p>
+          ) : null}
+          {reply ? (
+            <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+          ) : null}
+          <OrderActivityChip
+            title={hl(orderCopy.title)}
+            subtitle={hl(orderCopy.headline)}
+            mine={message.mine}
+            createdAt={message.createdAt}
+            onOpen={openOrder && !selecting ? openOrder : undefined}
+          />
+        </div>
+      </MessageChrome>
+    );
+  }
 
   return (
     <MessageChrome
@@ -1317,7 +1696,7 @@ function TimelineItem({
               isOrderLikeCard && 'whitespace-nowrap',
             )}
           >
-            {orderCopy ? orderCopy.title : typeMeta.label}
+            {orderCopy ? hl(orderCopy.title) : typeMeta.label}
           </p>
         </div>
         <div className="px-3.5 py-3">
@@ -1327,7 +1706,7 @@ function TimelineItem({
           {message.type === 'order_card' || isLegacyOrderNotice ? (
             <TimelineCard
               mine={message.mine}
-              title={orderCopy?.headline ?? ref?.name ?? 'Order'}
+              title={hl(orderCopy?.headline ?? ref?.name ?? 'Order')}
               image={ref?.image}
               images={ref?.images}
               imageOverflow={
@@ -1335,7 +1714,7 @@ function TimelineItem({
                   ? Math.max(0, ref.itemCount - ref.images.length)
                   : 0
               }
-              lines={orderCopy?.lines ?? []}
+              lines={(orderCopy?.lines ?? []).map((line) => hl(line))}
               actionLabel={ref?.available ? 'View order →' : undefined}
               onAction={openOrder}
               actionStyle="link"
@@ -1346,7 +1725,7 @@ function TimelineItem({
           {message.type === 'rate' ? (
             <TimelineCard
               mine={message.mine}
-              title={orderCopy?.headline ?? ref?.totalLabel ?? 'Quote'}
+              title={hl(orderCopy?.headline ?? ref?.totalLabel ?? 'Quote')}
               image={ref?.image}
               images={ref?.images}
               imageOverflow={
@@ -1354,7 +1733,7 @@ function TimelineItem({
                   ? Math.max(0, ref.itemCount - ref.images.length)
                   : 0
               }
-              lines={orderCopy?.lines ?? []}
+              lines={(orderCopy?.lines ?? []).map((line) => hl(line))}
               actionLabel={
                 quoteAccept
                   ? accepting
@@ -1382,13 +1761,13 @@ function TimelineItem({
               </p>
               <TimelineCard
                 mine={message.mine}
-                title={
+                title={hl(
                   ref?.available
                     ? (ref.name ?? message.body ?? 'Collection')
                     : ref
                       ? 'Unavailable'
-                      : (message.body?.trim() || 'Collection')
-                }
+                      : (message.body?.trim() || 'Collection'),
+                )}
                 image={ref?.image}
                 images={ref?.images}
                 imageOverflow={
@@ -1422,16 +1801,18 @@ function TimelineItem({
               </p>
               <TimelineCard
                 mine={message.mine}
-                title={
+                title={hl(
                   ref?.available
                     ? (ref.name ?? message.body ?? 'Design')
                     : ref
                       ? 'Unavailable'
-                      : (message.body?.trim() || 'Design')
-                }
+                      : (message.body?.trim() || 'Design'),
+                )}
                 image={ref?.image}
                 images={ref?.images}
-                lines={ref?.ownerCompanyName ? [`from ${ref.ownerCompanyName}`] : []}
+                lines={
+                  ref?.ownerCompanyName ? [hl(`from ${ref.ownerCompanyName}`)] : []
+                }
                 actionLabel={ref?.available ? 'View design →' : undefined}
                 actionTo={ref?.available ? `/explore/products/${ref.id}` : undefined}
                 actionStyle="link"
@@ -1458,7 +1839,7 @@ function TimelineItem({
           !['order_card', 'rate', 'collection_card', 'product_card'].includes(message.type) ? (
             <TimelineCard
               mine={message.mine}
-              title={message.body?.trim() || 'Shared attachment'}
+              title={hl(message.body?.trim() || 'Shared attachment')}
               createdAt={message.createdAt}
             />
           ) : null}
@@ -1483,8 +1864,8 @@ function TimelineCard({
   createdAt,
   mine = false,
 }: {
-  title: string;
-  lines?: Array<string | null | undefined>;
+  title: ReactNode;
+  lines?: Array<ReactNode | null | undefined>;
   image?: string | null;
   images?: string[] | null;
   imageOverflow?: number;
@@ -1498,7 +1879,11 @@ function TimelineCard({
   createdAt: string;
   mine?: boolean;
 }) {
-  const visibleLines = lines.filter((line): line is string => Boolean(line?.trim()));
+  const visibleLines = lines.filter((line) => {
+    if (line == null) return false;
+    if (typeof line === 'string') return Boolean(line.trim());
+    return true;
+  });
   const muted = mine ? 'text-white/75' : 'text-muted';
   const ink = mine ? 'text-white' : 'text-ink';
   const linkAction = mine ? 'text-white underline decoration-white/50' : 'text-accent';
@@ -1517,6 +1902,7 @@ function TimelineCard({
         <button
           type="button"
           data-card-action
+          data-testid={actionLabel === 'Accept quote' ? 'accept-quote' : undefined}
           onClick={(event) => {
             event.stopPropagation();
             onAction();
@@ -1594,8 +1980,8 @@ function TimelineCard({
         </div>
       ) : null}
       <p className={cx('text-sm font-semibold tracking-tight', ink)}>{title}</p>
-      {visibleLines.map((line) => (
-        <p key={line} className={cx('text-sm font-medium', muted)}>
+      {visibleLines.map((line, index) => (
+        <p key={index} className={cx('text-sm font-medium', muted)}>
           {line}
         </p>
       ))}

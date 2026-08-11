@@ -29,7 +29,9 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Mute | Local `ThreadAlertLevel`; never signalled to the other party |
 | Access approve | Can activate pending chat participants when trust is granted |
 | Order card actors | Body says **You** (mine) or the other party’s **business name** — never Seller/Buyer |
+| One living order reference | Each order has **one** trade-thread message (`order_card` / `rate`) that **updates in place**. Inquiry/order create + quote stay rich cards (designs clubbed, Order/Inquiry #); later status pulses become a compact chip. Tap → order detail (full timeline). Legacy stacks: UI shows only the latest per order. |
 | Order card CTAs | Quiet **View order →** (whole card also opens order); solid **Accept quote** only when live `canAcceptQuote` — never rewrite frozen Quote card copy |
+| In-thread search | Header search opens a band (no always-on filter rail). Scope chips **All · Media · Orders** live inside search. Empty **Orders** / **Media** browses that slice; typing narrows within scope. Match stepper **N of M** + ↑↓ jumps hits in the timeline. Media = photos/voice; Orders = living order/rate refs (deduped). Catalog cards stay in All / text search. |
 
 Message types: text, photo, voice, collection_card, product_card, order_card, rate, system.
 
@@ -46,11 +48,12 @@ Message types: text, photo, voice, collection_card, product_card, order_card, ra
 2. Send a reply; confirm unread clears.
 3. As an unconnected test company: message Ravi → appears under Ravi’s chat requests.
 
-## Automated verification (Wave 1)
+## Automated verification
 
-- Web: `pnpm --filter @ekum/web test` — PhotoAlbum BM-01, order card copy/dedupe, thread search
-- E2E smoke: start PostgreSQL, migrate and seed the database, then run the API and web app with `OTP_EXPOSE_DEV_CODE=true`; run `pnpm test:e2e:smoke`
-- CI: web and API units run through `pnpm test`; E2E smoke is available from the manual `workflow_dispatch` CI job and is a local/PR requirement for chat and orders changes
+- **Functional:** `pnpm test:e2e:functional` — `@chat` send + in-thread search scopes/stepper
+- **Regression:** `pnpm test:e2e:smoke` + `pnpm --filter @ekum/web test` — PhotoAlbum BM-01, order card copy/dedupe, thread search helpers
+- Completeness: `docs/superpowers/reviews/completeness/2026-08-11-chat-completeness.md`
+- CI: units via `pnpm test`; E2E smoke via manual `workflow_dispatch`
 
 ## Where it lives
 

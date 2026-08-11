@@ -40,6 +40,11 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 2. As **Meena**: send a chat photo in the seeded thread.
 3. Photo order: attach images via **＋ → Photo order**.
 
+## Automated verification
+
+- Functional: `pnpm test:e2e:functional` — `@media` chat photo send
+- Completeness: `docs/superpowers/reviews/completeness/2026-08-11-media-completeness.md`
+
 ## Where it lives
 
 - Web: `apps/web/src/lib/mediaUpload.ts` (and feature call sites)

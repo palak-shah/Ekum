@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginAs } from '../helpers/auth';
 import { PHONES } from '../helpers/env';
 
-test.describe('seed chat @smoke @chat', () => {
+test.describe('seed chat @smoke @regression @chat', () => {
   test('Meena opens seeded thread and can send text', async ({ page }) => {
     await loginAs(page, PHONES.meena);
     await page.goto('/chats/seed-thread-1');

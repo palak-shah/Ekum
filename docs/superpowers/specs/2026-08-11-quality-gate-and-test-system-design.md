@@ -1,14 +1,14 @@
 # Quality gate and test system — design
 
 **Date:** 2026-08-11  
-**Status:** Wave 1 done — web units run with API tests in `pnpm test`; seeded Playwright smoke passes locally and runs through manual CI dispatch  
-**Goal:** Every feature is challenged as senior architect / UI-UX against Ekum platform rules, then proven with automated coverage for UI regressions and critical buyer–seller journeys.
+**Status:** Wave 1 done; Functional journeys + Feature Completeness program **done** (see `docs/superpowers/reviews/2026-08-11-functional-journeys-review.md`)  
+**Goal:** Every feature passes a Feature Completeness Review (PM/UX/Architect + platform consistency), then is proven with **separate** functional and regression automated coverage.
 
 ## Problem
 
 - API has a solid Vitest suite; CI runs `pnpm test`.
-- Web has **no** unit/component or E2E tests — only typecheck/lint.
-- Recent defects clustered in chat/orders UI (order-card thumb overflow `+N`, filter menus trapped by CSS transforms, shortlist persist races, living order card / search scopes). These are exactly the gaps unit API tests miss.
+- Web now has Vitest + Playwright smoke for known regressions (Wave 1), but **functional** journeys and Completeness reviews were not yet systematic.
+- Recent defects clustered in chat/orders UI (order-card thumb overflow `+N`, filter menus trapped by CSS transforms, shortlist persist races, living order card / search scopes).
 
 ## Success criteria
 
@@ -26,9 +26,20 @@
 
 ## Approach (chosen)
 
-**Layered quality system:** standing feature gate + web unit/component tests + Playwright E2E, phased by wave on one harness.
+**Layered quality system:** Feature Completeness Review (hard gate) + regression track (`@smoke @regression` / BM-* units) + functional track (`@functional` journeys) + living gap matrix. Goal is **platform coherence**, not making every request work (Reject/Redesign when philosophy conflicts).
 
 Rejected: E2E-only (too slow/flaky for pure UI math); checklist-only (won’t scale).
+
+### Functional vs regression
+
+| Track | Tag / location | Purpose |
+|-------|----------------|---------|
+| Completeness | `docs/superpowers/reviews/completeness/` | PM/UX/Architect + platform consistency before build |
+| Regression | `@smoke @regression`, BM-* web units | Known bugs don’t return |
+| Functional | `@functional` + module tag | Capability works end-to-end for users |
+| Gap matrix | `docs/superpowers/reviews/feature-gap-matrix.md` | Works / Partial / Missing / Later / Rejected |
+
+Commands: `pnpm test:e2e:smoke` · `pnpm test:e2e:functional`
 
 ---
 
@@ -128,6 +139,7 @@ Each new production UI bug **adds a case here** and a failing test before the fi
 | BM-04 | Living order stack | UI shows one reference per order; legacy duplicates collapsed |
 | BM-05 | Frozen quote copy | Accept CTA gated by live `canAcceptQuote`; do not rewrite frozen quote text incorrectly |
 | BM-06 | Search empty All | Empty All + search open shows hint; does not re-list whole thread as “results” |
+| BM-07 | Fixed chrome clips content | With sticky/fixed bars active (select, composer, CTAs), last visible card/title is fully readable; padding clears nav + bar stack |
 
 ---
 
