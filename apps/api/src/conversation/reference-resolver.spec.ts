@@ -5,15 +5,21 @@ import { ReferenceResolver } from './reference-resolver';
 import type { PrismaService } from '../core/prisma/prisma.service';
 
 /**
- * Trust rule: source masking. A shared product/collection card resolves to the
- * live name/image but never carries its owning company — so forwarding a design
- * into a group does not disclose which supplier it came from. A deleted target
- * resolves as unavailable rather than leaking anything.
+ * Product/collection cards resolve live name/image plus catalog owner company
+ * (so forwards still show whose design it is). Deleted targets resolve unavailable.
  */
 function makeResolver() {
   const prisma = {
     product: {
-      findMany: async () => [{ id: 'p1', name: 'Banarasi Silk', images: ['img1'] }],
+      findMany: async () => [
+        {
+          id: 'p1',
+          name: 'Banarasi Silk',
+          images: ['img1'],
+          companyId: 'co1',
+          company: { id: 'co1', name: 'Surat Silk House' },
+        },
+      ],
     },
     collection: {
       findMany: async () => [
@@ -21,10 +27,49 @@ function makeResolver() {
           id: 'c1',
           name: 'Wedding Edit',
           coverImage: 'cover1',
+          companyId: 'co1',
+          company: { id: 'co1', name: 'Surat Silk House' },
           _count: { products: 2 },
           products: [
             { product: { images: ['d1'] } },
             { product: { images: ['d2'] } },
+          ],
+        },
+      ],
+    },
+    order: {
+      findMany: async () => [
+        {
+          id: 'ord1',
+          status: 'requested',
+          buyerCompanyId: 'buyer',
+          sellerCompanyId: 'seller',
+          confirmedByCompanyId: null,
+          buyer: { name: 'Jaipur Emporium' },
+          seller: { name: 'Surat Silk House' },
+          _count: { items: 3 },
+          items: [
+            {
+              rate: null,
+              lineStatus: 'open',
+              quantity: { toNumber: () => 20 },
+              image: 'a.jpg',
+              images: ['a.jpg'],
+            },
+            {
+              rate: null,
+              lineStatus: 'open',
+              quantity: { toNumber: () => 10 },
+              image: 'b.jpg',
+              images: [],
+            },
+            {
+              rate: null,
+              lineStatus: 'open',
+              quantity: { toNumber: () => 5 },
+              image: null,
+              images: ['c.jpg', 'c2.jpg'],
+            },
           ],
         },
       ],
@@ -46,8 +91,8 @@ const message = (over: Partial<Message>): Message =>
     ...over,
   }) as Message;
 
-describe('ReferenceResolver source masking', () => {
-  it('resolves a product card without exposing the owning company', async () => {
+describe('ReferenceResolver catalog cards', () => {
+  it('resolves a product card with catalog owner attribution', async () => {
     const resolver = makeResolver();
     const references = await resolver.resolve([
       message({ id: 'm1', type: MessageType.ProductCard, referenceId: 'p1' }),
@@ -56,14 +101,9 @@ describe('ReferenceResolver source masking', () => {
     expect(reference).toBeDefined();
     expect(reference?.name).toBe('Banarasi Silk');
     expect(reference?.images).toEqual(['img1']);
-    // The resolved card carries display fields — no source company.
-    expect(Object.keys(reference ?? {}).sort()).toEqual(
-      ['available', 'id', 'image', 'images', 'kind', 'name'].sort(),
-    );
-    const serialized = JSON.stringify(reference);
-    expect(serialized).not.toMatch(/compan/i);
-    expect(serialized).not.toMatch(/sender/i);
-    expect(serialized).not.toMatch(/owner/i);
+    expect(reference?.ownerCompanyId).toBe('co1');
+    expect(reference?.ownerCompanyName).toBe('Surat Silk House');
+    expect(JSON.stringify(reference)).not.toMatch(/sender/i);
   });
 
   it('flags a deleted target as unavailable rather than leaking', async () => {
@@ -75,4 +115,342 @@ describe('ReferenceResolver source masking', () => {
     expect(reference?.available).toBe(false);
     expect(reference?.name).toBeNull();
   });
+
+  it('resolves order cards with one thumb per line item', async () => {
+    const resolver = makeResolver();
+    const references = await resolver.resolve(
+      [message({ id: 'm3', type: MessageType.OrderCard, referenceId: 'ord1' })],
+      'buyer',
+    );
+    const reference = references.get('m3');
+    expect(reference?.kind).toBe('order');
+    expect(reference?.images).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+    expect(reference?.image).toBe('a.jpg');
+    expect(reference?.itemCount).toBe(3);
+  });
+
+  it('resolves legacy system line-decision notices as order refs', async () => {
+    const resolver = makeResolver();
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-sys',
+          type: MessageType.System,
+          referenceId: 'ord1',
+          body: 'Seller confirmed 5 · declined 3.',
+          metadata: { kind: 'order_lines', status: 'confirmed' },
+        }),
+      ],
+      'buyer',
+    );
+    const reference = references.get('m-sys');
+    expect(reference?.kind).toBe('order');
+    expect(reference?.id).toBe('ord1');
+    expect(reference?.available).toBe(true);
+    expect(reference?.event).toBe('lines_decided');
+    expect(reference?.eventLabel).toBe('Updated');
+    expect(reference?.direction).toBe('buying');
+  });
+
+  it('keeps frozen requested status on a card even when the live order is cancelled', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'cancelled',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [{ image: null, images: ['a.jpg'] }],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-req',
+          type: MessageType.OrderCard,
+          referenceId: 'ord1',
+          senderCompanyId: 'buyer',
+          body: 'Buyer requested · Order #ORD1',
+          metadata: {
+            event: 'order_requested',
+            status: 'requested',
+            orderLabel: 'Order #ORD1',
+            actorLabel: 'Buyer',
+            actorRole: 'buyer',
+            itemCount: 1,
+          },
+        }),
+      ],
+      'seller',
+    );
+    const reference = references.get('m-req');
+    expect(reference?.status).toBe('requested');
+    expect(reference?.event).toBe('order_requested');
+    expect(reference?.eventLabel).toBe('Requested');
+    expect(reference?.orderLabel).toBe('Order #ORD1');
+    // Legacy "Buyer" actorLabel must resolve to the real business name.
+    expect(reference?.actorLabel).toBe('Jaipur Emporium');
+  });
 });
+
+describe('ReferenceResolver order / quote timeline totals', () => {
+  it('does not paint live rates onto an earlier order card after a quote', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 2 },
+            items: [
+              {
+                rate: { toNumber: () => 100 },
+                quantity: { toNumber: () => 10 },
+                image: null,
+                images: ['a.jpg'],
+              },
+              {
+                rate: { toNumber: () => 50 },
+                quantity: { toNumber: () => 4 },
+                image: null,
+                images: ['b.jpg'],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-order',
+          type: MessageType.OrderCard,
+          referenceId: 'ord1',
+          metadata: { status: 'requested', itemCount: 2 },
+        }),
+        message({
+          id: 'm-quote',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          metadata: {
+            status: 'requested',
+            itemCount: 2,
+            totalLabel: '₹1,200',
+            quoted: true,
+          },
+        }),
+      ],
+      'buyer',
+    );
+
+    expect(references.get('m-order')?.totalLabel).toBeNull();
+    expect(references.get('m-quote')?.totalLabel).toBe('₹1,200');
+  });
+
+  it('keeps an older quote card total when a newer quote updates live lines', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [
+              {
+                rate: { toNumber: () => 999 },
+                quantity: { toNumber: () => 1 },
+                image: null,
+                images: [],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+
+    const references = await resolver.resolve([
+      message({
+        id: 'm-old',
+        type: MessageType.Rate,
+        referenceId: 'ord1',
+        metadata: { totalLabel: '₹500', quoted: true },
+      }),
+      message({
+        id: 'm-new',
+        type: MessageType.Rate,
+        referenceId: 'ord1',
+        metadata: { totalLabel: '₹999', quoted: true },
+      }),
+    ]);
+
+    expect(references.get('m-old')?.totalLabel).toBe('₹500');
+    expect(references.get('m-new')?.totalLabel).toBe('₹999');
+  });
+});
+
+describe('ReferenceResolver canAcceptQuote live affordance', () => {
+  it('is true for buyer when live order is still requested with a rated open line', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [
+              {
+                rate: 150,
+                lineStatus: 'open',
+                image: null,
+                images: ['a.jpg'],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-quote',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          senderCompanyId: 'seller',
+          metadata: {
+            event: 'quote_sent',
+            status: 'requested',
+            totalLabel: '₹3,000',
+            quoted: true,
+          },
+        }),
+      ],
+      'buyer',
+    );
+    const reference = references.get('m-quote');
+    expect(reference?.status).toBe('requested');
+    expect(reference?.canAcceptQuote).toBe(true);
+  });
+
+  it('is false after live order is confirmed; frozen status stays requested', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'confirmed',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: 'buyer',
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [
+              {
+                rate: 150,
+                lineStatus: 'confirmed',
+                image: null,
+                images: ['a.jpg'],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-quote',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          senderCompanyId: 'seller',
+          metadata: {
+            event: 'quote_sent',
+            status: 'requested',
+            totalLabel: '₹3,000',
+            quoted: true,
+          },
+        }),
+      ],
+      'buyer',
+    );
+    const reference = references.get('m-quote');
+    expect(reference?.status).toBe('requested');
+    expect(reference?.event).toBe('quote_sent');
+    expect(reference?.canAcceptQuote).toBe(false);
+  });
+
+  it('is false for the seller even when the quote is still open', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [{ rate: 150, lineStatus: 'open', image: null, images: [] }],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-quote',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          senderCompanyId: 'seller',
+          metadata: { event: 'quote_sent', status: 'requested', quoted: true },
+        }),
+      ],
+      'seller',
+    );
+    expect(references.get('m-quote')?.canAcceptQuote).toBe(false);
+  });
+});
+

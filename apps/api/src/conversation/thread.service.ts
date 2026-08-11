@@ -221,6 +221,39 @@ export class ThreadService {
     return { ok: true };
   }
 
+  /**
+   * Total unread messages across Active threads only (not Requests).
+   * Used by the bottom-nav Chats badge.
+   */
+  async unreadTotal(
+    actorCompanyId: string,
+    role: string | null,
+  ): Promise<{ count: number }> {
+    const where: Prisma.ThreadParticipantWhereInput = {
+      companyId: actorCompanyId,
+      state: ThreadParticipantState.Active,
+      leftAt: null,
+    };
+    if (role !== MembershipRole.Owner) {
+      where.thread = { visibility: { not: ThreadVisibility.OwnerOnly } };
+    }
+
+    const participants = await this.prisma.threadParticipant.findMany({
+      where,
+      select: { threadId: true, lastReadAt: true },
+    });
+    if (participants.length === 0) {
+      return { count: 0 };
+    }
+
+    const counts = await Promise.all(
+      participants.map((row) =>
+        this.unreadCount(row.threadId, actorCompanyId, row.lastReadAt),
+      ),
+    );
+    return { count: counts.reduce((sum, n) => sum + n, 0) };
+  }
+
   async setAlertLevel(
     actorCompanyId: string,
     role: string | null,

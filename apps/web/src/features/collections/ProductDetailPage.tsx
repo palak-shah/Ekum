@@ -26,6 +26,7 @@ export function ProductDetailPage() {
   }
 
   const data = product.data;
+  const notes = data.description?.trim();
 
   return (
     <div className="flex flex-col gap-4">
@@ -50,13 +51,21 @@ export function ProductDetailPage() {
         </div>
       )}
 
-      <Card className="flex flex-col gap-2">
+      <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="text-lg font-semibold text-ink">{formatRate(data.rate, data.unit)}</span>
           <StatusPill status={data.status} />
         </div>
+        {data.moq != null && data.moq > 0 ? (
+          <p className="text-sm font-medium text-ink">Minimum order · {data.moq} pcs</p>
+        ) : null}
         {data.sku ? <p className="text-xs text-muted">SKU · {data.sku}</p> : null}
-        {data.description ? <p className="text-sm text-muted">{data.description}</p> : null}
+        {notes ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
+            <p className="whitespace-pre-wrap text-sm text-ink">{notes}</p>
+          </div>
+        ) : null}
         {data.categories.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {data.categories.map((category) => (

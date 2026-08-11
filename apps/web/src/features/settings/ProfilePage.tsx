@@ -14,6 +14,7 @@ import { useMyCompany } from '@/lib/queries';
 import { resolveTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
+import { SuggestInput } from '@/ui/SuggestInput';
 
 function parseList(value: string): string[] {
   return value
@@ -221,7 +222,11 @@ export function ProfilePage() {
         />
       </Field>
       <Field label="City">
-        <TextInput value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+        <SuggestInput
+          kind="city"
+          value={form.city}
+          onChange={(city) => setForm({ ...form, city })}
+        />
       </Field>
       <Field label="What do you deal in?">
         <div className="flex flex-wrap gap-2">
@@ -244,15 +249,19 @@ export function ProfilePage() {
         </div>
       </Field>
       <Field label="Fine categories you sell" hint="Optional. Comma-separated (e.g. sarees, kurtis).">
-        <TextInput
+        <SuggestInput
+          kind="category"
+          mode="list"
           value={form.sellCategories}
-          onChange={(e) => setForm({ ...form, sellCategories: e.target.value })}
+          onChange={(sellCategories) => setForm({ ...form, sellCategories })}
         />
       </Field>
       <Field label="Fine categories you buy" hint="Optional. Comma-separated.">
-        <TextInput
+        <SuggestInput
+          kind="category"
+          mode="list"
           value={form.buyCategories}
-          onChange={(e) => setForm({ ...form, buyCategories: e.target.value })}
+          onChange={(buyCategories) => setForm({ ...form, buyCategories })}
         />
       </Field>
       <Field label="GST number" hint="Optional — adds a verified badge.">

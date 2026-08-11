@@ -28,6 +28,7 @@ export function ExploreProductPage() {
   }
 
   const data = product.data;
+  const notes = data.description?.trim();
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,13 +53,23 @@ export function ExploreProductPage() {
 
       <CompanyRow company={data.company} to={`/company/${data.company.id}`} />
 
-      <Card className="flex flex-col gap-2">
+      <Card className="flex flex-col gap-3">
         {data.visible ? (
           <>
             <span className="text-lg font-semibold text-ink">
               {formatRate(data.rate, data.unit)}
             </span>
-            {data.description ? <p className="text-sm text-muted">{data.description}</p> : null}
+            {data.moq != null && data.moq > 0 ? (
+              <p className="text-sm font-medium text-ink">
+                Minimum order · {data.moq} pcs
+              </p>
+            ) : null}
+            {notes ? (
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
+                <p className="whitespace-pre-wrap text-sm text-ink">{notes}</p>
+              </div>
+            ) : null}
             {data.categories && data.categories.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {data.categories.map((category) => (

@@ -2,21 +2,26 @@ import { z } from 'zod';
 import { publishAudienceValues, rateVisibilityValues, unitValues } from './enums';
 
 /**
- * Catalog contracts. A Product is the live entity: its name is required, its
- * SKU/reference code is optional forever, and its rate is nullable ("on
- * request") all the way down. Products and Collections are separate and joined
- * many-to-many. Orders will snapshot a product at order time (see ProductSnapshot).
+ * Catalog contracts. A Product (design) is the live entity: name required; rate
+ * nullable ("on request"). SKU is optional on input — if omitted the API assigns
+ * a stable company-unique code that never changes for that product's life.
+ * Products and Collections are separate (many-to-many). Client "catalogue" means
+ * an order-as-whole pack (future); shop publish is "Publish design", not catalogue.
  */
 
 export const createProductSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
-  sku: z.string().trim().max(64).optional(),
+  /** Optional on create; server fills a stable SKU when omitted. */
+  sku: z.string().trim().min(1).max(64).optional(),
+  /** Seller notes for buyers (fabric, size, width, etc.). */
   description: z.string().trim().max(1000).optional(),
+  /** Minimum order in pieces; null clears on update. */
+  moq: z.number().int().positive().max(1_000_000).nullable().optional(),
   // null / omitted => "on request"; a number is a per-unit rate.
   rate: z.number().nonnegative().nullable().optional(),
   unit: z.enum(unitValues).optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
-  images: z.array(z.string().url()).max(12).default([]),
+  images: z.array(z.string().url()).default([]),
 });
 export type CreateProductDto = z.infer<typeof createProductSchema>;
 
@@ -64,11 +69,19 @@ export type PublishCollectionDto = z.infer<typeof publishCollectionSchema>;
 export const postProductToMarketSchema = publishCollectionSchema;
 export type PostProductToMarketDto = z.infer<typeof postProductToMarketSchema>;
 
+/** Catalog publish (shop) — consent required the first time a company sells. */
+export const publishProductSchema = z.object({
+  consentToSell: z.boolean().optional(),
+});
+export type PublishProductDto = z.infer<typeof publishProductSchema>;
+
 export interface ProductView {
   id: string;
   name: string;
   sku: string | null;
   description: string | null;
+  /** Minimum order quantity in pieces; null when not set. */
+  moq: number | null;
   rate: number | null;
   unit: string | null;
   categories: string[];

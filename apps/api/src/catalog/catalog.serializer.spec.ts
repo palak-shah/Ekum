@@ -9,6 +9,7 @@ const baseProduct = {
   name: 'Banarasi Silk',
   sku: null,
   description: null,
+  moq: null as number | null,
   unit: 'mtr',
   categories: ['Sarees'],
   images: [],
@@ -33,6 +34,11 @@ describe('CatalogSerializer', () => {
   it('converts a Decimal rate to a number', () => {
     const view = serializer.toProductView(product({ toNumber: () => 120.5 }));
     expect(view.rate).toBe(120.5);
+  });
+
+  it('exposes moq when set', () => {
+    const view = serializer.toProductView({ ...product(null), moq: 100 } as Product);
+    expect(view.moq).toBe(100);
   });
 
   it('reports product count from the _count aggregate', () => {

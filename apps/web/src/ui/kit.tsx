@@ -71,7 +71,12 @@ export function Chip({
 /** Horizontal filter rail — keeps chips intentional, not scattered. */
 export function FilterRail({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]', className)}>
+    <div
+      className={cx(
+        '-mx-1 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -261,11 +266,14 @@ export function Sheet({
   onClose,
   title,
   children,
+  footer,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   children: ReactNode;
+  /** Pinned below the scroll region (e.g. primary action + compact fields). */
+  footer?: ReactNode;
 }) {
   if (!open || typeof document === 'undefined') {
     return null;
@@ -285,7 +293,8 @@ export function Sheet({
         {title ? (
           <h3 className="mb-4 shrink-0 text-base font-bold tracking-tight text-ink">{title}</h3>
         ) : null}
-        <div className="min-h-0 overflow-y-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {footer ? <div className="shrink-0 border-t border-line pt-3 mt-2">{footer}</div> : null}
       </div>
     </div>,
     document.body,

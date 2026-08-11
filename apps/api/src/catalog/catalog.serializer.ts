@@ -15,6 +15,7 @@ export class CatalogSerializer {
       name: product.name,
       sku: product.sku,
       description: product.description,
+      moq: product.moq ?? null,
       // A null rate means "on request"; Decimal is converted for the wire.
       rate: product.rate === null ? null : product.rate.toNumber(),
       unit: product.unit,

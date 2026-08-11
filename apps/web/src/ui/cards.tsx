@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom';
 import type {
   CollectionCard,
+  CompanyCard,
   DiscoveryProductCard,
+  ExploreBuyerOpportunity,
+  ExploreDesignOpportunity,
+  ExploreOpportunity,
   ExplorePost,
   ExploreProductCard,
+  ExploreSupplierCard,
   ProductView,
   PublicCompanySummary,
 } from '@ekum/domain-types';
@@ -18,26 +23,273 @@ function VerificationTag({ verification }: { verification: string }) {
   return null;
 }
 
-export function CompanyRow({ company, to }: { company: PublicCompanySummary; to?: string }) {
+export function CompanyRow({
+  company,
+  to,
+  relevance,
+  plain = false,
+}: {
+  company: PublicCompanySummary | CompanyCard;
+  to?: string;
+  /** Sparse trust / relevance line; falls back to city. */
+  relevance?: string | null;
+  /** Flat list row (Explore sections) instead of a padded card. */
+  plain?: boolean;
+}) {
+  const subtitle = relevance?.trim() || company.city;
   const inner = (
     <div className="flex items-center gap-3">
-      <Avatar name={company.name} imageUrl={company.logoUrl} />
+      <Avatar name={company.name} imageUrl={company.logoUrl} size={plain ? 40 : undefined} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
-        <p className="truncate text-xs font-medium text-muted">{company.city}</p>
+        <p className="truncate text-xs font-medium text-muted">{subtitle}</p>
       </div>
-      <VerificationTag verification={company.verification} />
-      {to ? <ChevronRightIcon className="text-muted" /> : null}
+      {!relevance && <VerificationTag verification={company.verification} />}
+      {to && !plain ? <ChevronRightIcon className="text-muted" /> : null}
     </div>
   );
+  const className = plain
+    ? 'block px-1 py-2.5 hover:bg-foam/50'
+    : 'block rounded-2xl bg-surface p-3.5 hover:bg-foam/80';
   if (to) {
     return (
-      <Link to={to} className="block rounded-2xl bg-surface p-3.5 hover:bg-foam/80">
+      <Link to={to} className={className}>
         {inner}
       </Link>
     );
   }
-  return <div className="rounded-2xl bg-surface p-3.5">{inner}</div>;
+  return <div className={className}>{inner}</div>;
+}
+
+/** Company-primary Explore opportunity — collection evidence is secondary. */
+export function OpportunityCollectionCard({
+  opportunity,
+}: {
+  opportunity: ExploreOpportunity;
+}) {
+  const { collection, relevance } = opportunity;
+  const company = collection.company;
+  const when = postedWhen(collection.updatedAt);
+  return (
+    <article className="-mx-4 border-b border-line/70 pb-3.5">
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        <Link to={`/company/${company.id}`} className="shrink-0">
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+        </Link>
+        <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
+          <p className="truncate text-xs font-medium text-muted">
+            {relevance?.trim() || company.city}
+          </p>
+        </Link>
+        {when ? (
+          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
+        ) : null}
+      </div>
+      <Link to={`/collections/${collection.id}`} className="block px-3">
+        <AlbumGrid
+          images={collection.previewImages}
+          imageCount={collection.imageCount}
+          alt={collection.name}
+        />
+      </Link>
+      <Link to={`/collections/${collection.id}`} className="mt-2 block px-4">
+        <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
+        <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
+      </Link>
+    </article>
+  );
+}
+
+export function OpportunityCompanyRow({
+  opportunity,
+  plain = false,
+}: {
+  opportunity: ExploreBuyerOpportunity;
+  plain?: boolean;
+}) {
+  return (
+    <CompanyRow
+      company={opportunity.company}
+      to={`/company/${opportunity.company.id}`}
+      relevance={opportunity.relevance}
+      plain={plain}
+    />
+  );
+}
+
+type BusinessCardModel = {
+  company: CompanyCard;
+  relevance: string | null;
+  previewImages: string[];
+  designCount: number;
+  collectionCount: number;
+  latestPostedAt?: string | null;
+};
+
+/** Relative time for Explore cards — “2d ago”, “just now”, or a short date. */
+function postedWhen(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const label = timeAgo(iso);
+  if (!label) return '';
+  if (label === 'just now') return label;
+  if (/^\d+[mhd]$/.test(label)) return `${label} ago`;
+  return label;
+}
+
+/**
+ * Full-width Explore business card — same chrome as collection/design cards.
+ * Keep it plain: name, why-connect, then photos or a short “buys/sells” line.
+ */
+export function OpportunityBusinessCard({
+  company,
+  relevance,
+  previewImages,
+  designCount,
+  collectionCount,
+  latestPostedAt = null,
+  intentSide = 'sell',
+}: BusinessCardModel & {
+  /** Categories shown when there are no post thumbs. */
+  intentSide?: 'buy' | 'sell';
+}) {
+  const why = relevance?.trim() || company.city;
+  const intentCats = (
+    intentSide === 'buy' ? company.buyCategories : company.sellCategories
+  ).filter(Boolean);
+  const hasAlbum = previewImages.length > 0;
+  const when = hasAlbum ? postedWhen(latestPostedAt) : '';
+  const count =
+    hasAlbum && designCount > 0
+      ? `${designCount} design${designCount === 1 ? '' : 's'}`
+      : hasAlbum && collectionCount > 0
+        ? `${collectionCount} collection${collectionCount === 1 ? '' : 's'}`
+        : null;
+
+  return (
+    <article className="-mx-4 border-b border-line/70 pb-3.5">
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        <Link to={`/company/${company.id}`} className="shrink-0">
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+        </Link>
+        <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
+          <p className="truncate text-xs font-medium text-muted">{why}</p>
+        </Link>
+        {when ? (
+          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
+        ) : null}
+      </div>
+      <Link to={`/company/${company.id}`} className="block px-3">
+        {hasAlbum ? (
+          <AlbumGrid
+            images={previewImages}
+            imageCount={previewImages.length}
+            alt={company.name}
+          />
+        ) : (
+          <BusinessIntentPanel intentSide={intentSide} categories={intentCats} />
+        )}
+      </Link>
+      {count ? (
+        <Link to={`/company/${company.id}`} className="mt-2 block px-4">
+          <p className="text-xs font-medium text-muted">{count}</p>
+        </Link>
+      ) : null}
+    </article>
+  );
+}
+
+/** Soft block when a business has no photos — plain words, no chip clutter. */
+function BusinessIntentPanel({
+  intentSide,
+  categories,
+}: {
+  intentSide: 'buy' | 'sell';
+  categories: string[];
+}) {
+  const cats = categories.slice(0, 3);
+  const verb = intentSide === 'buy' ? 'Buys' : 'Sells';
+  const line =
+    cats.length > 0
+      ? `${verb} ${cats.join(', ')}`
+      : intentSide === 'buy'
+        ? 'May want what you sell'
+        : 'Supplier on Ekum';
+
+  return (
+    <div className="rounded-2xl bg-foam/80 px-4 py-5">
+      <p className="text-[15px] font-semibold leading-snug tracking-tight text-ink">{line}</p>
+    </div>
+  );
+}
+
+/** @deprecated Prefer OpportunityBusinessCard on Explore. */
+export function SupplierDirectoryRow({ supplier }: { supplier: ExploreSupplierCard }) {
+  return (
+    <OpportunityBusinessCard
+      company={supplier.company}
+      relevance={supplier.relevance}
+      previewImages={supplier.previewImages}
+      designCount={supplier.designCount}
+      collectionCount={supplier.collectionCount}
+      latestPostedAt={supplier.latestPostedAt}
+      intentSide="sell"
+    />
+  );
+}
+
+/** Company-primary Explore opportunity for a standalone design. */
+export function OpportunityDesignCard({
+  opportunity,
+}: {
+  opportunity: ExploreDesignOpportunity;
+}) {
+  const { product, relevance } = opportunity;
+  const company = product.company;
+  const when = postedWhen(product.postedAt);
+  return (
+    <article className="-mx-4 border-b border-line/70 pb-3.5">
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        <Link to={`/company/${company.id}`} className="shrink-0">
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+        </Link>
+        <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
+          <p className="truncate text-xs font-medium text-muted">
+            {relevance?.trim() || company.city}
+          </p>
+        </Link>
+        {when ? (
+          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
+        ) : null}
+      </div>
+      <Link to={`/explore/products/${product.id}`} className="block px-3">
+        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+      </Link>
+      <Link to={`/explore/products/${product.id}`} className="mt-2 block px-4">
+        <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
+        <p className="text-xs font-medium text-muted">Design</p>
+      </Link>
+    </article>
+  );
+}
+
+/** Compact shop tile for a published design on a company profile. */
+export function DesignTile({ product }: { product: ExploreProductCard }) {
+  const cover = product.images[0] ?? null;
+  return (
+    <Link
+      to={`/explore/products/${product.id}`}
+      className="block w-44 shrink-0 overflow-hidden rounded-2xl bg-surface p-2 shadow-[var(--shadow-soft)]"
+    >
+      <div className="h-32 w-full overflow-hidden rounded-xl">
+        <CoverImage src={cover} alt={product.name} />
+      </div>
+      <p className="mt-2 truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
+      <p className="mt-0.5 text-xs font-medium text-muted">Design</p>
+    </Link>
+  );
 }
 
 /** Fills its parent; parent must set size + overflow-hidden. */

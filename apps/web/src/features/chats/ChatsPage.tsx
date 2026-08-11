@@ -10,6 +10,11 @@ import { chatTypeMeta, messagePreviewSearchBlob, messagePreviewText } from './me
 
 type Tab = 'active' | 'requests';
 
+const TAB_LABEL: Record<Tab, string> = {
+  active: 'Chats',
+  requests: 'New',
+};
+
 export function ChatsPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('active');
@@ -31,6 +36,7 @@ export function ChatsPage() {
     onSuccess: () => {
       setReadAllError(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
     },
     onError: (err) =>
@@ -69,23 +75,25 @@ export function ChatsPage() {
             type="button"
             onClick={() => setTab(value)}
             className={cx(
-              'rounded-full px-4 py-1.5 text-sm font-medium capitalize',
+              'rounded-full px-4 py-1.5 text-sm font-medium',
               tab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
             )}
           >
-            {value}
+            {TAB_LABEL[value]}
           </button>
         ))}
-        <button
-          type="button"
-          disabled={!hasUnread || readAll.isPending}
-          onClick={() => readAll.mutate()}
-          className="ml-auto text-xs font-semibold text-accent disabled:opacity-40"
-        >
-          {readAll.isPending ? 'Reading…' : 'Read all'}
-        </button>
+        {hasUnread ? (
+          <button
+            type="button"
+            disabled={readAll.isPending}
+            onClick={() => readAll.mutate()}
+            className="ml-auto text-sm font-semibold text-accent disabled:opacity-40"
+          >
+            {readAll.isPending ? 'Reading…' : 'Mark all read'}
+          </button>
+        ) : null}
       </div>
-      {readAllError ? <p className="text-center text-xs text-danger">{readAllError}</p> : null}
+      {readAllError ? <p className="text-center text-sm text-danger">{readAllError}</p> : null}
 
       {threads.isLoading ? (
         <LoadingBlock />
@@ -101,15 +109,25 @@ export function ChatsPage() {
             query.trim()
               ? 'No matches'
               : tab === 'requests'
-                ? 'No requests'
+                ? 'No new messages'
                 : 'No chats yet'
           }
           message={
             query.trim()
               ? 'Try another name or message.'
               : tab === 'requests'
-                ? 'First messages from businesses you are not connected with land here. Approve access in My buyers.'
-                : 'Open a connected chat, or check Requests for new message requests.'
+                ? 'New messages from businesses you don’t know yet land here.'
+                : 'Find a business to start chatting.'
+          }
+          action={
+            !query.trim() && tab === 'active' ? (
+              <Link
+                to="/explore"
+                className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
+              >
+                Find businesses
+              </Link>
+            ) : undefined
           }
         />
       )}
@@ -139,7 +157,7 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
           </p>
           <span
             className={cx(
-              'shrink-0 text-[11px]',
+              'shrink-0 text-xs',
               thread.unreadCount > 0 ? 'font-semibold text-accent' : 'text-muted',
             )}
           >
@@ -147,14 +165,14 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
           </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1 truncate text-[13px] text-muted">
+          <p className="flex min-w-0 items-center gap-1 truncate text-sm text-muted">
             {PreviewIcon && thread.lastMessage && thread.lastMessage.type !== 'text' ? (
               <PreviewIcon width={14} height={14} className="shrink-0 text-slate" aria-hidden />
             ) : null}
             <span className="truncate">{preview}</span>
           </p>
           {thread.unreadCount > 0 ? (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-white">
               {thread.unreadCount}
             </span>
           ) : null}

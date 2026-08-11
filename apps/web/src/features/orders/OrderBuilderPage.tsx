@@ -12,7 +12,8 @@ import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
-import { Avatar, Button, Card, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { ConnectionPicker } from '@/ui/ConnectionPicker';
+import { Button, Card, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { CameraIcon, PlusIcon } from '@/ui/icons';
 
 interface PhotoLine {
@@ -32,8 +33,14 @@ interface StandardLine {
   quantity: string;
 }
 
-const QTY_PRESETS = ['1', '5', '10', '25'] as const;
+/** Wholesale-scale presets — traders usually think in 50s / 100s, not singles. */
+const QTY_PRESETS = ['50', '100', '200', '500', '1000'] as const;
+const DEFAULT_QTY = '100';
 const MAX_PHOTOS = 12;
+
+function isQtyPreset(value: string): boolean {
+  return (QTY_PRESETS as readonly string[]).includes(value);
+}
 
 function newPhotoId(): string {
   return `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -57,6 +64,8 @@ export function OrderBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [bulkQty, setBulkQty] = useState(DEFAULT_QTY);
+  const [bulkDraft, setBulkDraft] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
@@ -85,11 +94,25 @@ export function OrderBuilderPage() {
           image: product.images[0] ?? null,
           rate: product.rate,
           unit: product.unit,
-          quantity: '1',
+          quantity: DEFAULT_QTY,
         })),
       );
+      setBulkQty(DEFAULT_QTY);
+      setBulkDraft('');
     }
   }, [collection.data, productIds.join(',')]);
+
+  const applyQtyToAll = (qty: string) => {
+    const cleaned = qty.trim().replace(/[^\d]/g, '');
+    if (!cleaned || Number(cleaned) < 1) return;
+    if (isStandard) {
+      setStandardLines((prev) => prev.map((line) => ({ ...line, quantity: cleaned })));
+    } else {
+      setPhotos((prev) => prev.map((photo) => ({ ...photo, quantity: cleaned })));
+    }
+    setBulkQty(cleaned);
+    setBulkDraft(isQtyPreset(cleaned) ? '' : cleaned);
+  };
 
   useEffect(() => {
     return () => {
@@ -171,7 +194,13 @@ export function OrderBuilderPage() {
         const previewUrl = URL.createObjectURL(file);
         setPhotos((prev) => [
           ...prev,
-          { id, previewUrl, imageUrl: '', quantity: '1', uploading: true },
+          {
+            id,
+            previewUrl,
+            imageUrl: '',
+            quantity: bulkQty || DEFAULT_QTY,
+            uploading: true,
+          },
         ]);
         try {
           const imageUrl = await uploadImage(file);
@@ -230,62 +259,67 @@ export function OrderBuilderPage() {
       {!isStandard ? (
         <p className="text-sm text-muted">
           {phone
-            ? 'Capture photos. Add rough quantity if you know it.'
-            : 'Select photos. Add rough quantity if you know it.'}
+            ? 'Take photos of what you need. Set piece count for each — usually hundreds.'
+            : 'Add photos of what you need. Set piece count for each — usually hundreds.'}
         </p>
       ) : null}
 
       {!sellerFromUrl ? (
-        isStandard ? (
-          <Field label="Supplier">
-            <select
-              value={sellerId}
-              onChange={(event) => setSellerId(event.target.value)}
-              className="rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-accent"
-            >
-              <option value="">Select a connected business…</option>
-              {sellers.map((connection) => (
-                <option key={connection.company.id} value={connection.company.id}>
-                  {connection.company.name} · {connection.company.city}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-ink">Supplier</p>
-            {sellers.length === 0 ? (
-              <p className="text-sm text-muted">Connect with a business first, then place an order.</p>
-            ) : (
-              sellers.map((connection) => (
-                <button
-                  key={connection.company.id}
-                  type="button"
-                  onClick={() => setSellerId(connection.company.id)}
-                  className={cx(
-                    'flex items-center gap-3 rounded-2xl border px-3 py-3 text-left',
-                    sellerId === connection.company.id
-                      ? 'border-accent bg-accent/5'
-                      : 'border-line bg-surface',
-                  )}
-                >
-                  <Avatar
-                    name={connection.company.name}
-                    imageUrl={connection.company.logoUrl}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
-                    <p className="truncate text-xs text-muted">{connection.company.city}</p>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        )
+        <ConnectionPicker
+          mode="single"
+          label="Supplier"
+          chooseLabel="Choose supplier"
+          connections={sellers}
+          value={sellerId || null}
+          onChange={(id) => setSellerId(id ?? '')}
+          emptyMessage="Connect with a business first, then place an order."
+        />
       ) : null}
 
       {isStandard ? (
         <div className="flex flex-col gap-3">
+          <Card className="flex flex-col gap-2">
+            <p className="text-sm font-bold tracking-tight text-ink">Same pieces for all</p>
+            <p className="text-xs text-muted">Tap a number, or type your own and press Apply.</p>
+            <div className="flex flex-wrap gap-2">
+              {QTY_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => applyQtyToAll(preset)}
+                  className={cx(
+                    'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-bold',
+                    bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
+                  )}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <TextInput
+                type="number"
+                min={1}
+                inputMode="numeric"
+                placeholder="e.g. 150"
+                className="min-h-11 flex-1"
+                value={bulkDraft}
+                onChange={(event) => setBulkDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') applyQtyToAll(bulkDraft);
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-11 shrink-0 px-4"
+                disabled={!bulkDraft.trim()}
+                onClick={() => applyQtyToAll(bulkDraft)}
+              >
+                Apply
+              </Button>
+            </div>
+          </Card>
           {standardLines.map((line, index) => (
             <Card key={line.productId} className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
@@ -301,49 +335,76 @@ export function OrderBuilderPage() {
                   <p className="text-xs text-muted">{formatRate(line.rate, line.unit)}</p>
                 </div>
               </div>
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-muted">Quantity</p>
-                <div className="flex flex-wrap gap-2">
-                  {QTY_PRESETS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() =>
-                        setStandardLines((prev) =>
-                          prev.map((item, i) => (i === index ? { ...item, quantity: preset } : item)),
-                        )
-                      }
-                      className={cx(
-                        'rounded-full px-3 py-1 text-sm font-medium',
-                        line.quantity === preset ? 'bg-accent text-white' : 'bg-foam text-muted',
-                      )}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                  <TextInput
-                    type="number"
-                    min={1}
-                    className="w-20"
-                    value={line.quantity}
-                    onChange={(event) =>
-                      setStandardLines((prev) =>
-                        prev.map((item, i) =>
-                          i === index ? { ...item, quantity: event.target.value } : item,
-                        ),
-                      )
-                    }
-                  />
-                </div>
-              </div>
+              <Field label="Pieces">
+                <TextInput
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  value={line.quantity}
+                  onChange={(event) =>
+                    setStandardLines((prev) =>
+                      prev.map((item, i) =>
+                        i === index ? { ...item, quantity: event.target.value } : item,
+                      ),
+                    )
+                  }
+                />
+              </Field>
             </Card>
           ))}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {photos.length > 0 ? (
+            <Card className="flex flex-col gap-2">
+              <p className="text-sm font-bold tracking-tight text-ink">Same pieces for all</p>
+              <p className="text-xs text-muted">
+                Tap a number for every photo, or type your own and press Apply. Change one photo
+                below if needed.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {QTY_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => applyQtyToAll(preset)}
+                    className={cx(
+                      'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-bold',
+                      bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
+                    )}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <TextInput
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="e.g. 150"
+                  className="min-h-11 flex-1"
+                  value={bulkDraft}
+                  onChange={(event) => setBulkDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') applyQtyToAll(bulkDraft);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="min-h-11 shrink-0 px-4"
+                  disabled={!bulkDraft.trim()}
+                  onClick={() => applyQtyToAll(bulkDraft)}
+                >
+                  Apply
+                </Button>
+              </div>
+            </Card>
+          ) : null}
           <div className="grid grid-cols-3 gap-2">
             {photos.map((photo) => (
-              <div key={photo.id} className="flex flex-col gap-1">
+              <div key={photo.id} className="flex flex-col gap-1.5">
                 <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-foam">
                   <img
                     src={photo.previewUrl || photo.imageUrl}
@@ -364,27 +425,24 @@ export function OrderBuilderPage() {
                     ×
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {QTY_PRESETS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() =>
-                        setPhotos((prev) =>
-                          prev.map((item) =>
-                            item.id === photo.id ? { ...item, quantity: preset } : item,
-                          ),
-                        )
-                      }
-                      className={cx(
-                        'rounded-full px-2 py-0.5 text-[11px] font-medium',
-                        photo.quantity === preset ? 'bg-accent text-white' : 'bg-foam text-muted',
-                      )}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-medium text-muted">Pieces</span>
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    aria-label="Pieces"
+                    className="min-h-10 w-full rounded-xl border border-line bg-surface px-2 text-center text-sm font-bold text-ink outline-none focus:border-accent"
+                    value={photo.quantity}
+                    onChange={(event) =>
+                      setPhotos((prev) =>
+                        prev.map((item) =>
+                          item.id === photo.id ? { ...item, quantity: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                </label>
               </div>
             ))}
             {photos.length < MAX_PHOTOS ? (
@@ -426,13 +484,15 @@ export function OrderBuilderPage() {
 
       {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
 
-      <Button fullWidth disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
-        {create.isPending
-          ? 'Sending…'
-          : isStandard
-            ? 'Send order request'
-            : 'Send photo order'}
-      </Button>
+      <div className="border-t border-line pt-4">
+        <Button fullWidth disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
+          {create.isPending
+            ? 'Sending…'
+            : isStandard
+              ? 'Send order request'
+              : 'Send photo order'}
+        </Button>
+      </div>
 
       <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Add photo">
         <div className="flex flex-col gap-2">

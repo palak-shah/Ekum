@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useAuth } from '@/lib/auth';
 import { OnboardingLayout } from '@/app/OnboardingLayout';
 import { Button, Field, TextInput, cx } from '@/ui/kit';
+import { SuggestInput } from '@/ui/SuggestInput';
 
 const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
 
@@ -78,7 +79,7 @@ export function OnboardingPage() {
             autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Ravi Textiles"
+            placeholder="Surat Silk House"
           />
         </Field>
         <Field label="Contact person">
@@ -89,7 +90,12 @@ export function OnboardingPage() {
           />
         </Field>
         <Field label="City">
-          <TextInput value={city} onChange={(event) => setCity(event.target.value)} placeholder="Surat" />
+          <SuggestInput
+            kind="city"
+            value={city}
+            onChange={setCity}
+            placeholder="Surat"
+          />
         </Field>
         <Field label="What do you deal in?" hint="Select all that apply." error={error}>
           <div className="flex flex-wrap gap-2">

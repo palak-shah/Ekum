@@ -34,6 +34,15 @@ export const ExploreIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Category / city filter affordance. */
+export const FilterIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 6h16" />
+    <path d="M7 12h10" />
+    <path d="M10 18h4" />
+  </Icon>
+);
+
 export const ChatIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12Z" />
@@ -97,6 +106,16 @@ export const MoreHorizontalIcon = (props: IconProps) => (
     <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
     <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
     <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+/** Delete / remove design. */
+export const TrashIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 7h16" />
+    <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+    <path d="M10 11v6M14 11v6" />
   </Icon>
 );
 

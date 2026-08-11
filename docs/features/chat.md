@@ -1,0 +1,53 @@
+# Chat
+
+## Purpose
+
+Company-to-company messaging for trade: text, photos, voice, and **cards** (collection / product / order / rate) with server-side **source masking**.
+
+## Who uses it
+
+Any company. Unconnected first messages land in the recipient’s **Requests** inbox.
+
+## User flows
+
+1. Open **Chats** → inbox tabs **Chats** (active) / **New** (pending first contact).
+2. Open thread → send text / photo; share design, collection, or order cards; receive quote / order action cards from trade flows.
+3. **Open chat** or **Ignore** a pending first-contact thread (not Accept/Decline — those words are for orders).
+4. Pin chats; mute/leave/groups as supported later.
+5. Unread badge on bottom nav; mark read on open / Mark all read when unread.
+
+## Business rules
+
+| Rule | Detail |
+|------|--------|
+| Participant states | `active` · `pending` (requests) · `archived` (silent — decline / leave / block) |
+| Unconnected first message | Recipient starts **pending**; reply/accept activates |
+| Block | Sender may still see a thread; recipient side is silently archived |
+| Owner on cards | Design/collection cards show `from {owner company}`; sender (You/forwarder) sits above the card |
+| Message actions | Top-right chevron opens Reply / Forward / Select (long-press still works) |
+| Owner-only threads | Hidden from staff even with chat permission (domain-ready) |
+| Mute | Local `ThreadAlertLevel`; never signalled to the other party |
+| Access approve | Can activate pending chat participants when trust is granted |
+| Order card actors | Body says **You** (mine) or the other party’s **business name** — never Seller/Buyer |
+| Order card CTAs | Quiet **View order →** (whole card also opens order); solid **Accept quote** only when live `canAcceptQuote` — never rewrite frozen Quote card copy |
+
+Message types: text, photo, voice, collection_card, product_card, order_card, rate, system.
+
+## Edge cases / empty states
+
+- Empty Chats → **Find businesses** → Explore.
+- Empty New → short line that unknown businesses land here.
+- Blocked counterpart → no confirmation of block in UI.
+- Thread detail uses counterpart header (shell title suppressed).
+
+## Seed walkthrough
+
+1. As **Meena** or **Ravi**: open the seeded direct thread — text + Wedding Edit collection card.
+2. Send a reply; confirm unread clears.
+3. As an unconnected test company: message Ravi → appears under Ravi’s chat requests.
+
+## Where it lives
+
+- Web: `apps/web/src/features/chats/` (`ChatsPage`, `ThreadPage`, `messagePreview`, `chatMessageActions`)
+- API: `apps/api/src/conversation/`
+- Contracts: `packages/domain-types/src/conversation.ts`

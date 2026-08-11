@@ -18,3 +18,12 @@ export function useUnreadCount() {
     refetchInterval: 60_000,
   });
 }
+
+/** Sum of unread messages on Active chats — bottom-nav Chats badge. */
+export function useChatUnreadCount() {
+  return useQuery({
+    queryKey: ['threads', 'unread-count'],
+    queryFn: () => api.get<{ count: number }>('/threads/unread-count'),
+    refetchInterval: 30_000,
+  });
+}

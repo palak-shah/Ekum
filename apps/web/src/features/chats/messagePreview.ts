@@ -1,6 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
 import { photoUrlsFromMessage, type MessageView } from '@ekum/domain-types';
-import { statusLabel } from '@/lib/status';
 import {
   CameraIcon,
   ChatIcon,
@@ -11,6 +10,7 @@ import {
   QuoteIcon,
   ReturnIcon,
 } from '@/ui/icons';
+import { orderMessagePreviewCore } from './orderCardCopy';
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -61,9 +61,6 @@ export function messagePreviewText(message: MessageView | null | undefined): str
     return 'No messages yet';
   }
   const name = message.reference?.name?.trim() || message.body?.trim() || null;
-  const status = message.reference?.status
-    ? statusLabel(message.reference.status)
-    : null;
 
   let core: string;
   switch (message.type) {
@@ -79,36 +76,20 @@ export function messagePreviewText(message: MessageView | null | undefined): str
     case 'collection_card':
       core = name ? `Shared: ${name}` : 'Shared a card';
       break;
-    case 'order_card': {
-      const side =
-        message.reference?.direction === 'buying'
-          ? 'Buying'
-          : message.reference?.direction === 'selling'
-            ? 'Selling'
-            : null;
-      if (message.reference?.status === 'confirmed') {
-        const by = message.reference.confirmedByName;
-        core = by
-          ? side
-            ? `${side} · Confirmed by ${by}`
-            : `Confirmed by ${by}`
-          : side
-            ? `${side} · Confirmed`
-            : 'Order confirmed';
-      } else if (status) {
-        core = side ? `${side} · Order ${status.toLowerCase()}` : `Order ${status.toLowerCase()}`;
-      } else {
-        core = name ? `Order · ${name}` : 'Order update';
-      }
+    case 'order_card':
+    case 'rate': {
+      core = orderMessagePreviewCore(message) ?? (message.type === 'rate' ? 'Quote' : 'Order update');
       break;
     }
-    case 'rate':
-      core = message.reference?.totalLabel
-        ? `Quote · ${message.reference.totalLabel}`
-        : status
-          ? `Quote · ${status}`
-          : 'Quote';
+    case 'system': {
+      const orderPreview = orderMessagePreviewCore(message);
+      if (orderPreview) {
+        core = orderPreview;
+        break;
+      }
+      core = name || message.body?.trim() || 'Update';
       break;
+    }
     default:
       core = name || 'Shared a card';
   }

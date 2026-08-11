@@ -60,6 +60,12 @@ pnpm --filter @ekum/web dev        # http://localhost:5173
 - `pnpm test` — run tests
 - `pnpm format` — format with Prettier
 
+## Documentation
+
+Product-functional docs (user actions, business rules, seed walkthroughs) live under
+[`docs/features/`](docs/features/README.md). Start with
+[shared concepts](docs/features/00-concepts.md).
+
 ## Conventions
 
 - All server-owned state flows through the API; the web app keeps it in TanStack

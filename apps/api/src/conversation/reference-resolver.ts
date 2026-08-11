@@ -1,17 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import type { Message } from '@prisma/client';
-import { MessageType, type MessageReference } from '@ekum/domain-types';
+import {
+  MessageType,
+  OrderLineStatus,
+  OrderStatus,
+  inferOrderChatEvent,
+  orderChatEventLabel,
+  shortOrderLabel,
+  type MessageReference,
+} from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 
-function shortOrderLabel(id: string): string {
-  const tail = id.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
-  return `Order #${tail || id.slice(-4)}`;
-}
-
 /**
- * Messages store a reference id, never a copy. This resolves those ids to live,
- * compact cards in a single batched pass per page, so a shared product/collection
- * always reflects its current name/image (or is flagged unavailable if deleted).
+ * Messages store a reference id, never a copy. Product/collection cards resolve
+ * to live name/image (or unavailable if deleted). Order/quote cards keep
+ * rate totals from message metadata so the chat timeline stays immutable when
+ * a later quote updates the live order lines.
  */
 @Injectable()
 export class ReferenceResolver {
@@ -26,13 +30,20 @@ export class ReferenceResolver {
     const orderIds = [
       ...this.idsFor(messages, MessageType.OrderCard),
       ...this.idsFor(messages, MessageType.Rate),
+      ...this.orderLineSystemIds(messages),
     ];
 
     const [products, collections, orders] = await Promise.all([
       productIds.length
         ? this.prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, name: true, images: true },
+            select: {
+              id: true,
+              name: true,
+              images: true,
+              companyId: true,
+              company: { select: { id: true, name: true } },
+            },
           })
         : Promise.resolve([]),
       collectionIds.length
@@ -42,6 +53,8 @@ export class ReferenceResolver {
               id: true,
               name: true,
               coverImage: true,
+              companyId: true,
+              company: { select: { id: true, name: true } },
               _count: { select: { products: true } },
               products: {
                 orderBy: { position: 'asc' },
@@ -63,7 +76,12 @@ export class ReferenceResolver {
               buyer: { select: { name: true } },
               seller: { select: { name: true } },
               _count: { select: { items: true } },
-              items: { select: { rate: true, quantity: true }, take: 50 },
+              items: {
+                // Images for card album; rate/lineStatus only for live Accept affordance.
+                // Quote totals still come from frozen message metadata.
+                select: { image: true, images: true, rate: true, lineStatus: true },
+                take: 50,
+              },
             },
           })
         : Promise.resolve([]),
@@ -87,6 +105,8 @@ export class ReferenceResolver {
           name: product?.name ?? null,
           image: images[0] ?? null,
           images: images.length > 0 ? images : null,
+          ownerCompanyId: product?.company?.id ?? product?.companyId ?? null,
+          ownerCompanyName: product?.company?.name ?? null,
           available: Boolean(product),
         });
       } else if (message.type === MessageType.CollectionCard) {
@@ -105,17 +125,18 @@ export class ReferenceResolver {
           image: fallback,
           images: images.length > 0 ? images : null,
           itemCount: collection?._count.products ?? null,
+          ownerCompanyId: collection?.company?.id ?? collection?.companyId ?? null,
+          ownerCompanyName: collection?.company?.name ?? null,
           available: Boolean(collection),
         });
-      } else if (message.type === MessageType.OrderCard || message.type === MessageType.Rate) {
+      } else if (
+        message.type === MessageType.OrderCard ||
+        message.type === MessageType.Rate ||
+        this.isOrderLineSystem(message)
+      ) {
         const order = orderById.get(message.referenceId);
         const meta = (message.metadata ?? {}) as Record<string, unknown>;
-        const totalFromItems = order
-          ? order.items.reduce((sum, item) => {
-              const rate = item.rate ? item.rate.toNumber() : 0;
-              return sum + rate * item.quantity.toNumber();
-            }, 0)
-          : 0;
+        const isRateCard = message.type === MessageType.Rate;
         let counterpartName: string | null = null;
         let direction: 'buying' | 'selling' | null = null;
         let confirmedByName: string | null = null;
@@ -137,31 +158,93 @@ export class ReferenceResolver {
             confirmedByName = order.seller.name;
           }
         }
+        // One primary thumb per line (images[0] or legacy image), max 4 for the card album.
+        const previewImages = (order?.items ?? [])
+          .map((item) => item.images[0] || item.image || null)
+          .filter((url): url is string => Boolean(url))
+          .slice(0, 4);
+
+        // Totals are frozen on the message at send time. Never recompute from live
+        // order lines — a later quote must not rewrite earlier order/quote cards.
+        const totalLabel =
+          typeof meta.totalLabel === 'string' && meta.totalLabel.trim()
+            ? meta.totalLabel
+            : null;
+
+        const event = inferOrderChatEvent({
+          messageType: message.type,
+          metadata: meta,
+        });
+        const eventLabel = orderChatEventLabel(event, {
+          messageType: message.type,
+          metadataKind: typeof meta.kind === 'string' ? meta.kind : null,
+          confirmedCount:
+            typeof meta.confirmedCount === 'number' ? meta.confirmedCount : null,
+          declinedCount:
+            typeof meta.declinedCount === 'number' ? meta.declinedCount : null,
+        });
+        // Prefer frozen metadata so later cancellations do not rewrite older cards.
+        const frozenStatus =
+          typeof meta.status === 'string' && meta.status.trim() ? meta.status : null;
+        const frozenOrderLabel =
+          typeof meta.orderLabel === 'string' && meta.orderLabel.trim()
+            ? meta.orderLabel
+            : null;
+        const frozenActorRaw =
+          typeof meta.actorLabel === 'string' && meta.actorLabel.trim()
+            ? meta.actorLabel.trim()
+            : null;
+        const frozenActorIsRole =
+          !frozenActorRaw || /^(seller|buyer|they)$/i.test(frozenActorRaw);
+        // Always resolve a business name for the actor — never leave Seller/Buyer/They.
+        let actorLabel: string | null = frozenActorIsRole ? null : frozenActorRaw;
+        if (!actorLabel && order) {
+          const role = typeof meta.actorRole === 'string' ? meta.actorRole : null;
+          if (role === 'buyer') actorLabel = order.buyer.name;
+          else if (role === 'seller') actorLabel = order.seller.name;
+          else if (message.senderCompanyId === order.buyerCompanyId) {
+            actorLabel = order.buyer.name;
+          } else if (message.senderCompanyId === order.sellerCompanyId) {
+            actorLabel = order.seller.name;
+          } else {
+            actorLabel = order.seller.name;
+          }
+        }
+        const frozenItemCount =
+          typeof meta.itemCount === 'number' ? meta.itemCount : null;
+
+        // Live affordance only — does not rewrite frozen status/event on the card.
+        const canAcceptQuote =
+          isRateCard &&
+          Boolean(order) &&
+          direction === 'buying' &&
+          order!.status === OrderStatus.Requested &&
+          order!.items.some(
+            (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
+          );
+
         references.set(message.id, {
-          kind: message.type === MessageType.Rate ? 'rate' : 'order',
+          kind: isRateCard ? 'rate' : 'order',
           id: message.referenceId,
-          name:
-            message.type === MessageType.Rate
-              ? 'Quote'
-              : order
-                ? shortOrderLabel(order.id)
-                : 'Order',
-          image: null,
+          name: isRateCard
+            ? 'Quote'
+            : (frozenOrderLabel ?? (order ? shortOrderLabel(order.id) : 'Order')),
+          image: previewImages[0] ?? null,
+          images: previewImages.length > 0 ? previewImages : null,
           available: Boolean(order),
-          status: order?.status ?? (typeof meta.status === 'string' ? meta.status : null),
-          itemCount:
-            order?._count.items ?? (typeof meta.itemCount === 'number' ? meta.itemCount : null),
-          totalLabel:
-            typeof meta.totalLabel === 'string'
-              ? meta.totalLabel
-              : totalFromItems > 0
-                ? `₹${totalFromItems.toLocaleString('en-IN')}`
-                : null,
+          status: frozenStatus,
+          itemCount: frozenItemCount ?? order?._count.items ?? null,
+          totalLabel,
           counterpartName,
           direction,
           buyerName: order?.buyer.name ?? null,
           sellerName: order?.seller.name ?? null,
           confirmedByName,
+          event,
+          eventLabel,
+          orderLabel: frozenOrderLabel ?? (order ? shortOrderLabel(order.id) : null),
+          actorLabel,
+          canAcceptQuote,
         });
       }
     }
@@ -171,6 +254,21 @@ export class ReferenceResolver {
   private idsFor(messages: Message[], type: string): string[] {
     return messages
       .filter((message) => message.type === type && message.referenceId)
+      .map((message) => message.referenceId as string);
+  }
+
+  /** Legacy line-decision notices posted as system before order_card. */
+  private isOrderLineSystem(message: Message): boolean {
+    if (message.type !== MessageType.System || !message.referenceId) {
+      return false;
+    }
+    const meta = (message.metadata ?? {}) as Record<string, unknown>;
+    return meta.kind === 'order_lines';
+  }
+
+  private orderLineSystemIds(messages: Message[]): string[] {
+    return messages
+      .filter((message) => this.isOrderLineSystem(message))
       .map((message) => message.referenceId as string);
   }
 }

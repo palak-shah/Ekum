@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CollectionView,
-  ConnectionView,
   CreateProductDto,
   CursorPage,
   MessageReference,
@@ -23,8 +22,8 @@ import { Avatar, Button, ErrorState, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import {
   CameraIcon,
   CheckIcon,
-  CollectionIcon,
   ChevronDownIcon,
+  CollectionIcon,
   OrdersIcon,
   PinIcon,
   PlusIcon,
@@ -37,6 +36,7 @@ import {
   forwardPayload,
   replyComposerLabel,
 } from './chatMessageActions';
+import { buildOrderCardCopy } from './orderCardCopy';
 import { chatTypeMeta } from './messagePreview';
 import { PhotoAlbum } from './PhotoAlbum';
 
@@ -46,14 +46,6 @@ type AttachStep =
   | 'collection'
   | 'order'
   | 'photo';
-
-const SOON_ATTACH = [
-  'Payment request',
-  'Invoice',
-  'Location',
-  'Document',
-  'Voice',
-] as const;
 
 export function ThreadPage() {
   const { id = '' } = useParams();
@@ -90,10 +82,6 @@ export function ThreadPage() {
     refetchInterval: 2_000,
     refetchOnWindowFocus: true,
   });
-  const connections = useQuery({
-    queryKey: ['connections'],
-    queryFn: () => api.get<ConnectionView[]>('/connections'),
-  });
   const myCollections = useQuery({
     queryKey: ['my-collections'],
     queryFn: () => api.get<CollectionView[]>('/collections'),
@@ -119,6 +107,8 @@ export function ThreadPage() {
   useEffect(() => {
     if (thread.data && thread.data.state === 'active') {
       void api.post(`/threads/${id}/read`, {}).then(() => {
+        void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
+        void queryClient.invalidateQueries({ queryKey: ['threads'] });
         void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
       });
     }
@@ -136,6 +126,7 @@ export function ThreadPage() {
     void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
     void queryClient.invalidateQueries({ queryKey: ['thread', id] });
     void queryClient.invalidateQueries({ queryKey: ['threads'] });
+    void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
   };
 
   const insertMessage = (message: MessageView) => {
@@ -300,11 +291,6 @@ export function ThreadPage() {
     });
   };
 
-  const forwardableLoaded = ordered.filter(canForwardMessage);
-  const selectAllForwardable = () => {
-    setSelectedIds(new Set(forwardableLoaded.map((message) => message.id)));
-  };
-  const clearSelection = () => setSelectedIds(new Set());
   const openMultiForward = () => {
     const queue = ordered.filter((message) => selectedIds.has(message.id) && canForwardMessage(message));
     if (queue.length === 0) return;
@@ -358,19 +344,10 @@ export function ThreadPage() {
   const title = detail.title ?? detail.counterpart?.name ?? 'Conversation';
   const canCompose = detail.state === 'active';
   const counterpartId = detail.counterpart?.id;
-  const connected = Boolean(
-    counterpartId &&
-      (connections.data ?? []).some(
-        (row) => row.company.id === counterpartId && row.status === 'active',
-      ),
-  );
   const headerSubtitle =
     detail.type === 'group'
       ? `${detail.participantCount} businesses`
-      : detail.state === 'pending'
-        ? [detail.counterpart?.city, 'Message request'].filter(Boolean).join(' · ')
-        : [detail.counterpart?.city, connected ? 'Connected' : null].filter(Boolean).join(' · ') ||
-          undefined;
+      : detail.counterpart?.city || undefined;
 
   const attachTitle =
     attachStep === 'menu'
@@ -411,21 +388,21 @@ export function ThreadPage() {
       />
 
       {detail.state === 'pending' ? (
-        <div className="mt-0 flex shrink-0 flex-col gap-2 rounded-2xl border border-warning-soft bg-warning-soft p-3">
-          <p className="text-sm text-warning-ink">
-            This is a message request. Accept to reply — until then they only see their own
-            messages.
+        <div className="mt-0 flex shrink-0 flex-col gap-3 rounded-2xl border border-warning-soft bg-warning-soft p-3.5">
+          <p className="text-sm font-medium text-warning-ink">
+            They can’t see your replies until you open this chat.
           </p>
           <div className="flex gap-2">
-            <Button onClick={() => decide.mutate('accept')} disabled={decide.isPending}>
-              Accept
+            <Button fullWidth onClick={() => decide.mutate('accept')} disabled={decide.isPending}>
+              Open chat
             </Button>
             <Button
+              fullWidth
               variant="secondary"
               onClick={() => decide.mutate('decline')}
               disabled={decide.isPending}
             >
-              Decline
+              Ignore
             </Button>
           </div>
         </div>
@@ -524,34 +501,21 @@ export function ThreadPage() {
       ) : null}
 
       {selecting ? (
-        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 flex-col gap-2 border-t border-line bg-surface px-1 py-2">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <button
-              type="button"
-              className="font-semibold text-muted"
-              onClick={() => {
-                setSelecting(false);
-                setSelectedIds(new Set());
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="font-semibold text-accent"
-              onClick={selectAllForwardable}
-            >
-              Select all
-            </button>
-            <button type="button" className="font-semibold text-accent" onClick={clearSelection}>
-              Clear all
-            </button>
-            <span className="ml-auto font-medium text-ink">
-              {selectedIds.size} selected
-            </span>
-          </div>
+        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 items-center gap-3 border-t border-line bg-surface px-1 py-2.5">
+          <button
+            type="button"
+            className="text-sm font-semibold text-muted"
+            onClick={() => {
+              setSelecting(false);
+              setSelectedIds(new Set());
+            }}
+          >
+            Cancel
+          </button>
+          <span className="flex-1 text-center text-sm font-medium text-ink">
+            {selectedIds.size} selected
+          </span>
           <Button
-            fullWidth
             disabled={selectedIds.size === 0 || forward.isPending}
             onClick={openMultiForward}
           >
@@ -577,14 +541,12 @@ export function ThreadPage() {
           {replyTo ? (
             <div className="flex items-start gap-2 rounded-xl bg-foam px-3 py-2">
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-accent">
-                  Replying to
-                </p>
-                <p className="truncate text-xs text-ink">{replyComposerLabel(replyTo)}</p>
+                <p className="text-sm font-bold text-accent">Replying to</p>
+                <p className="truncate text-sm text-ink">{replyComposerLabel(replyTo)}</p>
               </div>
               <button
                 type="button"
-                className="text-xs font-semibold text-muted"
+                className="text-sm font-semibold text-muted"
                 onClick={() => setReplyTo(null)}
               >
                 Clear
@@ -643,14 +605,14 @@ export function ThreadPage() {
                 {
                   step: 'product' as const,
                   label: 'Design',
-                  subtitle: 'Share a product',
+                  subtitle: 'Share a design',
                   Icon: ProductIcon,
                   iconClass: 'bg-foam text-accent',
                 },
                 {
                   step: 'collection' as const,
                   label: 'Collection',
-                  subtitle: 'Share a lookbook',
+                  subtitle: 'Share a collection',
                   Icon: CollectionIcon,
                   iconClass: 'bg-linen text-slate',
                 },
@@ -664,7 +626,7 @@ export function ThreadPage() {
                 {
                   step: 'order' as const,
                   label: 'Order',
-                  subtitle: 'Share a trade order',
+                  subtitle: 'Share an order',
                   Icon: OrdersIcon,
                   iconClass: 'bg-ink/5 text-ink',
                 },
@@ -681,11 +643,11 @@ export function ThreadPage() {
                   }
                   setAttachStep(step);
                 }}
-                className="flex items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-foam/70 active:bg-foam"
+                className="flex items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-foam/70 active:bg-foam"
               >
                 <span
                   className={cx(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
                     iconClass,
                   )}
                 >
@@ -693,22 +655,8 @@ export function ThreadPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold leading-tight text-ink">{label}</span>
-                  <span className="block text-[11px] leading-tight text-muted">{subtitle}</span>
+                  <span className="block text-sm leading-tight text-muted">{subtitle}</span>
                 </span>
-              </button>
-            ))}
-            <p className="mt-1.5 px-2 text-[10px] font-bold uppercase tracking-wide text-muted">
-              Coming soon
-            </p>
-            {SOON_ATTACH.map((label) => (
-              <button
-                key={label}
-                type="button"
-                disabled
-                className="flex items-center justify-between rounded-xl px-2 py-1.5 text-left text-[13px] font-medium text-muted opacity-50"
-              >
-                {label}
-                <span className="text-[10px] font-bold uppercase tracking-wide">Soon</span>
               </button>
             ))}
           </div>
@@ -734,9 +682,22 @@ export function ThreadPage() {
                     replyToMessageId: replyTo?.id,
                   })
                 }
-                className="rounded-xl border border-line px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam"
+                className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5 text-left hover:bg-foam"
               >
-                {product.name}
+                {product.images[0] ? (
+                  <img
+                    src={product.images[0]}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                  />
+                ) : (
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-accent">
+                    <ProductIcon width={20} height={20} />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                  {product.name}
+                </span>
               </button>
             ))}
           </AttachList>
@@ -762,11 +723,26 @@ export function ThreadPage() {
                     replyToMessageId: replyTo?.id,
                   })
                 }
-                className="rounded-xl border border-line px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam"
+                className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5 text-left hover:bg-foam"
               >
-                {collection.name}
-                <span className="ml-2 text-xs font-normal text-muted">
-                  {collection.productCount} designs
+                {collection.coverImage ? (
+                  <img
+                    src={collection.coverImage}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                  />
+                ) : (
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-linen text-slate">
+                    <CollectionIcon width={20} height={20} />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-ink">
+                    {collection.name}
+                  </span>
+                  <span className="block text-sm text-muted">
+                    {collection.productCount} design{collection.productCount === 1 ? '' : 's'}
+                  </span>
                 </span>
               </button>
             ))}
@@ -941,7 +917,7 @@ function ReplyQuote({
   onJump?: () => void;
 }) {
   const className = cx(
-    'mb-1.5 w-full rounded-lg border-l-2 px-2 py-1 text-left text-[11px]',
+    'mb-1.5 w-full rounded-lg border-l-2 px-2 py-1.5 text-left text-sm',
     mine ? 'border-white/50 bg-white/10 text-white/85' : 'border-accent bg-surface/80 text-muted',
     onJump && (mine ? 'hover:bg-white/20 active:bg-white/25' : 'hover:bg-surface active:bg-foam'),
   );
@@ -998,10 +974,17 @@ function MessageChrome({
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const hasActions = Boolean(actions?.onReply || actions?.onForward || actions?.onSelect);
-  const openMenu = () => {
-    if (hasActions) setMenuOpen(true);
-  };
-  const longPress = useLongPress(selecting ? onToggleSelect : hasActions ? openMenu : undefined);
+  // WhatsApp-style: long-press selects; chevron opens Reply/Forward/Select menu.
+  const longPress = useLongPress(
+    selecting
+      ? onToggleSelect
+      : actions?.onSelect
+        ? () => {
+            setMenuOpen(false);
+            actions.onSelect?.();
+          }
+        : undefined,
+  );
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -1049,78 +1032,70 @@ function MessageChrome({
         {...longPress}
         onClick={selecting && onToggleSelect ? () => onToggleSelect() : undefined}
       >
-        {children}
         {hasActions && !selecting ? (
-          <>
-            <button
-              type="button"
-              aria-label="Message actions"
-              aria-expanded={menuOpen}
-              onClick={(event) => {
-                event.stopPropagation();
-                setMenuOpen((open) => !open);
-              }}
-              className={cx(
-                'absolute right-1 top-1 z-10 rounded-full p-1',
-                mine ? 'text-white/75 hover:bg-white/15' : 'text-muted hover:bg-ink/5',
-                menuOpen && (mine ? 'bg-white/15' : 'bg-ink/5'),
-              )}
-            >
-              <ChevronDownIcon
-                width={16}
-                height={16}
-                className={cx('transition-transform', menuOpen && 'rotate-180')}
-              />
-            </button>
-            {menuOpen ? (
-              <div
-                role="menu"
-                className={cx(
-                  'absolute right-1 top-8 z-20 min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft',
-                )}
+          <button
+            type="button"
+            aria-label="Message actions"
+            aria-expanded={menuOpen}
+            data-card-action
+            onClick={(event) => {
+              event.stopPropagation();
+              setMenuOpen((open) => !open);
+            }}
+            className={cx(
+              'absolute right-1.5 top-1 z-10 flex h-6 w-6 items-center justify-center bg-transparent',
+              mine ? 'text-white/55 hover:text-white/80' : 'text-muted/60 hover:text-muted',
+            )}
+          >
+            <ChevronDownIcon width={16} height={16} />
+          </button>
+        ) : null}
+        {children}
+        {hasActions && !selecting && menuOpen ? (
+          <div
+            role="menu"
+            className="absolute right-1 top-8 z-20 min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft"
+          >
+            {actions?.onReply ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onReply);
+                }}
               >
-                {actions?.onReply ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-foam"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      run(actions.onReply);
-                    }}
-                  >
-                    Reply
-                  </button>
-                ) : null}
-                {actions?.onForward ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-foam"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      run(actions.onForward);
-                    }}
-                  >
-                    Forward
-                  </button>
-                ) : null}
-                {actions?.onSelect ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-foam"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      run(actions.onSelect);
-                    }}
-                  >
-                    Select
-                  </button>
-                ) : null}
-              </div>
+                Reply
+              </button>
             ) : null}
-          </>
+            {actions?.onForward ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onForward);
+                }}
+              >
+                Forward
+              </button>
+            ) : null}
+            {actions?.onSelect ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onSelect);
+                }}
+              >
+                Select
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>
@@ -1159,14 +1134,28 @@ function TimelineItem({
   actions?: MessageActions;
 }) {
   const ref = message.reference;
+  const meta =
+    message.metadata && typeof message.metadata === 'object'
+      ? (message.metadata as Record<string, unknown>)
+      : null;
+  /** Legacy line-decision notices were stored as system; treat as order cards when resolved. */
+  const isLegacyOrderNotice =
+    message.type === 'system' &&
+    Boolean(ref?.id) &&
+    (ref?.kind === 'order' || meta?.kind === 'order_lines');
   const isCard =
     message.type === 'order_card' ||
     message.type === 'rate' ||
     message.type === 'collection_card' ||
-    message.type === 'product_card';
-  const typeMeta = chatTypeMeta(message.type);
+    message.type === 'product_card' ||
+    isLegacyOrderNotice;
+  const isOrderLikeCard =
+    message.type === 'order_card' || message.type === 'rate' || isLegacyOrderNotice;
+  const orderCopy = isOrderLikeCard
+    ? buildOrderCardCopy(message, ref, { partyName: senderLabel })
+    : null;
+  const typeMeta = chatTypeMeta(isLegacyOrderNotice ? 'order_card' : message.type);
   const TypeIcon = typeMeta.Icon;
-  const sharedBy = message.mine ? 'You shared' : `${senderLabel} shared`;
   const reply = message.replyTo;
 
   const photoUrls = message.type === 'photo' ? photoUrlsFromMessage(message) : [];
@@ -1185,7 +1174,7 @@ function TimelineItem({
         <div className="flex flex-col gap-0.5">
           <p
             className={cx(
-              'px-1 text-[11px] font-semibold text-muted',
+              'px-1 text-sm font-semibold text-muted',
               message.mine ? 'text-right' : 'text-left',
             )}
           >
@@ -1203,7 +1192,7 @@ function TimelineItem({
               </div>
             ) : null}
             <PhotoAlbum urls={photoUrls} />
-            <p className="px-3 py-1.5 text-right text-[10px] text-muted">
+            <p className="px-3 py-1.5 text-right text-xs text-muted">
               {timeAgo(message.createdAt)}
             </p>
           </div>
@@ -1226,7 +1215,7 @@ function TimelineItem({
       >
         <div className="flex flex-col gap-0.5">
           {!message.mine ? (
-            <p className="px-1 text-[11px] font-semibold text-muted">{senderLabel}</p>
+            <p className="px-1 text-sm font-semibold text-muted">{senderLabel}</p>
           ) : null}
           <div
             className={cx(
@@ -1239,12 +1228,12 @@ function TimelineItem({
             {reply ? (
               <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
             ) : null}
-            <p className="whitespace-pre-wrap break-words pr-5">
+            <p className="whitespace-pre-wrap break-words">
               {message.body?.trim() ? message.body : 'Message'}
             </p>
             <p
               className={cx(
-                'mt-0.5 text-right text-[10px]',
+                'mt-0.5 text-right text-xs',
                 message.mine ? 'text-white/70' : 'text-muted',
               )}
             >
@@ -1255,6 +1244,16 @@ function TimelineItem({
       </MessageChrome>
     );
   }
+
+  const openOrder =
+    isOrderLikeCard && ref?.available && ref.id ? () => onOpenOrder(ref.id) : undefined;
+  const quoteAccept =
+    message.type === 'rate' &&
+    !message.mine &&
+    ref?.canAcceptQuote &&
+    ref.available
+      ? () => onAcceptQuote(ref.id)
+      : undefined;
 
   return (
     <MessageChrome
@@ -1268,130 +1267,65 @@ function TimelineItem({
       className="w-[min(100%,20rem)] min-w-[14rem]"
     >
       <div
+        role={openOrder && !selecting ? 'button' : undefined}
+        tabIndex={openOrder && !selecting ? 0 : undefined}
+        onClick={
+          openOrder && !selecting
+            ? (event) => {
+                // Primary Accept quote button stops propagation itself.
+                if ((event.target as HTMLElement).closest('[data-card-action]')) return;
+                openOrder();
+              }
+            : undefined
+        }
+        onKeyDown={
+          openOrder && !selecting
+            ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  openOrder();
+                }
+              }
+            : undefined
+        }
         className={cx(
           'overflow-hidden rounded-2xl border text-sm shadow-sm',
           message.mine
             ? 'rounded-br-md border-accent/35 bg-accent text-white'
             : 'rounded-bl-md border-line bg-foam text-ink',
+          openOrder && !selecting && 'cursor-pointer',
         )}
       >
         <div
           className={cx(
-            'flex items-center gap-2 px-3 py-2 pr-8',
+            'flex items-center gap-2 px-3 py-2.5',
             message.mine ? 'border-b border-white/20' : 'border-b border-line/70',
           )}
         >
           <TypeIcon
-            width={16}
-            height={16}
+            width={18}
+            height={18}
             className={cx('shrink-0', message.mine ? 'text-white' : 'text-accent')}
             aria-hidden
           />
-          <div className="min-w-0 flex-1">
-            <p
-              className={cx(
-                'text-[10px] font-bold uppercase tracking-wide',
-                message.mine ? 'text-white/80' : 'text-muted',
-              )}
-            >
-              {typeMeta.label}
-            </p>
-            <p
-              className={cx(
-                'truncate text-[11px] font-medium',
-                message.mine ? 'text-white/70' : 'text-slate',
-              )}
-            >
-              {sharedBy}
-            </p>
-          </div>
+          <p
+            className={cx(
+              'min-w-0 flex-1 truncate text-sm font-bold tracking-tight',
+              message.mine ? 'text-white' : 'text-ink',
+              isOrderLikeCard && 'whitespace-nowrap',
+            )}
+          >
+            {orderCopy ? orderCopy.title : typeMeta.label}
+          </p>
         </div>
         <div className="px-3.5 py-3">
           {reply ? (
             <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
           ) : null}
-          {message.type === 'order_card' ? (
+          {message.type === 'order_card' || isLegacyOrderNotice ? (
             <TimelineCard
               mine={message.mine}
-              title={ref?.name ?? message.body ?? 'Order'}
-              lines={[
-                ref?.direction === 'buying' && ref.counterpartName
-                  ? `Buying from ${ref.counterpartName}`
-                  : ref?.direction === 'selling' && ref.counterpartName
-                    ? `Selling to ${ref.counterpartName}`
-                    : ref?.counterpartName,
-                ref?.buyerName && ref.sellerName
-                  ? `Buyer · ${ref.buyerName} · Seller · ${ref.sellerName}`
-                  : null,
-                [
-                  ref?.itemCount != null
-                    ? `${ref.itemCount} item${ref.itemCount === 1 ? '' : 's'}`
-                    : null,
-                  ref?.totalLabel,
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || null,
-                ref?.status === 'confirmed' && ref.confirmedByName
-                  ? `Confirmed by ${ref.confirmedByName}`
-                  : ref?.status
-                    ? statusLabel(ref.status)
-                    : null,
-              ]}
-              actionLabel={ref?.available ? 'View order →' : undefined}
-              onAction={ref?.available ? () => onOpenOrder(ref.id) : undefined}
-              createdAt={message.createdAt}
-            />
-          ) : null}
-
-          {message.type === 'rate' ? (
-            <TimelineCard
-              mine={message.mine}
-              title={ref?.totalLabel ?? ref?.name ?? message.body ?? 'Quote'}
-              lines={[
-                ref?.direction === 'buying' && ref.counterpartName
-                  ? `Buying from ${ref.counterpartName}`
-                  : ref?.direction === 'selling' && ref.counterpartName
-                    ? `Selling to ${ref.counterpartName}`
-                    : ref?.counterpartName,
-                ref?.buyerName && ref.sellerName
-                  ? `Buyer · ${ref.buyerName} · Seller · ${ref.sellerName}`
-                  : null,
-                ref?.itemCount != null
-                  ? `${ref.itemCount} line${ref.itemCount === 1 ? '' : 's'}`
-                  : null,
-                ref?.status ? statusLabel(ref.status) : null,
-                message.body,
-              ]}
-              actionLabel={
-                !message.mine && ref?.status === 'requested' && ref.available
-                  ? accepting
-                    ? 'Accepting…'
-                    : 'Accept quote'
-                  : ref?.available
-                    ? 'View order →'
-                    : undefined
-              }
-              onAction={
-                !message.mine && ref?.status === 'requested' && ref.available
-                  ? () => onAcceptQuote(ref.id)
-                  : ref?.available
-                    ? () => onOpenOrder(ref.id)
-                    : undefined
-              }
-              createdAt={message.createdAt}
-            />
-          ) : null}
-
-          {message.type === 'collection_card' ? (
-            <TimelineCard
-              mine={message.mine}
-              title={
-                ref?.available
-                  ? (ref.name ?? message.body ?? 'Collection')
-                  : ref
-                    ? 'Unavailable'
-                    : (message.body?.trim() || 'Collection')
-              }
+              title={orderCopy?.headline ?? ref?.name ?? 'Order'}
               image={ref?.image}
               images={ref?.images}
               imageOverflow={
@@ -1399,50 +1333,127 @@ function TimelineItem({
                   ? Math.max(0, ref.itemCount - ref.images.length)
                   : 0
               }
-              lines={
-                ref?.itemCount != null
-                  ? [`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`]
-                  : []
-              }
-              actionLabel={ref?.available ? 'View collection →' : undefined}
-              actionTo={ref?.available ? `/collections/${ref.id}` : undefined}
+              lines={orderCopy?.lines ?? []}
+              actionLabel={ref?.available ? 'View order →' : undefined}
+              onAction={openOrder}
+              actionStyle="link"
               createdAt={message.createdAt}
             />
+          ) : null}
+
+          {message.type === 'rate' ? (
+            <TimelineCard
+              mine={message.mine}
+              title={orderCopy?.headline ?? ref?.totalLabel ?? 'Quote'}
+              image={ref?.image}
+              images={ref?.images}
+              imageOverflow={
+                ref?.itemCount != null && ref.images?.length
+                  ? Math.max(0, ref.itemCount - ref.images.length)
+                  : 0
+              }
+              lines={orderCopy?.lines ?? []}
+              actionLabel={
+                quoteAccept
+                  ? accepting
+                    ? 'Accepting…'
+                    : 'Accept quote'
+                  : ref?.available
+                    ? 'View order →'
+                    : undefined
+              }
+              onAction={quoteAccept ?? openOrder}
+              actionStyle={quoteAccept ? 'primary' : 'link'}
+              createdAt={message.createdAt}
+            />
+          ) : null}
+
+          {message.type === 'collection_card' ? (
+            <div className="flex flex-col gap-0.5">
+              <p
+                className={cx(
+                  'px-1 text-sm font-semibold text-muted',
+                  message.mine ? 'text-right' : 'text-left',
+                )}
+              >
+                {message.mine ? 'You' : senderLabel}
+              </p>
+              <TimelineCard
+                mine={message.mine}
+                title={
+                  ref?.available
+                    ? (ref.name ?? message.body ?? 'Collection')
+                    : ref
+                      ? 'Unavailable'
+                      : (message.body?.trim() || 'Collection')
+                }
+                image={ref?.image}
+                images={ref?.images}
+                imageOverflow={
+                  ref?.itemCount != null && ref.images?.length
+                    ? Math.max(0, ref.itemCount - ref.images.length)
+                    : 0
+                }
+                lines={[
+                  ref?.ownerCompanyName ? `from ${ref.ownerCompanyName}` : null,
+                  ref?.itemCount != null
+                    ? `${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`
+                    : null,
+                ]}
+                actionLabel={ref?.available ? 'View collection →' : undefined}
+                actionTo={ref?.available ? `/collections/${ref.id}` : undefined}
+                actionStyle="link"
+                createdAt={message.createdAt}
+              />
+            </div>
           ) : null}
 
           {message.type === 'product_card' ? (
-            <TimelineCard
-              mine={message.mine}
-              title={
-                ref?.available
-                  ? (ref.name ?? message.body ?? 'Design')
-                  : ref
-                    ? 'Unavailable'
-                    : (message.body?.trim() || 'Design')
-              }
-              image={ref?.image}
-              images={ref?.images}
-              actionLabel={ref?.available ? 'View design →' : undefined}
-              actionTo={ref?.available ? `/explore/products/${ref.id}` : undefined}
-              secondaryAction={
-                !message.mine && ref?.available
-                  ? curated
-                    ? 'Saved to catalogue'
-                    : curating
-                      ? 'Saving…'
-                      : 'Save to my catalogue'
-                  : undefined
-              }
-              onSecondaryAction={
-                !message.mine && ref?.available && !curated && !curating
-                  ? () => onCurate(ref)
-                  : undefined
-              }
-              createdAt={message.createdAt}
-            />
+            <div className="flex flex-col gap-0.5">
+              <p
+                className={cx(
+                  'px-1 text-sm font-semibold text-muted',
+                  message.mine ? 'text-right' : 'text-left',
+                )}
+              >
+                {message.mine ? 'You' : senderLabel}
+              </p>
+              <TimelineCard
+                mine={message.mine}
+                title={
+                  ref?.available
+                    ? (ref.name ?? message.body ?? 'Design')
+                    : ref
+                      ? 'Unavailable'
+                      : (message.body?.trim() || 'Design')
+                }
+                image={ref?.image}
+                images={ref?.images}
+                lines={ref?.ownerCompanyName ? [`from ${ref.ownerCompanyName}`] : []}
+                actionLabel={ref?.available ? 'View design →' : undefined}
+                actionTo={ref?.available ? `/explore/products/${ref.id}` : undefined}
+                actionStyle="link"
+                secondaryAction={
+                  !message.mine && ref?.available
+                    ? curated
+                      ? 'Saved to my designs'
+                      : curating
+                        ? 'Saving…'
+                        : 'Save to my designs'
+                    : undefined
+                }
+                onSecondaryAction={
+                  !message.mine && ref?.available && !curated && !curating
+                    ? () => onCurate(ref)
+                    : undefined
+                }
+                createdAt={message.createdAt}
+              />
+            </div>
           ) : null}
 
-          {!['order_card', 'rate', 'collection_card', 'product_card'].includes(message.type) ? (
+          {!isLegacyOrderNotice &&
+          !['order_card', 'rate', 'collection_card', 'product_card'].includes(message.type) ? (
             <TimelineCard
               mine={message.mine}
               title={message.body?.trim() || 'Shared attachment'}
@@ -1464,6 +1475,7 @@ function TimelineCard({
   actionLabel,
   actionTo,
   onAction,
+  actionStyle = 'link',
   secondaryAction,
   onSecondaryAction,
   createdAt,
@@ -1477,6 +1489,8 @@ function TimelineCard({
   actionLabel?: string;
   actionTo?: string;
   onAction?: () => void;
+  /** primary = high-stakes (Accept quote); solid = full-width secondary CTA; link = text. */
+  actionStyle?: 'primary' | 'solid' | 'link';
   secondaryAction?: string;
   onSecondaryAction?: () => void;
   createdAt: string;
@@ -1485,8 +1499,90 @@ function TimelineCard({
   const visibleLines = lines.filter((line): line is string => Boolean(line?.trim()));
   const muted = mine ? 'text-white/75' : 'text-muted';
   const ink = mine ? 'text-white' : 'text-ink';
-  const action = mine ? 'text-white underline decoration-white/50' : 'text-accent';
+  const linkAction = mine ? 'text-white underline decoration-white/50' : 'text-accent';
   const gallery = images && images.length > 0 ? images : image ? [image] : [];
+
+  const solidClass = mine
+    ? 'mt-2 w-full rounded-xl border border-white/40 bg-white/15 px-3 py-2.5 text-center text-sm font-bold text-white'
+    : 'mt-2 w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-center text-sm font-bold text-ink';
+  const primaryClass =
+    'mt-2 w-full rounded-xl bg-accent px-3 py-2.5 text-center text-sm font-bold text-white';
+
+  const renderAction = () => {
+    if (!actionLabel) return null;
+    if (actionStyle === 'primary' && onAction) {
+      return (
+        <button
+          type="button"
+          data-card-action
+          onClick={(event) => {
+            event.stopPropagation();
+            onAction();
+          }}
+          className={primaryClass}
+        >
+          {actionLabel}
+        </button>
+      );
+    }
+    if (actionStyle === 'solid') {
+      if (actionTo) {
+        return (
+          <Link
+            to={actionTo}
+            data-card-action
+            onClick={(event) => event.stopPropagation()}
+            className={solidClass}
+          >
+            {actionLabel}
+          </Link>
+        );
+      }
+      if (onAction) {
+        return (
+          <button
+            type="button"
+            data-card-action
+            onClick={(event) => {
+              event.stopPropagation();
+              onAction();
+            }}
+            className={solidClass}
+          >
+            {actionLabel}
+          </button>
+        );
+      }
+    }
+    if (actionTo) {
+      return (
+        <Link
+          to={actionTo}
+          data-card-action
+          onClick={(event) => event.stopPropagation()}
+          className={cx('mt-1 text-sm font-bold', linkAction)}
+        >
+          {actionLabel}
+        </Link>
+      );
+    }
+    if (onAction) {
+      return (
+        <button
+          type="button"
+          data-card-action
+          onClick={(event) => {
+            event.stopPropagation();
+            onAction();
+          }}
+          className={cx('mt-1 self-start text-sm font-bold', linkAction)}
+        >
+          {actionLabel}
+        </button>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -1495,40 +1591,27 @@ function TimelineCard({
           <PhotoAlbum urls={gallery} overflowCount={imageOverflow} />
         </div>
       ) : null}
-      <p className={cx('text-sm font-bold tracking-tight', ink)}>{title}</p>
+      <p className={cx('text-sm font-semibold tracking-tight', ink)}>{title}</p>
       {visibleLines.map((line) => (
-        <p key={line} className={cx('text-xs font-medium', muted)}>
+        <p key={line} className={cx('text-sm font-medium', muted)}>
           {line}
         </p>
       ))}
-      {actionLabel && actionTo ? (
-        <Link to={actionTo} className={cx('mt-1 text-sm font-bold', action)}>
-          {actionLabel}
-        </Link>
-      ) : null}
-      {actionLabel && onAction && !actionTo ? (
-        <button
-          type="button"
-          onClick={onAction}
-          className={cx('mt-1 self-start text-sm font-bold', action)}
-        >
-          {actionLabel}
-        </button>
-      ) : null}
+      {renderAction()}
       {secondaryAction ? (
         onSecondaryAction ? (
           <button
             type="button"
             onClick={onSecondaryAction}
-            className={cx('self-start text-xs font-medium', action)}
+            className={cx('mt-1 self-start text-sm font-medium', linkAction)}
           >
             {secondaryAction}
           </button>
         ) : (
-          <p className={cx('text-xs font-medium', muted)}>{secondaryAction}</p>
+          <p className={cx('mt-1 text-sm font-medium', muted)}>{secondaryAction}</p>
         )
       ) : null}
-      <p className={cx('mt-1 text-right text-[10px]', muted)}>{timeAgo(createdAt)}</p>
+      <p className={cx('mt-1 text-right text-xs', muted)}>{timeAgo(createdAt)}</p>
     </div>
   );
 }

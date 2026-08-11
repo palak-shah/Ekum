@@ -179,7 +179,7 @@ export function HomePage() {
             <span className="font-semibold text-accent">
               {needs.length} item{needs.length === 1 ? '' : 's'}
             </span>{' '}
-            need your attention.
+            {needs.length === 1 ? 'needs' : 'need'} attention.
           </p>
         ) : (
           <div className="mt-1 flex flex-col gap-2.5">
@@ -323,14 +323,24 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
   );
 }
 
+function metricLabel(label: string, value: number): string {
+  const singular: Record<string, string> = {
+    Orders: 'order',
+    Requests: 'request',
+    Returns: 'return',
+  };
+  if (value === 1) return singular[label] ?? label.toLowerCase();
+  return label.toLowerCase();
+}
+
 function MetricCard({ label, value, to }: { label: string; value: number; to: string }) {
   return (
     <Link
       to={to}
-      className="rounded-2xl bg-surface px-3 py-3 shadow-[var(--shadow-soft)] transition-colors hover:bg-foam"
+      className="flex min-h-[5.75rem] flex-col items-center justify-center gap-1 rounded-2xl bg-surface px-4 py-4 text-center shadow-[var(--shadow-soft)] transition-colors hover:bg-foam"
     >
-      <p className="text-lg font-bold tracking-tight text-accent">{value}</p>
-      <p className="text-xs font-medium text-muted">{label}</p>
+      <p className="text-3xl font-bold tracking-tight text-accent">{value}</p>
+      <p className="text-sm font-semibold text-muted">{metricLabel(label, value)}</p>
     </Link>
   );
 }

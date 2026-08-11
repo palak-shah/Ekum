@@ -7,13 +7,21 @@ import {
   ProductStatus,
   PublishAudience,
   RateVisibility,
+  VerificationStatus,
   type CollectionCard,
   type CollectionPreviewView,
   type CompanyCard,
   type CursorPage,
+  type ExploreBuyerOpportunity,
+  type ExploreDesignOpportunity,
+  type ExploreHomeQuery,
+  type ExploreHomeView,
+  type ExploreOpportunity,
   type ExplorePost,
+  type ExploreProductCard,
   type ExploreProductPreviewView,
   type ExploreQuery,
+  type ExploreSupplierCard,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
@@ -99,6 +107,244 @@ export class ExploreService {
   ) {}
 
   /**
+   * Sectioned Explore home: opportunity shelves first (no buy/sell mode).
+   * Optional category/city Narrow filters apply across sections.
+   */
+  async home(viewerCompanyId: string, query: ExploreHomeQuery = {}): Promise<ExploreHomeView> {
+    const sectionLimit = 8;
+    const base: ExploreQuery = {
+      limit: sectionLimit,
+      ...(query.category ? { category: query.category } : {}),
+      ...(query.city ? { city: query.city } : {}),
+    };
+
+    const viewer = await this.prisma.company.findUnique({
+      where: { id: viewerCompanyId },
+      select: {
+        sellCategories: true,
+        buyCategories: true,
+        superCategories: true,
+        city: true,
+      },
+    });
+    const sells = (viewer?.sellCategories ?? []).some((tag) => tag.trim().length > 0);
+    const interest = query.category
+      ? {
+          tags: [query.category],
+          supers: resolveSuperCategoryId(query.category)
+            ? [resolveSuperCategoryId(query.category)!]
+            : [],
+          preferFine: !resolveSuperCategoryId(query.category),
+        }
+      : resolveInterestFromCompany(viewer ?? {});
+
+    const [
+      networkPage,
+      forYouPage,
+      networkDesigns,
+      forYouDesignsRaw,
+      suggestedPage,
+      buyersPage,
+      connectedRows,
+      followedRows,
+    ] = await Promise.all([
+      this.collections(viewerCompanyId, { ...base, following: true }),
+      this.collections(viewerCompanyId, base),
+      this.designs(viewerCompanyId, { ...base, following: true, limit: 8 }),
+      this.designs(viewerCompanyId, { ...base, limit: 12 }),
+      this.companies(viewerCompanyId, { ...base, scope: 'buy' }),
+      sells
+        ? this.companies(viewerCompanyId, { ...base, scope: 'sell' })
+        : Promise.resolve({ results: [] as CompanyCard[], nextCursor: null }),
+      this.prisma.connection.findMany({
+        where: {
+          viewerCompanyId,
+          status: ConnectionStatus.Active,
+        },
+        select: { ownerCompanyId: true },
+      }),
+      this.prisma.follow.findMany({
+        where: { followerCompanyId: viewerCompanyId },
+        select: { followedCompanyId: true },
+      }),
+    ]);
+
+    const connectedIds = new Set(connectedRows.map((row) => row.ownerCompanyId));
+    const followedIds = new Set(followedRows.map((row) => row.followedCompanyId));
+    const networkIds = new Set(networkPage.results.map((row) => row.id));
+    const networkDesignIds = new Set(networkDesigns.results.map((row) => row.id));
+    const opportunityCollections = [
+      ...networkPage.results,
+      ...forYouPage.results.filter((collection) => !networkIds.has(collection.id)),
+    ];
+    const opportunityDesigns = [
+      ...networkDesigns.results,
+      ...forYouDesignsRaw.results.filter((product) => !networkDesignIds.has(product.id)),
+    ];
+    const publisherIds = [
+      ...new Set([
+        ...opportunityCollections.map((row) => row.company.id),
+        ...opportunityDesigns.map((row) => row.company.id),
+      ]),
+    ];
+    const tradeRows =
+      publisherIds.length > 0
+        ? await this.prisma.company.findMany({
+            where: { id: { in: publisherIds } },
+            select: { id: true, sellCategories: true, superCategories: true },
+          })
+        : [];
+    const tradeById = new Map(tradeRows.map((row) => [row.id, row]));
+
+    const fromNetwork = networkPage.results.map((collection) =>
+      this.toOpportunity(collection, interest, connectedIds, followedIds, tradeById.get(collection.company.id)),
+    );
+    const forYou = forYouPage.results
+      .filter((collection) => !networkIds.has(collection.id))
+      .map((collection) =>
+        this.toOpportunity(
+          collection,
+          interest,
+          connectedIds,
+          followedIds,
+          tradeById.get(collection.company.id),
+        ),
+      );
+
+    const designsFromNetwork = networkDesigns.results.map((product) =>
+      this.toDesignOpportunity(
+        product,
+        interest,
+        connectedIds,
+        followedIds,
+        tradeById.get(product.company.id),
+      ),
+    );
+    const designsForYou = forYouDesignsRaw.results
+      .filter((product) => !networkDesignIds.has(product.id))
+      .map((product) =>
+        this.toDesignOpportunity(
+          product,
+          interest,
+          connectedIds,
+          followedIds,
+          tradeById.get(product.company.id),
+        ),
+      );
+
+    const viewerSell = (viewer?.sellCategories ?? []).filter(Boolean);
+    const viewerBuy = (viewer?.buyCategories ?? []).filter(Boolean);
+
+    const businessIds = [
+      ...new Set([
+        ...suggestedPage.results.map((company) => company.id),
+        ...buyersPage.results.map((company) => company.id),
+      ]),
+    ];
+    const shopPreviews = await this.shopPreviewsForCompanies(viewerCompanyId, businessIds);
+
+    const suggestedBusinesses = suggestedPage.results.map((company) =>
+      this.toSuggestedOpportunity(
+        company,
+        connectedIds,
+        followedIds,
+        'sell',
+        viewerSell,
+        viewerBuy,
+        shopPreviews.get(company.id),
+      ),
+    );
+    const lookingForWhatYouSell = sells
+      ? buyersPage.results.map((company) =>
+          this.toSuggestedOpportunity(
+            company,
+            connectedIds,
+            followedIds,
+            'buy',
+            viewerSell,
+            viewerBuy,
+            shopPreviews.get(company.id),
+          ),
+        )
+      : null;
+
+    return {
+      forYou,
+      fromNetwork,
+      designsForYou,
+      designsFromNetwork,
+      suggestedBusinesses,
+      lookingForWhatYouSell,
+    };
+  }
+
+  /** Published designs on Explore (posted to market), excluding the viewer. */
+  async designs(
+    viewerCompanyId: string,
+    query: ExploreQuery,
+  ): Promise<CursorPage<ExploreProductCard>> {
+    const baseWhere: Prisma.ProductWhereInput = {
+      status: ProductStatus.Published,
+      postedToMarketAt: { not: null },
+      companyId: { not: viewerCompanyId },
+      company: this.companyFilter(viewerCompanyId, query),
+      AND: [audienceVisibility(viewerCompanyId)],
+    };
+
+    const orderBy = [{ postedToMarketAt: 'desc' as const }, { id: 'desc' as const }];
+    const args = {
+      take: query.limit + 1,
+      orderBy,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    };
+
+    if (query.following) {
+      const rows = await this.prisma.product.findMany({
+        where: baseWhere,
+        include: { company: true },
+        ...args,
+      });
+      return toCursorPage(rows, query.limit, (row) => this.discovery.toExploreProductCard(row));
+    }
+
+    const followed = await this.prisma.follow.findMany({
+      where: { followerCompanyId: viewerCompanyId },
+      select: { followedCompanyId: true },
+    });
+    const followedIds = followed.map((row) => row.followedCompanyId);
+
+    if (followedIds.length === 0) {
+      const rows = await this.prisma.product.findMany({
+        where: baseWhere,
+        include: { company: true },
+        ...args,
+      });
+      return toCursorPage(rows, query.limit, (row) => this.discovery.toExploreProductCard(row));
+    }
+
+    const [followedRows, otherRows] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { ...baseWhere, companyId: { in: followedIds } },
+        include: { company: true },
+        orderBy,
+        take: query.limit + 1,
+      }),
+      this.prisma.product.findMany({
+        where: {
+          ...baseWhere,
+          companyId: { notIn: [...followedIds, viewerCompanyId] },
+        },
+        include: { company: true },
+        orderBy,
+        take: query.limit + 1,
+      }),
+    ]);
+    const merged = [...followedRows, ...otherRows];
+    const page = pageMerged(merged, query, (row) => row.id);
+    return toCursorPage(page, query.limit, (row) => this.discovery.toExploreProductCard(row));
+  }
+
+  /**
    * Mixed market feed: published collections and products posted to market.
    * All chip + interests: followed → interest-matched public → rest.
    * Chip hard-filters then followed → public. `following=true` is followed-only.
@@ -124,7 +370,7 @@ export class ExploreService {
         this.prisma.collection.findMany({
           where: collectionWhere,
           include: collectionCardInclude,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
         }),
         this.prisma.product.findMany({
           where: productWhere,
@@ -157,7 +403,7 @@ export class ExploreService {
           ? this.prisma.collection.findMany({
               where: { ...collectionWhere, companyId: { in: followedIds } },
               include: collectionCardInclude,
-              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
             })
           : Promise.resolve([] as CollectionCardRow[]),
         this.prisma.collection.findMany({
@@ -168,7 +414,7 @@ export class ExploreService {
               : {}),
           },
           include: collectionCardInclude,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
         }),
         followedIds.length > 0
           ? this.prisma.product.findMany({
@@ -229,7 +475,13 @@ export class ExploreService {
       const rows = await this.prisma.collection.findMany({
         where: baseWhere,
         include: collectionCardInclude,
-        ...cursorArgs(query),
+        orderBy: [
+          { exploreActivityAt: 'desc' },
+          { createdAt: 'desc' },
+          { id: 'desc' },
+        ],
+        take: query.limit + 1,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       });
       return toCursorPage(rows, query.limit, (row) => this.discovery.toCollectionCard(row));
     }
@@ -239,7 +491,11 @@ export class ExploreService {
       select: { followedCompanyId: true },
     });
     const followedIds = followed.map((row) => row.followedCompanyId);
-    const orderBy = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
+    const orderBy = [
+      { exploreActivityAt: 'desc' as const },
+      { createdAt: 'desc' as const },
+      { id: 'desc' as const },
+    ];
     const [followedRows, otherRows] = await Promise.all([
       followedIds.length > 0
         ? this.prisma.collection.findMany({
@@ -304,6 +560,235 @@ export class ExploreService {
 
     const rows = await this.prisma.company.findMany({ where, ...cursorArgs(query) });
     return toCursorPage(rows, query.limit, (row) => this.discovery.toCompanyCard(row));
+  }
+
+  /**
+   * Suppliers (or scoped companies) with at least one audience-visible published
+   * collection or Explore-posted design. Ranked: followed → interest → rest,
+   * then newest post activity.
+   */
+  async postedSuppliers(
+    viewerCompanyId: string,
+    query: ExploreQuery,
+  ): Promise<CursorPage<ExploreSupplierCard>> {
+    const lookingForBuyers = query.scope === 'sell';
+    const visibleAudience: Prisma.CollectionWhereInput[] = [
+      { audience: { not: PublishAudience.Selected } },
+      {
+        audience: PublishAudience.Selected,
+        audienceCompanyIds: { has: viewerCompanyId },
+      },
+    ];
+    const visibleProductAudience: Prisma.ProductWhereInput[] = [
+      { audience: { not: PublishAudience.Selected } },
+      {
+        audience: PublishAudience.Selected,
+        audienceCompanyIds: { has: viewerCompanyId },
+      },
+    ];
+
+    const postedContent: Prisma.CompanyWhereInput = {
+      OR: [
+        {
+          collections: {
+            some: {
+              status: CollectionStatus.Published,
+              OR: visibleAudience,
+            },
+          },
+        },
+        {
+          products: {
+            some: {
+              status: ProductStatus.Published,
+              postedToMarketAt: { not: null },
+              OR: visibleProductAudience,
+            },
+          },
+        },
+      ],
+    };
+
+    const where: Prisma.CompanyWhereInput = {
+      id: { not: viewerCompanyId },
+      connectionsAsOwner: {
+        none: { viewerCompanyId, status: ConnectionStatus.Blocked },
+      },
+      AND: [postedContent],
+      ...(lookingForBuyers
+        ? {
+            buyCategories: query.category ? { has: query.category } : { isEmpty: false },
+          }
+        : query.category
+          ? (() => {
+              const superId = resolveSuperCategoryId(query.category);
+              return superId
+                ? {
+                    OR: [
+                      { superCategories: { has: superId } },
+                      { sellCategories: { has: query.category } },
+                    ],
+                  }
+                : { sellCategories: { has: query.category } };
+            })()
+          : {}),
+    };
+    if (query.city) {
+      where.city = query.city;
+    }
+    if (query.following) {
+      where.followers = { some: { followerCompanyId: viewerCompanyId } };
+    }
+
+    const companyInclude = {
+      collections: {
+        where: {
+          status: CollectionStatus.Published,
+          OR: visibleAudience,
+        },
+        orderBy: { updatedAt: 'desc' as const },
+        take: 4,
+        select: {
+          updatedAt: true,
+          coverImage: true,
+          products: {
+            orderBy: { position: 'asc' as const },
+            take: 2,
+            select: { product: { select: { images: true } } },
+          },
+        },
+      },
+      products: {
+        where: {
+          status: ProductStatus.Published,
+          postedToMarketAt: { not: null },
+          OR: visibleProductAudience,
+        },
+        orderBy: { postedToMarketAt: 'desc' as const },
+        take: 4,
+        select: { images: true, postedToMarketAt: true },
+      },
+      _count: {
+        select: {
+          collections: {
+            where: {
+              status: CollectionStatus.Published,
+              OR: visibleAudience,
+            },
+          },
+          products: {
+            where: {
+              status: ProductStatus.Published,
+              postedToMarketAt: { not: null },
+              OR: visibleProductAudience,
+            },
+          },
+        },
+      },
+    } satisfies Prisma.CompanyInclude;
+
+    type PostedCompanyRow = Prisma.CompanyGetPayload<{ include: typeof companyInclude }>;
+
+    const [followed, connectedRows, rankCtx] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: { followerCompanyId: viewerCompanyId },
+        select: { followedCompanyId: true },
+      }),
+      this.prisma.connection.findMany({
+        where: { viewerCompanyId, status: ConnectionStatus.Active },
+        select: { ownerCompanyId: true },
+      }),
+      this.resolveViewerRankContext(viewerCompanyId, query),
+    ]);
+    const followedIds = followed.map((row) => row.followedCompanyId);
+    const connectedIds = new Set(connectedRows.map((row) => row.ownerCompanyId));
+    const followedSet = new Set(followedIds);
+    const fetchCap = Math.min(Math.max(query.limit * 4, 40), 120);
+
+    const [followedRows, otherRows] = await Promise.all([
+      followedIds.length > 0
+        ? this.prisma.company.findMany({
+            where: { ...where, id: { in: followedIds } },
+            include: companyInclude,
+            take: fetchCap,
+          })
+        : Promise.resolve([] as PostedCompanyRow[]),
+      this.prisma.company.findMany({
+        where: {
+          ...where,
+          ...(followedIds.length > 0
+            ? { id: { notIn: [...followedIds, viewerCompanyId] } }
+            : {}),
+        },
+        include: companyInclude,
+        take: fetchCap,
+      }),
+    ]);
+
+    const toCard = (row: PostedCompanyRow): ExploreSupplierCard & { sortAt: number } => {
+      const company = this.discovery.toCompanyCard(row);
+      const designTimes = row.products
+        .map((product) => product.postedToMarketAt?.getTime() ?? 0)
+        .filter((time) => time > 0);
+      const collectionTimes = row.collections.map((collection) => collection.updatedAt.getTime());
+      const sortAt = Math.max(0, ...designTimes, ...collectionTimes);
+      const previewImages: string[] = [];
+      for (const product of row.products) {
+        for (const image of product.images) {
+          if (image && !previewImages.includes(image)) previewImages.push(image);
+          if (previewImages.length >= 4) break;
+        }
+        if (previewImages.length >= 4) break;
+      }
+      if (previewImages.length < 4) {
+        for (const collection of row.collections) {
+          const cover =
+            collection.coverImage ||
+            collection.products.flatMap((entry) => entry.product.images)[0] ||
+            null;
+          if (cover && !previewImages.includes(cover)) previewImages.push(cover);
+          if (previewImages.length >= 4) break;
+        }
+      }
+      const relevance = this.companyRelevance(
+        company,
+        connectedIds,
+        followedSet,
+        lookingForBuyers ? 'buy' : 'sell',
+      );
+
+      return {
+        company,
+        relevance,
+        previewImages: previewImages.slice(0, 4),
+        designCount: row._count.products,
+        collectionCount: row._count.collections,
+        latestPostedAt: sortAt > 0 ? new Date(sortAt).toISOString() : row.createdAt.toISOString(),
+        sortAt,
+      };
+    };
+
+    const followedCards = followedRows.map(toCard).sort((a, b) => b.sortAt - a.sortAt);
+    const interest = rankCtx.interest;
+    const matchOther = otherRows
+      .filter((row) => matchesCompanyInterest(row, interest))
+      .map(toCard)
+      .sort((a, b) => b.sortAt - a.sortAt);
+    const restOther = otherRows
+      .filter((row) => !matchesCompanyInterest(row, interest))
+      .map(toCard)
+      .sort((a, b) => b.sortAt - a.sortAt);
+    const merged = [...followedCards, ...matchOther, ...restOther];
+    const page = pageMerged(merged, query, (row) => row.company.id);
+    return toCursorPage(
+      page,
+      query.limit,
+      (row) => {
+        const { sortAt: _sortAt, ...card } = row;
+        return card;
+      },
+      (row) => row.company.id,
+    );
   }
 
   /**
@@ -429,6 +914,7 @@ export class ExploreService {
     const extras = {
       connected,
       description: product.description,
+      moq: product.moq ?? null,
       categories: product.categories,
     };
     if (!showBody) {
@@ -461,10 +947,315 @@ export class ExploreService {
     return Boolean(hit);
   }
 
+  private toOpportunity(
+    collection: CollectionCard,
+    interest: ResolvedInterest,
+    connectedIds: Set<string>,
+    followedIds: Set<string>,
+    trade?: { sellCategories: string[]; superCategories: string[] },
+  ): ExploreOpportunity {
+    return {
+      collection,
+      relevance: this.collectionRelevance(
+        collection,
+        interest,
+        connectedIds,
+        followedIds,
+        trade,
+      ),
+    };
+  }
+
+  private toDesignOpportunity(
+    product: ExploreProductCard,
+    interest: ResolvedInterest,
+    connectedIds: Set<string>,
+    followedIds: Set<string>,
+    trade?: { sellCategories: string[]; superCategories: string[] },
+  ): ExploreDesignOpportunity {
+    return {
+      product,
+      relevance: this.designRelevance(product, interest, connectedIds, followedIds, trade),
+    };
+  }
+
+  private toSuggestedOpportunity(
+    company: CompanyCard,
+    connectedIds: Set<string>,
+    followedIds: Set<string>,
+    tradeSide: 'buy' | 'sell',
+    viewerSell: string[] = [],
+    viewerBuy: string[] = [],
+    shop?: {
+      previewImages: string[];
+      designCount: number;
+      collectionCount: number;
+      latestPostedAt: string | null;
+    },
+  ): ExploreBuyerOpportunity {
+    return {
+      company,
+      relevance: this.companyRelevance(
+        company,
+        connectedIds,
+        followedIds,
+        tradeSide,
+        viewerSell,
+        viewerBuy,
+      ),
+      previewImages: shop?.previewImages ?? [],
+      designCount: shop?.designCount ?? 0,
+      collectionCount: shop?.collectionCount ?? 0,
+      latestPostedAt: shop?.latestPostedAt ?? null,
+    };
+  }
+
+  /** Visible published design/collection thumbs for company cards. */
+  private async shopPreviewsForCompanies(
+    viewerCompanyId: string,
+    companyIds: string[],
+  ): Promise<
+    Map<
+      string,
+      {
+        previewImages: string[];
+        designCount: number;
+        collectionCount: number;
+        latestPostedAt: string | null;
+      }
+    >
+  > {
+    const map = new Map<
+      string,
+      {
+        previewImages: string[];
+        designCount: number;
+        collectionCount: number;
+        latestPostedAt: string | null;
+      }
+    >();
+    if (companyIds.length === 0) return map;
+
+    const visibleAudience: Prisma.CollectionWhereInput[] = [
+      { audience: { not: PublishAudience.Selected } },
+      {
+        audience: PublishAudience.Selected,
+        audienceCompanyIds: { has: viewerCompanyId },
+      },
+    ];
+    const visibleProductAudience: Prisma.ProductWhereInput[] = [
+      { audience: { not: PublishAudience.Selected } },
+      {
+        audience: PublishAudience.Selected,
+        audienceCompanyIds: { has: viewerCompanyId },
+      },
+    ];
+
+    const rows = await this.prisma.company.findMany({
+      where: { id: { in: companyIds } },
+      select: {
+        id: true,
+        collections: {
+          where: { status: CollectionStatus.Published, OR: visibleAudience },
+          orderBy: { updatedAt: 'desc' },
+          take: 4,
+          select: {
+            updatedAt: true,
+            coverImage: true,
+            products: {
+              orderBy: { position: 'asc' },
+              take: 2,
+              select: { product: { select: { images: true } } },
+            },
+          },
+        },
+        products: {
+          where: {
+            status: ProductStatus.Published,
+            postedToMarketAt: { not: null },
+            OR: visibleProductAudience,
+          },
+          orderBy: { postedToMarketAt: 'desc' },
+          take: 4,
+          select: { images: true, postedToMarketAt: true },
+        },
+        _count: {
+          select: {
+            collections: {
+              where: { status: CollectionStatus.Published, OR: visibleAudience },
+            },
+            products: {
+              where: {
+                status: ProductStatus.Published,
+                postedToMarketAt: { not: null },
+                OR: visibleProductAudience,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const row of rows) {
+      const previewImages: string[] = [];
+      for (const product of row.products) {
+        for (const image of product.images) {
+          if (image && !previewImages.includes(image)) previewImages.push(image);
+          if (previewImages.length >= 4) break;
+        }
+        if (previewImages.length >= 4) break;
+      }
+      if (previewImages.length < 4) {
+        for (const collection of row.collections) {
+          const cover =
+            collection.coverImage ||
+            collection.products.flatMap((entry) => entry.product.images)[0] ||
+            null;
+          if (cover && !previewImages.includes(cover)) previewImages.push(cover);
+          if (previewImages.length >= 4) break;
+        }
+      }
+      const designTimes = row.products
+        .map((product) => product.postedToMarketAt?.getTime() ?? 0)
+        .filter((time) => time > 0);
+      const collectionTimes = row.collections.map((collection) => collection.updatedAt.getTime());
+      const latestMs = Math.max(0, ...designTimes, ...collectionTimes);
+      map.set(row.id, {
+        previewImages: previewImages.slice(0, 4),
+        designCount: row._count.products,
+        collectionCount: row._count.collections,
+        latestPostedAt: latestMs > 0 ? new Date(latestMs).toISOString() : null,
+      });
+    }
+    return map;
+  }
+
+  private designRelevance(
+    product: ExploreProductCard,
+    interest: ResolvedInterest,
+    connectedIds: Set<string>,
+    followedIds: Set<string>,
+    trade?: { sellCategories: string[]; superCategories: string[] },
+  ): string | null {
+    const parts: string[] = [];
+    const companyId = product.company.id;
+    if (connectedIds.has(companyId)) {
+      parts.push('Connected');
+    } else if (followedIds.has(companyId)) {
+      parts.push('In your network');
+    }
+    if (product.company.verification === VerificationStatus.GstVerified) {
+      parts.push('GST verified');
+    }
+    if (trade && interest.tags.length + interest.supers.length > 0) {
+      const companyRow = {
+        id: companyId,
+        city: product.company.city,
+        sellCategories: trade.sellCategories,
+        superCategories: trade.superCategories,
+      };
+      if (matchesCompanyInterest(companyRow, interest)) {
+        const hit =
+          interest.tags.find((tag) => trade.sellCategories.includes(tag)) ??
+          interest.supers.find((superId) => trade.superCategories.includes(superId));
+        if (hit) {
+          parts.push(`Matches ${hit}`);
+        }
+      }
+    }
+    if (parts.length === 0) {
+      return product.company.city || null;
+    }
+    return parts.slice(0, 3).join(' · ');
+  }
+
+  private collectionRelevance(
+    collection: CollectionCard,
+    interest: ResolvedInterest,
+    connectedIds: Set<string>,
+    followedIds: Set<string>,
+    trade?: { sellCategories: string[]; superCategories: string[] },
+  ): string | null {
+    const parts: string[] = [];
+    const companyId = collection.company.id;
+    if (connectedIds.has(companyId)) {
+      parts.push('Connected');
+    } else if (followedIds.has(companyId)) {
+      parts.push('In your network');
+    }
+    if (collection.company.verification === VerificationStatus.GstVerified) {
+      parts.push('GST verified');
+    }
+    if (trade && interest.tags.length + interest.supers.length > 0) {
+      const companyRow = {
+        id: companyId,
+        city: collection.company.city,
+        sellCategories: trade.sellCategories,
+        superCategories: trade.superCategories,
+      };
+      if (matchesCompanyInterest(companyRow, interest)) {
+        const hit =
+          interest.tags.find((tag) => trade.sellCategories.includes(tag)) ??
+          interest.supers.find((superId) => trade.superCategories.includes(superId));
+        if (hit) {
+          parts.push(`Matches ${hit}`);
+        }
+      }
+    }
+    if (parts.length === 0) {
+      return collection.company.city || null;
+    }
+    return parts.slice(0, 3).join(' · ');
+  }
+
+  /**
+   * Why-connect line for business shelves (max 2 clauses):
+   * Connected / In your network → interest match → GST → city.
+   */
+  private companyRelevance(
+    company: CompanyCard,
+    connectedIds: Set<string>,
+    followedIds: Set<string>,
+    tradeSide: 'buy' | 'sell',
+    viewerSell: string[] = [],
+    viewerBuy: string[] = [],
+  ): string | null {
+    const parts: string[] = [];
+    if (connectedIds.has(company.id)) {
+      parts.push('Connected');
+    } else if (followedIds.has(company.id)) {
+      parts.push('In your network');
+    }
+
+    if (tradeSide === 'sell') {
+      const match = viewerBuy.find((tag) => company.sellCategories.includes(tag));
+      const sell = match ?? company.sellCategories.filter(Boolean)[0];
+      // Plain: “Sells Sarees” — section title already frames why they’re suggested.
+      if (sell) parts.push(`Sells ${sell}`);
+    } else {
+      const match = viewerSell.find((tag) => company.buyCategories.includes(tag));
+      if (match) {
+        parts.push(`May want your ${match}`);
+      } else {
+        const buy = company.buyCategories.filter(Boolean)[0];
+        // Avoid “May want… · Buys…” double phrasing — one clear clause.
+        parts.push(buy ? `Buys ${buy}` : 'May want what you sell');
+      }
+    }
+
+    if (parts.length < 2 && company.verification === VerificationStatus.GstVerified) {
+      parts.push('GST verified');
+    }
+    if (parts.length < 2 && company.city) {
+      parts.push(company.city);
+    }
+    return parts.length > 0 ? parts.slice(0, 2).join(' · ') : null;
+  }
+
   private toCollectionFeedRow(row: CollectionCardRow): FeedRow {
     return {
       feedId: `c:${row.id}`,
-      postedAt: row.createdAt,
+      postedAt: row.exploreActivityAt ?? row.createdAt,
       company: row.company,
       kind: 'collection',
       collection: row,

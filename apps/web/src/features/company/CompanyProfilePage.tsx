@@ -1,19 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AccessRequestView,
   CollectionCard,
-  CompanyContactPoint,
   ConnectionView,
   CursorPage,
+  ExploreProductCard,
   PublicCompanyProfile,
   PublicCompanySummary,
   ThreadSummary,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
-import { CollectionTile } from '@/ui/cards';
+import { CollectionTile, DesignTile } from '@/ui/cards';
 import {
   Avatar,
   Button,
@@ -26,17 +26,21 @@ import {
   StatusPill,
   Tag,
   TextArea,
+  cx,
 } from '@/ui/kit';
+
+type ShopTab = 'designs' | 'collections';
 
 export function CompanyProfilePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [gateOpen, setGateOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [note, setNote] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
+  const [shopTab, setShopTab] = useState<ShopTab>('designs');
+  const shopTabSeededFor = useRef<string | null>(null);
 
   const profile = useQuery({
     queryKey: ['company', id],
@@ -54,10 +58,16 @@ export function CompanyProfilePage() {
     queryKey: ['follows', 'following'],
     queryFn: () => api.get<PublicCompanySummary[]>('/follows/following'),
   });
-  const shop = useQuery({
+  const shopCollections = useQuery({
     queryKey: ['company', id, 'collections'],
     queryFn: () =>
       api.get<CursorPage<CollectionCard>>(`/companies/${id}/collections`, { limit: 20 }),
+    enabled: Boolean(id),
+  });
+  const shopDesigns = useQuery({
+    queryKey: ['company', id, 'designs'],
+    queryFn: () =>
+      api.get<CursorPage<ExploreProductCard>>(`/companies/${id}/designs`, { limit: 20 }),
     enabled: Boolean(id),
   });
 
@@ -67,6 +77,17 @@ export function CompanyProfilePage() {
     (item) => item.company.id === id && item.status === 'pending',
   );
   const isFollowing = following.data?.some((item) => item.id === id) ?? false;
+
+  const designs = shopDesigns.data?.results ?? [];
+  const collections = shopCollections.data?.results ?? [];
+  const shopLoading = shopDesigns.isLoading || shopCollections.isLoading;
+  const shopReady = shopDesigns.isSuccess && shopCollections.isSuccess;
+
+  useEffect(() => {
+    if (!shopReady || shopTabSeededFor.current === id) return;
+    shopTabSeededFor.current = id;
+    setShopTab(designs.length > 0 ? 'designs' : 'collections');
+  }, [shopReady, id, designs.length]);
 
   const refreshAfterAccess = () => {
     void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
@@ -78,8 +99,8 @@ export function CompanyProfilePage() {
     mutationFn: () =>
       isFollowing ? api.del(`/follows/${id}`) : api.post('/follows', { companyId: id }),
     onSuccess: () => {
-      setMoreOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['follows', 'following'] });
+      void queryClient.invalidateQueries({ queryKey: ['explore', 'home'] });
     },
   });
 
@@ -123,22 +144,11 @@ export function CompanyProfilePage() {
   }
 
   const company = profile.data;
+  const hasShop = designs.length > 0 || collections.length > 0;
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title={company.name}
-        subtitle={company.city}
-        action={
-          <button
-            type="button"
-            className="text-sm font-medium text-accent"
-            onClick={() => setMoreOpen(true)}
-          >
-            More
-          </button>
-        }
-      />
+      <PageHeader title={company.name} subtitle={company.city} />
 
       <Card className="flex flex-col items-center gap-3 text-center">
         <Avatar name={company.name} imageUrl={company.logoUrl} size={64} />
@@ -155,14 +165,21 @@ export function CompanyProfilePage() {
             ))}
           </div>
         ) : null}
+        <Button
+          variant="secondary"
+          fullWidth
+          onClick={() => toggleFollow.mutate()}
+          disabled={toggleFollow.isPending}
+        >
+          {toggleFollow.isPending ? 'Updating…' : isFollowing ? 'Following' : 'Follow'}
+        </Button>
+        <p className="text-xs text-muted">
+          Follow = see their new designs and collections. Request access = rates and orders.
+        </p>
       </Card>
 
       {isConnected ? (
-        <ConnectedPanel
-          companyId={id}
-          onMessage={() => startChat.mutate()}
-          messaging={startChat.isPending}
-        />
+        <ConnectedPanel onMessage={() => startChat.mutate()} messaging={startChat.isPending} />
       ) : pendingRequest ? (
         <Card className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
@@ -203,18 +220,62 @@ export function CompanyProfilePage() {
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
-      {shop.isLoading ? (
-        <LoadingBlock label="Loading collections…" />
-      ) : shop.data && shop.data.results.length > 0 ? (
+      {shopLoading ? (
+        <LoadingBlock label="Loading shop…" />
+      ) : (
         <section className="flex flex-col gap-2">
           <SectionHeader title="Shop" />
-          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-            {shop.data.results.map((collection) => (
-              <CollectionTile key={collection.id} collection={collection} showCompany={false} />
-            ))}
-          </div>
+          {hasShop ? (
+            <>
+              <div className="flex gap-2 px-0.5">
+                {(
+                  [
+                    ['designs', 'Designs', designs.length],
+                    ['collections', 'Collections', collections.length],
+                  ] as const
+                ).map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setShopTab(value)}
+                    className={cx(
+                      'rounded-full px-3.5 py-1.5 text-sm font-medium',
+                      shopTab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
+                    )}
+                  >
+                    {label}
+                    {count > 0 ? ` · ${count}` : ''}
+                  </button>
+                ))}
+              </div>
+              {shopTab === 'designs' ? (
+                designs.length > 0 ? (
+                  <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                    {designs.map((product) => (
+                      <DesignTile key={product.id} product={product} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="px-0.5 text-sm text-muted">No published designs yet.</p>
+                )
+              ) : collections.length > 0 ? (
+                <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                  {collections.map((collection) => (
+                    <CollectionTile key={collection.id} collection={collection} showCompany={false} />
+                  ))}
+                </div>
+              ) : (
+                <p className="px-0.5 text-sm text-muted">No published collections yet.</p>
+              )}
+            </>
+          ) : (
+            <p className="px-0.5 text-sm text-muted">
+              Nothing visible to you — they may not have published yet, or posts are limited to
+              selected companies.
+            </p>
+          )}
         </section>
-      ) : null}
+      )}
 
       <Sheet open={gateOpen} onClose={() => setGateOpen(false)} title={`Request access · ${company.name}`}>
         <div className="flex flex-col gap-3">
@@ -234,62 +295,28 @@ export function CompanyProfilePage() {
           </Button>
         </div>
       </Sheet>
-
-      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
-        <div className="flex flex-col gap-2">
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={() => toggleFollow.mutate()}
-            disabled={toggleFollow.isPending}
-          >
-            {isFollowing ? 'Unfollow' : 'Follow'}
-          </Button>
-          <p className="text-center text-xs text-muted">
-            Follow keeps their new collections on your Home. It does not unlock rates.
-          </p>
-        </div>
-      </Sheet>
     </div>
   );
 }
 
 function ConnectedPanel({
-  companyId,
   onMessage,
   messaging,
 }: {
-  companyId: string;
   onMessage: () => void;
   messaging: boolean;
 }) {
-  const navigate = useNavigate();
-  const contact = useQuery({
-    queryKey: ['company', companyId, 'contact'],
-    queryFn: () => api.get<CompanyContactPoint[]>(`/companies/${companyId}/contact`),
-  });
   return (
     <Card className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Tag tone="success">Connected</Tag>
-        <span className="text-xs text-muted">You can see rates and place orders.</span>
-      </div>
-      {contact.data && contact.data.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          {contact.data.map((point, index) => (
-            <p key={index} className="text-sm text-ink">
-              {point.name}
-              {point.role ? <span className="text-muted"> · {point.role}</span> : null}
-              {point.phone ? <span className="text-muted"> · {point.phone}</span> : null}
-            </p>
-          ))}
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ink">Connected</p>
+          <p className="text-xs text-muted">You can message and place orders with this business.</p>
         </div>
-      ) : null}
+        <StatusPill status="active" />
+      </div>
       <Button fullWidth onClick={onMessage} disabled={messaging}>
         {messaging ? 'Opening…' : 'Message'}
-      </Button>
-      <Button variant="secondary" fullWidth onClick={() => navigate(`/orders/new?seller=${companyId}`)}>
-        Photo order
       </Button>
     </Card>
   );

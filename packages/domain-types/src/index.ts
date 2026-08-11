@@ -8,6 +8,8 @@ export * from './settings';
 export * from './discovery';
 export * from './conversation';
 export * from './orders';
+export * from './order-timeline';
+export * from './order-events';
 export * from './broadcast';
 export * from './referral';
 export * from './notification';

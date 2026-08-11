@@ -1,7 +1,7 @@
 import { Suspense, useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useMyCompany, useUnreadCount } from '@/lib/queries';
+import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import {
@@ -31,7 +31,7 @@ function shellTitle(pathname: string): string | null {
     return 'More';
   }
   if (pathname.startsWith('/buyers')) return 'Buyers';
-  if (pathname.startsWith('/catalog')) return 'Catalogue';
+  if (pathname.startsWith('/catalog')) return 'My designs';
   if (pathname.startsWith('/company')) return 'Business';
   if (pathname.startsWith('/collections')) return 'Collection';
   if (pathname.startsWith('/products')) return 'Design';
@@ -49,6 +49,8 @@ export function AppShell() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const company = useMyCompany();
   const unread = useUnreadCount();
+  const chatUnread = useChatUnreadCount();
+  const chatUnreadCount = chatUnread.data?.count ?? 0;
   const { buying, selling, canPublish } = useTradePresence();
   const capabilities = company.data?.capabilities;
   const title = shellTitle(location.pathname);
@@ -113,20 +115,27 @@ export function AppShell() {
 
       <main
         className={cx(
-          'ekum-rise flex-1',
+          'flex-1',
           isChatThread
             ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
             : 'px-4 pb-28 pt-3',
         )}
       >
-        <Suspense fallback={<LoadingBlock />}>
-          <Outlet />
-        </Suspense>
+        {/* Rise only on route change — not on every local state update (filters, etc.). */}
+        <div key={location.pathname} className={isChatThread ? 'flex min-h-0 flex-1 flex-col' : 'ekum-rise'}>
+          <Suspense fallback={<LoadingBlock />}>
+            <Outlet />
+          </Suspense>
+        </div>
       </main>
 
       <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-end justify-around border-t border-line/80 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
         {NAV.slice(0, 2).map((item) => (
-          <NavItem key={item.to} {...item} />
+          <NavItem
+            key={item.to}
+            {...item}
+            badge={item.to === '/chats' && chatUnreadCount > 0 ? chatUnreadCount : undefined}
+          />
         ))}
         <button
           aria-label="Create"
@@ -183,11 +192,14 @@ function NavItem({
   label,
   Icon,
   end,
+  badge,
 }: {
   to: string;
   label: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   end: boolean;
+  /** Teal count pill (chat unread) — not the orange notification style. */
+  badge?: number;
 }) {
   return (
     <NavLink
@@ -204,11 +216,16 @@ function NavItem({
         <>
           <span
             className={cx(
-              'flex h-8 w-8 items-center justify-center rounded-full',
+              'relative flex h-8 w-8 items-center justify-center rounded-full',
               isActive && 'bg-foam',
             )}
           >
             <Icon width={22} height={22} />
+            {badge != null && badge > 0 ? (
+              <span className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
+                {badge > 9 ? '9+' : badge}
+              </span>
+            ) : null}
           </span>
           {label}
         </>

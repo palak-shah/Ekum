@@ -4,6 +4,7 @@ import type { AddressView, BillingFirmView, UpsertAddressDto } from '@ekum/domai
 import { api } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button, Card, EmptyState, Field, LoadingBlock, SectionHeader, Sheet, Tag, TextInput } from '@/ui/kit';
+import { SuggestInput } from '@/ui/SuggestInput';
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -91,7 +92,11 @@ export function SettingsPage() {
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="City">
-              <TextInput value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} />
+              <SuggestInput
+                kind="city"
+                value={addr.city}
+                onChange={(city) => setAddr({ ...addr, city })}
+              />
             </Field>
             <Field label="Pincode">
               <TextInput value={addr.pincode ?? ''} onChange={(e) => setAddr({ ...addr, pincode: e.target.value })} />

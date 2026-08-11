@@ -136,6 +136,9 @@ export interface MessageReference {
    * Collection: first design thumbs. Product: product photos.
    */
   images?: string[] | null;
+  /** Catalog owner company (product/collection) — not the message forwarder. */
+  ownerCompanyId?: string | null;
+  ownerCompanyName?: string | null;
   available: boolean;
   /** Order/rate: line count. Collection: total designs (for +N overflow). */
   status?: string | null;
@@ -149,6 +152,19 @@ export interface MessageReference {
   sellerName?: string | null;
   /** Who moved the order to confirmed, when known. */
   confirmedByName?: string | null;
+  /** Frozen chat event (order_requested | quote_sent | cancelled | …). */
+  event?: string | null;
+  /** Display eyebrow for the frozen event. */
+  eventLabel?: string | null;
+  /** Frozen order label from metadata, e.g. Order #X16Y. */
+  orderLabel?: string | null;
+  /** Frozen actor display from metadata (company name at send time). */
+  actorLabel?: string | null;
+  /**
+   * Live affordance: buyer can still accept this quote right now.
+   * Not frozen history — quote card copy/status stay as posted.
+   */
+  canAcceptQuote?: boolean;
 }
 
 export interface MessageReplyPreview {

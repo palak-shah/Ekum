@@ -40,6 +40,8 @@ const ProductDetailPage = page(
 const OrdersPage = page(() => import('@/features/orders/OrdersPage'), 'OrdersPage');
 const OrderBuilderPage = page(() => import('@/features/orders/OrderBuilderPage'), 'OrderBuilderPage');
 const OrderDetailPage = page(() => import('@/features/orders/OrderDetailPage'), 'OrderDetailPage');
+const SamplesPage = page(() => import('@/features/orders/SamplesPage'), 'SamplesPage');
+const ReturnsPage = page(() => import('@/features/orders/ReturnsPage'), 'ReturnsPage');
 const ChatsPage = page(() => import('@/features/chats/ChatsPage'), 'ChatsPage');
 const ThreadPage = page(() => import('@/features/chats/ThreadPage'), 'ThreadPage');
 const MyCatalogPage = page(() => import('@/features/catalog/MyCatalogPage'), 'MyCatalogPage');
@@ -98,6 +100,8 @@ export const router = createBrowserRouter([
           { path: 'orders', element: <OrdersPage /> },
           { path: 'orders/new', element: <OrderBuilderPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
+          { path: 'samples', element: <SamplesPage /> },
+          { path: 'returns', element: <ReturnsPage /> },
           { path: 'chats', element: <ChatsPage /> },
           { path: 'chats/:id', element: <ThreadPage /> },
           { path: 'catalog', element: <MyCatalogPage /> },

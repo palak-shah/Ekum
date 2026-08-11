@@ -73,6 +73,14 @@ export class ConversationController {
     return this.threads.markAllRead(companyId);
   }
 
+  @Get('unread-count')
+  unreadCount(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    return this.threads.unreadTotal(companyId, user.role);
+  }
+
   @Get(':id')
   get(
     @CurrentCompanyId() companyId: string,

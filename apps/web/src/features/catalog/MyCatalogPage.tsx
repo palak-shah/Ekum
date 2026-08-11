@@ -28,7 +28,7 @@ export function MyCatalogPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="My collection"
+        title="My designs & collections"
         action={
           <button className="text-sm font-medium text-accent" onClick={() => setPostOpen(true)}>
             New post
@@ -83,7 +83,7 @@ export function MyCatalogPage() {
         ) : (
           <EmptyState
             title="No designs yet"
-            message="Upload a design, then post it to Explore or group it into a collection."
+            message="Your design library. Group any of them into a collection."
             action={<Button onClick={() => setPostOpen(true)}>New post</Button>}
           />
         )
@@ -93,10 +93,21 @@ export function MyCatalogPage() {
         <div className="flex flex-col gap-2">
           {collections.data.map((collection) => (
             <Link key={collection.id} to={`/catalog/collections/${collection.id}`}>
-              <Card className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-ink">{collection.name}</p>
-                  <p className="text-xs text-muted">{collection.productCount} designs</p>
+              <Card className="flex items-center gap-3">
+                {collection.coverImage ? (
+                  <img
+                    src={collection.coverImage}
+                    alt=""
+                    className="h-14 w-14 shrink-0 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-foam text-lg font-bold text-muted">
+                    {collection.name.charAt(0)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-semibold text-ink">{collection.name}</p>
+                  <p className="text-sm text-muted">{collection.productCount} designs</p>
                 </div>
                 <StatusPill status={collection.status} />
               </Card>
@@ -106,7 +117,7 @@ export function MyCatalogPage() {
       ) : (
         <EmptyState
           title="No collections yet"
-          message="Group designs into a collection to share and publish."
+          message="Albums of designs from your library."
           action={<Button onClick={() => navigate('/catalog/collections/new')}>New collection</Button>}
         />
       )}

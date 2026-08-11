@@ -1,8 +1,11 @@
 import { z } from 'zod';
 import { cursorPageQuerySchema } from './common';
 import {
+  OrderIntent,
   OrderKind,
+  type OrderLineStatus,
   orderDirectionValues,
+  orderIntentValues,
   orderKindValues,
   orderStatusValues,
   returnStatusValues,
@@ -12,9 +15,10 @@ import type { PublicCompanySummary } from './access';
 
 /**
  * Orders & Fulfillment contracts. There is one Order object shared by two
- * companies, read from a buying or selling perspective. Line items are immutable
- * snapshots taken at order time — a later product edit never rewrites history.
- * Samples, Returns, and Complaints reuse the same vocabulary and party model.
+ * companies, read from a buying or selling perspective. Line items are snapshots
+ * taken at order time — product edits never rewrite history. Quantity/rate may
+ * change via seller quote; lineStatus tracks partial outcomes. Samples, Returns,
+ * and Complaints reuse the same vocabulary and party model.
  */
 
 const quantity = z.number().positive().max(1_000_000);
@@ -33,6 +37,8 @@ export const createOrderSchema = z
   .object({
     sellerCompanyId: z.string().min(1),
     kind: z.enum(orderKindValues).default(OrderKind.Standard),
+    /** Soft rate ask vs firm place-order. Default order. */
+    intent: z.enum(orderIntentValues).default(OrderIntent.Order),
     note: z.string().trim().max(1000).optional(),
     items: z.array(orderItemInputSchema).min(1).max(200),
   })
@@ -54,32 +60,101 @@ export const createOrderSchema = z
       }
     });
   });
-export type CreateOrderDto = z.infer<typeof createOrderSchema>;
+/** Wire input — `kind` / `intent` default when omitted. */
+export type CreateOrderDto = z.input<typeof createOrderSchema>;
 
-/** Dispatch metadata is fulfillment data only — it never gates the state machine. */
+/** Buyer amends catalog lines before any seller quote/confirm/decline. */
+export const amendOrderSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
+  items: z
+    .array(
+      orderItemInputSchema.extend({
+        productId: z.string().min(1),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type AmendOrderDto = z.infer<typeof amendOrderSchema>;
+
+/** Dispatch: omit items to ship all remaining confirmed qty; provide for partial. LR required. */
 export const dispatchSchema = z.object({
   transporter: z.string().trim().max(160).optional(),
-  lrNumber: z.string().trim().max(80).optional(),
+  lrNumber: z.string().trim().min(1).max(80),
   parcelCount: z.number().int().positive().max(100000).optional(),
-});
-export type DispatchDto = z.infer<typeof dispatchSchema>;
-
-/** Seller quote against a requested order — rates land on line snapshots + a rate card in chat. */
-export const quoteOrderSchema = z.object({
   items: z
     .array(
       z.object({
         orderItemId: z.string().min(1),
-        rate: z.number().nonnegative(),
+        quantity,
+      }),
+    )
+    .min(1)
+    .max(200)
+    .optional(),
+});
+export type DispatchDto = z.infer<typeof dispatchSchema>;
+
+/**
+ * Seller quote. Included lines need a rate; mark unavailable to decline a line.
+ * At least one supplyable (not unavailable) line is required.
+ */
+export const quoteOrderSchema = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          orderItemId: z.string().min(1),
+          unavailable: z.boolean().optional(),
+          rate: z.number().nonnegative().optional(),
+          quantity: z.number().positive().max(1_000_000).optional(),
+        }),
+      )
+      .min(1)
+      .max(200),
+    note: z.string().trim().max(1000).optional(),
+    validUntil: z.string().datetime().optional(),
+  })
+  .superRefine((value, ctx) => {
+    let supplyable = 0;
+    value.items.forEach((line, index) => {
+      if (line.unavailable) {
+        return;
+      }
+      supplyable += 1;
+      if (line.rate === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Rate is required for lines you can supply.',
+          path: ['items', index, 'rate'],
+        });
+      }
+    });
+    if (supplyable < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Quote at least one design, or decline the whole order.',
+        path: ['items'],
+      });
+    }
+  });
+export type QuoteOrderDto = z.infer<typeof quoteOrderSchema>;
+
+/** Seller decides open lines without a rate quote (confirm / decline mix). */
+export const decideOrderLinesSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        action: z.enum(['confirm', 'decline']),
         quantity: z.number().positive().max(1_000_000).optional(),
       }),
     )
     .min(1)
     .max(200),
   note: z.string().trim().max(1000).optional(),
-  validUntil: z.string().datetime().optional(),
 });
-export type QuoteOrderDto = z.infer<typeof quoteOrderSchema>;
+export type DecideOrderLinesDto = z.infer<typeof decideOrderLinesSchema>;
 
 export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   direction: z.enum(orderDirectionValues).optional(),
@@ -165,7 +240,15 @@ export interface OrderItemView {
   unit: string | null;
   image: string | null;
   images: string[];
+  /** Current agreed / offered quantity. */
   quantity: number;
+  /** Original buyer-requested quantity. */
+  requestedQuantity: number;
+  lineStatus: OrderLineStatus;
+  /** Qty already included in shipments. */
+  shippedQuantity: number;
+  /** quantity − shippedQuantity for shippable lines. */
+  remainingQuantity: number;
   note: string | null;
 }
 
@@ -176,16 +259,42 @@ export interface DispatchInfo {
   dispatchedAt: string | null;
 }
 
+export interface OrderShipmentItemView {
+  orderItemId: string;
+  name: string;
+  quantity: number;
+}
+
+export interface OrderShipmentView {
+  id: string;
+  transporter: string | null;
+  lrNumber: string | null;
+  parcelCount: number | null;
+  dispatchedAt: string;
+  items: OrderShipmentItemView[];
+}
+
 export interface OrderView {
   id: string;
   kind: string;
+  /** order | inquiry — inquiry is a rate ask until quoted/confirmed. */
+  intent: string;
   status: string;
   direction: string;
+  /** Times the buyer amended before seller progress. */
+  amendCount: number;
+  /**
+   * Live: buyer may still amend lines (requested, all open, no seller response).
+   * Omitted/false on list payloads when not computed.
+   */
+  canAmend?: boolean;
   note: string | null;
   buyerCompanyId: string;
   sellerCompanyId: string;
   counterpart: PublicCompanySummary;
   items: OrderItemView[];
+  shipments: OrderShipmentView[];
+  /** Latest shipment summary when any exist (compat with older UI). */
   dispatch: DispatchInfo | null;
   /** Direct thread where the order/quote cards live, when found. */
   threadId: string | null;
@@ -197,6 +306,10 @@ export interface OrderView {
   buyerName: string;
   sellerName: string;
   deliveredAt: string | null;
+  /** Set when cancelled, declined, or return window closed. */
+  closedAt: string | null;
+  /** True when some but not all shippable qty has left. */
+  partiallyShipped: boolean;
   createdAt: string;
   updatedAt: string;
 }

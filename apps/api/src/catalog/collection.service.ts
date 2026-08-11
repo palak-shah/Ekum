@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   CollectionStatus,
+  ProductStatus,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
@@ -67,7 +68,7 @@ export class CollectionService {
     id: string,
     dto: PublishCollectionDto,
   ): Promise<CollectionView> {
-    await this.owned(companyId, id);
+    const existing = await this.owned(companyId, id);
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       select: { canPublish: true },
@@ -81,6 +82,33 @@ export class CollectionService {
     }
     const audienceCompanyIds =
       dto.audience === 'selected' ? [...new Set(dto.companyIds ?? [])] : [];
+    const members = await this.prisma.collectionProduct.findMany({
+      where: { collectionId: id },
+      select: { productId: true },
+    });
+    if (members.length < 1) {
+      throw new BadRequestException({
+        code: 'COLLECTION_EMPTY',
+        message: 'Add at least one design before publishing this collection.',
+      });
+    }
+
+    // Draft designs in the album become catalog-published with the collection.
+    // Explore posting for individual designs stays separate (postedToMarketAt).
+    const memberIds = members.map((row) => row.productId);
+    await this.prisma.product.updateMany({
+      where: {
+        id: { in: memberIds },
+        companyId,
+        status: ProductStatus.Draft,
+      },
+      data: { status: ProductStatus.Published },
+    });
+
+    // Audience-only republish must not resurface the album; first publish (and
+    // republish after hide) do.
+    const bumpExplore = existing.status !== CollectionStatus.Published;
+
     const collection = await this.prisma.collection.update({
       where: { id },
       data: {
@@ -88,6 +116,7 @@ export class CollectionService {
         audience: dto.audience,
         rateVisibility: dto.rateVisibility,
         audienceCompanyIds,
+        ...(bumpExplore ? { exploreActivityAt: new Date() } : {}),
       },
       include: { _count: { select: { products: true } } },
     });
@@ -120,7 +149,7 @@ export class CollectionService {
     id: string,
     productIds: string[],
   ): Promise<CollectionDetailView> {
-    await this.owned(companyId, id);
+    const existing = await this.owned(companyId, id);
 
     const uniqueIds = [...new Set(productIds)];
     if (uniqueIds.length > 0) {
@@ -135,11 +164,46 @@ export class CollectionService {
       }
     }
 
+    const previousRows = await this.prisma.collectionProduct.findMany({
+      where: { collectionId: id },
+      select: { productId: true },
+    });
+    const previousIds = new Set(previousRows.map((row) => row.productId));
+    const newlyAddedIds = uniqueIds.filter((productId) => !previousIds.has(productId));
+
+    let shouldBumpExplore = false;
+    if (existing.status === CollectionStatus.Published && newlyAddedIds.length > 0) {
+      const publishedNew = await this.prisma.product.count({
+        where: {
+          id: { in: newlyAddedIds },
+          companyId,
+          status: ProductStatus.Published,
+        },
+      });
+      shouldBumpExplore = publishedNew > 0;
+    }
+
     await this.prisma.$transaction([
       this.prisma.collectionProduct.deleteMany({ where: { collectionId: id } }),
-      this.prisma.collectionProduct.createMany({
-        data: uniqueIds.map((productId, position) => ({ collectionId: id, productId, position })),
-      }),
+      ...(uniqueIds.length > 0
+        ? [
+            this.prisma.collectionProduct.createMany({
+              data: uniqueIds.map((productId, position) => ({
+                collectionId: id,
+                productId,
+                position,
+              })),
+            }),
+          ]
+        : []),
+      ...(shouldBumpExplore
+        ? [
+            this.prisma.collection.update({
+              where: { id },
+              data: { exploreActivityAt: new Date() },
+            }),
+          ]
+        : []),
     ]);
 
     return this.get(companyId, id);

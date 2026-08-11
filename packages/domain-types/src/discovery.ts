@@ -4,11 +4,11 @@ import type { PublicCompanySummary } from './access';
 import type { ProductView } from './catalog';
 
 /**
- * Discovery contracts. Explore is a structured browse (by category / city /
- * recency — never engagement ranking). Search is federated across companies,
- * collections, and designs (products). Both are cursor-paginated and, on the
- * server, visibility-filtered: a company blocked by an owner never sees that
- * owner's content, and only published content is discoverable.
+ * Discovery contracts. Explore answers “who should I talk to next about
+ * business?” via opportunity sections (company-primary) and universal search —
+ * never engagement ranking. Narrow filters (category / city) are progressive.
+ * Search is federated across companies, collections, designs, cities, and
+ * categories. Visibility-filtered: blocked companies never appear.
  */
 
 const booleanFlag = z
@@ -23,17 +23,30 @@ export const exploreQuerySchema = cursorPageQuerySchema.extend({
   category: z.string().trim().min(1).max(80).optional(),
   city: z.string().trim().min(1).max(80).optional(),
   following: booleanFlag,
-  /** Buy = supplier collections; Sell = companies that buy (dual-role Explore toggle). */
+  /**
+   * When true, only companies with a published collection or Explore-posted
+   * design (audience-visible). Response rows are ExploreSupplierCard.
+   */
+  posted: booleanFlag,
+  /** Buy = suppliers; sell = businesses that buy. Used by section endpoints, not Explore modes. */
   scope: z.enum(exploreScopeValues).optional(),
 });
 export type ExploreQuery = z.infer<typeof exploreQuerySchema>;
+
+/** Optional Narrow filters for the sectioned Explore home. */
+export const exploreHomeQuerySchema = z.object({
+  category: z.string().trim().min(1).max(80).optional(),
+  city: z.string().trim().min(1).max(80).optional(),
+});
+export type ExploreHomeQuery = z.infer<typeof exploreHomeQuerySchema>;
 
 export const searchTypeValues = ['company', 'collection', 'design'] as const;
 export type SearchType = (typeof searchTypeValues)[number];
 
 export const searchQuerySchema = cursorPageQuerySchema.extend({
   q: z.string().trim().min(1).max(80),
-  type: z.enum(searchTypeValues),
+  /** Omit for universal (grouped) search across all result kinds. */
+  type: z.enum(searchTypeValues).optional(),
 });
 export type SearchQuery = z.infer<typeof searchQuerySchema>;
 
@@ -96,6 +109,69 @@ export type ExplorePost =
       product: ExploreProductCard;
     };
 
+/** Company-led collection opportunity for Explore sections. */
+export interface ExploreOpportunity {
+  collection: CollectionCard;
+  /** One sparse line: Connected · GST verified · Matches Sarees (or city). */
+  relevance: string | null;
+}
+
+/** Standalone design opportunity (no collection required). */
+export interface ExploreDesignOpportunity {
+  product: ExploreProductCard;
+  relevance: string | null;
+}
+
+/** Buyer/supplier company card for Explore business shelves. */
+export interface ExploreBuyerOpportunity {
+  company: CompanyCard;
+  /** Why-connect line (network → match → trust/city). */
+  relevance: string | null;
+  /** Up to 4 post thumbs when they have published designs/collections. */
+  previewImages: string[];
+  designCount: number;
+  collectionCount: number;
+  /** ISO time of the newest visible post; null when they have none. */
+  latestPostedAt: string | null;
+}
+
+/** Supplier directory row — company that has posted designs and/or collections. */
+export interface ExploreSupplierCard {
+  company: CompanyCard;
+  relevance: string | null;
+  /** Up to 4 recent post images (designs or collection covers). */
+  previewImages: string[];
+  designCount: number;
+  collectionCount: number;
+  /** ISO time of the newest visible post. */
+  latestPostedAt: string;
+}
+
+/**
+ * Sectioned Explore home — no Buying/Selling mode.
+ * Collections and designs are separate shelves. Own company never appears.
+ * `lookingForWhatYouSell` is null when the viewer does not sell.
+ */
+export interface ExploreHomeView {
+  forYou: ExploreOpportunity[];
+  fromNetwork: ExploreOpportunity[];
+  /** Recommended standalone designs (not in network shelf). */
+  designsForYou: ExploreDesignOpportunity[];
+  /** Designs from companies the viewer follows. */
+  designsFromNetwork: ExploreDesignOpportunity[];
+  suggestedBusinesses: ExploreBuyerOpportunity[];
+  lookingForWhatYouSell: ExploreBuyerOpportunity[] | null;
+}
+
+/** Grouped universal search (type omitted on `/search`). */
+export interface UniversalSearchResults {
+  companies: CompanyCard[];
+  collections: CollectionCard[];
+  designs: DiscoveryProductCard[];
+  cities: string[];
+  categories: string[];
+}
+
 /**
  * A cross-company collection view. Non-connected viewers get a preview
  * (products is null — the "blurred preview" trust rule); connected viewers get
@@ -111,5 +187,7 @@ export interface ExploreProductPreviewView extends ExploreProductCard {
   connected: boolean;
   visible: boolean;
   description?: string | null;
+  /** Minimum order in pieces when the seller set one. */
+  moq?: number | null;
   categories?: string[];
 }

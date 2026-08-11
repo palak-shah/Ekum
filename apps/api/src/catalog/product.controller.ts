@@ -3,9 +3,11 @@ import {
   ProductStatus,
   createProductSchema,
   postProductToMarketSchema,
+  publishProductSchema,
   updateProductSchema,
   type CreateProductDto,
   type PostProductToMarketDto,
+  type PublishProductDto,
   type UpdateProductDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -44,8 +46,12 @@ export class ProductController {
   }
 
   @Post(':id/publish')
-  publish(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.products.setStatus(companyId, id, ProductStatus.Published);
+  publish(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(publishProductSchema)) dto: PublishProductDto,
+  ) {
+    return this.products.publish(companyId, id, dto);
   }
 
   @Post(':id/post-to-market')

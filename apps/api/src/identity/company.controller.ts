@@ -57,4 +57,13 @@ export class CompanyController {
   ) {
     return this.companies.listPublishedCollections(viewerCompanyId, id, query);
   }
+
+  @Get(':id/designs')
+  designs(
+    @CurrentCompanyId() viewerCompanyId: string,
+    @Param('id') id: string,
+    @Query(new ZodValidationPipe(cursorPageQuerySchema)) query: CursorPageQuery,
+  ) {
+    return this.companies.listPublishedDesigns(viewerCompanyId, id, query);
+  }
 }

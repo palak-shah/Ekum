@@ -38,6 +38,8 @@ body,
 
 html {
   background: var(--color-canvas);
+  /* Keep layout width stable when list height toggles the scrollbar (filter switches). */
+  scrollbar-gutter: stable;
 }
 
 body {

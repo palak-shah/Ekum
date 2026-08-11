@@ -1,15 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   ProductStatus,
+  PublishAudience,
+  RateVisibility,
   type CreateProductDto,
   type PostProductToMarketDto,
   type ProductView,
+  type PublishProductDto,
   type UpdateProductDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ensureSellingEnabled } from '../identity/trade-presence';
 import { assertCanPublish, grantPublishCapability } from './publish-capability';
 import { CatalogSerializer } from './catalog.serializer';
+import { resolveProductSku } from './sku';
 
 @Injectable()
 export class ProductService {
@@ -19,12 +23,14 @@ export class ProductService {
   ) {}
 
   async create(companyId: string, dto: CreateProductDto): Promise<ProductView> {
+    const sku = await resolveProductSku(this.prisma, companyId, dto.sku);
     const product = await this.prisma.product.create({
       data: {
         companyId,
         name: dto.name,
-        sku: dto.sku ?? null,
+        sku,
         description: dto.description ?? null,
+        moq: dto.moq ?? null,
         rate: dto.rate ?? null,
         unit: dto.unit ?? null,
         categories: dto.categories,
@@ -48,13 +54,19 @@ export class ProductService {
   }
 
   async update(companyId: string, id: string, dto: UpdateProductDto): Promise<ProductView> {
-    await this.owned(companyId, id);
+    const existing = await this.owned(companyId, id);
+    // SKU is immutable once set; fill only when still missing.
+    let sku = existing.sku;
+    if (!sku) {
+      sku = await resolveProductSku(this.prisma, companyId, dto.sku, id);
+    }
     const product = await this.prisma.product.update({
       where: { id },
       data: {
         name: dto.name,
-        sku: dto.sku,
+        sku,
         description: dto.description,
+        ...(dto.moq !== undefined ? { moq: dto.moq } : {}),
         rate: dto.rate,
         unit: dto.unit,
         categories: dto.categories,
@@ -84,15 +96,15 @@ export class ProductService {
   }
 
   /**
-   * Posts a design to the Explore market. Catalog `publish` can happen without
-   * this; Explore only lists products with postedToMarketAt set.
+   * Publishes a design to the shop and Explore (discoverable without a collection).
+   * Audience defaults to connections until updated via post-to-market.
    */
-  async postToMarket(
+  async publish(
     companyId: string,
     id: string,
-    dto: PostProductToMarketDto,
+    dto: PublishProductDto,
   ): Promise<ProductView> {
-    await this.owned(companyId, id);
+    const existing = await this.owned(companyId, id);
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       select: { canPublish: true },
@@ -104,12 +116,54 @@ export class ProductService {
         await grantPublishCapability(this.prisma, companyId);
       }
     }
+    let sku = existing.sku;
+    if (!sku) {
+      sku = await resolveProductSku(this.prisma, companyId, undefined, id);
+    }
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: {
+        status: ProductStatus.Published,
+        sku,
+        postedToMarketAt: existing.postedToMarketAt ?? new Date(),
+        audience: existing.audience || PublishAudience.Connections,
+        rateVisibility: existing.rateVisibility || RateVisibility.OnRequest,
+      },
+    });
+    return this.serializer.toProductView(product);
+  }
+
+  /**
+   * Updates Explore audience / rate visibility for a design (and ensures published).
+   */
+  async postToMarket(
+    companyId: string,
+    id: string,
+    dto: PostProductToMarketDto,
+  ): Promise<ProductView> {
+    const existing = await this.owned(companyId, id);
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { canPublish: true },
+    });
+    if (!company.canPublish) {
+      if (!dto.consentToSell) {
+        await assertCanPublish(this.prisma, companyId);
+      } else {
+        await grantPublishCapability(this.prisma, companyId);
+      }
+    }
+    let sku = existing.sku;
+    if (!sku) {
+      sku = await resolveProductSku(this.prisma, companyId, undefined, id);
+    }
     const audienceCompanyIds =
       dto.audience === 'selected' ? [...new Set(dto.companyIds ?? [])] : [];
     const product = await this.prisma.product.update({
       where: { id },
       data: {
         status: ProductStatus.Published,
+        sku,
         audience: dto.audience,
         rateVisibility: dto.rateVisibility,
         audienceCompanyIds,

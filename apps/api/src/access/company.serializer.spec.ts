@@ -10,7 +10,7 @@ describe('CompanySerializer contact protection', () => {
   const serializer = new CompanySerializer();
   const company = {
     id: 'c1',
-    name: 'Ravi Textiles',
+    name: 'Surat Silk House',
     city: 'Surat',
     about: null,
     logoUrl: null,

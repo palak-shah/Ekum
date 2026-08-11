@@ -12,7 +12,9 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
+import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { SuggestInput } from '@/ui/SuggestInput';
 import { CameraIcon, PlusIcon } from '@/ui/icons';
 
 function parseList(value: string): string[] {
@@ -37,6 +39,7 @@ export function ProductEditorPage() {
     name: '',
     sku: '',
     rate: '',
+    moq: '',
     unit: '' as string,
     description: '',
     categories: '',
@@ -66,6 +69,7 @@ export function ProductEditorPage() {
         name: existing.data.name,
         sku: existing.data.sku ?? '',
         rate: existing.data.rate === null ? '' : String(existing.data.rate),
+        moq: existing.data.moq === null || existing.data.moq === undefined ? '' : String(existing.data.moq),
         unit: existing.data.unit ?? '',
         description: existing.data.description ?? '',
         categories: existing.data.categories.join(', '),
@@ -97,7 +101,7 @@ export function ProductEditorPage() {
     setError(null);
     setUploading(true);
     try {
-      for (const file of [...fileList].slice(0, 12 - imageUrls.length)) {
+      for (const file of [...fileList]) {
         const url = await uploadImage(file);
         setImageUrls((prev) => [...prev, url]);
       }
@@ -122,6 +126,7 @@ export function ProductEditorPage() {
         name: form.name.trim(),
         sku: form.sku.trim() || undefined,
         rate: form.rate.trim() ? Number(form.rate) : null,
+        moq: form.moq.trim() ? Number(form.moq) : null,
         unit: form.unit ? (form.unit as (typeof unitValues)[number]) : undefined,
         description: form.description.trim() || undefined,
         categories: parseList(form.categories),
@@ -139,8 +144,14 @@ export function ProductEditorPage() {
   });
 
   const publishCatalog = useMutation({
-    mutationFn: () => api.post<ProductView>(`/products/${id}/publish`, {}),
-    onSuccess: invalidate,
+    mutationFn: () =>
+      api.post<ProductView>(`/products/${id}/publish`, {
+        ...(canPublishAlready ? {} : { consentToSell: true }),
+      }),
+    onSuccess: () => {
+      setError(null);
+      invalidate();
+    },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not publish.'),
   });
 
@@ -172,14 +183,6 @@ export function ProductEditorPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not remove post.'),
   });
 
-  const toggleAudienceCompany = (companyId: string) =>
-    setAudienceCompanies((prev) => {
-      const next = new Set(prev);
-      if (next.has(companyId)) next.delete(companyId);
-      else next.add(companyId);
-      return next;
-    });
-
   const canSubmitMarket =
     (canPublishAlready || consent) &&
     (audience !== PublishAudience.Selected || audienceCompanies.size > 0);
@@ -192,16 +195,7 @@ export function ProductEditorPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title={editing ? 'Edit design' : 'Upload a design'}
-        action={
-          editing ? (
-            <button className="text-sm font-medium text-accent" onClick={() => setMarketOpen(true)}>
-              {onMarket ? 'Market post' : 'Post to Explore'}
-            </button>
-          ) : undefined
-        }
-      />
+      <PageHeader title={editing ? 'Edit design' : 'Upload a design'} />
 
       {imageUrls.length === 0 ? (
         <button
@@ -229,17 +223,15 @@ export function ProductEditorPage() {
               </button>
             </div>
           ))}
-          {imageUrls.length < 12 ? (
-            <button
-              type="button"
-              onClick={openPicker}
-              disabled={uploading}
-              className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted"
-            >
-              <PlusIcon width={18} height={18} />
-              <span className="text-[10px]">{uploading ? '…' : 'Add'}</span>
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={openPicker}
+            disabled={uploading}
+            className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted"
+          >
+            <PlusIcon width={18} height={18} />
+            <span className="text-[10px]">{uploading ? '…' : 'Add'}</span>
+          </button>
         </div>
       )}
 
@@ -265,23 +257,85 @@ export function ProductEditorPage() {
           </select>
         </Field>
       </div>
-      <Field label="Reference / SKU" hint="Optional.">
-        <TextInput value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+      <Field label="Minimum order" hint="Pieces · blank if no minimum">
+        <TextInput
+          type="number"
+          min={1}
+          inputMode="numeric"
+          value={form.moq}
+          onChange={(e) => setForm({ ...form, moq: e.target.value })}
+          placeholder="100"
+        />
+      </Field>
+      <Field
+        label="Reference / SKU"
+        hint={
+          existing.data?.sku
+            ? 'Locked for this design.'
+            : 'Optional — Ekum assigns one if you leave this blank.'
+        }
+      >
+        <TextInput
+          value={form.sku || existing.data?.sku || ''}
+          onChange={(e) => setForm({ ...form, sku: e.target.value })}
+          disabled={Boolean(existing.data?.sku)}
+          placeholder="Leave blank to auto-assign"
+        />
       </Field>
       <Field label="Categories" hint="Comma-separated.">
-        <TextInput value={form.categories} onChange={(e) => setForm({ ...form, categories: e.target.value })} placeholder="sarees, party wear" />
+        <SuggestInput
+          kind="category"
+          mode="list"
+          value={form.categories}
+          onChange={(categories) => setForm({ ...form, categories })}
+          placeholder="sarees, party wear"
+        />
       </Field>
-      <Field label="Description" error={error}>
-        <TextArea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+      <Field
+        label="Notes"
+        hint="Fabric, size, width — anything buyers should know."
+        error={error}
+      >
+        <TextArea
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          placeholder="e.g. 44 inch, cotton, queen size"
+        />
       </Field>
 
       <Button fullWidth disabled={!form.name.trim() || save.isPending || uploading} onClick={() => save.mutate()}>
         {save.isPending ? 'Saving…' : editing ? 'Save changes' : 'Save design'}
       </Button>
-      {editing && existing.data?.status === 'draft' ? (
-        <Button variant="secondary" fullWidth disabled={publishCatalog.isPending} onClick={() => publishCatalog.mutate()}>
-          {publishCatalog.isPending ? 'Publishing…' : 'Publish to catalogue'}
-        </Button>
+
+      {editing && existing.data ? (
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          {existing.data.status === 'draft' ? (
+            <>
+              {!canPublishAlready ? (
+                <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={consent}
+                    onChange={(event) => setConsent(event.target.checked)}
+                  />
+                  <span>Start selling — publish this design?</span>
+                </label>
+              ) : null}
+              <Button
+                fullWidth
+                disabled={publishCatalog.isPending || (!canPublishAlready && !consent)}
+                onClick={() => publishCatalog.mutate()}
+              >
+                {publishCatalog.isPending ? 'Publishing…' : 'Publish design'}
+              </Button>
+            </>
+          ) : (
+            <Button fullWidth onClick={() => setMarketOpen(true)}>
+              {onMarket ? 'Visibility & rates' : 'Post to Explore'}
+            </Button>
+          )}
+        </div>
       ) : null}
 
       <input
@@ -308,7 +362,7 @@ export function ProductEditorPage() {
       <Sheet open={marketOpen} onClose={() => setMarketOpen(false)} title="Post design to Explore">
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">
-            Catalogue publish keeps the design in your shop. Posting puts it on the market feed.
+            Publish design puts it on Explore for others. Use this sheet to set who can see it and rates.
           </p>
           <div>
             <p className="mb-2 text-sm font-semibold text-ink">Who can see this?</p>
@@ -334,31 +388,20 @@ export function ProductEditorPage() {
               ))}
             </div>
             {audience === PublishAudience.Selected ? (
-              <div className="mt-3 flex flex-col gap-1.5">
-                <p className="text-xs text-muted">
+              <div className="mt-3">
+                <p className="mb-2 text-xs text-muted">
                   {audienceCompanies.size} selected · only these businesses will see it
                 </p>
-                {connections.isLoading ? (
-                  <LoadingBlock />
-                ) : activeConnections.length > 0 ? (
-                  activeConnections.map((connection) => (
-                    <button
-                      key={connection.id}
-                      type="button"
-                      onClick={() => toggleAudienceCompany(connection.company.id)}
-                      className={cx(
-                        'rounded-xl border px-3 py-2.5 text-left text-sm',
-                        audienceCompanies.has(connection.company.id)
-                          ? 'border-accent bg-accent/5 font-medium text-ink'
-                          : 'border-line text-muted',
-                      )}
-                    >
-                      {connection.company.name}
-                    </button>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted">Approve a connection first, then pick them here.</p>
-                )}
+                <ConnectionPicker
+                  mode="multi"
+                  embedded
+                  label=""
+                  loading={connections.isLoading}
+                  connections={activeConnections}
+                  value={[...audienceCompanies]}
+                  onChange={(ids) => setAudienceCompanies(new Set(ids))}
+                  emptyMessage="Approve a connection first, then pick them here."
+                />
               </div>
             ) : null}
           </div>
@@ -397,7 +440,7 @@ export function ProductEditorPage() {
                 checked={consent}
                 onChange={(event) => setConsent(event.target.checked)}
               />
-              <span>Your catalogue goes live — start selling?</span>
+              <span>Start selling — put this design on Explore?</span>
             </label>
           ) : null}
 

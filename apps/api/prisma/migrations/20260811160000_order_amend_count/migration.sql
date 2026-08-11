@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN "amendCount" INTEGER NOT NULL DEFAULT 0;

@@ -1,0 +1,40 @@
+---
+description: UI quality bar — real estate, no flicker, E2E completeness, UX/UI consistency
+alwaysApply: true
+---
+
+# UI quality bar (Ekum)
+
+Before calling UI/product work done, check all four:
+
+## 1. Real estate is not wasted
+
+- Everyday screens: prefer **one tight chrome row**, then content. No stacked pill rows for rare modes.
+- Occasional lists (Samples, Returns) belong in **⋯ / You**, not peer tabs next to daily work.
+- Section titles only when the **job changes**; drop ranking jargon and redundant subtitles.
+- Fake search bars that navigate to empty “type something” voids are wrong — keep feed until the user types.
+
+## 2. Screen does not flicker
+
+- Do **not** put page-rise / enter animations on a persistent shell that re-runs on local state (filters, chips, search typing). Animate **route changes** only.
+- Filter/tab switches: keep prior content visible (`useDeferredValue` / `keepPreviousData`); never flash a full-page loader when cached data exists.
+- Avoid layout jump: `scrollbar-gutter: stable`; don’t crowd chips so “Done” (or similar) clips or forces horizontal scrollbar thrash.
+- Debounce URL sync while typing; don’t remount animated wrappers on every keystroke.
+
+## 3. End-to-end feature completes
+
+- Ship the full path: entry → primary UI → secondary homes (⋯ / You) → list/API wired → empty states that match the job.
+- Don’t leave a lonely menu item if a natural companion exists and the API already supports it (e.g. Samples + Returns).
+- Deep links and redirects must land in the same continuous surface (no stranded “Search” page).
+- Verify the happy path in the running app, not only that types compile.
+
+## 4. UX/UI stays consistent
+
+- Reuse existing kit patterns before inventing new ones: `Chip` + `FilterRail`, underline tabs, `PageHeader`, anchored ⋯ menus (Explore/Orders), `Card` + `StatusPill` list rows, `EmptyState` / `LoadingBlock`.
+- Same job → same chrome: overflow for occasional lists; text **New** / accent actions; why-line + posted time on Explore cards; one business-card rhythm (not compact rows mixed with albums).
+- Copy voice: plain trader language, short why-lines, no product jargon (“Recommended for you”, “Who should you talk to?”).
+- Match spacing, type scale, and corner language already on sibling screens — don’t introduce a one-off pill style, header, or empty state.
+
+## When in doubt
+
+Non-technical textile wholesalers: **plain words, one job per screen, no chrome that fights the content.** Prefer matching a nearby screen over a clever new pattern. Quantities are usually **dozens/hundreds of pieces** — prefer large, tappable piece counts and “same for all”, not tiny retail-style chips (10/15/20).

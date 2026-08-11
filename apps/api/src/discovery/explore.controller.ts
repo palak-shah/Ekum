@@ -1,5 +1,10 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { exploreQuerySchema, type ExploreQuery } from '@ekum/domain-types';
+import {
+  exploreHomeQuerySchema,
+  exploreQuerySchema,
+  type ExploreHomeQuery,
+  type ExploreQuery,
+} from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { ExploreService } from './explore.service';
@@ -7,6 +12,14 @@ import { ExploreService } from './explore.service';
 @Controller({ path: 'explore', version: '1' })
 export class ExploreController {
   constructor(private readonly explore: ExploreService) {}
+
+  @Get('home')
+  home(
+    @CurrentCompanyId() companyId: string,
+    @Query(new ZodValidationPipe(exploreHomeQuerySchema)) query: ExploreHomeQuery,
+  ) {
+    return this.explore.home(companyId, query);
+  }
 
   @Get('feed')
   feed(
@@ -39,6 +52,9 @@ export class ExploreController {
     @CurrentCompanyId() companyId: string,
     @Query(new ZodValidationPipe(exploreQuerySchema)) query: ExploreQuery,
   ) {
+    if (query.posted) {
+      return this.explore.postedSuppliers(companyId, query);
+    }
     return this.explore.companies(companyId, query);
   }
 }

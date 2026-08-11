@@ -1,6 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Broadcast, Company } from '@prisma/client';
-import { MessageType, type BroadcastView, type SendBroadcastDto } from '@ekum/domain-types';
+import {
+  CollectionStatus,
+  MessageType,
+  ProductStatus,
+  type BroadcastView,
+  type SendBroadcastDto,
+} from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { CompanySerializer } from '../access/company.serializer';
@@ -94,21 +100,24 @@ export class BroadcastService {
     }
     if (dto.type === MessageType.ProductCard) {
       const product = await this.prisma.product.findFirst({
-        where: { id: dto.referenceId, companyId },
+        where: { id: dto.referenceId, companyId, status: ProductStatus.Published },
         select: { id: true },
       });
       if (!product) {
-        throw new NotFoundException({ code: 'INVALID_REFERENCE', message: 'Product not found.' });
+        throw new NotFoundException({
+          code: 'INVALID_REFERENCE',
+          message: 'Published design not found.',
+        });
       }
     } else if (dto.type === MessageType.CollectionCard) {
       const collection = await this.prisma.collection.findFirst({
-        where: { id: dto.referenceId, companyId },
+        where: { id: dto.referenceId, companyId, status: CollectionStatus.Published },
         select: { id: true },
       });
       if (!collection) {
-        throw new NotFoundException({
+        throw new BadRequestException({
           code: 'INVALID_REFERENCE',
-          message: 'Collection not found.',
+          message: 'Share a published collection only.',
         });
       }
     }

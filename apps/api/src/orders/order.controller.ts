@@ -1,10 +1,14 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
+  amendOrderSchema,
   createOrderSchema,
+  decideOrderLinesSchema,
   dispatchSchema,
   listOrdersQuerySchema,
   quoteOrderSchema,
+  type AmendOrderDto,
   type CreateOrderDto,
+  type DecideOrderLinesDto,
   type DispatchDto,
   type ListOrdersQuery,
   type QuoteOrderDto,
@@ -23,6 +27,16 @@ export class OrderController {
     @Body(new ZodValidationPipe(createOrderSchema)) dto: CreateOrderDto,
   ) {
     return this.orders.create(companyId, dto);
+  }
+
+  @Post(':id/amend')
+  @HttpCode(200)
+  amend(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(amendOrderSchema)) dto: AmendOrderDto,
+  ) {
+    return this.orders.amend(companyId, id, dto);
   }
 
   @Get()
@@ -52,6 +66,16 @@ export class OrderController {
     @Body(new ZodValidationPipe(quoteOrderSchema)) dto: QuoteOrderDto,
   ) {
     return this.orders.quote(companyId, id, dto);
+  }
+
+  @Post(':id/lines/decide')
+  @HttpCode(200)
+  decideLines(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(decideOrderLinesSchema)) dto: DecideOrderLinesDto,
+  ) {
+    return this.orders.decideLines(companyId, id, dto);
   }
 
   @Post(':id/accept-quote')

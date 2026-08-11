@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -9,10 +10,16 @@ import { Prisma } from '@prisma/client';
 import {
   JobType,
   MessageType,
+  OrderChatEvent,
+  OrderIntent,
   OrderKind,
+  OrderLineStatus,
   OrderStatus,
+  shortOrderLabel,
+  type AmendOrderDto,
   type CreateOrderDto,
   type CursorPage,
+  type DecideOrderLinesDto,
   type DispatchDto,
   type ListOrdersQuery,
   type OrderView,
@@ -27,8 +34,30 @@ import { OrderSerializer } from './order.serializer';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
 
-const ORDER_RELATIONS = { buyer: true, seller: true, items: true } as const;
+const ORDER_RELATIONS = {
+  buyer: true,
+  seller: true,
+  items: true,
+  shipments: {
+    orderBy: { dispatchedAt: 'desc' as const },
+    include: { items: { include: { orderItem: { select: { id: true, name: true } } } } },
+  },
+} as const;
+
 const DAY_MS = 86_400_000;
+
+/** Chat body for line decisions — omit zero counts; Order # lives on the card title. */
+export function linesDecidedNotice(
+  actorLabel: string,
+  confirmed: number,
+  declined: number,
+): string {
+  const parts: string[] = [];
+  if (confirmed > 0) parts.push(`confirmed ${confirmed}`);
+  if (declined > 0) parts.push(`declined ${declined}`);
+  const action = parts.length > 0 ? parts.join(' · ') : 'updated lines';
+  return `${actorLabel} ${action}`;
+}
 
 interface TransitionOptions {
   actor: 'buyer' | 'seller';
@@ -53,9 +82,12 @@ export class OrderService {
     await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId);
     const items = await this.snapshotItems(dto);
 
+    const intent = dto.intent ?? OrderIntent.Order;
+    const inquiry = intent === OrderIntent.Inquiry;
     const order = await this.prisma.order.create({
       data: {
         kind: dto.kind,
+        intent,
         status: OrderStatus.Requested,
         buyerCompanyId: actorCompanyId,
         sellerCompanyId: dto.sellerCompanyId,
@@ -67,14 +99,25 @@ export class OrderService {
     });
 
     const threadId = await this.threads.ensureTradeThread(actorCompanyId, dto.sellerCompanyId);
+    const orderLabel = shortOrderLabel(order.id, { inquiry });
+    const actorLabel = order.buyer.name;
+    const event = inquiry ? OrderChatEvent.RateRequested : OrderChatEvent.OrderRequested;
     await this.prisma.message.create({
       data: {
         threadId,
         senderCompanyId: actorCompanyId,
         type: MessageType.OrderCard,
-        body: dto.note ?? 'Order request',
+        body: dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
         referenceId: order.id,
-        metadata: { status: order.status, itemCount: order.items.length },
+        metadata: {
+          status: order.status,
+          itemCount: order.items.length,
+          event,
+          orderLabel,
+          actorLabel,
+          actorRole: 'buyer',
+          intent,
+        },
       },
     });
     await this.prisma.thread.update({
@@ -88,6 +131,93 @@ export class OrderService {
       sellerCompanyId: order.sellerCompanyId,
     });
     return this.serializer.toOrderView(order, actorCompanyId, threadId);
+  }
+
+  /**
+   * Buyer replaces lines while the seller has not quoted/confirmed/declined.
+   * Appends an Updated chat card; never patches older cards.
+   */
+  async amend(
+    actorCompanyId: string,
+    id: string,
+    dto: AmendOrderDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (!(await this.buyerCanAmend(order, actorCompanyId))) {
+      if (order.buyerCompanyId !== actorCompanyId) {
+        throw new ForbiddenException({
+          code: 'NOT_ALLOWED',
+          message: 'Only the buyer can edit this.',
+        });
+      }
+      if (order.kind === OrderKind.Photo) {
+        throw new BadRequestException({
+          code: 'NOT_SUPPORTED',
+          message: 'Photo orders cannot be edited this way. Cancel and place a new one.',
+        });
+      }
+      throw new ConflictException({
+        code: 'SELLER_PROGRESS',
+        message: 'This can only be edited before the seller responds.',
+      });
+    }
+
+    const inquiry = order.intent === OrderIntent.Inquiry;
+    const snapshots = await this.snapshotItems({
+      sellerCompanyId: order.sellerCompanyId,
+      kind: OrderKind.Standard,
+      intent: order.intent as CreateOrderDto['intent'],
+      items: dto.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        images: item.images ?? [],
+        note: item.note,
+        unit: item.unit,
+        name: item.name,
+      })),
+    });
+
+    await this.prisma.order.update({
+      where: { id },
+      data: {
+        amendCount: { increment: 1 },
+        note: dto.note !== undefined ? dto.note : undefined,
+        items: {
+          deleteMany: {},
+          create: snapshots,
+        },
+      },
+    });
+
+    const refreshed = await this.loadForParty(id, actorCompanyId);
+    const orderLabel = shortOrderLabel(id, { inquiry });
+    const actorLabel = order.buyer.name;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      dto.note ??
+        `${actorLabel} updated · ${refreshed.items.length} design${refreshed.items.length === 1 ? '' : 's'}`,
+      id,
+      {
+        status: OrderStatus.Requested,
+        itemCount: refreshed.items.length,
+        event: OrderChatEvent.OrderUpdated,
+        orderLabel,
+        actorLabel,
+        actorRole: 'buyer',
+        intent: order.intent,
+      },
+    );
+
+    const threadId = await this.threads.findDirectThreadId(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+    );
+    return {
+      ...this.serializer.toOrderView(refreshed, actorCompanyId, threadId),
+      canAmend: true,
+    };
   }
 
   async list(actorCompanyId: string, query: ListOrdersQuery): Promise<CursorPage<OrderView>> {
@@ -117,26 +247,136 @@ export class OrderService {
       order.buyerCompanyId,
       order.sellerCompanyId,
     );
-    return this.serializer.toOrderView(order, actorCompanyId, threadId);
+    const view = this.serializer.toOrderView(order, actorCompanyId, threadId);
+    return {
+      ...view,
+      canAmend: await this.buyerCanAmend(order, actorCompanyId),
+    };
   }
 
-  confirm(actorCompanyId: string, id: string): Promise<OrderView> {
-    return this.transition(actorCompanyId, id, {
-      actor: 'seller',
-      from: [OrderStatus.Requested],
-      next: OrderStatus.Confirmed,
-      data: { confirmedAt: new Date(), confirmedByCompanyId: actorCompanyId },
-    });
+  async confirm(actorCompanyId: string, id: string): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can do this.',
+      });
+    }
+    if (order.status !== OrderStatus.Requested) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: `An order that is ${order.status} cannot move to ${OrderStatus.Confirmed}.`,
+      });
+    }
+
+    const openIds = order.items
+      .filter((item) => item.lineStatus === OrderLineStatus.Open)
+      .map((item) => item.id);
+    if (openIds.length === 0) {
+      throw new ConflictException({
+        code: 'NO_OPEN_LINES',
+        message: 'There are no open lines left to confirm.',
+      });
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.orderItem.updateMany({
+        where: { id: { in: openIds } },
+        data: { lineStatus: OrderLineStatus.Confirmed },
+      }),
+      this.prisma.order.update({
+        where: { id },
+        data: {
+          status: OrderStatus.Confirmed,
+          confirmedAt: new Date(),
+          confirmedByCompanyId: actorCompanyId,
+          ...this.firmInquiryData(order.intent),
+        },
+      }),
+    ]);
+
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.seller.name;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} confirmed ${openIds.length} design${openIds.length === 1 ? '' : 's'}`,
+      id,
+      {
+        status: OrderStatus.Confirmed,
+        itemCount: openIds.length,
+        confirmedCount: openIds.length,
+        declinedCount: 0,
+        kind: 'order_lines',
+        event: OrderChatEvent.LinesDecided,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+      },
+    );
+    return this.emitAndGet(actorCompanyId, id, OrderStatus.Confirmed);
   }
 
-  /** Buyer accepts a seller quote — same transition as confirm, different actor. */
-  acceptQuote(actorCompanyId: string, id: string): Promise<OrderView> {
-    return this.transition(actorCompanyId, id, {
-      actor: 'buyer',
-      from: [OrderStatus.Requested],
-      next: OrderStatus.Confirmed,
-      data: { confirmedAt: new Date(), confirmedByCompanyId: actorCompanyId },
-    });
+  async acceptQuote(actorCompanyId: string, id: string): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.buyerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the buyer can do this.',
+      });
+    }
+    if (order.status !== OrderStatus.Requested) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: `An order that is ${order.status} cannot move to ${OrderStatus.Confirmed}.`,
+      });
+    }
+
+    const openWithRate = order.items.filter(
+      (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
+    );
+    if (openWithRate.length === 0) {
+      throw new ConflictException({
+        code: 'NO_QUOTE',
+        message: 'There is no quote to accept on open lines.',
+      });
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.orderItem.updateMany({
+        where: { id: { in: openWithRate.map((item) => item.id) } },
+        data: { lineStatus: OrderLineStatus.Confirmed },
+      }),
+      this.prisma.order.update({
+        where: { id },
+        data: {
+          status: OrderStatus.Confirmed,
+          confirmedAt: new Date(),
+          confirmedByCompanyId: actorCompanyId,
+          ...this.firmInquiryData(order.intent),
+        },
+      }),
+    ]);
+
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.buyer.name;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} accepted quote`,
+      id,
+      {
+        status: OrderStatus.Confirmed,
+        itemCount: openWithRate.length,
+        event: OrderChatEvent.QuoteAccepted,
+        orderLabel,
+        actorLabel,
+        actorRole: 'buyer',
+      },
+    );
+    return this.emitAndGet(actorCompanyId, id, OrderStatus.Confirmed);
   }
 
   async quote(actorCompanyId: string, id: string, dto: QuoteOrderDto): Promise<OrderView> {
@@ -155,7 +395,9 @@ export class OrderService {
     }
 
     const byId = new Map(order.items.map((item) => [item.id, item]));
-    for (const line of dto.items) {
+    const lines = [...dto.items];
+    const quotedIds = new Set(lines.map((line) => line.orderItemId));
+    for (const line of lines) {
       const item = byId.get(line.orderItemId);
       if (!item) {
         throw new NotFoundException({
@@ -163,11 +405,52 @@ export class OrderService {
           message: 'A quote line does not match this order.',
         });
       }
+      if (item.lineStatus === OrderLineStatus.Declined) {
+        throw new ConflictException({
+          code: 'LINE_DECLINED',
+          message: 'A declined line cannot be quoted again.',
+        });
+      }
+    }
+
+    // Any open line not in the quote payload is treated as unavailable.
+    for (const item of order.items) {
+      if (item.lineStatus === OrderLineStatus.Open && !quotedIds.has(item.id)) {
+        lines.push({ orderItemId: item.id, unavailable: true });
+      }
+    }
+
+    const supplyable = lines.filter((line) => !line.unavailable);
+    if (supplyable.length < 1) {
+      throw new BadRequestException({
+        code: 'EMPTY_QUOTE',
+        message: 'Quote at least one design, or decline the whole order.',
+      });
+    }
+
+    for (const line of lines) {
+      const item = byId.get(line.orderItemId)!;
+      if (line.unavailable) {
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: { lineStatus: OrderLineStatus.Declined },
+        });
+        continue;
+      }
+      const nextQty = line.quantity ?? item.quantity.toNumber();
+      const requested = item.requestedQuantity.toNumber();
+      if (nextQty > requested) {
+        throw new BadRequestException({
+          code: 'QTY_TOO_HIGH',
+          message: 'Offer quantity cannot exceed the requested quantity.',
+        });
+      }
       await this.prisma.orderItem.update({
         where: { id: item.id },
         data: {
-          rate: line.rate,
-          ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
+          rate: line.rate!,
+          quantity: nextQty,
+          lineStatus: OrderLineStatus.Open,
         },
       });
     }
@@ -176,25 +459,40 @@ export class OrderService {
       order.buyerCompanyId,
       order.sellerCompanyId,
     );
-    const total = dto.items.reduce((sum, line) => {
+    const total = supplyable.reduce((sum, line) => {
       const item = byId.get(line.orderItemId);
       const qty = line.quantity ?? item?.quantity.toNumber() ?? 0;
-      return sum + line.rate * qty;
+      return sum + (line.rate ?? 0) * qty;
     }, 0);
+    const declinedCount = lines.filter((line) => line.unavailable).length;
+    const partial = declinedCount > 0 || supplyable.some((line) => {
+      const item = byId.get(line.orderItemId);
+      const offered = line.quantity ?? item?.quantity.toNumber() ?? 0;
+      return offered < (item?.requestedQuantity.toNumber() ?? offered);
+    });
 
     await this.prisma.message.create({
       data: {
         threadId,
         senderCompanyId: actorCompanyId,
         type: MessageType.Rate,
-        body: dto.note ?? 'Quote',
+        body:
+          dto.note ??
+          (partial
+            ? `Quote · ${supplyable.length} of ${order.items.length} designs`
+            : 'Quote'),
         referenceId: order.id,
         metadata: {
           status: OrderStatus.Requested,
-          itemCount: dto.items.length,
+          itemCount: supplyable.length,
           totalLabel: `₹${total.toLocaleString('en-IN')}`,
           validUntil: dto.validUntil ?? null,
           quoted: true,
+          partial,
+          event: OrderChatEvent.QuoteSent,
+          orderLabel: shortOrderLabel(order.id),
+          actorLabel: order.seller.name,
+          actorRole: 'seller',
         },
       },
     });
@@ -203,54 +501,518 @@ export class OrderService {
       data: { lastMessageAt: new Date() },
     });
 
+    if (order.intent === OrderIntent.Inquiry) {
+      await this.prisma.order.update({
+        where: { id },
+        data: { intent: OrderIntent.Order },
+      });
+    }
+
     return this.get(actorCompanyId, id);
   }
 
-  decline(actorCompanyId: string, id: string): Promise<OrderView> {
-    return this.transition(actorCompanyId, id, {
+  async decideLines(
+    actorCompanyId: string,
+    id: string,
+    dto: DecideOrderLinesDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can do this.',
+      });
+    }
+    if (order.status !== OrderStatus.Requested) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Lines can only be decided while the order is requested.',
+      });
+    }
+
+    const byId = new Map(order.items.map((item) => [item.id, item]));
+    let confirmed = 0;
+    let declined = 0;
+
+    for (const line of dto.items) {
+      const item = byId.get(line.orderItemId);
+      if (!item) {
+        throw new NotFoundException({
+          code: 'INVALID_ITEM',
+          message: 'A line does not match this order.',
+        });
+      }
+      if (item.lineStatus !== OrderLineStatus.Open) {
+        throw new ConflictException({
+          code: 'LINE_NOT_OPEN',
+          message: 'Only open lines can be confirmed or declined.',
+        });
+      }
+      if (line.action === 'decline') {
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: { lineStatus: OrderLineStatus.Declined },
+        });
+        declined += 1;
+        continue;
+      }
+      const nextQty = line.quantity ?? item.quantity.toNumber();
+      if (nextQty > item.requestedQuantity.toNumber()) {
+        throw new BadRequestException({
+          code: 'QTY_TOO_HIGH',
+          message: 'Confirm quantity cannot exceed the requested quantity.',
+        });
+      }
+      await this.prisma.orderItem.update({
+        where: { id: item.id },
+        data: {
+          quantity: nextQty,
+          lineStatus: OrderLineStatus.Confirmed,
+        },
+      });
+      confirmed += 1;
+    }
+
+    const refreshed = await this.loadForParty(id, actorCompanyId);
+    const stillOpen = refreshed.items.some((item) => item.lineStatus === OrderLineStatus.Open);
+    const anyConfirmed = refreshed.items.some(
+      (item) => item.lineStatus === OrderLineStatus.Confirmed,
+    );
+    const allDeclined = refreshed.items.every(
+      (item) => item.lineStatus === OrderLineStatus.Declined,
+    );
+
+    let nextStatus: string = order.status;
+    const firmInquiry = confirmed > 0 ? this.firmInquiryData(order.intent) : {};
+    if (allDeclined) {
+      nextStatus = OrderStatus.Declined;
+      await this.prisma.order.update({
+        where: { id },
+        data: { status: OrderStatus.Declined, closedAt: new Date() },
+      });
+    } else if (!stillOpen && anyConfirmed) {
+      nextStatus = OrderStatus.Confirmed;
+      await this.prisma.order.update({
+        where: { id },
+        data: {
+          status: OrderStatus.Confirmed,
+          confirmedAt: new Date(),
+          confirmedByCompanyId: actorCompanyId,
+          ...firmInquiry,
+        },
+      });
+    } else if (Object.keys(firmInquiry).length > 0) {
+      await this.prisma.order.update({
+        where: { id },
+        data: firmInquiry,
+      });
+    }
+
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.seller.name;
+    const notice = dto.note ?? linesDecidedNotice(actorLabel, confirmed, declined);
+    const activeCount = refreshed.items.filter(
+      (item) => item.lineStatus !== OrderLineStatus.Declined,
+    ).length;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      notice,
+      id,
+      {
+        status: nextStatus,
+        itemCount: activeCount,
+        confirmedCount: confirmed,
+        declinedCount: declined,
+        kind: 'order_lines',
+        event: OrderChatEvent.LinesDecided,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+      },
+    );
+
+    if (nextStatus !== order.status) {
+      return this.emitAndGet(actorCompanyId, id, nextStatus);
+    }
+    return this.get(actorCompanyId, id);
+  }
+
+  async decline(actorCompanyId: string, id: string): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    await this.transition(actorCompanyId, id, {
       actor: 'seller',
       from: [OrderStatus.Requested],
       next: OrderStatus.Declined,
       data: { closedAt: new Date() },
     });
+    await this.prisma.orderItem.updateMany({
+      where: { orderId: id, lineStatus: OrderLineStatus.Open },
+      data: { lineStatus: OrderLineStatus.Declined },
+    });
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.seller.name;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} declined`,
+      id,
+      {
+        status: OrderStatus.Declined,
+        itemCount: order.items.length,
+        event: OrderChatEvent.OrderDeclined,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+      },
+    );
+    return this.get(actorCompanyId, id);
   }
 
-  dispatch(actorCompanyId: string, id: string, dto: DispatchDto): Promise<OrderView> {
-    return this.transition(actorCompanyId, id, {
-      actor: 'seller',
-      from: [OrderStatus.Confirmed],
-      next: OrderStatus.Dispatched,
+  async dispatch(actorCompanyId: string, id: string, dto: DispatchDto): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can do this.',
+      });
+    }
+    if (order.status !== OrderStatus.Confirmed) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Only a confirmed order can be dispatched.',
+      });
+    }
+
+    const shippedByItem = this.shippedTotals(order);
+    const candidates =
+      dto.items ??
+      order.items
+        .filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
+        .map((item) => {
+          const shipped = shippedByItem.get(item.id) ?? 0;
+          const remaining = item.quantity.toNumber() - shipped;
+          return { orderItemId: item.id, quantity: remaining };
+        })
+        .filter((line) => line.quantity > 0);
+
+    if (candidates.length < 1) {
+      throw new BadRequestException({
+        code: 'NOTHING_TO_SHIP',
+        message: 'There is nothing left to dispatch.',
+      });
+    }
+
+    const byId = new Map(order.items.map((item) => [item.id, item]));
+    for (const line of candidates) {
+      const item = byId.get(line.orderItemId);
+      if (!item || item.lineStatus === OrderLineStatus.Declined) {
+        throw new NotFoundException({
+          code: 'INVALID_ITEM',
+          message: 'A dispatch line does not match this order.',
+        });
+      }
+      if (
+        item.lineStatus !== OrderLineStatus.Confirmed &&
+        item.lineStatus !== OrderLineStatus.Dispatched
+      ) {
+        throw new ConflictException({
+          code: 'LINE_NOT_SHIPPABLE',
+          message: 'Only confirmed lines can be dispatched.',
+        });
+      }
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      const remaining = item.quantity.toNumber() - shipped;
+      if (line.quantity > remaining + 1e-9) {
+        throw new BadRequestException({
+          code: 'QTY_TOO_HIGH',
+          message: 'Dispatch quantity exceeds what is left to ship.',
+        });
+      }
+    }
+
+    const now = new Date();
+    await this.prisma.orderShipment.create({
       data: {
-        dispatchedAt: new Date(),
+        orderId: id,
         transporter: dto.transporter ?? null,
         lrNumber: dto.lrNumber ?? null,
         parcelCount: dto.parcelCount ?? null,
+        dispatchedAt: now,
+        items: {
+          create: candidates.map((line) => ({
+            orderItemId: line.orderItemId,
+            quantity: line.quantity,
+          })),
+        },
       },
     });
+
+    // Refresh shipped totals and flip line/order status when fully out.
+    const after = await this.loadForParty(id, actorCompanyId);
+    const shippedAfter = this.shippedTotals(after);
+    for (const item of after.items) {
+      if (item.lineStatus === OrderLineStatus.Declined) continue;
+      if (item.lineStatus !== OrderLineStatus.Confirmed && item.lineStatus !== OrderLineStatus.Dispatched) {
+        continue;
+      }
+      const shipped = shippedAfter.get(item.id) ?? 0;
+      if (shipped + 1e-9 >= item.quantity.toNumber()) {
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: { lineStatus: OrderLineStatus.Dispatched },
+        });
+      }
+    }
+
+    const final = await this.loadForParty(id, actorCompanyId);
+    const shippable = final.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const allOut = shippable.every((item) => {
+      if (item.lineStatus === OrderLineStatus.Open) return false;
+      const shipped = this.shippedTotals(final).get(item.id) ?? 0;
+      return (
+        item.lineStatus === OrderLineStatus.Dispatched ||
+        item.lineStatus === OrderLineStatus.Delivered ||
+        shipped + 1e-9 >= item.quantity.toNumber()
+      );
+    });
+    const hasConfirmed = shippable.some((item) => item.lineStatus === OrderLineStatus.Confirmed);
+
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.seller.name;
+    const lrNote = dto.lrNumber ? ` · LR ${dto.lrNumber}` : '';
+
+    if (allOut && !hasConfirmed) {
+      await this.prisma.order.update({
+        where: { id },
+        data: {
+          status: OrderStatus.Dispatched,
+          dispatchedAt: now,
+          transporter: dto.transporter ?? order.transporter,
+          lrNumber: dto.lrNumber ?? order.lrNumber,
+          parcelCount: dto.parcelCount ?? order.parcelCount,
+        },
+      });
+      await this.postOrderCard(
+        order.buyerCompanyId,
+        order.sellerCompanyId,
+        actorCompanyId,
+        `${actorLabel} dispatched${lrNote}`,
+        id,
+        {
+          status: OrderStatus.Dispatched,
+          itemCount: candidates.length,
+          event: OrderChatEvent.OrderDispatched,
+          orderLabel,
+          actorLabel,
+          actorRole: 'seller',
+          partial: false,
+          lrNumber: dto.lrNumber ?? null,
+        },
+      );
+      return this.emitAndGet(actorCompanyId, id, OrderStatus.Dispatched);
+    }
+
+    // Partial ship — stay confirmed; keep legacy dispatch fields on latest LR for list UIs.
+    await this.prisma.order.update({
+      where: { id },
+      data: {
+        transporter: dto.transporter ?? order.transporter,
+        lrNumber: dto.lrNumber ?? order.lrNumber,
+        parcelCount: dto.parcelCount ?? order.parcelCount,
+      },
+    });
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} dispatched part${lrNote}`,
+      id,
+      {
+        status: OrderStatus.Confirmed,
+        itemCount: candidates.length,
+        event: OrderChatEvent.OrderDispatched,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+        partial: true,
+        lrNumber: dto.lrNumber ?? null,
+      },
+    );
+    return this.get(actorCompanyId, id);
   }
 
   async deliver(actorCompanyId: string, id: string): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.buyerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the buyer can do this.',
+      });
+    }
+    if (order.status !== OrderStatus.Dispatched) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Mark the order fully dispatched before delivering.',
+      });
+    }
+
     const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
     const closesAt = days > 0 ? new Date(Date.now() + days * DAY_MS) : null;
+    await this.prisma.orderItem.updateMany({
+      where: {
+        orderId: id,
+        lineStatus: { in: [OrderLineStatus.Dispatched, OrderLineStatus.Confirmed] },
+      },
+      data: { lineStatus: OrderLineStatus.Delivered },
+    });
     const view = await this.transition(actorCompanyId, id, {
       actor: 'buyer',
       from: [OrderStatus.Dispatched],
       next: OrderStatus.Delivered,
       data: { deliveredAt: new Date(), returnWindowClosesAt: closesAt },
     });
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.buyer.name;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} marked delivered`,
+      id,
+      {
+        status: OrderStatus.Delivered,
+        itemCount: order.items.length,
+        event: OrderChatEvent.OrderDelivered,
+        orderLabel,
+        actorLabel,
+        actorRole: 'buyer',
+      },
+    );
     if (closesAt) {
       await this.jobs.enqueue(JobType.ReturnWindowExpire, { orderId: id }, closesAt);
     }
     return view;
   }
 
-  cancel(actorCompanyId: string, id: string): Promise<OrderView> {
-    return this.transition(actorCompanyId, id, {
+  async cancel(actorCompanyId: string, id: string): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    const view = await this.transition(actorCompanyId, id, {
       actor: 'buyer',
       from: [OrderStatus.Requested, OrderStatus.Confirmed],
       next: OrderStatus.Cancelled,
       data: { closedAt: new Date() },
     });
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.buyer.name;
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} cancelled`,
+      id,
+      {
+        status: OrderStatus.Cancelled,
+        itemCount: order.items.length,
+        event: OrderChatEvent.OrderCancelled,
+        orderLabel,
+        actorLabel,
+        actorRole: 'buyer',
+      },
+    );
+    return view;
+  }
+
+  private shippedTotals(order: {
+    shipments?: { items: { orderItemId: string; quantity: Prisma.Decimal }[] }[];
+  }): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const shipment of order.shipments ?? []) {
+      for (const line of shipment.items) {
+        map.set(line.orderItemId, (map.get(line.orderItemId) ?? 0) + line.quantity.toNumber());
+      }
+    }
+    return map;
+  }
+
+  /** Clear soft rate-ask intent when seller/buyer commits. */
+  private firmInquiryData(intent: string | null | undefined): { intent?: string } {
+    return intent === OrderIntent.Inquiry ? { intent: OrderIntent.Order } : {};
+  }
+
+  /** Buyer may replace lines until the seller quotes/confirms/declines. */
+  private async buyerCanAmend(
+    order: {
+      id: string;
+      kind: string;
+      status: string;
+      buyerCompanyId: string;
+      sellerCompanyId: string;
+      items: { lineStatus: string }[];
+    },
+    actorCompanyId: string,
+  ): Promise<boolean> {
+    if (order.buyerCompanyId !== actorCompanyId) return false;
+    if (order.status !== OrderStatus.Requested) return false;
+    if (order.kind === OrderKind.Photo) return false;
+    if (!order.items.every((item) => item.lineStatus === OrderLineStatus.Open)) return false;
+    const sellerMoved = await this.prisma.message.findFirst({
+      where: {
+        referenceId: order.id,
+        senderCompanyId: order.sellerCompanyId,
+        type: { in: [MessageType.Rate, MessageType.OrderCard, MessageType.System] },
+      },
+      select: { id: true },
+    });
+    return !sellerMoved;
+  }
+
+  /** Order card in chat so either party can open the order from the notice. */
+  private async postOrderCard(
+    buyerCompanyId: string,
+    sellerCompanyId: string,
+    senderCompanyId: string,
+    body: string,
+    orderId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    const threadId = await this.threads.ensureTradeThread(buyerCompanyId, sellerCompanyId);
+    await this.prisma.message.create({
+      data: {
+        threadId,
+        senderCompanyId,
+        type: MessageType.OrderCard,
+        body,
+        referenceId: orderId,
+        metadata: metadata as Prisma.InputJsonValue,
+      },
+    });
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: new Date() },
+    });
+  }
+
+  private async emitAndGet(
+    actorCompanyId: string,
+    id: string,
+    status: string,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    this.events.orderStatusChanged({
+      orderId: order.id,
+      buyerCompanyId: order.buyerCompanyId,
+      sellerCompanyId: order.sellerCompanyId,
+      actorCompanyId,
+      status,
+    });
+    const threadId = await this.threads.findDirectThreadId(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+    );
+    return this.serializer.toOrderView(order, actorCompanyId, threadId);
   }
 
   private async transition(
@@ -315,6 +1077,8 @@ export class OrderService {
         image: item.images[0] ?? null,
         images: item.images,
         quantity: item.quantity,
+        requestedQuantity: item.quantity,
+        lineStatus: OrderLineStatus.Open,
         note: item.note ?? null,
       }));
     }
@@ -342,8 +1106,10 @@ export class OrderService {
         rate: product.rate,
         unit: product.unit ?? item.unit ?? null,
         image: product.images[0] ?? null,
-        images: [],
+        images: product.images,
         quantity: item.quantity,
+        requestedQuantity: item.quantity,
+        lineStatus: OrderLineStatus.Open,
         note: item.note ?? null,
       };
     });

@@ -54,7 +54,7 @@ describe('CompanyService.listPublishedCollections', () => {
           coverImage: 'https://img/cover',
           status: 'published',
           updatedAt: new Date('2026-08-01T00:00:00.000Z'),
-          company: { id: 'seller', name: 'Ravi Textiles' },
+          company: { id: 'seller', name: 'Surat Silk House' },
           _count: { products: 4 },
           products: [
             { product: { images: ['https://img/a'] } },

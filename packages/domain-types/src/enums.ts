@@ -136,6 +136,17 @@ export const OrderKind = {
 export type OrderKind = (typeof OrderKind)[keyof typeof OrderKind];
 export const orderKindValues = values(OrderKind);
 
+/**
+ * Commitment level. Inquiry = rate ask (soft); becomes order when the seller
+ * quotes / confirms lines or the buyer accepts a quote.
+ */
+export const OrderIntent = {
+  Order: 'order',
+  Inquiry: 'inquiry',
+} as const;
+export type OrderIntent = (typeof OrderIntent)[keyof typeof OrderIntent];
+export const orderIntentValues = values(OrderIntent);
+
 /** The perspective of a company on a shared Order. */
 export const OrderDirection = {
   Buying: 'buying',
@@ -143,6 +154,20 @@ export const OrderDirection = {
 } as const;
 export type OrderDirection = (typeof OrderDirection)[keyof typeof OrderDirection];
 export const orderDirectionValues = values(OrderDirection);
+
+/**
+ * Per-line outcome on an order. Order.status is a rollup of these lines
+ * (plus whole-order decline/cancel).
+ */
+export const OrderLineStatus = {
+  Open: 'open',
+  Declined: 'declined',
+  Confirmed: 'confirmed',
+  Dispatched: 'dispatched',
+  Delivered: 'delivered',
+} as const;
+export type OrderLineStatus = (typeof OrderLineStatus)[keyof typeof OrderLineStatus];
+export const orderLineStatusValues = values(OrderLineStatus);
 
 /** Samples map onto the same stages as orders rather than inventing vocabulary. */
 export const SampleStatus = {

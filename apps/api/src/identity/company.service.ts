@@ -3,6 +3,7 @@ import { Prisma, type Company } from '@prisma/client';
 import {
   CollectionStatus,
   MembershipRole,
+  ProductStatus,
   PublishAudience,
   type AuthTokens,
   type CollectionCard,
@@ -10,6 +11,7 @@ import {
   type CreateCompanyDto,
   type CursorPage,
   type CursorPageQuery,
+  type ExploreProductCard,
   type OwnCompanyProfile,
   type PublicCompanyProfile,
   type UpdateCompanyDto,
@@ -183,6 +185,54 @@ export class CompanyService {
       include: { user: { select: { name: true, phone: true } } },
     });
     return this.serializer.toContactPoints(memberships);
+  }
+
+  /**
+   * Published designs on Explore for a company's shop (no collection required).
+   * Blocked viewers get the same 404 as a missing business.
+   */
+  async listPublishedDesigns(
+    viewerCompanyId: string,
+    targetId: string,
+    query: CursorPageQuery,
+  ): Promise<CursorPage<ExploreProductCard>> {
+    if (await this.visibility.isBlocked(viewerCompanyId, targetId)) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
+    }
+    const company = await this.prisma.company.findUnique({ where: { id: targetId } });
+    if (!company) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
+    }
+
+    const rows = await this.prisma.product.findMany({
+      where: {
+        companyId: targetId,
+        status: ProductStatus.Published,
+        postedToMarketAt: { not: null },
+        OR: [
+          { audience: { not: PublishAudience.Selected } },
+          {
+            audience: PublishAudience.Selected,
+            audienceCompanyIds: { has: viewerCompanyId },
+          },
+          ...(viewerCompanyId === targetId ? [{ companyId: targetId }] : []),
+        ],
+      },
+      include: { company: true },
+      take: query.limit + 1,
+      orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    });
+
+    return toCursorPage(rows, query.limit, (row): ExploreProductCard => ({
+      id: row.id,
+      name: row.name,
+      images: row.images,
+      rate: row.rate === null ? null : row.rate.toNumber(),
+      unit: row.unit,
+      postedAt: (row.postedToMarketAt ?? row.createdAt).toISOString(),
+      company: this.serializer.toPublicSummary(row.company),
+    }));
   }
 
   /**

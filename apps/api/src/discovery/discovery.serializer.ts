@@ -42,7 +42,8 @@ export class DiscoverySerializer {
       imageCount: preview.imageCount,
       productCount: collection._count.products,
       status: collection.status,
-      updatedAt: collection.updatedAt.toISOString(),
+      // Explore “when” = last publish / new-design activity when set.
+      updatedAt: (collection.exploreActivityAt ?? collection.updatedAt).toISOString(),
       company: this.companySerializer.toPublicSummary(collection.company),
     };
   }

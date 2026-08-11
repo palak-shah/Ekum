@@ -1,0 +1,21 @@
+---
+description: Features are done only when tests are written and passing
+alwaysApply: true
+---
+
+# Feature tests required
+
+A feature is **not done** until tests exist and pass.
+
+## Required before claiming done
+
+1. **Write tests** for new/changed behavior (API: colocated `*.spec.ts` with vitest; domain/contracts covered where logic lives).
+2. **Run the relevant tests** (e.g. `pnpm --filter @ekum/api test -- path/to/spec`).
+3. **Confirm pass** — do not mark todos complete or call the work finished on green code alone.
+4. If tests fail, fix implementation or tests until they pass.
+
+## Scope
+
+- Covers bug fixes and behavior changes that alter contracts or business rules, not pure copy/CSS tweaks.
+- Prefer focused unit tests of the service/use-case path over broad e2e unless the feature needs UI flow coverage.
+- Match existing test style in the nearest `*.spec.ts` (mocks, fixtures, assertion tone).

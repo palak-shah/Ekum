@@ -13,8 +13,10 @@ export function MorePage() {
   const { buying, selling, canPublish } = useTradePresence();
 
   const menu = [
-    ...(selling ? [{ to: '/catalog', label: 'My collection' }] : []),
+    ...(selling ? [{ to: '/catalog', label: 'My designs & collections' }] : []),
     ...(selling ? [{ to: '/buyers', label: 'My buyers' }] : []),
+    { to: '/samples', label: 'Samples' },
+    { to: '/returns', label: 'Returns' },
     ...(selling && canPublish ? [{ to: '/broadcast', label: 'Broadcast' }] : []),
     ...(company.data?.capabilities.refer ? [{ to: '/referrals', label: 'Referrals' }] : []),
     { to: '/settings', label: 'Settings' },

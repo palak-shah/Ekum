@@ -4,6 +4,8 @@ import type {
   Complaint,
   Order,
   OrderItem,
+  OrderShipment,
+  OrderShipmentItem,
   Prisma,
   Return,
   ReturnItem,
@@ -11,15 +13,27 @@ import type {
 } from '@prisma/client';
 import {
   OrderDirection,
+  OrderLineStatus,
   type ComplaintView,
   type OrderItemView,
+  type OrderShipmentView,
   type OrderView,
   type ReturnView,
   type SampleView,
 } from '@ekum/domain-types';
 import { CompanySerializer } from '../access/company.serializer';
 
-type OrderWithRelations = Order & { buyer: Company; seller: Company; items: OrderItem[] };
+type ShipmentWithItems = OrderShipment & {
+  items: (OrderShipmentItem & { orderItem: Pick<OrderItem, 'id' | 'name'> })[];
+};
+
+type OrderWithRelations = Order & {
+  buyer: Company;
+  seller: Company;
+  items: OrderItem[];
+  shipments?: ShipmentWithItems[];
+};
+
 type SampleWithRelations = Sample & { buyer: Company; seller: Company };
 type ReturnWithRelations = Return & {
   items: ReturnItem[];
@@ -52,10 +66,40 @@ export class OrderSerializer {
       confirmedByName =
         confirmedByCompanyId === viewerCompanyId ? 'you' : order.seller.name;
     }
+
+    const shippedByItem = new Map<string, number>();
+    for (const shipment of order.shipments ?? []) {
+      for (const line of shipment.items) {
+        shippedByItem.set(
+          line.orderItemId,
+          (shippedByItem.get(line.orderItemId) ?? 0) + line.quantity.toNumber(),
+        );
+      }
+    }
+
+    const items = order.items.map((item) => this.toItemView(item, shippedByItem.get(item.id) ?? 0));
+    const shipments = (order.shipments ?? [])
+      .slice()
+      .sort((a, b) => b.dispatchedAt.getTime() - a.dispatchedAt.getTime())
+      .map((shipment) => this.toShipmentView(shipment));
+
+    const latest = shipments[0] ?? null;
+    const shippable = items.filter(
+      (item) =>
+        item.lineStatus === OrderLineStatus.Confirmed ||
+        item.lineStatus === OrderLineStatus.Dispatched ||
+        item.lineStatus === OrderLineStatus.Delivered,
+    );
+    const remaining = shippable.reduce((sum, item) => sum + item.remainingQuantity, 0);
+    const shippedTotal = shippable.reduce((sum, item) => sum + item.shippedQuantity, 0);
+    const partiallyShipped = shippedTotal > 0 && remaining > 0;
+
     return {
       id: order.id,
       kind: order.kind,
+      intent: order.intent ?? 'order',
       status: order.status,
+      amendCount: order.amendCount ?? 0,
       direction: buying ? OrderDirection.Buying : OrderDirection.Selling,
       note: order.note,
       buyerCompanyId: order.buyerCompanyId,
@@ -63,20 +107,30 @@ export class OrderSerializer {
       buyerName: order.buyer.name,
       sellerName: order.seller.name,
       counterpart: this.companySerializer.toPublicSummary(buying ? order.seller : order.buyer),
-      items: order.items.map((item) => this.toItemView(item)),
-      dispatch: order.dispatchedAt
+      items,
+      shipments,
+      dispatch: latest
         ? {
-            transporter: order.transporter,
-            lrNumber: order.lrNumber,
-            parcelCount: order.parcelCount,
-            dispatchedAt: order.dispatchedAt.toISOString(),
+            transporter: latest.transporter,
+            lrNumber: latest.lrNumber,
+            parcelCount: latest.parcelCount,
+            dispatchedAt: latest.dispatchedAt,
           }
-        : null,
+        : order.dispatchedAt
+          ? {
+              transporter: order.transporter,
+              lrNumber: order.lrNumber,
+              parcelCount: order.parcelCount,
+              dispatchedAt: order.dispatchedAt.toISOString(),
+            }
+          : null,
       threadId,
       confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
       confirmedByName,
       confirmedByRole,
       deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
+      closedAt: order.closedAt ? order.closedAt.toISOString() : null,
+      partiallyShipped,
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     };
@@ -148,7 +202,12 @@ export class OrderSerializer {
     };
   }
 
-  private toItemView(item: OrderItem): OrderItemView {
+  private toItemView(item: OrderItem, shippedQuantity: number): OrderItemView {
+    const quantity = item.quantity.toNumber();
+    const lineStatus = (item.lineStatus || OrderLineStatus.Open) as OrderLineStatus;
+    const shippable =
+      lineStatus === OrderLineStatus.Confirmed || lineStatus === OrderLineStatus.Dispatched;
+    const remaining = shippable ? Math.max(0, quantity - shippedQuantity) : 0;
     return {
       id: item.id,
       productId: item.productId,
@@ -158,8 +217,27 @@ export class OrderSerializer {
       unit: item.unit,
       image: item.image,
       images: item.images,
-      quantity: item.quantity.toNumber(),
+      quantity,
+      requestedQuantity: item.requestedQuantity.toNumber(),
+      lineStatus,
+      shippedQuantity,
+      remainingQuantity: remaining,
       note: item.note,
+    };
+  }
+
+  private toShipmentView(shipment: ShipmentWithItems): OrderShipmentView {
+    return {
+      id: shipment.id,
+      transporter: shipment.transporter,
+      lrNumber: shipment.lrNumber,
+      parcelCount: shipment.parcelCount,
+      dispatchedAt: shipment.dispatchedAt.toISOString(),
+      items: shipment.items.map((line) => ({
+        orderItemId: line.orderItemId,
+        name: line.orderItem.name,
+        quantity: line.quantity.toNumber(),
+      })),
     };
   }
 }

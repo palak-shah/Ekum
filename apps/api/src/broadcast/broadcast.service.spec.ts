@@ -83,4 +83,46 @@ describe('BroadcastService.send', () => {
     await expect(service.send('me', dto)).rejects.toThrow();
     expect(broadcastSent).not.toHaveBeenCalled();
   });
+
+  it('rejects product_card when the product is not published', async () => {
+    const { service, broadcastSent } = makeService();
+    const prisma = service['prisma'] as unknown as {
+      product: { findFirst: ReturnType<typeof vi.fn> };
+    };
+    prisma.product = {
+      findFirst: vi.fn(async () => null),
+    };
+
+    const dto = {
+      type: MessageType.ProductCard,
+      subject: 'New design',
+      referenceId: 'prod-draft',
+      recipientCompanyIds: ['connected-co'],
+      listIds: [],
+    } as SendBroadcastDto;
+
+    await expect(service.send('me', dto)).rejects.toThrow();
+    expect(broadcastSent).not.toHaveBeenCalled();
+  });
+
+  it('rejects collection_card when the collection is not published', async () => {
+    const { service, broadcastSent } = makeService();
+    const prisma = service['prisma'] as unknown as {
+      collection: { findFirst: ReturnType<typeof vi.fn> };
+    };
+    prisma.collection = {
+      findFirst: vi.fn(async () => null),
+    };
+
+    const dto = {
+      type: MessageType.CollectionCard,
+      subject: 'Wedding edit',
+      referenceId: 'col-draft',
+      recipientCompanyIds: ['connected-co'],
+      listIds: [],
+    } as SendBroadcastDto;
+
+    await expect(service.send('me', dto)).rejects.toThrow(/published collection/i);
+    expect(broadcastSent).not.toHaveBeenCalled();
+  });
 });

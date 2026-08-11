@@ -16,6 +16,7 @@ import {
   MessageType,
   NotificationType,
   OrderKind,
+  OrderLineStatus,
   OrderStatus,
   ProductStatus,
   SuperCategory,
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
     create: { id: U_RAVI, phone: '+919800000001', name: 'Ravi' },
     update: { name: 'Ravi' },
   });
+  // Person at +919800000002 stays "Meena"; her business is not also named Meena.
   await prisma.user.upsert({
     where: { id: U_MEENA },
     create: { id: U_MEENA, phone: '+919800000002', name: 'Meena' },
@@ -45,11 +47,13 @@ async function main(): Promise<void> {
   });
 
   // --- Businesses ---------------------------------------------------------
+  // Person at +919800000001 stays "Ravi"; business names stay distinct so Explore
+  // / chats / notifications are not a wall of the same label.
   await prisma.company.upsert({
     where: { id: RAVI },
     create: {
       id: RAVI,
-      name: 'Ravi',
+      name: 'Surat Silk House',
       city: 'Surat',
       about: 'Wholesale sarees and dress material. Weekly new designs.',
       gstNumber: '24ABCDE1234F1Z5',
@@ -62,7 +66,7 @@ async function main(): Promise<void> {
       superCategories: [SuperCategory.WomensApparel, SuperCategory.Accessories],
     },
     update: {
-      name: 'Ravi',
+      name: 'Surat Silk House',
       canPublish: true,
       verification: VerificationStatus.GstVerified,
       buyCategories: ['Fabric'],
@@ -73,14 +77,14 @@ async function main(): Promise<void> {
     where: { id: MEENA },
     create: {
       id: MEENA,
-      name: 'Meena',
+      name: 'Jaipur Emporium',
       city: 'Jaipur',
       about: 'Multi-brand retail store.',
       buyCategories: ['Sarees', 'Dress Material'],
       superCategories: [SuperCategory.WomensApparel],
     },
     update: {
-      name: 'Meena',
+      name: 'Jaipur Emporium',
       superCategories: [SuperCategory.WomensApparel],
     },
   });
@@ -270,6 +274,8 @@ async function main(): Promise<void> {
             unit: 'pc',
             image: 'https://picsum.photos/seed/banarasi/600/800',
             quantity: 10,
+            requestedQuantity: 10,
+            lineStatus: OrderLineStatus.Delivered,
           },
         ],
       },
@@ -295,11 +301,76 @@ async function main(): Promise<void> {
             rate: 640,
             unit: 'set',
             quantity: 25,
+            requestedQuantity: 25,
+            lineStatus: OrderLineStatus.Open,
+          },
+          {
+            id: 'seed-oi-2b',
+            productId: 'seed-prod-4',
+            name: 'Kanjeevaram Classic',
+            sku: 'KJV-088',
+            rate: 5200,
+            unit: 'pc',
+            image: 'https://picsum.photos/seed/kanjee/600/800',
+            quantity: 4,
+            requestedQuantity: 4,
+            lineStatus: OrderLineStatus.Open,
           },
         ],
       },
     },
     update: { status: OrderStatus.Requested },
+  });
+  // Ensure the walkthrough order has two open lines (upsert update path skips items).
+  await prisma.orderItem.upsert({
+    where: { id: 'seed-oi-2' },
+    create: {
+      id: 'seed-oi-2',
+      orderId: 'seed-order-2',
+      productId: 'seed-prod-3',
+      name: 'Cotton Dress Material',
+      sku: 'CDM-207',
+      rate: 640,
+      unit: 'set',
+      quantity: 25,
+      requestedQuantity: 25,
+      lineStatus: OrderLineStatus.Open,
+    },
+    update: {
+      quantity: 25,
+      requestedQuantity: 25,
+      lineStatus: OrderLineStatus.Open,
+      rate: 640,
+    },
+  });
+  await prisma.orderItem.upsert({
+    where: { id: 'seed-oi-2b' },
+    create: {
+      id: 'seed-oi-2b',
+      orderId: 'seed-order-2',
+      productId: 'seed-prod-4',
+      name: 'Kanjeevaram Classic',
+      sku: 'KJV-088',
+      rate: 5200,
+      unit: 'pc',
+      image: 'https://picsum.photos/seed/kanjee/600/800',
+      quantity: 4,
+      requestedQuantity: 4,
+      lineStatus: OrderLineStatus.Open,
+    },
+    update: {
+      quantity: 4,
+      requestedQuantity: 4,
+      lineStatus: OrderLineStatus.Open,
+      rate: 5200,
+    },
+  });
+  await prisma.orderItem.update({
+    where: { id: 'seed-oi-1' },
+    data: {
+      requestedQuantity: 10,
+      lineStatus: OrderLineStatus.Delivered,
+    },
   });
 
   // --- Conversation -------------------------------------------------------
@@ -350,11 +421,11 @@ async function main(): Promise<void> {
       recipientCompanyId: RAVI,
       type: NotificationType.Order,
       title: 'New order request',
-      body: 'Meena placed an order request.',
+      body: 'Jaipur Emporium placed an order request.',
       refType: 'order',
       refId: 'seed-order-2',
     },
-    update: { body: 'Meena placed an order request.' },
+    update: { body: 'Jaipur Emporium placed an order request.' },
   });
   await prisma.notification.upsert({
     where: { id: 'seed-notif-2' },
@@ -363,13 +434,13 @@ async function main(): Promise<void> {
       recipientCompanyId: MEENA,
       type: NotificationType.Order,
       title: 'Rates on your order',
-      body: 'Ravi added rates — accept the quote to confirm.',
+      body: 'Surat Silk House added rates — accept the quote to confirm.',
       refType: 'order',
       refId: 'seed-order-2',
     },
     update: {
       title: 'Rates on your order',
-      body: 'Ravi added rates — accept the quote to confirm.',
+      body: 'Surat Silk House added rates — accept the quote to confirm.',
     },
   });
   await prisma.notification.upsert({
@@ -378,13 +449,13 @@ async function main(): Promise<void> {
       id: 'seed-notif-3',
       recipientCompanyId: MEENA,
       type: NotificationType.Collection,
-      title: 'New drop from Ravi',
+      title: 'New drop from Surat Silk House',
       body: 'Wedding Edit 2026 is live.',
       refType: 'collection',
       refId: 'seed-col-1',
     },
     update: {
-      title: 'New drop from Ravi',
+      title: 'New drop from Surat Silk House',
       body: 'Wedding Edit 2026 is live.',
     },
   });
