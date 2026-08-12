@@ -117,4 +117,4 @@ pnpm test:e2e:functional   # if journeys affected
 - [x] Step 3 — inventory restored changes by module
 - [x] Step 4 — Completeness Review(s) → Proceed
 - [x] Step 5 — implement approved scope + verify (units green; smoke 2/2; orders+chat functional green; collections flaky unrelated)
-- [ ] Step 6 — commit, push, PR
+- [x] Step 6 — commit + push `wip/product-ongoing` (PR: open manually vs `quality-gate-wave1`; `gh` unavailable)
