@@ -76,7 +76,7 @@ Within return window after **full** deliver → request → seller approve / par
 | Accept quote | Only after the seller posts a Rate card — catalog rates on lines (e.g. after Ask for rates) do not count |
 | Chat totals | Rate card `totalLabel` is frozen in message metadata — earlier order cards do not pick up later rates |
 | Shipments | Each dispatch is an `OrderShipment` with its own **LR** (required); transporter/parcels optional; history is not overwritten |
-| Action cards | Each transition posts a new `order_card` with frozen `event` / `status` / `actorLabel` / `orderLabel` — never patch older cards |
+| Action cards | One living `order_card` / `rate` per order in the trade thread — lifecycle transitions **update that row** (preserve `metadata.quoted`); do not append a new card per status. Legacy stacks: UI keeps the newest per order |
 | Intent | `order` (default) or `inquiry`; firm → `order` on quote / confirm lines / accept quote |
 | Amend | Buyer `POST /orders/:id/amend` while requested, all lines open, no seller message yet; increments `amendCount`; posts `order_updated` |
 | Chat events | `order_requested` · `rate_requested` · `order_updated` · `quote_sent` · `lines_decided` · `quote_accepted` · `order_declined` · `order_cancelled` · `order_dispatched` · `order_delivered` |

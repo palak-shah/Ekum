@@ -348,6 +348,7 @@ model Message {
   replies Message[] @relation("MessageReplies")
 
   @@index([threadId, createdAt])
+  @@index([threadId, type, createdAt])
   @@index([replyToMessageId])
 }
 

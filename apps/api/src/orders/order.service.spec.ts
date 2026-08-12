@@ -36,12 +36,15 @@ interface Captured {
   createData: { items: { create: Record<string, unknown>[] } } | null;
   updateData: Record<string, unknown> | null;
   messageCreate: Record<string, unknown> | null;
+  messageUpdate: Record<string, unknown> | null;
   itemUpdates: Record<string, unknown>[];
   shipmentCreate: Record<string, unknown> | null;
 }
 
 interface Options {
   products?: { id: string; name: string; sku: string | null; rate: unknown; unit: string | null; images: string[] }[];
+  /** When true, mock finds a seller Rate message for the order (quote sent). */
+  sellerQuoted?: boolean;
   order?: {
     id: string;
     status: string;
@@ -71,6 +74,7 @@ function makeService(options: Options) {
     createData: null,
     updateData: null,
     messageCreate: null,
+    messageUpdate: null,
     itemUpdates: [],
     shipmentCreate: null,
   };
@@ -82,6 +86,13 @@ function makeService(options: Options) {
         items: options.order.items ?? [],
         shipments: options.order.shipments ?? [],
       }
+    : null;
+  let livingMessage: {
+    id: string;
+    type: string;
+    metadata: Record<string, unknown> | null;
+  } | null = options.sellerQuoted
+    ? { id: 'quote-msg', type: 'rate', metadata: { quoted: true, event: 'quote_sent' } }
     : null;
 
   const prisma = {
@@ -191,9 +202,81 @@ function makeService(options: Options) {
     message: {
       create: async (args: { data: Record<string, unknown> }) => {
         captured.messageCreate = args.data;
-        return args.data;
+        livingMessage = {
+          id: 'msg-living',
+          type: String(args.data.type ?? 'order_card'),
+          metadata:
+            args.data.metadata && typeof args.data.metadata === 'object'
+              ? (args.data.metadata as Record<string, unknown>)
+              : null,
+        };
+        return { id: 'msg-living', ...args.data };
       },
-      findFirst: async () => null,
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        captured.messageUpdate = { id: args.where.id, ...args.data };
+        if (livingMessage && livingMessage.id === args.where.id) {
+          livingMessage = {
+            ...livingMessage,
+            type: String(args.data.type ?? livingMessage.type),
+            metadata:
+              args.data.metadata && typeof args.data.metadata === 'object'
+                ? (args.data.metadata as Record<string, unknown>)
+                : livingMessage.metadata,
+          };
+        }
+        return livingMessage;
+      },
+      findFirst: async (args?: {
+        where?: {
+          threadId?: string;
+          referenceId?: string;
+          senderCompanyId?: string;
+          type?: string | { in?: string[] };
+          OR?: unknown[];
+        };
+      }) => {
+        const where = args?.where ?? {};
+        // Upsert lookup (trade thread + order reference).
+        if (where.threadId && where.referenceId && livingMessage) {
+          return { id: livingMessage.id, metadata: livingMessage.metadata };
+        }
+        // hasSellerQuote (Rate or metadata.quoted).
+        if (where.OR && (options.sellerQuoted || livingMessage?.metadata?.quoted)) {
+          return { id: livingMessage?.id ?? 'quote-msg' };
+        }
+        if (where.senderCompanyId && options.sellerQuoted) {
+          return { id: 'seller-msg' };
+        }
+        const type = where.type;
+        if (
+          options.sellerQuoted &&
+          (type === 'rate' ||
+            (typeof type === 'object' && Array.isArray(type.in) && type.in.includes('rate')))
+        ) {
+          return { id: 'quote-msg', metadata: { quoted: true } };
+        }
+        return null;
+      },
+      findMany: async () =>
+        options.sellerQuoted && options.order
+          ? [
+              {
+                referenceId: options.order.id,
+                senderCompanyId: options.order.sellerCompanyId,
+                type: 'rate',
+                metadata: { quoted: true },
+              },
+            ]
+          : livingMessage?.metadata?.quoted && options.order
+            ? [
+                {
+                  referenceId: options.order.id,
+                  senderCompanyId: options.order.sellerCompanyId,
+                  type: livingMessage.type,
+                  metadata: livingMessage.metadata,
+                },
+              ]
+            : [],
     },
     thread: {
       update: async () => ({}),
@@ -373,10 +456,37 @@ describe('OrderService quote + accept (partial)', () => {
         partial: true,
         itemCount: 1,
         event: 'quote_sent',
+        quoted: true,
       }),
     });
     expect(captured.itemUpdates.some((u) => u.lineStatus === OrderLineStatus.Declined)).toBe(true);
     expect(captured.itemUpdates.some((u) => u.quantity === 20 && u.rate === 150)).toBe(true);
+  });
+
+  it('updates the same living message when quote follows an existing card', async () => {
+    const { service, captured } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        intent: OrderIntent.Inquiry,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 10)],
+      },
+    });
+    await service.quote('seller', 'o1', {
+      items: [{ orderItemId: 'oi1', rate: 200, quantity: 8 }],
+    });
+    expect(captured.messageUpdate).toMatchObject({
+      id: 'quote-msg',
+      type: 'rate',
+      metadata: expect.objectContaining({
+        event: 'quote_sent',
+        quoted: true,
+      }),
+    });
+    expect(captured.messageCreate).toBeNull();
   });
 
   it('firms inquiry intent to order when the seller quotes', async () => {
@@ -389,8 +499,9 @@ describe('OrderService quote + accept (partial)', () => {
     expect(captured.updateData).toMatchObject({ intent: OrderIntent.Order });
   });
 
-  it('lets the buyer accept a quote on open rated lines', async () => {
+  it('lets the buyer accept a quote on open rated lines after seller quoted', async () => {
     const { service, captured } = makeService({
+      sellerQuoted: true,
       order: {
         ...requested,
         items: [openItem('oi1', 20, 150)],
@@ -398,6 +509,18 @@ describe('OrderService quote + accept (partial)', () => {
     });
     await service.acceptQuote('buyer', 'o1');
     expect(captured.updateData?.status).toBe(OrderStatus.Confirmed);
+  });
+
+  it('rejects accept when catalog rates exist but seller never quoted', async () => {
+    const { service } = makeService({
+      sellerQuoted: false,
+      order: {
+        ...requested,
+        intent: OrderIntent.Inquiry,
+        items: [openItem('oi1', 10, 2450)],
+      },
+    });
+    await expect(service.acceptQuote('buyer', 'o1')).rejects.toThrow(/not sent a quote/i);
   });
 
   it('forbids the buyer from quoting', async () => {
@@ -462,8 +585,9 @@ describe('OrderService decideLines', () => {
 });
 
 describe('OrderService lifecycle action cards', () => {
-  it('posts an Accepted card when the buyer accepts a quote', async () => {
+  it('updates the living card when the buyer accepts a quote', async () => {
     const { service, captured } = makeService({
+      sellerQuoted: true,
       order: {
         id: 'o1',
         status: OrderStatus.Requested,
@@ -473,9 +597,11 @@ describe('OrderService lifecycle action cards', () => {
       },
     });
     await service.acceptQuote('buyer', 'o1');
-    expect(captured.messageCreate).toMatchObject({
+    const posted = captured.messageUpdate ?? captured.messageCreate;
+    expect(captured.messageUpdate).toBeTruthy();
+    expect(posted).toMatchObject({
       type: 'order_card',
-      metadata: expect.objectContaining({ event: 'quote_accepted' }),
+      metadata: expect.objectContaining({ event: 'quote_accepted', quoted: true }),
       body: expect.stringContaining('accepted quote'),
     });
   });

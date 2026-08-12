@@ -102,28 +102,23 @@ export class OrderService {
     const orderLabel = shortOrderLabel(order.id, { inquiry });
     const actorLabel = order.buyer.name;
     const event = inquiry ? OrderChatEvent.RateRequested : OrderChatEvent.OrderRequested;
-    await this.prisma.message.create({
-      data: {
-        threadId,
-        senderCompanyId: actorCompanyId,
-        type: MessageType.OrderCard,
-        body: dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
-        referenceId: order.id,
-        metadata: {
-          status: order.status,
-          itemCount: order.items.length,
-          event,
-          orderLabel,
-          actorLabel,
-          actorRole: 'buyer',
-          intent,
-        },
+    await this.upsertOrderThreadMessage(
+      actorCompanyId,
+      dto.sellerCompanyId,
+      actorCompanyId,
+      dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
+      order.id,
+      {
+        status: order.status,
+        itemCount: order.items.length,
+        event,
+        orderLabel,
+        actorLabel,
+        actorRole: 'buyer',
+        intent,
       },
-    });
-    await this.prisma.thread.update({
-      where: { id: threadId },
-      data: { lastMessageAt: new Date() },
-    });
+      MessageType.OrderCard,
+    );
 
     this.events.orderCreated({
       orderId: order.id,
@@ -238,7 +233,15 @@ export class OrderService {
       include: ORDER_RELATIONS,
       ...cursorArgs(query),
     });
-    return toCursorPage(rows, query.limit, (row) => this.serializer.toOrderView(row, actorCompanyId));
+    const quotedIds = await this.orderIdsWithSellerQuote(rows);
+    return toCursorPage(rows, query.limit, (row) => {
+      const sellerQuoted = quotedIds.has(row.id);
+      return {
+        ...this.serializer.toOrderView(row, actorCompanyId),
+        hasSellerQuote: sellerQuoted,
+        canAcceptQuote: this.buyerCanAcceptQuoteSync(row, actorCompanyId, sellerQuoted),
+      };
+    });
   }
 
   async get(actorCompanyId: string, id: string): Promise<OrderView> {
@@ -248,9 +251,12 @@ export class OrderService {
       order.sellerCompanyId,
     );
     const view = this.serializer.toOrderView(order, actorCompanyId, threadId);
+    const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
     return {
       ...view,
       canAmend: await this.buyerCanAmend(order, actorCompanyId),
+      hasSellerQuote: sellerQuoted,
+      canAcceptQuote: this.buyerCanAcceptQuoteSync(order, actorCompanyId, sellerQuoted),
     };
   }
 
@@ -330,6 +336,14 @@ export class OrderService {
       throw new ConflictException({
         code: 'INVALID_TRANSITION',
         message: `An order that is ${order.status} cannot move to ${OrderStatus.Confirmed}.`,
+      });
+    }
+
+    const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
+    if (!sellerQuoted) {
+      throw new ConflictException({
+        code: 'NO_QUOTE',
+        message: 'Seller has not sent a quote yet.',
       });
     }
 
@@ -455,10 +469,6 @@ export class OrderService {
       });
     }
 
-    const threadId = await this.threads.ensureTradeThread(
-      order.buyerCompanyId,
-      order.sellerCompanyId,
-    );
     const total = supplyable.reduce((sum, line) => {
       const item = byId.get(line.orderItemId);
       const qty = line.quantity ?? item?.quantity.toNumber() ?? 0;
@@ -471,35 +481,29 @@ export class OrderService {
       return offered < (item?.requestedQuantity.toNumber() ?? offered);
     });
 
-    await this.prisma.message.create({
-      data: {
-        threadId,
-        senderCompanyId: actorCompanyId,
-        type: MessageType.Rate,
-        body:
-          dto.note ??
-          (partial
-            ? `Quote · ${supplyable.length} of ${order.items.length} designs`
-            : 'Quote'),
-        referenceId: order.id,
-        metadata: {
-          status: OrderStatus.Requested,
-          itemCount: supplyable.length,
-          totalLabel: `₹${total.toLocaleString('en-IN')}`,
-          validUntil: dto.validUntil ?? null,
-          quoted: true,
-          partial,
-          event: OrderChatEvent.QuoteSent,
-          orderLabel: shortOrderLabel(order.id),
-          actorLabel: order.seller.name,
-          actorRole: 'seller',
-        },
+    await this.upsertOrderThreadMessage(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      dto.note ??
+        (partial
+          ? `Quote · ${supplyable.length} of ${order.items.length} designs`
+          : 'Quote'),
+      order.id,
+      {
+        status: OrderStatus.Requested,
+        itemCount: supplyable.length,
+        totalLabel: `₹${total.toLocaleString('en-IN')}`,
+        validUntil: dto.validUntil ?? null,
+        quoted: true,
+        partial,
+        event: OrderChatEvent.QuoteSent,
+        orderLabel: shortOrderLabel(order.id),
+        actorLabel: order.seller.name,
+        actorRole: 'seller',
       },
-    });
-    await this.prisma.thread.update({
-      where: { id: threadId },
-      data: { lastMessageAt: new Date() },
-    });
+      MessageType.Rate,
+    );
 
     if (order.intent === OrderIntent.Inquiry) {
       await this.prisma.order.update({
@@ -969,7 +973,85 @@ export class OrderService {
     return !sellerMoved;
   }
 
-  /** Order card in chat so either party can open the order from the notice. */
+  /**
+   * True when the seller has quoted this order. After upsert, the living message
+   * may become order_card again — `metadata.quoted` is preserved across updates.
+   */
+  private async hasSellerQuote(orderId: string, sellerCompanyId: string): Promise<boolean> {
+    const quote = await this.prisma.message.findFirst({
+      where: {
+        referenceId: orderId,
+        OR: [
+          { type: MessageType.Rate, senderCompanyId: sellerCompanyId },
+          {
+            type: { in: [MessageType.Rate, MessageType.OrderCard] },
+            metadata: { path: ['quoted'], equals: true },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    return Boolean(quote);
+  }
+
+  private async orderIdsWithSellerQuote(
+    orders: { id: string; sellerCompanyId: string }[],
+  ): Promise<Set<string>> {
+    if (orders.length === 0) return new Set();
+    const rows = await this.prisma.message.findMany({
+      where: {
+        referenceId: { in: orders.map((order) => order.id) },
+        type: { in: [MessageType.Rate, MessageType.OrderCard] },
+        OR: [
+          {
+            type: MessageType.Rate,
+            senderCompanyId: { in: [...new Set(orders.map((order) => order.sellerCompanyId))] },
+          },
+          { metadata: { path: ['quoted'], equals: true } },
+        ],
+      },
+      select: { referenceId: true, senderCompanyId: true, type: true, metadata: true },
+    });
+    const byId = new Map(orders.map((order) => [order.id, order.sellerCompanyId]));
+    const quoted = new Set<string>();
+    for (const row of rows) {
+      if (!row.referenceId) continue;
+      const meta =
+        row.metadata && typeof row.metadata === 'object'
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+      if (meta?.quoted === true) {
+        quoted.add(row.referenceId);
+        continue;
+      }
+      if (row.type === MessageType.Rate && byId.get(row.referenceId) === row.senderCompanyId) {
+        quoted.add(row.referenceId);
+      }
+    }
+    return quoted;
+  }
+
+  private buyerCanAcceptQuoteSync(
+    order: {
+      status: string;
+      buyerCompanyId: string;
+      items: { lineStatus: string; rate?: unknown }[];
+    },
+    actorCompanyId: string,
+    sellerQuoted: boolean,
+  ): boolean {
+    if (order.buyerCompanyId !== actorCompanyId) return false;
+    if (order.status !== OrderStatus.Requested) return false;
+    if (!sellerQuoted) return false;
+    return order.items.some(
+      (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
+    );
+  }
+
+  /**
+   * One living order/rate message per order in the trade thread.
+   * Later lifecycle events update that row instead of appending cards.
+   */
   private async postOrderCard(
     buyerCompanyId: string,
     sellerCompanyId: string,
@@ -978,17 +1060,68 @@ export class OrderService {
     orderId: string,
     metadata: Record<string, unknown>,
   ): Promise<void> {
+    await this.upsertOrderThreadMessage(
+      buyerCompanyId,
+      sellerCompanyId,
+      senderCompanyId,
+      body,
+      orderId,
+      metadata,
+      MessageType.OrderCard,
+    );
+  }
+
+  private async upsertOrderThreadMessage(
+    buyerCompanyId: string,
+    sellerCompanyId: string,
+    senderCompanyId: string,
+    body: string,
+    orderId: string,
+    metadata: Record<string, unknown>,
+    type: typeof MessageType.OrderCard | typeof MessageType.Rate,
+  ): Promise<void> {
     const threadId = await this.threads.ensureTradeThread(buyerCompanyId, sellerCompanyId);
-    await this.prisma.message.create({
-      data: {
+    const existing = await this.prisma.message.findFirst({
+      where: {
         threadId,
-        senderCompanyId,
-        type: MessageType.OrderCard,
-        body,
         referenceId: orderId,
-        metadata: metadata as Prisma.InputJsonValue,
+        type: { in: [MessageType.OrderCard, MessageType.Rate] },
       },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, metadata: true },
     });
+
+    const prevMeta =
+      existing?.metadata && typeof existing.metadata === 'object'
+        ? (existing.metadata as Record<string, unknown>)
+        : null;
+    const nextMeta: Record<string, unknown> = { ...metadata };
+    if (type === MessageType.Rate || metadata.quoted === true || prevMeta?.quoted === true) {
+      nextMeta.quoted = true;
+    }
+
+    if (existing) {
+      await this.prisma.message.update({
+        where: { id: existing.id },
+        data: {
+          senderCompanyId,
+          type,
+          body,
+          metadata: nextMeta as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      await this.prisma.message.create({
+        data: {
+          threadId,
+          senderCompanyId,
+          type,
+          body,
+          referenceId: orderId,
+          metadata: nextMeta as Prisma.InputJsonValue,
+        },
+      });
+    }
     await this.prisma.thread.update({
       where: { id: threadId },
       data: { lastMessageAt: new Date() },
@@ -1008,11 +1141,8 @@ export class OrderService {
       actorCompanyId,
       status,
     });
-    const threadId = await this.threads.findDirectThreadId(
-      order.buyerCompanyId,
-      order.sellerCompanyId,
-    );
-    return this.serializer.toOrderView(order, actorCompanyId, threadId);
+    // Same live flags as get() so mutation responses stay honest for CTAs.
+    return this.get(actorCompanyId, id);
   }
 
   private async transition(

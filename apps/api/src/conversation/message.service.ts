@@ -2,10 +2,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, type Message } from '@prisma/client';
 import {
   MessageType,
+  OrderChatEvent,
   ThreadParticipantState,
   photoUrlsFromMessage,
   type CursorPage,
-  type CursorPageQuery,
+  type ListThreadMessagesQuery,
   type MessageReference,
   type MessageReplyPreview,
   type MessageView,
@@ -80,12 +81,13 @@ export class MessageService {
     actorCompanyId: string,
     role: string | null,
     threadId: string,
-    query: CursorPageQuery,
+    query: ListThreadMessagesQuery,
   ): Promise<CursorPage<MessageView>> {
     await this.threads.membershipOrThrow(threadId, actorCompanyId, role);
 
+    const where = this.listWhere(threadId, query);
     const rows = await this.prisma.message.findMany({
-      where: { threadId },
+      where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: query.limit + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
@@ -105,6 +107,99 @@ export class MessageService {
     );
     const last = page[page.length - 1];
     return { results, nextCursor: hasMore && last ? last.id : null };
+  }
+
+  private listWhere(threadId: string, query: ListThreadMessagesQuery): Prisma.MessageWhereInput {
+    const view = query.view ?? 'all';
+    const q = query.q?.trim();
+    const clauses: Prisma.MessageWhereInput[] = [{ threadId }];
+
+    if (view === 'media') {
+      clauses.push({ type: { in: [MessageType.Photo, MessageType.Voice] } });
+    } else if (view === 'orders') {
+      clauses.push({
+        OR: [
+          { type: { in: [MessageType.OrderCard, MessageType.Rate] } },
+          {
+            type: MessageType.System,
+            OR: [
+              { metadata: { path: ['kind'], equals: 'order_lines' } },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.QuoteAccepted,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.OrderDispatched,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.OrderDelivered,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.OrderCancelled,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.OrderDeclined,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.OrderRequested,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.RateRequested,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.OrderUpdated,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.QuoteSent,
+                },
+              },
+              {
+                metadata: {
+                  path: ['event'],
+                  equals: OrderChatEvent.LinesDecided,
+                },
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    if (q) {
+      clauses.push({
+        OR: [
+          { body: { contains: q, mode: 'insensitive' } },
+          { metadata: { path: ['orderLabel'], string_contains: q } },
+        ],
+      });
+    }
+
+    return clauses.length === 1 ? clauses[0]! : { AND: clauses };
   }
 
   /**

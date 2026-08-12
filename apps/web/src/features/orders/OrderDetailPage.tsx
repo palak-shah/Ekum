@@ -388,13 +388,10 @@ export function OrderDetailPage() {
   const isSeller = data.direction === 'selling';
   const isBuyer = data.direction === 'buying';
   const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
-  const hasOpenQuotedLine = data.items.some(
-    (item) => item.lineStatus === 'open' && item.rate != null,
-  );
   const nextCue = nextOrderAction({
     status: data.status,
     direction: data.direction === 'selling' ? 'selling' : 'buying',
-    hasOpenQuotedLine,
+    hasOpenQuotedLine: data.hasSellerQuote === true,
     partiallyShipped: data.partiallyShipped,
     intent: data.intent,
   });
@@ -526,9 +523,7 @@ export function OrderDetailPage() {
             </Button>
           </>
         ) : null}
-        {isBuyer &&
-        data.status === 'requested' &&
-        data.items.some((item) => item.lineStatus === 'open' && item.rate != null) ? (
+        {isBuyer && data.canAcceptQuote ? (
           <Button onClick={() => act.mutate('accept-quote')} disabled={act.isPending}>
             Accept quote
           </Button>

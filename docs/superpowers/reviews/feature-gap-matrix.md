@@ -11,11 +11,14 @@ Verification: Functional · Regression · Unit-only · Untested
 |--------|------------|----------------|--------------|----------------------|-------|
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
 | Chat | In-thread search scopes + stepper | Works | Functional | Required | Green 2026-08-11 |
+| Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |
 | Chat | Requests inbox (unconnected) | Works | Untested | Recommended | Later slice |
 | Chat | Pin / mute / groups | Later | Untested | Future / Reject groups-as-Slack | Doc deferred |
 | Chat | Share catalog cards in thread | Works | Untested | Recommended | |
 | Orders | Core trade request→quote→accept | Works | Functional | Required | Green 2026-08-11 |
-| Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11 |
+| Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
+| Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
+| Orders | Orders More menu portal (Samples/Returns) | Works | Untested | Recommended | Chrome overflow fix |
 | Orders | Order card +N thumbs | Works | Regression | Required | BM-01 |
 | Orders | Living card dedupe helpers | Works | Unit-only | Required | BM-04 |
 | Orders | Dispatch → deliver | Works | Untested | Future | |

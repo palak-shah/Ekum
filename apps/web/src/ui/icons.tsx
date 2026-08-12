@@ -88,6 +88,20 @@ export const ChevronDownIcon = (props: IconProps) => (
   </Icon>
 );
 
+export const ChevronUpIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m6 15 6-6 6 6" />
+  </Icon>
+);
+
+/** In-thread / inbox search. */
+export const SearchIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+);
+
 export const CameraIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />

@@ -100,3 +100,98 @@ describe('MessageService.send', () => {
     await expect(service.send('me', 'owner', 't', dto)).resolves.toMatchObject({ id: 'm1' });
   });
 });
+
+describe('MessageService.list filters', () => {
+  function listService(captured: { where: unknown }) {
+    const rows = [
+      {
+        id: 'm-photo',
+        threadId: 't',
+        senderCompanyId: 'me',
+        type: MessageType.Photo,
+        body: 'https://img/a.jpg',
+        referenceId: null,
+        metadata: { urls: ['https://img/a.jpg'] },
+        createdAt: new Date(),
+      },
+      {
+        id: 'm-order',
+        threadId: 't',
+        senderCompanyId: 'me',
+        type: MessageType.OrderCard,
+        body: 'asked for rates',
+        referenceId: 'o1',
+        metadata: { orderLabel: 'Inquiry #O1AB', event: 'rate_requested' },
+        createdAt: new Date(),
+      },
+      {
+        id: 'm-text',
+        threadId: 't',
+        senderCompanyId: 'me',
+        type: MessageType.Text,
+        body: 'Wedding edit please',
+        referenceId: null,
+        metadata: null,
+        createdAt: new Date(),
+      },
+    ];
+    const prisma = {
+      message: {
+        findMany: async (args: { where: unknown; take: number }) => {
+          captured.where = args.where;
+          return rows.slice(0, args.take);
+        },
+      },
+    } as unknown as PrismaService;
+    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
+    return new MessageService(prisma, threads, serializer, references, events);
+  }
+
+  it('scopes media to photo and voice', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list('me', 'owner', 't', { view: 'media', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        { type: { in: [MessageType.Photo, MessageType.Voice] } },
+      ]),
+    });
+  });
+
+  it('scopes orders to order_card, rate, and legacy system notices', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list('me', 'owner', 't', { view: 'orders', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        {
+          OR: expect.arrayContaining([
+            { type: { in: [MessageType.OrderCard, MessageType.Rate] } },
+          ]),
+        },
+      ]),
+    });
+  });
+
+  it('applies case-insensitive body search with q', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list('me', 'owner', 't', { view: 'all', q: 'Wedding', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        {
+          OR: expect.arrayContaining([
+            { body: { contains: 'Wedding', mode: 'insensitive' } },
+          ]),
+        },
+      ]),
+    });
+  });
+});

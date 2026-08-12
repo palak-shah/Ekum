@@ -288,6 +288,12 @@ export interface OrderView {
    * Omitted/false on list payloads when not computed.
    */
   canAmend?: boolean;
+  /**
+   * Live: buyer may accept — seller has sent a Rate quote (catalog line rates alone do not count).
+   */
+  canAcceptQuote?: boolean;
+  /** Live: seller has posted at least one Rate card for this order. */
+  hasSellerQuote?: boolean;
   note: string | null;
   buyerCompanyId: string;
   sellerCompanyId: string;
