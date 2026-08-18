@@ -624,7 +624,7 @@ export class ExploreService {
       collections: {
         where: {
           status: CollectionStatus.Published,
-          OR: visibleAudience,
+          OR: visibleOr,
           AND: liveWindowClauses(),
         },
         orderBy: { updatedAt: 'desc' as const },
@@ -643,7 +643,7 @@ export class ExploreService {
         where: {
           status: ProductStatus.Published,
           postedToMarketAt: { not: null },
-          OR: visibleProductAudience,
+          OR: visibleProductOr,
         },
         orderBy: { postedToMarketAt: 'desc' as const },
         take: 4,
@@ -654,7 +654,7 @@ export class ExploreService {
           collections: {
             where: {
               status: CollectionStatus.Published,
-              OR: visibleAudience,
+              OR: visibleOr,
               AND: liveWindowClauses(),
             },
           },
@@ -662,7 +662,7 @@ export class ExploreService {
             where: {
               status: ProductStatus.Published,
               postedToMarketAt: { not: null },
-              OR: visibleProductAudience,
+              OR: visibleProductOr,
             },
           },
         },
