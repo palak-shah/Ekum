@@ -107,7 +107,7 @@ export const router = createBrowserRouter([
           { path: 'catalog', element: <MyCatalogPage /> },
           { path: 'catalog/products/new', element: <DesignBatchPage /> },
           { path: 'catalog/products/:id', element: <ProductEditorPage /> },
-          { path: 'catalog/collections/new', element: <CollectionEditorPage /> },
+          // `new` and real ids share :id so create→edit keeps one component instance.
           { path: 'catalog/collections/:id', element: <CollectionEditorPage /> },
           { path: 'buyers', element: <MyBuyersPage /> },
           { path: 'broadcast', element: <BroadcastPage /> },

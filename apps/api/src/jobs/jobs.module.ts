@@ -6,6 +6,7 @@ import { JOB_HANDLERS, type JobHandler } from './job.types';
 import { MediaThumbnailHandler } from './handlers/media-thumbnail.handler';
 import { ReturnWindowHandler } from './handlers/return-window.handler';
 import { NotificationDigestHandler } from './handlers/notification-digest.handler';
+import { CollectionExpireHandler } from './handlers/collection-expire.handler';
 
 /**
  * The durable background-job backbone. The Postgres `Job` table is the queue;
@@ -21,14 +22,21 @@ import { NotificationDigestHandler } from './handlers/notification-digest.handle
     MediaThumbnailHandler,
     ReturnWindowHandler,
     NotificationDigestHandler,
+    CollectionExpireHandler,
     {
       provide: JOB_HANDLERS,
       useFactory: (
         media: MediaThumbnailHandler,
         returnWindow: ReturnWindowHandler,
         digest: NotificationDigestHandler,
-      ): JobHandler[] => [media, returnWindow, digest],
-      inject: [MediaThumbnailHandler, ReturnWindowHandler, NotificationDigestHandler],
+        collectionExpire: CollectionExpireHandler,
+      ): JobHandler[] => [media, returnWindow, digest, collectionExpire],
+      inject: [
+        MediaThumbnailHandler,
+        ReturnWindowHandler,
+        NotificationDigestHandler,
+        CollectionExpireHandler,
+      ],
     },
   ],
   exports: [JobQueue],

@@ -20,10 +20,15 @@ export function toCursorPage<T, R>(
 }
 
 /** Shared cursor arguments for a findMany over a createdAt/id-ordered feed. */
-export function cursorArgs(query: { cursor?: string; limit: number }) {
+export function cursorArgs(query: {
+  cursor?: string;
+  limit: number;
+  sort?: 'newest' | 'oldest';
+}) {
+  const dir = query.sort === 'oldest' ? ('asc' as const) : ('desc' as const);
   return {
     take: query.limit + 1,
-    orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }],
+    orderBy: [{ createdAt: dir }, { id: dir }],
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
   };
 }

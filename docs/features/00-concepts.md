@@ -41,28 +41,53 @@ flowchart LR
 
 ## Catalog lifecycle
 
-| Status | Designs & collections |
-|--------|------------------------|
-| **Draft** | Private library / album work-in-progress |
-| **Published** | On the company shop (catalog-published) |
-| **Archived** | Ended / out of season |
+| Status | Designs | Collections |
+|--------|---------|-------------|
+| **Draft** | Private library work-in-progress | Album work-in-progress |
+| **Ready** | — | Company-only review queue (not buyer-visible) |
+| **Published** | On the company shop | Live for buyers only inside `startsAt`/`endsAt` window |
+| **Archived** | Ended / out of season | Ended / out of season |
 
-### Publish ≠ Explore
+### Collection live window & badges
+
+| Field | Meaning |
+|-------|---------|
+| `startsAt` null | Live as soon as published |
+| `endsAt` null | **Evergreen** (no scheduled hide) |
+| Past `endsAt` | Same as Hide → **draft** (job + read guards; not auto-archive) |
+
+Seller My Catalog badges: **Draft** · **Ready** · **Starts…** · **Live** (+ **Evergreen** or **Ends…**) · **Archived**.
+
+### Publish = Explore
 
 | Action | Effect |
 |--------|--------|
-| **Catalog publish** | Design or collection is published for the shop / connections per audience rules. First-ever publish requires **consent to sell** → sets `canPublish`. |
-| **Post to Explore** | Separate step for designs (`postedToMarketAt`). Collections surface on Explore when published (activity bump rules apply). |
-| **Unpublish / hide** | Returns to draft; design Explore post is cleared when a design is unpublished. |
+| **Publish** | Design or collection goes live for the chosen **audience** on Explore (and shop). Designs set `postedToMarketAt`. First-ever publish requires **consent to sell** → sets `canPublish`. |
+| **Visibility** | Same sheet as publish — change who can see it / rates / forward without a separate “post” step. |
+| **Hide / unpublish** | Returns to draft; design Explore post is cleared (`postedToMarketAt` null). Collection hide clears `exploreActivityAt`. |
 
-### Audience & rates
+### Audience, rates & forward
 
-When publishing (or posting to market), the sheet sets:
+When publishing (or updating visibility), the sheet sets:
 
 | Field | Values | Default practice |
 |-------|--------|------------------|
-| **Audience** | `everyone` · `connections` · `selected` (+ company IDs) | Connections |
-| **Rate visibility** | `visible` · `on_request` | On request |
+| **Audience** | `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**) | Connections |
+| **Rate visibility** | `visible` · `on_request` | On request (or company usual) |
+| **Buyers can forward** | checkbox (on by default) | Uncheck = lock this pack/design |
+
+| Audience | Who sees on Explore |
+|----------|---------------------|
+| Everyone | Any signed-in company (existing block/trust rules) |
+| Connections | Active connections with the seller |
+| Followers | Companies that follow the seller (not necessarily connected) |
+| Selected | Listed companies / buyer groups |
+
+**Layers (simple):** company usual (last publish remembered in `tradeDefaults.publishDefaults`) → selected buyer-group override(s), **strictest wins** if several → this item’s Publish sheet. Snapshot on `Product.allowForward` / `Collection.allowForward`. `audienceGroupIds` restores which groups were chosen on **Visibility** (expand who later without a second pack). One collection may include many groups (member union); not per-group policies on one card.
+
+**Staff audit:** Product, Collection, and Order store `createdByUserId` / `updatedByUserId` (names on list/detail). Full AuditLog history UI is later.
+
+**Trust:** When locked (`allowForward === false`), only the **supplier** may share into chat / Explore / broadcast. Non-owners get `FORWARD_NOT_ALLOWED` from the API; Forward is hidden in the UI. Never claim “exclusive” without this gate.
 
 ## Designs vs collections
 

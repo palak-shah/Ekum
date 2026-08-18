@@ -10,7 +10,7 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 ## User flows
 
-1. User picks camera / gallery (or pastes URL where UI allows).
+1. User picks photos: phone **Add designs** / **Photo order** use shared continuous camera (multi-shot; gallery fallback); elsewhere camera / gallery / paste URL as the feature allows.
 2. Client requests upload URL → uploads bytes → completes upload.
 3. Feature stores the resulting URL on the product, message, cover, etc.
 4. Background job may derive a thumbnail (`media.thumbnail`).
@@ -36,9 +36,9 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 ## Seed walkthrough
 
-1. As **Ravi**: Add designs → upload 2–3 photos → confirm thumbs appear in library.
+1. As **Ravi**: Add designs → continuous camera or gallery → 2–3 photos → confirm thumbs in batch, then save to library.
 2. As **Meena**: send a chat photo in the seeded thread.
-3. Photo order: attach images via **＋ → Photo order**.
+3. Photo order: attach images via **＋ → Photo order** (same continuous camera on phone).
 
 ## Automated verification
 
@@ -47,6 +47,6 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 ## Where it lives
 
-- Web: `apps/web/src/lib/mediaUpload.ts` (and feature call sites)
+- Web: `apps/web/src/lib/mediaUpload.ts`, `apps/web/src/ui/ContinuousCamera.tsx` (Add designs / Photo order), and feature call sites
 - API: `apps/api/src/media/`; job `media.thumbnail` in `apps/api/src/jobs/`
 - Contracts: `packages/domain-types/src/media.ts`

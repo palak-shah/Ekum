@@ -1,14 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { CreateProductDto, ProductView } from '@ekum/domain-types';
+import type {
+  CreateProductDto,
+  PostProductToMarketDto,
+  ProductView,
+} from '@ekum/domain-types';
 import { Unit, unitValues } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { uploadImage } from '@/lib/mediaUpload';
+import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
+import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
-import { CameraIcon, PlusIcon, TrashIcon } from '@/ui/icons';
+import { CameraIcon, PlusIcon } from '@/ui/icons';
+import { useMyCompany } from '@/lib/queries';
+import { useToast } from '@/ui/Toast';
+import { useQuery } from '@tanstack/react-query';
+import type { BroadcastListView, CompanySettingsView, ConnectionView } from '@ekum/domain-types';
+import { PublishAudience } from '@ekum/domain-types';
+import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
+import { readCompanyPublishDefaults } from './publishDefaults';
+import {
+  emptyPublishAudienceState,
+  publishAudienceCanSubmit,
+  publishAudienceDtoFields,
+  PublishAudienceFields,
+  selectCreatedGroup,
+  type PublishAudienceState,
+} from './PublishAudienceFields';
+import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 
 /** One-line by default; grows while typing / when focused. */
 function ExpandableNotes({
@@ -76,29 +97,13 @@ const MAX_DESIGNS = 120;
 const LARGE_BATCH = 20;
 const UPLOAD_CONCURRENCY = 4;
 const SAVE_CONCURRENCY = 3;
-const MEMORY_CATEGORY = 'ekum.batch.lastCategory';
-const MEMORY_UNIT = 'ekum.batch.lastUnit';
 
 function readBatchMemory() {
-  if (typeof localStorage === 'undefined') return { category: '', unit: '' };
-  try {
-    return {
-      category: localStorage.getItem(MEMORY_CATEGORY) ?? '',
-      unit: localStorage.getItem(MEMORY_UNIT) ?? '',
-    };
-  } catch {
-    return { category: '', unit: '' };
-  }
+  return readCatalogFieldMemory();
 }
 
 function writeBatchMemory(category: string, unit: string) {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(MEMORY_CATEGORY, category);
-    localStorage.setItem(MEMORY_UNIT, unit);
-  } catch {
-    // ignore quota / private mode
-  }
+  writeCatalogFieldMemory(category, unit);
 }
 
 async function mapPool<T, R>(
@@ -156,9 +161,12 @@ function hasOverrides(o: DraftOverrides) {
 export function DesignBatchPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const company = useMyCompany();
+  const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const memory = readBatchMemory();
-  const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
+  const phone = isPhoneLike();
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [targetDraftId, setTargetDraftId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -167,6 +175,12 @@ export function DesignBatchPage() {
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState('');
   const [namePrefix, setNamePrefix] = useState('');
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [publishAudience, setPublishAudience] = useState<PublishAudienceState>(() =>
+    emptyPublishAudienceState(),
+  );
 
   const [sharedCategory, setSharedCategory] = useState(memory.category);
   const [sharedRate, setSharedRate] = useState('');
@@ -180,21 +194,66 @@ export function DesignBatchPage() {
   const [sheetMoq, setSheetMoq] = useState('');
   const [sheetNotes, setSheetNotes] = useState('');
 
-  const startPick = (mode: 'camera' | 'gallery', draftId: string | null = null) => {
+  const canPublishAlready = Boolean(company.data?.capabilities.publish);
+  const connections = useQuery({
+    queryKey: ['connections'],
+    queryFn: () => api.get<ConnectionView[]>('/access/connections'),
+    enabled: publishOpen,
+  });
+  const broadcastLists = useQuery({
+    queryKey: ['broadcast-lists'],
+    queryFn: () => api.get<BroadcastListView[]>('/broadcasts/lists'),
+    enabled: publishOpen && publishAudience.audience === PublishAudience.Selected,
+  });
+  const settings = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: () => api.get<CompanySettingsView>('/settings'),
+    enabled: publishOpen,
+  });
+  const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
+
+  useEffect(() => {
+    if (!publishOpen || !settings.data) return;
+    const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
+    setPublishAudience((prev) => ({
+      ...emptyPublishAudienceState(usual),
+      audience: prev.audience || PublishAudience.Connections,
+    }));
+  }, [publishOpen, settings.data]);
+
+  const openGallery = (draftId: string | null = null) => {
     if (!draftId && drafts.length >= MAX_DESIGNS) {
       setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
       return;
     }
     setTargetDraftId(draftId);
     setError(null);
-    setCaptureMode(mode === 'camera' ? true : 'gallery');
     queueMicrotask(() => fileRef.current?.click());
   };
 
-  const openPickerForNew = () => startPick('gallery', null);
+  const openAddPhotos = () => {
+    if (drafts.length >= MAX_DESIGNS) {
+      setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
+      return;
+    }
+    setError(null);
+    if (phone) {
+      setCameraOpen(true);
+      return;
+    }
+    openGallery(null);
+  };
+
+  const onCameraUnavailable = useCallback(() => {
+    setCameraOpen(false);
+    setError(null);
+    queueMicrotask(() => fileRef.current?.click());
+  }, []);
+
+  const openPickerForNew = () => openAddPhotos();
 
   const openPickerForDraft = (draftId: string) => {
-    startPick('gallery', draftId);
+    openGallery(draftId);
   };
 
   const openUpdateSheet = (draft: Draft) => {
@@ -340,11 +399,13 @@ export function DesignBatchPage() {
     }
   };
 
-  const onFiles = async (fileList: FileList | null) => {
-    if (!fileList?.length) return;
+  const onFiles = async (incoming: FileList | File[] | null) => {
+    if (!incoming || (incoming instanceof FileList ? !incoming.length : incoming.length === 0)) {
+      return;
+    }
     setError(null);
     const appendToId = targetDraftId;
-    const files = [...fileList];
+    const files = [...incoming];
     setTargetDraftId(null);
     if (fileRef.current) fileRef.current.value = '';
 
@@ -443,7 +504,7 @@ export function DesignBatchPage() {
   };
 
   const saveAll = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { publish?: boolean }) => {
       const ready = drafts.filter(draftReady);
       if (ready.length === 0) {
         throw new ApiError({
@@ -453,7 +514,10 @@ export function DesignBatchPage() {
           details: null,
         });
       }
-      setProgressLabel(`Saving 0 of ${ready.length}…`);
+      const shouldPublish = Boolean(opts?.publish);
+      setProgressLabel(
+        shouldPublish ? `Publishing 0 of ${ready.length}…` : `Saving 0 of ${ready.length}…`,
+      );
       const created = await mapPool(
         ready,
         SAVE_CONCURRENCY,
@@ -469,16 +533,34 @@ export function DesignBatchPage() {
             categories: parseCategories(e.category),
             images,
           };
-          return api.post<ProductView>('/products', dto);
+          const product = await api.post<ProductView>('/products', dto);
+          if (shouldPublish) {
+            const publishDto: PostProductToMarketDto = {
+              audience: publishAudience.audience as PostProductToMarketDto['audience'],
+              rateVisibility:
+                publishAudience.rateVisibility as PostProductToMarketDto['rateVisibility'],
+              allowForward: publishAudience.allowForward,
+              ...publishAudienceDtoFields(publishAudience),
+              ...(canPublishAlready ? {} : { consentToSell: true }),
+            };
+            await api.post<ProductView>(`/products/${product.id}/post-to-market`, publishDto);
+          }
+          return product;
         },
-        (done, total) => setProgressLabel(`Saving ${done} of ${total}…`),
+        (done, total) =>
+          setProgressLabel(
+            shouldPublish ? `Publishing ${done} of ${total}…` : `Saving ${done} of ${total}…`,
+          ),
       );
-      return created;
+      return { created, published: shouldPublish };
     },
-    onSuccess: () => {
+    onSuccess: ({ published }) => {
       writeBatchMemory(sharedCategory, sharedUnit);
       setProgressLabel(null);
+      setPublishOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
+      void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      showToast(published ? 'Published' : 'Designs saved');
       navigate('/catalog', { replace: true });
     },
     onError: (err) => {
@@ -491,6 +573,8 @@ export function DesignBatchPage() {
   const allUploaded =
     drafts.length > 0 &&
     drafts.every((d) => d.images.length > 0 && d.images.every((i) => !i.uploading && i.imageUrl));
+  const canSubmitPublish =
+    (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
 
   const isLarge = drafts.length > LARGE_BATCH;
   const searchQ = nameSearch.trim().toLowerCase();
@@ -516,110 +600,145 @@ export function DesignBatchPage() {
     </select>
   );
 
-  const stepLabel = (n: number, title: string, hint: string) => (
-    <div className="mb-2">
-      <p className="text-base font-semibold text-ink">
-        <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
-          {n}
-        </span>
-        {title}
-      </p>
-      <p className="mt-1 pl-8 text-sm text-muted">{hint}</p>
-    </div>
+  const sectionTitle = (title: string) => (
+    <p className="mb-2 text-base font-semibold text-ink">{title}</p>
   );
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <PageHeader
-        title="Add designs"
-        subtitle="Each photo becomes one design. Set shared details once."
-      />
+      <PageHeader title="Add designs" />
 
       {drafts.length === 0 ? (
         <section>
-          {stepLabel(1, 'Add photos', 'Pick many from gallery, or take one with camera.')}
-          <button
-            type="button"
-            onClick={() => startPick('gallery')}
-            className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
-          >
-            <PlusIcon width={36} height={36} className="text-accent" />
-            <span className="text-lg font-semibold text-ink">Pick from gallery</span>
-            <span className="max-w-xs text-center text-sm text-muted">
-              Select all new stock photos in one go.
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => startPick('camera')}
-            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-line text-base font-medium text-ink"
-          >
-            <CameraIcon width={22} height={22} />
-            Use camera
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={openAddPhotos}
+              disabled={uploading}
+              className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
+            >
+              <CameraIcon width={36} height={36} className="text-accent" />
+              <span className="text-lg font-semibold text-ink">Add photos</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openGallery(null)}
+              disabled={uploading}
+              className="py-1 text-center text-sm font-medium text-accent"
+            >
+              Choose from gallery
+            </button>
+          </div>
         </section>
       ) : (
         <>
           <section>
-            {stepLabel(
-              1,
+            {sectionTitle(
               `Photos · ${drafts.length} design${drafts.length === 1 ? '' : 's'}`,
-              'Tap a photo to update name, add angles, or change details.',
             )}
             {progressLabel ? (
-              <p className="mb-2 pl-8 text-sm font-medium text-accent">{progressLabel}</p>
+              <p className="mb-2 text-sm font-medium text-accent">{progressLabel}</p>
             ) : null}
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-              {drafts.map((d) => {
+            {isLarge ? (
+              <div className="mb-3 flex flex-col gap-2">
+                <TextInput
+                  value={nameSearch}
+                  onChange={(e) => setNameSearch(e.target.value)}
+                  placeholder="Search designs by name"
+                />
+                <div className="flex gap-2">
+                  <TextInput
+                    value={namePrefix}
+                    onChange={(e) => setNamePrefix(e.target.value)}
+                    placeholder="Prefix (e.g. Festive)"
+                    className="min-w-0 flex-1"
+                  />
+                  <Button type="button" variant="secondary" onClick={applyBatchNames}>
+                    Apply names
+                  </Button>
+                </div>
+                <p className="text-xs text-muted">
+                  Apply names only changes designs you have not edited by hand.
+                </p>
+              </div>
+            ) : null}
+            <div className="grid grid-cols-3 gap-2">
+              {visibleDrafts.map((d) => {
                 const lead = d.images[0];
                 const busy = d.images.some((i) => i.uploading);
+                const different = hasOverrides(d.overrides);
                 return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => openUpdateSheet(d)}
-                    className="relative h-24 w-20 shrink-0 overflow-hidden rounded-xl bg-foam"
-                    aria-label={d.name || 'Design photo'}
-                  >
-                    {lead ? (
-                      <img src={lead.previewUrl} alt="" className="h-full w-full object-cover" />
-                    ) : null}
-                    {busy ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-bold text-white">
-                        …
-                      </div>
-                    ) : null}
-                    {d.images.length > 1 ? (
-                      <span className="absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 text-[11px] font-semibold text-white">
-                        {d.images.length}
-                      </span>
-                    ) : null}
-                    {hasOverrides(d.overrides) ? (
-                      <span className="absolute left-1 top-1 rounded bg-accent px-1.5 text-[10px] font-bold text-white">
-                        Diff
-                      </span>
-                    ) : null}
-                  </button>
+                  <div key={d.id} className="flex flex-col gap-1">
+                    <div className="relative aspect-square overflow-hidden rounded-xl bg-foam">
+                      <button
+                        type="button"
+                        onClick={() => openUpdateSheet(d)}
+                        className="absolute inset-0"
+                        aria-label={d.name || 'Update design'}
+                      >
+                        {lead ? (
+                          <img
+                            src={lead.previewUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : null}
+                        {busy ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-bold text-white">
+                            …
+                          </div>
+                        ) : null}
+                      </button>
+                      {d.images.length > 1 ? (
+                        <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 text-[11px] font-semibold text-white">
+                          {d.images.length}
+                        </span>
+                      ) : null}
+                      {different ? (
+                        <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 text-[10px] font-bold text-white">
+                          Diff
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label="Remove design"
+                        onClick={() => removeDraft(d.id)}
+                        className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={d.name}
+                      onChange={(e) => setName(d.id, e.target.value)}
+                      placeholder="Name"
+                      disabled={busy}
+                      aria-label="Design name"
+                      className="min-h-9 w-full rounded-lg border border-line bg-surface px-1.5 text-center text-xs font-medium text-ink outline-none focus:border-accent disabled:opacity-50"
+                    />
+                  </div>
                 );
               })}
-              <button
-                type="button"
-                onClick={openPickerForNew}
-                disabled={uploading || drafts.length >= MAX_DESIGNS}
-                className="flex h-24 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
-              >
-                <PlusIcon width={22} height={22} />
-                <span className="text-xs font-medium">Add</span>
-              </button>
+              {!searchQ || !isLarge ? (
+                <button
+                  type="button"
+                  onClick={openPickerForNew}
+                  disabled={uploading || drafts.length >= MAX_DESIGNS}
+                  className="flex aspect-square flex-col items-center justify-center gap-1 self-start rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
+                >
+                  <PlusIcon width={22} height={22} />
+                  <span className="text-xs font-medium">Add</span>
+                </button>
+              ) : null}
             </div>
+            {isLarge && searchQ && visibleDrafts.length === 0 ? (
+              <p className="mt-2 text-center text-sm text-muted">No designs match that name.</p>
+            ) : null}
           </section>
 
           <section className="rounded-2xl border border-line bg-surface p-4">
-            {stepLabel(
-              2,
-              'Same for all designs',
-              'Fill once — rate, minimum order and notes apply to every design below.',
-            )}
+            {sectionTitle('Same for all')}
             <div className="flex flex-col gap-3">
               <Field label="Category">
                 <SuggestInput
@@ -661,115 +780,95 @@ export function DesignBatchPage() {
             </div>
           </section>
 
-          <section>
-            {stepLabel(
-              3,
-              'Name each design',
-              isLarge
-                ? 'Search or rename in bulk. Tap a photo for more options.'
-                : 'Names start from your photo files. Tap a photo for more options.',
-            )}
-            {isLarge ? (
-              <div className="mb-3 flex flex-col gap-2">
-                <TextInput
-                  value={nameSearch}
-                  onChange={(e) => setNameSearch(e.target.value)}
-                  placeholder="Search designs by name"
-                />
-                <div className="flex gap-2">
-                  <TextInput
-                    value={namePrefix}
-                    onChange={(e) => setNamePrefix(e.target.value)}
-                    placeholder="Prefix (e.g. Festive)"
-                    className="min-w-0 flex-1"
-                  />
-                  <Button type="button" variant="secondary" onClick={applyBatchNames}>
-                    Apply names
-                  </Button>
-                </div>
-                <p className="text-xs text-muted">
-                  Apply names only changes designs you have not edited by hand.
-                </p>
-              </div>
-            ) : null}
-            <div className="flex flex-col gap-2">
-              {visibleDrafts.map((draft) => {
-                const busy = draft.images.some((i) => i.uploading);
-                const lead = draft.images[0];
-                const different = hasOverrides(draft.overrides);
-                return (
-                  <div
-                    key={draft.id}
-                    className="flex min-h-14 items-center gap-2 rounded-xl border border-line bg-surface px-2 py-1.5"
-                  >
-                    <button
-                      type="button"
-                      className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
-                      onClick={() => openUpdateSheet(draft)}
-                      aria-label="Update this design"
-                    >
-                      {lead ? (
-                        <img src={lead.previewUrl} alt="" className="h-full w-full object-cover" />
-                      ) : null}
-                      {busy ? (
-                        <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-bold text-white">
-                          …
-                        </div>
-                      ) : null}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <TextInput
-                        value={draft.name}
-                        onChange={(e) => setName(draft.id, e.target.value)}
-                        placeholder="Design name"
-                        disabled={busy}
-                        className="min-h-11 !rounded-lg !px-2 !text-sm"
-                      />
-                      {different ? (
-                        <p className="mt-0.5 px-1 text-xs font-medium text-accent">
-                          Different details · tap photo to edit
-                        </p>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Remove design"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam hover:text-danger"
-                      onClick={() => removeDraft(draft.id)}
-                    >
-                      <TrashIcon width={20} height={20} />
-                    </button>
-                  </div>
-                );
-              })}
-              {isLarge && searchQ && visibleDrafts.length === 0 ? (
-                <p className="text-center text-sm text-muted">No designs match that name.</p>
-              ) : null}
-            </div>
-          </section>
-
-          <Button
-            fullWidth
-            disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
-            onClick={() => saveAll.mutate()}
-          >
-            {saveAll.isPending
-              ? progressLabel || 'Saving…'
-              : `Save ${readyCount || drafts.length} design${readyCount === 1 ? '' : 's'}`}
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              fullWidth
+              disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
+              onClick={() => saveAll.mutate()}
+            >
+              {saveAll.isPending && !publishOpen
+                ? progressLabel || 'Saving…'
+                : `Save ${readyCount || drafts.length} draft${readyCount === 1 ? '' : 's'}`}
+            </Button>
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
+              onClick={() => setPublishOpen(true)}
+            >
+              Save & publish…
+            </Button>
+          </div>
         </>
       )}
 
       {error ? <p className="text-center text-sm text-danger">{error}</p> : null}
 
+      <Sheet
+        open={publishOpen}
+        onClose={() => !saveAll.isPending && setPublishOpen(false)}
+        title="Publish designs"
+        footer={
+          <Button
+            fullWidth
+            disabled={!canSubmitPublish || saveAll.isPending}
+            onClick={() => saveAll.mutate({ publish: true })}
+          >
+            {saveAll.isPending ? progressLabel || 'Publishing…' : `Publish ${readyCount}`}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <PublishAudienceFields
+            state={publishAudience}
+            onChange={setPublishAudience}
+            lists={broadcastLists.data ?? []}
+            connections={activeConnections}
+            connectionsLoading={connections.isLoading}
+            tradeDefaults={settings.data?.tradeDefaults}
+            onCreateGroup={() => setCreateGroupOpen(true)}
+            showConsent={!canPublishAlready}
+            consent={consent}
+            onConsent={setConsent}
+          />
+        </div>
+      </Sheet>
+
+      <BuyerGroupFormSheet
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onSaved={(list) => {
+          setCreateGroupOpen(false);
+          void queryClient.invalidateQueries({ queryKey: ['broadcast-lists'] });
+          setPublishAudience((prev) =>
+            selectCreatedGroup(
+              prev,
+              list,
+              broadcastLists.data ?? [],
+              settings.data?.tradeDefaults,
+            ),
+          );
+        }}
+      />
+
       <input
         ref={fileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/*"
-        multiple={captureMode !== true}
-        capture={captureMode === true ? 'environment' : undefined}
+        multiple
         className="hidden"
         onChange={(e) => void onFiles(e.target.files)}
+      />
+
+      <ContinuousCamera
+        open={cameraOpen}
+        maxShots={Math.max(0, MAX_DESIGNS - drafts.length)}
+        onCancel={() => setCameraOpen(false)}
+        onUnavailable={onCameraUnavailable}
+        onDone={(files) => {
+          setCameraOpen(false);
+          void onFiles(files);
+        }}
       />
 
       <Sheet
@@ -779,6 +878,24 @@ export function DesignBatchPage() {
           setEditDraftId(null);
         }}
         title="Update this design"
+        footer={
+          editDraft ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                fullWidth
+                onClick={() => {
+                  applySheetDetails();
+                  setEditDraftId(null);
+                }}
+              >
+                Done
+              </Button>
+              <Button variant="ghost" fullWidth onClick={() => removeDraft(editDraft.id)}>
+                Remove design
+              </Button>
+            </div>
+          ) : null
+        }
       >
         {editDraft ? (
           <div className="flex flex-col gap-3">
@@ -792,11 +909,11 @@ export function DesignBatchPage() {
 
             <div>
               <p className="mb-2 text-sm font-medium text-ink">Photos</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {editDraft.images.map((img) => (
                   <div
                     key={img.id}
-                    className="relative h-24 w-20 overflow-hidden rounded-xl bg-foam"
+                    className="relative aspect-square overflow-hidden rounded-xl bg-foam"
                   >
                     <img src={img.previewUrl} alt="" className="h-full w-full object-cover" />
                     {img.uploading ? (
@@ -807,29 +924,27 @@ export function DesignBatchPage() {
                     <button
                       type="button"
                       aria-label="Remove photo"
-                      className="absolute right-0.5 top-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-ink/60 text-lg leading-none text-white"
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
                       onClick={() => removeImage(editDraft.id, img.id)}
                     >
                       ×
                     </button>
                   </div>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => openPickerForDraft(editDraft.id)}
+                  disabled={uploading}
+                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
+                >
+                  <PlusIcon width={22} height={22} />
+                  <span className="text-xs font-medium">Add</span>
+                </button>
               </div>
-              <Button
-                className="mt-2"
-                fullWidth
-                onClick={() => openPickerForDraft(editDraft.id)}
-                disabled={uploading}
-              >
-                More photos
-              </Button>
             </div>
 
             <div className="rounded-xl border border-line p-3">
-              <p className="mb-1 text-sm font-semibold text-ink">Different details</p>
-              <p className="mb-3 text-xs text-muted">
-                Optional. Leave as-is to keep “Same for all”.
-              </p>
+              <p className="mb-2 text-sm font-semibold text-ink">Different details</p>
               <div className="flex flex-col gap-3">
                 <Field label="Category">
                   <SuggestInput
@@ -873,19 +988,6 @@ export function DesignBatchPage() {
                 </Button>
               </div>
             </div>
-
-            <Button
-              fullWidth
-              onClick={() => {
-                applySheetDetails();
-                setEditDraftId(null);
-              }}
-            >
-              Done
-            </Button>
-            <Button variant="danger" fullWidth onClick={() => removeDraft(editDraft.id)}>
-              Remove design
-            </Button>
           </div>
         ) : null}
       </Sheet>

@@ -11,6 +11,7 @@ import {
   type UniversalSearchResults,
 } from '@ekum/domain-types';
 import { Prisma } from '@prisma/client';
+import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { DiscoverySerializer } from './discovery.serializer';
 import { collectionCardInclude } from './collection-preview';
@@ -156,12 +157,9 @@ export class SearchService {
         ],
         company: { connectionsAsOwner: { none: { viewerCompanyId, status: ConnectionStatus.Blocked } } },
         AND: [
-          {
-            OR: [
-              { audience: { not: 'selected' } },
-              { audience: 'selected', audienceCompanyIds: { has: viewerCompanyId } },
-            ],
-          },
+          { OR: audienceVisibilityOr(viewerCompanyId) },
+          { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
         ],
       },
       include: collectionCardInclude,
@@ -177,6 +175,7 @@ export class SearchService {
     const rows = await this.prisma.product.findMany({
       where: {
         status: ProductStatus.Published,
+        postedToMarketAt: { not: null },
         companyId: { not: viewerCompanyId },
         OR: [
           { name: { contains: query.q, mode: 'insensitive' } },
@@ -184,7 +183,12 @@ export class SearchService {
           { categories: { has: query.q } },
           { company: { name: { contains: query.q, mode: 'insensitive' } } },
         ],
-        company: { connectionsAsOwner: { none: { viewerCompanyId, status: ConnectionStatus.Blocked } } },
+        company: {
+          connectionsAsOwner: {
+            none: { viewerCompanyId, status: ConnectionStatus.Blocked },
+          },
+        },
+        AND: [{ OR: audienceVisibilityOr(viewerCompanyId) }],
       },
       include: { company: true },
       ...cursorArgs(query),

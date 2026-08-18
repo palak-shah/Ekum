@@ -324,7 +324,7 @@ describe('OrderService.create snapshots', () => {
       kind: OrderKind.Standard,
       items: [{ productId: 'p1', quantity: 5, images: [] }],
     } as CreateOrderDto;
-    await service.create('buyer', dto);
+    await service.create('buyer', 'user-1', dto);
     expect(captured.createData?.items.create[0]).toMatchObject({
       productId: 'p1',
       name: 'Silk Saree',
@@ -343,7 +343,7 @@ describe('OrderService.create snapshots', () => {
         { id: 'p1', name: 'Silk Saree', sku: 'S1', rate: { toNumber: () => 100 }, unit: 'mtr', images: [] },
       ],
     });
-    await service.create('buyer', {
+    await service.create('buyer', 'user-1', {
       sellerCompanyId: 'seller',
       kind: OrderKind.Standard,
       items: [{ productId: 'p1', quantity: 1, images: [] }],
@@ -366,7 +366,7 @@ describe('OrderService.create snapshots', () => {
         { id: 'p1', name: 'Silk Saree', sku: 'S1', rate: { toNumber: () => 100 }, unit: 'mtr', images: [] },
       ],
     });
-    await service.create('buyer', {
+    await service.create('buyer', 'user-1', {
       sellerCompanyId: 'seller',
       kind: OrderKind.Standard,
       intent: OrderIntent.Inquiry,
@@ -426,7 +426,7 @@ describe('OrderService.create snapshots', () => {
       kind: OrderKind.Standard,
       items: [{ productId: 'ghost', quantity: 1, images: [] }],
     } as CreateOrderDto;
-    await expect(service.create('buyer', dto)).rejects.toThrow();
+    await expect(service.create('buyer', 'user-1', dto)).rejects.toThrow();
   });
 });
 

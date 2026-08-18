@@ -1,9 +1,20 @@
 ---
-description: UI quality bar — real estate, no flicker, E2E completeness, UX/UI consistency
+description: UI quality bar — simplicity, fewer taps, real estate, no flicker, E2E, consistency
 alwaysApply: true
 ---
 
 # UI quality bar (Ekum)
+
+## 0. Simplicity first (product philosophy)
+
+Ekum is for busy textile traders. **Clutter-free, fewer taps, never get lost.**
+
+- **One job per screen.** Create/edit/browse/decide — don’t stack CMS controls on an album.
+- **Decisions at the moment they matter.** Who / rates / schedule belong on **Publish**, not on every draft edit scroll.
+- **Library pickers and long lists open as sheets**, not endless inline grids under the form.
+- **No accidental destructive taps.** Remove via explicit ×; tap means view/edit only when we add that later.
+- **Challenge feature creep.** Prefer cutting a control over adding a “helpful” second path. If two ways exist, keep the shorter one.
+- **Success metric:** a first-time seller can create and publish a pack without hunting menus or re-learning the app.
 
 Before calling UI/product work done, check all four:
 

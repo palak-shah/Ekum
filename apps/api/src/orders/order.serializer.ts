@@ -22,6 +22,9 @@ import {
   type SampleView,
 } from '@ekum/domain-types';
 import { CompanySerializer } from '../access/company.serializer';
+import { toAuditActor } from '../common/audit';
+
+type ActorUser = { id: string; name: string | null };
 
 type ShipmentWithItems = OrderShipment & {
   items: (OrderShipmentItem & { orderItem: Pick<OrderItem, 'id' | 'name'> })[];
@@ -32,6 +35,8 @@ type OrderWithRelations = Order & {
   seller: Company;
   items: OrderItem[];
   shipments?: ShipmentWithItems[];
+  createdByUser?: ActorUser | null;
+  updatedByUser?: ActorUser | null;
 };
 
 type SampleWithRelations = Sample & { buyer: Company; seller: Company };
@@ -131,6 +136,8 @@ export class OrderSerializer {
       deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
       closedAt: order.closedAt ? order.closedAt.toISOString() : null,
       partiallyShipped,
+      createdBy: toAuditActor(order.createdByUser),
+      updatedBy: toAuditActor(order.updatedByUser),
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     };

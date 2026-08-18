@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -12,6 +12,7 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
+import { useMyCompany } from '@/lib/queries';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { CompanyRow } from '@/ui/cards';
@@ -27,45 +28,7 @@ import {
   cx,
 } from '@/ui/kit';
 import { CheckIcon, LockIcon } from '@/ui/icons';
-
-/** Long-press; swallows the click that usually follows so activate does not fire. */
-function useLongPress(onLongPress?: () => void, ms = 420) {
-  const timer = useRef<number | null>(null);
-  const fired = useRef(false);
-  const clear = () => {
-    if (timer.current != null) {
-      window.clearTimeout(timer.current);
-      timer.current = null;
-    }
-  };
-  return {
-    onPointerDown: () => {
-      if (!onLongPress) return;
-      fired.current = false;
-      clear();
-      timer.current = window.setTimeout(() => {
-        timer.current = null;
-        fired.current = true;
-        onLongPress();
-      }, ms);
-    },
-    onPointerUp: clear,
-    onPointerLeave: clear,
-    onPointerCancel: clear,
-    onContextMenu: (event: MouseEvent) => {
-      if (!onLongPress) return;
-      event.preventDefault();
-      fired.current = true;
-      onLongPress();
-    },
-    onClickCapture: (event: MouseEvent) => {
-      if (!fired.current) return;
-      fired.current = false;
-      event.preventDefault();
-      event.stopPropagation();
-    },
-  };
-}
+import { useLongPress } from '@/ui/useLongPress';
 
 type Layout = 'feed' | 'grid';
 
@@ -104,6 +67,7 @@ export function CollectionViewerPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const me = useMyCompany();
   const [layout, setLayout] = useState<Layout>('grid');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => readShortlist(id));
@@ -167,6 +131,7 @@ export function CollectionViewerPage() {
     setSelected(new Set(products.map((product) => product.id)));
   };
   const companyId = collection.data?.company.id ?? '';
+  const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
   const accessPending =
     Boolean(companyId) &&
     (outgoing.data?.some((item) => item.company.id === companyId && item.status === 'pending') ??
@@ -314,9 +279,18 @@ export function CollectionViewerPage() {
         title={data.name}
         subtitle={`${data.productCount} designs`}
         action={
-          data.products ? (
+          data.products || isOwner ? (
             <div className="flex items-center gap-1">
-              {data.connected ? (
+              {isOwner ? (
+                <button
+                  type="button"
+                  className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5"
+                  onClick={() => navigate(`/catalog/collections/${id}`)}
+                >
+                  Edit
+                </button>
+              ) : null}
+              {data.products && data.connected ? (
                 <button
                   type="button"
                   data-testid="collection-select"

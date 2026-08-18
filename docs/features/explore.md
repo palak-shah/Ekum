@@ -20,11 +20,12 @@ Primarily buyers (and dual-role companies browsing). Sellers appear as the sourc
 
 | Rule | Detail |
 |------|--------|
-| Visibility | Blocked companies never appear; audience (`everyone` / `connections` / `selected`) enforced server-side |
-| Designs on Explore | Need catalog publish **and** post-to-market (`postedToMarketAt`) |
-| Collections on Explore | Published albums with activity rules — see [collections](./collections.md) |
+| Visibility | Blocked companies never appear; audience (`everyone` / `connections` / `followers` / `selected`) enforced server-side |
+| Designs on Explore | Published designs with `postedToMarketAt` (Publish sets both) |
+| Collections on Explore | Published albums with activity / live-window rules — see [collections](./collections.md) |
 | Follow | Permissionless; does not replace access for trade |
-| Ranking | Interest / opportunity matching (`feed-rank`, `interest-match`) — not likes/viral scores |
+| Ranking (feed) | Interest / opportunity matching (`feed-rank`, `interest-match`) — not likes/viral scores |
+| Businesses tab | Directory = companies with live Explore posts (not self, not blocked). Rank: **interest match first**, then **newest post activity**. Following is not pinned above discovery; why-lines may still note connected/following |
 | Why-lines | Cards may show relevance / posted-time cues for clarity |
 
 ## Edge cases / empty states

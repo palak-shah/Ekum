@@ -149,6 +149,11 @@ export interface MessageReference {
   /** Catalog owner company (product/collection) — not the message forwarder. */
   ownerCompanyId?: string | null;
   ownerCompanyName?: string | null;
+  /**
+   * When false, non-owners must not forward/re-share this card.
+   * Omitted/true = forward allowed.
+   */
+  allowForward?: boolean;
   available: boolean;
   /** Order/rate: line count. Collection: total designs (for +N overflow). */
   status?: string | null;

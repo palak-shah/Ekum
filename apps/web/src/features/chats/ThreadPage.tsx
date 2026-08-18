@@ -19,6 +19,7 @@ import type {
   ThreadSummary,
 } from '@ekum/domain-types';
 import { photoUrlsFromMessage } from '@ekum/domain-types';
+import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
 import { uploadImage } from '@/lib/mediaUpload';
@@ -66,8 +67,10 @@ type AttachStep =
 
 export function ThreadPage() {
   const { id = '' } = useParams();
+  const companyId = useCompanyId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const canForward = (message: MessageView) => canForwardMessage(message, companyId);
   const [draft, setDraft] = useState('');
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachStep, setAttachStep] = useState<AttachStep>('menu');
@@ -417,7 +420,7 @@ export function ThreadPage() {
   };
 
   const openMultiForward = () => {
-    const queue = ordered.filter((message) => selectedIds.has(message.id) && canForwardMessage(message));
+    const queue = ordered.filter((message) => selectedIds.has(message.id) && canForward(message));
     if (queue.length === 0) return;
     setForwardQueue(queue);
   };
@@ -715,7 +718,7 @@ export function ThreadPage() {
                     : undefined
                 }
                 onToggleSelect={
-                  selecting && canForwardMessage(message)
+                  selecting && canForward(message)
                     ? () => toggleSelected(message.id)
                     : undefined
                 }
@@ -725,10 +728,10 @@ export function ThreadPage() {
                         onReply: canReplyToMessage(message)
                           ? () => startReply(message)
                           : undefined,
-                        onForward: canForwardMessage(message)
+                        onForward: canForward(message)
                           ? () => startForwardOne(message)
                           : undefined,
-                        onSelect: canForwardMessage(message)
+                        onSelect: canForward(message)
                           ? () => startSelect(message)
                           : undefined,
                       }
@@ -798,7 +801,7 @@ export function ThreadPage() {
               onClick={() => {
                 const next = new Set<string>();
                 for (const message of ordered) {
-                  if (canForwardMessage(message)) next.add(message.id);
+                  if (canForward(message)) next.add(message.id);
                 }
                 setSelectedIds(next);
               }}

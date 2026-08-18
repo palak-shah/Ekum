@@ -17,6 +17,7 @@ function makeResolver() {
           name: 'Banarasi Silk',
           images: ['img1'],
           companyId: 'co1',
+          allowForward: true,
           company: { id: 'co1', name: 'Surat Silk House' },
         },
       ],
@@ -28,6 +29,7 @@ function makeResolver() {
           name: 'Wedding Edit',
           coverImage: 'cover1',
           companyId: 'co1',
+          allowForward: false,
           company: { id: 'co1', name: 'Surat Silk House' },
           _count: { products: 2 },
           products: [
@@ -103,6 +105,7 @@ describe('ReferenceResolver catalog cards', () => {
     expect(reference?.images).toEqual(['img1']);
     expect(reference?.ownerCompanyId).toBe('co1');
     expect(reference?.ownerCompanyName).toBe('Surat Silk House');
+    expect(reference?.allowForward).toBe(true);
     expect(JSON.stringify(reference)).not.toMatch(/sender/i);
   });
 

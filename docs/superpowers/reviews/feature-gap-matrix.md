@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-08-11  
+**Updated:** 2026-08-13  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -25,7 +25,13 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Photo order / amend / samples / returns | Partial | Untested | Future | |
 | Orders | Trade without connection | Rejected | — | Reject | Trust ladder |
 | Collections | Buyer view Wedding Edit + shortlist clear | Works | Functional | Required | Green 2026-08-11 (BM-03) |
-| Collections | Seller create/publish / quick-add | Works | Untested | Future | |
+| Collections | Seller create photos-first + cover tag | Works | Unit | Required | Slice 1 2026-08-12; functional journey Recommended next |
+| Collections | Seller create/publish / quick-add (edit) | Works | Untested | Recommended | |
+| Collections | Buyer groups (elevate broadcast lists) | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | No-forward (usual → group → sheet + API) | Works | Unit | Required | 2026-08-13 no-forward |
+| Collections | Ready status + seller badges/filters | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | Live window startsAt/endsAt + expire | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | Seller informed catalog (collage + viewer) | Works | Unit | Required | 2026-08-13 Completeness |
 | Explore | Browse seeded + open detail | Works | Functional | Required | Green 2026-08-11 |
 | Explore | Filter dismiss BM-02 | Works | Functional | Required | Green 2026-08-11 |
 | Explore | Federated search / follow feed | Works | Untested | Future | |

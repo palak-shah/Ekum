@@ -4,11 +4,7 @@ import { cx } from '@/ui/kit';
 const GUTTER = 2;
 
 function urlAt(urls: string[], index: number): string {
-  const url = urls[index];
-  if (!url) {
-    throw new Error('Missing photo URL');
-  }
-  return url;
+  return urls[index] ?? '';
 }
 
 function Cell({
@@ -52,13 +48,15 @@ export function PhotoAlbum({
   overflowCount?: number;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const preview = urls.slice(0, 4);
+  // Drop blanks so a bad reference never throws through the router error boundary.
+  const clean = urls.filter((url): url is string => Boolean(url));
+  const preview = clean.slice(0, 4);
 
   useEffect(() => {
     if (viewerIndex === null) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setViewerIndex(null);
-      if (event.key === 'ArrowRight' && viewerIndex < urls.length - 1) {
+      if (event.key === 'ArrowRight' && viewerIndex < clean.length - 1) {
         setViewerIndex(viewerIndex + 1);
       }
       if (event.key === 'ArrowLeft' && viewerIndex > 0) {
@@ -67,13 +65,13 @@ export function PhotoAlbum({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [viewerIndex, urls.length]);
+  }, [viewerIndex, clean.length]);
 
-  if (urls.length === 0) return null;
+  if (clean.length === 0) return null;
 
   const open = (index: number) => setViewerIndex(index);
   /** Thumbs beyond the 4-slot preview, plus designs with no image still counted on the card. */
-  const extra = Math.max(0, urls.length - preview.length) + Math.max(0, overflowCount);
+  const extra = Math.max(0, clean.length - preview.length) + Math.max(0, overflowCount);
   const moreLabel = extra > 0 ? `+${extra}` : undefined;
   const count = preview.length;
 
@@ -148,7 +146,7 @@ export function PhotoAlbum({
     );
   }
 
-  const viewerSrc = viewerIndex !== null ? urls[viewerIndex] : undefined;
+  const viewerSrc = viewerIndex !== null ? clean[viewerIndex] : undefined;
 
   return (
     <>
@@ -169,7 +167,7 @@ export function PhotoAlbum({
               Close
             </button>
             <p className="text-sm text-white/80">
-              {viewerIndex + 1} / {urls.length}
+              {viewerIndex + 1} / {clean.length}
             </p>
             <span className="w-16" />
           </div>
@@ -185,7 +183,7 @@ export function PhotoAlbum({
               </button>
             ) : null}
             <img src={viewerSrc} alt="" className="max-h-full max-w-full object-contain" />
-            {viewerIndex < urls.length - 1 ? (
+            {viewerIndex < clean.length - 1 ? (
               <button
                 type="button"
                 aria-label="Next photo"

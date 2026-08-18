@@ -13,7 +13,7 @@ Start with [Shared concepts](./00-concepts.md) before area docs.
 | Control | Role |
 |---------|------|
 | **Home · Chats · ＋ · Explore · Orders** | Bottom nav (`AppShell`) |
-| **＋ sheet** | Buying: Photo order, Find supplier. Selling: Add designs, New collection, Broadcast (if `canPublish`). Refer (if `refer` capability). |
+| **＋ sheet** | Buying: Photo order. Selling: Add designs, New collection, Broadcast (if `canPublish`). Refer (if `refer` capability). Find suppliers via **Explore**. |
 | **Bell** | Notifications only — not mirrored on Home |
 | **Avatar → You** | `/more` — catalog, buyers, samples, returns, settings, logout |
 

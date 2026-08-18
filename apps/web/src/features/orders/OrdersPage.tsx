@@ -15,6 +15,7 @@ import { timeAgo } from '@/lib/format';
 import { Card, Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, cx } from '@/ui/kit';
 import { MoreHorizontalIcon } from '@/ui/icons';
 import { matchesCompleted, matchesNeeds, matchesProgress } from './orderAttention';
+import { auditLine } from '@/features/catalog/productStatusSummary';
 
 type Direction = 'all' | 'buying' | 'selling';
 type StatusFilter = 'needs' | 'progress' | 'completed';
@@ -28,6 +29,9 @@ export function OrdersPage() {
   const menuPanelRef = useRef<HTMLDivElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [direction, setDirection] = useState<Direction>('all');
+  const [listSort, setListSort] = useState<'newest' | 'oldest'>('newest');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   // Default In progress so first open isn't an empty "Needs action" trap.
   // Home deep-link ?filter=needs still lands on Needs action.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
@@ -84,8 +88,13 @@ export function OrdersPage() {
   }, [menuOpen]);
 
   const orders = useQuery({
-    queryKey: ['orders', { list: true }],
-    queryFn: () => api.get<CursorPage<OrderView>>('/orders', { limit: 50 }),
+    queryKey: ['orders', { list: true, listSort, createdFrom, createdTo }],
+    queryFn: () => {
+      const params: Record<string, string | number> = { limit: 50, sort: listSort };
+      if (createdFrom) params.createdFrom = createdFrom;
+      if (createdTo) params.createdTo = createdTo;
+      return api.get<CursorPage<OrderView>>('/orders', params);
+    },
   });
 
   const allOrders = orders.data?.results ?? [];
@@ -172,6 +181,30 @@ export function OrdersPage() {
           : null}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setListSort((s) => (s === 'newest' ? 'oldest' : 'newest'))}
+          className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-bold text-ink"
+        >
+          {listSort === 'newest' ? 'Newest' : 'Oldest'}
+        </button>
+        <input
+          type="date"
+          value={createdFrom}
+          onChange={(e) => setCreatedFrom(e.target.value)}
+          className="rounded-lg border border-line bg-surface px-2 py-1 text-[11px] text-ink"
+          aria-label="Created from"
+        />
+        <input
+          type="date"
+          value={createdTo}
+          onChange={(e) => setCreatedTo(e.target.value)}
+          className="rounded-lg border border-line bg-surface px-2 py-1 text-[11px] text-ink"
+          aria-label="Created to"
+        />
+      </div>
+
       <div className="flex items-center gap-2">
         <FilterRail className="min-w-0 flex-1">
           {(
@@ -240,6 +273,7 @@ export function OrdersPage() {
                             : 'You sell'}{' '}
                         · {order.items.length}{' '}
                         {order.items.length === 1 ? 'item' : 'items'} · {timeAgo(order.createdAt)}
+                        {auditLine(order) ? ` · ${auditLine(order)}` : ''}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-0.5">

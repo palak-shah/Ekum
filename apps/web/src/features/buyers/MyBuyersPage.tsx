@@ -35,7 +35,14 @@ export function MyBuyersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="My buyers" />
+      <PageHeader
+        title="My buyers"
+        action={
+          <Link to="/broadcast" className="text-sm font-medium text-accent">
+            Buyer groups
+          </Link>
+        }
+      />
 
       <section className="flex flex-col gap-2">
         <SectionHeader title="Access requests" />

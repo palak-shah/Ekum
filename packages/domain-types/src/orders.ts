@@ -12,6 +12,7 @@ import {
   unitValues,
 } from './enums';
 import type { PublicCompanySummary } from './access';
+import type { AuditActorView } from './catalog';
 
 /**
  * Orders & Fulfillment contracts. There is one Order object shared by two
@@ -159,6 +160,9 @@ export type DecideOrderLinesDto = z.infer<typeof decideOrderLinesSchema>;
 export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   direction: z.enum(orderDirectionValues).optional(),
   status: z.enum(orderStatusValues).optional(),
+  sort: z.enum(['newest', 'oldest']).optional().default('newest'),
+  createdFrom: z.string().min(1).max(40).optional(),
+  createdTo: z.string().min(1).max(40).optional(),
 });
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
 
@@ -316,6 +320,8 @@ export interface OrderView {
   closedAt: string | null;
   /** True when some but not all shippable qty has left. */
   partiallyShipped: boolean;
+  createdBy: AuditActorView | null;
+  updatedBy: AuditActorView | null;
   createdAt: string;
   updatedAt: string;
 }

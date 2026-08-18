@@ -24,6 +24,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Unconnected first message | Recipient starts **pending**; reply/accept activates |
 | Block | Sender may still see a thread; recipient side is silently archived |
 | Owner on cards | Design/collection cards show `from {owner company}`; sender (You/forwarder) sits above the card |
+| No-forward lock | When `reference.allowForward === false`, non-owners cannot Forward (action hidden). API rejects with `FORWARD_NOT_ALLOWED`. Owner may still share. Same rule for `product_card` and `collection_card`. |
 | Message actions | Top-right chevron opens Reply / Forward / Select (long-press still works) |
 | Owner-only threads | Hidden from staff even with chat permission (domain-ready) |
 | Mute | Local `ThreadAlertLevel`; never signalled to the other party |

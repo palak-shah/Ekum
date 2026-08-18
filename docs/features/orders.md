@@ -17,14 +17,14 @@ Buyers place / accept quotes; sellers quote, confirm, dispatch, deliver. Both ma
 | Kind | How |
 |------|-----|
 | **Standard** | Pick published designs / lines → quantities → place request |
-| **Photo** | **＋ → Photo order** — attach photos + notes when catalog lines aren’t enough |
+| **Photo** | **＋ → Photo order** — phone: continuous in-app camera (multi-shot; torch/zoom when the device supports them) or gallery multi-select; desktop: file multi-select. Then per-photo pieces (presets set all), supplier (unless `?seller=`), note, send |
 | **Inquiry** | From a collection: **Ask for rates** creates a `requested` trade with `intent: inquiry` (same lines/quote path). UI says **Inquiry** (not Order); chat card `Inquiry #… · Inquiry`. Soft until firmed. |
 
 Lifecycle actions (role-dependent): confirm, add rates / accept quote, decline, dispatch (LR/transporter), deliver, cancel. Buyer may **Edit inquiry/order** (qty / remove lines) until the seller quotes or confirms/declines — each edit **updates** the living chat card (**Updated**).
 
 **Inquiry firm-up:** `intent` flips to `order` when the seller sends a **quote**, confirms any lines, or the buyer **accepts quote**. Decline/cancel stay terminal. Later chat cards use `Order #`.
 
-**Clarity:** Lists and detail use **You buy** / **You sell**. Order detail shows a one-line **Next** cue for your role (and the **full** action timeline). Status **Confirmed** means agreed / ready to ship — but buyers never see “confirm” verbs: when they accepted a quote, timeline and Parties say **Quote accepted by …**; when the seller locked supply, **Confirmed by …**. CTAs stay role-owned (buyer: Accept quote / Cancel / Deliver; seller: Quote / Confirm lines / Dispatch). Chat keeps **one living reference** per order: rich card for ask-rates / place-order / quote (designs clubbed, `Inquiry #` / `Order #`); later statuses update that same message into a compact chip (`Order #… · Part dispatched`). **View order →** / tap opens the order; **Accept quote** only while `canAcceptQuote`.
+**Clarity:** Lists and detail use **You buy** / **You sell**. Order list supports newest/oldest sort and created date filters; tiles may show a short staff audit line (`createdBy`). Order detail shows a one-line **Next** cue for your role (and the **full** action timeline). Status **Confirmed** means agreed / ready to ship — but buyers never see “confirm” verbs: when they accepted a quote, timeline and Parties say **Quote accepted by …**; when the seller locked supply, **Confirmed by …**. CTAs stay role-owned (buyer: Accept quote / Cancel / Deliver; seller: Quote / Confirm lines / Dispatch). Chat keeps **one living reference** per order: rich card for ask-rates / place-order / quote (designs clubbed, `Inquiry #` / `Order #`); later statuses update that same message into a compact chip (`Order #… · Part dispatched`). **View order →** / tap opens the order; **Accept quote** only while `canAcceptQuote`.
 
 ### Seller partial supply
 

@@ -35,7 +35,7 @@ function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/company')) return 'Business';
   if (pathname.startsWith('/collections')) return 'Collection';
   if (pathname.startsWith('/products')) return 'Design';
-  if (pathname.startsWith('/broadcast')) return 'Broadcast';
+  if (pathname.startsWith('/broadcast')) return 'Buyer groups';
   if (pathname.startsWith('/referrals')) return 'Referrals';
   return null;
 }
@@ -152,14 +152,9 @@ export function AppShell() {
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
         <div className="flex flex-col gap-2">
           {buying ? (
-            <>
-              <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
-                Photo order
-              </Button>
-              <Button variant="secondary" fullWidth onClick={() => go('/explore')}>
-                Find a supplier
-              </Button>
-            </>
+            <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
+              Photo order
+            </Button>
           ) : null}
           {selling ? (
             <>

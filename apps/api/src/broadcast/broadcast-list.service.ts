@@ -9,7 +9,13 @@ export class BroadcastListService {
 
   async create(companyId: string, dto: UpsertBroadcastListDto): Promise<BroadcastListView> {
     const list = await this.prisma.broadcastList.create({
-      data: { companyId, name: dto.name, memberCompanyIds: dto.memberCompanyIds },
+      data: {
+        companyId,
+        name: dto.name,
+        memberCompanyIds: dto.memberCompanyIds,
+        defaultRateVisibility: dto.defaultRateVisibility ?? null,
+        allowForward: dto.allowForward ?? null,
+      },
     });
     return this.toView(list);
   }
@@ -30,7 +36,12 @@ export class BroadcastListService {
     await this.owned(companyId, id);
     const list = await this.prisma.broadcastList.update({
       where: { id },
-      data: { name: dto.name, memberCompanyIds: dto.memberCompanyIds },
+      data: {
+        name: dto.name,
+        memberCompanyIds: dto.memberCompanyIds,
+        defaultRateVisibility: dto.defaultRateVisibility ?? null,
+        allowForward: dto.allowForward ?? null,
+      },
     });
     return this.toView(list);
   }
@@ -44,7 +55,7 @@ export class BroadcastListService {
   private async owned(companyId: string, id: string): Promise<BroadcastList> {
     const list = await this.prisma.broadcastList.findUnique({ where: { id } });
     if (!list || list.companyId !== companyId) {
-      throw new NotFoundException({ code: 'NOT_FOUND', message: 'List not found.' });
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Buyer group not found.' });
     }
     return list;
   }
@@ -55,6 +66,8 @@ export class BroadcastListService {
       name: list.name,
       memberCompanyIds: list.memberCompanyIds,
       memberCount: list.memberCompanyIds.length,
+      defaultRateVisibility: list.defaultRateVisibility,
+      allowForward: list.allowForward,
       createdAt: list.createdAt.toISOString(),
       updatedAt: list.updatedAt.toISOString(),
     };

@@ -17,6 +17,8 @@ const baseProduct = {
   audience: 'connections',
   rateVisibility: 'on_request',
   audienceCompanyIds: [] as string[],
+  audienceGroupIds: [] as string[],
+  allowForward: true,
   postedToMarketAt: null,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-02T00:00:00.000Z'),
@@ -51,12 +53,25 @@ describe('CatalogSerializer', () => {
       audience: 'connections',
       rateVisibility: 'on_request',
       audienceCompanyIds: [],
+      audienceGroupIds: [],
+      allowForward: true,
+      startsAt: null,
+      endsAt: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       _count: { products: 3 },
     } as unknown as Collection & { _count: { products: number } };
-    expect(serializer.toCollectionView(collection).productCount).toBe(3);
-    expect(serializer.toCollectionView(collection).audienceCompanyIds).toEqual([]);
+    const view = serializer.toCollectionView(collection);
+    expect(view.productCount).toBe(3);
+    expect(view.allowForward).toBe(true);
+    expect(view.audienceCompanyIds).toEqual([]);
+    expect(view.audienceGroupIds).toEqual([]);
+    expect(view.startsAt).toBeNull();
+    expect(view.endsAt).toBeNull();
+    expect(view.previewImages).toEqual([]);
+    expect(view.photoCount).toBe(0);
+    expect(view.createdBy).toBeNull();
+    expect(view.updatedBy).toBeNull();
   });
 
   it('maps ordered products into a collection detail view', () => {
@@ -69,6 +84,10 @@ describe('CatalogSerializer', () => {
       audience: 'everyone',
       rateVisibility: 'visible',
       audienceCompanyIds: [],
+      audienceGroupIds: [],
+      allowForward: false,
+      startsAt: null,
+      endsAt: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       products: [{ product: product(null) }],

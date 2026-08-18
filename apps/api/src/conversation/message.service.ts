@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, type Message } from '@prisma/client';
 import {
   MessageType,
@@ -333,34 +333,42 @@ export class MessageService {
   private async validateReference(actorCompanyId: string, dto: SendMessageDto): Promise<void> {
     if (dto.type === MessageType.ProductCard) {
       const product = await this.prisma.product.findFirst({
-        where: { id: dto.referenceId, companyId: actorCompanyId },
-        select: { id: true },
+        where: { id: dto.referenceId },
+        select: { id: true, companyId: true, allowForward: true },
       });
-      if (product) {
+      if (!product) {
+        throw this.invalidReference();
+      }
+      if (product.companyId === actorCompanyId) {
         return;
       }
-      if (
-        dto.referenceId &&
-        (await this.wasSharedInChat(actorCompanyId, dto.referenceId, MessageType.ProductCard))
-      ) {
-        return;
+      if (!(await this.wasSharedInChat(actorCompanyId, product.id, MessageType.ProductCard))) {
+        throw this.invalidReference();
       }
-      throw this.invalidReference();
+      if (product.allowForward === false) {
+        throw this.forwardNotAllowed();
+      }
+      return;
     } else if (dto.type === MessageType.CollectionCard) {
       const collection = await this.prisma.collection.findFirst({
-        where: { id: dto.referenceId, companyId: actorCompanyId },
-        select: { id: true },
+        where: { id: dto.referenceId },
+        select: { id: true, companyId: true, allowForward: true },
       });
-      if (collection) {
+      if (!collection) {
+        throw this.invalidReference();
+      }
+      if (collection.companyId === actorCompanyId) {
         return;
       }
       if (
-        dto.referenceId &&
-        (await this.wasSharedInChat(actorCompanyId, dto.referenceId, MessageType.CollectionCard))
+        !(await this.wasSharedInChat(actorCompanyId, collection.id, MessageType.CollectionCard))
       ) {
-        return;
+        throw this.invalidReference();
       }
-      throw this.invalidReference();
+      if (collection.allowForward === false) {
+        throw this.forwardNotAllowed();
+      }
+      return;
     } else if (dto.type === MessageType.OrderCard || dto.type === MessageType.Rate) {
       const order = await this.prisma.order.findFirst({
         where: {
@@ -399,6 +407,13 @@ export class MessageService {
     return new BadRequestException({
       code: 'INVALID_REFERENCE',
       message: 'You can only share objects your business can access.',
+    });
+  }
+
+  private forwardNotAllowed(): ForbiddenException {
+    return new ForbiddenException({
+      code: 'FORWARD_NOT_ALLOWED',
+      message: 'The supplier does not allow buyers to forward this.',
     });
   }
 }

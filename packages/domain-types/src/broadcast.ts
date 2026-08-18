@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { MessageType, messageTypeValues } from './enums';
+import { MessageType, messageTypeValues, rateVisibilityValues } from './enums';
 import type { PublicCompanySummary } from './access';
 
 /**
- * Broadcast (Phase 1): compose once and send now to selected buyers and/or saved
- * lists. Scheduling and audience tiering are deferred to Phase 2. A broadcast is
- * an immediate multi-recipient share — each recipient receives it independently.
+ * Buyer groups (BroadcastList): reusable recipient sets for publish audience,
+ * share, and broadcast. A broadcast is an immediate multi-recipient share —
+ * each recipient receives it independently.
  */
 
 const cardTypes = [MessageType.ProductCard, MessageType.CollectionCard] as const;
@@ -13,6 +13,10 @@ const cardTypes = [MessageType.ProductCard, MessageType.CollectionCard] as const
 export const upsertBroadcastListSchema = z.object({
   name: z.string().trim().min(1).max(120),
   memberCompanyIds: z.array(z.string().min(1)).max(1000).default([]),
+  /** Null / omit = inherit company usual rates. */
+  defaultRateVisibility: z.enum(rateVisibilityValues).nullable().optional(),
+  /** Null / omit = inherit company usual forward. */
+  allowForward: z.boolean().nullable().optional(),
 });
 export type UpsertBroadcastListDto = z.infer<typeof upsertBroadcastListSchema>;
 
@@ -48,6 +52,10 @@ export interface BroadcastListView {
   name: string;
   memberCompanyIds: string[];
   memberCount: number;
+  /** Null = inherit company usual. */
+  defaultRateVisibility: string | null;
+  /** Null = inherit company usual. */
+  allowForward: boolean | null;
   createdAt: string;
   updatedAt: string;
 }

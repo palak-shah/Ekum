@@ -46,19 +46,19 @@ function setup(canPublish: boolean) {
 describe('ProductService.setStatus publish gate', () => {
   it('blocks publishing when the company cannot publish', async () => {
     const { service, productUpdate } = setup(false);
-    await expect(service.setStatus('c1', 'p1', ProductStatus.Published)).rejects.toThrow();
+    await expect(service.setStatus('c1', 'u1', 'p1', ProductStatus.Published)).rejects.toThrow();
     expect(productUpdate).not.toHaveBeenCalled();
   });
 
   it('allows publishing when the company can publish', async () => {
     const { service, productUpdate } = setup(true);
-    await service.setStatus('c1', 'p1', ProductStatus.Published);
+    await service.setStatus('c1', 'u1', 'p1', ProductStatus.Published);
     expect(productUpdate).toHaveBeenCalled();
   });
 
   it('does not gate archiving', async () => {
     const { service, productUpdate } = setup(false);
-    await service.setStatus('c1', 'p1', ProductStatus.Archived);
+    await service.setStatus('c1', 'u1', 'p1', ProductStatus.Archived);
     expect(productUpdate).toHaveBeenCalled();
   });
 });
@@ -66,21 +66,28 @@ describe('ProductService.setStatus publish gate', () => {
 describe('ProductService.publish consent', () => {
   it('blocks catalog publish without consent when locked', async () => {
     const { service, productUpdate, companyUpdate } = setup(false);
-    await expect(service.publish('c1', 'p1', {})).rejects.toThrow();
+    await expect(service.publish('c1', 'u1', 'p1', {})).rejects.toThrow();
     expect(productUpdate).not.toHaveBeenCalled();
     expect(companyUpdate).not.toHaveBeenCalled();
   });
 
   it('grants capability and publishes when consent is sent', async () => {
     const { service, productUpdate, companyUpdate } = setup(false);
-    await service.publish('c1', 'p1', { consentToSell: true });
+    await service.publish('c1', 'u1', 'p1', {
+      audience: 'connections',
+      rateVisibility: 'on_request',
+      consentToSell: true,
+    });
     expect(companyUpdate).toHaveBeenCalled();
     expect(productUpdate).toHaveBeenCalled();
   });
 
   it('publishes without consent when already unlocked', async () => {
     const { service, productUpdate, companyUpdate } = setup(true);
-    await service.publish('c1', 'p1', {});
+    await service.publish('c1', 'u1', 'p1', {
+      audience: 'connections',
+      rateVisibility: 'on_request',
+    });
     expect(companyUpdate).not.toHaveBeenCalled();
     expect(productUpdate).toHaveBeenCalled();
   });
@@ -89,9 +96,10 @@ describe('ProductService.publish consent', () => {
 describe('ProductService.postToMarket / unpost / unpublish', () => {
   it('postToMarket sets postedToMarketAt and audience', async () => {
     const { service, productUpdate } = setup(true);
-    await service.postToMarket('c1', 'p1', {
+    await service.postToMarket('c1', 'u1', 'p1', {
       audience: 'everyone',
       rateVisibility: 'visible',
+      allowForward: true,
     });
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -105,19 +113,22 @@ describe('ProductService.postToMarket / unpost / unpublish', () => {
     );
   });
 
-  it('unpostFromMarket clears postedToMarketAt only', async () => {
+  it('unpostFromMarket hides to draft (clears Explore)', async () => {
     const { service, productUpdate } = setup(true);
-    await service.unpostFromMarket('c1', 'p1');
+    await service.unpostFromMarket('c1', 'u1', 'p1');
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { postedToMarketAt: null },
+        data: expect.objectContaining({
+          status: ProductStatus.Draft,
+          postedToMarketAt: null,
+        }),
       }),
     );
   });
 
   it('unpublish via setStatus clears postedToMarketAt', async () => {
     const { service, productUpdate } = setup(true);
-    await service.setStatus('c1', 'p1', ProductStatus.Draft);
+    await service.setStatus('c1', 'u1', 'p1', ProductStatus.Draft);
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -155,7 +166,7 @@ describe('ProductService.create', () => {
     } as unknown as CatalogSerializer;
     const service = new ProductService(prisma, serializer);
 
-    await service.create('c1', {
+    await service.create('c1', 'u1', {
       name: 'Banarasi',
       categories: [],
       images: [],

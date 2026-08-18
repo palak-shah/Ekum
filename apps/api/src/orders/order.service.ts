@@ -28,6 +28,7 @@ import {
 import type { Env } from '../core/config/config.schema';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
+import { createdAtRangeFilter } from '../common/audit';
 import { JobQueue } from '../jobs/job-queue.service';
 import { ThreadService } from '../conversation/thread.service';
 import { OrderSerializer } from './order.serializer';
@@ -38,6 +39,8 @@ const ORDER_RELATIONS = {
   buyer: true,
   seller: true,
   items: true,
+  createdByUser: { select: { id: true, name: true } },
+  updatedByUser: { select: { id: true, name: true } },
   shipments: {
     orderBy: { dispatchedAt: 'desc' as const },
     include: { items: { include: { orderItem: { select: { id: true, name: true } } } } },
@@ -78,7 +81,11 @@ export class OrderService {
     private readonly threads: ThreadService,
   ) {}
 
-  async create(actorCompanyId: string, dto: CreateOrderDto): Promise<OrderView> {
+  async create(
+    actorCompanyId: string,
+    userId: string,
+    dto: CreateOrderDto,
+  ): Promise<OrderView> {
     await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId);
     const items = await this.snapshotItems(dto);
 
@@ -92,6 +99,8 @@ export class OrderService {
         buyerCompanyId: actorCompanyId,
         sellerCompanyId: dto.sellerCompanyId,
         createdByCompanyId: actorCompanyId,
+        createdByUserId: userId,
+        updatedByUserId: userId,
         note: dto.note ?? null,
         items: { create: items },
       },
@@ -226,6 +235,10 @@ export class OrderService {
     }
     if (query.status) {
       where.status = query.status;
+    }
+    const createdAt = createdAtRangeFilter(query);
+    if (createdAt) {
+      where.createdAt = createdAt;
     }
 
     const rows = await this.prisma.order.findMany({
@@ -1204,8 +1217,8 @@ export class OrderService {
         sku: null,
         rate: null,
         unit: item.unit ?? null,
-        image: item.images[0] ?? null,
-        images: item.images,
+        image: item.images?.[0] ?? null,
+        images: item.images ?? [],
         quantity: item.quantity,
         requestedQuantity: item.quantity,
         lineStatus: OrderLineStatus.Open,

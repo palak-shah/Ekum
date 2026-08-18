@@ -40,7 +40,13 @@ describe('MessageService.send', () => {
       createdAt: new Date(),
     };
     const prisma = {
-      product: { findFirst: async () => null },
+      product: {
+        findFirst: async () => ({
+          id: 'p1',
+          companyId: 'supplier',
+          allowForward: true,
+        }),
+      },
       message: { findFirst: async () => ({ id: 'prior' }) },
       $transaction: async (fn: (tx: unknown) => unknown) =>
         fn({
@@ -65,6 +71,97 @@ describe('MessageService.send', () => {
       body: 'Banarasi',
     } as SendMessageDto;
     await expect(service.send('me', 'owner', 't2', dto)).resolves.toMatchObject({ id: 'm1' });
+  });
+
+  it('rejects non-owner forward when allowForward is false', async () => {
+    const prisma = {
+      product: {
+        findFirst: async () => ({
+          id: 'p1',
+          companyId: 'supplier',
+          allowForward: false,
+        }),
+      },
+      message: { findFirst: async () => ({ id: 'prior' }) },
+    } as unknown as PrismaService;
+    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const service = new MessageService(
+      prisma,
+      threads,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      events,
+    );
+    const dto = {
+      type: MessageType.ProductCard,
+      referenceId: 'p1',
+    } as SendMessageDto;
+    try {
+      await service.send('me', 'owner', 't2', dto);
+      expect.fail('expected FORWARD_NOT_ALLOWED');
+    } catch (error) {
+      expect((error as { getResponse: () => unknown }).getResponse()).toMatchObject({
+        code: 'FORWARD_NOT_ALLOWED',
+      });
+    }
+  });
+
+  it('allows the catalog owner to share even when allowForward is false', async () => {
+    const created = {
+      id: 'm1',
+      threadId: 't2',
+      senderCompanyId: 'supplier',
+      type: MessageType.ProductCard,
+      body: null,
+      referenceId: 'p1',
+      metadata: null,
+      createdAt: new Date(),
+    };
+    const prisma = {
+      product: {
+        findFirst: async () => ({
+          id: 'p1',
+          companyId: 'supplier',
+          allowForward: false,
+        }),
+      },
+      message: { findFirst: async () => null },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          message: { create: async () => created },
+          thread: { update: async () => ({}) },
+          threadParticipant: { update: async () => ({}) },
+        }),
+      threadParticipant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = {
+      resolve: async () =>
+        new Map([
+          [
+            'm1',
+            {
+              kind: 'product',
+              id: 'p1',
+              name: 'Banarasi',
+              image: null,
+              available: true,
+              allowForward: false,
+            },
+          ],
+        ]),
+    } as unknown as ReferenceResolver;
+    const service = new MessageService(prisma, threads, serializer, references, events);
+    const dto = {
+      type: MessageType.ProductCard,
+      referenceId: 'p1',
+    } as SendMessageDto;
+    await expect(service.send('supplier', 'owner', 't2', dto)).resolves.toMatchObject({
+      id: 'm1',
+    });
   });
 
   it('sends a text message through the thread transaction', async () => {
