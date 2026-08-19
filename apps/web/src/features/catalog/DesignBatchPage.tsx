@@ -784,7 +784,7 @@ export function DesignBatchPage() {
             <Button
               fullWidth
               disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
-              onClick={() => saveAll.mutate()}
+              onClick={() => saveAll.mutate({})}
             >
               {saveAll.isPending && !publishOpen
                 ? progressLabel || 'Saving…'
