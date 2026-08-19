@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { audienceRank, assertProductsCuratable } from './curation-ceiling';
+import {
+  audienceRank,
+  assertProductsCuratable,
+  curatedPublishRateVisibility,
+} from './curation-ceiling';
 
 function expectBadRequest(fn: () => void, code: string): void {
   try {
@@ -139,5 +143,53 @@ describe('assertProductsCuratable', () => {
         products: [{ ...base, companyId: 'me', allowForward: false }],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('curatedPublishRateVisibility', () => {
+  it('keeps requested visibility for own-only packs', () => {
+    expect(
+      curatedPublishRateVisibility({
+        curatorCompanyId: 'me',
+        requested: 'visible',
+        products: [{ companyId: 'me', rateVisibility: 'on_request' }],
+      }),
+    ).toBe('visible');
+  });
+
+  it('forces on_request when any foreign source is on_request', () => {
+    expect(
+      curatedPublishRateVisibility({
+        curatorCompanyId: 'me',
+        requested: 'visible',
+        products: [
+          { companyId: 'other', rateVisibility: 'on_request' },
+          { companyId: 'other-2', rateVisibility: 'visible' },
+        ],
+      }),
+    ).toBe('on_request');
+  });
+
+  it('allows visible when every foreign source allows visible rates', () => {
+    expect(
+      curatedPublishRateVisibility({
+        curatorCompanyId: 'me',
+        requested: 'visible',
+        products: [
+          { companyId: 'other', rateVisibility: 'visible' },
+          { companyId: 'me', rateVisibility: 'on_request' },
+        ],
+      }),
+    ).toBe('visible');
+  });
+
+  it('treats missing foreign rateVisibility as on_request', () => {
+    expect(
+      curatedPublishRateVisibility({
+        curatorCompanyId: 'me',
+        requested: 'visible',
+        products: [{ companyId: 'other' }],
+      }),
+    ).toBe('on_request');
   });
 });

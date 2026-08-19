@@ -23,6 +23,7 @@ import { JobQueue } from '../jobs/job-queue.service';
 import { canDiscoverCollection } from './audience-visibility';
 import {
   assertProductsCuratable,
+  curatedPublishRateVisibility,
   type CuratableProduct,
 } from './curation-ceiling';
 import {
@@ -227,6 +228,7 @@ export class CollectionService {
             allowForward: true,
             status: true,
             postedToMarketAt: true,
+            rateVisibility: true,
           },
         },
       },
@@ -245,6 +247,12 @@ export class CollectionService {
       products,
       publishAudience: dto.audience,
       discoverableIds,
+    });
+
+    const rateVisibility = curatedPublishRateVisibility({
+      curatorCompanyId: companyId,
+      requested: dto.rateVisibility,
+      products,
     });
 
     const startsAt = parseScheduleInstant(dto.startsAt, 'start');
@@ -268,7 +276,7 @@ export class CollectionService {
         status: ProductStatus.Published,
         postedToMarketAt: now,
         audience: dto.audience,
-        rateVisibility: dto.rateVisibility,
+        rateVisibility,
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
@@ -285,7 +293,7 @@ export class CollectionService {
       data: {
         status: CollectionStatus.Published,
         audience: dto.audience,
-        rateVisibility: dto.rateVisibility,
+        rateVisibility,
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
@@ -297,7 +305,7 @@ export class CollectionService {
       include: listInclude,
     });
     await rememberPublishDefaults(this.prisma, companyId, {
-      rateVisibility: dto.rateVisibility,
+      rateVisibility,
       allowForward,
     });
     const hasForeignMember = products.some((product) => product.companyId !== companyId);

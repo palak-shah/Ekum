@@ -38,6 +38,7 @@ export class CatalogSerializer {
   toProductView(product: ProductWithActors): ProductView {
     return {
       id: product.id,
+      companyId: product.companyId,
       name: product.name,
       sku: product.sku,
       description: product.description,

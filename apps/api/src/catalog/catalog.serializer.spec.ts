@@ -6,6 +6,7 @@ const serializer = new CatalogSerializer();
 
 const baseProduct = {
   id: 'product-1',
+  companyId: 'company-1',
   name: 'Banarasi Silk',
   sku: null,
   description: null,
@@ -29,6 +30,10 @@ function product(rate: unknown): Product {
 }
 
 describe('CatalogSerializer', () => {
+  it('exposes owning companyId for curated-member detection', () => {
+    expect(serializer.toProductView(product(null)).companyId).toBe('company-1');
+  });
+
   it('treats a null rate as "on request"', () => {
     expect(serializer.toProductView(product(null)).rate).toBeNull();
   });

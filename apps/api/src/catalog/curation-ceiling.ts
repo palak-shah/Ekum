@@ -84,3 +84,28 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
     });
   }
 }
+
+export type RateVisibilityProduct = {
+  companyId: string;
+  rateVisibility?: string | null;
+};
+
+/**
+ * Curated pack rate ceiling: show rates only where every foreign source allows
+ * visible rates. Otherwise force on_request (Slice A default).
+ */
+export function curatedPublishRateVisibility(input: {
+  curatorCompanyId: string;
+  requested: string;
+  products: RateVisibilityProduct[];
+}): string {
+  const foreign = input.products.filter((product) => product.companyId !== input.curatorCompanyId);
+  if (foreign.length === 0) {
+    return input.requested;
+  }
+  const allSourcesVisible = foreign.every((product) => product.rateVisibility === 'visible');
+  if (allSourcesVisible && input.requested === 'visible') {
+    return 'visible';
+  }
+  return 'on_request';
+}

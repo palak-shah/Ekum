@@ -111,6 +111,8 @@ export type PublishProductDto = PostProductToMarketDto;
 
 export interface ProductView {
   id: string;
+  /** Owning company — needed to detect curated (foreign) collection members. */
+  companyId: string;
   name: string;
   sku: string | null;
   description: string | null;

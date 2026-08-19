@@ -15,12 +15,14 @@ import {
   type ExploreDesignOpportunity,
   type ExploreHomeQuery,
   type ExploreHomeView,
+  type ExploreStory,
   type ExploreOpportunity,
   type ExplorePost,
   type ExploreProductCard,
   type ExploreProductPreviewView,
   type ExploreQuery,
   type ExploreSupplierCard,
+  type ProductView,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
@@ -259,6 +261,15 @@ export class ExploreService {
         )
       : null;
 
+    const stories = this.buildStories({
+      fromNetwork,
+      forYou,
+      designsFromNetwork,
+      designsForYou,
+      suggestedBusinesses,
+      lookingForWhatYouSell,
+    });
+
     return {
       forYou,
       fromNetwork,
@@ -266,7 +277,44 @@ export class ExploreService {
       designsFromNetwork,
       suggestedBusinesses,
       lookingForWhatYouSell,
+      stories,
     };
+  }
+
+  /** Rank companies by newest visible post for the Stories rail. */
+  private buildStories(input: {
+    fromNetwork: ExploreHomeView['fromNetwork'];
+    forYou: ExploreHomeView['forYou'];
+    designsFromNetwork: ExploreHomeView['designsFromNetwork'];
+    designsForYou: ExploreHomeView['designsForYou'];
+    suggestedBusinesses: ExploreHomeView['suggestedBusinesses'];
+    lookingForWhatYouSell: ExploreHomeView['lookingForWhatYouSell'];
+  }): ExploreStory[] {
+    const latest = new Map<string, ExploreStory>();
+    const touch = (company: ExploreStory['company'], at: string | null | undefined) => {
+      if (!company?.id || !at) return;
+      const prev = latest.get(company.id);
+      if (!prev || prev.latestPostedAt < at) {
+        latest.set(company.id, { company, latestPostedAt: at });
+      }
+    };
+
+    for (const row of [...input.fromNetwork, ...input.forYou]) {
+      touch(row.collection.company, row.collection.updatedAt);
+    }
+    for (const row of [...input.designsFromNetwork, ...input.designsForYou]) {
+      touch(row.product.company, row.product.postedAt);
+    }
+    for (const row of [
+      ...input.suggestedBusinesses,
+      ...(input.lookingForWhatYouSell ?? []),
+    ]) {
+      touch(row.company, row.latestPostedAt);
+    }
+
+    return [...latest.values()]
+      .sort((a, b) => (a.latestPostedAt < b.latestPostedAt ? 1 : -1))
+      .slice(0, 16);
   }
 
   /** Published designs on Explore (posted to market), excluding the viewer. */
@@ -812,20 +860,46 @@ export class ExploreService {
       audienceCtx,
     );
 
-    const products = showProducts
-      ? collection.products.map((entry) => {
-          const view = this.catalog.toProductView(entry.product);
-          // Rates stay "on request" until connected when the collection says so.
-          if (
-            !isOwner &&
-            !connected &&
-            collection.rateVisibility === RateVisibility.OnRequest
-          ) {
-            return { ...view, rate: null };
-          }
+    let products: ProductView[] | null = null;
+    if (showProducts) {
+      const foreignSourceIds = [
+        ...new Set(
+          collection.products
+            .map((entry) => entry.product.companyId)
+            .filter((sourceId) => sourceId !== collection.companyId),
+        ),
+      ];
+      const connectedToSource = new Map<string, boolean>();
+      await Promise.all(
+        foreignSourceIds.map(async (sourceId) => {
+          connectedToSource.set(
+            sourceId,
+            await this.visibility.canViewCatalog(viewerCompanyId, sourceId),
+          );
+        }),
+      );
+
+      products = collection.products.map((entry) => {
+        const view = this.catalog.toProductView(entry.product);
+        if (isOwner) {
           return view;
-        })
-      : null;
+        }
+        // Rates stay "on request" until connected when the collection says so.
+        if (!connected && collection.rateVisibility === RateVisibility.OnRequest) {
+          return { ...view, rate: null };
+        }
+        // Foreign members: apply the source product's rate ceiling for this viewer.
+        const sourceId = entry.product.companyId;
+        if (
+          sourceId !== collection.companyId &&
+          entry.product.rateVisibility === RateVisibility.OnRequest &&
+          !connectedToSource.get(sourceId)
+        ) {
+          return { ...view, rate: null };
+        }
+        return view;
+      });
+    }
 
     return {
       ...this.discovery.toCollectionCard(collection),

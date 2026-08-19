@@ -699,4 +699,69 @@ describe('CollectionService.publish', () => {
     );
     expect(collectionUpdate).toHaveBeenCalled();
   });
+
+  it('clamps curated publish rateVisibility to on_request when a foreign source is on_request', async () => {
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: null,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true, canRelist: true }),
+        update: vi.fn(async () => ({})),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'foreign-1',
+            product: {
+              ...foreignPublishedProduct,
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+      },
+      product: {
+        findMany: async () => [
+          { ...foreignPublishedProduct, rateVisibility: 'on_request' },
+        ],
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.publish('company-1', 'u1', 'col-1', {
+      audience: 'connections',
+      rateVisibility: 'visible',
+      allowForward: true,
+    });
+
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ rateVisibility: 'on_request' }),
+      }),
+    );
+  });
 });
