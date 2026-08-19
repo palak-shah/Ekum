@@ -79,6 +79,7 @@ const NotificationsPage = page(
 const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
+const SavedPage = page(() => import('@/features/saved/SavedPage'), 'SavedPage');
 
 /** Routing mirrors the settled navigation and the ~40-screen prototype. */
 export const router = createBrowserRouter([
@@ -118,6 +119,7 @@ export const router = createBrowserRouter([
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'settings/profile', element: <ProfilePage /> },
+          { path: 'saved', element: <SavedPage /> },
           { path: 'more', element: <MorePage /> },
         ],
       },

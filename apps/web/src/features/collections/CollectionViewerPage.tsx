@@ -14,6 +14,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
 import { CompanyRow } from '@/ui/cards';
 import {
@@ -114,6 +115,7 @@ export function CollectionViewerPage() {
     queryKey: ['collection-preview', id],
     queryFn: () => api.get<CollectionPreviewView>(`/explore/collections/${id}`),
   });
+  const save = useSaveToggle({ collectionId: id });
   const outgoing = useQuery({
     queryKey: ['access-requests', 'outgoing'],
     queryFn: () => api.get<AccessRequestView[]>('/access-requests/outgoing'),
@@ -279,36 +281,44 @@ export function CollectionViewerPage() {
         title={data.name}
         subtitle={`${data.productCount} designs`}
         action={
-          data.products || isOwner ? (
-            <div className="flex items-center gap-1">
-              {isOwner ? (
-                <button
-                  type="button"
-                  className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5"
-                  onClick={() => navigate(`/catalog/collections/${id}`)}
-                >
-                  Edit
-                </button>
-              ) : null}
-              {data.products && data.connected ? (
-                <button
-                  type="button"
-                  data-testid="collection-select"
-                  className={cx(
-                    'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
-                    selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                  )}
-                  onClick={() => {
-                    if (selectMode && selectedCount === 0) {
-                      setSelectMode(false);
-                    } else {
-                      setSelectMode(true);
-                    }
-                  }}
-                >
-                  {selectMode ? 'Selecting' : 'Select'}
-                </button>
-              ) : null}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-45"
+              disabled={!id || save.isPending}
+              onClick={() => save.toggle()}
+            >
+              {save.isSaved ? 'Saved' : 'Save'}
+            </button>
+            {isOwner ? (
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5"
+                onClick={() => navigate(`/catalog/collections/${id}`)}
+              >
+                Edit
+              </button>
+            ) : null}
+            {data.products && data.connected ? (
+              <button
+                type="button"
+                data-testid="collection-select"
+                className={cx(
+                  'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
+                  selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                )}
+                onClick={() => {
+                  if (selectMode && selectedCount === 0) {
+                    setSelectMode(false);
+                  } else {
+                    setSelectMode(true);
+                  }
+                }}
+              >
+                {selectMode ? 'Selecting' : 'Select'}
+              </button>
+            ) : null}
+            {data.products ? (
               <button
                 type="button"
                 aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
@@ -317,8 +327,8 @@ export function CollectionViewerPage() {
               >
                 {layout === 'feed' ? 'Grid' : 'Feed'}
               </button>
-            </div>
-          ) : null
+            ) : null}
+          </div>
         }
       />
 

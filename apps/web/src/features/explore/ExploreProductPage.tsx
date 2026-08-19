@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ExploreProductPreviewView } from '@ekum/domain-types';
+import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { PageHeader } from '@/ui/PageHeader';
@@ -14,6 +15,7 @@ export function ExploreProductPage() {
     queryFn: () => api.get<ExploreProductPreviewView>(`/explore/products/${id}`),
     enabled: Boolean(id),
   });
+  const save = useSaveToggle({ productId: id });
 
   if (product.isLoading) {
     return <LoadingBlock label="Loading design…" />;
@@ -32,7 +34,19 @@ export function ExploreProductPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={data.name} />
+      <PageHeader
+        title={data.name}
+        action={
+          <button
+            type="button"
+            className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-45"
+            disabled={!id || save.isPending}
+            onClick={() => save.toggle()}
+          >
+            {save.isSaved ? 'Saved' : 'Save'}
+          </button>
+        }
+      />
 
       {data.images.length > 0 ? (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1">
