@@ -396,8 +396,9 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
 }
 
 /**
- * WhatsApp-style album preview: equal cells, thin gutters.
- * 4+ images → 2×2 with dark +N on the fourth cell (3 clear + overflow).
+ * WhatsApp-style album mosaic: thin gutters, no blank cells.
+ * 1 → square; 2 → side-by-side; 3 → tall left + two stacked right;
+ * 4+ → 2×2 with dark +N on the fourth cell when more than 4.
  */
 export function AlbumGrid({
   images,
@@ -437,15 +438,25 @@ export function AlbumGrid({
     );
   }
 
-  // 3 or 4+: equal 2×2. For exactly 3, bottom-right stays empty (no +N).
-  // For 4+, fourth cell shows image under +(imageCount - 3).
+  if (count === 3) {
+    return (
+      <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-xl bg-line">
+        <div className="relative row-span-2 overflow-hidden bg-foam">
+          <CoverImage src={images[0] ?? null} alt="" />
+        </div>
+        <div className="relative overflow-hidden bg-foam">
+          <CoverImage src={images[1] ?? null} alt="" />
+        </div>
+        <div className="relative overflow-hidden bg-foam">
+          <CoverImage src={images[2] ?? null} alt="" />
+        </div>
+      </div>
+    );
+  }
+
+  // 4+: equal 2×2; fourth cell shows +N when there are more than 4 images.
   const showPlus = imageCount > 4;
-  const cells: Array<string | null> = [
-    images[0] ?? null,
-    images[1] ?? null,
-    images[2] ?? null,
-    showPlus || images[3] ? images[3] ?? images[2] ?? null : null,
-  ];
+  const cells = [images[0], images[1], images[2], images[3] ?? images[2]];
 
   return (
     <div className="grid grid-cols-2 gap-0.5 overflow-hidden rounded-xl bg-line">
