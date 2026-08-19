@@ -178,6 +178,20 @@ function CollectionSection({
   );
 }
 
+function toggleExploreDesign(
+  shortlist: ReturnType<typeof useBrowseShortlist>,
+  opportunity: ExploreDesignOpportunity,
+) {
+  const { product } = opportunity;
+  shortlist.toggle({
+    productId: product.id,
+    name: product.name,
+    thumbUrl: product.images[0] ?? null,
+    companyId: product.company.id,
+    companyName: product.company.name,
+  });
+}
+
 function DesignSection({
   title,
   items,
@@ -190,17 +204,7 @@ function DesignSection({
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
-
-  const toggleDesign = (opportunity: ExploreDesignOpportunity) => {
-    const { product } = opportunity;
-    shortlist.toggle({
-      productId: product.id,
-      name: product.name,
-      thumbUrl: product.images[0] ?? null,
-      companyId: product.company.id,
-      companyName: product.company.name,
-    });
-  };
+  const selecting = shortlist.selectMode || shortlist.count > 0;
 
   return (
     <Section
@@ -222,13 +226,11 @@ function DesignSection({
           <OpportunityDesignCard
             key={opportunity.product.id}
             opportunity={opportunity}
-            selectMode={shortlist.selectMode || shortlist.count > 0}
+            selectMode={selecting}
             selected={shortlist.productIds.has(opportunity.product.id)}
-            onLongSelect={() => toggleDesign(opportunity)}
+            onLongSelect={() => toggleExploreDesign(shortlist, opportunity)}
             onToggleSelect={
-              shortlist.selectMode || shortlist.count > 0
-                ? () => toggleDesign(opportunity)
-                : undefined
+              selecting ? () => toggleExploreDesign(shortlist, opportunity) : undefined
             }
           />
         ))}
@@ -238,10 +240,13 @@ function DesignSection({
 }
 
 function MixedSection({ title, items }: { title: string; items: MixedOpportunity[] }) {
+  const shortlist = useBrowseShortlist();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
+  const selecting = shortlist.selectMode || shortlist.count > 0;
+
   return (
     <Section
       title={title}
@@ -262,7 +267,16 @@ function MixedSection({ title, items }: { title: string; items: MixedOpportunity
           item.kind === 'collection' ? (
             <OpportunityCollectionCard key={item.id} opportunity={item.opportunity} />
           ) : (
-            <OpportunityDesignCard key={item.id} opportunity={item.opportunity} />
+            <OpportunityDesignCard
+              key={item.id}
+              opportunity={item.opportunity}
+              selectMode={selecting}
+              selected={shortlist.productIds.has(item.opportunity.product.id)}
+              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
+              onToggleSelect={
+                selecting ? () => toggleExploreDesign(shortlist, item.opportunity) : undefined
+              }
+            />
           ),
         )}
       </div>
@@ -986,6 +1000,28 @@ export function ExplorePage() {
             >
               <BookmarkIcon width={20} height={20} />
             </button>
+            {shortlist.count > 0 ? (
+              <button
+                type="button"
+                className="flex h-[46px] shrink-0 items-center rounded-[13px] bg-accent px-3 text-xs font-bold text-white"
+                onClick={() => shortlist.setSelectMode(true)}
+              >
+                {shortlist.count} selected
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={cx(
+                  'flex h-[46px] shrink-0 items-center rounded-[13px] border px-3 text-xs font-bold',
+                  shortlist.selectMode
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-line bg-surface text-accent hover:bg-foam',
+                )}
+                onClick={() => shortlist.setSelectMode((on) => !on)}
+              >
+                {shortlist.selectMode ? 'Selecting' : 'Select'}
+              </button>
+            )}
             <button
               ref={filterAnchorRef}
               type="button"

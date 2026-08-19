@@ -14,6 +14,7 @@ import {
 } from '@/lib/accessRequestNote';
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
+import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
@@ -394,40 +395,32 @@ export function CollectionViewerPage() {
       {data.products && selectMode ? (
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <button type="button" className="font-bold text-accent" onClick={selectAllDesigns}>
-            Select all
+            Select all on this album
           </button>
-          <button type="button" className="font-bold text-accent" onClick={clearSelection}>
-            Clear all
-          </button>
-          <span className="text-muted">
-            {selectedCount} design{selectedCount === 1 ? '' : 's'} selected
-          </span>
+          {selectedCount > 0 ? (
+            <span className="text-muted">
+              {selectedCount} design{selectedCount === 1 ? '' : 's'} in shortlist
+            </span>
+          ) : null}
         </div>
       ) : null}
 
-      {selectedCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md flex-col gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
-          <div className="flex items-center gap-3">
-            <p className="flex-1 text-sm font-bold tracking-tight text-ink">
-              {selectedCount} selected
-            </p>
-            <button
-              type="button"
-              className="text-xs font-bold text-accent"
-              onClick={selectAllDesigns}
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              className="text-xs font-bold text-muted"
-              onClick={clearSelection}
-            >
-              Clear all
-            </button>
+      <BrowseSelectBar
+        count={selectedCount}
+        onClear={clearSelection}
+        canCurate={canCurate}
+        onCurate={() => setCurateOpen(true)}
+        canOrder={canOrderFromPack}
+        onOrder={() => {
+          orderFlow.setError(null);
+          orderFlow.setQtyOpen(true);
+        }}
+        extra={
+          selectedProducts.length > 0 ? (
             <Button
               variant="secondary"
-              disabled={saveSelected.isPending || selectedProducts.length === 0}
+              className="min-w-0 flex-1"
+              disabled={saveSelected.isPending}
               onClick={() => saveSelected.mutate(selectedProducts.map((product) => product.id))}
             >
               {saveSelected.isPending
@@ -436,24 +429,9 @@ export function CollectionViewerPage() {
                   ? 'Save design'
                   : 'Save designs'}
             </Button>
-            {canCurate ? (
-              <Button variant="secondary" onClick={() => setCurateOpen(true)}>
-                Curate
-              </Button>
-            ) : null}
-            {canOrderFromPack ? (
-              <Button
-                onClick={() => {
-                  orderFlow.setError(null);
-                  orderFlow.setQtyOpen(true);
-                }}
-              >
-                Order
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+          ) : null
+        }
+      />
 
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
