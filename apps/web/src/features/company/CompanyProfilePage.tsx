@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AccessRequestView,
   CollectionCard,
+  CompanyContactPoint,
   ConnectionView,
   CursorPage,
   ExploreProductCard,
@@ -103,6 +104,12 @@ export function CompanyProfilePage() {
     (item) => item.company.id === id && item.status === 'pending',
   );
   const isFollowing = following.data?.some((item) => item.id === id) ?? false;
+
+  const contacts = useQuery({
+    queryKey: ['company', id, 'contact'],
+    queryFn: () => api.get<CompanyContactPoint[]>(`/companies/${id}/contact`),
+    enabled: Boolean(id) && isConnected,
+  });
 
   const designs = shopDesigns.data?.results ?? [];
   const collections = shopCollections.data?.results ?? [];
@@ -217,7 +224,12 @@ export function CompanyProfilePage() {
       </Card>
 
       {isConnected ? (
-        <ConnectedPanel onMessage={() => startChat.mutate()} messaging={startChat.isPending} />
+        <ConnectedPanel
+          contacts={contacts.data ?? []}
+          contactsLoading={contacts.isLoading}
+          onMessage={() => startChat.mutate()}
+          messaging={startChat.isPending}
+        />
       ) : pendingRequest ? (
         <Card className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
@@ -414,19 +426,53 @@ export function CompanyProfilePage() {
   );
 }
 
+function pickPrimaryContact(contacts: CompanyContactPoint[]): CompanyContactPoint | null {
+  if (contacts.length === 0) return null;
+  const owner = contacts.find((point) => /owner/i.test(point.role ?? ''));
+  return owner ?? contacts[0] ?? null;
+}
+
 function ConnectedPanel({
+  contacts,
+  contactsLoading,
   onMessage,
   messaging,
 }: {
+  contacts: CompanyContactPoint[];
+  contactsLoading: boolean;
   onMessage: () => void;
   messaging: boolean;
 }) {
+  const contact = pickPrimaryContact(contacts);
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-semibold text-ink">Connected</p>
-          <p className="text-xs text-muted">You can message and place orders with this business.</p>
+          {contactsLoading ? (
+            <p className="text-xs text-muted">Loading contact…</p>
+          ) : contact ? (
+            <div className="mt-0.5 flex flex-col gap-0.5">
+              <p className="truncate text-sm text-ink">
+                {contact.name}
+                {contact.role ? (
+                  <span className="font-normal text-muted"> · {contact.role}</span>
+                ) : null}
+              </p>
+              {contact.phone ? (
+                <a
+                  href={`tel:${contact.phone.replace(/\s+/g, '')}`}
+                  className="truncate text-sm font-medium text-accent"
+                >
+                  {contact.phone}
+                </a>
+              ) : (
+                <p className="text-xs text-muted">Phone not shared</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">You can message and place orders with this business.</p>
+          )}
         </div>
         <StatusPill status="active" />
       </div>
