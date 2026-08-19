@@ -955,12 +955,7 @@ export function ExplorePage() {
   };
 
   return (
-    <div
-      className={cx(
-        'flex flex-col gap-4',
-        (searchFocused ? false : shortlist.count > 0) && 'pb-[calc(5rem+5.5rem)]',
-      )}
-    >
+    <div className="flex flex-col gap-4">
       <div className="relative flex items-center gap-2">
         {searchFocused ? (
           <>
@@ -1000,15 +995,7 @@ export function ExplorePage() {
             >
               <BookmarkIcon width={20} height={20} />
             </button>
-            {shortlist.count > 0 ? (
-              <button
-                type="button"
-                className="flex h-[46px] shrink-0 items-center rounded-[13px] bg-accent px-3 text-xs font-bold text-white"
-                onClick={() => shortlist.setSelectMode(true)}
-              >
-                {shortlist.count} selected
-              </button>
-            ) : (
+            {shortlist.count === 0 ? (
               <button
                 type="button"
                 className={cx(
@@ -1021,7 +1008,7 @@ export function ExplorePage() {
               >
                 {shortlist.selectMode ? 'Selecting' : 'Select'}
               </button>
-            )}
+            ) : null}
             <button
               ref={filterAnchorRef}
               type="button"
@@ -1057,6 +1044,21 @@ export function ExplorePage() {
           </>
         )}
       </div>
+
+      {!searchFocused ? (
+        <BrowseSelectBar
+          placement="top"
+          count={shortlist.count}
+          onClear={() => shortlist.clear()}
+          canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
+          onCurate={() => setCurateOpen(true)}
+          canOrder={shortlist.count > 0}
+          onOrder={() => {
+            orderFlow.setError(null);
+            orderFlow.setQtyOpen(true);
+          }}
+        />
+      ) : null}
 
       {!searchFocused && filterActive ? (
         <div className="flex items-center gap-3 px-0.5">
@@ -1162,17 +1164,6 @@ export function ExplorePage() {
         </div>
       )}
 
-      <BrowseSelectBar
-        count={shortlist.count}
-        onClear={() => shortlist.clear()}
-        canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
-        onCurate={() => setCurateOpen(true)}
-        canOrder={shortlist.count > 0}
-        onOrder={() => {
-          orderFlow.setError(null);
-          orderFlow.setQtyOpen(true);
-        }}
-      />
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
         onClose={() => orderFlow.setQtyOpen(false)}
