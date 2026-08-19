@@ -15,7 +15,7 @@ Buyers, sellers, and dual-role companies. Explore is not limited to “seller ca
 3. Tap a Story → filter posts from that business (`?story=`); Clear or Open shop if no posts in shelf.
 4. **Businesses for you** (Buying / All); **Buyers for you** (Selling / All when you sell).
 5. Filter by category / city where offered.
-6. Follow businesses; open album or design detail (`/explore/products/:id`, `/collections/:id`). **Bookmark** in the Explore header opens **Saved**. Long-press / select designs feeds the traveling shortlist (**Order** / **Curate** on the sticky bar).
+6. Follow businesses; open album or design detail (`/explore/products/:id`, `/collections/:id`). **Bookmark** in the Explore header opens **Saved**. Long-press a design to select — traveling shortlist (**Order** / **Curate**) on the sticky bottom dock. No Select control in the search chrome.
 7. Search — federated company / collection / design; feed stays until the user types (UX rule).
 8. From company cards → public profile → follow / request access / chat.
 
