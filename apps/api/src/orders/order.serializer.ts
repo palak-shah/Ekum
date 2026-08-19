@@ -35,6 +35,7 @@ type OrderWithRelations = Order & {
   seller: Company;
   items: OrderItem[];
   shipments?: ShipmentWithItems[];
+  returns?: (Return & { items: ReturnItem[] })[];
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
 };
@@ -136,6 +137,15 @@ export class OrderSerializer {
       deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
       closedAt: order.closedAt ? order.closedAt.toISOString() : null,
       partiallyShipped,
+      returns: (order.returns ?? []).map((row) =>
+        this.toReturnView(
+          {
+            ...row,
+            order: { buyer: order.buyer, seller: order.seller },
+          },
+          viewerCompanyId,
+        ),
+      ),
       createdBy: toAuditActor(order.createdByUser),
       updatedBy: toAuditActor(order.updatedByUser),
       createdAt: order.createdAt.toISOString(),
@@ -188,6 +198,8 @@ export class OrderSerializer {
         approvedQuantity: decimal(item.approvedQuantity),
       })),
       escalatedFromReturnId: entity.escalatedFromReturnId,
+      decidedAt: entity.decidedAt ? entity.decidedAt.toISOString() : null,
+      resolvedAt: entity.resolvedAt ? entity.resolvedAt.toISOString() : null,
       createdAt: entity.createdAt.toISOString(),
       updatedAt: entity.updatedAt.toISOString(),
     };

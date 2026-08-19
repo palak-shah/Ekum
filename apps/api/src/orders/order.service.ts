@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,6 +19,8 @@ import {
   shortOrderLabel,
   type AmendOrderDto,
   type CreateOrderDto,
+  type CreateOrdersBatchDto,
+  type CreateOrdersBatchResult,
   type CursorPage,
   type DecideOrderLinesDto,
   type DispatchDto,
@@ -86,7 +89,11 @@ export class OrderService {
     userId: string,
     dto: CreateOrderDto,
   ): Promise<OrderView> {
-    await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId);
+    await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId, {
+      productIds: dto.items
+        .map((item) => item.productId)
+        .filter((id): id is string => Boolean(id)),
+    });
     const items = await this.snapshotItems(dto);
 
     const intent = dto.intent ?? OrderIntent.Order;
@@ -135,6 +142,90 @@ export class OrderService {
       sellerCompanyId: order.sellerCompanyId,
     });
     return this.serializer.toOrderView(order, actorCompanyId, threadId);
+  }
+
+  /**
+   * One buyer gesture over mixed suppliers → N orders (one per product.companyId).
+   * Always returns structured successes + failures (HTTP 200 at the controller).
+   */
+  async createBatch(
+    actorCompanyId: string,
+    userId: string,
+    dto: CreateOrdersBatchDto,
+  ): Promise<CreateOrdersBatchResult> {
+    const productIds = [...new Set(dto.items.map((item) => item.productId))];
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        id: true,
+        companyId: true,
+        company: { select: { name: true } },
+      },
+    });
+    const byId = new Map(products.map((product) => [product.id, product]));
+
+    const unknownIds = productIds.filter((id) => !byId.has(id));
+    const groups = new Map<
+      string,
+      {
+        sellerName: string | null;
+        items: CreateOrdersBatchDto['items'];
+      }
+    >();
+
+    for (const item of dto.items) {
+      const product = byId.get(item.productId);
+      if (!product) continue;
+      const bucket = groups.get(product.companyId) ?? {
+        sellerName: product.company.name,
+        items: [],
+      };
+      bucket.items.push(item);
+      groups.set(product.companyId, bucket);
+    }
+
+    const orders: OrderView[] = [];
+    const failures: CreateOrdersBatchResult['failures'] = [];
+
+    if (unknownIds.length > 0) {
+      failures.push({
+        sellerCompanyId: 'unknown',
+        sellerName: null,
+        productIds: unknownIds,
+        code: 'INVALID_ITEM',
+        message: 'One or more designs could not be found.',
+      });
+    }
+
+    for (const [sellerCompanyId, group] of groups) {
+      try {
+        const order = await this.create(actorCompanyId, userId, {
+          sellerCompanyId,
+          kind: dto.kind ?? OrderKind.Standard,
+          intent: dto.intent ?? OrderIntent.Order,
+          note: dto.note,
+          items: group.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            images: item.images ?? [],
+            note: item.note,
+            unit: item.unit,
+            name: item.name,
+          })),
+        });
+        orders.push(order);
+      } catch (err) {
+        failures.push({
+          sellerCompanyId,
+          sellerName: group.sellerName,
+          productIds: group.items.map((item) => item.productId),
+          code: exceptionCode(err),
+          message: exceptionMessage(err, 'Could not place the order.'),
+        });
+      }
+    }
+
+    return { orders, failures };
   }
 
   /**
@@ -225,24 +316,46 @@ export class OrderService {
   }
 
   async list(actorCompanyId: string, query: ListOrdersQuery): Promise<CursorPage<OrderView>> {
-    const where: Prisma.OrderWhereInput = {};
-    if (query.direction === 'buying') {
-      where.buyerCompanyId = actorCompanyId;
-    } else if (query.direction === 'selling') {
-      where.sellerCompanyId = actorCompanyId;
-    } else {
-      where.OR = [{ buyerCompanyId: actorCompanyId }, { sellerCompanyId: actorCompanyId }];
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
     const createdAt = createdAtRangeFilter(query);
-    if (createdAt) {
-      where.createdAt = createdAt;
+    const partyWhere: Prisma.OrderWhereInput =
+      query.direction === 'buying'
+        ? { buyerCompanyId: actorCompanyId }
+        : query.direction === 'selling'
+          ? { sellerCompanyId: actorCompanyId }
+          : {
+              OR: [
+                { buyerCompanyId: actorCompanyId },
+                { sellerCompanyId: actorCompanyId },
+              ],
+            };
+    const filters: Prisma.OrderWhereInput[] = [partyWhere];
+    if (query.status) filters.push({ status: query.status });
+    if (createdAt) filters.push({ createdAt });
+    if (query.q?.trim()) {
+      const q = query.q.trim();
+      filters.push({
+        OR: [
+          { id: { contains: q, mode: 'insensitive' } },
+          { buyer: { name: { contains: q, mode: 'insensitive' } } },
+          { seller: { name: { contains: q, mode: 'insensitive' } } },
+          {
+            items: {
+              some: {
+                OR: [
+                  { name: { contains: q, mode: 'insensitive' } },
+                  { sku: { contains: q, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        ],
+      });
     }
+    const listWhere: Prisma.OrderWhereInput =
+      filters.length === 1 ? filters[0]! : { AND: filters };
 
     const rows = await this.prisma.order.findMany({
-      where,
+      where: listWhere,
       include: ORDER_RELATIONS,
       ...cursorArgs(query),
     });
@@ -258,7 +371,7 @@ export class OrderService {
   }
 
   async get(actorCompanyId: string, id: string): Promise<OrderView> {
-    const order = await this.loadForParty(id, actorCompanyId);
+    const order = await this.loadForParty(id, actorCompanyId, true);
     const threadId = await this.threads.findDirectThreadId(
       order.buyerCompanyId,
       order.sellerCompanyId,
@@ -1201,8 +1314,19 @@ export class OrderService {
     return this.serializer.toOrderView(updated, actorCompanyId, threadId);
   }
 
-  private async loadForParty(id: string, actorCompanyId: string) {
-    const order = await this.prisma.order.findUnique({ where: { id }, include: ORDER_RELATIONS });
+  private async loadForParty(id: string, actorCompanyId: string, withReturns = false) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: withReturns
+        ? {
+            ...ORDER_RELATIONS,
+            returns: {
+              orderBy: { createdAt: 'desc' as const },
+              include: { items: true },
+            },
+          }
+        : ORDER_RELATIONS,
+    });
     if (!order || (order.buyerCompanyId !== actorCompanyId && order.sellerCompanyId !== actorCompanyId)) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
     }
@@ -1257,4 +1381,29 @@ export class OrderService {
       };
     });
   }
+}
+
+function exceptionCode(err: unknown): string {
+  if (err instanceof HttpException) {
+    const body = err.getResponse();
+    if (body && typeof body === 'object' && 'code' in body && typeof (body as { code: unknown }).code === 'string') {
+      return (body as { code: string }).code;
+    }
+    return `HTTP_${err.getStatus()}`;
+  }
+  return 'ORDER_FAILED';
+}
+
+function exceptionMessage(err: unknown, fallback: string): string {
+  if (err instanceof HttpException) {
+    const body = err.getResponse();
+    if (typeof body === 'string') return body;
+    if (body && typeof body === 'object' && 'message' in body) {
+      const message = (body as { message: unknown }).message;
+      if (typeof message === 'string') return message;
+      if (Array.isArray(message)) return message.filter((part) => typeof part === 'string').join(' ');
+    }
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }

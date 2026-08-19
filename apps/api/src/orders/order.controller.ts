@@ -2,12 +2,15 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/com
 import {
   amendOrderSchema,
   createOrderSchema,
+  createOrdersBatchSchema,
   decideOrderLinesSchema,
   dispatchSchema,
   listOrdersQuerySchema,
   quoteOrderSchema,
   type AmendOrderDto,
   type CreateOrderDto,
+  type CreateOrdersBatchDto,
+  type CreateOrdersBatchResult,
   type DecideOrderLinesDto,
   type DispatchDto,
   type ListOrdersQuery,
@@ -30,6 +33,16 @@ export class OrderController {
     @Body(new ZodValidationPipe(createOrderSchema)) dto: CreateOrderDto,
   ) {
     return this.orders.create(companyId, user.userId, dto);
+  }
+
+  @Post('batch')
+  @HttpCode(200)
+  createBatch(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(createOrdersBatchSchema)) dto: CreateOrdersBatchDto,
+  ) {
+    return this.orders.createBatch(companyId, user.userId, dto);
   }
 
   @Post(':id/amend')

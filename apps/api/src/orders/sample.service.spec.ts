@@ -19,7 +19,9 @@ describe('SampleService', () => {
     await expect(
       service.create('buyer', { sellerCompanyId: 'seller', name: 'Red Banarasi' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(assertCanTrade).toHaveBeenCalledWith('buyer', 'seller');
+    expect(assertCanTrade).toHaveBeenCalledWith('buyer', 'seller', {
+      productIds: undefined,
+    });
   });
 
   it('creates a requested sample when trade is allowed', async () => {
