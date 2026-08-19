@@ -16,6 +16,14 @@ import {
   DEFAULT_ACCESS_REQUEST_NOTE,
   resolveAccessRequestNote,
 } from '@/lib/accessRequestNote';
+import { useMyCompany } from '@/lib/queries';
+import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { CollectionTile, DesignTile } from '@/ui/cards';
 import {
@@ -35,15 +43,29 @@ import {
 
 type ShopTab = 'designs' | 'collections';
 
+function toShopShortlistEntry(product: ExploreProductCard): BrowseShortlistEntry {
+  return {
+    productId: product.id,
+    name: product.name,
+    thumbUrl: product.images[0] ?? null,
+    companyId: product.company.id,
+    companyName: product.company.name,
+  };
+}
+
 export function CompanyProfilePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const me = useMyCompany();
+  const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
   const [gateOpen, setGateOpen] = useState(false);
   const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<ShopTab>('designs');
+  const [curateOpen, setCurateOpen] = useState(false);
   const shopTabSeededFor = useRef<string | null>(null);
 
   const profile = useQuery({
@@ -86,6 +108,18 @@ export function CompanyProfilePage() {
   const collections = shopCollections.data?.results ?? [];
   const shopLoading = shopDesigns.isLoading || shopCollections.isLoading;
   const shopReady = shopDesigns.isSuccess && shopCollections.isSuccess;
+  const isOwner = Boolean(me.data?.id && id && me.data.id === id);
+  const selecting = shortlist.selectMode || shortlist.count > 0;
+  const canSelectDesigns = designs.length > 0 && shopTab === 'designs';
+  const canOrder = !isOwner && shortlist.count > 0;
+  const canCurate =
+    !isOwner &&
+    shortlist.count > 0 &&
+    shortlist.entries.every((entry) => entry.allowForward !== false);
+
+  const toggleDesign = (product: ExploreProductCard) => {
+    shortlist.toggle(toShopShortlistEntry(product));
+  };
 
   useEffect(() => {
     if (!shopReady || shopTabSeededFor.current === id) return;
@@ -230,8 +264,32 @@ export function CompanyProfilePage() {
       {shopLoading ? (
         <LoadingBlock label="Loading shop…" />
       ) : (
-        <section className="flex flex-col gap-2">
-          <SectionHeader title="Shop" />
+        <section
+          className={cx('flex flex-col gap-2', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}
+        >
+          <SectionHeader
+            title="Shop"
+            action={
+              canSelectDesigns ? (
+                <button
+                  type="button"
+                  className={cx(
+                    'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                    selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                  )}
+                  onClick={() => {
+                    if (shortlist.selectMode && shortlist.count === 0) {
+                      shortlist.setSelectMode(false);
+                    } else {
+                      shortlist.setSelectMode(true);
+                    }
+                  }}
+                >
+                  {selecting ? 'Selecting' : 'Select'}
+                </button>
+              ) : null
+            }
+          />
           {hasShop ? (
             <>
               <div className="flex gap-2 px-0.5">
@@ -259,7 +317,14 @@ export function CompanyProfilePage() {
                 designs.length > 0 ? (
                   <div className="grid grid-cols-2 gap-3">
                     {designs.map((product) => (
-                      <DesignTile key={product.id} product={product} />
+                      <DesignTile
+                        key={product.id}
+                        product={product}
+                        selected={shortlist.productIds.has(product.id)}
+                        selectMode={selecting}
+                        onLongSelect={() => toggleDesign(product)}
+                        onToggleSelect={selecting ? () => toggleDesign(product) : undefined}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -283,6 +348,39 @@ export function CompanyProfilePage() {
           )}
         </section>
       )}
+
+      <BrowseSelectBar
+        count={shortlist.count}
+        onClear={() => shortlist.clear()}
+        canCurate={canCurate}
+        onCurate={canCurate ? () => setCurateOpen(true) : undefined}
+        canOrder={canOrder}
+        onOrder={
+          canOrder
+            ? () => {
+                orderFlow.setError(null);
+                orderFlow.setQtyOpen(true);
+              }
+            : undefined
+        }
+      />
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={orderFlow.sellerIdForQty}
+        products={orderFlow.products}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        onSendOrder={orderFlow.sendOrder}
+        onAskRates={orderFlow.askRates}
+      />
+      <BatchOrderConfirmSheet
+        open={orderFlow.confirmOpen}
+        result={orderFlow.result}
+        onClose={() => orderFlow.setConfirmOpen(false)}
+      />
+      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
 
       <Sheet
         open={gateOpen}

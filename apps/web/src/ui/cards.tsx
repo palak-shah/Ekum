@@ -309,23 +309,71 @@ export function OpportunityDesignCard({
 }
 
 /** Shop / grid tile for a published design — fills the grid cell. */
-export function DesignTile({ product }: { product: ExploreProductCard }) {
-  return (
-    <Link
-      to={`/explore/products/${product.id}`}
-      className="block overflow-hidden rounded-2xl border border-line bg-surface"
-    >
-      <div className="p-1.5">
+export function DesignTile({
+  product,
+  selected = false,
+  selectMode = false,
+  onLongSelect,
+  onToggleSelect,
+}: {
+  product: ExploreProductCard;
+  selected?: boolean;
+  selectMode?: boolean;
+  onLongSelect?: () => void;
+  onToggleSelect?: () => void;
+}) {
+  const longPress = useLongPress(onLongSelect);
+  const selecting = selectMode && onToggleSelect;
+
+  const body = (
+    <>
+      <div className="relative p-1.5">
         <AlbumGrid
           images={product.images}
           imageCount={product.images.length}
           alt={product.name}
         />
+        {selectMode ? (
+          <span
+            className={cx(
+              'absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+            )}
+          >
+            <CheckIcon width={14} height={14} />
+          </span>
+        ) : null}
       </div>
       <div className="px-2.5 pb-2.5">
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
         <p className="truncate text-xs text-muted">Design</p>
       </div>
+    </>
+  );
+
+  if (selecting) {
+    return (
+      <button
+        type="button"
+        className={cx(
+          'block w-full overflow-hidden rounded-2xl border bg-surface text-left',
+          selected ? 'border-accent' : 'border-line',
+        )}
+        onClick={onToggleSelect}
+        {...longPress}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      to={`/explore/products/${product.id}`}
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
+      {...longPress}
+    >
+      {body}
     </Link>
   );
 }

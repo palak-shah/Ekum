@@ -14,7 +14,7 @@ Anyone browsing a business; owners edit via **You → profile / settings**.
 
 1. Open from Explore, search, chat, or Home.
 2. View about, city, GST verification badge, buy/sell categories.
-3. Browse published collections and designs.
+3. Browse published collections and designs (2-col grid). Designs: **Select** / long-press → Order / Curate on the sticky bar. Collections open the album to pick designs.
 4. Actions: Follow, Request access, Chat (as available).
 
 ### Own profile (`/settings/profile`)
