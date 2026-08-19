@@ -56,7 +56,7 @@ model Company {
   // Capabilities unlock progressively as the business actually uses them.
   canPublish Boolean @default(false)
   canRelist  Boolean @default(false)
-  canRefer   Boolean @default(false)
+  canRefer   Boolean @default(true)
 
   sellCategories   String[] @default([])
   buyCategories    String[] @default([])
@@ -97,6 +97,7 @@ model Company {
   referralsFor    Referral[]      @relation("ReferralTarget")
   notifications   Notification[]
   media           Media[]
+  savedItems      SavedItem[]
 }
 
 /// The join between a User and a Company. Modelled many-to-many from day one so
@@ -232,6 +233,7 @@ model Product {
   createdByUser   User?               @relation("ProductCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedByUser   User?               @relation("ProductUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   collections     CollectionProduct[]
+  savedItems      SavedItem[]
 
   @@index([companyId, status])
   @@index([postedToMarketAt])
@@ -275,6 +277,7 @@ model Collection {
   createdByUser User?               @relation("CollectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedByUser User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   products      CollectionProduct[]
+  savedItems    SavedItem[]
 
   @@index([companyId, status])
   @@index([exploreActivityAt])
@@ -297,6 +300,24 @@ model CollectionProduct {
 
   @@unique([collectionId, productId])
   @@index([productId])
+}
+
+/// A reference bookmark: exactly one of productId or collectionId (enforced in
+/// the service layer). Postgres allows multiple NULLs in unique constraints.
+model SavedItem {
+  id           String   @id @default(cuid())
+  companyId    String
+  productId    String?
+  collectionId String?
+  createdAt    DateTime @default(now())
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product    Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@unique([companyId, productId])
+  @@unique([companyId, collectionId])
 }
 
 // --- Discovery --------------------------------------------------------------
