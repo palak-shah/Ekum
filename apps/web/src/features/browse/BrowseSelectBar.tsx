@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from '@/ui/kit';
 
 export function BrowseSelectBar({
@@ -19,7 +20,7 @@ export function BrowseSelectBar({
   canCurate?: boolean;
   orderLabel?: string;
   curateLabel?: string;
-  extra?: React.ReactNode;
+  extra?: ReactNode;
 }) {
   if (count < 1) return null;
 

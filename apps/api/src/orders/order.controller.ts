@@ -10,7 +10,6 @@ import {
   type AmendOrderDto,
   type CreateOrderDto,
   type CreateOrdersBatchDto,
-  type CreateOrdersBatchResult,
   type DecideOrderLinesDto,
   type DispatchDto,
   type ListOrdersQuery,

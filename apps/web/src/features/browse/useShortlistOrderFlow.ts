@@ -66,11 +66,13 @@ export function useShortlistOrderFlow() {
   });
 
   const sellerIdForQty =
-    shortlist.entries.length === 1
-      ? shortlist.entries[0]!.companyId
-      : shortlist.entries.every((entry) => entry.companyId === shortlist.entries[0]?.companyId)
+    shortlist.entries.length === 0
+      ? 'multi'
+      : shortlist.entries.length === 1
         ? shortlist.entries[0]!.companyId
-        : 'multi';
+        : shortlist.entries.every((entry) => entry.companyId === shortlist.entries[0]?.companyId)
+          ? shortlist.entries[0]!.companyId
+          : 'multi';
 
   return {
     shortlist,
