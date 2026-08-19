@@ -23,7 +23,6 @@ import { useLongPress } from '@/ui/useLongPress';
 type Tab = 'products' | 'collections';
 type CollectionFilter = 'all' | 'draft' | 'ready' | 'published' | 'archived';
 type ProductFilter = 'all' | 'draft' | 'published' | 'archived';
-type ListSort = 'newest' | 'oldest';
 
 const COLLECTION_FILTERS: { id: CollectionFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -120,9 +119,6 @@ export function MyCatalogPage() {
   const [postOpen, setPostOpen] = useState(false);
   const [collectionFilter, setCollectionFilter] = useState<CollectionFilter>('all');
   const [productFilter, setProductFilter] = useState<ProductFilter>('all');
-  const [listSort, setListSort] = useState<ListSort>('newest');
-  const [createdFrom, setCreatedFrom] = useState('');
-  const [createdTo, setCreatedTo] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
@@ -134,23 +130,14 @@ export function MyCatalogPage() {
     );
   };
 
-  const listQuery = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set('sort', listSort);
-    if (createdFrom) params.set('createdFrom', createdFrom);
-    if (createdTo) params.set('createdTo', createdTo);
-    const qs = params.toString();
-    return qs ? `?${qs}` : '';
-  }, [listSort, createdFrom, createdTo]);
-
   const products = useQuery({
-    queryKey: ['my-products', listSort, createdFrom, createdTo],
-    queryFn: () => api.get<ProductView[]>(`/products${listQuery}`),
+    queryKey: ['my-products'],
+    queryFn: () => api.get<ProductView[]>('/products'),
     enabled: tab === 'products',
   });
   const collections = useQuery({
-    queryKey: ['my-collections', listSort, createdFrom, createdTo],
-    queryFn: () => api.get<CollectionView[]>(`/collections${listQuery}`),
+    queryKey: ['my-collections'],
+    queryFn: () => api.get<CollectionView[]>('/collections'),
     enabled: tab === 'collections',
   });
   const broadcastLists = useQuery({
@@ -340,46 +327,6 @@ export function MyCatalogPage() {
             {value === 'products' ? 'Designs' : 'Collections'}
           </button>
         ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setListSort((s) => (s === 'newest' ? 'oldest' : 'newest'))}
-          className="rounded-full bg-foam px-3 py-1 text-xs font-medium text-ink"
-        >
-          {listSort === 'newest' ? 'Newest first' : 'Oldest first'}
-        </button>
-        <label className="flex items-center gap-1 text-xs text-muted">
-          From
-          <input
-            type="date"
-            value={createdFrom}
-            onChange={(e) => setCreatedFrom(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink"
-          />
-        </label>
-        <label className="flex items-center gap-1 text-xs text-muted">
-          To
-          <input
-            type="date"
-            value={createdTo}
-            onChange={(e) => setCreatedTo(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink"
-          />
-        </label>
-        {createdFrom || createdTo ? (
-          <button
-            type="button"
-            className="text-xs font-medium text-accent"
-            onClick={() => {
-              setCreatedFrom('');
-              setCreatedTo('');
-            }}
-          >
-            Clear dates
-          </button>
-        ) : null}
       </div>
 
       {tab === 'products' ? (

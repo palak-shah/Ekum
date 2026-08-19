@@ -36,6 +36,10 @@ import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { defaultCollectionName, nameFromFilename } from './collectionCreateHelpers';
 import { collectionStatusSummary } from './collectionStatusSummary';
+import {
+  clampAudienceToCeiling,
+  maxPublishAudienceForCuratedPack,
+} from './curationAudienceCeiling';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import {
   emptyPublishAudienceState,
@@ -76,6 +80,7 @@ export function CollectionEditorPage() {
   const designFileRef = useRef<HTMLInputElement>(null);
   const phone = isPhoneLike();
   const [error, setError] = useState<string | null>(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -182,6 +187,11 @@ export function CollectionEditorPage() {
     () => selectableDesigns.filter((p) => libraryPicks.has(p.id)),
     [selectableDesigns, libraryPicks],
   );
+  const ceilingMembers = editing ? selectedProducts : createLibraryDesigns;
+  const maxCuratedAudience = useMemo(
+    () => maxPublishAudienceForCuratedPack(company.data?.id, ceilingMembers),
+    [company.data?.id, ceilingMembers],
+  );
   const createMemberCount = readyCreatePhotos.length + createLibraryDesigns.length;
   const createCoverUrl =
     readyCreatePhotos[0]?.imageUrl ?? createLibraryDesigns[0]?.images[0] ?? undefined;
@@ -227,6 +237,25 @@ export function CollectionEditorPage() {
         : null,
     }));
   }, [publishOpen, settings.data, existing.data?.status, hasForeignMembers]);
+
+  useEffect(() => {
+    if (!publishOpen || !maxCuratedAudience) return;
+    setPublishAudience((prev) => {
+      const nextAudience = clampAudienceToCeiling(prev.audience, maxCuratedAudience);
+      if (nextAudience === prev.audience) return prev;
+      return {
+        ...prev,
+        audience: nextAudience,
+        ...(nextAudience !== PublishAudience.Selected
+          ? {
+              selectedGroupIds: [],
+              pickCompanies: false,
+              audienceCompanies: new Set<string>(),
+            }
+          : {}),
+      };
+    });
+  }, [publishOpen, maxCuratedAudience]);
 
   useEffect(() => {
     return () => {
@@ -291,12 +320,12 @@ export function CollectionEditorPage() {
   const persistDesigns = async (productIds: string[], collectionId = id) => {
     if (!collectionId) return;
     setSavingDesigns(true);
-    setError(null);
     try {
       await api.put(`/collections/${collectionId}/products`, { productIds });
       invalidate(collectionId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update designs.');
+      const message = err instanceof ApiError ? err.message : 'Could not update designs.';
+      showToast(message, 'danger');
     } finally {
       setSavingDesigns(false);
     }
@@ -369,6 +398,7 @@ export function CollectionEditorPage() {
     },
     onSuccess: () => {
       setPublishOpen(false);
+      setSheetError(null);
       invalidate();
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       const scheduled = Boolean(startsAt && new Date(startsAt) > new Date());
@@ -386,7 +416,7 @@ export function CollectionEditorPage() {
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not publish.';
-      setError(message);
+      setSheetError(message);
       showToast(message, 'danger');
     },
   });
@@ -409,7 +439,6 @@ export function CollectionEditorPage() {
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not update status.';
-      setError(message);
       showToast(message, 'danger');
     },
   });
@@ -517,13 +546,14 @@ export function CollectionEditorPage() {
       const canPublishCreate =
         (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
       if (!canPublishCreate) {
-        setError('Choose who can see this pack.');
+        setSheetError('Choose who can see this pack.');
         setCreating(false);
         return;
       }
     }
     setCreating(true);
     setError(null);
+    setSheetError(null);
     try {
       const name = form.name.trim() || defaultCollectionName();
       const cover =
@@ -574,7 +604,11 @@ export function CollectionEditorPage() {
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : (err as Error).message || 'Could not create.';
-      setError(message);
+      if (opts?.publish || publishOpen) {
+        setSheetError(message);
+      } else {
+        setError(message);
+      }
       showToast(message, 'danger');
     } finally {
       setCreating(false);
@@ -828,7 +862,10 @@ export function CollectionEditorPage() {
             <Field label="Name" error={error}>
               <TextInput
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => {
+                  setError(null);
+                  setForm({ ...form, name: e.target.value });
+                }}
                 placeholder="Festive 2026"
               />
             </Field>
@@ -1181,7 +1218,11 @@ export function CollectionEditorPage() {
 
       <Sheet
         open={publishOpen}
-        onClose={() => !creating && setPublishOpen(false)}
+        onClose={() => {
+          if (creating) return;
+          setPublishOpen(false);
+          setSheetError(null);
+        }}
         title={
           !editing
             ? 'Create & publish'
@@ -1201,12 +1242,16 @@ export function CollectionEditorPage() {
 
           <PublishAudienceFields
             state={publishAudience}
-            onChange={setPublishAudience}
+            onChange={(next) => {
+              setSheetError(null);
+              setPublishAudience(next);
+            }}
             lists={broadcastLists.data ?? []}
             connections={activeConnections}
             connectionsLoading={connections.isLoading}
             tradeDefaults={settings.data?.tradeDefaults}
             isVisibilityUpdate={editing && isPublished}
+            maxAudience={maxCuratedAudience}
             schedule={{
               startsAt,
               endsAt,
@@ -1229,7 +1274,7 @@ export function CollectionEditorPage() {
             onCreateGroup={() => setCreateGroupOpen(true)}
           />
 
-          {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
+          {sheetError ? <p className="text-center text-xs text-danger">{sheetError}</p> : null}
 
           <Button
             fullWidth

@@ -73,7 +73,7 @@ flowchart LR
 
 ### Entering select mode
 
-- Header **Select** and/or **long-press** on a design tile (collection grid, Explore feed where designs are selectable, Saved design tiles).
+- Header **Select** (Saved / albums) and/or **long-press** on a design tile. **Explore** uses long-press only — no Select control beside search.
 - First long-press adds that design and shows the bar.
 - Tap toggles membership while select mode is on.
 - **Album / collection tiles in Saved:** tap opens the album (pick designs there). Do **not** put `collectionId` on the Order/Curate line set in this slice.

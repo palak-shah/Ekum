@@ -2,6 +2,7 @@ import type { BroadcastListView, ConnectionView } from '@ekum/domain-types';
 import { PublishAudience, RateVisibility } from '@ekum/domain-types';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { Field, TextInput, cx } from '@/ui/kit';
+import { isAudienceWithinCeiling } from './curationAudienceCeiling';
 import {
   mergeGroupsPublishPolicy,
   readCompanyPublishDefaults,
@@ -103,6 +104,11 @@ type Props = {
   onCreateGroup?: () => void;
   /** When true, Who is already chosen (published restore) — still show all sections. */
   isVisibilityUpdate?: boolean;
+  /**
+   * Curated packs: widest Who allowed by sourced designs (API ceiling).
+   * Wider options are faded + disabled. `null` = no ceiling.
+   */
+  maxAudience?: string | null;
 };
 
 export function PublishAudienceFields({
@@ -119,11 +125,13 @@ export function PublishAudienceFields({
   consentLabel = 'Start selling — publish?',
   onCreateGroup,
   isVisibilityUpdate = false,
+  maxAudience = null,
 }: Props) {
   const whoReady = Boolean(state.audience);
   const showSelectedExtras = state.audience === PublishAudience.Selected;
   const showRules = whoReady;
   const showWhen = whoReady;
+  const hasCeiling = Boolean(maxAudience);
 
   const toggleGroup = (list: BroadcastListView) => {
     const has = state.selectedGroupIds.includes(list.id);
@@ -145,6 +153,7 @@ export function PublishAudienceFields({
   };
 
   const selectAudience = (value: string) => {
+    if (!isAudienceWithinCeiling(value, maxAudience ?? null)) return;
     if (value === PublishAudience.Selected) {
       onChange({
         ...state,
@@ -202,29 +211,39 @@ export function PublishAudienceFields({
           <p className="mb-2 text-xs text-muted">Add groups or companies anytime.</p>
         ) : null}
         <div className="flex flex-col gap-1.5">
-          {            (
+          {(
             [
               [PublishAudience.Everyone, 'Everyone'],
               [PublishAudience.Connections, 'My connections'],
               [PublishAudience.Followers, 'My followers'],
               [PublishAudience.Selected, 'Selected'],
             ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => selectAudience(value)}
-              className={cx(
-                'rounded-xl border px-3 py-2.5 text-left text-sm',
-                state.audience === value
-                  ? 'border-accent bg-accent/5 font-medium text-ink'
-                  : 'border-line text-muted',
-              )}
-            >
-              {label}
-            </button>
-          ))}
+          ).map(([value, label]) => {
+            const allowed = isAudienceWithinCeiling(value, maxAudience ?? null);
+            return (
+              <button
+                key={value}
+                type="button"
+                disabled={!allowed}
+                onClick={() => selectAudience(value)}
+                className={cx(
+                  'rounded-xl border px-3 py-2.5 text-left text-sm',
+                  !allowed && 'cursor-not-allowed opacity-40',
+                  allowed && state.audience === value
+                    ? 'border-accent bg-accent/5 font-medium text-ink'
+                    : allowed
+                      ? 'border-line text-muted'
+                      : 'border-line text-muted',
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
+        {hasCeiling ? (
+          <p className="mt-2 text-xs text-muted">Limited by a sourced design’s audience.</p>
+        ) : null}
 
         {showSelectedExtras ? (
           <div className="mt-3 flex flex-col gap-3">
