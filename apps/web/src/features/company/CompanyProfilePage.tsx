@@ -12,6 +12,10 @@ import type {
   ThreadSummary,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import {
+  DEFAULT_ACCESS_REQUEST_NOTE,
+  resolveAccessRequestNote,
+} from '@/lib/accessRequestNote';
 import { PageHeader } from '@/ui/PageHeader';
 import { CollectionTile, DesignTile } from '@/ui/cards';
 import {
@@ -36,7 +40,7 @@ export function CompanyProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [gateOpen, setGateOpen] = useState(false);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<ShopTab>('designs');
@@ -108,11 +112,11 @@ export function CompanyProfilePage() {
     mutationFn: () =>
       api.post<AccessRequestView>('/access-requests', {
         targetCompanyId: id,
-        note: note || undefined,
+        note: resolveAccessRequestNote(note),
       }),
     onSuccess: () => {
       setGateOpen(false);
-      setNote('');
+      setNote(DEFAULT_ACCESS_REQUEST_NOTE);
       setActionError(null);
       setSuccessNote('Request sent — they will see it in chat.');
       refreshAfterAccess();
@@ -203,7 +207,10 @@ export function CompanyProfilePage() {
               Send a short request. They approve once — then you can message and place orders.
             </p>
           </div>
-          <Button fullWidth onClick={() => setGateOpen(true)}>
+          <Button fullWidth onClick={() => {
+            setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+            setGateOpen(true);
+          }}>
             Request access
           </Button>
           <Button
@@ -250,7 +257,7 @@ export function CompanyProfilePage() {
               </div>
               {shopTab === 'designs' ? (
                 designs.length > 0 ? (
-                  <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                  <div className="grid grid-cols-2 gap-3">
                     {designs.map((product) => (
                       <DesignTile key={product.id} product={product} />
                     ))}
@@ -259,7 +266,7 @@ export function CompanyProfilePage() {
                   <p className="px-0.5 text-sm text-muted">No published designs yet.</p>
                 )
               ) : collections.length > 0 ? (
-                <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                <div className="grid grid-cols-2 gap-3">
                   {collections.map((collection) => (
                     <CollectionTile key={collection.id} collection={collection} showCompany={false} />
                   ))}
@@ -277,17 +284,27 @@ export function CompanyProfilePage() {
         </section>
       )}
 
-      <Sheet open={gateOpen} onClose={() => setGateOpen(false)} title={`Request access · ${company.name}`}>
+      <Sheet
+        open={gateOpen}
+        onClose={() => {
+          setGateOpen(false);
+          setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+        }}
+        title={`Request access · ${company.name}`}
+      >
         <div className="flex flex-col gap-3">
           <Field
             label="Add a note"
-            hint="Introduce your business and what you're looking for."
+            hint="Tap to write your own. Leave empty to send the default."
             error={actionError}
           >
             <TextArea
               value={note}
+              onFocus={() => {
+                if (note === DEFAULT_ACCESS_REQUEST_NOTE) setNote('');
+              }}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Hi, we run a retail store in Jaipur…"
+              placeholder={DEFAULT_ACCESS_REQUEST_NOTE}
             />
           </Field>
           <Button fullWidth onClick={() => requestAccess.mutate()} disabled={requestAccess.isPending}>

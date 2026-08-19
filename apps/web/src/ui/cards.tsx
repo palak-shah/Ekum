@@ -308,19 +308,24 @@ export function OpportunityDesignCard({
   );
 }
 
-/** Compact shop tile for a published design on a company profile. */
+/** Shop / grid tile for a published design — fills the grid cell. */
 export function DesignTile({ product }: { product: ExploreProductCard }) {
-  const cover = product.images[0] ?? null;
   return (
     <Link
       to={`/explore/products/${product.id}`}
-      className="block w-44 shrink-0 overflow-hidden rounded-2xl bg-surface p-2 shadow-[var(--shadow-soft)]"
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
     >
-      <div className="h-32 w-full overflow-hidden rounded-xl">
-        <CoverImage src={cover} alt={product.name} />
+      <div className="p-1.5">
+        <AlbumGrid
+          images={product.images}
+          imageCount={product.images.length}
+          alt={product.name}
+        />
       </div>
-      <p className="mt-2 truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
-      <p className="mt-0.5 text-xs font-medium text-muted">Design</p>
+      <div className="px-2.5 pb-2.5">
+        <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+        <p className="truncate text-xs text-muted">Design</p>
+      </div>
     </Link>
   );
 }
@@ -357,20 +362,33 @@ export function CollectionTile({
   /** Hide on a company profile shop shelf where the seller is already known. */
   showCompany?: boolean;
 }) {
-  const cover = collection.previewImages[0] ?? collection.coverImage;
+  const images =
+    collection.previewImages.length > 0
+      ? collection.previewImages
+      : collection.coverImage
+        ? [collection.coverImage]
+        : [];
   return (
     <Link
       to={`/collections/${collection.id}`}
-      className="block w-44 shrink-0 overflow-hidden rounded-2xl bg-surface p-2 shadow-[var(--shadow-soft)]"
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
     >
-      <div className="h-32 w-full overflow-hidden rounded-xl">
-        <CoverImage src={cover} alt={collection.name} />
+      <div className="p-1.5">
+        <AlbumGrid
+          images={images}
+          imageCount={Math.max(collection.imageCount ?? images.length, images.length)}
+          alt={collection.name}
+        />
       </div>
-      <p className="mt-2 truncate text-sm font-bold tracking-tight text-ink">{collection.name}</p>
-      {showCompany ? (
-        <p className="truncate text-xs font-medium text-muted">{collection.company.name}</p>
-      ) : null}
-      <p className="mt-0.5 text-xs font-medium text-muted">{collection.productCount} designs</p>
+      <div className="px-2.5 pb-2.5">
+        <p className="truncate text-sm font-semibold text-ink">{collection.name}</p>
+        {showCompany ? (
+          <p className="truncate text-xs text-muted">{collection.company.name}</p>
+        ) : null}
+        <p className="truncate text-xs text-muted">
+          {collection.productCount} design{collection.productCount === 1 ? '' : 's'}
+        </p>
+      </div>
     </Link>
   );
 }
