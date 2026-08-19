@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
@@ -19,6 +19,7 @@ import {
   type ExploreDesignOpportunity,
   type ExploreBuyerOpportunity,
   type ExploreSupplierCard,
+  type ExploreStory,
   type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
@@ -28,9 +29,10 @@ import {
   OpportunityCollectionCard,
   OpportunityDesignCard,
 } from '@/ui/cards';
-import { Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { Avatar, Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import {
   BackIcon,
+  BookmarkIcon,
   CheckIcon,
   ChevronRightIcon,
   ExploreIcon,
@@ -627,12 +629,57 @@ function MenuRow({
   );
 }
 
+function StoriesRail({
+  stories,
+  activeId,
+  onSelect,
+}: {
+  stories: ExploreStory[];
+  activeId: string | null;
+  onSelect: (companyId: string) => void;
+}) {
+  if (stories.length === 0) return null;
+  return (
+    <div className="-mx-1 overflow-x-auto px-1 scrollbar-gutter-stable">
+      <div className="flex gap-3 pb-1">
+        {stories.map((story) => {
+          const active = story.company.id === activeId;
+          return (
+            <button
+              key={story.company.id}
+              type="button"
+              onClick={() => onSelect(story.company.id)}
+              className="flex w-[72px] shrink-0 flex-col items-center gap-1.5"
+            >
+              <span
+                className={cx(
+                  'rounded-full p-[2px]',
+                  active ? 'bg-accent' : 'bg-gradient-to-br from-accent to-tangerine',
+                )}
+              >
+                <span className="block rounded-full bg-canvas p-[2px]">
+                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={56} />
+                </span>
+              </span>
+              <span className="w-full truncate text-center text-[11px] font-medium text-ink">
+                {story.company.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const company = useMyCompany();
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
+  const storyCompanyId = searchParams.get('story');
   const [category, setCategory] = useState('All');
   const [city, setCity] = useState<string>('All');
   const [searchFocused, setSearchFocused] = useState(
@@ -771,26 +818,93 @@ export function ExplorePage() {
     [data?.designsFromNetwork, data?.designsForYou],
   );
 
+  const filteredPosts = useMemo(() => {
+    if (!storyCompanyId) return postsForYou;
+    return postsForYou.filter((item) =>
+      item.kind === 'collection'
+        ? item.opportunity.collection.company.id === storyCompanyId
+        : item.opportunity.product.company.id === storyCompanyId,
+    );
+  }, [postsForYou, storyCompanyId]);
+  const filteredCollections = useMemo(() => {
+    if (!storyCompanyId) return collectionsForYou;
+    return collectionsForYou.filter((item) => item.collection.company.id === storyCompanyId);
+  }, [collectionsForYou, storyCompanyId]);
+  const filteredDesigns = useMemo(() => {
+    if (!storyCompanyId) return designsForYou;
+    return designsForYou.filter((item) => item.product.company.id === storyCompanyId);
+  }, [designsForYou, storyCompanyId]);
+
+  const storyCompany = data?.stories?.find((s) => s.company.id === storyCompanyId)?.company;
+
+  const clearStory = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('story');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  // Drop a sticky ?story= that would filter the feed to nothing.
+  useEffect(() => {
+    if (!storyCompanyId || !data) return;
+    const inFeed = postsForYou.some((item) =>
+      item.kind === 'collection'
+        ? item.opportunity.collection.company.id === storyCompanyId
+        : item.opportunity.product.company.id === storyCompanyId,
+    );
+    if (!inFeed) clearStory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when home data / story param change
+  }, [storyCompanyId, data, postsForYou]);
+
+  const selectStory = (companyId: string) => {
+    // Prefer the business shop when this feed has no posts from them yet —
+    // Stories can include publishers who aren’t in the “New for you” shelf.
+    const inFeed = postsForYou.some((item) =>
+      item.kind === 'collection'
+        ? item.opportunity.collection.company.id === companyId
+        : item.opportunity.product.company.id === companyId,
+    );
+    if (!inFeed) {
+      navigate(`/company/${companyId}`);
+      return;
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (prev.get('story') === companyId) next.delete('story');
+        else next.set('story', companyId);
+        next.delete('show');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const contentCount =
     contentMode === 'collections'
-      ? collectionsForYou.length
+      ? filteredCollections.length
       : contentMode === 'designs'
-        ? designsForYou.length
+        ? filteredDesigns.length
         : contentMode === 'businesses'
           ? 1
-          : postsForYou.length;
+          : filteredPosts.length;
 
+  const suggestedCount = data?.suggestedBusinesses.length ?? 0;
+  const buyersCount = data?.lookingForWhatYouSell?.length ?? 0;
   const hasAny =
     contentMode === 'businesses' ||
-    contentCount +
-      (data?.suggestedBusinesses.length ?? 0) +
-      (data?.lookingForWhatYouSell?.length ?? 0) >
-      0;
+    Boolean(storyCompanyId) ||
+    contentCount + suggestedCount + buyersCount > 0;
 
   const clearFilters = () => {
     setCategory('All');
     setCity('All');
     setContentMode('all');
+    clearStory();
   };
 
   return (
@@ -825,6 +939,14 @@ export function ExplorePage() {
             >
               <ExploreIcon width={18} height={18} className="shrink-0" />
               <span className="truncate">Search companies, city, GST…</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Saved"
+              onClick={() => navigate('/saved')}
+              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate hover:bg-foam"
+            >
+              <BookmarkIcon width={20} height={20} />
             </button>
             <button
               ref={filterAnchorRef}
@@ -883,6 +1005,11 @@ export function ExplorePage() {
         <SupplierDirectory filters={filters} />
       ) : home.isLoading ? (
         <LoadingBlock />
+      ) : home.isError ? (
+        <EmptyState
+          title="Couldn’t load Explore"
+          message="Check your connection and try again."
+        />
       ) : !hasAny ? (
         <EmptyState
           title="Nothing to explore yet"
@@ -896,23 +1023,62 @@ export function ExplorePage() {
         />
       ) : (
         <div className="flex flex-col gap-7">
+          {!searchFocused ? (
+            <StoriesRail
+              stories={data?.stories ?? []}
+              activeId={storyCompanyId}
+              onSelect={selectStory}
+            />
+          ) : null}
+          {storyCompanyId ? (
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-foam/60 px-3 py-2">
+              <p className="min-w-0 flex-1 truncate text-sm text-ink">
+                Posts from{' '}
+                <span className="font-semibold">{storyCompany?.name ?? 'this business'}</span>
+              </p>
+              <button type="button" className="text-xs font-bold text-accent" onClick={clearStory}>
+                Clear
+              </button>
+              <button
+                type="button"
+                className="text-xs font-bold text-accent"
+                onClick={() => navigate(`/company/${storyCompanyId}`)}
+              >
+                Open shop
+              </button>
+            </div>
+          ) : null}
           {contentMode === 'all' ? (
-            <MixedSection title="New for you" items={postsForYou} />
+            filteredPosts.length > 0 ? (
+              <MixedSection title="New for you" items={filteredPosts} />
+            ) : storyCompanyId ? (
+              <EmptyState
+                title="No posts in this feed"
+                message="Open their shop to see published designs and collections."
+              />
+            ) : (
+              <EmptyState
+                title="No posts from other businesses yet"
+                message="Follow suppliers or wait for new drops — buyers who may want what you sell still show below."
+              />
+            )
           ) : null}
           {contentMode === 'collections' ? (
-            <CollectionSection title="New for you" items={collectionsForYou} />
+            <CollectionSection title="New for you" items={filteredCollections} />
           ) : null}
           {contentMode === 'designs' ? (
-            <DesignSection title="New for you" items={designsForYou} />
+            <DesignSection title="New for you" items={filteredDesigns} />
           ) : null}
-          <CompanySection
-            title="Suppliers"
-            items={data?.suggestedBusinesses ?? []}
-            intentSide="sell"
-            seeAllLabel="See all suppliers →"
-            onSeeAll={() => setContentMode('businesses')}
-          />
-          {data?.lookingForWhatYouSell ? (
+          {!storyCompanyId ? (
+            <CompanySection
+              title="Businesses for you"
+              items={data?.suggestedBusinesses ?? []}
+              intentSide="sell"
+              seeAllLabel="See all businesses →"
+              onSeeAll={() => setContentMode('businesses')}
+            />
+          ) : null}
+          {!storyCompanyId && data?.lookingForWhatYouSell ? (
             <CompanySection
               title="Buyers for you"
               items={data.lookingForWhatYouSell}

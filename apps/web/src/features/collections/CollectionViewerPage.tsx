@@ -19,6 +19,7 @@ import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { SAVED_QUERY_KEY, useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
@@ -70,6 +71,7 @@ export function CollectionViewerPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [curateOpen, setCurateOpen] = useState(false);
 
   useEffect(() => {
     setQtyOpen(false);
@@ -107,6 +109,10 @@ export function CollectionViewerPage() {
   const canOrderFromPack = products.length > 0 && !isCuratedPack && !isOwner;
   const canSelectDesigns = products.length > 0;
   const companyName = collection.data?.company.name ?? '';
+  const canCurate =
+    shortlist.count > 0 &&
+    shortlist.entries.every((entry) => entry.allowForward !== false) &&
+    !isOwner;
 
   const selectAllDesigns = () => {
     shortlist.addMany(products.map((product) => toShortlistEntry(product, companyName)));
@@ -488,6 +494,11 @@ export function CollectionViewerPage() {
                   ? 'Save design'
                   : 'Save designs'}
             </Button>
+            {canCurate ? (
+              <Button variant="secondary" onClick={() => setCurateOpen(true)}>
+                Curate
+              </Button>
+            ) : null}
             {canOrderFromPack && selectedProducts.length > 0 ? (
               <Button
                 onClick={() => {

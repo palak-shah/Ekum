@@ -211,3 +211,10 @@ export const DocumentIcon = (props: IconProps) => (
     <path d="M9 13h6M9 17h4" />
   </Icon>
 );
+
+/** Saved / bookmark hub. */
+export const BookmarkIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.5L6 20V5a1 1 0 0 1 1-1Z" />
+  </Icon>
+);

@@ -30,13 +30,14 @@ function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/more') || pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
     return 'More';
   }
-  if (pathname.startsWith('/buyers')) return 'Buyers';
+  if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
+  if (pathname.startsWith('/following') || pathname.startsWith('/followers')) return 'Network';
   if (pathname.startsWith('/catalog')) return 'My designs';
   if (pathname.startsWith('/company')) return 'Business';
   if (pathname.startsWith('/collections')) return 'Collection';
   if (pathname.startsWith('/products')) return 'Design';
   if (pathname.startsWith('/broadcast')) return 'Buyer groups';
-  if (pathname.startsWith('/referrals')) return 'Referrals';
+  if (pathname.startsWith('/referrals')) return 'Invites';
   return null;
 }
 
@@ -52,7 +53,6 @@ export function AppShell() {
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
   const { buying, selling, canPublish } = useTradePresence();
-  const capabilities = company.data?.capabilities;
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
   /** Thread detail: counterpart header owns the top chrome (WhatsApp-style). */
@@ -151,6 +151,9 @@ export function AppShell() {
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
         <div className="flex flex-col gap-2">
+          <Button variant="secondary" fullWidth onClick={() => go('/saved')}>
+            Saved
+          </Button>
           {buying ? (
             <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
               Photo order
@@ -164,7 +167,7 @@ export function AppShell() {
               <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
                 New collection
               </Button>
-              <Button variant="secondary" fullWidth onClick={() => go('/catalog/curate')}>
+              <Button variant="secondary" fullWidth onClick={() => go('/saved?select=1')}>
                 Curate pack
               </Button>
               {canPublish ? (
@@ -174,11 +177,9 @@ export function AppShell() {
               ) : null}
             </>
           ) : null}
-          {capabilities?.refer ? (
-            <Button variant="secondary" fullWidth onClick={() => go('/referrals/new')}>
-              Refer a business
-            </Button>
-          ) : null}
+          <Button variant="secondary" fullWidth onClick={() => go('/referrals/new')}>
+            Invite to connect
+          </Button>
         </div>
       </Sheet>
     </div>
