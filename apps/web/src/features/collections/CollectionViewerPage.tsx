@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,10 +11,16 @@ import {
   type ThreadSummary,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import {
+  DEFAULT_ACCESS_REQUEST_NOTE,
+  resolveAccessRequestNote,
+} from '@/lib/accessRequestNote';
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
-import { useSaveToggle } from '@/features/saved/useSaveToggle';
+import { SAVED_QUERY_KEY, useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
 import { CompanyRow } from '@/ui/cards';
 import {
@@ -29,39 +35,23 @@ import {
   cx,
 } from '@/ui/kit';
 import { CheckIcon, LockIcon } from '@/ui/icons';
+import { useToast } from '@/ui/Toast';
 import { useLongPress } from '@/ui/useLongPress';
 
 type Layout = 'feed' | 'grid';
 
-function shortlistKey(collectionId: string) {
-  return `ekum:shortlist:${collectionId}`;
-}
-
-function readShortlist(collectionId: string): Set<string> {
-  if (!collectionId || typeof sessionStorage === 'undefined') {
-    return new Set();
-  }
-  try {
-    const raw = sessionStorage.getItem(shortlistKey(collectionId));
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? new Set(parsed.filter((id) => typeof id === 'string')) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function writeShortlist(collectionId: string, ids: Set<string>) {
-  if (!collectionId || typeof sessionStorage === 'undefined') return;
-  try {
-    if (ids.size === 0) {
-      sessionStorage.removeItem(shortlistKey(collectionId));
-      return;
-    }
-    sessionStorage.setItem(shortlistKey(collectionId), JSON.stringify([...ids]));
-  } catch {
-    // Ignore quota / private-mode failures — shortlist stays in memory.
-  }
+function toShortlistEntry(
+  product: ProductView,
+  companyName: string,
+): BrowseShortlistEntry {
+  return {
+    productId: product.id,
+    name: product.name,
+    thumbUrl: product.images[0] ?? null,
+    companyId: product.companyId,
+    companyName,
+    allowForward: product.allowForward,
+  };
 }
 
 export function CollectionViewerPage() {
@@ -69,46 +59,24 @@ export function CollectionViewerPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useMyCompany();
+  const { showToast } = useToast();
+  const shortlist = useBrowseShortlist();
   const [layout, setLayout] = useState<Layout>('grid');
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(() => readShortlist(id));
   const [gateOpen, setGateOpen] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
   const [viewerProduct, setViewerProduct] = useState<ProductView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
-  /** Prevents a stale persist after intentional clear (order / ask rates / Clear all). */
-  const skipShortlistPersist = useRef(false);
 
   useEffect(() => {
-    skipShortlistPersist.current = true;
-    setSelected(readShortlist(id));
-    setSelectMode(false);
     setQtyOpen(false);
   }, [id]);
 
-  useEffect(() => {
-    if (skipShortlistPersist.current) {
-      skipShortlistPersist.current = false;
-      return;
-    }
-    writeShortlist(id, selected);
-  }, [id, selected]);
-
-  useEffect(() => {
-    if (selected.size > 0 && !selectMode) {
-      setSelectMode(true);
-    }
-  }, [selected.size, selectMode]);
-
   const clearSelection = () => {
-    skipShortlistPersist.current = true;
-    writeShortlist(id, new Set());
-    setSelected(new Set());
-    setSelectMode(false);
+    shortlist.clear();
   };
 
   const collection = useQuery({
@@ -123,33 +91,50 @@ export function CollectionViewerPage() {
 
   const products = collection.data?.products ?? [];
   const selectedProducts = useMemo(
-    () => products.filter((product) => selected.has(product.id)),
-    [products, selected],
+    () => products.filter((product) => shortlist.productIds.has(product.id)),
+    [products, shortlist.productIds],
   );
-  const selectedCount = selected.size;
-  /** Slice A: multi-supplier order create is out of scope — gate Select/Order. */
+  const selectedCount = shortlist.count;
+  const selectMode = shortlist.selectMode;
+  const companyId = collection.data?.company.id ?? '';
+  const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+  /** Order when designs are visible and pack is single-supplier; connection not required for open audiences. */
   const isCuratedPack = useMemo(() => {
     const ownerId = collection.data?.company.id;
     if (!ownerId || products.length === 0) return false;
     return products.some((product) => product.companyId !== ownerId);
   }, [collection.data?.company.id, products]);
-  const canOrderFromPack = Boolean(collection.data?.connected) && !isCuratedPack;
-
-  useEffect(() => {
-    if (!isCuratedPack) return;
-    if (selected.size === 0 && !selectMode) return;
-    skipShortlistPersist.current = true;
-    writeShortlist(id, new Set());
-    setSelected(new Set());
-    setSelectMode(false);
-  }, [isCuratedPack, id, selected.size, selectMode]);
+  const canOrderFromPack = products.length > 0 && !isCuratedPack && !isOwner;
+  const canSelectDesigns = products.length > 0;
+  const companyName = collection.data?.company.name ?? '';
 
   const selectAllDesigns = () => {
-    setSelectMode(true);
-    setSelected(new Set(products.map((product) => product.id)));
+    shortlist.addMany(products.map((product) => toShortlistEntry(product, companyName)));
   };
-  const companyId = collection.data?.company.id ?? '';
-  const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+
+  const saveSelected = useMutation({
+    mutationFn: async (productIds: string[]) => {
+      const results = await Promise.allSettled(
+        productIds.map((productId) => api.post('/saved', { productId })),
+      );
+      const failed = results.filter((result) => result.status === 'rejected').length;
+      const saved = results.length - failed;
+      return { saved, failed, productIds };
+    },
+    onSuccess: ({ saved, failed, productIds }) => {
+      void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
+      if (saved > 0) shortlist.removeIds(productIds);
+      if (saved > 0 && failed === 0) {
+        showToast(saved === 1 ? 'Saved' : `${saved} designs saved`);
+      } else if (saved > 0) {
+        showToast(`${saved} saved · ${failed} could not be saved`, 'danger');
+      } else {
+        showToast('Could not save designs.', 'danger');
+      }
+    },
+    onError: (error) =>
+      showToast(error instanceof ApiError ? error.message : 'Could not save designs.', 'danger'),
+  });
   const accessPending =
     Boolean(companyId) &&
     (outgoing.data?.some((item) => item.company.id === companyId && item.status === 'pending') ??
@@ -159,11 +144,11 @@ export function CollectionViewerPage() {
     mutationFn: () =>
       api.post<AccessRequestView>('/access-requests', {
         targetCompanyId: companyId,
-        note: note || undefined,
+        note: resolveAccessRequestNote(note),
       }),
     onSuccess: () => {
       setGateOpen(false);
-      setNote('');
+      setNote(DEFAULT_ACCESS_REQUEST_NOTE);
       setActionError(null);
       setSuccessNote('Request sent — they will see it in chat.');
       void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
@@ -191,9 +176,9 @@ export function CollectionViewerPage() {
           images: [],
         })),
       }),
-    onSuccess: (order) => {
+    onSuccess: (order, lines) => {
       setQtyOpen(false);
-      clearSelection();
+      shortlist.removeIds(lines.map((line) => line.productId));
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       if (order.threadId) {
@@ -221,9 +206,9 @@ export function CollectionViewerPage() {
           images: [],
         })),
       }),
-    onSuccess: (order) => {
+    onSuccess: (order, lines) => {
       setQtyOpen(false);
-      clearSelection();
+      shortlist.removeIds(lines.map((line) => line.productId));
       setOrderError(null);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
@@ -237,16 +222,8 @@ export function CollectionViewerPage() {
       setOrderError(error instanceof ApiError ? error.message : 'Could not ask for rates.'),
   });
 
-  const toggle = (productId: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
+  const toggleProduct = (product: ProductView) => {
+    shortlist.toggle(toShortlistEntry(product, companyName));
   };
 
   const openViewer = (product: ProductView, index = 0) => {
@@ -255,20 +232,15 @@ export function CollectionViewerPage() {
   };
 
   const onDesignActivate = (product: ProductView) => {
-    if (canOrderFromPack && selectMode) {
-      toggle(product.id);
+    if (selectMode) {
+      toggleProduct(product);
       return;
     }
     openViewer(product, 0);
   };
 
-  const onDesignLongSelect = (productId: string) => {
-    setSelectMode(true);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.add(productId);
-      return next;
-    });
+  const onDesignLongSelect = (product: ProductView) => {
+    shortlist.toggle(toShortlistEntry(product, companyName));
   };
 
   if (collection.isLoading) {
@@ -290,7 +262,7 @@ export function CollectionViewerPage() {
       className={cx(
         'flex flex-col gap-4',
         /* Clear fixed select bar (bottom-20) + bar height above bottom nav. */
-        selectedCount > 0 && canOrderFromPack && 'pb-[calc(5rem+5.5rem)]',
+        selectedCount > 0 && 'pb-[calc(5rem+5.5rem)]',
       )}
     >
       <PageHeader
@@ -315,7 +287,7 @@ export function CollectionViewerPage() {
                 Edit
               </button>
             ) : null}
-            {data.products && canOrderFromPack ? (
+            {canSelectDesigns ? (
               <button
                 type="button"
                 data-testid="collection-select"
@@ -325,9 +297,9 @@ export function CollectionViewerPage() {
                 )}
                 onClick={() => {
                   if (selectMode && selectedCount === 0) {
-                    setSelectMode(false);
+                    shortlist.setSelectMode(false);
                   } else {
-                    setSelectMode(true);
+                    shortlist.setSelectMode(true);
                   }
                 }}
               >
@@ -362,12 +334,10 @@ export function CollectionViewerPage() {
                 key={product.id}
                 variant="feed"
                 product={product}
-                selected={selected.has(product.id)}
-                selectMode={selectMode && canOrderFromPack}
+                selected={shortlist.productIds.has(product.id)}
+                selectMode={selectMode}
                 onActivate={() => onDesignActivate(product)}
-                onLongSelect={
-                  canOrderFromPack ? () => onDesignLongSelect(product.id) : undefined
-                }
+                onLongSelect={() => onDesignLongSelect(product)}
               />
             ))}
           </div>
@@ -378,12 +348,10 @@ export function CollectionViewerPage() {
                 key={product.id}
                 variant="grid"
                 product={product}
-                selected={selected.has(product.id)}
-                selectMode={selectMode && canOrderFromPack}
+                selected={shortlist.productIds.has(product.id)}
+                selectMode={selectMode}
                 onActivate={() => onDesignActivate(product)}
-                onLongSelect={
-                  canOrderFromPack ? () => onDesignLongSelect(product.id) : undefined
-                }
+                onLongSelect={() => onDesignLongSelect(product)}
               />
             ))}
           </div>
@@ -405,11 +373,18 @@ export function CollectionViewerPage() {
               Request access from {data.company.name} to see all {data.productCount} designs.
             </p>
           </div>
-          <Button onClick={() => setGateOpen(true)}>Request access</Button>
+          <Button
+            onClick={() => {
+              setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+              setGateOpen(true);
+            }}
+          >
+            Request access
+          </Button>
         </Card>
       )}
 
-      {data.products && data.connected && isCuratedPack && !isOwner ? (
+      {data.products && isCuratedPack && !isOwner ? (
         <Card className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">Message to order these designs</p>
           <p className="text-xs text-muted">
@@ -425,13 +400,15 @@ export function CollectionViewerPage() {
         </Card>
       ) : null}
 
-      {data.products && !data.connected ? (
+      {!data.products && !isOwner ? (
         accessPending ? (
           <Card className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-ink">Waiting for them</p>
-                <p className="text-xs text-muted">You can browse; ordering unlocks after they accept.</p>
+                <p className="text-xs text-muted">
+                  Designs unlock after they accept your access request.
+                </p>
               </div>
               <StatusPill status="pending" />
             </div>
@@ -446,9 +423,17 @@ export function CollectionViewerPage() {
           </Card>
         ) : (
           <Card className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Ask to order</p>
-            <p className="text-xs text-muted">You can browse designs; request access to place an order.</p>
-            <Button fullWidth onClick={() => setGateOpen(true)}>
+            <p className="text-sm font-semibold text-ink">Ask to see designs and order</p>
+            <p className="text-xs text-muted">
+              This album is limited to their network. Request access to browse and order.
+            </p>
+            <Button
+              fullWidth
+              onClick={() => {
+                setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+                setGateOpen(true);
+              }}
+            >
               Request access
             </Button>
           </Card>
@@ -458,7 +443,7 @@ export function CollectionViewerPage() {
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
-      {data.products && canOrderFromPack && selectMode ? (
+      {data.products && selectMode ? (
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <button type="button" className="font-bold text-accent" onClick={selectAllDesigns}>
             Select all
@@ -472,7 +457,7 @@ export function CollectionViewerPage() {
         </div>
       ) : null}
 
-      {selectedCount > 0 && canOrderFromPack ? (
+      {selectedCount > 0 ? (
         <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md flex-col gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
           <div className="flex items-center gap-3">
             <p className="flex-1 text-sm font-bold tracking-tight text-ink">
@@ -493,13 +478,26 @@ export function CollectionViewerPage() {
               Clear all
             </button>
             <Button
-              onClick={() => {
-                setOrderError(null);
-                setQtyOpen(true);
-              }}
+              variant="secondary"
+              disabled={saveSelected.isPending || selectedProducts.length === 0}
+              onClick={() => saveSelected.mutate(selectedProducts.map((product) => product.id))}
             >
-              Order
+              {saveSelected.isPending
+                ? 'Saving…'
+                : selectedProducts.length === 1
+                  ? 'Save design'
+                  : 'Save designs'}
             </Button>
+            {canOrderFromPack && selectedProducts.length > 0 ? (
+              <Button
+                onClick={() => {
+                  setOrderError(null);
+                  setQtyOpen(true);
+                }}
+              >
+                Order
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -527,31 +525,36 @@ export function CollectionViewerPage() {
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerProduct(null)}
-        selectable={canOrderFromPack}
-        selected={viewerProduct ? selected.has(viewerProduct.id) : false}
+        selectable={canSelectDesigns}
+        selected={viewerProduct ? shortlist.productIds.has(viewerProduct.id) : false}
         onToggleSelect={() => {
-          if (viewerProduct && canOrderFromPack) {
-            setSelectMode(true);
-            toggle(viewerProduct.id);
+          if (viewerProduct) {
+            toggleProduct(viewerProduct);
           }
         }}
       />
 
       <Sheet
         open={gateOpen}
-        onClose={() => setGateOpen(false)}
+        onClose={() => {
+          setGateOpen(false);
+          setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+        }}
         title={`Request access · ${data.company.name}`}
       >
         <div className="flex flex-col gap-3">
           <Field
             label="Add a note"
-            hint="Introduce your business and what you're looking for."
+            hint="Tap to write your own. Leave empty to send the default."
             error={actionError}
           >
             <TextArea
               value={note}
+              onFocus={() => {
+                if (note === DEFAULT_ACCESS_REQUEST_NOTE) setNote('');
+              }}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Hi, we run a retail store in Jaipur…"
+              placeholder={DEFAULT_ACCESS_REQUEST_NOTE}
             />
           </Field>
           <Button fullWidth onClick={() => requestAccess.mutate()} disabled={requestAccess.isPending}>
@@ -741,6 +744,7 @@ function ProductPhotosSheet({
             <p className="whitespace-pre-wrap text-sm text-ink">{product.description.trim()}</p>
           </div>
         ) : null}
+        <ProductSaveButton productId={product.id} />
         {selectable ? (
           <Button variant={selected ? 'secondary' : 'primary'} fullWidth onClick={onToggleSelect}>
             {selected ? 'Selected' : 'Select design'}
@@ -748,6 +752,20 @@ function ProductPhotosSheet({
         ) : null}
       </div>
     </Sheet>
+  );
+}
+
+function ProductSaveButton({ productId }: { productId: string }) {
+  const save = useSaveToggle({ productId });
+  return (
+    <Button
+      variant="secondary"
+      fullWidth
+      disabled={save.isPending}
+      onClick={() => save.toggle()}
+    >
+      {save.isPending ? 'Updating…' : save.isSaved ? 'Saved' : 'Save'}
+    </Button>
   );
 }
 
