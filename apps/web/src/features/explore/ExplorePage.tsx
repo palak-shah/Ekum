@@ -34,6 +34,7 @@ import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
   OpportunityDesignCard,
+  BusinessShopTile,
 } from '@/ui/cards';
 import { Avatar, Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import {
@@ -399,17 +400,13 @@ function SupplierDirectory({
           Companies with published designs or collections
         </p>
       </div>
-      <div className="flex flex-col">
+      <div className="grid grid-cols-2 gap-3">
         {rows.map((supplier) => (
-          <OpportunityBusinessCard
+          <BusinessShopTile
             key={supplier.company.id}
             company={supplier.company}
             relevance={supplier.relevance}
             previewImages={supplier.previewImages}
-            designCount={supplier.designCount}
-            collectionCount={supplier.collectionCount}
-            latestPostedAt={supplier.latestPostedAt}
-            intentSide="sell"
           />
         ))}
       </div>

@@ -38,8 +38,8 @@ Buyers, sellers, and dual-role companies. Explore is not limited to “seller ca
 | Ranking (feed) | Interest / opportunity matching (`feed-rank`, `interest-match`) — not likes/viral scores |
 | Stories | **Planned rule:** company appears when viewer **follows or is connected** and company has **published** to feed (own or curated). Rank by recent publish; hide rail when empty; not Instagram personal stories. Today’s rail may still include broader publishers — Partial until tightened |
 | Role opacity | No Trader / Seller badges on Stories or cards |
-| Businesses for you | Suggested businesses shelf (Buying / All); Home may keep a short Recommended list |
-| Businesses tab | Directory = companies with live Explore posts (not self, not blocked). Rank: **interest match first**, then **newest post activity** |
+| Businesses for you | Suggested businesses shelf (Buying / All); feed rows = name + why + buys/sells line — **not** a fake design collage. Home may keep a short Recommended list |
+| Businesses tab | Directory = **2-col grid** of company tiles (one cover). Companies with live Explore posts (not self, not blocked). Rank: **interest match first**, then **newest post activity** |
 | Why-lines | Cards may show relevance / posted-time cues for clarity |
 | Curated packs | **Planned:** publish curated collections (multi-supplier, within original seller forward/audience). Capability `relist`. See [concepts](./00-concepts.md) |
 

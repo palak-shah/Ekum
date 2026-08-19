@@ -139,33 +139,26 @@ function postedWhen(iso: string | null | undefined): string {
 }
 
 /**
- * Full-width Explore business card — same chrome as collection/design cards.
- * Keep it plain: name, why-connect, then photos or a short “buys/sells” line.
+ * Explore business row — same chrome as design/collection posts, not a fake album.
+ * Header + buys/sells line. Shop photos live on the company page grid.
  */
 export function OpportunityBusinessCard({
   company,
   relevance,
-  previewImages,
-  designCount,
-  collectionCount,
-  latestPostedAt = null,
   intentSide = 'sell',
-}: BusinessCardModel & {
-  /** Categories shown when there are no post thumbs. */
+}: {
+  company: BusinessCardModel['company'];
+  relevance: string | null;
+  previewImages?: string[];
+  designCount?: number;
+  collectionCount?: number;
+  latestPostedAt?: string | null;
   intentSide?: 'buy' | 'sell';
 }) {
   const why = relevance?.trim() || company.city;
   const intentCats = (
     intentSide === 'buy' ? company.buyCategories : company.sellCategories
   ).filter(Boolean);
-  const hasAlbum = previewImages.length > 0;
-  const when = hasAlbum ? postedWhen(latestPostedAt) : '';
-  const count =
-    hasAlbum && designCount > 0
-      ? `${designCount} design${designCount === 1 ? '' : 's'}`
-      : hasAlbum && collectionCount > 0
-        ? `${collectionCount} collection${collectionCount === 1 ? '' : 's'}`
-        : null;
 
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
@@ -177,27 +170,45 @@ export function OpportunityBusinessCard({
           <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
           <p className="truncate text-xs font-medium text-muted">{why}</p>
         </Link>
-        {when ? (
-          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-        ) : null}
       </div>
       <Link to={`/company/${company.id}`} className="block px-3">
-        {hasAlbum ? (
-          <AlbumGrid
-            images={previewImages}
-            imageCount={previewImages.length}
-            alt={company.name}
-          />
-        ) : (
-          <BusinessIntentPanel intentSide={intentSide} categories={intentCats} />
-        )}
+        <BusinessIntentPanel intentSide={intentSide} categories={intentCats} />
       </Link>
-      {count ? (
-        <Link to={`/company/${company.id}`} className="mt-2 block px-4">
-          <p className="text-xs font-medium text-muted">{count}</p>
-        </Link>
-      ) : null}
     </article>
+  );
+}
+
+/** Compact grid tile for the Businesses directory — one cover, no collage count. */
+export function BusinessShopTile({
+  company,
+  relevance,
+  previewImages = [],
+}: {
+  company: BusinessCardModel['company'];
+  relevance: string | null;
+  previewImages?: string[];
+}) {
+  const cover = previewImages[0] ?? null;
+  const why = relevance?.trim() || company.city;
+  return (
+    <Link
+      to={`/company/${company.id}`}
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
+    >
+      <div className="aspect-square overflow-hidden bg-foam">
+        {cover ? (
+          <CoverImage src={cover} alt={company.name} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Avatar name={company.name} imageUrl={company.logoUrl} size={56} />
+          </div>
+        )}
+      </div>
+      <div className="px-2.5 py-2.5">
+        <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
+        <p className="truncate text-xs text-muted">{why}</p>
+      </div>
+    </Link>
   );
 }
 
