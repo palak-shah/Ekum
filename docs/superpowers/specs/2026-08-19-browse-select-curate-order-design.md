@@ -170,4 +170,4 @@ Implementation plan should sequence: (1) session shortlist + bar verbs + Saved e
 
 ## Next
 
-Product reviews this file → implementation plan under `docs/superpowers/plans/` → implement (no code until plan approval).
+Implementation plan: [2026-08-20-browse-select-curate-order.md](../plans/2026-08-20-browse-select-curate-order.md) → implement task-by-task.
