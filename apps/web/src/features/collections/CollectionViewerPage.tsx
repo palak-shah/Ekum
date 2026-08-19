@@ -2,11 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  OrderIntent,
-  OrderKind,
   type AccessRequestView,
   type CollectionPreviewView,
-  type OrderView,
   type ProductView,
   type ThreadSummary,
 } from '@ekum/domain-types';
@@ -20,6 +17,8 @@ import { useMyCompany } from '@/lib/queries';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { SAVED_QUERY_KEY, useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
@@ -62,19 +61,19 @@ export function CollectionViewerPage() {
   const me = useMyCompany();
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
   const [layout, setLayout] = useState<Layout>('grid');
   const [gateOpen, setGateOpen] = useState(false);
-  const [qtyOpen, setQtyOpen] = useState(false);
   const [viewerProduct, setViewerProduct] = useState<ProductView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
-  const [orderError, setOrderError] = useState<string | null>(null);
   const [curateOpen, setCurateOpen] = useState(false);
 
   useEffect(() => {
-    setQtyOpen(false);
+    orderFlow.setQtyOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset sheet when album changes
   }, [id]);
 
   const clearSelection = () => {
@@ -106,7 +105,7 @@ export function CollectionViewerPage() {
     if (!ownerId || products.length === 0) return false;
     return products.some((product) => product.companyId !== ownerId);
   }, [collection.data?.company.id, products]);
-  const canOrderFromPack = products.length > 0 && !isCuratedPack && !isOwner;
+  const canOrderFromPack = !isOwner && shortlist.count > 0;
   const canSelectDesigns = products.length > 0;
   const companyName = collection.data?.company.name ?? '';
   const canCurate =
@@ -169,63 +168,6 @@ export function CollectionViewerPage() {
     onSuccess: (thread) => navigate(`/chats/${thread.id}`),
     onError: (error) =>
       setActionError(error instanceof ApiError ? error.message : 'Could not open chat.'),
-  });
-
-  const createOrder = useMutation({
-    mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
-      api.post<OrderView & { threadId?: string | null }>('/orders', {
-        sellerCompanyId: companyId,
-        kind: OrderKind.Standard,
-        items: lines.map((line) => ({
-          productId: line.productId,
-          quantity: line.quantity,
-          images: [],
-        })),
-      }),
-    onSuccess: (order, lines) => {
-      setQtyOpen(false);
-      shortlist.removeIds(lines.map((line) => line.productId));
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      if (order.threadId) {
-        navigate(`/chats/${order.threadId}`, { replace: true });
-      } else {
-        navigate(`/orders/${order.id}`, { replace: true });
-      }
-    },
-    onError: (error) =>
-      setOrderError(error instanceof ApiError ? error.message : 'Could not place the order.'),
-  });
-
-  const askRates = useMutation({
-    mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
-      api.post<OrderView & { threadId?: string | null }>('/orders', {
-        sellerCompanyId: companyId,
-        kind: OrderKind.Standard,
-        intent: OrderIntent.Inquiry,
-        note: collection.data?.name
-          ? `Rates for designs from ${collection.data.name}`
-          : undefined,
-        items: lines.map((line) => ({
-          productId: line.productId,
-          quantity: line.quantity,
-          images: [],
-        })),
-      }),
-    onSuccess: (order, lines) => {
-      setQtyOpen(false);
-      shortlist.removeIds(lines.map((line) => line.productId));
-      setOrderError(null);
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      if (order.threadId) {
-        navigate(`/chats/${order.threadId}`, { replace: true });
-      } else {
-        navigate(`/orders/${order.id}`, { replace: true });
-      }
-    },
-    onError: (error) =>
-      setOrderError(error instanceof ApiError ? error.message : 'Could not ask for rates.'),
   });
 
   const toggleProduct = (product: ProductView) => {
@@ -499,11 +441,11 @@ export function CollectionViewerPage() {
                 Curate
               </Button>
             ) : null}
-            {canOrderFromPack && selectedProducts.length > 0 ? (
+            {canOrderFromPack ? (
               <Button
                 onClick={() => {
-                  setOrderError(null);
-                  setQtyOpen(true);
+                  orderFlow.setError(null);
+                  orderFlow.setQtyOpen(true);
                 }}
               >
                 Order
@@ -514,22 +456,24 @@ export function CollectionViewerPage() {
       ) : null}
 
       <HowManyEachSheet
-        open={qtyOpen}
-        onClose={() => setQtyOpen(false)}
-        sellerId={companyId}
-        products={selectedProducts}
-        submitting={createOrder.isPending}
-        asking={askRates.isPending}
-        error={orderError}
-        onSendOrder={(lines) => {
-          setOrderError(null);
-          createOrder.mutate(lines);
-        }}
-        onAskRates={(lines) => {
-          setOrderError(null);
-          askRates.mutate(lines);
-        }}
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={orderFlow.sellerIdForQty}
+        products={orderFlow.products}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        onSendOrder={orderFlow.sendOrder}
+        onAskRates={orderFlow.askRates}
       />
+
+      <BatchOrderConfirmSheet
+        open={orderFlow.confirmOpen}
+        result={orderFlow.result}
+        onClose={() => orderFlow.setConfirmOpen(false)}
+      />
+
+      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
 
       <ProductPhotosSheet
         product={viewerProduct}

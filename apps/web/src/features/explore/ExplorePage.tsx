@@ -27,6 +27,9 @@ import { useMyCompany } from '@/lib/queries';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -704,6 +707,7 @@ export function ExplorePage() {
   const navigate = useNavigate();
   const company = useMyCompany();
   const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
   const [curateOpen, setCurateOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
@@ -1127,6 +1131,27 @@ export function ExplorePage() {
         onClear={() => shortlist.clear()}
         canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
         onCurate={() => setCurateOpen(true)}
+        canOrder={shortlist.count > 0}
+        onOrder={() => {
+          orderFlow.setError(null);
+          orderFlow.setQtyOpen(true);
+        }}
+      />
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={orderFlow.sellerIdForQty}
+        products={orderFlow.products}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        onSendOrder={orderFlow.sendOrder}
+        onAskRates={orderFlow.askRates}
+      />
+      <BatchOrderConfirmSheet
+        open={orderFlow.confirmOpen}
+        result={orderFlow.result}
+        onClose={() => orderFlow.setConfirmOpen(false)}
       />
       <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
     </div>

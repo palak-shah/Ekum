@@ -8,6 +8,9 @@ import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { AlbumGrid } from '@/ui/cards';
 import { useToast } from '@/ui/Toast';
@@ -43,6 +46,7 @@ export function SavedPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
   const saved = useSavedList();
   const [layout, setLayout] = useState<Layout>('grid');
   const [viewer, setViewer] = useState<SavedItemView | null>(null);
@@ -202,6 +206,29 @@ export function SavedPage() {
         onClear={() => shortlist.clear()}
         canCurate={canCurate}
         onCurate={() => setCurateOpen(true)}
+        canOrder={shortlist.count > 0}
+        onOrder={() => {
+          orderFlow.setError(null);
+          orderFlow.setQtyOpen(true);
+        }}
+      />
+
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={orderFlow.sellerIdForQty}
+        products={orderFlow.products}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        onSendOrder={orderFlow.sendOrder}
+        onAskRates={orderFlow.askRates}
+      />
+
+      <BatchOrderConfirmSheet
+        open={orderFlow.confirmOpen}
+        result={orderFlow.result}
+        onClose={() => orderFlow.setConfirmOpen(false)}
       />
 
       <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
