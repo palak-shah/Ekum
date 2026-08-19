@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import { CollectionService } from './collection.service';
@@ -7,12 +8,39 @@ import type { JobQueue } from '../jobs/job-queue.service';
 
 const jobs = { enqueue: vi.fn(async () => 'job-1') } as unknown as JobQueue;
 
+function expectBadRequestCode(error: unknown, code: string): void {
+  expect(error).toBeInstanceOf(BadRequestException);
+  expect((error as BadRequestException).getResponse()).toMatchObject({ code });
+}
+
+const foreignPublishedProduct = {
+  id: 'foreign-1',
+  companyId: 'other-co',
+  audience: 'everyone',
+  audienceCompanyIds: [] as string[],
+  allowForward: true,
+  status: ProductStatus.Published,
+  postedToMarketAt: new Date('2026-08-01'),
+};
+
 describe('CollectionService.setProducts', () => {
   it('rejects products that do not belong to the acting company', async () => {
     const transaction = vi.fn(async () => []);
     const prisma = {
       collection: { findFirst: async () => ({ id: 'col-1', companyId: 'company-1', status: 'draft' }) },
-      product: { count: async () => 1 },
+      product: {
+        findMany: async () => [
+          {
+            id: 'p1',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+        ],
+      },
       $transaction: transaction,
     } as unknown as PrismaService;
 
@@ -47,10 +75,27 @@ describe('CollectionService.setProducts', () => {
         }),
       },
       product: {
-        count: vi
-          .fn()
-          .mockResolvedValueOnce(2)
-          .mockResolvedValueOnce(1),
+        findMany: async () => [
+          {
+            id: 'old',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Published,
+            postedToMarketAt: new Date(),
+          },
+          {
+            id: 'new-published',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Published,
+            postedToMarketAt: new Date(),
+          },
+        ],
+        count: vi.fn().mockResolvedValue(1),
       },
       collectionProduct: {
         findMany: async () => [{ productId: 'old' }],
@@ -92,7 +137,18 @@ describe('CollectionService.setProducts', () => {
         update: collectionUpdate,
       },
       product: {
-        count: vi.fn().mockResolvedValue(1),
+        findMany: async () => [
+          {
+            id: 'a',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Published,
+            postedToMarketAt: new Date(),
+          },
+        ],
+        count: vi.fn().mockResolvedValue(0),
       },
       collectionProduct: {
         findMany: async () => [{ productId: 'a' }, { productId: 'b' }],
@@ -138,7 +194,18 @@ describe('CollectionService.setProducts', () => {
         update: collectionUpdate,
       },
       product: {
-        count: vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0),
+        findMany: async () => [
+          {
+            id: 'draft-1',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+        ],
+        count: vi.fn().mockResolvedValue(0),
       },
       collectionProduct: {
         findMany: async () => [],
@@ -162,6 +229,74 @@ describe('CollectionService.setProducts', () => {
     const updateData = collectionUpdate.mock.calls[0][0].data as Record<string, unknown>;
     expect(updateData.updatedByUserId).toBe('u1');
     expect(updateData.exploreActivityAt).toBeUndefined();
+  });
+
+  it('allows adding another company published forwardable product', async () => {
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+        }),
+        update: vi.fn(async () => ({})),
+      },
+      product: {
+        findMany: async () => [foreignPublishedProduct],
+        count: async () => 0,
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      collectionProduct: {
+        findMany: async () => [],
+        deleteMany: vi.fn(async () => ({})),
+        createMany: vi.fn(async () => ({})),
+      },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+
+    await expect(
+      service.setProducts('company-1', 'u1', 'col-1', ['foreign-1']),
+    ).resolves.toEqual({ id: 'col-1' });
+    expect(transaction).toHaveBeenCalled();
+  });
+
+  it('rejects foreign product when allowForward is false', async () => {
+    const transaction = vi.fn(async () => []);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+        }),
+      },
+      product: {
+        findMany: async () => [{ ...foreignPublishedProduct, allowForward: false }],
+        count: async () => 0,
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      collectionProduct: { findMany: async () => [] },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.setProducts('company-1', 'u1', 'col-1', ['foreign-1']),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectBadRequestCode(error, 'FORWARD_NOT_ALLOWED');
+      return true;
+    });
+    expect(transaction).not.toHaveBeenCalled();
   });
 });
 
@@ -357,7 +492,20 @@ describe('CollectionService.publish', () => {
         findUniqueOrThrow: async () => ({ canPublish: true }),
       },
       collectionProduct: {
-        findMany: async () => [{ productId: 'draft-1' }],
+        findMany: async () => [
+          {
+            productId: 'draft-1',
+            product: {
+              id: 'draft-1',
+              companyId: 'company-1',
+              audience: 'connections',
+              audienceCompanyIds: [],
+              allowForward: true,
+              status: ProductStatus.Draft,
+              postedToMarketAt: null,
+            },
+          },
+        ],
       },
       product: {
         updateMany: productUpdateMany,
@@ -426,5 +574,129 @@ describe('CollectionService.publish', () => {
         allowForward: true,
       }),
     ).rejects.toThrow(/at least one design/i);
+  });
+
+  it('rejects curated publish when audience is wider than a foreign member', async () => {
+    const collectionUpdate = vi.fn(async () => ({}));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true, canRelist: false }),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'foreign-1',
+            product: {
+              ...foreignPublishedProduct,
+              audience: 'connections',
+            },
+          },
+        ],
+      },
+      product: {
+        findMany: async () => [{ ...foreignPublishedProduct, audience: 'connections' }],
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      connection: {
+        findMany: async () => [
+          { ownerCompanyId: 'other-co', status: 'active' },
+        ],
+      },
+      follow: { findMany: async () => [] },
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.publish('company-1', 'u1', 'col-1', {
+        audience: 'everyone',
+        rateVisibility: 'on_request',
+        allowForward: true,
+      }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectBadRequestCode(error, 'CURATED_AUDIENCE_TOO_WIDE');
+      return true;
+    });
+    expect(collectionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('grants canRelist on first curated publish with consent', async () => {
+    const companyUpdate = vi.fn(async () => ({}));
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: null,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: false, canRelist: false }),
+        findUnique: async () => ({ canPublish: false }),
+        update: companyUpdate,
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'foreign-1',
+            product: foreignPublishedProduct,
+          },
+        ],
+      },
+      product: {
+        findMany: async () => [foreignPublishedProduct],
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.publish('company-1', 'u1', 'col-1', {
+      audience: 'connections',
+      rateVisibility: 'on_request',
+      allowForward: true,
+      consentToSell: true,
+    });
+
+    expect(companyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'company-1' },
+        data: expect.objectContaining({ canPublish: true }),
+      }),
+    );
+    expect(companyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'company-1' },
+        data: expect.objectContaining({ canRelist: true }),
+      }),
+    );
+    expect(collectionUpdate).toHaveBeenCalled();
   });
 });

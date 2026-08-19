@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   CollectionStatus,
+  ConnectionStatus,
   JobType,
   ProductStatus,
   type CollectionDetailView,
@@ -19,13 +20,26 @@ import { createdAtOrderBy, createdAtRangeFilter } from '../common/audit';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ensureSellingEnabled } from '../identity/trade-presence';
 import { JobQueue } from '../jobs/job-queue.service';
-import { assertCanPublish, grantPublishCapability } from './publish-capability';
+import { canDiscoverCollection } from './audience-visibility';
+import {
+  assertProductsCuratable,
+  type CuratableProduct,
+} from './curation-ceiling';
+import {
+  assertCanPublish,
+  grantPublishCapability,
+  grantRelistCapability,
+} from './publish-capability';
 import { CatalogSerializer, collectionActorInclude, productActorInclude } from './catalog.serializer';
 import {
   assertValidLiveWindow,
   parseScheduleInstant,
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
+
+type ProductCeilingRow = CuratableProduct & {
+  audienceCompanyIds: string[];
+};
 
 const listInclude = {
   ...collectionActorInclude,
@@ -202,7 +216,20 @@ export class CollectionService {
         : [];
     const members = await this.prisma.collectionProduct.findMany({
       where: { collectionId: id },
-      select: { productId: true },
+      select: {
+        productId: true,
+        product: {
+          select: {
+            id: true,
+            companyId: true,
+            audience: true,
+            audienceCompanyIds: true,
+            allowForward: true,
+            status: true,
+            postedToMarketAt: true,
+          },
+        },
+      },
     });
     if (members.length < 1) {
       throw new BadRequestException({
@@ -211,6 +238,15 @@ export class CollectionService {
       });
     }
 
+    const products = members.map((row) => row.product);
+    const discoverableIds = await this.discoverableProductIds(companyId, products);
+    assertProductsCuratable({
+      curatorCompanyId: companyId,
+      products,
+      publishAudience: dto.audience,
+      discoverableIds,
+    });
+
     const startsAt = parseScheduleInstant(dto.startsAt, 'start');
     const endsAt = parseScheduleInstant(dto.endsAt, 'end');
     const nextStarts = startsAt === undefined ? existing.startsAt : startsAt;
@@ -218,6 +254,7 @@ export class CollectionService {
     assertValidLiveWindow(nextStarts, nextEnds);
 
     // Draft designs in the album become published + Explore-visible with the pack.
+    // Only the curator's own drafts are auto-published; foreign members stay as-is.
     const memberIds = members.map((row) => row.productId);
     const allowForward = dto.allowForward !== false;
     const now = new Date();
@@ -263,6 +300,10 @@ export class CollectionService {
       rateVisibility: dto.rateVisibility,
       allowForward,
     });
+    const hasForeignMember = products.some((product) => product.companyId !== companyId);
+    if (hasForeignMember) {
+      await grantRelistCapability(this.prisma, companyId);
+    }
     await this.scheduleExpire(id, collection.endsAt);
     return this.serializer.toCollectionView(collection);
   }
@@ -349,8 +390,9 @@ export class CollectionService {
   }
 
   /**
-   * Replaces the collection's ordered product set. Every product must belong to
-   * the same company, so a collection can never leak another company's products.
+   * Replaces the collection's ordered product set. Own-company products are
+   * always allowed; foreign products must pass the curation ceiling
+   * (discoverable + allowForward).
    */
   async setProducts(
     companyId: string,
@@ -362,15 +404,30 @@ export class CollectionService {
 
     const uniqueIds = [...new Set(productIds)];
     if (uniqueIds.length > 0) {
-      const owned = await this.prisma.product.count({
-        where: { id: { in: uniqueIds }, companyId },
+      const products = await this.prisma.product.findMany({
+        where: { id: { in: uniqueIds } },
+        select: {
+          id: true,
+          companyId: true,
+          audience: true,
+          audienceCompanyIds: true,
+          allowForward: true,
+          status: true,
+          postedToMarketAt: true,
+        },
       });
-      if (owned !== uniqueIds.length) {
+      if (products.length !== uniqueIds.length) {
         throw new BadRequestException({
           code: 'INVALID_PRODUCTS',
-          message: 'One or more products do not belong to your business.',
+          message: 'One or more products could not be found.',
         });
       }
+      const discoverableIds = await this.discoverableProductIds(companyId, products);
+      assertProductsCuratable({
+        curatorCompanyId: companyId,
+        products,
+        discoverableIds,
+      });
     }
 
     const previousRows = await this.prisma.collectionProduct.findMany({
@@ -385,7 +442,6 @@ export class CollectionService {
       const publishedNew = await this.prisma.product.count({
         where: {
           id: { in: newlyAddedIds },
-          companyId,
           status: ProductStatus.Published,
         },
       });
@@ -420,6 +476,67 @@ export class CollectionService {
   async remove(companyId: string, id: string): Promise<void> {
     await this.owned(companyId, id);
     await this.prisma.collection.delete({ where: { id } });
+  }
+
+  /**
+   * Builds the set of product ids the curator may discover (Explore/shop rules).
+   * Always pass this into `assertProductsCuratable` — own-company ids are skipped
+   * there, but foreign ids must be present.
+   */
+  private async discoverableProductIds(
+    viewerCompanyId: string,
+    products: ProductCeilingRow[],
+  ): Promise<Set<string>> {
+    const discoverable = new Set<string>();
+    const foreign = products.filter((product) => product.companyId !== viewerCompanyId);
+    if (foreign.length === 0) {
+      return discoverable;
+    }
+
+    const ownerIds = [...new Set(foreign.map((product) => product.companyId))];
+    const [connections, follows] = await Promise.all([
+      this.prisma.connection.findMany({
+        where: {
+          ownerCompanyId: { in: ownerIds },
+          viewerCompanyId,
+        },
+        select: { ownerCompanyId: true, status: true },
+      }),
+      this.prisma.follow.findMany({
+        where: {
+          followerCompanyId: viewerCompanyId,
+          followedCompanyId: { in: ownerIds },
+        },
+        select: { followedCompanyId: true },
+      }),
+    ]);
+
+    const connectionByOwner = new Map(
+      connections.map((row) => [row.ownerCompanyId, row.status] as const),
+    );
+    const followingOwners = new Set(follows.map((row) => row.followedCompanyId));
+
+    for (const product of foreign) {
+      if (product.status !== ProductStatus.Published || !product.postedToMarketAt) {
+        continue;
+      }
+      const status = connectionByOwner.get(product.companyId);
+      if (status === ConnectionStatus.Blocked) {
+        continue;
+      }
+      const connected = status === ConnectionStatus.Active;
+      const following = followingOwners.has(product.companyId);
+      if (
+        canDiscoverCollection(viewerCompanyId, product, {
+          connected,
+          following,
+        })
+      ) {
+        discoverable.add(product.id);
+      }
+    }
+
+    return discoverable;
   }
 
   private async scheduleExpire(collectionId: string, endsAt: Date | null): Promise<void> {
