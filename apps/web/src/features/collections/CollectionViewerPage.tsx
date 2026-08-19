@@ -426,8 +426,8 @@ export function CollectionViewerPage() {
               {saveSelected.isPending
                 ? 'Saving…'
                 : selectedProducts.length === 1
-                  ? 'Save design'
-                  : 'Save designs'}
+                  ? 'Save'
+                  : 'Save'}
             </Button>
           ) : null
         }

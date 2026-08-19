@@ -955,7 +955,7 @@ export function ExplorePage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cx('flex flex-col gap-4', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}>
       <div className="relative flex items-center gap-2">
         {searchFocused ? (
           <>
@@ -995,20 +995,24 @@ export function ExplorePage() {
             >
               <BookmarkIcon width={20} height={20} />
             </button>
-            {shortlist.count === 0 ? (
-              <button
-                type="button"
-                className={cx(
-                  'flex h-[46px] shrink-0 items-center rounded-[13px] border px-3 text-xs font-bold',
-                  shortlist.selectMode
-                    ? 'border-accent bg-accent text-white'
-                    : 'border-line bg-surface text-accent hover:bg-foam',
-                )}
-                onClick={() => shortlist.setSelectMode((on) => !on)}
-              >
-                {shortlist.selectMode ? 'Selecting' : 'Select'}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={cx(
+                'flex h-[46px] shrink-0 items-center rounded-[13px] border px-3 text-xs font-bold',
+                shortlist.selectMode || shortlist.count > 0
+                  ? 'border-accent bg-accent text-white'
+                  : 'border-line bg-surface text-accent hover:bg-foam',
+              )}
+              onClick={() => {
+                if (shortlist.selectMode && shortlist.count === 0) {
+                  shortlist.setSelectMode(false);
+                } else {
+                  shortlist.setSelectMode(true);
+                }
+              }}
+            >
+              {shortlist.selectMode || shortlist.count > 0 ? 'Selecting' : 'Select'}
+            </button>
             <button
               ref={filterAnchorRef}
               type="button"
@@ -1044,21 +1048,6 @@ export function ExplorePage() {
           </>
         )}
       </div>
-
-      {!searchFocused ? (
-        <BrowseSelectBar
-          placement="top"
-          count={shortlist.count}
-          onClear={() => shortlist.clear()}
-          canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
-          onCurate={() => setCurateOpen(true)}
-          canOrder={shortlist.count > 0}
-          onOrder={() => {
-            orderFlow.setError(null);
-            orderFlow.setQtyOpen(true);
-          }}
-        />
-      ) : null}
 
       {!searchFocused && filterActive ? (
         <div className="flex items-center gap-3 px-0.5">
@@ -1164,6 +1153,17 @@ export function ExplorePage() {
         </div>
       )}
 
+      <BrowseSelectBar
+        count={shortlist.count}
+        onClear={() => shortlist.clear()}
+        canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
+        onCurate={() => setCurateOpen(true)}
+        canOrder={shortlist.count > 0}
+        onOrder={() => {
+          orderFlow.setError(null);
+          orderFlow.setQtyOpen(true);
+        }}
+      />
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
         onClose={() => orderFlow.setQtyOpen(false)}
