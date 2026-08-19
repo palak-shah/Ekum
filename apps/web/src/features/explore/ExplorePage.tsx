@@ -24,6 +24,9 @@ import {
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
+import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -179,10 +182,23 @@ function DesignSection({
   title: string;
   items: ExploreDesignOpportunity[];
 }) {
+  const shortlist = useBrowseShortlist();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
+
+  const toggleDesign = (opportunity: ExploreDesignOpportunity) => {
+    const { product } = opportunity;
+    shortlist.toggle({
+      productId: product.id,
+      name: product.name,
+      thumbUrl: product.images[0] ?? null,
+      companyId: product.company.id,
+      companyName: product.company.name,
+    });
+  };
+
   return (
     <Section
       title={title}
@@ -200,7 +216,18 @@ function DesignSection({
     >
       <div className="flex flex-col">
         {visible.map((opportunity) => (
-          <OpportunityDesignCard key={opportunity.product.id} opportunity={opportunity} />
+          <OpportunityDesignCard
+            key={opportunity.product.id}
+            opportunity={opportunity}
+            selectMode={shortlist.selectMode || shortlist.count > 0}
+            selected={shortlist.productIds.has(opportunity.product.id)}
+            onLongSelect={() => toggleDesign(opportunity)}
+            onToggleSelect={
+              shortlist.selectMode || shortlist.count > 0
+                ? () => toggleDesign(opportunity)
+                : undefined
+            }
+          />
         ))}
       </div>
     </Section>
@@ -676,6 +703,8 @@ export function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const company = useMyCompany();
+  const shortlist = useBrowseShortlist();
+  const [curateOpen, setCurateOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
@@ -908,7 +937,12 @@ export function ExplorePage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        (searchFocused ? false : shortlist.count > 0) && 'pb-[calc(5rem+5.5rem)]',
+      )}
+    >
       <div className="relative flex items-center gap-2">
         {searchFocused ? (
           <>
@@ -1087,6 +1121,14 @@ export function ExplorePage() {
           ) : null}
         </div>
       )}
+
+      <BrowseSelectBar
+        count={shortlist.count}
+        onClear={() => shortlist.clear()}
+        canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
+        onCurate={() => setCurateOpen(true)}
+      />
+      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
     </div>
   );
 }

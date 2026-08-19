@@ -14,7 +14,8 @@ import type {
 } from '@ekum/domain-types';
 import { formatRate, timeAgo } from '@/lib/format';
 import { Avatar, Tag, cx } from './kit';
-import { ChevronRightIcon } from './icons';
+import { CheckIcon, ChevronRightIcon } from './icons';
+import { useLongPress } from './useLongPress';
 
 function VerificationTag({ verification }: { verification: string }) {
   if (verification === 'gst_verified') {
@@ -242,12 +243,23 @@ export function SupplierDirectoryRow({ supplier }: { supplier: ExploreSupplierCa
 /** Company-primary Explore opportunity for a standalone design. */
 export function OpportunityDesignCard({
   opportunity,
+  selected = false,
+  selectMode = false,
+  onLongSelect,
+  onToggleSelect,
 }: {
   opportunity: ExploreDesignOpportunity;
+  selected?: boolean;
+  selectMode?: boolean;
+  onLongSelect?: () => void;
+  onToggleSelect?: () => void;
 }) {
   const { product, relevance } = opportunity;
   const company = product.company;
   const when = postedWhen(product.postedAt);
+  const longPress = useLongPress(onLongSelect);
+  const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
+
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
       <div className="flex items-center gap-3 px-4 py-2.5">
@@ -264,13 +276,34 @@ export function OpportunityDesignCard({
           <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
         ) : null}
       </div>
-      <Link to={`/explore/products/${product.id}`} className="block px-3">
-        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
-      </Link>
-      <Link to={`/explore/products/${product.id}`} className="mt-2 block px-4">
-        <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">Design</p>
-      </Link>
+      {open ? (
+        <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>
+          <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+          <span
+            className={cx(
+              'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+            )}
+          >
+            <CheckIcon width={14} height={14} />
+          </span>
+        </button>
+      ) : (
+        <Link to={`/explore/products/${product.id}`} className="block px-3" {...longPress}>
+          <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+        </Link>
+      )}
+      {open ? (
+        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
+          <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
+          <p className="text-xs font-medium text-muted">Design</p>
+        </button>
+      ) : (
+        <Link to={`/explore/products/${product.id}`} className="mt-2 block px-4">
+          <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
+          <p className="text-xs font-medium text-muted">Design</p>
+        </Link>
+      )}
     </article>
   );
 }
