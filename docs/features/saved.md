@@ -6,20 +6,24 @@
 
 ## Who uses it
 
-Any signed-in company. Save is available when the design/collection is discoverable. **Curate pack** appears for selling presence (＋ sheet); first curated publish sets `canRelist` (and `canPublish` if needed).
+Any signed-in company. Save is available when the design/collection is discoverable (connection not required). **Curate** appears on the select bar (and Explore design detail) for anyone who can assemble a pack; first curated publish sets `canRelist` (and `canPublish` if needed).
 
 ## User flows
 
 ### Save / Unsave
 
-1. Open a design (Explore) or collection (viewer) → **Save**.
-2. **You → Saved** (`/saved`) lists thumbs with business name and Design / Collection.
-3. **Remove** from the hub, or Unsave on the source surface.
+1. Open a design (Explore) or collection (viewer) → **Save** (collection-level), or open a design in the collection sheet → **Save**, or **Select** / long-press designs → **Save designs**.
+2. Open **Saved** from the **Explore header bookmark**, **＋ → Saved**, or More → Saved (`/saved`) — default **grid** (Feed toggle): business, SKU / design count, album collage; tap design → photo sheet; tap collection → collection viewer; **×** to unsave.
+3. **Select** / long-press **designs** on Saved (albums still open to pick inside). Sticky bar: **Curate** / **Order**.
+
+### Traveling browse shortlist
+
+Selection is a **session** set of design ids (not the same as Saved). It survives Explore ↔ albums ↔ Saved until Clear, successful Order/Curate, or session end.
 
 ### Curate pack
 
-1. **＋ → Curate pack** (`/catalog/curate`) — or open after saving items.
-2. Multi-select from **Saved** (and browse when offered) → name the pack → **Save draft** (creates collection + membership) or continue to **Publish…**.
+1. Select designs (any suppliers) → sticky **Curate** → name → **Save draft** / **Publish…**.
+2. **＋ → Curate pack** opens Saved in select mode (or curates the current shortlist via `/catalog/curate`).
 3. Publish uses the same audience / rates / forward sheet as own collections. Ceiling failures show plain copy (e.g. “This seller doesn’t allow sharing.”).
 
 ## Business rules
@@ -37,25 +41,27 @@ See [collections](./collections.md) for album publish/live-window rules and [con
 
 ## Edge cases / empty states
 
-- Saved empty: “Nothing saved yet” — save from Explore first.
+- Saved empty: “Nothing saved yet” — Explore or Select inside a collection.
 - Load failure on Saved: error state (not treated as empty).
 - Locked (`allowForward: false`) design: may still be savable if discoverable; cannot curate/publish into someone else’s Explore pack.
+- Album bookmarks are not order/curate lines — open the album and select designs.
 
-## Seed walkthrough (Slice A)
+## Seed walkthrough
 
 Prereq: `pnpm --filter @ekum/api db:seed`. Seeded Kavita/Ravi designs and albums are **Everyone** + **allowForward**.
 
-1. As **Ravi** (`+919800000001`): Explore → open Kavita’s **Cotton Grey Fabric** (or **Mill Lot — March**) → **Save**. Confirm under **You → Saved**.
-2. Still Ravi: **＋ → Curate pack** → pick the saved Kavita design (optional: add a second discoverable design) → name pack → **Save draft** → **Publish…** to **Connections** (or Everyone).
-3. As **Meena** (`+919800000002`, connected to Ravi): Explore / Ravi shop → see the curated pack when audience allows. No trader badge.
+1. As **Ravi** (`+919800000001`): Explore bookmark → Saved, or Explore → select designs from Meena + Kavita albums (selection survives album changes).
+2. Sticky bar → **Curate** → name → **Save draft** → **Publish…**.
+3. Same shortlist → **Order** → qty → confirmation lists **one chat link per supplier** (`POST /orders/batch`).
+4. As **Meena** (`+919800000002`, connected to Ravi): see the curated pack when audience allows. No trader badge.
 
 ## Automated verification
 
-- Unit: `curation-ceiling.spec.ts`, `collection.service.spec.ts` (foreign members / ceiling), `saved.service.spec.ts`
-- Design: [trader-curation-slice-a-design](../superpowers/specs/2026-08-19-trader-curation-slice-a-design.md)
+- Unit: `browseShortlist.spec.ts`, `order.service.batch.spec.ts`, `curation-ceiling.spec.ts`, `saved.service.spec.ts`, `trade-access.spec.ts`
+- Design: [browse-select-curate-order](../superpowers/specs/2026-08-19-browse-select-curate-order-design.md)
 
 ## Where it lives
 
-- API: `apps/api/src/saved/`, ceiling helpers in `apps/api/src/catalog/curation-ceiling.ts`, membership in `collection.service.ts`
-- Web: `apps/web/src/features/saved/`, `apps/web/src/features/catalog/CuratePackPage.tsx`
-- Types: `packages/domain-types` (saved + catalog)
+- API: `apps/api/src/saved/`, `POST /orders/batch`, ceiling helpers in `apps/api/src/catalog/curation-ceiling.ts`
+- Web: `apps/web/src/features/saved/`, `apps/web/src/features/browse/`
+- Types: `packages/domain-types` (saved + catalog + orders batch)

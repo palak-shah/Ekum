@@ -10,7 +10,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 
 ## User flows
 
-1. Open **Chats** → inbox tabs **Chats** (active) / **New** (pending first contact).
+1. Open **Chats** → search + **＋** (start chat with a company or new group); inbox tabs **Chats** (active) / **New** (pending first contact). List tabs share the same search + trailing square chrome as Explore (filter) and Orders (＋).
 2. Open thread → send text / photo; share design, collection, or order cards; receive quote / order action cards from trade flows.
 3. **Open chat** or **Ignore** a pending first-contact thread (not Accept/Decline — those words are for orders).
 4. Pin chats; mute/leave/groups as supported later.
@@ -22,6 +22,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 |------|--------|
 | Participant states | `active` · `pending` (requests) · `archived` (silent — decline / leave / block) |
 | Unconnected first message | Recipient starts **pending**; reply/accept activates |
+| Open-catalog order | Order / Ask rates on a discoverable post opens/activates a **trade thread** (both Active) with a living order card — **no** Connection and **not** the pending inbox. Distinct from cold Message |
 | Block | Sender may still see a thread; recipient side is silently archived |
 | Owner on cards | Design/collection cards show `from {owner company}`; sender (You/forwarder) sits above the card |
 | No-forward lock | When `reference.allowForward === false`, non-owners cannot Forward (action hidden). API rejects with `FORWARD_NOT_ALLOWED`. Owner may still share. Same rule for `product_card` and `collection_card`. |

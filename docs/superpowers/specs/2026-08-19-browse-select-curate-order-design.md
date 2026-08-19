@@ -1,7 +1,7 @@
 # Browse select · Curate · multi-supplier Order — design
 
 **Date:** 2026-08-19  
-**Status:** Draft (product-approved direction; not implemented)  
+**Status:** Implemented (traveling shortlist + Curate bar + `POST /orders/batch` confirmation)  
 **Surface:** Explore, collection viewer, Saved, Explore design detail — shared select bar; Order split; Curate from selection  
 **Anchors:** [00-concepts.md](../../features/00-concepts.md), [saved.md](../../features/saved.md), [orders.md](../../features/orders.md), [collections.md](../../features/collections.md), [2026-08-19-trader-curation-slice-a-design.md](./2026-08-19-trader-curation-slice-a-design.md)
 

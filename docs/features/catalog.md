@@ -13,7 +13,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 ### Browse library
 
 1. Open `/catalog` → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
-2. Filters: All / Draft / Published / Archived. Sort newest/oldest + optional created date range. Tiles show rate · SKU · photo count · `Published · who` (or Draft/Archived), plus a short staff audit line when known.
+2. Filters: All / Draft / Published / Archived. Tiles show rate · SKU · photo count · `Published · who` (or Draft/Archived), plus a short staff audit line when known.
 3. **Select** (header or **long-press** a tile) → Publish (unified audience sheet), Archive, or Restore.
 4. Open a design → editor. Back returns to Designs tab.
 
@@ -41,7 +41,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 | Unpublish | Clears Explore post when design leaves published |
 | Unarchive | Archived → draft (`POST /products/:id/unarchive`) |
 | Bulk Select | Same visibility sheet for many drafts → publish each |
-| Staff audit | `createdBy` / `updatedBy` on product views; list `sort` + `createdFrom`/`createdTo` |
+| Staff audit | `createdBy` / `updatedBy` on product views |
 
 ## Edge cases / empty states
 

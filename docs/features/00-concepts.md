@@ -19,6 +19,32 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 
 Membership roles (`owner` / `staff`) and permissions exist in the domain for future team use; Phase 1 UX treats the signed-in company as the actor.
 
+## Platform & dual-network companies
+
+Ekum is a **wholesale platform**, not a single-hop shop:
+
+- Every company **knows its own sellers and its own buyers** (direct upstream / downstream).
+- Goods may travel a **long chain** (mill → wholesaler → trader → retailer …). Each hop is a company that may curate, publish, and trade.
+- Counterparties appear as normal **businesses** — no Trader / Seller badges; buyers often need not know whether a publisher is a mill or a middleman.
+- UI works **1-hop** relationships by default; full-chain map is not forced on every screen.
+
+Some companies are dual-network (**traders** in product language only): buy, curate, share, follow up — still one company account, no OTP “Trader” role. Capability **`relist`** is the product gate for curated publish from others’ catalogs.
+
+| Intent | Rule (much of this is **planned**, not shipped) |
+|--------|--------------------------------------------------|
+| Curate | Pick designs/collections from one or more suppliers into a **curated collection** for their buyers |
+| Saved | **Reference** shortlist of designs/collections (not a copy catalog); hub under You; feeds Curate pack — see Slice A design |
+| Publish | Same audience model as any publish — **Explore is not supplier-only** |
+| Permission ceiling | Cannot outrun the **original seller’s** audience / **buyers can forward** lock |
+| Forward vs Curate | **Forward** = share someone’s card as-is; **Curate** = assemble into **your** collection then publish (still under source ceiling) |
+| Stories | Viewer sees a company when they **follow or are connected** and it has **published** to feed (own or curated) |
+| Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
+| Surfaces | **Home** = light attention on new received packs; **Buying** Explore = followed posts + received by day/business |
+| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream** (presence). Linking/split/in-loop = Slice B — not required for curate publish |
+| Orders | Line → **owner of that product/collection**; multi-supplier packs **split** per upstream; middleman may stay **in the loop** (optional anonymity — design open) |
+
+See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
+
 ## Trust ladder
 
 ```mermaid
@@ -36,6 +62,7 @@ flowchart LR
 |-----------|------------|
 | **Follow** | Permissionless. See followed posts on Home / Explore “following”. Does **not** unlock full catalog or trade. |
 | **Access request** | Named gate: note + optional referral. Approve / decline. |
+| **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
 | **Connection** | After approve: `active` → catalog visibility & trade. Owner can **pause** or **block** (silent to the other party). |
 | **Block / pause** | Viewer is not told. API returns **404** (not 403). Approve never reactivates a block — must **unblock** first. |
 
@@ -87,7 +114,7 @@ When publishing (or updating visibility), the sheet sets:
 
 **Staff audit:** Product, Collection, and Order store `createdByUserId` / `updatedByUserId` (names on list/detail). Full AuditLog history UI is later.
 
-**Trust:** When locked (`allowForward === false`), only the **supplier** may share into chat / Explore / broadcast. Non-owners get `FORWARD_NOT_ALLOWED` from the API; Forward is hidden in the UI. Never claim “exclusive” without this gate.
+**Trust:** When locked (`allowForward === false`), only the **owner** may **Forward** that card into chat / Explore / broadcast. Non-owners get `FORWARD_NOT_ALLOWED` — even if the post is open to Everyone. **Order / Ask rates** follow **discoverability** (audience): open posts trade without Connection; Forward still needs `allowForward`. **Curate / relist** is a separate verb: assemble into your own collection then publish, still within the source permission ceiling — not the same as Forward. Never claim “exclusive” without the forward gate.
 
 ## Designs vs collections
 

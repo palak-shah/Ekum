@@ -27,6 +27,7 @@ Actions: open the related order, chat, buyer request, collection, or company; ex
 - Needs rows use attention verbs derived from order/return/access/chat state (`homeAttention.ts`).
 - Blocked / invisible companies never appear in followed or market previews (server visibility).
 - Buying vs selling toggles influence which empty prompts and metrics feel relevant, but Needs still surfaces anything that requires the company.
+- **Planned:** light **received curated packs** attention for buyers (and dual-network follow-ups) — not a dense shares-by-day inbox; that browse lives under Explore **Buying**. See [concepts](./00-concepts.md) (Platform & dual-network).
 
 ## Edge cases / empty states
 

@@ -6,7 +6,7 @@
 
 ## Who uses it
 
-Companies with **selling** on and **`canPublish`** (unlocked after first publish consent). Entry: **＋ → Broadcast to buyers**, You → Broadcast / Buyer groups, or **My buyers → Buyer groups**.
+Companies with **selling** on and **`canPublish`** (unlocked after first publish consent). Entry: **＋ → Broadcast to buyers**, You → Broadcast / Buyer groups, or **Network → Requests → Buyer groups**.
 
 ## User flows
 
