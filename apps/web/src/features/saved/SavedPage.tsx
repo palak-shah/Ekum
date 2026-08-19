@@ -4,7 +4,7 @@ import type { SavedItemView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
-import { Button, Card, EmptyState, LoadingBlock } from '@/ui/kit';
+import { Button, Card, EmptyState, ErrorState, LoadingBlock } from '@/ui/kit';
 import { SAVED_QUERY_KEY, useSavedList } from './useSaveToggle';
 
 function itemPath(item: SavedItemView): string {
@@ -41,6 +41,11 @@ export function SavedPage() {
       <PageHeader title="Saved" />
       {saved.isLoading ? (
         <LoadingBlock label="Loading saved…" />
+      ) : saved.isError ? (
+        <ErrorState
+          message="Couldn’t load Saved. Try again."
+          onRetry={() => void saved.refetch()}
+        />
       ) : saved.data && saved.data.length > 0 ? (
         <div className="flex flex-col gap-2">
           {saved.data.map((item) => (

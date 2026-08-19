@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Collections are **named albums** that group designs from the library. They are not a second photo store — membership is always designs (products).
+Collections are **named albums** that group designs. Own albums use the seller’s library; **curated packs** may also reference other companies’ designs (see [Saved & Curate pack](./saved.md)). They are not a second photo store — membership is always designs (products).
 
 ## Who uses it
 
@@ -16,7 +16,7 @@ Sellers building packs for shop / Explore. Buyers view published albums via Expl
 2. On edit: one plain **status line** under the title (`Published · who` / schedule; tap → Visibility when published). Sticky **Save** · **Publish** / Visibility · **Share** (broadcast). **Open** (header) or tap album photos opens the buyer album (`/collections/:id`). Back returns to My Catalog **Collections** tab. Rare actions (**Archive**, Hide) live under header **⋯** only — no status chip pile.
 3. **Mark ready** (draft → ready) for team review; **Back to draft**; then **Publish** from draft or ready. New collection: **Create draft** or **Create & publish…**.
 4. Publish sheet (progressive): **Who** → **Rules** (rates / forward) → **When** (schedule + consent). Who = Everyone / Connections / **Followers** / **Selected** (multi-select **Buyer groups** with clear selected state + member preview, or **Pick companies**). Multiple groups = member union; rates/forward use company usual then group overrides with **strictest wins** if they disagree. **Create group** / **Add group** without leaving Publish. Published packs: **Visibility** restores chosen groups (`audienceGroupIds`) so you can add another group tomorrow without a new album.
-5. My Catalog → Collections: filters (Draft / Ready / Published / Archived), sort + date range. Each tile: name · photo count · design count · status; collage shows up to 4 previews with **`+N`** on the 4th cell when `productCount > 4` (same as Explore). Tap album → viewer; **Edit** on viewer returns to editor. **Select** (header or **long-press** a tile) → multi-publish / archive / restore.
+5. My Catalog → Collections: filters (Draft / Ready / Published / Archived). Each tile: name · photo count · design count · status; collage shows up to 4 previews with **`+N`** on the 4th cell when `productCount > 4` (same as Explore). Tap album → viewer; **Edit** on viewer returns to editor. **Select** (header or **long-press** a tile) → multi-publish / archive / restore.
 
 ### View (buyer)
 
