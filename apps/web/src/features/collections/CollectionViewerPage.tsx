@@ -127,6 +127,22 @@ export function CollectionViewerPage() {
     [products, selected],
   );
   const selectedCount = selected.size;
+  /** Slice A: multi-supplier order create is out of scope — gate Select/Order. */
+  const isCuratedPack = useMemo(() => {
+    const ownerId = collection.data?.company.id;
+    if (!ownerId || products.length === 0) return false;
+    return products.some((product) => product.companyId !== ownerId);
+  }, [collection.data?.company.id, products]);
+  const canOrderFromPack = Boolean(collection.data?.connected) && !isCuratedPack;
+
+  useEffect(() => {
+    if (!isCuratedPack) return;
+    if (selected.size === 0 && !selectMode) return;
+    skipShortlistPersist.current = true;
+    writeShortlist(id, new Set());
+    setSelected(new Set());
+    setSelectMode(false);
+  }, [isCuratedPack, id, selected.size, selectMode]);
 
   const selectAllDesigns = () => {
     setSelectMode(true);
@@ -239,7 +255,7 @@ export function CollectionViewerPage() {
   };
 
   const onDesignActivate = (product: ProductView) => {
-    if (collection.data?.connected && selectMode) {
+    if (canOrderFromPack && selectMode) {
       toggle(product.id);
       return;
     }
@@ -274,7 +290,7 @@ export function CollectionViewerPage() {
       className={cx(
         'flex flex-col gap-4',
         /* Clear fixed select bar (bottom-20) + bar height above bottom nav. */
-        selectedCount > 0 && data.connected && 'pb-[calc(5rem+5.5rem)]',
+        selectedCount > 0 && canOrderFromPack && 'pb-[calc(5rem+5.5rem)]',
       )}
     >
       <PageHeader
@@ -299,7 +315,7 @@ export function CollectionViewerPage() {
                 Edit
               </button>
             ) : null}
-            {data.products && data.connected ? (
+            {data.products && canOrderFromPack ? (
               <button
                 type="button"
                 data-testid="collection-select"
@@ -347,10 +363,10 @@ export function CollectionViewerPage() {
                 variant="feed"
                 product={product}
                 selected={selected.has(product.id)}
-                selectMode={selectMode && data.connected}
+                selectMode={selectMode && canOrderFromPack}
                 onActivate={() => onDesignActivate(product)}
                 onLongSelect={
-                  data.connected ? () => onDesignLongSelect(product.id) : undefined
+                  canOrderFromPack ? () => onDesignLongSelect(product.id) : undefined
                 }
               />
             ))}
@@ -363,10 +379,10 @@ export function CollectionViewerPage() {
                 variant="grid"
                 product={product}
                 selected={selected.has(product.id)}
-                selectMode={selectMode && data.connected}
+                selectMode={selectMode && canOrderFromPack}
                 onActivate={() => onDesignActivate(product)}
                 onLongSelect={
-                  data.connected ? () => onDesignLongSelect(product.id) : undefined
+                  canOrderFromPack ? () => onDesignLongSelect(product.id) : undefined
                 }
               />
             ))}
@@ -392,6 +408,22 @@ export function CollectionViewerPage() {
           <Button onClick={() => setGateOpen(true)}>Request access</Button>
         </Card>
       )}
+
+      {data.products && data.connected && isCuratedPack && !isOwner ? (
+        <Card className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-ink">Message to order these designs</p>
+          <p className="text-xs text-muted">
+            This pack mixes designs from more than one business. Chat to place an order.
+          </p>
+          <Button
+            fullWidth
+            onClick={() => startChat.mutate()}
+            disabled={startChat.isPending}
+          >
+            {startChat.isPending ? 'Opening…' : 'Open chat'}
+          </Button>
+        </Card>
+      ) : null}
 
       {data.products && !data.connected ? (
         accessPending ? (
@@ -426,7 +458,7 @@ export function CollectionViewerPage() {
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
-      {data.products && data.connected && selectMode ? (
+      {data.products && canOrderFromPack && selectMode ? (
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <button type="button" className="font-bold text-accent" onClick={selectAllDesigns}>
             Select all
@@ -440,7 +472,7 @@ export function CollectionViewerPage() {
         </div>
       ) : null}
 
-      {selectedCount > 0 && data.connected ? (
+      {selectedCount > 0 && canOrderFromPack ? (
         <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md flex-col gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
           <div className="flex items-center gap-3">
             <p className="flex-1 text-sm font-bold tracking-tight text-ink">
@@ -495,10 +527,10 @@ export function CollectionViewerPage() {
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerProduct(null)}
-        selectable={Boolean(data.connected)}
+        selectable={canOrderFromPack}
         selected={viewerProduct ? selected.has(viewerProduct.id) : false}
         onToggleSelect={() => {
-          if (viewerProduct && data.connected) {
+          if (viewerProduct && canOrderFromPack) {
             setSelectMode(true);
             toggle(viewerProduct.id);
           }

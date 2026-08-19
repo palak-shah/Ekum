@@ -155,7 +155,24 @@ export function CollectionEditorPage() {
   const filteredDesigns = designQuery
     ? selectableDesigns.filter((p) => p.name.toLowerCase().includes(designQuery))
     : selectableDesigns;
-  const selectedProducts = selectableDesigns.filter((p) => selected.has(p.id));
+  /** Prefer collection-detail members (includes foreign curated designs) over own library. */
+  const selectedProducts = useMemo(() => {
+    const byId = new Map<string, ProductView>();
+    for (const product of selectableDesigns) {
+      byId.set(product.id, product);
+    }
+    for (const product of existing.data?.products ?? []) {
+      byId.set(product.id, product);
+    }
+    return [...selected]
+      .map((productId) => byId.get(productId))
+      .filter((product): product is ProductView => Boolean(product));
+  }, [selectableDesigns, existing.data?.products, selected]);
+  const hasForeignMembers = useMemo(() => {
+    const ownerId = company.data?.id;
+    if (!ownerId) return false;
+    return selectedProducts.some((product) => product.companyId !== ownerId);
+  }, [selectedProducts, company.data?.id]);
   const canPublishAlbum = selected.size >= 1;
   const readyCreatePhotos = useMemo(
     () => pendingPhotos.filter((p) => p.imageUrl),
@@ -200,11 +217,16 @@ export function CollectionEditorPage() {
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
     setPublishAudience((prev) => ({
       ...prev,
-      rateVisibility: usual.rateVisibility,
+      // Curated packs default rates to on request (source ceiling).
+      rateVisibility: hasForeignMembers
+        ? RateVisibility.OnRequest
+        : usual.rateVisibility,
       allowForward: usual.allowForward,
-      policyHint: null,
+      policyHint: hasForeignMembers
+        ? 'Rates stay on request when this pack includes others’ designs.'
+        : null,
     }));
-  }, [publishOpen, settings.data, existing.data?.status]);
+  }, [publishOpen, settings.data, existing.data?.status, hasForeignMembers]);
 
   useEffect(() => {
     return () => {
@@ -1171,7 +1193,9 @@ export function CollectionEditorPage() {
         <div className="flex flex-col gap-4">
           {editing && !isPublished ? (
             <p className="text-sm text-muted">
-              Draft designs in this album will be published with the collection.
+              {hasForeignMembers
+                ? 'You’re sharing others’ designs under their rules. Draft designs you own will publish with this pack.'
+                : 'Draft designs in this album will be published with the collection.'}
             </p>
           ) : null}
 
@@ -1197,7 +1221,11 @@ export function CollectionEditorPage() {
             showConsent={!canPublishAlready}
             consent={consent}
             onConsent={setConsent}
-            consentLabel="Start selling — publish this collection?"
+            consentLabel={
+              hasForeignMembers
+                ? "You're sharing others' designs under their rules — publish this pack?"
+                : 'Start selling — publish this collection?'
+            }
             onCreateGroup={() => setCreateGroupOpen(true)}
           />
 
