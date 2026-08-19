@@ -213,9 +213,10 @@ export function CollectionEditorPage() {
   }, []);
 
   useEffect(() => {
-    const notice = (location.state as { notice?: string } | null)?.notice;
-    if (!notice) return;
-    showToast(notice);
+    const state = location.state as { notice?: string; openPublish?: boolean } | null;
+    if (!state?.notice && !state?.openPublish) return;
+    if (state.notice) showToast(state.notice);
+    if (state.openPublish) setPublishOpen(true);
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, location.pathname, navigate, showToast]);
 

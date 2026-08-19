@@ -57,6 +57,7 @@ const CollectionEditorPage = page(
   () => import('@/features/catalog/CollectionEditorPage'),
   'CollectionEditorPage',
 );
+const CuratePackPage = page(() => import('@/features/catalog/CuratePackPage'), 'CuratePackPage');
 const MyBuyersPage = page(() => import('@/features/buyers/MyBuyersPage'), 'MyBuyersPage');
 const BroadcastPage = page(() => import('@/features/broadcast/BroadcastPage'), 'BroadcastPage');
 const BroadcastComposePage = page(
@@ -106,6 +107,7 @@ export const router = createBrowserRouter([
           { path: 'chats', element: <ChatsPage /> },
           { path: 'chats/:id', element: <ThreadPage /> },
           { path: 'catalog', element: <MyCatalogPage /> },
+          { path: 'catalog/curate', element: <CuratePackPage /> },
           { path: 'catalog/products/new', element: <DesignBatchPage /> },
           { path: 'catalog/products/:id', element: <ProductEditorPage /> },
           // `new` and real ids share :id so create→edit keeps one component instance.

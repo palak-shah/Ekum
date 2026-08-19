@@ -164,6 +164,9 @@ export function AppShell() {
               <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
                 New collection
               </Button>
+              <Button variant="secondary" fullWidth onClick={() => go('/catalog/curate')}>
+                Curate pack
+              </Button>
               {canPublish ? (
                 <Button variant="secondary" fullWidth onClick={() => go('/broadcast/new')}>
                   Broadcast to buyers
