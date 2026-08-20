@@ -50,7 +50,7 @@ describe('ComplaintService', () => {
     } as unknown as PrismaService;
     const service = new ComplaintService(prisma, {
       toComplaintView: (r: unknown) => r,
-    } as OrderSerializer);
+    } as unknown as OrderSerializer);
     await expect(
       service.create('stranger', { orderId: 'ord-1', subject: 'X' }),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -115,7 +115,7 @@ describe('ComplaintService', () => {
     } as unknown as PrismaService;
     const service = new ComplaintService(prisma, {
       toComplaintView: (r: unknown) => r,
-    } as OrderSerializer);
+    } as unknown as OrderSerializer);
     await expect(service.resolve('buyer', 'cmp-1')).rejects.toBeInstanceOf(ConflictException);
   });
 });

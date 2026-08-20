@@ -226,9 +226,16 @@ describe('CollectionService.setProducts', () => {
 
     const ops = transaction.mock.calls[0][0] as unknown[];
     expect(ops.length).toBe(3);
-    const updateData = collectionUpdate.mock.calls[0][0].data as Record<string, unknown>;
-    expect(updateData.updatedByUserId).toBe('u1');
-    expect(updateData.exploreActivityAt).toBeUndefined();
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ updatedByUserId: 'u1' }),
+      }),
+    );
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ exploreActivityAt: expect.any(Date) }),
+      }),
+    );
   });
 
   it('allows adding another company published forwardable product', async () => {

@@ -35,6 +35,16 @@ export interface SavedItemView {
   name: string;
   /** Cover / first image for the row thumb. */
   thumbUrl: string | null;
+  /** Design: full album; collection: up to 4 preview images. */
+  images: string[];
+  /** Design SKU when kind is product. */
+  sku?: string | null;
+  /** Design rate when kind is product (may be null / on request). */
+  rate?: number | null;
+  unit?: string | null;
+  /** Collection collage +N and size. */
+  imageCount?: number;
+  productCount?: number;
   createdAt: string;
 }
 
