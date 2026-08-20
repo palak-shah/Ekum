@@ -1,4 +1,4 @@
-import { PublishAudience } from '@ekum/domain-types';
+import { ConnectionStatus, PublishAudience } from '@ekum/domain-types';
 
 type AudienceRow = {
   companyId: string;
@@ -6,25 +6,20 @@ type AudienceRow = {
   audienceCompanyIds: string[];
 };
 
-/**
- * Whether a viewer may discover a published collection (explore, shop, search).
- * `selected` is private to the listed companies; everyone/connections stay market-visible.
- */
-export function canDiscoverCollection(viewerCompanyId: string, collection: AudienceRow): boolean {
-  if (collection.companyId === viewerCompanyId) {
-    return true;
-  }
-  if (collection.audience === PublishAudience.Selected) {
-    return collection.audienceCompanyIds.includes(viewerCompanyId);
-  }
-  return true;
-}
+export type AudienceViewerContext = {
+  connected: boolean;
+  /** Viewer follows the owner company. */
+  following: boolean;
+};
 
-/** Whether the viewer may see product rows inside a collection. */
-export function canViewCollectionProducts(
+/**
+ * Whether a viewer may discover a published collection/design (explore, shop, search).
+ * Audience is who can see it — publish means live for that audience.
+ */
+export function canDiscoverCollection(
   viewerCompanyId: string,
   collection: AudienceRow,
-  connected: boolean,
+  ctx: AudienceViewerContext = { connected: false, following: false },
 ): boolean {
   if (collection.companyId === viewerCompanyId) {
     return true;
@@ -32,9 +27,53 @@ export function canViewCollectionProducts(
   if (collection.audience === PublishAudience.Everyone) {
     return true;
   }
+  if (collection.audience === PublishAudience.Connections) {
+    return ctx.connected;
+  }
+  if (collection.audience === PublishAudience.Followers) {
+    return ctx.following;
+  }
   if (collection.audience === PublishAudience.Selected) {
     return collection.audienceCompanyIds.includes(viewerCompanyId);
   }
-  // connections (default): need an active connection
-  return connected;
+  return false;
+}
+
+/** Whether the viewer may see product rows / rates inside a collection. */
+export function canViewCollectionProducts(
+  viewerCompanyId: string,
+  collection: AudienceRow,
+  ctx: AudienceViewerContext | boolean,
+): boolean {
+  const normalized: AudienceViewerContext =
+    typeof ctx === 'boolean' ? { connected: ctx, following: false } : ctx;
+  return canDiscoverCollection(viewerCompanyId, collection, normalized);
+}
+
+/**
+ * Prisma `OR` for Explore/shop: posts visible to this viewer by audience.
+ * Do not use `audience: { not: selected }` — that would leak followers posts.
+ */
+export function audienceVisibilityOr(viewerCompanyId: string): object[] {
+  return [
+    { audience: PublishAudience.Everyone },
+    {
+      audience: PublishAudience.Connections,
+      company: {
+        connectionsAsOwner: {
+          some: { viewerCompanyId, status: ConnectionStatus.Active },
+        },
+      },
+    },
+    {
+      audience: PublishAudience.Followers,
+      company: {
+        followers: { some: { followerCompanyId: viewerCompanyId } },
+      },
+    },
+    {
+      audience: PublishAudience.Selected,
+      audienceCompanyIds: { has: viewerCompanyId },
+    },
+  ];
 }

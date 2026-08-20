@@ -13,7 +13,7 @@ Every signed-in company owner/operator in Phase 1.
 ### You (`/more`)
 
 1. Avatar → You.
-2. Jump to My designs, Buyers, Samples, Returns, Broadcast/Referrals (when allowed), Settings, Profile.
+2. Jump to My designs, **Saved**, Network, Samples, Returns, Broadcast/Referrals (when allowed), Settings, Profile.
 3. Logout.
 
 ### Settings (`/settings`)
@@ -35,7 +35,7 @@ Every signed-in company owner/operator in Phase 1.
 ## Edge cases / empty states
 
 - Selling off → no Add designs / Broadcast in ＋.
-- Buying off → no Photo order / Find supplier in ＋.
+- Buying off → no Photo order in ＋.
 - Empty address book → prompt to add before checkout-like flows that need it.
 
 ## Seed walkthrough

@@ -88,6 +88,20 @@ export const ChevronDownIcon = (props: IconProps) => (
   </Icon>
 );
 
+export const ChevronUpIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m6 15 6-6 6 6" />
+  </Icon>
+);
+
+/** In-thread / inbox search. */
+export const SearchIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+);
+
 export const CameraIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
@@ -195,5 +209,12 @@ export const DocumentIcon = (props: IconProps) => (
     <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
     <path d="M14 3v5h5" />
     <path d="M9 13h6M9 17h4" />
+  </Icon>
+);
+
+/** Saved / bookmark hub. */
+export const BookmarkIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.5L6 20V5a1 1 0 0 1 1-1Z" />
   </Icon>
 );

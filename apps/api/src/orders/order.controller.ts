@@ -2,12 +2,14 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/com
 import {
   amendOrderSchema,
   createOrderSchema,
+  createOrdersBatchSchema,
   decideOrderLinesSchema,
   dispatchSchema,
   listOrdersQuerySchema,
   quoteOrderSchema,
   type AmendOrderDto,
   type CreateOrderDto,
+  type CreateOrdersBatchDto,
   type DecideOrderLinesDto,
   type DispatchDto,
   type ListOrdersQuery,
@@ -15,6 +17,8 @@ import {
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthPrincipal } from '../auth/auth.types';
 import { OrderService } from './order.service';
 
 @Controller({ path: 'orders', version: '1' })
@@ -24,9 +28,20 @@ export class OrderController {
   @Post()
   create(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Body(new ZodValidationPipe(createOrderSchema)) dto: CreateOrderDto,
   ) {
-    return this.orders.create(companyId, dto);
+    return this.orders.create(companyId, user.userId, dto);
+  }
+
+  @Post('batch')
+  @HttpCode(200)
+  createBatch(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(createOrdersBatchSchema)) dto: CreateOrdersBatchDto,
+  ) {
+    return this.orders.createBatch(companyId, user.userId, dto);
   }
 
   @Post(':id/amend')

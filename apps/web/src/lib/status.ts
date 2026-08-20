@@ -36,6 +36,7 @@ const STATUS_TONE: Record<string, StatusTone> = {
   pending: 'info',
   // Catalog
   draft: 'muted',
+  ready: 'info',
   published: 'success',
   archived: 'muted',
 };
@@ -44,6 +45,7 @@ const STATUS_LABEL: Record<string, string> = {
   partially_approved: 'Partially approved',
   not_verified: 'Unverified',
   gst_verified: 'GST verified',
+  ready: 'Ready',
 };
 
 export function statusTone(status: string): StatusTone {

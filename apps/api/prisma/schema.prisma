@@ -34,6 +34,13 @@ model User {
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]
   mediaUploaded          Media[]
+
+  productsCreated    Product[]    @relation("ProductCreatedBy")
+  productsUpdated    Product[]    @relation("ProductUpdatedBy")
+  collectionsCreated Collection[] @relation("CollectionCreatedBy")
+  collectionsUpdated Collection[] @relation("CollectionUpdatedBy")
+  ordersCreated      Order[]      @relation("OrderCreatedByUser")
+  ordersUpdated      Order[]      @relation("OrderUpdatedByUser")
 }
 
 /// The tenant root. A company may buy, sell, or both — capabilities are data.
@@ -49,7 +56,7 @@ model Company {
   // Capabilities unlock progressively as the business actually uses them.
   canPublish Boolean @default(false)
   canRelist  Boolean @default(false)
-  canRefer   Boolean @default(false)
+  canRefer   Boolean @default(true)
 
   sellCategories   String[] @default([])
   buyCategories    String[] @default([])
@@ -90,6 +97,7 @@ model Company {
   referralsFor    Referral[]      @relation("ReferralTarget")
   notifications   Notification[]
   media           Media[]
+  savedItems      SavedItem[]
 }
 
 /// The join between a User and a Company. Modelled many-to-many from day one so
@@ -207,19 +215,30 @@ model Product {
   categories  String[] @default([])
   images      String[] @default([])
   status      String   @default("draft") // ProductStatus
-  // Market post fields (Explore). Catalog publish can exist without these.
+  // Market post fields (Explore). Publish sets audience + postedToMarketAt together.
   audience            String    @default("connections")
   rateVisibility      String    @default("on_request")
   audienceCompanyIds  String[]  @default([])
+  /** Buyer groups chosen when audience = selected (for Visibility restore). */
+  audienceGroupIds    String[]  @default([])
+  /** When false, only the owner may share this design into chat; buyers cannot forward. */
+  allowForward        Boolean   @default(true)
   postedToMarketAt    DateTime?
+  createdByUserId     String?
+  updatedByUserId     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  collections CollectionProduct[]
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByUser   User?               @relation("ProductCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser   User?               @relation("ProductUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  collections     CollectionProduct[]
+  savedItems      SavedItem[]
 
   @@index([companyId, status])
   @@index([postedToMarketAt])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
 }
 
 /// A curated set of products. Separate from Product and joined many-to-many, so
@@ -236,19 +255,36 @@ model Collection {
   rateVisibility      String   @default("on_request")
   /** When audience = selected, only these company IDs may discover/view the collection. */
   audienceCompanyIds  String[] @default([])
+  /** Buyer groups chosen when audience = selected (for Visibility restore). */
+  audienceGroupIds    String[] @default([])
+  /** When false, only the owner may share this pack into chat; buyers cannot forward. */
+  allowForward        Boolean  @default(true)
   /**
    * Explore sort key. Set on publish and when newly added published designs join
    * a live collection — not on rename/remove-only/reshuffle.
    */
   exploreActivityAt   DateTime?
+  /** Live window start (UTC). null = live as soon as published. */
+  startsAt            DateTime?
+  /** Live window end (UTC). null = evergreen. When passed → Hide to draft. */
+  endsAt              DateTime?
+  createdByUserId     String?
+  updatedByUserId     String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  products CollectionProduct[]
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByUser User?               @relation("CollectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  products      CollectionProduct[]
+  savedItems    SavedItem[]
 
   @@index([companyId, status])
   @@index([exploreActivityAt])
+  @@index([status, endsAt])
+  @@index([status, startsAt])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
 }
 
 /// The ordered many-to-many join between Collection and Product.
@@ -264,6 +300,24 @@ model CollectionProduct {
 
   @@unique([collectionId, productId])
   @@index([productId])
+}
+
+/// A reference bookmark: exactly one of productId or collectionId (enforced in
+/// the service layer). Postgres allows multiple NULLs in unique constraints.
+model SavedItem {
+  id           String   @id @default(cuid())
+  companyId    String
+  productId    String?
+  collectionId String?
+  createdAt    DateTime @default(now())
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product    Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@unique([companyId, productId])
+  @@unique([companyId, collectionId])
 }
 
 // --- Discovery --------------------------------------------------------------
@@ -348,6 +402,7 @@ model Message {
   replies Message[] @relation("MessageReplies")
 
   @@index([threadId, createdAt])
+  @@index([threadId, type, createdAt])
   @@index([replyToMessageId])
 }
 
@@ -380,18 +435,24 @@ model Order {
   // window when it passes. Null until the order is delivered.
   returnWindowClosesAt DateTime?
   closedAt           DateTime?
+  createdByUserId    String?
+  updatedByUserId    String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  buyer      Company     @relation("OrderBuyer", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
-  seller     Company     @relation("OrderSeller", fields: [sellerCompanyId], references: [id], onDelete: Cascade)
-  items      OrderItem[]
-  shipments  OrderShipment[]
-  returns    Return[]
-  complaints Complaint[]
+  buyer         Company     @relation("OrderBuyer", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
+  seller        Company     @relation("OrderSeller", fields: [sellerCompanyId], references: [id], onDelete: Cascade)
+  createdByUser User?       @relation("OrderCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser User?       @relation("OrderUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  shipments     OrderShipment[]
+  returns       Return[]
+  complaints    Complaint[]
 
   @@index([buyerCompanyId, status])
   @@index([sellerCompanyId, status])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
 }
 
 /// Line snapshot. requestedQuantity is the buyer ask; quantity is the current
@@ -587,14 +648,18 @@ model CompanySettings {
 
 // --- Broadcast --------------------------------------------------------------
 
-/// A saved, reusable set of recipient companies for broadcasts.
+/// Buyer group: saved recipients for publish audience, share, and broadcast.
 model BroadcastList {
-  id               String   @id @default(cuid())
-  companyId        String
-  name             String
-  memberCompanyIds String[] @default([])
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  companyId             String
+  name                  String
+  memberCompanyIds      String[] @default([])
+  /** Null = inherit company usual; else RateVisibility override for this group. */
+  defaultRateVisibility String?
+  /** Null = inherit company usual; else forward override for this group. */
+  allowForward          Boolean?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 

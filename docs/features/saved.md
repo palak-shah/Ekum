@@ -1,0 +1,67 @@
+# Saved & Curate pack
+
+## Purpose
+
+**Saved** is a personal shortlist of **references** to designs and collections (not copies). Traders use it to hold supplier posts, then assemble a **Curate pack** — their own collection whose members may be other companies’ products — and publish that pack to their buyers under the original sellers’ share rules.
+
+## Who uses it
+
+Any signed-in company. Save is available when the design/collection is discoverable (connection not required). **Curate** appears on the select bar (and Explore design detail) for anyone who can assemble a pack; first curated publish sets `canRelist` (and `canPublish` if needed).
+
+## User flows
+
+### Save / Unsave
+
+1. Open a design (Explore) or collection (viewer) → **Save** (collection-level), or open a design in the collection sheet → **Save**, or **Select** / long-press designs → **Save designs**.
+2. Open **Saved** from the **Explore header bookmark**, **＋ → Saved**, or More → Saved (`/saved`) — default **grid** (Feed toggle): business, SKU / design count, album collage; tap design → photo sheet; tap collection → collection viewer; **×** to unsave.
+3. **Select** / long-press **designs** on Saved (albums still open to pick inside). Sticky bar: **Curate** / **Order**.
+
+### Traveling browse shortlist
+
+Selection is a **session** set of design ids (not the same as Saved). It survives Explore ↔ albums ↔ Saved until Clear, successful Order/Curate, or session end.
+
+### Curate pack
+
+1. Select designs (any suppliers) → sticky **Curate** → name → **Save draft** / **Publish…**.
+2. **＋ → Curate pack** opens Saved in select mode (or curates the current shortlist via `/catalog/curate`).
+3. Publish uses the same audience / rates / forward sheet as own collections. Ceiling failures show plain copy (e.g. “This seller doesn’t allow sharing.”).
+
+## Business rules
+
+| Rule | Detail |
+|------|--------|
+| References only | Saved rows and curated membership point at supplier `Product` / `Collection` IDs — no duplicate catalog rows |
+| Discoverability | Save requires the actor can discover the source (audience, block, live rules) |
+| Ceiling | Curate add + publish require source `allowForward` and discoverability; publish audience must not outrun source intent |
+| Own collections | Own-product-only albums unchanged; curated packs are inferable when any member `product.companyId !== collection.companyId` |
+| Consent | First curated publish grants `canRelist` |
+| Opaque businesses | No Trader/Seller badges on cards |
+
+See [collections](./collections.md) for album publish/live-window rules and [concepts](./00-concepts.md) for trust / Forward vs Curate.
+
+## Edge cases / empty states
+
+- Saved empty: “Nothing saved yet” — Explore or Select inside a collection.
+- Load failure on Saved: error state (not treated as empty).
+- Locked (`allowForward: false`) design: may still be savable if discoverable; cannot curate/publish into someone else’s Explore pack.
+- Album bookmarks are not order/curate lines — open the album and select designs.
+
+## Seed walkthrough
+
+Prereq: `pnpm --filter @ekum/api db:seed`. Seeded Kavita/Ravi designs and albums are **Everyone** + **allowForward**.
+
+1. As **Ravi** (`+919800000001`): Explore bookmark → Saved, or Explore → select designs from Meena + Kavita albums (selection survives album changes).
+2. Sticky bar → **Curate** → name → **Save draft** → **Publish…**.
+3. Same shortlist → **Order** → qty → confirmation lists **one chat link per supplier** (`POST /orders/batch`).
+4. As **Meena** (`+919800000002`, connected to Ravi): see the curated pack when audience allows. No trader badge.
+
+## Automated verification
+
+- Unit: `browseShortlist.spec.ts`, `order.service.batch.spec.ts`, `curation-ceiling.spec.ts`, `saved.service.spec.ts`, `trade-access.spec.ts`
+- Design: [browse-select-curate-order](../superpowers/specs/2026-08-19-browse-select-curate-order-design.md)
+
+## Where it lives
+
+- API: `apps/api/src/saved/`, `POST /orders/batch`, ceiling helpers in `apps/api/src/catalog/curation-ceiling.ts`
+- Web: `apps/web/src/features/saved/`, `apps/web/src/features/browse/`
+- Types: `packages/domain-types` (saved + catalog + orders batch)

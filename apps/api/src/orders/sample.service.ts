@@ -36,7 +36,9 @@ export class SampleService {
   ) {}
 
   async create(actorCompanyId: string, dto: CreateSampleDto): Promise<SampleView> {
-    await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId);
+    await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId, {
+      productIds: dto.productId ? [dto.productId] : undefined,
+    });
     const sample = await this.prisma.sample.create({
       data: {
         buyerCompanyId: actorCompanyId,

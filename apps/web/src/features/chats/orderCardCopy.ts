@@ -31,6 +31,38 @@ function asCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+const COMPACT_ORDER_EVENTS = new Set<string>([
+  OrderChatEvent.QuoteAccepted,
+  OrderChatEvent.OrderDeclined,
+  OrderChatEvent.OrderCancelled,
+  OrderChatEvent.OrderDispatched,
+  OrderChatEvent.OrderDelivered,
+]);
+
+const RICH_ORDER_EVENTS = new Set<string>([
+  OrderChatEvent.RateRequested,
+  OrderChatEvent.OrderRequested,
+  OrderChatEvent.OrderUpdated,
+  OrderChatEvent.QuoteSent,
+  OrderChatEvent.LinesDecided,
+]);
+
+function resolveEvent(
+  message: MessageView,
+  ref: MessageReference | null | undefined,
+): string {
+  const meta = metaOf(message);
+  return (
+    ref?.event ??
+    (typeof meta?.event === 'string' ? meta.event : null) ??
+    (meta?.kind === 'order_lines'
+      ? OrderChatEvent.LinesDecided
+      : message.type === 'rate'
+        ? OrderChatEvent.QuoteSent
+        : OrderChatEvent.OrderRequested)
+  );
+}
+
 function resolveAction(
   event: string,
   message: MessageView,
@@ -39,6 +71,12 @@ function resolveAction(
 ): string {
   if (event === OrderChatEvent.LinesDecided || meta?.kind === 'order_lines') {
     return linesDecidedEventLabel(asCount(meta?.confirmedCount), asCount(meta?.declinedCount));
+  }
+  if (
+    event === OrderChatEvent.OrderDispatched &&
+    (meta?.partial === true || /\bpart\b/i.test(message.body ?? ''))
+  ) {
+    return 'Part dispatched';
   }
   return (
     ref?.eventLabel ??
@@ -49,6 +87,39 @@ function resolveAction(
       declinedCount: asCount(meta?.declinedCount),
     })
   );
+}
+
+/** Rich card for designs/quote; compact chip for later lifecycle pulses. */
+export function isRichOrderChatMessage(
+  message: MessageView,
+  ref?: MessageReference | null,
+): boolean {
+  if (message.type === 'rate') return true;
+  const event = resolveEvent(message, ref);
+  if (COMPACT_ORDER_EVENTS.has(event)) return false;
+  if (RICH_ORDER_EVENTS.has(event)) return true;
+  return true;
+}
+
+/**
+ * Hide legacy duplicate order/rate cards for the same order — keep the newest.
+ * `messages` should be chronological (oldest → newest), as rendered in the thread.
+ */
+export function dedupeOrderThreadMessages(messages: MessageView[]): MessageView[] {
+  const latestIndex = new Map<string, number>();
+  messages.forEach((message, index) => {
+    const refId = message.reference?.id;
+    if ((message.type === 'order_card' || message.type === 'rate') && refId) {
+      latestIndex.set(refId, index);
+    }
+  });
+  return messages.filter((message, index) => {
+    const refId = message.reference?.id;
+    if ((message.type !== 'order_card' && message.type !== 'rate') || !refId) {
+      return true;
+    }
+    return latestIndex.get(refId) === index;
+  });
 }
 
 function partyNameFallback(
@@ -78,14 +149,7 @@ export function buildOrderCardCopy(
   options?: { partyName?: string | null },
 ): OrderCardCopy {
   const meta = metaOf(message);
-  const event =
-    ref?.event ??
-    (typeof meta?.event === 'string' ? meta.event : null) ??
-    (meta?.kind === 'order_lines'
-      ? OrderChatEvent.LinesDecided
-      : message.type === 'rate'
-        ? OrderChatEvent.QuoteSent
-        : OrderChatEvent.OrderRequested);
+  const event = resolveEvent(message, ref);
   const action = resolveAction(event, message, meta, ref);
   const orderLabel =
     ref?.orderLabel?.trim() ||

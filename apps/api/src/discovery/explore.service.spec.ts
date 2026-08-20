@@ -9,20 +9,35 @@ import type { DiscoverySerializer } from './discovery.serializer';
 interface VisibilityStub {
   blocked?: boolean;
   connected?: boolean;
+  /** Per-target overrides for canViewCatalog (e.g. foreign source companies). */
+  connectedByCompany?: Record<string, boolean>;
 }
 
 function makeService(collectionRow: unknown, visibility: VisibilityStub) {
   const prisma = {
     collection: { findUnique: async () => collectionRow },
+    follow: { findUnique: async () => null },
   } as unknown as PrismaService;
   const visibilityService = {
     isBlocked: async () => visibility.blocked ?? false,
-    canViewCatalog: async () => visibility.connected ?? false,
+    canViewCatalog: async (_viewer: string, target: string) => {
+      if (visibility.connectedByCompany && target in visibility.connectedByCompany) {
+        return visibility.connectedByCompany[target]!;
+      }
+      return visibility.connected ?? false;
+    },
   } as unknown as VisibilityService;
   const catalog = {
-    toProductView: (product: { id: string; rate?: number | null }) => ({
+    toProductView: (product: {
+      id: string;
+      companyId?: string;
+      rate?: number | null;
+      rateVisibility?: string;
+    }) => ({
       id: product.id,
+      companyId: product.companyId ?? 'owner',
       rate: product.rate ?? null,
+      rateVisibility: product.rateVisibility ?? 'on_request',
     }),
   } as unknown as CatalogSerializer;
   const discovery = {
@@ -50,8 +65,8 @@ const publishedCollection = {
   company: { id: 'owner' },
   _count: { products: 2 },
   products: [
-    { product: { id: 'p1', rate: 100 } },
-    { product: { id: 'p2', rate: 200 } },
+    { product: { id: 'p1', companyId: 'owner', rate: 100, rateVisibility: 'on_request' } },
+    { product: { id: 'p2', companyId: 'owner', rate: 200, rateVisibility: 'on_request' } },
   ],
 };
 
@@ -107,13 +122,11 @@ describe('ExploreService.collections follow-then-interest ranking', () => {
 });
 
 describe('ExploreService.collectionDetail trust rules', () => {
-  it('returns a blurred preview (products null) to a non-connected viewer', async () => {
+  it('404s connections-audience collections for a non-connected viewer', async () => {
     const service = makeService(publishedCollection, { blocked: false, connected: false });
-    const view = await service.collectionDetail('viewer', 'col1');
-    expect(view.connected).toBe(false);
-    expect(view.products).toBeNull();
-    // The product count is still advertised so the viewer knows what to unlock.
-    expect(view.productCount).toBe(2);
+    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('unlocks the full product list once connected', async () => {
@@ -176,5 +189,37 @@ describe('ExploreService.collectionDetail trust rules', () => {
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.products).toHaveLength(2);
+  });
+
+  it('masks foreign member rates when source is on_request and viewer is not connected to source', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        audience: 'everyone',
+        rateVisibility: 'visible',
+        products: [
+          {
+            product: {
+              id: 'own-1',
+              companyId: 'owner',
+              rate: 100,
+              rateVisibility: 'visible',
+            },
+          },
+          {
+            product: {
+              id: 'foreign-1',
+              companyId: 'supplier',
+              rate: 200,
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+      },
+      { blocked: false, connected: true, connectedByCompany: { supplier: false } },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products?.find((p) => p.id === 'own-1')?.rate).toBe(100);
+    expect(view.products?.find((p) => p.id === 'foreign-1')?.rate).toBeNull();
   });
 });

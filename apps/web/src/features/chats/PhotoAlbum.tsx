@@ -4,11 +4,7 @@ import { cx } from '@/ui/kit';
 const GUTTER = 2;
 
 function urlAt(urls: string[], index: number): string {
-  const url = urls[index];
-  if (!url) {
-    throw new Error('Missing photo URL');
-  }
-  return url;
+  return urls[index] ?? '';
 }
 
 function Cell({
@@ -32,7 +28,10 @@ function Cell({
     >
       <img src={src} alt="" className="h-full w-full object-cover" />
       {overlay ? (
-        <span className="absolute inset-0 flex items-center justify-center bg-ink/55 text-2xl font-semibold text-white">
+        <span
+          data-testid="photo-album-overflow"
+          className="absolute inset-0 flex items-center justify-center bg-ink/55 text-2xl font-semibold text-white"
+        >
           {overlay}
         </span>
       ) : null}
@@ -49,13 +48,15 @@ export function PhotoAlbum({
   overflowCount?: number;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const preview = urls.slice(0, 4);
+  // Drop blanks so a bad reference never throws through the router error boundary.
+  const clean = urls.filter((url): url is string => Boolean(url));
+  const preview = clean.slice(0, 4);
 
   useEffect(() => {
     if (viewerIndex === null) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setViewerIndex(null);
-      if (event.key === 'ArrowRight' && viewerIndex < urls.length - 1) {
+      if (event.key === 'ArrowRight' && viewerIndex < clean.length - 1) {
         setViewerIndex(viewerIndex + 1);
       }
       if (event.key === 'ArrowLeft' && viewerIndex > 0) {
@@ -64,12 +65,14 @@ export function PhotoAlbum({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [viewerIndex, urls.length]);
+  }, [viewerIndex, clean.length]);
 
-  if (urls.length === 0) return null;
+  if (clean.length === 0) return null;
 
   const open = (index: number) => setViewerIndex(index);
-  const extra = Math.max(0, urls.length - preview.length) + Math.max(0, overflowCount);
+  /** Thumbs beyond the 4-slot preview, plus designs with no image still counted on the card. */
+  const extra = Math.max(0, clean.length - preview.length) + Math.max(0, overflowCount);
+  const moreLabel = extra > 0 ? `+${extra}` : undefined;
   const count = preview.length;
 
   let grid: ReactNode;
@@ -78,20 +81,33 @@ export function PhotoAlbum({
       <button
         type="button"
         onClick={() => open(0)}
-        className="block w-full overflow-hidden rounded-2xl bg-foam"
+        className="relative block w-full overflow-hidden rounded-2xl bg-foam"
       >
         <img
           src={urlAt(preview, 0)}
           alt=""
           className="max-h-72 w-full object-cover"
         />
+        {moreLabel ? (
+          <span
+            data-testid="photo-album-overflow"
+            className="absolute inset-0 flex items-center justify-center bg-ink/55 text-2xl font-semibold text-white"
+          >
+            {moreLabel}
+          </span>
+        ) : null}
       </button>
     );
   } else if (count === 2) {
     grid = (
       <div className="grid h-40 grid-cols-2" style={{ gap: GUTTER }}>
         <Cell src={urlAt(preview, 0)} onClick={() => open(0)} rounded="rounded-l-2xl" />
-        <Cell src={urlAt(preview, 1)} onClick={() => open(1)} rounded="rounded-r-2xl" />
+        <Cell
+          src={urlAt(preview, 1)}
+          onClick={() => open(1)}
+          rounded="rounded-r-2xl"
+          overlay={moreLabel}
+        />
       </div>
     );
   } else if (count === 3) {
@@ -105,7 +121,12 @@ export function PhotoAlbum({
         />
         <div className="grid h-full grid-rows-2" style={{ gap: GUTTER }}>
           <Cell src={urlAt(preview, 1)} onClick={() => open(1)} rounded="rounded-tr-2xl" />
-          <Cell src={urlAt(preview, 2)} onClick={() => open(2)} rounded="rounded-br-2xl" />
+          <Cell
+            src={urlAt(preview, 2)}
+            onClick={() => open(2)}
+            rounded="rounded-br-2xl"
+            overlay={moreLabel}
+          />
         </div>
       </div>
     );
@@ -119,13 +140,13 @@ export function PhotoAlbum({
           src={urlAt(preview, 3)}
           onClick={() => open(3)}
           rounded="rounded-br-2xl"
-          overlay={extra > 0 ? `+${extra}` : undefined}
+          overlay={moreLabel}
         />
       </div>
     );
   }
 
-  const viewerSrc = viewerIndex !== null ? urls[viewerIndex] : undefined;
+  const viewerSrc = viewerIndex !== null ? clean[viewerIndex] : undefined;
 
   return (
     <>
@@ -146,7 +167,7 @@ export function PhotoAlbum({
               Close
             </button>
             <p className="text-sm text-white/80">
-              {viewerIndex + 1} / {urls.length}
+              {viewerIndex + 1} / {clean.length}
             </p>
             <span className="w-16" />
           </div>
@@ -162,7 +183,7 @@ export function PhotoAlbum({
               </button>
             ) : null}
             <img src={viewerSrc} alt="" className="max-h-full max-w-full object-contain" />
-            {viewerIndex < urls.length - 1 ? (
+            {viewerIndex < clean.length - 1 ? (
               <button
                 type="button"
                 aria-label="Next photo"

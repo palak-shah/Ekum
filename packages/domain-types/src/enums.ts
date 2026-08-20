@@ -65,9 +65,10 @@ export const VerificationStatus = {
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 export const verificationStatusValues = values(VerificationStatus);
 
-/** Catalog. Publish is a state; sharing is a separate event. */
+/** Catalog. Publish is a state; sharing is a separate event. Ready = company review queue. */
 export const CollectionStatus = {
   Draft: 'draft',
+  Ready: 'ready',
   Published: 'published',
   Archived: 'archived',
 } as const;
@@ -94,6 +95,7 @@ export const rateVisibilityValues = values(RateVisibility);
 export const PublishAudience = {
   Everyone: 'everyone',
   Connections: 'connections',
+  Followers: 'followers',
   Selected: 'selected',
 } as const;
 export type PublishAudience = (typeof PublishAudience)[keyof typeof PublishAudience];
@@ -297,6 +299,7 @@ export const JobType = {
   MediaThumbnail: 'media.thumbnail',
   ReturnWindowExpire: 'return_window.expire',
   NotificationDigest: 'notification.digest',
+  CollectionExpire: 'collection.expire',
 } as const;
 export type JobType = (typeof JobType)[keyof typeof JobType];
 export const jobTypeValues = values(JobType);

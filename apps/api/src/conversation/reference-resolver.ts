@@ -42,6 +42,7 @@ export class ReferenceResolver {
               name: true,
               images: true,
               companyId: true,
+              allowForward: true,
               company: { select: { id: true, name: true } },
             },
           })
@@ -54,6 +55,7 @@ export class ReferenceResolver {
               name: true,
               coverImage: true,
               companyId: true,
+              allowForward: true,
               company: { select: { id: true, name: true } },
               _count: { select: { products: true } },
               products: {
@@ -107,6 +109,7 @@ export class ReferenceResolver {
           images: images.length > 0 ? images : null,
           ownerCompanyId: product?.company?.id ?? product?.companyId ?? null,
           ownerCompanyName: product?.company?.name ?? null,
+          allowForward: product ? product.allowForward !== false : true,
           available: Boolean(product),
         });
       } else if (message.type === MessageType.CollectionCard) {
@@ -127,6 +130,7 @@ export class ReferenceResolver {
           itemCount: collection?._count.products ?? null,
           ownerCompanyId: collection?.company?.id ?? collection?.companyId ?? null,
           ownerCompanyName: collection?.company?.name ?? null,
+          allowForward: collection ? collection.allowForward !== false : true,
           available: Boolean(collection),
         });
       } else if (

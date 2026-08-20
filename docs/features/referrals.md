@@ -2,40 +2,53 @@
 
 ## Purpose
 
-Trusted introductions: create a vouch / invite link so another company can land in-app and request access with **`referredBy`** pre-filled.
+Shareable links for introductions and network growth:
+
+- **Connect-with-me (open invite)** — no target. Partner requests access to **you**; you approve on **Buyers** (not auto-connect).
+- **Targeted vouch** — optional target company. Recipient requests access with **`referredBy`** pre-filled; that seller still approves (not a trust bypass).
+
+No auto-follow. Connection after approve unlocks **Connections**-audience collections.
 
 ## Who uses it
 
-Companies with the **`refer`** capability. Entry: **＋ → Refer** (when capability on) or `/referrals`.
+Any company. Entry: **＋ → Invite to connect** or **You → Invites** (`/referrals`).
 
 ## User flows
 
-1. Open `/referrals` — list past referrals / links.
-2. **New** (`/referrals/new`) — create invite / vouch → share token URL `/r/:token`.
-3. Recipient opens landing → continues to access request with referral context.
+1. Open `/referrals` — list past links; **Share** (native sheet) or **Copy**.
+2. **New** (`/referrals/new`) — create connect-with-me invite or vouch → Share / Copy `/r/:token`.
+3. Recipient opens link (login / onboarding preserves return path when needed).
+4. **Open invite** → **Request access** → `POST /referrals/:token/redeem` → pending request (`referredBy: Invite`) → you approve on Buyers.
+5. **Targeted** → Request access to target → that seller approves as usual.
 
 ## Business rules
 
 | Rule | Detail |
 |------|--------|
-| Capability | Gated by `refer` on the company |
-| Landing | Public-ish token route inside the authenticated app shell as routed |
-| Access | `referredBy` attaches to the access request for the seller’s context |
-| Not a bypass | Referral does not skip approve — seller still decides |
+| Open to all | Every company can mint connect / vouch links (`canRefer` defaults on) |
+| Open invite | Redeem creates **access request** to referrer — not Connection; you approve |
+| Targeted vouch | Referral does **not** skip approve — seller still decides |
+| Self | Cannot redeem your own invite |
+| Login funnel | `/r/:token` and `?invite=` survive OTP / onboarding via return stash |
+| Follow | Not created by invite |
+| Share preview | Share sends **one clickable link** (not a separate PNG). Messengers show the Ekum card from Open Graph when the host is public (`VITE_PUBLIC_ORIGIN`). Share text always names Ekum. |
 
 ## Edge cases / empty states
 
-- No `refer` capability → entry hidden from ＋.
+- No invites yet → empty list + create from ＋.
 - Invalid / unknown token → clear landing error.
-- Empty referrals list for new capable sellers.
+- Already connected / blocked → same errors as normal access request.
 
 ## Seed walkthrough
 
-1. Seed Ravi has `canRefer: true` — open Referrals as Ravi → create a link.
-2. Open `/r/:token` in another session → start access toward Surat Silk House with referral noted.
+1. Open **＋ → Invite to connect** → create a **Connect with me** link → Share.
+2. Open `/r/:token` as another company → Request access → as inviter, approve on **Buyers**.
+3. (Optional) Create a vouch link with a target → request access still requires that seller’s approve.
 
 ## Where it lives
 
-- Web: `apps/web/src/features/referrals/`
-- API: `apps/api/src/referral/`
+- Web: `apps/web/src/features/referrals/`, `apps/web/src/lib/shareInvite.ts` (link share only)
+- OG preview: `apps/web/index.html` (`VITE_PUBLIC_ORIGIN` for absolute `og:image` on production)
+- API: `apps/api/src/referral/` (`POST …/redeem` → access request)
 - Contracts: `packages/domain-types/src/referral.ts`
+- Login return: `apps/web/src/lib/inviteReturn.ts`

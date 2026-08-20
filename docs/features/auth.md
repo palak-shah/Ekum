@@ -10,10 +10,10 @@ Every user before accessing the app.
 
 ## User flows
 
-1. Open app → `/login`.
+1. Open app → `/login` (or land on `/r/:token` / `?invite=` and get sent to login).
 2. Enter phone number → request OTP.
 3. Enter OTP → verify → tokens stored; `GET /auth/me` loads session.
-4. If `needsOnboarding` → `/onboarding`; else → Home.
+4. If `needsOnboarding` → `/onboarding`; else → invite return path (`/r/…`) when present, otherwise Home.
 5. Logout from **You** (`/more`) clears the session.
 
 ## Business rules
@@ -36,6 +36,6 @@ Every user before accessing the app.
 
 ## Where it lives
 
-- Web: `apps/web/src/features/auth/LoginPage.tsx`, `apps/web/src/lib/auth.tsx`
+- Web: `apps/web/src/features/auth/LoginPage.tsx`, `apps/web/src/lib/auth.tsx`, `apps/web/src/lib/inviteReturn.ts`
 - API: `apps/api/src/auth/`
 - Contracts: `packages/domain-types/src/auth.ts`

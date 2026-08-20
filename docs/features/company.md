@@ -14,8 +14,9 @@ Anyone browsing a business; owners edit via **You → profile / settings**.
 
 1. Open from Explore, search, chat, or Home.
 2. View about, city, GST verification badge, buy/sell categories.
-3. Browse published collections and designs.
-4. Actions: Follow, Request access, Chat (as available).
+3. Browse published collections and designs (2-col grid). Designs: **Select** / long-press → Order / Curate on the sticky bar. Collections open the album to pick designs.
+4. When **Connected**: see contact name (and phone only if they opted in) via `/companies/:id/contact`; Message / order as available.
+5. Actions: Follow, Request access, Chat (as available).
 
 ### Own profile (`/settings/profile`)
 
@@ -26,7 +27,7 @@ Anyone browsing a business; owners edit via **You → profile / settings**.
 
 | Rule | Detail |
 |------|--------|
-| Contact protection | Public profile **never** exposes phone; contact via dedicated contact endpoint with masking unless opted in |
+| Contact protection | Public profile **never** exposes phone. When connected, `GET /companies/:id/contact` returns named contact points; phone only if `showPhone` opted in (never login phone) |
 | Silent block | Blocked viewers get **404**, not “you are blocked” |
 | Capabilities | Shown as data (`publish`, `relist`, `refer`) on own company |
 | Verification | `not_verified` · `gst_verified` |

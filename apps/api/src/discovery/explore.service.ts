@@ -5,7 +5,6 @@ import {
   ConnectionStatus,
   MessageType,
   ProductStatus,
-  PublishAudience,
   RateVisibility,
   VerificationStatus,
   type CollectionCard,
@@ -16,12 +15,14 @@ import {
   type ExploreDesignOpportunity,
   type ExploreHomeQuery,
   type ExploreHomeView,
+  type ExploreStory,
   type ExploreOpportunity,
   type ExplorePost,
   type ExploreProductCard,
   type ExploreProductPreviewView,
   type ExploreQuery,
   type ExploreSupplierCard,
+  type ProductView,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
@@ -31,6 +32,10 @@ import {
   canDiscoverCollection,
   canViewCollectionProducts,
 } from '../catalog/audience-visibility';
+import {
+  isCollectionLiveForBuyers,
+  liveWindowClauses,
+} from '../catalog/collection-schedule';
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import {
@@ -39,24 +44,12 @@ import {
   resolveSuperCategoryId,
   type ResolvedInterest,
 } from './interest-match';
+import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { compareByMarketRelevance } from './feed-rank';
 
-/** Hide `selected`-audience items from viewers who aren't on the list. */
-function audienceVisibility(viewerCompanyId: string): {
-  OR: Array<
-    | { audience: { not: string } }
-    | { audience: string; audienceCompanyIds: { has: string } }
-  >;
-} {
-  return {
-    OR: [
-      { audience: { not: PublishAudience.Selected } },
-      {
-        audience: PublishAudience.Selected,
-        audienceCompanyIds: { has: viewerCompanyId },
-      },
-    ],
-  };
+/** Posts visible to this viewer by publish audience (everyone/connections/followers/selected). */
+function audienceVisibility(viewerCompanyId: string): { OR: object[] } {
+  return { OR: audienceVisibilityOr(viewerCompanyId) };
 }
 
 type CollectionCardRow = Prisma.CollectionGetPayload<{ include: typeof collectionCardInclude }>;
@@ -268,6 +261,15 @@ export class ExploreService {
         )
       : null;
 
+    const stories = this.buildStories({
+      fromNetwork,
+      forYou,
+      designsFromNetwork,
+      designsForYou,
+      suggestedBusinesses,
+      lookingForWhatYouSell,
+    });
+
     return {
       forYou,
       fromNetwork,
@@ -275,7 +277,44 @@ export class ExploreService {
       designsFromNetwork,
       suggestedBusinesses,
       lookingForWhatYouSell,
+      stories,
     };
+  }
+
+  /** Rank companies by newest visible post for the Stories rail. */
+  private buildStories(input: {
+    fromNetwork: ExploreHomeView['fromNetwork'];
+    forYou: ExploreHomeView['forYou'];
+    designsFromNetwork: ExploreHomeView['designsFromNetwork'];
+    designsForYou: ExploreHomeView['designsForYou'];
+    suggestedBusinesses: ExploreHomeView['suggestedBusinesses'];
+    lookingForWhatYouSell: ExploreHomeView['lookingForWhatYouSell'];
+  }): ExploreStory[] {
+    const latest = new Map<string, ExploreStory>();
+    const touch = (company: ExploreStory['company'], at: string | null | undefined) => {
+      if (!company?.id || !at) return;
+      const prev = latest.get(company.id);
+      if (!prev || prev.latestPostedAt < at) {
+        latest.set(company.id, { company, latestPostedAt: at });
+      }
+    };
+
+    for (const row of [...input.fromNetwork, ...input.forYou]) {
+      touch(row.collection.company, row.collection.updatedAt);
+    }
+    for (const row of [...input.designsFromNetwork, ...input.designsForYou]) {
+      touch(row.product.company, row.product.postedAt);
+    }
+    for (const row of [
+      ...input.suggestedBusinesses,
+      ...(input.lookingForWhatYouSell ?? []),
+    ]) {
+      touch(row.company, row.latestPostedAt);
+    }
+
+    return [...latest.values()]
+      .sort((a, b) => (a.latestPostedAt < b.latestPostedAt ? 1 : -1))
+      .slice(0, 16);
   }
 
   /** Published designs on Explore (posted to market), excluding the viewer. */
@@ -355,7 +394,7 @@ export class ExploreService {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
       company: companyFilter,
-      AND: [audienceVisibility(viewerCompanyId)],
+      AND: [audienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
     const productWhere: Prisma.ProductWhereInput = {
       status: ProductStatus.Published,
@@ -468,7 +507,7 @@ export class ExploreService {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
       company: this.companyFilter(viewerCompanyId, query),
-      AND: [audienceVisibility(viewerCompanyId)],
+      AND: [audienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
 
     if (query.following) {
@@ -564,28 +603,16 @@ export class ExploreService {
 
   /**
    * Suppliers (or scoped companies) with at least one audience-visible published
-   * collection or Explore-posted design. Ranked: followed → interest → rest,
-   * then newest post activity.
+   * collection or Explore-posted design. Ranked: interest match → rest, then
+   * newest post activity (following is not pinned to the top).
    */
   async postedSuppliers(
     viewerCompanyId: string,
     query: ExploreQuery,
   ): Promise<CursorPage<ExploreSupplierCard>> {
     const lookingForBuyers = query.scope === 'sell';
-    const visibleAudience: Prisma.CollectionWhereInput[] = [
-      { audience: { not: PublishAudience.Selected } },
-      {
-        audience: PublishAudience.Selected,
-        audienceCompanyIds: { has: viewerCompanyId },
-      },
-    ];
-    const visibleProductAudience: Prisma.ProductWhereInput[] = [
-      { audience: { not: PublishAudience.Selected } },
-      {
-        audience: PublishAudience.Selected,
-        audienceCompanyIds: { has: viewerCompanyId },
-      },
-    ];
+    const visibleOr = audienceVisibilityOr(viewerCompanyId) as Prisma.CollectionWhereInput[];
+    const visibleProductOr = audienceVisibilityOr(viewerCompanyId) as Prisma.ProductWhereInput[];
 
     const postedContent: Prisma.CompanyWhereInput = {
       OR: [
@@ -593,7 +620,8 @@ export class ExploreService {
           collections: {
             some: {
               status: CollectionStatus.Published,
-              OR: visibleAudience,
+              OR: visibleOr,
+              AND: liveWindowClauses(),
             },
           },
         },
@@ -602,7 +630,7 @@ export class ExploreService {
             some: {
               status: ProductStatus.Published,
               postedToMarketAt: { not: null },
-              OR: visibleProductAudience,
+              OR: visibleProductOr,
             },
           },
         },
@@ -644,7 +672,8 @@ export class ExploreService {
       collections: {
         where: {
           status: CollectionStatus.Published,
-          OR: visibleAudience,
+          OR: visibleOr,
+          AND: liveWindowClauses(),
         },
         orderBy: { updatedAt: 'desc' as const },
         take: 4,
@@ -662,7 +691,7 @@ export class ExploreService {
         where: {
           status: ProductStatus.Published,
           postedToMarketAt: { not: null },
-          OR: visibleProductAudience,
+          OR: visibleProductOr,
         },
         orderBy: { postedToMarketAt: 'desc' as const },
         take: 4,
@@ -673,14 +702,15 @@ export class ExploreService {
           collections: {
             where: {
               status: CollectionStatus.Published,
-              OR: visibleAudience,
+              OR: visibleOr,
+              AND: liveWindowClauses(),
             },
           },
           products: {
             where: {
               status: ProductStatus.Published,
               postedToMarketAt: { not: null },
-              OR: visibleProductAudience,
+              OR: visibleProductOr,
             },
           },
         },
@@ -705,25 +735,12 @@ export class ExploreService {
     const followedSet = new Set(followedIds);
     const fetchCap = Math.min(Math.max(query.limit * 4, 40), 120);
 
-    const [followedRows, otherRows] = await Promise.all([
-      followedIds.length > 0
-        ? this.prisma.company.findMany({
-            where: { ...where, id: { in: followedIds } },
-            include: companyInclude,
-            take: fetchCap,
-          })
-        : Promise.resolve([] as PostedCompanyRow[]),
-      this.prisma.company.findMany({
-        where: {
-          ...where,
-          ...(followedIds.length > 0
-            ? { id: { notIn: [...followedIds, viewerCompanyId] } }
-            : {}),
-        },
-        include: companyInclude,
-        take: fetchCap,
-      }),
-    ]);
+    // Single pool — do not pin followed companies ahead of discovery.
+    const rows = await this.prisma.company.findMany({
+      where,
+      include: companyInclude,
+      take: fetchCap,
+    });
 
     const toCard = (row: PostedCompanyRow): ExploreSupplierCard & { sortAt: number } => {
       const company = this.discovery.toCompanyCard(row);
@@ -768,17 +785,16 @@ export class ExploreService {
       };
     };
 
-    const followedCards = followedRows.map(toCard).sort((a, b) => b.sortAt - a.sortAt);
     const interest = rankCtx.interest;
-    const matchOther = otherRows
+    const matchInterest = rows
       .filter((row) => matchesCompanyInterest(row, interest))
       .map(toCard)
       .sort((a, b) => b.sortAt - a.sortAt);
-    const restOther = otherRows
+    const rest = rows
       .filter((row) => !matchesCompanyInterest(row, interest))
       .map(toCard)
       .sort((a, b) => b.sortAt - a.sortAt);
-    const merged = [...followedCards, ...matchOther, ...restOther];
+    const merged = [...matchInterest, ...rest];
     const page = pageMerged(merged, query, (row) => row.company.id);
     return toCursorPage(
       page,
@@ -813,36 +829,77 @@ export class ExploreService {
     }
 
     const isOwner = collection.companyId === viewerCompanyId;
+    const connected =
+      isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
+    const following =
+      isOwner ||
+      (await this.prisma.follow.findUnique({
+        where: {
+          followerCompanyId_followedCompanyId: {
+            followerCompanyId: viewerCompanyId,
+            followedCompanyId: collection.companyId,
+          },
+        },
+      })) != null;
+    const audienceCtx = { connected, following };
     if (!isOwner) {
       if (await this.visibility.isBlocked(viewerCompanyId, collection.companyId)) {
         throw notFound();
       }
-      if (collection.status !== CollectionStatus.Published) {
+      if (!isCollectionLiveForBuyers(collection)) {
         throw notFound();
       }
-      if (!canDiscoverCollection(viewerCompanyId, collection)) {
+      if (!canDiscoverCollection(viewerCompanyId, collection, audienceCtx)) {
         throw notFound();
       }
     }
 
-    const connected =
-      isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
-    const showProducts = canViewCollectionProducts(viewerCompanyId, collection, connected);
+    const showProducts = canViewCollectionProducts(
+      viewerCompanyId,
+      collection,
+      audienceCtx,
+    );
 
-    const products = showProducts
-      ? collection.products.map((entry) => {
-          const view = this.catalog.toProductView(entry.product);
-          // Rates stay "on request" until connected when the collection says so.
-          if (
-            !isOwner &&
-            !connected &&
-            collection.rateVisibility === RateVisibility.OnRequest
-          ) {
-            return { ...view, rate: null };
-          }
+    let products: ProductView[] | null = null;
+    if (showProducts) {
+      const foreignSourceIds = [
+        ...new Set(
+          collection.products
+            .map((entry) => entry.product.companyId)
+            .filter((sourceId) => sourceId !== collection.companyId),
+        ),
+      ];
+      const connectedToSource = new Map<string, boolean>();
+      await Promise.all(
+        foreignSourceIds.map(async (sourceId) => {
+          connectedToSource.set(
+            sourceId,
+            await this.visibility.canViewCatalog(viewerCompanyId, sourceId),
+          );
+        }),
+      );
+
+      products = collection.products.map((entry) => {
+        const view = this.catalog.toProductView(entry.product);
+        if (isOwner) {
           return view;
-        })
-      : null;
+        }
+        // Rates stay "on request" until connected when the collection says so.
+        if (!connected && collection.rateVisibility === RateVisibility.OnRequest) {
+          return { ...view, rate: null };
+        }
+        // Foreign members: apply the source product's rate ceiling for this viewer.
+        const sourceId = entry.product.companyId;
+        if (
+          sourceId !== collection.companyId &&
+          entry.product.rateVisibility === RateVisibility.OnRequest &&
+          !connectedToSource.get(sourceId)
+        ) {
+          return { ...view, rate: null };
+        }
+        return view;
+      });
+    }
 
     return {
       ...this.discovery.toCollectionCard(collection),
@@ -887,8 +944,20 @@ export class ExploreService {
     const isOwner = product.companyId === viewerCompanyId;
     const connected =
       isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, product.companyId));
+    const following =
+      isOwner ||
+      (await this.prisma.follow.findUnique({
+        where: {
+          followerCompanyId_followedCompanyId: {
+            followerCompanyId: viewerCompanyId,
+            followedCompanyId: product.companyId,
+          },
+        },
+      })) != null;
+    const audienceCtx = { connected, following };
     const onMarket =
-      Boolean(product.postedToMarketAt) && canDiscoverCollection(viewerCompanyId, product);
+      Boolean(product.postedToMarketAt) &&
+      canDiscoverCollection(viewerCompanyId, product, audienceCtx);
     const sharedInChat =
       !isOwner &&
       (await this.wasSharedInChat(viewerCompanyId, id, MessageType.ProductCard));
@@ -909,7 +978,7 @@ export class ExploreService {
     const showBody =
       isOwner ||
       sharedInChat ||
-      canViewCollectionProducts(viewerCompanyId, product, connected);
+      canViewCollectionProducts(viewerCompanyId, product, audienceCtx);
     const card = this.discovery.toExploreProductCard(product);
     const extras = {
       connected,
@@ -1036,27 +1105,19 @@ export class ExploreService {
     >();
     if (companyIds.length === 0) return map;
 
-    const visibleAudience: Prisma.CollectionWhereInput[] = [
-      { audience: { not: PublishAudience.Selected } },
-      {
-        audience: PublishAudience.Selected,
-        audienceCompanyIds: { has: viewerCompanyId },
-      },
-    ];
-    const visibleProductAudience: Prisma.ProductWhereInput[] = [
-      { audience: { not: PublishAudience.Selected } },
-      {
-        audience: PublishAudience.Selected,
-        audienceCompanyIds: { has: viewerCompanyId },
-      },
-    ];
+    const visibleOr = audienceVisibilityOr(viewerCompanyId) as Prisma.CollectionWhereInput[];
+    const visibleProductOr = audienceVisibilityOr(viewerCompanyId) as Prisma.ProductWhereInput[];
 
     const rows = await this.prisma.company.findMany({
       where: { id: { in: companyIds } },
       select: {
         id: true,
         collections: {
-          where: { status: CollectionStatus.Published, OR: visibleAudience },
+          where: {
+            status: CollectionStatus.Published,
+            OR: visibleOr,
+            AND: liveWindowClauses(),
+          },
           orderBy: { updatedAt: 'desc' },
           take: 4,
           select: {
@@ -1073,7 +1134,7 @@ export class ExploreService {
           where: {
             status: ProductStatus.Published,
             postedToMarketAt: { not: null },
-            OR: visibleProductAudience,
+            OR: visibleProductOr,
           },
           orderBy: { postedToMarketAt: 'desc' },
           take: 4,
@@ -1082,13 +1143,17 @@ export class ExploreService {
         _count: {
           select: {
             collections: {
-              where: { status: CollectionStatus.Published, OR: visibleAudience },
+              where: {
+                status: CollectionStatus.Published,
+                OR: visibleOr,
+                AND: liveWindowClauses(),
+              },
             },
             products: {
               where: {
                 status: ProductStatus.Published,
                 postedToMarketAt: { not: null },
-                OR: visibleProductAudience,
+                OR: visibleProductOr,
               },
             },
           },

@@ -1,17 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import type { Collection, CollectionProduct, Product } from '@prisma/client';
+import type { Collection, CollectionProduct, Product, User } from '@prisma/client';
 import type { CollectionDetailView, CollectionView, ProductView } from '@ekum/domain-types';
+import { toAuditActor } from '../common/audit';
+import { collectionPreviewFromRow } from '../discovery/collection-preview';
 
-type CollectionWithCount = Collection & { _count?: { products: number } };
-type CollectionWithProducts = Collection & {
-  products: (CollectionProduct & { product: Product })[];
+type ActorUser = Pick<User, 'id' | 'name'>;
+
+type ProductWithActors = Product & {
+  createdByUser?: ActorUser | null;
+  updatedByUser?: ActorUser | null;
 };
+
+type CollectionWithCount = Collection & {
+  _count?: { products: number };
+  products?: (CollectionProduct & { product: Product })[];
+  createdByUser?: ActorUser | null;
+  updatedByUser?: ActorUser | null;
+};
+type CollectionWithProducts = Collection & {
+  products: (CollectionProduct & { product: ProductWithActors })[];
+  createdByUser?: ActorUser | null;
+  updatedByUser?: ActorUser | null;
+};
+
+export const productActorInclude = {
+  createdByUser: { select: { id: true, name: true } },
+  updatedByUser: { select: { id: true, name: true } },
+} as const;
+
+export const collectionActorInclude = {
+  createdByUser: { select: { id: true, name: true } },
+  updatedByUser: { select: { id: true, name: true } },
+} as const;
 
 @Injectable()
 export class CatalogSerializer {
-  toProductView(product: Product): ProductView {
+  toProductView(product: ProductWithActors): ProductView {
     return {
       id: product.id,
+      companyId: product.companyId,
       name: product.name,
       sku: product.sku,
       description: product.description,
@@ -25,15 +52,20 @@ export class CatalogSerializer {
       audience: product.audience ?? 'connections',
       rateVisibility: product.rateVisibility ?? 'on_request',
       audienceCompanyIds: product.audienceCompanyIds ?? [],
+      audienceGroupIds: product.audienceGroupIds ?? [],
+      allowForward: product.allowForward !== false,
       postedToMarketAt: product.postedToMarketAt
         ? product.postedToMarketAt.toISOString()
         : null,
+      createdBy: toAuditActor(product.createdByUser),
+      updatedBy: toAuditActor(product.updatedByUser),
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),
     };
   }
 
   toCollectionView(collection: CollectionWithCount, productCount?: number): CollectionView {
+    const preview = collectionPreviewFromRow(collection);
     return {
       id: collection.id,
       name: collection.name,
@@ -43,7 +75,15 @@ export class CatalogSerializer {
       audience: collection.audience,
       rateVisibility: collection.rateVisibility,
       audienceCompanyIds: collection.audienceCompanyIds ?? [],
-      productCount: productCount ?? collection._count?.products ?? 0,
+      audienceGroupIds: collection.audienceGroupIds ?? [],
+      allowForward: collection.allowForward !== false,
+      productCount: productCount ?? collection._count?.products ?? collection.products?.length ?? 0,
+      photoCount: preview.imageCount,
+      previewImages: preview.previewImages,
+      startsAt: collection.startsAt ? collection.startsAt.toISOString() : null,
+      endsAt: collection.endsAt ? collection.endsAt.toISOString() : null,
+      createdBy: toAuditActor(collection.createdByUser),
+      updatedBy: toAuditActor(collection.updatedByUser),
       createdAt: collection.createdAt.toISOString(),
       updatedAt: collection.updatedAt.toISOString(),
     };

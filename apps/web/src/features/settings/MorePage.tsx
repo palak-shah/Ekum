@@ -15,6 +15,7 @@ export function MorePage() {
   const menu = [
     ...(selling ? [{ to: '/catalog', label: 'My designs & collections' }] : []),
     ...(selling ? [{ to: '/buyers', label: 'My buyers' }] : []),
+    { to: '/saved', label: 'Saved' },
     { to: '/samples', label: 'Samples' },
     { to: '/returns', label: 'Returns' },
     ...(selling && canPublish ? [{ to: '/broadcast', label: 'Broadcast' }] : []),

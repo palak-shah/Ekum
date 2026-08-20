@@ -75,8 +75,19 @@ describe('nextOrderAction', () => {
         status: 'requested',
         direction: 'buying',
         intent: 'inquiry',
+        counterpartName: 'Surat Silk House',
       }),
-    ).toBe('Waiting on seller rates');
+    ).toBe('Waiting on Surat Silk House for rates');
+  });
+
+  it('falls back to them when counterpart name is missing', () => {
+    expect(
+      nextOrderAction({
+        status: 'confirmed',
+        direction: 'buying',
+        partiallyShipped: false,
+      }),
+    ).toBe('Waiting on them to dispatch');
   });
 
   it('tells the seller to dispatch when confirmed', () => {
@@ -87,6 +98,17 @@ describe('nextOrderAction', () => {
         partiallyShipped: false,
       }),
     ).toBe('Your move: dispatch shipment');
+  });
+
+  it('names the counterpart when the buyer waits on dispatch', () => {
+    expect(
+      nextOrderAction({
+        status: 'confirmed',
+        direction: 'buying',
+        partiallyShipped: false,
+        counterpartName: 'Surat Silk House',
+      }),
+    ).toBe('Waiting on Surat Silk House to dispatch');
   });
 
   it('tells the buyer to mark delivered when dispatched', () => {

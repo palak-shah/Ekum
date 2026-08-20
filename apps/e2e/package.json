@@ -1,0 +1,17 @@
+{
+  "name": "@ekum/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:smoke": "playwright test --grep @smoke --workers=1",
+    "test:functional": "playwright test --grep @functional --workers=1",
+    "test:ui": "playwright test --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.3"
+  }
+}

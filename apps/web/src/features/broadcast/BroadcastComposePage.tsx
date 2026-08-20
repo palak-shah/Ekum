@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   BroadcastListView,
@@ -18,8 +18,12 @@ type BroadcastKind = 'collection' | 'text';
 
 export function BroadcastComposePage() {
   const navigate = useNavigate();
-  const [kind, setKind] = useState<BroadcastKind | null>(null);
-  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const preselectedCollectionId = params.get('collectionId');
+  const [kind, setKind] = useState<BroadcastKind | null>(
+    preselectedCollectionId ? 'collection' : null,
+  );
+  const [collectionId, setCollectionId] = useState<string | null>(preselectedCollectionId);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [recipients, setRecipients] = useState<string[]>([]);
@@ -44,6 +48,16 @@ export function BroadcastComposePage() {
   const publishedCollections = (collections.data ?? []).filter(
     (c) => c.status === CollectionStatus.Published,
   );
+
+  useEffect(() => {
+    if (!preselectedCollectionId || !collections.data) return;
+    const match = collections.data.find((c) => c.id === preselectedCollectionId);
+    if (match) {
+      setKind('collection');
+      setCollectionId(match.id);
+      setSubject((prev) => prev || match.name);
+    }
+  }, [preselectedCollectionId, collections.data]);
 
   const send = useMutation({
     mutationFn: () => {

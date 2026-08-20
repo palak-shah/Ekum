@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AccessRequestView,
   CollectionCard,
+  CompanyContactPoint,
   ConnectionView,
   CursorPage,
   ExploreProductCard,
@@ -12,6 +13,18 @@ import type {
   ThreadSummary,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import {
+  DEFAULT_ACCESS_REQUEST_NOTE,
+  resolveAccessRequestNote,
+} from '@/lib/accessRequestNote';
+import { useMyCompany } from '@/lib/queries';
+import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { CollectionTile, DesignTile } from '@/ui/cards';
 import {
@@ -31,15 +44,29 @@ import {
 
 type ShopTab = 'designs' | 'collections';
 
+function toShopShortlistEntry(product: ExploreProductCard): BrowseShortlistEntry {
+  return {
+    productId: product.id,
+    name: product.name,
+    thumbUrl: product.images[0] ?? null,
+    companyId: product.company.id,
+    companyName: product.company.name,
+  };
+}
+
 export function CompanyProfilePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const me = useMyCompany();
+  const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
   const [gateOpen, setGateOpen] = useState(false);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<ShopTab>('designs');
+  const [curateOpen, setCurateOpen] = useState(false);
   const shopTabSeededFor = useRef<string | null>(null);
 
   const profile = useQuery({
@@ -78,10 +105,28 @@ export function CompanyProfilePage() {
   );
   const isFollowing = following.data?.some((item) => item.id === id) ?? false;
 
+  const contacts = useQuery({
+    queryKey: ['company', id, 'contact'],
+    queryFn: () => api.get<CompanyContactPoint[]>(`/companies/${id}/contact`),
+    enabled: Boolean(id) && isConnected,
+  });
+
   const designs = shopDesigns.data?.results ?? [];
   const collections = shopCollections.data?.results ?? [];
   const shopLoading = shopDesigns.isLoading || shopCollections.isLoading;
   const shopReady = shopDesigns.isSuccess && shopCollections.isSuccess;
+  const isOwner = Boolean(me.data?.id && id && me.data.id === id);
+  const selecting = shortlist.selectMode || shortlist.count > 0;
+  const canSelectDesigns = designs.length > 0 && shopTab === 'designs';
+  const canOrder = !isOwner && shortlist.count > 0;
+  const canCurate =
+    !isOwner &&
+    shortlist.count > 0 &&
+    shortlist.entries.every((entry) => entry.allowForward !== false);
+
+  const toggleDesign = (product: ExploreProductCard) => {
+    shortlist.toggle(toShopShortlistEntry(product));
+  };
 
   useEffect(() => {
     if (!shopReady || shopTabSeededFor.current === id) return;
@@ -108,11 +153,11 @@ export function CompanyProfilePage() {
     mutationFn: () =>
       api.post<AccessRequestView>('/access-requests', {
         targetCompanyId: id,
-        note: note || undefined,
+        note: resolveAccessRequestNote(note),
       }),
     onSuccess: () => {
       setGateOpen(false);
-      setNote('');
+      setNote(DEFAULT_ACCESS_REQUEST_NOTE);
       setActionError(null);
       setSuccessNote('Request sent — they will see it in chat.');
       refreshAfterAccess();
@@ -179,7 +224,12 @@ export function CompanyProfilePage() {
       </Card>
 
       {isConnected ? (
-        <ConnectedPanel onMessage={() => startChat.mutate()} messaging={startChat.isPending} />
+        <ConnectedPanel
+          contacts={contacts.data ?? []}
+          contactsLoading={contacts.isLoading}
+          onMessage={() => startChat.mutate()}
+          messaging={startChat.isPending}
+        />
       ) : pendingRequest ? (
         <Card className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
@@ -203,7 +253,10 @@ export function CompanyProfilePage() {
               Send a short request. They approve once — then you can message and place orders.
             </p>
           </div>
-          <Button fullWidth onClick={() => setGateOpen(true)}>
+          <Button fullWidth onClick={() => {
+            setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+            setGateOpen(true);
+          }}>
             Request access
           </Button>
           <Button
@@ -223,8 +276,32 @@ export function CompanyProfilePage() {
       {shopLoading ? (
         <LoadingBlock label="Loading shop…" />
       ) : (
-        <section className="flex flex-col gap-2">
-          <SectionHeader title="Shop" />
+        <section
+          className={cx('flex flex-col gap-2', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}
+        >
+          <SectionHeader
+            title="Shop"
+            action={
+              canSelectDesigns ? (
+                <button
+                  type="button"
+                  className={cx(
+                    'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                    selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                  )}
+                  onClick={() => {
+                    if (shortlist.selectMode && shortlist.count === 0) {
+                      shortlist.setSelectMode(false);
+                    } else {
+                      shortlist.setSelectMode(true);
+                    }
+                  }}
+                >
+                  {selecting ? 'Selecting' : 'Select'}
+                </button>
+              ) : null
+            }
+          />
           {hasShop ? (
             <>
               <div className="flex gap-2 px-0.5">
@@ -250,16 +327,23 @@ export function CompanyProfilePage() {
               </div>
               {shopTab === 'designs' ? (
                 designs.length > 0 ? (
-                  <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                  <div className="grid grid-cols-2 gap-3">
                     {designs.map((product) => (
-                      <DesignTile key={product.id} product={product} />
+                      <DesignTile
+                        key={product.id}
+                        product={product}
+                        selected={shortlist.productIds.has(product.id)}
+                        selectMode={selecting}
+                        onLongSelect={() => toggleDesign(product)}
+                        onToggleSelect={selecting ? () => toggleDesign(product) : undefined}
+                      />
                     ))}
                   </div>
                 ) : (
                   <p className="px-0.5 text-sm text-muted">No published designs yet.</p>
                 )
               ) : collections.length > 0 ? (
-                <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                <div className="grid grid-cols-2 gap-3">
                   {collections.map((collection) => (
                     <CollectionTile key={collection.id} collection={collection} showCompany={false} />
                   ))}
@@ -277,17 +361,60 @@ export function CompanyProfilePage() {
         </section>
       )}
 
-      <Sheet open={gateOpen} onClose={() => setGateOpen(false)} title={`Request access · ${company.name}`}>
+      <BrowseSelectBar
+        count={shortlist.count}
+        onClear={() => shortlist.clear()}
+        canCurate={canCurate}
+        onCurate={canCurate ? () => setCurateOpen(true) : undefined}
+        canOrder={canOrder}
+        onOrder={
+          canOrder
+            ? () => {
+                orderFlow.setError(null);
+                orderFlow.setQtyOpen(true);
+              }
+            : undefined
+        }
+      />
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={orderFlow.sellerIdForQty}
+        products={orderFlow.products}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        onSendOrder={orderFlow.sendOrder}
+        onAskRates={orderFlow.askRates}
+      />
+      <BatchOrderConfirmSheet
+        open={orderFlow.confirmOpen}
+        result={orderFlow.result}
+        onClose={() => orderFlow.setConfirmOpen(false)}
+      />
+      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
+
+      <Sheet
+        open={gateOpen}
+        onClose={() => {
+          setGateOpen(false);
+          setNote(DEFAULT_ACCESS_REQUEST_NOTE);
+        }}
+        title={`Request access · ${company.name}`}
+      >
         <div className="flex flex-col gap-3">
           <Field
             label="Add a note"
-            hint="Introduce your business and what you're looking for."
+            hint="Tap to write your own. Leave empty to send the default."
             error={actionError}
           >
             <TextArea
               value={note}
+              onFocus={() => {
+                if (note === DEFAULT_ACCESS_REQUEST_NOTE) setNote('');
+              }}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Hi, we run a retail store in Jaipur…"
+              placeholder={DEFAULT_ACCESS_REQUEST_NOTE}
             />
           </Field>
           <Button fullWidth onClick={() => requestAccess.mutate()} disabled={requestAccess.isPending}>
@@ -299,19 +426,53 @@ export function CompanyProfilePage() {
   );
 }
 
+function pickPrimaryContact(contacts: CompanyContactPoint[]): CompanyContactPoint | null {
+  if (contacts.length === 0) return null;
+  const owner = contacts.find((point) => /owner/i.test(point.role ?? ''));
+  return owner ?? contacts[0] ?? null;
+}
+
 function ConnectedPanel({
+  contacts,
+  contactsLoading,
   onMessage,
   messaging,
 }: {
+  contacts: CompanyContactPoint[];
+  contactsLoading: boolean;
   onMessage: () => void;
   messaging: boolean;
 }) {
+  const contact = pickPrimaryContact(contacts);
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-semibold text-ink">Connected</p>
-          <p className="text-xs text-muted">You can message and place orders with this business.</p>
+          {contactsLoading ? (
+            <p className="text-xs text-muted">Loading contact…</p>
+          ) : contact ? (
+            <div className="mt-0.5 flex flex-col gap-0.5">
+              <p className="truncate text-sm text-ink">
+                {contact.name}
+                {contact.role ? (
+                  <span className="font-normal text-muted"> · {contact.role}</span>
+                ) : null}
+              </p>
+              {contact.phone ? (
+                <a
+                  href={`tel:${contact.phone.replace(/\s+/g, '')}`}
+                  className="truncate text-sm font-medium text-accent"
+                >
+                  {contact.phone}
+                </a>
+              ) : (
+                <p className="text-xs text-muted">Phone not shared</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">You can message and place orders with this business.</p>
+          )}
         </div>
         <StatusPill status="active" />
       </div>

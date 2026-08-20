@@ -1,11 +1,25 @@
 import { photoUrlsFromMessage, type MessageView } from '@ekum/domain-types';
 
-export function canForwardMessage(message: MessageView): boolean {
+/**
+ * Forward is hidden (not disabled) when the supplier locked the card and the
+ * viewer is not the catalog owner.
+ */
+export function canForwardMessage(
+  message: MessageView,
+  viewerCompanyId?: string | null,
+): boolean {
   if (message.type === 'photo') {
     return photoUrlsFromMessage(message).length > 0;
   }
   if (message.type === 'product_card' || message.type === 'collection_card') {
-    return Boolean(message.reference?.available && message.reference.id);
+    if (!message.reference?.available || !message.reference.id) {
+      return false;
+    }
+    if (message.reference.allowForward === false) {
+      const ownerId = message.reference.ownerCompanyId;
+      return Boolean(viewerCompanyId && ownerId && viewerCompanyId === ownerId);
+    }
+    return true;
   }
   return false;
 }

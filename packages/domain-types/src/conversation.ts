@@ -106,6 +106,16 @@ export const listThreadsQuerySchema = cursorPageQuerySchema.extend({
 });
 export type ListThreadsQuery = z.infer<typeof listThreadsQuerySchema>;
 
+/** Thread message list: optional Media/Orders scope + in-chat search. */
+export const threadMessageViewValues = ['all', 'media', 'orders'] as const;
+export type ThreadMessageView = (typeof threadMessageViewValues)[number];
+
+export const listThreadMessagesQuerySchema = cursorPageQuerySchema.extend({
+  view: z.enum(threadMessageViewValues).optional().default('all'),
+  q: z.string().trim().max(80).optional(),
+});
+export type ListThreadMessagesQuery = z.infer<typeof listThreadMessagesQuerySchema>;
+
 export const setAlertLevelSchema = z.object({
   alertLevel: z.enum(threadAlertLevelValues),
 });
@@ -139,6 +149,11 @@ export interface MessageReference {
   /** Catalog owner company (product/collection) — not the message forwarder. */
   ownerCompanyId?: string | null;
   ownerCompanyName?: string | null;
+  /**
+   * When false, non-owners must not forward/re-share this card.
+   * Omitted/true = forward allowed.
+   */
+  allowForward?: boolean;
   available: boolean;
   /** Order/rate: line count. Collection: total designs (for +N overflow). */
   status?: string | null;

@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { createPortal } from 'react-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
@@ -10,18 +19,27 @@ import {
   type ExploreDesignOpportunity,
   type ExploreBuyerOpportunity,
   type ExploreSupplierCard,
+  type ExploreStory,
   type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
+import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
   OpportunityDesignCard,
+  BusinessShopTile,
 } from '@/ui/cards';
-import { Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { Avatar, Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import {
   BackIcon,
+  BookmarkIcon,
   CheckIcon,
   ChevronRightIcon,
   ExploreIcon,
@@ -161,6 +179,20 @@ function CollectionSection({
   );
 }
 
+function toggleExploreDesign(
+  shortlist: ReturnType<typeof useBrowseShortlist>,
+  opportunity: ExploreDesignOpportunity,
+) {
+  const { product } = opportunity;
+  shortlist.toggle({
+    productId: product.id,
+    name: product.name,
+    thumbUrl: product.images[0] ?? null,
+    companyId: product.company.id,
+    companyName: product.company.name,
+  });
+}
+
 function DesignSection({
   title,
   items,
@@ -168,10 +200,13 @@ function DesignSection({
   title: string;
   items: ExploreDesignOpportunity[];
 }) {
+  const shortlist = useBrowseShortlist();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
+  const selecting = shortlist.selectMode || shortlist.count > 0;
+
   return (
     <Section
       title={title}
@@ -189,7 +224,16 @@ function DesignSection({
     >
       <div className="flex flex-col">
         {visible.map((opportunity) => (
-          <OpportunityDesignCard key={opportunity.product.id} opportunity={opportunity} />
+          <OpportunityDesignCard
+            key={opportunity.product.id}
+            opportunity={opportunity}
+            selectMode={selecting}
+            selected={shortlist.productIds.has(opportunity.product.id)}
+            onLongSelect={() => toggleExploreDesign(shortlist, opportunity)}
+            onToggleSelect={
+              selecting ? () => toggleExploreDesign(shortlist, opportunity) : undefined
+            }
+          />
         ))}
       </div>
     </Section>
@@ -197,10 +241,13 @@ function DesignSection({
 }
 
 function MixedSection({ title, items }: { title: string; items: MixedOpportunity[] }) {
+  const shortlist = useBrowseShortlist();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
+  const selecting = shortlist.selectMode || shortlist.count > 0;
+
   return (
     <Section
       title={title}
@@ -221,7 +268,16 @@ function MixedSection({ title, items }: { title: string; items: MixedOpportunity
           item.kind === 'collection' ? (
             <OpportunityCollectionCard key={item.id} opportunity={item.opportunity} />
           ) : (
-            <OpportunityDesignCard key={item.id} opportunity={item.opportunity} />
+            <OpportunityDesignCard
+              key={item.id}
+              opportunity={item.opportunity}
+              selectMode={selecting}
+              selected={shortlist.productIds.has(item.opportunity.product.id)}
+              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
+              onToggleSelect={
+                selecting ? () => toggleExploreDesign(shortlist, item.opportunity) : undefined
+              }
+            />
           ),
         )}
       </div>
@@ -344,17 +400,13 @@ function SupplierDirectory({
           Companies with published designs or collections
         </p>
       </div>
-      <div className="flex flex-col">
+      <div className="grid grid-cols-2 gap-3">
         {rows.map((supplier) => (
-          <OpportunityBusinessCard
+          <BusinessShopTile
             key={supplier.company.id}
             company={supplier.company}
             relevance={supplier.relevance}
             previewImages={supplier.previewImages}
-            designCount={supplier.designCount}
-            collectionCount={supplier.collectionCount}
-            latestPostedAt={supplier.latestPostedAt}
-            intentSide="sell"
           />
         ))}
       </div>
@@ -372,10 +424,14 @@ function SupplierDirectory({
   );
 }
 
-/** Compact menu anchored under the ⋯ — not a bottom sheet. */
+/**
+ * Compact filter menu. Portaled to document.body so dismiss is not trapped by
+ * parent transforms (ekum-rise). Closes on outside tap, Escape, or scroll.
+ */
 function FilterMenu({
   open,
   onClose,
+  anchorRef,
   category,
   city,
   contentMode,
@@ -388,6 +444,7 @@ function FilterMenu({
 }: {
   open: boolean;
   onClose: () => void;
+  anchorRef: RefObject<HTMLElement | null>;
   category: string;
   city: string;
   contentMode: ContentMode;
@@ -400,6 +457,23 @@ function FilterMenu({
 }) {
   const [view, setView] = useState<MenuView>('root');
   const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 6,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open, anchorRef, view]);
 
   useEffect(() => {
     if (!open) {
@@ -409,28 +483,46 @@ function FilterMenu({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if (anchorRef.current?.contains(target)) return;
+      onClose();
+    };
+    const onScroll = () => onClose();
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, onClose, anchorRef]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   const subTitle =
     view === 'category' ? 'Category' : view === 'city' ? 'City' : view === 'show' ? 'Show' : '';
 
-  return (
+  return createPortal(
     <>
       <button
         type="button"
         aria-label="Close filter menu"
-        className="fixed inset-0 z-40 cursor-default bg-transparent"
+        className="fixed inset-0 z-[60] cursor-default bg-ink/15"
         onClick={onClose}
       />
       <div
         ref={panelRef}
         role="menu"
-        className="absolute right-0 top-[calc(100%+6px)] z-50 w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-        style={{ animation: 'ekum-rise 160ms ease-out' }}
+        data-testid="explore-filter-menu"
+        className="fixed z-[61] w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
+        style={{
+          top: pos.top,
+          right: pos.right,
+          animation: 'ekum-rise 160ms ease-out',
+        }}
       >
         {view === 'root' ? (
           <div className="py-1">
@@ -548,7 +640,8 @@ function FilterMenu({
           </div>
         )}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -577,11 +670,60 @@ function MenuRow({
   );
 }
 
+function StoriesRail({
+  stories,
+  activeId,
+  onSelect,
+}: {
+  stories: ExploreStory[];
+  activeId: string | null;
+  onSelect: (companyId: string) => void;
+}) {
+  if (stories.length === 0) return null;
+  return (
+    <div className="-mx-1 overflow-x-auto px-1 scrollbar-gutter-stable">
+      <div className="flex gap-3 pb-1">
+        {stories.map((story) => {
+          const active = story.company.id === activeId;
+          return (
+            <button
+              key={story.company.id}
+              type="button"
+              onClick={() => onSelect(story.company.id)}
+              className="flex w-[72px] shrink-0 flex-col items-center gap-1.5"
+            >
+              <span
+                className={cx(
+                  'rounded-full p-[2px]',
+                  active ? 'bg-accent' : 'bg-gradient-to-br from-accent to-tangerine',
+                )}
+              >
+                <span className="block rounded-full bg-canvas p-[2px]">
+                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={56} />
+                </span>
+              </span>
+              <span className="w-full truncate text-center text-[11px] font-medium text-ink">
+                {story.company.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ExplorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const company = useMyCompany();
+  const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
+  const [curateOpen, setCurateOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
+  const storyCompanyId = searchParams.get('story');
   const [category, setCategory] = useState('All');
   const [city, setCity] = useState<string>('All');
   const [searchFocused, setSearchFocused] = useState(
@@ -720,30 +862,97 @@ export function ExplorePage() {
     [data?.designsFromNetwork, data?.designsForYou],
   );
 
+  const filteredPosts = useMemo(() => {
+    if (!storyCompanyId) return postsForYou;
+    return postsForYou.filter((item) =>
+      item.kind === 'collection'
+        ? item.opportunity.collection.company.id === storyCompanyId
+        : item.opportunity.product.company.id === storyCompanyId,
+    );
+  }, [postsForYou, storyCompanyId]);
+  const filteredCollections = useMemo(() => {
+    if (!storyCompanyId) return collectionsForYou;
+    return collectionsForYou.filter((item) => item.collection.company.id === storyCompanyId);
+  }, [collectionsForYou, storyCompanyId]);
+  const filteredDesigns = useMemo(() => {
+    if (!storyCompanyId) return designsForYou;
+    return designsForYou.filter((item) => item.product.company.id === storyCompanyId);
+  }, [designsForYou, storyCompanyId]);
+
+  const storyCompany = data?.stories?.find((s) => s.company.id === storyCompanyId)?.company;
+
+  const clearStory = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('story');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  // Drop a sticky ?story= that would filter the feed to nothing.
+  useEffect(() => {
+    if (!storyCompanyId || !data) return;
+    const inFeed = postsForYou.some((item) =>
+      item.kind === 'collection'
+        ? item.opportunity.collection.company.id === storyCompanyId
+        : item.opportunity.product.company.id === storyCompanyId,
+    );
+    if (!inFeed) clearStory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when home data / story param change
+  }, [storyCompanyId, data, postsForYou]);
+
+  const selectStory = (companyId: string) => {
+    // Prefer the business shop when this feed has no posts from them yet —
+    // Stories can include publishers who aren’t in the “New for you” shelf.
+    const inFeed = postsForYou.some((item) =>
+      item.kind === 'collection'
+        ? item.opportunity.collection.company.id === companyId
+        : item.opportunity.product.company.id === companyId,
+    );
+    if (!inFeed) {
+      navigate(`/company/${companyId}`);
+      return;
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (prev.get('story') === companyId) next.delete('story');
+        else next.set('story', companyId);
+        next.delete('show');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const contentCount =
     contentMode === 'collections'
-      ? collectionsForYou.length
+      ? filteredCollections.length
       : contentMode === 'designs'
-        ? designsForYou.length
+        ? filteredDesigns.length
         : contentMode === 'businesses'
           ? 1
-          : postsForYou.length;
+          : filteredPosts.length;
 
+  const suggestedCount = data?.suggestedBusinesses.length ?? 0;
+  const buyersCount = data?.lookingForWhatYouSell?.length ?? 0;
   const hasAny =
     contentMode === 'businesses' ||
-    contentCount +
-      (data?.suggestedBusinesses.length ?? 0) +
-      (data?.lookingForWhatYouSell?.length ?? 0) >
-      0;
+    Boolean(storyCompanyId) ||
+    contentCount + suggestedCount + buyersCount > 0;
 
   const clearFilters = () => {
     setCategory('All');
     setCity('All');
     setContentMode('all');
+    clearStory();
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cx('flex flex-col gap-4', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}>
       <div className="relative flex items-center gap-2">
         {searchFocused ? (
           <>
@@ -777,6 +986,16 @@ export function ExplorePage() {
             </button>
             <button
               type="button"
+              aria-label="Saved"
+              onClick={() => navigate('/saved')}
+              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate hover:bg-foam"
+            >
+              <BookmarkIcon width={20} height={20} />
+            </button>
+            <button
+              ref={filterAnchorRef}
+              type="button"
+              data-testid="explore-filter"
               aria-label="Filter"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
@@ -794,6 +1013,7 @@ export function ExplorePage() {
             <FilterMenu
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
+              anchorRef={filterAnchorRef}
               category={activeCategory}
               city={city}
               contentMode={contentMode}
@@ -829,6 +1049,11 @@ export function ExplorePage() {
         <SupplierDirectory filters={filters} />
       ) : home.isLoading ? (
         <LoadingBlock />
+      ) : home.isError ? (
+        <EmptyState
+          title="Couldn’t load Explore"
+          message="Check your connection and try again."
+        />
       ) : !hasAny ? (
         <EmptyState
           title="Nothing to explore yet"
@@ -842,23 +1067,62 @@ export function ExplorePage() {
         />
       ) : (
         <div className="flex flex-col gap-7">
+          {!searchFocused ? (
+            <StoriesRail
+              stories={data?.stories ?? []}
+              activeId={storyCompanyId}
+              onSelect={selectStory}
+            />
+          ) : null}
+          {storyCompanyId ? (
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-foam/60 px-3 py-2">
+              <p className="min-w-0 flex-1 truncate text-sm text-ink">
+                Posts from{' '}
+                <span className="font-semibold">{storyCompany?.name ?? 'this business'}</span>
+              </p>
+              <button type="button" className="text-xs font-bold text-accent" onClick={clearStory}>
+                Clear
+              </button>
+              <button
+                type="button"
+                className="text-xs font-bold text-accent"
+                onClick={() => navigate(`/company/${storyCompanyId}`)}
+              >
+                Open shop
+              </button>
+            </div>
+          ) : null}
           {contentMode === 'all' ? (
-            <MixedSection title="New for you" items={postsForYou} />
+            filteredPosts.length > 0 ? (
+              <MixedSection title="New for you" items={filteredPosts} />
+            ) : storyCompanyId ? (
+              <EmptyState
+                title="No posts in this feed"
+                message="Open their shop to see published designs and collections."
+              />
+            ) : (
+              <EmptyState
+                title="No posts from other businesses yet"
+                message="Follow suppliers or wait for new drops — buyers who may want what you sell still show below."
+              />
+            )
           ) : null}
           {contentMode === 'collections' ? (
-            <CollectionSection title="New for you" items={collectionsForYou} />
+            <CollectionSection title="New for you" items={filteredCollections} />
           ) : null}
           {contentMode === 'designs' ? (
-            <DesignSection title="New for you" items={designsForYou} />
+            <DesignSection title="New for you" items={filteredDesigns} />
           ) : null}
-          <CompanySection
-            title="Suppliers"
-            items={data?.suggestedBusinesses ?? []}
-            intentSide="sell"
-            seeAllLabel="See all suppliers →"
-            onSeeAll={() => setContentMode('businesses')}
-          />
-          {data?.lookingForWhatYouSell ? (
+          {!storyCompanyId ? (
+            <CompanySection
+              title="Businesses for you"
+              items={data?.suggestedBusinesses ?? []}
+              intentSide="sell"
+              seeAllLabel="See all businesses →"
+              onSeeAll={() => setContentMode('businesses')}
+            />
+          ) : null}
+          {!storyCompanyId && data?.lookingForWhatYouSell ? (
             <CompanySection
               title="Buyers for you"
               items={data.lookingForWhatYouSell}
@@ -867,6 +1131,35 @@ export function ExplorePage() {
           ) : null}
         </div>
       )}
+
+      <BrowseSelectBar
+        count={shortlist.count}
+        onClear={() => shortlist.clear()}
+        canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
+        onCurate={() => setCurateOpen(true)}
+        canOrder={shortlist.count > 0}
+        onOrder={() => {
+          orderFlow.setError(null);
+          orderFlow.setQtyOpen(true);
+        }}
+      />
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={orderFlow.sellerIdForQty}
+        products={orderFlow.products}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        onSendOrder={orderFlow.sendOrder}
+        onAskRates={orderFlow.askRates}
+      />
+      <BatchOrderConfirmSheet
+        open={orderFlow.confirmOpen}
+        result={orderFlow.result}
+        onClose={() => orderFlow.setConfirmOpen(false)}
+      />
+      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
     </div>
   );
 }

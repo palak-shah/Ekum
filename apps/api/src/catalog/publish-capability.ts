@@ -29,3 +29,14 @@ export async function grantPublishCapability(
   });
   await rememberFirstPublishConsent(prisma, companyId);
 }
+
+/** Unlocks curated-pack publish after the first successful curated publish. */
+export async function grantRelistCapability(
+  prisma: PrismaService,
+  companyId: string,
+): Promise<void> {
+  await prisma.company.update({
+    where: { id: companyId },
+    data: { canRelist: true },
+  });
+}

@@ -14,7 +14,8 @@ import type {
 } from '@ekum/domain-types';
 import { formatRate, timeAgo } from '@/lib/format';
 import { Avatar, Tag, cx } from './kit';
-import { ChevronRightIcon } from './icons';
+import { CheckIcon, ChevronRightIcon } from './icons';
+import { useLongPress } from './useLongPress';
 
 function VerificationTag({ verification }: { verification: string }) {
   if (verification === 'gst_verified') {
@@ -138,33 +139,26 @@ function postedWhen(iso: string | null | undefined): string {
 }
 
 /**
- * Full-width Explore business card — same chrome as collection/design cards.
- * Keep it plain: name, why-connect, then photos or a short “buys/sells” line.
+ * Explore business row — same chrome as design/collection posts, not a fake album.
+ * Header + buys/sells line. Shop photos live on the company page grid.
  */
 export function OpportunityBusinessCard({
   company,
   relevance,
-  previewImages,
-  designCount,
-  collectionCount,
-  latestPostedAt = null,
   intentSide = 'sell',
-}: BusinessCardModel & {
-  /** Categories shown when there are no post thumbs. */
+}: {
+  company: BusinessCardModel['company'];
+  relevance: string | null;
+  previewImages?: string[];
+  designCount?: number;
+  collectionCount?: number;
+  latestPostedAt?: string | null;
   intentSide?: 'buy' | 'sell';
 }) {
   const why = relevance?.trim() || company.city;
   const intentCats = (
     intentSide === 'buy' ? company.buyCategories : company.sellCategories
   ).filter(Boolean);
-  const hasAlbum = previewImages.length > 0;
-  const when = hasAlbum ? postedWhen(latestPostedAt) : '';
-  const count =
-    hasAlbum && designCount > 0
-      ? `${designCount} design${designCount === 1 ? '' : 's'}`
-      : hasAlbum && collectionCount > 0
-        ? `${collectionCount} collection${collectionCount === 1 ? '' : 's'}`
-        : null;
 
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
@@ -176,27 +170,45 @@ export function OpportunityBusinessCard({
           <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
           <p className="truncate text-xs font-medium text-muted">{why}</p>
         </Link>
-        {when ? (
-          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-        ) : null}
       </div>
       <Link to={`/company/${company.id}`} className="block px-3">
-        {hasAlbum ? (
-          <AlbumGrid
-            images={previewImages}
-            imageCount={previewImages.length}
-            alt={company.name}
-          />
-        ) : (
-          <BusinessIntentPanel intentSide={intentSide} categories={intentCats} />
-        )}
+        <BusinessIntentPanel intentSide={intentSide} categories={intentCats} />
       </Link>
-      {count ? (
-        <Link to={`/company/${company.id}`} className="mt-2 block px-4">
-          <p className="text-xs font-medium text-muted">{count}</p>
-        </Link>
-      ) : null}
     </article>
+  );
+}
+
+/** Compact grid tile for the Businesses directory — one cover, no collage count. */
+export function BusinessShopTile({
+  company,
+  relevance,
+  previewImages = [],
+}: {
+  company: BusinessCardModel['company'];
+  relevance: string | null;
+  previewImages?: string[];
+}) {
+  const cover = previewImages[0] ?? null;
+  const why = relevance?.trim() || company.city;
+  return (
+    <Link
+      to={`/company/${company.id}`}
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
+    >
+      <div className="aspect-square overflow-hidden bg-foam">
+        {cover ? (
+          <CoverImage src={cover} alt={company.name} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Avatar name={company.name} imageUrl={company.logoUrl} size={56} />
+          </div>
+        )}
+      </div>
+      <div className="px-2.5 py-2.5">
+        <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
+        <p className="truncate text-xs text-muted">{why}</p>
+      </div>
+    </Link>
   );
 }
 
@@ -242,12 +254,23 @@ export function SupplierDirectoryRow({ supplier }: { supplier: ExploreSupplierCa
 /** Company-primary Explore opportunity for a standalone design. */
 export function OpportunityDesignCard({
   opportunity,
+  selected = false,
+  selectMode = false,
+  onLongSelect,
+  onToggleSelect,
 }: {
   opportunity: ExploreDesignOpportunity;
+  selected?: boolean;
+  selectMode?: boolean;
+  onLongSelect?: () => void;
+  onToggleSelect?: () => void;
 }) {
   const { product, relevance } = opportunity;
   const company = product.company;
   const when = postedWhen(product.postedAt);
+  const longPress = useLongPress(onLongSelect);
+  const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
+
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
       <div className="flex items-center gap-3 px-4 py-2.5">
@@ -264,30 +287,104 @@ export function OpportunityDesignCard({
           <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
         ) : null}
       </div>
-      <Link to={`/explore/products/${product.id}`} className="block px-3">
-        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
-      </Link>
-      <Link to={`/explore/products/${product.id}`} className="mt-2 block px-4">
-        <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">Design</p>
-      </Link>
+      {open ? (
+        <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>
+          <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+          <span
+            className={cx(
+              'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+            )}
+          >
+            <CheckIcon width={14} height={14} />
+          </span>
+        </button>
+      ) : (
+        <Link to={`/explore/products/${product.id}`} className="block px-3" {...longPress}>
+          <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+        </Link>
+      )}
+      {open ? (
+        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
+          <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
+          <p className="text-xs font-medium text-muted">Design</p>
+        </button>
+      ) : (
+        <Link to={`/explore/products/${product.id}`} className="mt-2 block px-4">
+          <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
+          <p className="text-xs font-medium text-muted">Design</p>
+        </Link>
+      )}
     </article>
   );
 }
 
-/** Compact shop tile for a published design on a company profile. */
-export function DesignTile({ product }: { product: ExploreProductCard }) {
-  const cover = product.images[0] ?? null;
+/** Shop / grid tile for a published design — fills the grid cell. */
+export function DesignTile({
+  product,
+  selected = false,
+  selectMode = false,
+  onLongSelect,
+  onToggleSelect,
+}: {
+  product: ExploreProductCard;
+  selected?: boolean;
+  selectMode?: boolean;
+  onLongSelect?: () => void;
+  onToggleSelect?: () => void;
+}) {
+  const longPress = useLongPress(onLongSelect);
+  const selecting = selectMode && onToggleSelect;
+
+  const body = (
+    <>
+      <div className="relative p-1.5">
+        <AlbumGrid
+          images={product.images}
+          imageCount={product.images.length}
+          alt={product.name}
+        />
+        {selectMode ? (
+          <span
+            className={cx(
+              'absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+            )}
+          >
+            <CheckIcon width={14} height={14} />
+          </span>
+        ) : null}
+      </div>
+      <div className="px-2.5 pb-2.5">
+        <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+        <p className="truncate text-xs text-muted">Design</p>
+      </div>
+    </>
+  );
+
+  if (selecting) {
+    return (
+      <button
+        type="button"
+        className={cx(
+          'block w-full overflow-hidden rounded-2xl border bg-surface text-left',
+          selected ? 'border-accent' : 'border-line',
+        )}
+        onClick={onToggleSelect}
+        {...longPress}
+      >
+        {body}
+      </button>
+    );
+  }
+
   return (
     <Link
       to={`/explore/products/${product.id}`}
-      className="block w-44 shrink-0 overflow-hidden rounded-2xl bg-surface p-2 shadow-[var(--shadow-soft)]"
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
+      {...longPress}
     >
-      <div className="h-32 w-full overflow-hidden rounded-xl">
-        <CoverImage src={cover} alt={product.name} />
-      </div>
-      <p className="mt-2 truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
-      <p className="mt-0.5 text-xs font-medium text-muted">Design</p>
+      {body}
     </Link>
   );
 }
@@ -324,20 +421,33 @@ export function CollectionTile({
   /** Hide on a company profile shop shelf where the seller is already known. */
   showCompany?: boolean;
 }) {
-  const cover = collection.previewImages[0] ?? collection.coverImage;
+  const images =
+    collection.previewImages.length > 0
+      ? collection.previewImages
+      : collection.coverImage
+        ? [collection.coverImage]
+        : [];
   return (
     <Link
       to={`/collections/${collection.id}`}
-      className="block w-44 shrink-0 overflow-hidden rounded-2xl bg-surface p-2 shadow-[var(--shadow-soft)]"
+      className="block overflow-hidden rounded-2xl border border-line bg-surface"
     >
-      <div className="h-32 w-full overflow-hidden rounded-xl">
-        <CoverImage src={cover} alt={collection.name} />
+      <div className="p-1.5">
+        <AlbumGrid
+          images={images}
+          imageCount={Math.max(collection.imageCount ?? images.length, images.length)}
+          alt={collection.name}
+        />
       </div>
-      <p className="mt-2 truncate text-sm font-bold tracking-tight text-ink">{collection.name}</p>
-      {showCompany ? (
-        <p className="truncate text-xs font-medium text-muted">{collection.company.name}</p>
-      ) : null}
-      <p className="mt-0.5 text-xs font-medium text-muted">{collection.productCount} designs</p>
+      <div className="px-2.5 pb-2.5">
+        <p className="truncate text-sm font-semibold text-ink">{collection.name}</p>
+        {showCompany ? (
+          <p className="truncate text-xs text-muted">{collection.company.name}</p>
+        ) : null}
+        <p className="truncate text-xs text-muted">
+          {collection.productCount} design{collection.productCount === 1 ? '' : 's'}
+        </p>
+      </div>
     </Link>
   );
 }
@@ -363,8 +473,9 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
 }
 
 /**
- * WhatsApp-style album preview: equal cells, thin gutters.
- * 4+ images → 2×2 with dark +N on the fourth cell (3 clear + overflow).
+ * WhatsApp-style album mosaic: thin gutters, no blank cells.
+ * 1 → square; 2 → side-by-side; 3 → tall left + two stacked right;
+ * 4+ → 2×2 with dark +N on the fourth cell when more than 4.
  */
 export function AlbumGrid({
   images,
@@ -404,15 +515,25 @@ export function AlbumGrid({
     );
   }
 
-  // 3 or 4+: equal 2×2. For exactly 3, bottom-right stays empty (no +N).
-  // For 4+, fourth cell shows image under +(imageCount - 3).
+  if (count === 3) {
+    return (
+      <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-xl bg-line">
+        <div className="relative row-span-2 overflow-hidden bg-foam">
+          <CoverImage src={images[0] ?? null} alt="" />
+        </div>
+        <div className="relative overflow-hidden bg-foam">
+          <CoverImage src={images[1] ?? null} alt="" />
+        </div>
+        <div className="relative overflow-hidden bg-foam">
+          <CoverImage src={images[2] ?? null} alt="" />
+        </div>
+      </div>
+    );
+  }
+
+  // 4+: equal 2×2; fourth cell shows +N when there are more than 4 images.
   const showPlus = imageCount > 4;
-  const cells: Array<string | null> = [
-    images[0] ?? null,
-    images[1] ?? null,
-    images[2] ?? null,
-    showPlus || images[3] ? images[3] ?? images[2] ?? null : null,
-  ];
+  const cells = [images[0], images[1], images[2], images[3] ?? images[2]];
 
   return (
     <div className="grid grid-cols-2 gap-0.5 overflow-hidden rounded-xl bg-line">

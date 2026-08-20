@@ -36,3 +36,6 @@ coverage/
 
 # Vite / PWA
 apps/web/dev-dist/
+
+# Local Superpowers brainstorm session state (ports, tokens, pids)
+.superpowers/brainstorm/

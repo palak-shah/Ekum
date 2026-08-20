@@ -1,43 +1,141 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   CollectionStatus,
+  ConnectionStatus,
+  JobType,
   ProductStatus,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
+  type ListCatalogQuery,
   type PublishCollectionDto,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
+import { createdAtOrderBy, createdAtRangeFilter } from '../common/audit';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ensureSellingEnabled } from '../identity/trade-presence';
-import { assertCanPublish, grantPublishCapability } from './publish-capability';
-import { CatalogSerializer } from './catalog.serializer';
+import { JobQueue } from '../jobs/job-queue.service';
+import { canDiscoverCollection } from './audience-visibility';
+import {
+  assertProductsCuratable,
+  curatedPublishRateVisibility,
+  type CuratableProduct,
+} from './curation-ceiling';
+import {
+  assertCanPublish,
+  grantPublishCapability,
+  grantRelistCapability,
+} from './publish-capability';
+import { CatalogSerializer, collectionActorInclude, productActorInclude } from './catalog.serializer';
+import {
+  assertValidLiveWindow,
+  parseScheduleInstant,
+} from './collection-schedule';
+import { rememberPublishDefaults } from './publish-policy';
+
+type ProductCeilingRow = CuratableProduct & {
+  audienceCompanyIds: string[];
+};
+
+const listInclude = {
+  ...collectionActorInclude,
+  _count: { select: { products: true } },
+  products: {
+    orderBy: { position: 'asc' as const },
+    take: 12,
+    include: { product: true },
+  },
+};
 
 @Injectable()
 export class CollectionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serializer: CatalogSerializer,
+    private readonly jobs: JobQueue,
   ) {}
 
-  async create(companyId: string, dto: CreateCollectionDto): Promise<CollectionView> {
+  /**
+   * Non-archived packs in a company must have unique names (case-insensitive).
+   * Archived packs may reuse a name already used by a live/draft/ready pack.
+   */
+  private async assertNameAvailable(
+    companyId: string,
+    rawName: string,
+    opts: { excludeId?: string; restoring?: boolean } = {},
+  ): Promise<string> {
+    const name = rawName.trim();
+    if (!name) {
+      throw new BadRequestException({
+        code: 'INVALID_NAME',
+        message: 'Give this collection a name.',
+      });
+    }
+    const clash = await this.prisma.collection.findFirst({
+      where: {
+        companyId,
+        name: { equals: name, mode: 'insensitive' },
+        status: { not: CollectionStatus.Archived },
+        ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    if (clash) {
+      throw new ConflictException({
+        code: 'COLLECTION_NAME_TAKEN',
+        message: opts.restoring
+          ? `Restore blocked — a live collection already uses “${clash.name}”.`
+          : `You already have a collection named “${clash.name}”. Archive it or pick another name.`,
+      });
+    }
+    return name;
+  }
+
+  async create(
+    companyId: string,
+    userId: string,
+    dto: CreateCollectionDto,
+  ): Promise<CollectionView> {
+    const name = await this.assertNameAvailable(companyId, dto.name);
+    const startsAt = parseScheduleInstant(dto.startsAt, 'start');
+    const endsAt = parseScheduleInstant(dto.endsAt, 'end');
+    if (startsAt !== undefined || endsAt !== undefined) {
+      assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
+    }
     const collection = await this.prisma.collection.create({
       data: {
         companyId,
-        name: dto.name,
+        name,
         description: dto.description ?? null,
         coverImage: dto.coverImage ?? null,
+        startsAt: startsAt === undefined ? null : startsAt,
+        endsAt: endsAt === undefined ? null : endsAt,
+        createdByUserId: userId,
+        updatedByUserId: userId,
       },
+      include: listInclude,
     });
     await ensureSellingEnabled(this.prisma, companyId);
     return this.serializer.toCollectionView(collection, 0);
   }
 
-  async list(companyId: string): Promise<CollectionView[]> {
+  async list(
+    companyId: string,
+    query: ListCatalogQuery = { sort: 'newest' },
+  ): Promise<CollectionView[]> {
+    const createdAt = createdAtRangeFilter(query);
     const collections = await this.prisma.collection.findMany({
-      where: { companyId },
-      orderBy: { updatedAt: 'desc' },
-      include: { _count: { select: { products: true } } },
+      where: {
+        companyId,
+        ...(createdAt ? { createdAt } : {}),
+      },
+      orderBy: [...createdAtOrderBy(query.sort)],
+      include: listInclude,
     });
     return collections.map((collection) => this.serializer.toCollectionView(collection));
   }
@@ -47,24 +145,57 @@ export class CollectionService {
     const collection = await this.prisma.collection.findUniqueOrThrow({
       where: { id },
       include: {
-        products: { orderBy: { position: 'asc' }, include: { product: true } },
+        ...collectionActorInclude,
+        products: {
+          orderBy: { position: 'asc' },
+          include: { product: { include: productActorInclude } },
+        },
       },
     });
     return this.serializer.toCollectionDetail(collection);
   }
 
-  async update(companyId: string, id: string, dto: UpdateCollectionDto): Promise<CollectionView> {
-    await this.owned(companyId, id);
+  async update(
+    companyId: string,
+    userId: string,
+    id: string,
+    dto: UpdateCollectionDto,
+  ): Promise<CollectionView> {
+    const existing = await this.owned(companyId, id);
+    const startsAt = parseScheduleInstant(dto.startsAt, 'start');
+    const endsAt = parseScheduleInstant(dto.endsAt, 'end');
+    const nextStarts = startsAt === undefined ? existing.startsAt : startsAt;
+    const nextEnds = endsAt === undefined ? existing.endsAt : endsAt;
+    assertValidLiveWindow(nextStarts, nextEnds);
+
+    let nextName = dto.name;
+    if (dto.name !== undefined && dto.name.trim() !== existing.name) {
+      nextName = await this.assertNameAvailable(companyId, dto.name, { excludeId: id });
+    }
+
     const collection = await this.prisma.collection.update({
       where: { id },
-      data: { name: dto.name, description: dto.description, coverImage: dto.coverImage },
-      include: { _count: { select: { products: true } } },
+      data: {
+        name: nextName,
+        description: dto.description,
+        coverImage: dto.coverImage,
+        updatedByUserId: userId,
+        ...(startsAt !== undefined ? { startsAt } : {}),
+        ...(endsAt !== undefined ? { endsAt } : {}),
+      },
+      include: listInclude,
     });
+    if (endsAt !== undefined) {
+      await this.scheduleExpire(id, endsAt);
+      // Reload: scheduleExpire may have drafted immediately when endsAt is past.
+      return this.toLatestCollectionView(id);
+    }
     return this.serializer.toCollectionView(collection);
   }
 
   async publish(
     companyId: string,
+    userId: string,
     id: string,
     dto: PublishCollectionDto,
   ): Promise<CollectionView> {
@@ -82,9 +213,27 @@ export class CollectionService {
     }
     const audienceCompanyIds =
       dto.audience === 'selected' ? [...new Set(dto.companyIds ?? [])] : [];
+    const audienceGroupIds =
+      dto.audience === 'selected'
+        ? [...new Set(dto.groupIds?.length ? dto.groupIds : dto.groupId ? [dto.groupId] : [])]
+        : [];
     const members = await this.prisma.collectionProduct.findMany({
       where: { collectionId: id },
-      select: { productId: true },
+      select: {
+        productId: true,
+        product: {
+          select: {
+            id: true,
+            companyId: true,
+            audience: true,
+            audienceCompanyIds: true,
+            allowForward: true,
+            status: true,
+            postedToMarketAt: true,
+            rateVisibility: true,
+          },
+        },
+      },
     });
     if (members.length < 1) {
       throw new BadRequestException({
@@ -93,20 +242,52 @@ export class CollectionService {
       });
     }
 
-    // Draft designs in the album become catalog-published with the collection.
-    // Explore posting for individual designs stays separate (postedToMarketAt).
+    const products = members.map((row) => row.product);
+    const discoverableIds = await this.discoverableProductIds(companyId, products);
+    assertProductsCuratable({
+      curatorCompanyId: companyId,
+      products,
+      publishAudience: dto.audience,
+      discoverableIds,
+    });
+
+    const rateVisibility = curatedPublishRateVisibility({
+      curatorCompanyId: companyId,
+      requested: dto.rateVisibility,
+      products,
+    });
+
+    const startsAt = parseScheduleInstant(dto.startsAt, 'start');
+    const endsAt = parseScheduleInstant(dto.endsAt, 'end');
+    const nextStarts = startsAt === undefined ? existing.startsAt : startsAt;
+    const nextEnds = endsAt === undefined ? existing.endsAt : endsAt;
+    assertValidLiveWindow(nextStarts, nextEnds);
+
+    // Draft designs in the album become published + Explore-visible with the pack.
+    // Only the curator's own drafts are auto-published; foreign members stay as-is.
     const memberIds = members.map((row) => row.productId);
+    const allowForward = dto.allowForward !== false;
+    const now = new Date();
     await this.prisma.product.updateMany({
       where: {
         id: { in: memberIds },
         companyId,
         status: ProductStatus.Draft,
       },
-      data: { status: ProductStatus.Published },
+      data: {
+        status: ProductStatus.Published,
+        postedToMarketAt: now,
+        audience: dto.audience,
+        rateVisibility,
+        audienceCompanyIds,
+        audienceGroupIds,
+        allowForward,
+        updatedByUserId: userId,
+      },
     });
 
     // Audience-only republish must not resurface the album; first publish (and
-    // republish after hide) do.
+    // republish after hide/ready) do.
     const bumpExplore = existing.status !== CollectionStatus.Published;
 
     const collection = await this.prisma.collection.update({
@@ -114,17 +295,90 @@ export class CollectionService {
       data: {
         status: CollectionStatus.Published,
         audience: dto.audience,
-        rateVisibility: dto.rateVisibility,
+        rateVisibility,
         audienceCompanyIds,
-        ...(bumpExplore ? { exploreActivityAt: new Date() } : {}),
+        audienceGroupIds,
+        allowForward,
+        updatedByUserId: userId,
+        ...(startsAt !== undefined ? { startsAt } : {}),
+        ...(endsAt !== undefined ? { endsAt } : {}),
+        ...(bumpExplore ? { exploreActivityAt: now } : {}),
       },
-      include: { _count: { select: { products: true } } },
+      include: listInclude,
+    });
+    await rememberPublishDefaults(this.prisma, companyId, {
+      rateVisibility,
+      allowForward,
+    });
+    const hasForeignMember = products.some((product) => product.companyId !== companyId);
+    if (hasForeignMember) {
+      await grantRelistCapability(this.prisma, companyId);
+    }
+    await this.scheduleExpire(id, collection.endsAt);
+    // Reload: scheduleExpire may have drafted immediately when endsAt is past.
+    return this.toLatestCollectionView(id);
+  }
+
+  async markReady(companyId: string, userId: string, id: string): Promise<CollectionView> {
+    const existing = await this.owned(companyId, id);
+    if (
+      existing.status !== CollectionStatus.Draft &&
+      existing.status !== CollectionStatus.Ready
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_STATUS',
+        message: 'Only draft collections can be marked ready.',
+      });
+    }
+    const members = await this.prisma.collectionProduct.count({ where: { collectionId: id } });
+    if (members < 1) {
+      throw new BadRequestException({
+        code: 'COLLECTION_EMPTY',
+        message: 'Add at least one design before marking ready.',
+      });
+    }
+    const collection = await this.prisma.collection.update({
+      where: { id },
+      data: {
+        status: CollectionStatus.Ready,
+        exploreActivityAt: null,
+        updatedByUserId: userId,
+      },
+      include: listInclude,
     });
     return this.serializer.toCollectionView(collection);
   }
 
+  async unready(companyId: string, userId: string, id: string): Promise<CollectionView> {
+    const existing = await this.owned(companyId, id);
+    if (existing.status !== CollectionStatus.Ready) {
+      throw new BadRequestException({
+        code: 'INVALID_STATUS',
+        message: 'Only ready collections can be moved back to draft.',
+      });
+    }
+    return this.setStatus(companyId, userId, id, CollectionStatus.Draft);
+  }
+
+  /** Restore an archived pack to draft so it can be edited and published again. */
+  async unarchive(companyId: string, userId: string, id: string): Promise<CollectionView> {
+    const existing = await this.owned(companyId, id);
+    if (existing.status !== CollectionStatus.Archived) {
+      throw new BadRequestException({
+        code: 'INVALID_STATUS',
+        message: 'Only archived collections can be restored.',
+      });
+    }
+    await this.assertNameAvailable(companyId, existing.name, {
+      excludeId: id,
+      restoring: true,
+    });
+    return this.setStatus(companyId, userId, id, CollectionStatus.Draft);
+  }
+
   async setStatus(
     companyId: string,
+    userId: string,
     id: string,
     status: (typeof CollectionStatus)[keyof typeof CollectionStatus],
   ): Promise<CollectionView> {
@@ -132,20 +386,28 @@ export class CollectionService {
     if (status === CollectionStatus.Published) {
       await assertCanPublish(this.prisma, companyId);
     }
+    const hideFromMarket =
+      status === CollectionStatus.Draft || status === CollectionStatus.Archived;
     const collection = await this.prisma.collection.update({
       where: { id },
-      data: { status },
-      include: { _count: { select: { products: true } } },
+      data: {
+        status,
+        updatedByUserId: userId,
+        ...(hideFromMarket ? { exploreActivityAt: null } : {}),
+      },
+      include: listInclude,
     });
     return this.serializer.toCollectionView(collection);
   }
 
   /**
-   * Replaces the collection's ordered product set. Every product must belong to
-   * the same company, so a collection can never leak another company's products.
+   * Replaces the collection's ordered product set. Own-company products are
+   * always allowed; foreign products must pass the curation ceiling
+   * (discoverable + allowForward).
    */
   async setProducts(
     companyId: string,
+    userId: string,
     id: string,
     productIds: string[],
   ): Promise<CollectionDetailView> {
@@ -153,15 +415,30 @@ export class CollectionService {
 
     const uniqueIds = [...new Set(productIds)];
     if (uniqueIds.length > 0) {
-      const owned = await this.prisma.product.count({
-        where: { id: { in: uniqueIds }, companyId },
+      const products = await this.prisma.product.findMany({
+        where: { id: { in: uniqueIds } },
+        select: {
+          id: true,
+          companyId: true,
+          audience: true,
+          audienceCompanyIds: true,
+          allowForward: true,
+          status: true,
+          postedToMarketAt: true,
+        },
       });
-      if (owned !== uniqueIds.length) {
+      if (products.length !== uniqueIds.length) {
         throw new BadRequestException({
           code: 'INVALID_PRODUCTS',
-          message: 'One or more products do not belong to your business.',
+          message: 'One or more products could not be found.',
         });
       }
+      const discoverableIds = await this.discoverableProductIds(companyId, products);
+      assertProductsCuratable({
+        curatorCompanyId: companyId,
+        products,
+        discoverableIds,
+      });
     }
 
     const previousRows = await this.prisma.collectionProduct.findMany({
@@ -176,7 +453,6 @@ export class CollectionService {
       const publishedNew = await this.prisma.product.count({
         where: {
           id: { in: newlyAddedIds },
-          companyId,
           status: ProductStatus.Published,
         },
       });
@@ -196,14 +472,13 @@ export class CollectionService {
             }),
           ]
         : []),
-      ...(shouldBumpExplore
-        ? [
-            this.prisma.collection.update({
-              where: { id },
-              data: { exploreActivityAt: new Date() },
-            }),
-          ]
-        : []),
+      this.prisma.collection.update({
+        where: { id },
+        data: {
+          updatedByUserId: userId,
+          ...(shouldBumpExplore ? { exploreActivityAt: new Date() } : {}),
+        },
+      }),
     ]);
 
     return this.get(companyId, id);
@@ -212,6 +487,89 @@ export class CollectionService {
   async remove(companyId: string, id: string): Promise<void> {
     await this.owned(companyId, id);
     await this.prisma.collection.delete({ where: { id } });
+  }
+
+  /**
+   * Builds the set of product ids the curator may discover (Explore/shop rules).
+   * Always pass this into `assertProductsCuratable` — own-company ids are skipped
+   * there, but foreign ids must be present.
+   */
+  private async discoverableProductIds(
+    viewerCompanyId: string,
+    products: ProductCeilingRow[],
+  ): Promise<Set<string>> {
+    const discoverable = new Set<string>();
+    const foreign = products.filter((product) => product.companyId !== viewerCompanyId);
+    if (foreign.length === 0) {
+      return discoverable;
+    }
+
+    const ownerIds = [...new Set(foreign.map((product) => product.companyId))];
+    const [connections, follows] = await Promise.all([
+      this.prisma.connection.findMany({
+        where: {
+          ownerCompanyId: { in: ownerIds },
+          viewerCompanyId,
+        },
+        select: { ownerCompanyId: true, status: true },
+      }),
+      this.prisma.follow.findMany({
+        where: {
+          followerCompanyId: viewerCompanyId,
+          followedCompanyId: { in: ownerIds },
+        },
+        select: { followedCompanyId: true },
+      }),
+    ]);
+
+    const connectionByOwner = new Map(
+      connections.map((row) => [row.ownerCompanyId, row.status] as const),
+    );
+    const followingOwners = new Set(follows.map((row) => row.followedCompanyId));
+
+    for (const product of foreign) {
+      if (product.status !== ProductStatus.Published || !product.postedToMarketAt) {
+        continue;
+      }
+      const status = connectionByOwner.get(product.companyId);
+      if (status === ConnectionStatus.Blocked) {
+        continue;
+      }
+      const connected = status === ConnectionStatus.Active;
+      const following = followingOwners.has(product.companyId);
+      if (
+        canDiscoverCollection(viewerCompanyId, product, {
+          connected,
+          following,
+        })
+      ) {
+        discoverable.add(product.id);
+      }
+    }
+
+    return discoverable;
+  }
+
+  private async scheduleExpire(collectionId: string, endsAt: Date | null): Promise<void> {
+    if (!endsAt) return;
+    if (endsAt.getTime() <= Date.now()) {
+      // Already past — hide immediately via the same path as the job.
+      await this.prisma.collection.updateMany({
+        where: { id: collectionId, status: CollectionStatus.Published },
+        data: { status: CollectionStatus.Draft, exploreActivityAt: null },
+      });
+      return;
+    }
+    await this.jobs.enqueue(JobType.CollectionExpire, { collectionId }, endsAt);
+  }
+
+  /** Fresh row after mutations that may race with immediate expire. */
+  private async toLatestCollectionView(id: string): Promise<CollectionView> {
+    const collection = await this.prisma.collection.findUniqueOrThrow({
+      where: { id },
+      include: listInclude,
+    });
+    return this.serializer.toCollectionView(collection);
   }
 
   private async owned(companyId: string, id: string) {

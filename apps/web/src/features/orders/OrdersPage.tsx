@@ -1,4 +1,12 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import {
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { CursorPage, OrderView } from '@ekum/domain-types';
@@ -7,6 +15,7 @@ import { timeAgo } from '@/lib/format';
 import { Card, Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, cx } from '@/ui/kit';
 import { MoreHorizontalIcon } from '@/ui/icons';
 import { matchesCompleted, matchesNeeds, matchesProgress } from './orderAttention';
+import { auditLine } from '@/features/catalog/productStatusSummary';
 
 type Direction = 'all' | 'buying' | 'selling';
 type StatusFilter = 'needs' | 'progress' | 'completed';
@@ -16,7 +25,13 @@ export function OrdersPage() {
   const [params] = useSearchParams();
   const filterParam = params.get('filter');
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnchorRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [direction, setDirection] = useState<Direction>('all');
+  const [listSort, setListSort] = useState<'newest' | 'oldest'>('newest');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   // Default In progress so first open isn't an empty "Needs action" trap.
   // Home deep-link ?filter=needs still lands on Needs action.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
@@ -34,18 +49,52 @@ export function OrdersPage() {
     }
   }, [filterParam]);
 
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const place = () => {
+      const anchor = menuAnchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 6,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [menuOpen]);
+
   useEffect(() => {
     if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') close();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menuPanelRef.current?.contains(target)) return;
+      if (menuAnchorRef.current?.contains(target)) return;
+      close();
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('scroll', close, true);
+    };
   }, [menuOpen]);
 
   const orders = useQuery({
-    queryKey: ['orders', { list: true }],
-    queryFn: () => api.get<CursorPage<OrderView>>('/orders', { limit: 50 }),
+    queryKey: ['orders', { list: true, listSort, createdFrom, createdTo }],
+    queryFn: () => {
+      const params: Record<string, string | number> = { limit: 50, sort: listSort };
+      if (createdFrom) params.createdFrom = createdFrom;
+      if (createdTo) params.createdTo = createdTo;
+      return api.get<CursorPage<OrderView>>('/orders', params);
+    },
   });
 
   const allOrders = orders.data?.results ?? [];
@@ -75,6 +124,7 @@ export function OrdersPage() {
           New
         </button>
         <button
+          ref={menuAnchorRef}
           type="button"
           aria-label="More"
           aria-expanded={menuOpen}
@@ -87,43 +137,72 @@ export function OrdersPage() {
         >
           <MoreHorizontalIcon width={18} height={18} />
         </button>
-        {menuOpen ? (
-          <>
-            <button
-              type="button"
-              aria-label="Close menu"
-              className="fixed inset-0 z-40 cursor-default bg-transparent"
-              onClick={() => setMenuOpen(false)}
-            />
-            <div
-              role="menu"
-              className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[10rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate('/samples');
-                }}
-              >
-                Samples
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate('/returns');
-                }}
-              >
-                Returns
-              </button>
-            </div>
-          </>
-        ) : null}
+        {menuOpen && typeof document !== 'undefined'
+          ? createPortal(
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-[60] cursor-default bg-ink/15"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div
+                  ref={menuPanelRef}
+                  role="menu"
+                  className="fixed z-[61] min-w-[10rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
+                  style={{ top: menuPos.top, right: menuPos.right }}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate('/samples');
+                    }}
+                  >
+                    Samples
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate('/returns');
+                    }}
+                  >
+                    Returns
+                  </button>
+                </div>
+              </>,
+              document.body,
+            )
+          : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setListSort((s) => (s === 'newest' ? 'oldest' : 'newest'))}
+          className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-bold text-ink"
+        >
+          {listSort === 'newest' ? 'Newest' : 'Oldest'}
+        </button>
+        <input
+          type="date"
+          value={createdFrom}
+          onChange={(e) => setCreatedFrom(e.target.value)}
+          className="rounded-lg border border-line bg-surface px-2 py-1 text-[11px] text-ink"
+          aria-label="Created from"
+        />
+        <input
+          type="date"
+          value={createdTo}
+          onChange={(e) => setCreatedTo(e.target.value)}
+          className="rounded-lg border border-line bg-surface px-2 py-1 text-[11px] text-ink"
+          aria-label="Created to"
+        />
       </div>
 
       <div className="flex items-center gap-2">
@@ -194,6 +273,7 @@ export function OrdersPage() {
                             : 'You sell'}{' '}
                         · {order.items.length}{' '}
                         {order.items.length === 1 ? 'item' : 'items'} · {timeAgo(order.createdAt)}
+                        {auditLine(order) ? ` · ${auditLine(order)}` : ''}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-0.5">

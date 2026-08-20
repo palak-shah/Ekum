@@ -1,9 +1,20 @@
 ---
-description: UI quality bar — real estate, no flicker, E2E completeness, UX/UI consistency
+description: UI quality bar — simplicity, fewer taps, real estate, no flicker, E2E, consistency
 alwaysApply: true
 ---
 
 # UI quality bar (Ekum)
+
+## 0. Simplicity first (product philosophy)
+
+Ekum is for busy textile traders. **Clutter-free, fewer taps, never get lost.**
+
+- **One job per screen.** Create/edit/browse/decide — don’t stack CMS controls on an album.
+- **Decisions at the moment they matter.** Who / rates / schedule belong on **Publish**, not on every draft edit scroll.
+- **Library pickers and long lists open as sheets**, not endless inline grids under the form.
+- **No accidental destructive taps.** Remove via explicit ×; tap means view/edit only when we add that later.
+- **Challenge feature creep.** Prefer cutting a control over adding a “helpful” second path. If two ways exist, keep the shorter one.
+- **Success metric:** a first-time seller can create and publish a pack without hunting menus or re-learning the app.
 
 Before calling UI/product work done, check all four:
 
@@ -20,6 +31,15 @@ Before calling UI/product work done, check all four:
 - Filter/tab switches: keep prior content visible (`useDeferredValue` / `keepPreviousData`); never flash a full-page loader when cached data exists.
 - Avoid layout jump: `scrollbar-gutter: stable`; don’t crowd chips so “Done” (or similar) clips or forces horizontal scrollbar thrash.
 - Debounce URL sync while typing; don’t remount animated wrappers on every keystroke.
+
+## 2b. Fixed / sticky chrome must not cut content (Required)
+
+Before calling any screen with a fixed or sticky bar done (select bars, composers, CTAs, sheets above bottom nav):
+
+- **Content clearance:** scrollable body has enough bottom (and top) padding that the last card/row/title is fully readable above the chrome — never sliced mid-text.
+- **Account for stacked chrome:** bottom nav + sticky action bar heights must both be cleared (e.g. `bottom-20` bar ⇒ padding ≥ nav + bar + gap).
+- **Verify on mobile viewport** with the chrome in its active state (selection > 0, composer open, etc.), not only empty.
+- Treat clipped content as a **blocking bug** (BM-07), not polish.
 
 ## 3. End-to-end feature completes
 

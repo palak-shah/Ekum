@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -40,3 +41,78 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # Wave 1 keeps seeded browser smoke opt-in while the suite stabilizes.
+  # Chat/orders PRs should also run `pnpm test:e2e:smoke` locally.
+  e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ekum
+          POSTGRES_PASSWORD: ekum
+          POSTGRES_DB: ekum
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ekum -d ekum"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ekum:ekum@127.0.0.1:5432/ekum?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-0123456789abcdef0123456789abcdef
+      OTP_EXPOSE_DEV_CODE: true
+      JOBS_ENABLED: false
+      CORS_ORIGINS: http://127.0.0.1:5173
+      VITE_API_BASE_URL: http://127.0.0.1:3000/api/v1
+      EKUM_API_URL: http://127.0.0.1:3000/api/v1
+      EKUM_WEB_URL: http://127.0.0.1:5173
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @ekum/e2e exec playwright install --with-deps chromium
+
+      - name: Prepare application
+        run: |
+          pnpm --filter @ekum/api prisma:generate
+          pnpm --filter @ekum/domain-types build
+          pnpm --filter @ekum/api exec prisma migrate deploy
+          pnpm --filter @ekum/api db:seed
+          pnpm --filter @ekum/api build
+
+      - name: Start API and web
+        run: |
+          pnpm --filter @ekum/api start > /tmp/ekum-api.log 2>&1 &
+          pnpm --filter @ekum/web dev -- --host 127.0.0.1 > /tmp/ekum-web.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health >/dev/null &&
+               curl --fail --silent http://127.0.0.1:5173 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          printf '%s\n' 'API log:'
+          cat /tmp/ekum-api.log
+          printf '%s\n' 'Web log:'
+          cat /tmp/ekum-web.log
+          exit 1
+
+      - name: Run E2E smoke
+        run: pnpm test:e2e:smoke

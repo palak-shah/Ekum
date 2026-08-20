@@ -4,7 +4,6 @@ import {
   CollectionStatus,
   MembershipRole,
   ProductStatus,
-  PublishAudience,
   type AuthTokens,
   type CollectionCard,
   type CompanyContactPoint,
@@ -16,6 +15,7 @@ import {
   type PublicCompanyProfile,
   type UpdateCompanyDto,
 } from '@ekum/domain-types';
+import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { TokenService } from '../auth/token.service';
 import { CompanySerializer } from '../access/company.serializer';
@@ -210,11 +210,7 @@ export class CompanyService {
         status: ProductStatus.Published,
         postedToMarketAt: { not: null },
         OR: [
-          { audience: { not: PublishAudience.Selected } },
-          {
-            audience: PublishAudience.Selected,
-            audienceCompanyIds: { has: viewerCompanyId },
-          },
+          ...audienceVisibilityOr(viewerCompanyId),
           ...(viewerCompanyId === targetId ? [{ companyId: targetId }] : []),
         ],
       },
@@ -253,19 +249,26 @@ export class CompanyService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
     }
 
+    const isOwner = viewerCompanyId === targetId;
+    const now = new Date();
     const rows = await this.prisma.collection.findMany({
       where: {
         companyId: targetId,
         status: CollectionStatus.Published,
         OR: [
-          { audience: { not: PublishAudience.Selected } },
-          {
-            audience: PublishAudience.Selected,
-            audienceCompanyIds: { has: viewerCompanyId },
-          },
+          ...audienceVisibilityOr(viewerCompanyId),
           // Owner browsing their own shop still sees every published collection.
-          ...(viewerCompanyId === targetId ? [{ companyId: targetId }] : []),
+          ...(isOwner ? [{ companyId: targetId }] : []),
         ],
+        // Buyers only see albums inside the live window; owners see scheduled too.
+        ...(isOwner
+          ? {}
+          : {
+              AND: [
+                { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+                { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+              ],
+            }),
       },
       include: collectionCardInclude,
       ...cursorArgs(query),

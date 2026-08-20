@@ -57,6 +57,7 @@ const CollectionEditorPage = page(
   () => import('@/features/catalog/CollectionEditorPage'),
   'CollectionEditorPage',
 );
+const CuratePackPage = page(() => import('@/features/catalog/CuratePackPage'), 'CuratePackPage');
 const MyBuyersPage = page(() => import('@/features/buyers/MyBuyersPage'), 'MyBuyersPage');
 const BroadcastPage = page(() => import('@/features/broadcast/BroadcastPage'), 'BroadcastPage');
 const BroadcastComposePage = page(
@@ -79,6 +80,7 @@ const NotificationsPage = page(
 const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
+const SavedPage = page(() => import('@/features/saved/SavedPage'), 'SavedPage');
 
 /** Routing mirrors the settled navigation and the ~40-screen prototype. */
 export const router = createBrowserRouter([
@@ -105,9 +107,10 @@ export const router = createBrowserRouter([
           { path: 'chats', element: <ChatsPage /> },
           { path: 'chats/:id', element: <ThreadPage /> },
           { path: 'catalog', element: <MyCatalogPage /> },
+          { path: 'catalog/curate', element: <CuratePackPage /> },
           { path: 'catalog/products/new', element: <DesignBatchPage /> },
           { path: 'catalog/products/:id', element: <ProductEditorPage /> },
-          { path: 'catalog/collections/new', element: <CollectionEditorPage /> },
+          // `new` and real ids share :id so create→edit keeps one component instance.
           { path: 'catalog/collections/:id', element: <CollectionEditorPage /> },
           { path: 'buyers', element: <MyBuyersPage /> },
           { path: 'broadcast', element: <BroadcastPage /> },
@@ -118,6 +121,7 @@ export const router = createBrowserRouter([
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'settings/profile', element: <ProfilePage /> },
+          { path: 'saved', element: <SavedPage /> },
           { path: 'more', element: <MorePage /> },
         ],
       },

@@ -12,6 +12,7 @@ import {
   unitValues,
 } from './enums';
 import type { PublicCompanySummary } from './access';
+import type { AuditActorView } from './catalog';
 
 /**
  * Orders & Fulfillment contracts. There is one Order object shared by two
@@ -62,6 +63,35 @@ export const createOrderSchema = z
   });
 /** Wire input — `kind` / `intent` default when omitted. */
 export type CreateOrderDto = z.input<typeof createOrderSchema>;
+
+/** Multi-supplier place/ask — server groups lines by product owner. */
+export const createOrdersBatchSchema = z.object({
+  kind: z.enum(orderKindValues).default(OrderKind.Standard),
+  intent: z.enum(orderIntentValues).default(OrderIntent.Order),
+  note: z.string().trim().max(1000).optional(),
+  items: z
+    .array(
+      orderItemInputSchema.extend({
+        productId: z.string().min(1),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type CreateOrdersBatchDto = z.input<typeof createOrdersBatchSchema>;
+
+export interface CreateOrdersBatchFailure {
+  sellerCompanyId: string;
+  sellerName: string | null;
+  productIds: string[];
+  code: string;
+  message: string;
+}
+
+export interface CreateOrdersBatchResult {
+  orders: OrderView[];
+  failures: CreateOrdersBatchFailure[];
+}
 
 /** Buyer amends catalog lines before any seller quote/confirm/decline. */
 export const amendOrderSchema = z.object({
@@ -159,6 +189,10 @@ export type DecideOrderLinesDto = z.infer<typeof decideOrderLinesSchema>;
 export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   direction: z.enum(orderDirectionValues).optional(),
   status: z.enum(orderStatusValues).optional(),
+  sort: z.enum(['newest', 'oldest']).optional().default('newest'),
+  createdFrom: z.string().min(1).max(40).optional(),
+  createdTo: z.string().min(1).max(40).optional(),
+  q: z.string().trim().min(1).max(80).optional(),
 });
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
 
@@ -288,6 +322,12 @@ export interface OrderView {
    * Omitted/false on list payloads when not computed.
    */
   canAmend?: boolean;
+  /**
+   * Live: buyer may accept — seller has sent a Rate quote (catalog line rates alone do not count).
+   */
+  canAcceptQuote?: boolean;
+  /** Live: seller has posted at least one Rate card for this order. */
+  hasSellerQuote?: boolean;
   note: string | null;
   buyerCompanyId: string;
   sellerCompanyId: string;
@@ -310,6 +350,10 @@ export interface OrderView {
   closedAt: string | null;
   /** True when some but not all shippable qty has left. */
   partiallyShipped: boolean;
+  /** Returns on this order (detail payload; list may send []). */
+  returns: ReturnView[];
+  createdBy: AuditActorView | null;
+  updatedBy: AuditActorView | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -347,6 +391,8 @@ export interface ReturnView {
   counterpart: PublicCompanySummary;
   items: ReturnItemView[];
   escalatedFromReturnId: string | null;
+  decidedAt: string | null;
+  resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

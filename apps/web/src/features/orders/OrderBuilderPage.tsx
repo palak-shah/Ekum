@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
@@ -13,8 +13,9 @@ import { formatRate } from '@/lib/format';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, Card, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
-import { CameraIcon, PlusIcon } from '@/ui/icons';
+import { Button, Card, Field, LoadingBlock, TextArea, TextInput, cx } from '@/ui/kit';
+import { CameraIcon } from '@/ui/icons';
+import { ContinuousCamera } from '@/ui/ContinuousCamera';
 
 interface PhotoLine {
   id: string;
@@ -62,15 +63,14 @@ export function OrderBuilderPage() {
   const [photos, setPhotos] = useState<PhotoLine[]>([]);
   const [standardLines, setStandardLines] = useState<StandardLine[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [bulkQty, setBulkQty] = useState(DEFAULT_QTY);
   const [bulkDraft, setBulkDraft] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const phone = isPhoneLike();
-  const fileInputId = useId();
+  const galleryInputId = useId();
 
   const connections = useQuery({
     queryKey: ['connections'],
@@ -161,32 +161,43 @@ export function OrderBuilderPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not place the order.'),
   });
 
-  const openPicker = () => {
+  const openGallery = () => {
     if (photos.length >= MAX_PHOTOS) {
       setError(`You can add up to ${MAX_PHOTOS} photos.`);
       return;
     }
-    if (phone) {
-      setPickerOpen(true);
+    setError(null);
+    galleryInputRef.current?.click();
+  };
+
+  const openAddPhotos = () => {
+    if (photos.length >= MAX_PHOTOS) {
+      setError(`You can add up to ${MAX_PHOTOS} photos.`);
       return;
     }
-    setCaptureMode(false);
-    queueMicrotask(() => fileInputRef.current?.click());
+    setError(null);
+    if (phone) {
+      setCameraOpen(true);
+      return;
+    }
+    openGallery();
   };
 
-  const pickFromSheet = (mode: 'camera' | 'gallery') => {
-    setPickerOpen(false);
-    setCaptureMode(mode === 'camera' ? true : 'gallery');
-    queueMicrotask(() => fileInputRef.current?.click());
-  };
+  const onCameraUnavailable = useCallback(() => {
+    setCameraOpen(false);
+    setError(null);
+    queueMicrotask(() => galleryInputRef.current?.click());
+  }, []);
 
-  const onFiles = async (fileList: FileList | null) => {
-    if (!fileList?.length) {
+  const onFiles = async (incoming: FileList | File[] | null) => {
+    if (!incoming || (incoming instanceof FileList ? !incoming.length : incoming.length === 0)) {
       return;
     }
     setError(null);
     const remaining = MAX_PHOTOS - photos.length;
-    const files = [...fileList].slice(0, remaining);
+    const files = [...incoming].slice(0, remaining);
+    if (files.length === 0) return;
+
     setUploading(true);
     try {
       for (const file of files) {
@@ -219,8 +230,8 @@ export function OrderBuilderPage() {
       setError(err instanceof ApiError ? err.message : 'Could not upload photo.');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      if (galleryInputRef.current) {
+        galleryInputRef.current.value = '';
       }
     }
   };
@@ -241,7 +252,7 @@ export function OrderBuilderPage() {
       standardLines.every((line) => Number(line.quantity) > 0)
     : sellerId &&
       photos.length > 0 &&
-      photos.every((line) => line.imageUrl && !line.uploading) &&
+      photos.every((line) => line.imageUrl && !line.uploading && Number(line.quantity) > 0) &&
       !uploading;
 
   if (connections.isLoading || (isStandard && collection.isLoading)) {
@@ -249,35 +260,26 @@ export function OrderBuilderPage() {
   }
 
   const sellers = (connections.data ?? []).filter((connection) => connection.status === 'active');
-  const captureAttr =
-    captureMode === true ? ('environment' as const) : undefined;
+  const atPhotoLimit = photos.length >= MAX_PHOTOS;
+  const cameraSlots = Math.max(0, MAX_PHOTOS - photos.length);
 
   return (
     <div className="flex flex-col gap-4 pb-4">
       <PageHeader title={isStandard ? 'Order designs' : 'Photo order'} />
 
-      {!isStandard ? (
-        <p className="text-sm text-muted">
-          {phone
-            ? 'Take photos of what you need. Set piece count for each — usually hundreds.'
-            : 'Add photos of what you need. Set piece count for each — usually hundreds.'}
-        </p>
-      ) : null}
-
-      {!sellerFromUrl ? (
-        <ConnectionPicker
-          mode="single"
-          label="Supplier"
-          chooseLabel="Choose supplier"
-          connections={sellers}
-          value={sellerId || null}
-          onChange={(id) => setSellerId(id ?? '')}
-          emptyMessage="Connect with a business first, then place an order."
-        />
-      ) : null}
-
       {isStandard ? (
         <div className="flex flex-col gap-3">
+          {!sellerFromUrl ? (
+            <ConnectionPicker
+              mode="single"
+              label="Supplier"
+              chooseLabel="Choose supplier"
+              connections={sellers}
+              value={sellerId || null}
+              onChange={(id) => setSellerId(id ?? '')}
+              emptyMessage="Connect with a business first, then place an order."
+            />
+          ) : null}
           <Card className="flex flex-col gap-2">
             <p className="text-sm font-bold tracking-tight text-ink">Same pieces for all</p>
             <p className="text-xs text-muted">Tap a number, or type your own and press Apply.</p>
@@ -355,118 +357,137 @@ export function OrderBuilderPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {photos.length > 0 ? (
-            <Card className="flex flex-col gap-2">
-              <p className="text-sm font-bold tracking-tight text-ink">Same pieces for all</p>
-              <p className="text-xs text-muted">
-                Tap a number for every photo, or type your own and press Apply. Change one photo
-                below if needed.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {QTY_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => applyQtyToAll(preset)}
-                    className={cx(
-                      'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-bold',
-                      bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
-                    )}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <TextInput
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  placeholder="e.g. 150"
-                  className="min-h-11 flex-1"
-                  value={bulkDraft}
-                  onChange={(event) => setBulkDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') applyQtyToAll(bulkDraft);
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="min-h-11 shrink-0 px-4"
-                  disabled={!bulkDraft.trim()}
-                  onClick={() => applyQtyToAll(bulkDraft)}
-                >
-                  Apply
-                </Button>
-              </div>
-            </Card>
-          ) : null}
-          <div className="grid grid-cols-3 gap-2">
-            {photos.map((photo) => (
-              <div key={photo.id} className="flex flex-col gap-1.5">
-                <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-foam">
-                  <img
-                    src={photo.previewUrl || photo.imageUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                  {photo.uploading ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-medium text-white">
-                      Uploading…
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    aria-label="Remove photo"
-                    onClick={() => removePhoto(photo.id)}
-                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
-                  >
-                    ×
-                  </button>
-                </div>
-                <label className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-medium text-muted">Pieces</span>
-                  <input
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    aria-label="Pieces"
-                    className="min-h-10 w-full rounded-xl border border-line bg-surface px-2 text-center text-sm font-bold text-ink outline-none focus:border-accent"
-                    value={photo.quantity}
-                    onChange={(event) =>
-                      setPhotos((prev) =>
-                        prev.map((item) =>
-                          item.id === photo.id ? { ...item, quantity: event.target.value } : item,
-                        ),
-                      )
-                    }
-                  />
-                </label>
-              </div>
-            ))}
-            {photos.length < MAX_PHOTOS ? (
+          {photos.length === 0 ? (
+            <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={openPicker}
+                onClick={openAddPhotos}
                 disabled={uploading}
-                className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line bg-surface text-muted hover:border-accent hover:text-accent"
+                className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam text-muted hover:border-accent hover:text-accent"
               >
-                {phone ? <CameraIcon width={22} height={22} /> : <PlusIcon width={22} height={22} />}
-                <span className="text-xs font-semibold">{phone ? 'Add photo' : 'Select photo'}</span>
+                <CameraIcon width={32} height={32} />
+                <span className="text-sm font-semibold text-ink">Add photos</span>
               </button>
-            ) : null}
-          </div>
+              <button
+                type="button"
+                onClick={openGallery}
+                disabled={uploading}
+                className="py-1 text-center text-sm font-medium text-accent"
+              >
+                Choose from gallery
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((photo) => (
+                  <div key={photo.id} className="flex flex-col gap-1.5">
+                    <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-foam">
+                      <img
+                        src={photo.previewUrl || photo.imageUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                      {photo.uploading ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-medium text-white">
+                          Uploading…
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label="Remove photo"
+                        onClick={() => removePhoto(photo.id)}
+                        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <label className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-medium text-muted">Pieces</span>
+                      <input
+                        type="number"
+                        min={1}
+                        inputMode="numeric"
+                        aria-label="Pieces"
+                        className="min-h-10 w-full rounded-xl border border-line bg-surface px-2 text-center text-sm font-bold text-ink outline-none focus:border-accent"
+                        value={photo.quantity}
+                        onChange={(event) =>
+                          setPhotos((prev) =>
+                            prev.map((item) =>
+                              item.id === photo.id
+                                ? { ...item, quantity: event.target.value }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                ))}
+                {!atPhotoLimit ? (
+                  <button
+                    type="button"
+                    onClick={openAddPhotos}
+                    disabled={uploading}
+                    className="flex aspect-square flex-col items-center justify-center gap-1 self-start rounded-xl border border-dashed border-line bg-surface text-muted hover:border-accent hover:text-accent"
+                  >
+                    <CameraIcon width={22} height={22} />
+                    <span className="text-xs font-semibold">Add</span>
+                  </button>
+                ) : null}
+              </div>
+              {!atPhotoLimit ? (
+                <button
+                  type="button"
+                  onClick={openGallery}
+                  disabled={uploading}
+                  className="text-left text-sm font-medium text-accent"
+                >
+                  Choose from gallery
+                </button>
+              ) : null}
+
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-bold tracking-tight text-ink">Pieces for all</p>
+                <div className="flex flex-wrap gap-2">
+                  {QTY_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => applyQtyToAll(preset)}
+                      className={cx(
+                        'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-bold',
+                        bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
+                      )}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           <input
-            id={fileInputId}
-            ref={fileInputRef}
+            id={galleryInputId}
+            ref={galleryInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/*"
-            capture={captureAttr}
-            multiple={!phone}
+            multiple
             className="hidden"
             onChange={(event) => void onFiles(event.target.files)}
           />
+
+          {!sellerFromUrl ? (
+            <ConnectionPicker
+              mode="single"
+              label="Supplier"
+              chooseLabel="Choose supplier"
+              connections={sellers}
+              value={sellerId || null}
+              onChange={(id) => setSellerId(id ?? '')}
+              emptyMessage="Connect with a business first, then place an order."
+            />
+          ) : null}
         </div>
       )}
 
@@ -477,7 +498,7 @@ export function OrderBuilderPage() {
           placeholder={
             isStandard
               ? 'Delivery timeline, packing…'
-              : 'Need closest matching designs and rate.'
+              : 'Closest matching designs and rate…'
           }
         />
       </Field>
@@ -494,16 +515,16 @@ export function OrderBuilderPage() {
         </Button>
       </div>
 
-      <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Add photo">
-        <div className="flex flex-col gap-2">
-          <Button fullWidth onClick={() => pickFromSheet('camera')}>
-            Take photo
-          </Button>
-          <Button variant="secondary" fullWidth onClick={() => pickFromSheet('gallery')}>
-            Choose from gallery
-          </Button>
-        </div>
-      </Sheet>
+      <ContinuousCamera
+        open={cameraOpen}
+        maxShots={cameraSlots}
+        onCancel={() => setCameraOpen(false)}
+        onUnavailable={onCameraUnavailable}
+        onDone={(files) => {
+          setCameraOpen(false);
+          void onFiles(files);
+        }}
+      />
     </div>
   );
 }

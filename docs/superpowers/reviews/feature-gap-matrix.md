@@ -1,0 +1,78 @@
+# Feature gap matrix
+
+**Updated:** 2026-08-19  
+**Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
+**Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
+
+Product status: Works · Partial · Missing · Later · Rejected · Redesign  
+Verification: Functional · Regression · Unit-only · Untested
+
+| Module | Capability | Product status | Verification | Completeness priority | Notes |
+|--------|------------|----------------|--------------|----------------------|-------|
+| Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
+| Chat | In-thread search scopes + stepper | Works | Functional | Required | Green 2026-08-11 |
+| Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |
+| Chat | Requests inbox (unconnected) | Works | Untested | Recommended | Later slice |
+| Chat | Pin / mute / groups | Later | Untested | Future / Reject groups-as-Slack | Doc deferred |
+| Chat | Share catalog cards in thread | Works | Untested | Recommended | |
+| Orders | Core trade request→quote→accept | Works | Functional | Required | Green 2026-08-11 |
+| Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
+| Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
+| Orders | Orders More menu portal (Samples/Returns) | Works | Untested | Recommended | Chrome overflow fix |
+| Orders | Order card +N thumbs | Works | Regression | Required | BM-01 |
+| Orders | Living card dedupe helpers | Works | Unit-only | Required | BM-04 |
+| Orders | Dispatch → deliver | Works | Untested | Future | |
+| Orders | Photo order / amend / samples / returns | Partial | Untested | Future | |
+| Orders | Trade without connection | Rejected | — | Reject | Trust ladder |
+| Collections | Buyer view Wedding Edit + shortlist clear | Works | Functional | Required | Green 2026-08-11 (BM-03) |
+| Collections | Seller create photos-first + cover tag | Works | Unit | Required | Slice 1 2026-08-12; functional journey Recommended next |
+| Collections | Seller create/publish / quick-add (edit) | Works | Untested | Recommended | |
+| Collections | Buyer groups (elevate broadcast lists) | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | No-forward (usual → group → sheet + API) | Works | Unit | Required | 2026-08-13 no-forward |
+| Collections | Ready status + seller badges/filters | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | Live window startsAt/endsAt + expire | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | Seller informed catalog (collage + viewer) | Works | Unit | Required | 2026-08-13 Completeness |
+| Explore | Browse seeded + open detail | Works | Functional | Required | Green 2026-08-11 |
+| Explore | Filter dismiss BM-02 | Works | Functional | Required | Green 2026-08-11 |
+| Explore | Federated search / follow feed | Works | Untested | Future | |
+| Explore | Businesses for you + Stories rail | Works | Untested | Recommended | Network coverage 2026-08-18; Stories eligibility Partial vs planned follow/connected rule |
+| Explore | Trade-side All / Buying / Selling | Missing | — | Required | Slice C; default All; see explore.md |
+| Explore | Buying: Following-first posts + received by day/business | Missing | — | Required | Slice C; not mixed into market ranking |
+| Explore | Selling: Buyers for you (not My Catalog) | Partial | Untested | Required | Buyers shelf exists; trade-side filter Missing |
+| Explore | Vanity likes ranking | Rejected | — | Reject | |
+| Network | Following / Followers lists | Works | Untested | Required | You → Network |
+| Network | Connections hub (both roles) + Requests | Works | Untested | Required | `/buyers` → Requests |
+| Referrals | Connect-with-me invite create + Share/Copy | Works | Untested | Required | `＋` / Network → Invites; link-only share; see `docs/features/referrals.md` |
+| Referrals | Open invite redeem → access request (approve gate) | Works | Untested | Required | Not auto-connect; `referredBy: Invite` |
+| Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Untested | Required | `inviteReturn` stash |
+| Referrals | Targeted vouch (optional target company) | Works | Untested | Recommended | Seller still approves |
+| Referrals | Auto-connect / auto-follow on redeem | Rejected | — | Reject | Trust ladder |
+| Trader curation | Dual network (suppliers + buyers) via Connections/Follow | Partial | Untested | Required | Platform 1-hop; long chain possible |
+| Trader curation | Multi-supplier pick → curated collection for buyers | Works | Unit-only | Required | Slice A; `＋` Curate pack; `canRelist` on first curated publish; see `docs/features/saved.md` |
+| Trader curation | Saved hub (design + collection **references**) | Works | Unit-only | Required | Slice A; You → Saved; Explore/viewer Save; `saved.service.spec` |
+| Trader curation | Publish curated collection to Explore (buyers / broader audience) | Works | Unit-only | Required | Slice A; same publish sheet as own collections; functional e2e Recommended next |
+| Trader curation | Curate within original seller permission (forward/audience) | Works | Unit-only | Required | Slice A; `curation-ceiling` + collection membership specs |
+| Trader curation | Deliver curated pack (broadcast / chat) | Partial | Untested | Required | Broadcast exists |
+| Trader curation | Home: received curated packs (attention) | Missing | — | Required | Slice C |
+| Trader curation | Explore Buying: received by day/business | Missing | — | Required | Slice C; was “shares by day/trader” |
+| Trader curation | Split order by product’s real supplier | Missing | — | Required | Slice B |
+| Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Missing | — | Required | Slice B; presence already dual; linking/back-to-back later |
+| Trader curation | Middleman in-loop + optional anonymity (multi-hop) | Missing | — | Required | Slice D; design forks open |
+| Trader curation | Trader attention UX (buy / curate / share / follow-up) | Missing | — | Required | WhatsApp-simple |
+| Trader curation | Trader insights (vendor↔trader analytics) | Later | — | Future | |
+| Trader curation | Dedicated Trader role at OTP | Rejected | — | Reject | One company account |
+| Trader curation | Trader/Seller badges on Explore | Rejected | — | Reject | Opaque businesses |
+| Trader curation | Home-only dense day/trader share analytics | Rejected | — | Reject | Use Explore Buying + Home attention |
+| Media | Chat photo send | Works | Functional | Required | Green 2026-08-11 |
+| Media | Catalog design upload | Works | Untested | Future | |
+| Media | Top-level Media tab | Rejected | — | Reject | |
+| Media | Upload failure UX | Partial | Untested | Recommended | |
+
+| Collections | Fixed select bar clips last card (BM-07) | Works | Untested (manual fix 2026-08-11) | Required | Padding clears nav + bar; add regression when practical |
+
+## Doc drift
+
+- Design spec “Problem” section historically stale vs Wave 1 — check status line.
+- UI chrome clearance is now Required in `ui-quality-bar` §2b / Completeness mobile checklist.
+- Referrals / Share invite: product rules in `docs/features/referrals.md`; no Completeness review under `docs/superpowers/reviews/completeness/` yet (matrix tracks Required + Untested).
+- Trader curation / platform chain: [mvp-garmenthub-gap-matrix.md](./mvp-garmenthub-gap-matrix.md); [slice-a design](../specs/2026-08-19-trader-curation-slice-a-design.md) (**Implemented**); product walkthrough in [saved.md](../features/saved.md). Slices B–D remain; dual trade order linking = B.

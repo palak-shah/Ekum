@@ -2,13 +2,9 @@ import type { OrderView, ReturnView } from '@ekum/domain-types';
 
 const COMPLETED = new Set(['delivered', 'declined', 'cancelled']);
 
-/** Buyer can accept rates the seller already put on a request. */
+/** Buyer can accept only after the seller sent a real quote (not catalog line rates). */
 export function buyerCanAcceptQuote(order: OrderView): boolean {
-  return (
-    order.direction === 'buying' &&
-    order.status === 'requested' &&
-    order.items.some((item) => item.rate != null)
-  );
+  return order.direction === 'buying' && order.canAcceptQuote === true;
 }
 
 /** Seller still needs to put rates on a requested order. */

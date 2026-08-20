@@ -19,6 +19,7 @@ import {
   OrderLineStatus,
   OrderStatus,
   ProductStatus,
+  PublishAudience,
   SuperCategory,
   ThreadParticipantState,
   ThreadType,
@@ -29,8 +30,11 @@ const prisma = new PrismaClient();
 
 const RAVI = 'seed-company-ravi';
 const MEENA = 'seed-company-meena';
+/** Peer supplier so Ravi (who owns the main catalog) still has Explore posts. */
+const KAVITA = 'seed-company-kavita';
 const U_RAVI = 'seed-user-ravi';
 const U_MEENA = 'seed-user-meena';
+const U_KAVITA = 'seed-user-kavita';
 
 async function main(): Promise<void> {
   // --- People -------------------------------------------------------------
@@ -39,11 +43,15 @@ async function main(): Promise<void> {
     create: { id: U_RAVI, phone: '+919800000001', name: 'Ravi' },
     update: { name: 'Ravi' },
   });
-  // Person at +919800000002 stays "Meena"; her business is not also named Meena.
   await prisma.user.upsert({
     where: { id: U_MEENA },
     create: { id: U_MEENA, phone: '+919800000002', name: 'Meena' },
     update: { name: 'Meena' },
+  });
+  await prisma.user.upsert({
+    where: { id: U_KAVITA },
+    create: { id: U_KAVITA, phone: '+919800000003', name: 'Kavita' },
+    update: { name: 'Kavita' },
   });
 
   // --- Businesses ---------------------------------------------------------
@@ -68,6 +76,7 @@ async function main(): Promise<void> {
     update: {
       name: 'Surat Silk House',
       canPublish: true,
+      canRefer: true,
       verification: VerificationStatus.GstVerified,
       buyCategories: ['Fabric'],
       superCategories: [SuperCategory.WomensApparel, SuperCategory.Accessories],
@@ -82,10 +91,37 @@ async function main(): Promise<void> {
       about: 'Multi-brand retail store.',
       buyCategories: ['Sarees', 'Dress Material'],
       superCategories: [SuperCategory.WomensApparel],
+      canRefer: true,
     },
     update: {
       name: 'Jaipur Emporium',
+      canRefer: true,
       superCategories: [SuperCategory.WomensApparel],
+    },
+  });
+  await prisma.company.upsert({
+    where: { id: KAVITA },
+    create: {
+      id: KAVITA,
+      name: 'Ahmedabad Loom Co',
+      city: 'Ahmedabad',
+      about: 'Grey fabric and lining for garment houses.',
+      gstNumber: '24FGHIJ5678K1Z2',
+      verification: VerificationStatus.GstVerified,
+      canPublish: true,
+      canRefer: true,
+      sellCategories: ['Fabric'],
+      buyCategories: ['Sarees'],
+      superCategories: [SuperCategory.Accessories],
+    },
+    update: {
+      name: 'Ahmedabad Loom Co',
+      canPublish: true,
+      canRefer: true,
+      verification: VerificationStatus.GstVerified,
+      sellCategories: ['Fabric'],
+      buyCategories: ['Sarees'],
+      superCategories: [SuperCategory.Accessories],
     },
   });
 
@@ -105,6 +141,11 @@ async function main(): Promise<void> {
   await prisma.companyMembership.upsert({
     where: { userId_companyId: { userId: U_MEENA, companyId: MEENA } },
     create: { id: 'seed-mem-meena', userId: U_MEENA, companyId: MEENA, role: 'owner' },
+    update: {},
+  });
+  await prisma.companyMembership.upsert({
+    where: { userId_companyId: { userId: U_KAVITA, companyId: KAVITA } },
+    create: { id: 'seed-mem-kavita', userId: U_KAVITA, companyId: KAVITA, role: 'owner' },
     update: {},
   });
 
@@ -183,16 +224,36 @@ async function main(): Promise<void> {
       categories: ['Sarees'],
       images: ['https://picsum.photos/seed/organza/600/800'],
     },
+    {
+      id: 'seed-prod-no-image',
+      name: 'Sample swatch (no photo)',
+      sku: 'SWATCH-000',
+      rate: 100,
+      unit: 'pc',
+      categories: ['Sarees'],
+      images: [],
+    },
   ];
+  const postedAt = new Date();
   for (const product of products) {
     await prisma.product.upsert({
       where: { id: product.id },
-      create: { ...product, companyId: RAVI, status: ProductStatus.Published },
+      create: {
+        ...product,
+        companyId: RAVI,
+        status: ProductStatus.Published,
+        audience: PublishAudience.Everyone,
+        allowForward: true,
+        postedToMarketAt: postedAt,
+      },
       update: {
         rate: product.rate,
         status: ProductStatus.Published,
         images: product.images,
         categories: product.categories,
+        audience: PublishAudience.Everyone,
+        allowForward: true,
+        postedToMarketAt: postedAt,
       },
     });
   }
@@ -211,10 +272,16 @@ async function main(): Promise<void> {
       description: 'Hand-picked bridal and festive designs.',
       coverImage: 'https://picsum.photos/seed/wedding/800/600',
       status: CollectionStatus.Published,
+      audience: PublishAudience.Everyone,
+      allowForward: true,
+      exploreActivityAt: postedAt,
     },
     update: {
       status: CollectionStatus.Published,
       coverImage: 'https://picsum.photos/seed/wedding/800/600',
+      audience: PublishAudience.Everyone,
+      allowForward: true,
+      exploreActivityAt: postedAt,
     },
   });
   const collectionProducts = products.map((product, index) => ({
@@ -230,10 +297,106 @@ async function main(): Promise<void> {
     });
   }
 
+  // Peer supplier catalog — gives Ravi Explore “New for you” / Stories / Businesses.
+  const fabricProducts = [
+    {
+      id: 'seed-prod-fabric-1',
+      name: 'Cotton Grey Fabric',
+      sku: 'FAB-CO-01',
+      rate: 85,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: ['https://picsum.photos/seed/greyfabric/600/800'],
+    },
+    {
+      id: 'seed-prod-fabric-2',
+      name: 'Soft Lining Roll',
+      sku: 'FAB-LN-02',
+      rate: 42,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: ['https://picsum.photos/seed/lining/600/800'],
+    },
+    {
+      id: 'seed-prod-fabric-3',
+      name: 'Georgette Base',
+      sku: 'FAB-GEO-03',
+      rate: 110,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: ['https://picsum.photos/seed/geobase/600/800'],
+    },
+  ];
+  for (const product of fabricProducts) {
+    await prisma.product.upsert({
+      where: { id: product.id },
+      create: {
+        ...product,
+        companyId: KAVITA,
+        status: ProductStatus.Published,
+        audience: PublishAudience.Everyone,
+        allowForward: true,
+        postedToMarketAt: postedAt,
+      },
+      update: {
+        rate: product.rate,
+        status: ProductStatus.Published,
+        images: product.images,
+        categories: product.categories,
+        companyId: KAVITA,
+        audience: PublishAudience.Everyone,
+        allowForward: true,
+        postedToMarketAt: postedAt,
+      },
+    });
+  }
+  await prisma.collection.upsert({
+    where: { id: 'seed-col-fabric' },
+    create: {
+      id: 'seed-col-fabric',
+      companyId: KAVITA,
+      name: 'Mill Lot — March',
+      description: 'Fresh grey and lining for garment houses.',
+      coverImage: 'https://picsum.photos/seed/millot/800/600',
+      status: CollectionStatus.Published,
+      audience: PublishAudience.Everyone,
+      allowForward: true,
+      exploreActivityAt: postedAt,
+    },
+    update: {
+      status: CollectionStatus.Published,
+      coverImage: 'https://picsum.photos/seed/millot/800/600',
+      audience: PublishAudience.Everyone,
+      allowForward: true,
+      exploreActivityAt: postedAt,
+    },
+  });
+  for (const [index, product] of fabricProducts.entries()) {
+    await prisma.collectionProduct.upsert({
+      where: {
+        collectionId_productId: { collectionId: 'seed-col-fabric', productId: product.id },
+      },
+      create: {
+        id: `seed-cp-fabric-${index + 1}`,
+        collectionId: 'seed-col-fabric',
+        productId: product.id,
+        position: index,
+      },
+      update: { position: index },
+    });
+  }
+
   // --- Discovery & Trust --------------------------------------------------
   await prisma.follow.upsert({
     where: { followerCompanyId_followedCompanyId: { followerCompanyId: MEENA, followedCompanyId: RAVI } },
     create: { id: 'seed-follow-1', followerCompanyId: MEENA, followedCompanyId: RAVI },
+    update: {},
+  });
+  await prisma.follow.upsert({
+    where: {
+      followerCompanyId_followedCompanyId: { followerCompanyId: RAVI, followedCompanyId: KAVITA },
+    },
+    create: { id: 'seed-follow-2', followerCompanyId: RAVI, followedCompanyId: KAVITA },
     update: {},
   });
   await prisma.connection.upsert({
@@ -242,6 +405,17 @@ async function main(): Promise<void> {
       id: 'seed-conn-1',
       ownerCompanyId: RAVI,
       viewerCompanyId: MEENA,
+      status: ConnectionStatus.Active,
+    },
+    update: { status: ConnectionStatus.Active },
+  });
+  // Reciprocal edge so Ravi’s Network → Connections lists Meena.
+  await prisma.connection.upsert({
+    where: { ownerCompanyId_viewerCompanyId: { ownerCompanyId: MEENA, viewerCompanyId: RAVI } },
+    create: {
+      id: 'seed-conn-1b',
+      ownerCompanyId: MEENA,
+      viewerCompanyId: RAVI,
       status: ConnectionStatus.Active,
     },
     update: { status: ConnectionStatus.Active },
@@ -460,7 +634,9 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log('Seed complete: 2 companies, 3 products, 1 collection, 2 orders, 1 thread.');
+  console.log(
+    'Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 2 orders, 1 thread.',
+  );
 }
 
 main()

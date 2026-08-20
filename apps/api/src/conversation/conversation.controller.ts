@@ -11,7 +11,7 @@ import {
 import {
   addParticipantsSchema,
   createGroupThreadSchema,
-  cursorPageQuerySchema,
+  listThreadMessagesQuerySchema,
   listThreadsQuerySchema,
   sendMessageSchema,
   setAlertLevelSchema,
@@ -19,7 +19,7 @@ import {
   startDirectThreadSchema,
   type AddParticipantsDto,
   type CreateGroupThreadDto,
-  type CursorPageQuery,
+  type ListThreadMessagesQuery,
   type ListThreadsQuery,
   type SendMessageDto,
   type SetAlertLevelDto,
@@ -95,7 +95,7 @@ export class ConversationController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
-    @Query(new ZodValidationPipe(cursorPageQuerySchema)) query: CursorPageQuery,
+    @Query(new ZodValidationPipe(listThreadMessagesQuerySchema)) query: ListThreadMessagesQuery,
   ) {
     return this.messages.list(companyId, user.role, id, query);
   }

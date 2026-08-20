@@ -8,10 +8,15 @@ describe('audience visibility', () => {
       audience: 'selected',
       audienceCompanyIds: ['buyer-a'],
     };
-    expect(canDiscoverCollection('buyer-a', collection)).toBe(true);
-    expect(canDiscoverCollection('buyer-b', collection)).toBe(false);
-    expect(canViewCollectionProducts('buyer-a', collection, false)).toBe(true);
-    expect(canViewCollectionProducts('buyer-b', collection, true)).toBe(false);
+    expect(
+      canDiscoverCollection('buyer-a', collection, { connected: false, following: false }),
+    ).toBe(true);
+    expect(
+      canDiscoverCollection('buyer-b', collection, { connected: true, following: true }),
+    ).toBe(false);
+    expect(
+      canViewCollectionProducts('buyer-a', collection, { connected: false, following: false }),
+    ).toBe(true);
   });
 
   it('requires a connection for connections audience', () => {
@@ -20,8 +25,37 @@ describe('audience visibility', () => {
       audience: 'connections',
       audienceCompanyIds: [],
     };
-    expect(canDiscoverCollection('viewer', collection)).toBe(true);
-    expect(canViewCollectionProducts('viewer', collection, false)).toBe(false);
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: false, following: false }),
+    ).toBe(false);
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: true, following: false }),
+    ).toBe(true);
     expect(canViewCollectionProducts('viewer', collection, true)).toBe(true);
+  });
+
+  it('requires follow for followers audience', () => {
+    const collection = {
+      companyId: 'owner',
+      audience: 'followers',
+      audienceCompanyIds: [],
+    };
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: true, following: false }),
+    ).toBe(false);
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: false, following: true }),
+    ).toBe(true);
+  });
+
+  it('everyone is discoverable', () => {
+    const collection = {
+      companyId: 'owner',
+      audience: 'everyone',
+      audienceCompanyIds: [],
+    };
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: false, following: false }),
+    ).toBe(true);
   });
 });

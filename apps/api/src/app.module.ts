@@ -12,6 +12,7 @@ import { ConversationModule } from './conversation/conversation.module';
 import { OrdersModule } from './orders/orders.module';
 import { BroadcastModule } from './broadcast/broadcast.module';
 import { ReferralModule } from './referral/referral.module';
+import { SavedModule } from './saved/saved.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { JobsModule } from './jobs/jobs.module';
 import { MediaModule } from './media/media.module';
@@ -36,6 +37,7 @@ import { HealthModule } from './health/health.module';
     OrdersModule,
     BroadcastModule,
     ReferralModule,
+    SavedModule,
     NotificationsModule,
     JobsModule,
     MediaModule,

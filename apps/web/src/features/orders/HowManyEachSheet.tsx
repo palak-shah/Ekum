@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProductView } from '@ekum/domain-types';
-import { Button, Sheet, TextInput, cx } from '@/ui/kit';
+import { Button, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 
 export const WHOLESALE_QTY_PRESETS = [10, 15, 20, 25, 50] as const;
 
@@ -55,15 +55,16 @@ export function HowManyEachSheet({
   const [overrides, setOverrides] = useState<Record<string, number>>({});
 
   const productKey = products.map((product) => product.id).join(',');
+  const qtyKey = sellerId || 'multi';
 
   useEffect(() => {
     if (!open) return;
-    const remembered = readRememberedQty(sellerId);
+    const remembered = readRememberedQty(qtyKey);
     setSharedQty(remembered);
     setCustom('');
     setAdjustOpen(false);
     setOverrides({});
-  }, [open, sellerId, productKey]);
+  }, [open, qtyKey, productKey]);
 
   const lines = useMemo(
     () =>
@@ -189,13 +190,13 @@ export function HowManyEachSheet({
           </ul>
         ) : null}
 
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {error ? <InlineNotice message={error} /> : null}
 
         <Button
           fullWidth
           disabled={busy || products.length === 0}
           onClick={() => {
-            rememberQty(sellerId, sharedQty);
+            rememberQty(qtyKey, sharedQty);
             onSendOrder(payload());
           }}
         >
@@ -206,7 +207,7 @@ export function HowManyEachSheet({
           fullWidth
           disabled={busy || products.length === 0}
           onClick={() => {
-            rememberQty(sellerId, sharedQty);
+            rememberQty(qtyKey, sharedQty);
             onAskRates(payload());
           }}
         >

@@ -9,6 +9,22 @@ import { publishAudienceValues, rateVisibilityValues, unitValues } from './enums
  * an order-as-whole pack (future); shop publish is "Publish design", not catalogue.
  */
 
+/** Staff who/when on catalog + orders rows (full AuditLog UI later). */
+export interface AuditActorView {
+  id: string;
+  name: string | null;
+}
+
+/** Own-library list sort + created date range. */
+export const listCatalogQuerySchema = z.object({
+  sort: z.enum(['newest', 'oldest']).optional().default('newest'),
+  /** Inclusive start (ISO or YYYY-MM-DD). */
+  createdFrom: z.string().min(1).max(40).optional(),
+  /** Inclusive end (ISO or YYYY-MM-DD). */
+  createdTo: z.string().min(1).max(40).optional(),
+});
+export type ListCatalogQuery = z.infer<typeof listCatalogQuerySchema>;
+
 export const createProductSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
   /** Optional on create; server fills a stable SKU when omitted. */
@@ -28,10 +44,17 @@ export type CreateProductDto = z.infer<typeof createProductSchema>;
 export const updateProductSchema = createProductSchema.partial();
 export type UpdateProductDto = z.infer<typeof updateProductSchema>;
 
+/** ISO datetime or YYYY-MM-DD; null clears. Parsed to UTC bounds in the API. */
+const optionalScheduleInstant = z.union([z.string().min(1).max(40), z.null()]).optional();
+
 export const createCollectionSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
   description: z.string().trim().max(1000).optional(),
   coverImage: z.string().url().optional(),
+  /** Live window start. null clears. */
+  startsAt: optionalScheduleInstant,
+  /** Live window end. null = evergreen. */
+  endsAt: optionalScheduleInstant,
 });
 export type CreateCollectionDto = z.infer<typeof createCollectionSchema>;
 
@@ -49,10 +72,20 @@ export const publishCollectionSchema = z
   .object({
     audience: z.enum(publishAudienceValues).default('connections'),
     rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
+    /** When false, buyers cannot forward this pack/design beyond the supplier. */
+    allowForward: z.boolean().default(true),
+    /** Optional single buyer group (legacy / exactly-one convenience). */
+    groupId: z.string().min(1).optional(),
+    /** Buyer groups chosen on Publish — restore chips on Visibility. */
+    groupIds: z.array(z.string().min(1)).max(50).optional(),
     /** Required when audience is `selected` — company IDs that may see this collection. */
     companyIds: z.array(z.string().min(1)).max(500).optional(),
     /** Required the first time a company ever publishes — unlocks canPublish. */
     consentToSell: z.boolean().optional(),
+    /** Live window start. Omit to leave unchanged; null = live now. */
+    startsAt: optionalScheduleInstant,
+    /** Live window end. Omit to leave unchanged; null = evergreen. */
+    endsAt: optionalScheduleInstant,
   })
   .superRefine((value, ctx) => {
     if (value.audience === 'selected' && (!value.companyIds || value.companyIds.length === 0)) {
@@ -65,18 +98,21 @@ export const publishCollectionSchema = z
   });
 export type PublishCollectionDto = z.infer<typeof publishCollectionSchema>;
 
-/** Same audience sheet as collections — posts a published product onto Explore. */
+/**
+ * Publish a design = live on Explore for the chosen audience.
+ * Same sheet as collections (audience / rates / forward).
+ */
 export const postProductToMarketSchema = publishCollectionSchema;
 export type PostProductToMarketDto = z.infer<typeof postProductToMarketSchema>;
 
-/** Catalog publish (shop) — consent required the first time a company sells. */
-export const publishProductSchema = z.object({
-  consentToSell: z.boolean().optional(),
-});
-export type PublishProductDto = z.infer<typeof publishProductSchema>;
+/** Alias: publish and Explore are one step. */
+export const publishProductSchema = postProductToMarketSchema;
+export type PublishProductDto = PostProductToMarketDto;
 
 export interface ProductView {
   id: string;
+  /** Owning company — needed to detect curated (foreign) collection members. */
+  companyId: string;
   name: string;
   sku: string | null;
   description: string | null;
@@ -90,8 +126,13 @@ export interface ProductView {
   audience: string;
   rateVisibility: string;
   audienceCompanyIds: string[];
-  /** ISO time when posted to Explore; null = catalog-only. */
+  /** Buyer group IDs last chosen for selected audience (empty when custom list). */
+  audienceGroupIds: string[];
+  allowForward: boolean;
+  /** ISO time when live on Explore; null when draft/hidden. */
   postedToMarketAt: string | null;
+  createdBy: AuditActorView | null;
+  updatedBy: AuditActorView | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,7 +146,18 @@ export interface CollectionView {
   audience: string;
   rateVisibility: string;
   audienceCompanyIds: string[];
+  /** Buyer group IDs last chosen for selected audience (empty when custom list). */
+  audienceGroupIds: string[];
+  allowForward: boolean;
   productCount: number;
+  /** Distinct photos across cover + member designs. */
+  photoCount: number;
+  /** Up to 4 member image URLs for seller collage tiles. */
+  previewImages: string[];
+  startsAt: string | null;
+  endsAt: string | null;
+  createdBy: AuditActorView | null;
+  updatedBy: AuditActorView | null;
   createdAt: string;
   updatedAt: string;
 }

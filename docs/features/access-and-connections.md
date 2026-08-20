@@ -2,58 +2,67 @@
 
 ## Purpose
 
-Trust between companies: **follow** (light), **access request** (named gate), **connection** (trade-ready), plus silent **pause** / **block**. Sellers manage buyers from **You → Buyers**.
+Trust between companies: **follow** (light), **access request** (named gate), **connection** (trade-ready), plus silent **pause** / **block**. Relationship management lives under **You → Network** (companies, not individual people).
 
 ## Who uses it
 
-Buyers request / follow; sellers approve and manage connections. Both see outcomes on Home Needs and company profiles.
+Buyers request / follow; sellers approve and manage connections. Both roles use **Network → Connections**.
 
 ## User flows
 
 ### Follow
 
 1. On company / Explore → **Follow** / Unfollow.
-2. Followed posts appear in Explore following filter and Home followed sections.
+2. Manage lists: **You → Network → Following** / **Followers**.
+3. Followed posts appear on Home Followed and Explore network shelves.
 
 ### Request access
 
-1. On company profile → Request access (optional note; referral token may pre-fill `referredBy`).
-2. Seller sees incoming on **Buyers** and Home Needs → Approve or Decline.
+1. On company profile or collection → Request access. Note is prefilled with a default (“Hi, we would like to see rates…”). Tap the field to clear and write your own; send with empty field still uses the default.
+2. Seller sees incoming on **Network → Requests** and Home Needs → Approve or Decline.
+3. Outgoing pending: same Requests page.
 
-### Manage connection (seller / owner)
+### Connections (both roles)
 
-1. Open **Buyers** (`/buyers`).
-2. Pause / resume an active connection; Block / unblock.
-3. Outgoing requests: track pending / declined.
+1. **You → Network → Connections** — `GET /connections` for owner and viewer edges.
+2. Labels: “They buy from you” (owner) / “You buy from them” (viewer).
+3. Owner-only: Pause / resume / block / unblock.
+4. Legacy `/buyers` redirects to **Network → Requests**.
+
+### Invites
+
+**Network → Invites** or **＋ → Invite to connect** — see [referrals](./referrals.md).
 
 ## Business rules
 
 | Rule | Detail |
 |------|--------|
-| Follow ≠ Access | Follow is permissionless; does not unlock full catalog trade |
-| Catalog visibility | Requires connection **active** (plus audience rules on posts) |
+| Follow ≠ Access | Follow is permissionless; does not by itself unlock restricted (connections/selected) posts |
+| Catalog visibility | Post **audience** (+ block rules). Connection is membership for `connections` / related gates — not required for Everyone |
+| Open order | Discoverable catalog lines can be ordered without Connection; does **not** auto-create a Network connection |
 | Connection states | `active` · `paused` · `blocked` |
 | Silent pause/block | Other party is not notified; they get **404** / hidden rows |
 | Approve vs block | Approving **never** reactivates a block — must Unblock first |
 | List masking | Owner still sees blocked/paused peers; viewer does not see those edges |
+| Directional | Connection has catalog **owner** and **viewer** — not a mutual social edge |
 
 See [concepts](./00-concepts.md) for the trust ladder diagram.
 
 ## Edge cases / empty states
 
-- No buyers yet → empty Buyers list + prompt to share profile / wait for requests.
+- No connections → empty Connections list + invite / Explore.
 - Declined request → can request again per product rules (do not invent auto-retry UX).
 - Self-follow / self-access → rejected.
 
 ## Seed walkthrough
 
 1. Seed: Meena **follows** Ravi; connection **active** Ravi↔Meena.
-2. As **Ravi**: open Buyers — see Meena / Jaipur Emporium.
-3. As **Meena**: confirm access to published catalog details that require connection.
+2. As **Ravi**: Network → Requests / Connections — see Meena.
+3. As **Meena**: Network → Connections — see Surat Silk House (“You buy from them”).
 4. (Optional QA) Pause as Ravi → Meena loses silent visibility; resume to restore.
 
 ## Where it lives
 
-- Web: `apps/web/src/features/buyers/MyBuyersPage.tsx`; actions on company / Explore
-- API: `apps/api/src/access/` (`AccessService`, `ConnectionService`, `VisibilityService`), `discovery/follow.controller.ts`
+- Web: `apps/web/src/features/network/` (Network, Following, Followers, Connections, Requests); `/buyers` redirect
+- API: `apps/api/src/access/`, `discovery/follow.controller.ts`
 - Contracts: `packages/domain-types/src/access.ts`
