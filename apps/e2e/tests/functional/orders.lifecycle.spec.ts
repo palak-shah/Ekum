@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
   accessTokenFromPage,
-  acceptQuote,
   createOrder,
   getOrder,
   quoteOrder,
