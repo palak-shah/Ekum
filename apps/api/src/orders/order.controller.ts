@@ -3,6 +3,7 @@ import {
   amendOrderSchema,
   createOrderSchema,
   createOrdersBatchSchema,
+  createOrdersFromPackSchema,
   decideOrderLinesSchema,
   dispatchSchema,
   listOrdersQuerySchema,
@@ -10,6 +11,7 @@ import {
   type AmendOrderDto,
   type CreateOrderDto,
   type CreateOrdersBatchDto,
+  type CreateOrdersFromPackDto,
   type DecideOrderLinesDto,
   type DispatchDto,
   type ListOrdersQuery,
@@ -42,6 +44,16 @@ export class OrderController {
     @Body(new ZodValidationPipe(createOrdersBatchSchema)) dto: CreateOrdersBatchDto,
   ) {
     return this.orders.createBatch(companyId, user.userId, dto);
+  }
+
+  @Post('from-pack')
+  @HttpCode(200)
+  createFromPack(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(createOrdersFromPackSchema)) dto: CreateOrdersFromPackDto,
+  ) {
+    return this.orders.createFromPack(companyId, user.userId, dto);
   }
 
   @Post(':id/amend')

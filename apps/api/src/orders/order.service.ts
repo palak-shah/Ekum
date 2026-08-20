@@ -16,11 +16,14 @@ import {
   OrderKind,
   OrderLineStatus,
   OrderStatus,
+  OrderTradeMode,
   shortOrderLabel,
   type AmendOrderDto,
   type CreateOrderDto,
   type CreateOrdersBatchDto,
   type CreateOrdersBatchResult,
+  type CreateOrdersFromPackDto,
+  type CreateOrdersFromPackResult,
   type CursorPage,
   type DecideOrderLinesDto,
   type DispatchDto,
@@ -34,6 +37,7 @@ import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { createdAtRangeFilter } from '../common/audit';
 import { JobQueue } from '../jobs/job-queue.service';
 import { ThreadService } from '../conversation/thread.service';
+import { resolveTradePresence } from '../identity/trade-presence';
 import { OrderSerializer } from './order.serializer';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
@@ -51,6 +55,13 @@ const ORDER_RELATIONS = {
 } as const;
 
 const DAY_MS = 86_400_000;
+
+type CreateOrderOptions = {
+  tradeMode?: string;
+  facilitatorCompanyId?: string | null;
+  downstreamOrderId?: string | null;
+  allowForeignProducts?: boolean;
+};
 
 /** Chat body for line decisions — omit zero counts; Order # lives on the card title. */
 export function linesDecidedNotice(
@@ -88,21 +99,28 @@ export class OrderService {
     actorCompanyId: string,
     userId: string,
     dto: CreateOrderDto,
+    options: CreateOrderOptions = {},
   ): Promise<OrderView> {
     await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId, {
       productIds: dto.items
         .map((item) => item.productId)
         .filter((id): id is string => Boolean(id)),
     });
-    const items = await this.snapshotItems(dto);
+    const items = await this.snapshotItems(dto, {
+      allowForeignProducts: options.allowForeignProducts === true,
+    });
 
     const intent = dto.intent ?? OrderIntent.Order;
     const inquiry = intent === OrderIntent.Inquiry;
+    const tradeMode = options.tradeMode ?? OrderTradeMode.Bilateral;
     const order = await this.prisma.order.create({
       data: {
         kind: dto.kind,
         intent,
         status: OrderStatus.Requested,
+        tradeMode,
+        facilitatorCompanyId: options.facilitatorCompanyId ?? null,
+        downstreamOrderId: options.downstreamOrderId ?? null,
         buyerCompanyId: actorCompanyId,
         sellerCompanyId: dto.sellerCompanyId,
         createdByCompanyId: actorCompanyId,
@@ -226,6 +244,146 @@ export class OrderService {
     }
 
     return { orders, failures };
+  }
+
+  /**
+   * Curated pack → Manage downstream (buyer↔trader) + linked upstream per supplier.
+   */
+  async createFromPack(
+    actorCompanyId: string,
+    userId: string,
+    dto: CreateOrdersFromPackDto,
+  ): Promise<CreateOrdersFromPackResult> {
+    const collection = await this.prisma.collection.findUnique({
+      where: { id: dto.collectionId },
+      select: {
+        id: true,
+        companyId: true,
+        company: { select: { settings: { select: { tradeDefaults: true } } } },
+        products: { select: { productId: true } },
+      },
+    });
+    if (!collection) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Collection not found.' });
+    }
+
+    const memberIds = new Set(collection.products.map((row) => row.productId));
+    const productIds = [...new Set(dto.items.map((item) => item.productId))];
+    for (const id of productIds) {
+      if (!memberIds.has(id)) {
+        throw new BadRequestException({
+          code: 'NOT_IN_PACK',
+          message: 'One or more designs are not in this pack.',
+        });
+      }
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        id: true,
+        companyId: true,
+        company: { select: { name: true } },
+      },
+    });
+    if (products.length !== productIds.length) {
+      throw new NotFoundException({
+        code: 'INVALID_ITEM',
+        message: 'One or more designs could not be found.',
+      });
+    }
+
+    const hasForeign = products.some((product) => product.companyId !== collection.companyId);
+    if (!hasForeign) {
+      throw new BadRequestException({
+        code: 'NOT_CURATED',
+        message: 'Use Order for a curated pack.',
+      });
+    }
+
+    const traderPresence = resolveTradePresence(collection.company.settings?.tradeDefaults);
+    if (!traderPresence.trading) {
+      throw new BadRequestException({
+        code: 'TRADING_REQUIRED',
+        message: 'This business is not taking pack orders right now.',
+      });
+    }
+
+    await this.tradeAccess.assertCanTrade(actorCompanyId, collection.companyId, { productIds });
+
+    const downstream = await this.create(
+      actorCompanyId,
+      userId,
+      {
+        sellerCompanyId: collection.companyId,
+        kind: dto.kind ?? OrderKind.Standard,
+        intent: dto.intent ?? OrderIntent.Order,
+        note: dto.note,
+        items: dto.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          images: item.images ?? [],
+          note: item.note,
+          unit: item.unit,
+          name: item.name,
+        })),
+      },
+      { tradeMode: OrderTradeMode.Manage, allowForeignProducts: true },
+    );
+
+    const groups = new Map<
+      string,
+      { sellerName: string | null; items: CreateOrdersFromPackDto['items'] }
+    >();
+    const byId = new Map(products.map((product) => [product.id, product]));
+    for (const item of dto.items) {
+      const product = byId.get(item.productId)!;
+      const bucket = groups.get(product.companyId) ?? {
+        sellerName: product.company.name,
+        items: [],
+      };
+      bucket.items.push(item);
+      groups.set(product.companyId, bucket);
+    }
+
+    const upstreams: OrderView[] = [];
+    const failures: CreateOrdersFromPackResult['failures'] = [];
+    const shortId = downstream.id.slice(-6).toUpperCase();
+
+    for (const [sellerCompanyId, group] of groups) {
+      try {
+        const upstream = await this.create(
+          collection.companyId,
+          userId,
+          {
+            sellerCompanyId,
+            kind: dto.kind ?? OrderKind.Standard,
+            intent: dto.intent ?? OrderIntent.Order,
+            note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
+            items: group.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              images: item.images ?? [],
+              note: item.note,
+              unit: item.unit,
+              name: item.name,
+            })),
+          },
+          { downstreamOrderId: downstream.id },
+        );
+        upstreams.push(upstream);
+      } catch (err) {
+        failures.push({
+          sellerCompanyId,
+          sellerName: group.sellerName,
+          productIds: group.items.map((item) => item.productId),
+          code: exceptionCode(err),
+          message: exceptionMessage(err, 'Could not place the upstream order.'),
+        });
+      }
+    }
+
+    return { downstream, upstreams, failures };
   }
 
   /**
@@ -1333,7 +1491,10 @@ export class OrderService {
     return order;
   }
 
-  private async snapshotItems(dto: CreateOrderDto): Promise<Prisma.OrderItemCreateWithoutOrderInput[]> {
+  private async snapshotItems(
+    dto: CreateOrderDto,
+    opts: { allowForeignProducts?: boolean } = {},
+  ): Promise<Prisma.OrderItemCreateWithoutOrderInput[]> {
     if (dto.kind === OrderKind.Photo) {
       return dto.items.map((item) => ({
         productId: null,
@@ -1354,7 +1515,9 @@ export class OrderService {
       .map((item) => item.productId)
       .filter((id): id is string => Boolean(id));
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, companyId: dto.sellerCompanyId },
+      where: opts.allowForeignProducts
+        ? { id: { in: productIds } }
+        : { id: { in: productIds }, companyId: dto.sellerCompanyId },
     });
     const byId = new Map(products.map((product) => [product.id, product]));
 
@@ -1363,7 +1526,9 @@ export class OrderService {
       if (!product) {
         throw new NotFoundException({
           code: 'INVALID_ITEM',
-          message: 'One or more products do not belong to this seller.',
+          message: opts.allowForeignProducts
+            ? 'One or more designs could not be found.'
+            : 'One or more products do not belong to this seller.',
         });
       }
       return {
