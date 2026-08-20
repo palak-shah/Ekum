@@ -38,6 +38,9 @@ type OrderWithRelations = Order & {
   returns?: (Return & { items: ReturnItem[] })[];
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
+  tradeMode?: string;
+  facilitatorCompanyId?: string | null;
+  downstreamOrderId?: string | null;
 };
 
 type SampleWithRelations = Sample & { buyer: Company; seller: Company };
@@ -105,6 +108,10 @@ export class OrderSerializer {
       kind: order.kind,
       intent: order.intent ?? 'order',
       status: order.status,
+      tradeMode: order.tradeMode ?? 'bilateral',
+      facilitatorCompanyId: order.facilitatorCompanyId ?? null,
+      downstreamOrderId: order.downstreamOrderId ?? null,
+      relatedOrders: [],
       amendCount: order.amendCount ?? 0,
       direction: buying ? OrderDirection.Buying : OrderDirection.Selling,
       note: order.note,

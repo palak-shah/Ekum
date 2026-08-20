@@ -69,6 +69,8 @@ export const createOrdersBatchSchema = z.object({
   kind: z.enum(orderKindValues).default(OrderKind.Standard),
   intent: z.enum(orderIntentValues).default(OrderIntent.Order),
   note: z.string().trim().max(1000).optional(),
+  /** Direct mode: keep this company informed (must have trading on). */
+  facilitatorCompanyId: z.string().min(1).optional(),
   items: z
     .array(
       orderItemInputSchema.extend({
@@ -79,6 +81,29 @@ export const createOrdersBatchSchema = z.object({
     .max(200),
 });
 export type CreateOrdersBatchDto = z.input<typeof createOrdersBatchSchema>;
+
+/** Manage place from a curated pack (seller = pack owner). */
+export const createOrdersFromPackSchema = z.object({
+  collectionId: z.string().min(1),
+  kind: z.enum(orderKindValues).default(OrderKind.Standard),
+  intent: z.enum(orderIntentValues).default(OrderIntent.Order),
+  note: z.string().trim().max(1000).optional(),
+  items: z
+    .array(
+      orderItemInputSchema.extend({
+        productId: z.string().min(1),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type CreateOrdersFromPackDto = z.input<typeof createOrdersFromPackSchema>;
+
+export interface CreateOrdersFromPackResult {
+  downstream: OrderView;
+  upstreams: OrderView[];
+  failures: CreateOrdersBatchFailure[];
+}
 
 export interface CreateOrdersBatchFailure {
   sellerCompanyId: string;
@@ -308,12 +333,29 @@ export interface OrderShipmentView {
   items: OrderShipmentItemView[];
 }
 
+export interface OrderRelatedOrderView {
+  id: string;
+  role: 'downstream' | 'upstream';
+  status: string;
+  /** Null when soft-hide applies for the viewer. */
+  sellerName: string | null;
+  buyerName: string | null;
+}
+
 export interface OrderView {
   id: string;
   kind: string;
   /** order | inquiry — inquiry is a rate ask until quoted/confirmed. */
   intent: string;
   status: string;
+  /** bilateral | manage | direct */
+  tradeMode: string;
+  facilitatorCompanyId: string | null;
+  downstreamOrderId: string | null;
+  /** Linked dual-trade orders; names may be null under soft-hide. */
+  relatedOrders: OrderRelatedOrderView[];
+  /** Facilitator may Take control (direct, requested, no seller quote). */
+  canTakeControl?: boolean;
   direction: string;
   /** Times the buyer amended before seller progress. */
   amendCount: number;

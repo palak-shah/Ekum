@@ -138,6 +138,15 @@ export const OrderKind = {
 export type OrderKind = (typeof OrderKind)[keyof typeof OrderKind];
 export const orderKindValues = values(OrderKind);
 
+/** Dual-trade routing (Slice B). Upstream linked rows stay bilateral with downstreamOrderId. */
+export const OrderTradeMode = {
+  Bilateral: 'bilateral',
+  Manage: 'manage',
+  Direct: 'direct',
+} as const;
+export type OrderTradeMode = (typeof OrderTradeMode)[keyof typeof OrderTradeMode];
+export const orderTradeModeValues = values(OrderTradeMode);
+
 /**
  * Commitment level. Inquiry = rate ask (soft); becomes order when the seller
  * quotes / confirms lines or the buyer accepts a quote.

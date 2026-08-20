@@ -88,6 +88,7 @@ model Company {
 
   ordersAsBuyer   Order[]  @relation("OrderBuyer")
   ordersAsSeller  Order[]  @relation("OrderSeller")
+  ordersFacilitated Order[] @relation("OrderFacilitator")
   samplesAsBuyer  Sample[] @relation("SampleBuyer")
   samplesAsSeller Sample[] @relation("SampleSeller")
 
@@ -422,6 +423,12 @@ model Order {
   buyerCompanyId     String
   sellerCompanyId    String
   createdByCompanyId String
+  /// bilateral | manage | direct — Slice B dual trade
+  tradeMode            String  @default("bilateral")
+  /// Direct mode: company kept informed / may Take control
+  facilitatorCompanyId String?
+  /// Upstream Manage hop points at buyer-facing manage order
+  downstreamOrderId    String?
   note               String?
   transporter        String?
   lrNumber           String?
@@ -442,6 +449,9 @@ model Order {
 
   buyer         Company     @relation("OrderBuyer", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
   seller        Company     @relation("OrderSeller", fields: [sellerCompanyId], references: [id], onDelete: Cascade)
+  facilitator   Company?    @relation("OrderFacilitator", fields: [facilitatorCompanyId], references: [id], onDelete: SetNull)
+  downstream    Order?      @relation("OrderUpstreamLink", fields: [downstreamOrderId], references: [id], onDelete: SetNull)
+  upstreams     Order[]     @relation("OrderUpstreamLink")
   createdByUser User?       @relation("OrderCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedByUser User?       @relation("OrderUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   items         OrderItem[]
@@ -451,6 +461,8 @@ model Order {
 
   @@index([buyerCompanyId, status])
   @@index([sellerCompanyId, status])
+  @@index([facilitatorCompanyId])
+  @@index([downstreamOrderId])
   @@index([createdByUserId])
   @@index([updatedByUserId])
 }
