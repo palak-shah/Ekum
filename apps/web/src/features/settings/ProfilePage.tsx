@@ -86,8 +86,11 @@ export function ProfilePage() {
   });
 
   const setTradeSide = useMutation({
-    mutationFn: (patch: { buyingEnabled?: boolean; sellingEnabled?: boolean }) =>
-      api.put<CompanySettingsView>('/settings', patch),
+    mutationFn: (patch: {
+      buyingEnabled?: boolean;
+      sellingEnabled?: boolean;
+      tradingEnabled?: boolean;
+    }) => api.put<CompanySettingsView>('/settings', patch),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
       void queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -187,8 +190,8 @@ export function ProfilePage() {
         <div>
           <p className="text-sm font-semibold text-ink">Trade on Ekum</p>
           <p className="mt-1 text-xs text-muted">
-            One account can buy and sell. Turn a side off if you do not need it. Creating a design
-            turns selling back on.
+            One account can buy, sell, and trade. Turn a side off if you do not need it. Creating a
+            design turns selling back on.
           </p>
         </div>
         <TradeToggle
@@ -209,6 +212,16 @@ export function ProfilePage() {
             setTradeSide.mutate({ sellingEnabled: !presence.selling });
           }}
         />
+        <TradeToggle
+          label="I trade on Ekum"
+          on={presence.trading}
+          disabled={setTradeSide.isPending}
+          onToggle={() => setTradeSide.mutate({ tradingEnabled: !presence.trading })}
+        />
+        <p className="text-xs text-muted">
+          Curate packs and manage orders for buyers. Leave off if you only buy or sell your own
+          catalog.
+        </p>
       </Card>
 
       <Field label="Business name">

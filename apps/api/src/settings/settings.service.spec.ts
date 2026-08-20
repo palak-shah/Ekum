@@ -29,6 +29,32 @@ describe('SettingsService.updateSettings', () => {
     );
     expect(view.tradeDefaults).toMatchObject({ sellingEnabled: false });
   });
+
+  it('persists tradingEnabled in tradeDefaults', async () => {
+    const upsert = vi.fn(async ({ create, update }: { create: unknown; update: unknown }) => ({
+      companyId: 'c1',
+      returnPolicy: null,
+      tradeDefaults: (update as { tradeDefaults: unknown }).tradeDefaults ?? create,
+      myTools: null,
+    }));
+    const prisma = {
+      companySettings: {
+        findUnique: async () => ({ tradeDefaults: { buyingEnabled: true, sellingEnabled: true } }),
+        upsert,
+      },
+    } as unknown as PrismaService;
+    const service = new SettingsService(prisma);
+
+    const view = await service.updateSettings('c1', { tradingEnabled: false });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          tradeDefaults: expect.objectContaining({ tradingEnabled: false }),
+        }),
+      }),
+    );
+    expect(view.tradeDefaults).toMatchObject({ tradingEnabled: false });
+  });
 });
 
 describe('SettingsService.updateAddress ownership', () => {

@@ -52,7 +52,7 @@ export function AppShell() {
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
-  const { buying, selling, canPublish } = useTradePresence();
+  const { buying, selling, trading, canPublish } = useTradePresence();
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
   /** Thread detail: counterpart header owns the top chrome (WhatsApp-style). */
@@ -167,9 +167,11 @@ export function AppShell() {
               <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
                 New collection
               </Button>
-              <Button variant="secondary" fullWidth onClick={() => go('/saved?select=1')}>
-                Curate pack
-              </Button>
+              {trading ? (
+                <Button variant="secondary" fullWidth onClick={() => go('/saved?select=1')}>
+                  Curate pack
+                </Button>
+              ) : null}
               {canPublish ? (
                 <Button variant="secondary" fullWidth onClick={() => go('/broadcast/new')}>
                   Broadcast to buyers

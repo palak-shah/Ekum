@@ -9,13 +9,15 @@ export interface CompanyCapabilities {
 }
 
 /**
- * Which trade sides the UI should show. Defaults both true (trader-shaped).
- * Not a role enum — Profile can turn either side off; creating a product/
- * collection forces selling back on.
+ * Which trade sides the UI should show. Buy/sell default on; trading defaults
+ * off in product (WIP may treat unset as on for QA — see resolveTradePresence).
+ * Not a role enum — Profile toggles; creating a product/collection forces selling on.
  */
 export interface TradePresence {
   buying: boolean;
   selling: boolean;
+  /** Curate packs + dual-trade (Manage / facilitator). Not an OTP Trader role. */
+  trading: boolean;
 }
 
 /** Per-user permissions inside a company (owner-set hard caps). */

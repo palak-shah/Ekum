@@ -2,20 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { asTradeDefaults, mergeTradeDefaults, resolveTradePresence } from './trade-presence';
 
 describe('resolveTradePresence', () => {
-  it('defaults both sides on when unset', () => {
-    expect(resolveTradePresence(null)).toEqual({ buying: true, selling: true });
-    expect(resolveTradePresence({})).toEqual({ buying: true, selling: true });
+  it('defaults buy/sell on and trading on when unset (Slice B WIP)', () => {
+    expect(resolveTradePresence(null)).toEqual({ buying: true, selling: true, trading: true });
+    expect(resolveTradePresence({})).toEqual({ buying: true, selling: true, trading: true });
   });
 
   it('respects explicit false flags', () => {
     expect(resolveTradePresence({ buyingEnabled: false, sellingEnabled: true })).toEqual({
       buying: false,
       selling: true,
+      trading: true,
     });
     expect(resolveTradePresence({ sellingEnabled: false })).toEqual({
       buying: true,
       selling: false,
+      trading: true,
     });
+    expect(resolveTradePresence({ tradingEnabled: false })).toEqual({
+      buying: true,
+      selling: true,
+      trading: false,
+    });
+  });
+
+  it('trading on when tradingEnabled true', () => {
+    expect(resolveTradePresence({ tradingEnabled: true }).trading).toBe(true);
   });
 });
 

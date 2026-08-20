@@ -4,12 +4,18 @@ import type { PrismaService } from '../core/prisma/prisma.service';
 
 type TradeDefaults = Record<string, unknown>;
 
-/** Missing flags default to true — every account can buy and sell until turned off. */
+/**
+ * Buy/sell: missing flags default true.
+ * Trading: product default is off (`=== true` only). While Slice B WIP/QA, unset
+ * is treated as on so local testing does not require Profile hunting.
+ * TODO(slice-b-ship): `trading: defaults.tradingEnabled === true` only.
+ */
 export function resolveTradePresence(tradeDefaults: unknown): TradePresence {
   const defaults = asTradeDefaults(tradeDefaults);
   return {
     buying: defaults.buyingEnabled !== false,
     selling: defaults.sellingEnabled !== false,
+    trading: defaults.tradingEnabled === true || defaults.tradingEnabled === undefined,
   };
 }
 
