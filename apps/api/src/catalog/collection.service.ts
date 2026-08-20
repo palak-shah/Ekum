@@ -187,6 +187,8 @@ export class CollectionService {
     });
     if (endsAt !== undefined) {
       await this.scheduleExpire(id, endsAt);
+      // Reload: scheduleExpire may have drafted immediately when endsAt is past.
+      return this.toLatestCollectionView(id);
     }
     return this.serializer.toCollectionView(collection);
   }
@@ -313,7 +315,8 @@ export class CollectionService {
       await grantRelistCapability(this.prisma, companyId);
     }
     await this.scheduleExpire(id, collection.endsAt);
-    return this.serializer.toCollectionView(collection);
+    // Reload: scheduleExpire may have drafted immediately when endsAt is past.
+    return this.toLatestCollectionView(id);
   }
 
   async markReady(companyId: string, userId: string, id: string): Promise<CollectionView> {
@@ -558,6 +561,15 @@ export class CollectionService {
       return;
     }
     await this.jobs.enqueue(JobType.CollectionExpire, { collectionId }, endsAt);
+  }
+
+  /** Fresh row after mutations that may race with immediate expire. */
+  private async toLatestCollectionView(id: string): Promise<CollectionView> {
+    const collection = await this.prisma.collection.findUniqueOrThrow({
+      where: { id },
+      include: listInclude,
+    });
+    return this.serializer.toCollectionView(collection);
   }
 
   private async owned(companyId: string, id: string) {

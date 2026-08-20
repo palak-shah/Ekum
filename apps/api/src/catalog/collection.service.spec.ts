@@ -487,6 +487,12 @@ describe('CollectionService.publish', () => {
           endsAt: null,
         }),
         update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
       },
       company: {
         findUniqueOrThrow: async () => ({ canPublish: true }),
@@ -545,6 +551,83 @@ describe('CollectionService.publish', () => {
         data: expect.objectContaining({ status: CollectionStatus.Published }),
       }),
     );
+  });
+
+  it('returns draft when publish endsAt is already past', async () => {
+    const pastEnds = new Date(Date.now() - 60_000);
+    const publishedRow = {
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: pastEnds,
+      exploreActivityAt: new Date(),
+      _count: { products: 1 },
+    };
+    const draftedRow = {
+      ...publishedRow,
+      status: CollectionStatus.Draft,
+      exploreActivityAt: null,
+    };
+    const collectionUpdate = vi.fn(async () => publishedRow);
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const findUniqueOrThrow = vi.fn(async () => draftedRow);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+        updateMany,
+        findUniqueOrThrow,
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true }),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'p1',
+            product: {
+              id: 'p1',
+              companyId: 'company-1',
+              audience: 'connections',
+              audienceCompanyIds: [],
+              allowForward: true,
+              status: ProductStatus.Published,
+              postedToMarketAt: new Date(),
+            },
+          },
+        ],
+      },
+      product: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    const view = await service.publish('company-1', 'u1', 'col-1', {
+      audience: 'connections',
+      rateVisibility: 'on_request',
+      allowForward: true,
+      endsAt: pastEnds.toISOString(),
+    });
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'col-1', status: CollectionStatus.Published },
+      data: { status: CollectionStatus.Draft, exploreActivityAt: null },
+    });
+    expect(view).toMatchObject({ status: CollectionStatus.Draft, exploreActivityAt: null });
   });
 
   it('rejects publish when the collection has no designs', async () => {
@@ -647,6 +730,12 @@ describe('CollectionService.publish', () => {
           endsAt: null,
         }),
         update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
       },
       company: {
         findUniqueOrThrow: async () => ({ canPublish: false, canRelist: false }),
@@ -717,6 +806,12 @@ describe('CollectionService.publish', () => {
           endsAt: null,
         }),
         update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
       },
       company: {
         findUniqueOrThrow: async () => ({ canPublish: true, canRelist: true }),
@@ -763,5 +858,56 @@ describe('CollectionService.publish', () => {
         data: expect.objectContaining({ rateVisibility: 'on_request' }),
       }),
     );
+  });
+});
+
+describe('CollectionService.update', () => {
+  it('returns draft when updating endsAt to a time already past', async () => {
+    const pastEnds = new Date(Date.now() - 60_000);
+    const publishedRow = {
+      id: 'col-1',
+      name: 'Pack',
+      status: CollectionStatus.Published,
+      startsAt: null,
+      endsAt: pastEnds,
+      exploreActivityAt: new Date(),
+      _count: { products: 1 },
+    };
+    const draftedRow = {
+      ...publishedRow,
+      status: CollectionStatus.Draft,
+      exploreActivityAt: null,
+    };
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          name: 'Pack',
+          status: CollectionStatus.Published,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: vi.fn(async () => publishedRow),
+        updateMany,
+        findUniqueOrThrow: vi.fn(async () => draftedRow),
+      },
+    } as unknown as PrismaService;
+
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    const view = await service.update('company-1', 'u1', 'col-1', {
+      endsAt: pastEnds.toISOString(),
+    });
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'col-1', status: CollectionStatus.Published },
+      data: { status: CollectionStatus.Draft, exploreActivityAt: null },
+    });
+    expect(view).toMatchObject({ status: CollectionStatus.Draft, exploreActivityAt: null });
   });
 });
