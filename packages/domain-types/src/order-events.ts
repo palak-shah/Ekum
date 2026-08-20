@@ -114,30 +114,38 @@ export type NextOrderActionInput = {
   partiallyShipped?: boolean;
   /** inquiry | order — soft rate ask until firmed. */
   intent?: string | null;
+  /** Other party’s business name for waiting cues (never seller/buyer). */
+  counterpartName?: string | null;
 };
+
+function waitingOn(counterpartName: string | null | undefined, clause: string): string {
+  const who = counterpartName?.trim() || 'them';
+  return `Waiting on ${who} ${clause}`;
+}
 
 /** One-line “Next” cue for order detail, from the viewer’s role. */
 export function nextOrderAction(order: NextOrderActionInput): string | null {
   const buying = order.direction === 'buying';
   const inquiry = order.intent === 'inquiry';
+  const other = order.counterpartName;
 
   switch (order.status) {
     case 'requested':
       if (buying) {
         if (order.hasOpenQuotedLine) return 'Your move: accept quote';
         return inquiry
-          ? 'Waiting on seller rates'
-          : 'Waiting on seller quote or confirmation';
+          ? waitingOn(other, 'for rates')
+          : waitingOn(other, 'for quote or confirmation');
       }
-      if (order.hasOpenQuotedLine) return 'Waiting on buyer to accept quote';
+      if (order.hasOpenQuotedLine) return waitingOn(other, 'to accept quote');
       return inquiry
         ? 'Your move: send rates'
         : 'Your move: quote, confirm lines, or decline';
     case 'confirmed':
       if (buying) {
         return order.partiallyShipped
-          ? 'Part shipped — waiting on seller for the rest'
-          : 'Waiting on seller to dispatch';
+          ? `Part shipped — waiting on ${other?.trim() || 'them'} for the rest`
+          : waitingOn(other, 'to dispatch');
       }
       return order.partiallyShipped
         ? 'Your move: dispatch remaining'
@@ -145,7 +153,7 @@ export function nextOrderAction(order: NextOrderActionInput): string | null {
     case 'dispatched':
       return buying
         ? 'Your move: mark delivered'
-        : 'Waiting on buyer to mark delivered';
+        : waitingOn(other, 'to mark delivered');
     case 'delivered':
       return buying ? 'Delivered — raise a return if needed' : 'Delivered';
     case 'cancelled':

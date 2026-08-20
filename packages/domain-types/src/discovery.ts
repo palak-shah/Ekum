@@ -135,6 +135,12 @@ export interface ExploreBuyerOpportunity {
   latestPostedAt: string | null;
 }
 
+/** Recently published businesses for the Explore Stories rail. */
+export interface ExploreStory {
+  company: PublicCompanySummary;
+  latestPostedAt: string;
+}
+
 /** Supplier directory row — company that has posted designs and/or collections. */
 export interface ExploreSupplierCard {
   company: CompanyCard;
@@ -161,6 +167,8 @@ export interface ExploreHomeView {
   designsFromNetwork: ExploreDesignOpportunity[];
   suggestedBusinesses: ExploreBuyerOpportunity[];
   lookingForWhatYouSell: ExploreBuyerOpportunity[] | null;
+  /** Recently published businesses (Explore Stories rail); empty → hide rail. */
+  stories: ExploreStory[];
 }
 
 /** Grouped universal search (type omitted on `/search`). */

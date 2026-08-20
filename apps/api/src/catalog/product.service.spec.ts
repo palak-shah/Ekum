@@ -66,7 +66,11 @@ describe('ProductService.setStatus publish gate', () => {
 describe('ProductService.publish consent', () => {
   it('blocks catalog publish without consent when locked', async () => {
     const { service, productUpdate, companyUpdate } = setup(false);
-    await expect(service.publish('c1', 'u1', 'p1', {})).rejects.toThrow();
+    await expect(service.publish('c1', 'u1', 'p1', {
+      audience: 'connections',
+      rateVisibility: 'on_request',
+      allowForward: true,
+    })).rejects.toThrow();
     expect(productUpdate).not.toHaveBeenCalled();
     expect(companyUpdate).not.toHaveBeenCalled();
   });
@@ -76,6 +80,7 @@ describe('ProductService.publish consent', () => {
     await service.publish('c1', 'u1', 'p1', {
       audience: 'connections',
       rateVisibility: 'on_request',
+      allowForward: true,
       consentToSell: true,
     });
     expect(companyUpdate).toHaveBeenCalled();
@@ -87,6 +92,7 @@ describe('ProductService.publish consent', () => {
     await service.publish('c1', 'u1', 'p1', {
       audience: 'connections',
       rateVisibility: 'on_request',
+      allowForward: true,
     });
     expect(companyUpdate).not.toHaveBeenCalled();
     expect(productUpdate).toHaveBeenCalled();

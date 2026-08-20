@@ -24,6 +24,9 @@ type AudienceTarget = {
 
 type ProductRow = AudienceTarget & {
   name: string;
+  sku: string | null;
+  rate: number | { toNumber?: () => number } | null;
+  unit: string | null;
   images: string[];
   status: string;
   postedToMarketAt: Date | null;
@@ -50,6 +53,7 @@ type CollectionRow = AudienceTarget & {
     logoUrl: string | null;
   };
   products: Array<{ product: { images: string[] } }>;
+  _count?: { products: number };
 };
 
 const companySelect = {
@@ -67,9 +71,10 @@ const listInclude = {
       company: { select: companySelect },
       products: {
         orderBy: { position: 'asc' as const },
-        take: 1,
+        take: 4,
         include: { product: { select: { images: true } } },
       },
+      _count: { select: { products: true } },
     },
   },
 };
@@ -155,9 +160,10 @@ export class SavedService {
         company: { select: companySelect },
         products: {
           orderBy: { position: 'asc' },
-          take: 1,
+          take: 4,
           include: { product: { select: { images: true } } },
         },
+        _count: { select: { products: true } },
       },
     });
     if (!collection) {
@@ -254,28 +260,50 @@ export class SavedService {
     collection: CollectionRow | null;
   }): SavedItemView {
     if (row.productId && row.product) {
+      const images = row.product.images ?? [];
+      const rawRate = row.product.rate;
+      const rate =
+        rawRate == null
+          ? null
+          : typeof rawRate === 'number'
+            ? rawRate
+            : typeof rawRate.toNumber === 'function'
+              ? rawRate.toNumber()
+              : Number(rawRate);
       return {
         id: row.id,
         kind: 'product',
         productId: row.productId,
         company: this.companies.toPublicSummary(row.product.company as never),
         name: row.product.name,
-        thumbUrl: row.product.images[0] ?? null,
+        thumbUrl: images[0] ?? null,
+        images,
+        sku: row.product.sku ?? null,
+        rate: Number.isFinite(rate as number) ? (rate as number) : null,
+        unit: row.product.unit ?? null,
         createdAt: row.createdAt.toISOString(),
       };
     }
     if (row.collectionId && row.collection) {
-      const cover =
-        row.collection.coverImage ||
-        row.collection.products.flatMap((entry) => entry.product.images)[0] ||
-        null;
+      const fromMembers = row.collection.products.flatMap((entry) => entry.product.images);
+      const images: string[] = [];
+      if (row.collection.coverImage) images.push(row.collection.coverImage);
+      for (const url of fromMembers) {
+        if (images.length >= 4) break;
+        if (!images.includes(url)) images.push(url);
+      }
+      const productCount = row.collection._count?.products ?? row.collection.products.length;
+      const imageCount = Math.max(images.length, productCount > 0 ? images.length : 0);
       return {
         id: row.id,
         kind: 'collection',
         collectionId: row.collectionId,
         company: this.companies.toPublicSummary(row.collection.company as never),
         name: row.collection.name,
-        thumbUrl: cover,
+        thumbUrl: images[0] ?? null,
+        images,
+        imageCount: Math.max(imageCount, images.length),
+        productCount,
         createdAt: row.createdAt.toISOString(),
       };
     }

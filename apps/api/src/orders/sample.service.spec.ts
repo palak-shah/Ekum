@@ -13,7 +13,7 @@ describe('SampleService', () => {
     });
     const service = new SampleService(
       {} as PrismaService,
-      {} as OrderSerializer,
+      {} as unknown as OrderSerializer,
       { assertCanTrade } as unknown as TradeAccess,
     );
     await expect(
@@ -102,7 +102,7 @@ describe('SampleService', () => {
     } as unknown as PrismaService;
     const service = new SampleService(
       prisma,
-      { toSampleView: (r: unknown) => r } as OrderSerializer,
+      { toSampleView: (r: unknown) => r } as unknown as OrderSerializer,
       { assertCanTrade: vi.fn() } as unknown as TradeAccess,
     );
     await expect(service.dispatch('buyer', 's1', {})).rejects.toBeInstanceOf(ForbiddenException);
@@ -123,7 +123,7 @@ describe('SampleService', () => {
     } as unknown as PrismaService;
     const service = new SampleService(
       prisma,
-      { toSampleView: (r: unknown) => r } as OrderSerializer,
+      { toSampleView: (r: unknown) => r } as unknown as OrderSerializer,
       { assertCanTrade: vi.fn() } as unknown as TradeAccess,
     );
     await expect(service.receive('buyer', 's1')).rejects.toBeInstanceOf(ConflictException);
@@ -153,7 +153,7 @@ describe('SampleService', () => {
     } as unknown as PrismaService;
     const service = new SampleService(
       prisma,
-      { toSampleView: (r: unknown) => r } as OrderSerializer,
+      { toSampleView: (r: unknown) => r } as unknown as OrderSerializer,
       { assertCanTrade: vi.fn() } as unknown as TradeAccess,
     );
     await service.convert('buyer', 's1');

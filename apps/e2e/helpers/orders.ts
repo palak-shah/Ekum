@@ -20,7 +20,12 @@ export async function getOrder(
   request: APIRequestContext,
   accessToken: string,
   orderId: string,
-): Promise<{ id: string; threadId: string; items: Array<{ id: string; quantity: number }> }> {
+): Promise<{
+  id: string;
+  threadId: string;
+  status: string;
+  items: Array<{ id: string; quantity: number }>;
+}> {
   const res = await request.get(`${API_URL}/orders/${orderId}`, {
     headers: { authorization: `Bearer ${accessToken}` },
   });
@@ -30,6 +35,7 @@ export async function getOrder(
   return res.json() as Promise<{
     id: string;
     threadId: string;
+    status: string;
     items: Array<{ id: string; quantity: number }>;
   }>;
 }

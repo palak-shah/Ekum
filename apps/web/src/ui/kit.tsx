@@ -135,7 +135,14 @@ export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
+export function StatusPill({
+  status,
+  label,
+}: {
+  status: string;
+  /** Override display text (e.g. return `requested` → Raised). */
+  label?: string;
+}) {
   return (
     <span
       className={cx(
@@ -143,7 +150,7 @@ export function StatusPill({ status }: { status: string }) {
         statusClasses(status),
       )}
     >
-      {statusLabel(status)}
+      {label ?? statusLabel(status)}
     </span>
   );
 }
@@ -253,6 +260,30 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
         </Button>
       ) : null}
     </div>
+  );
+}
+
+/** In-context failure (sheets / forms) — left-aligned, readable; not a buried page banner. */
+export function InlineNotice({
+  message,
+  tone = 'danger',
+  className,
+}: {
+  message: string;
+  tone?: 'danger' | 'muted';
+  className?: string;
+}) {
+  return (
+    <p
+      role="alert"
+      className={cx(
+        'text-sm font-medium leading-snug',
+        tone === 'danger' ? 'text-danger' : 'text-muted',
+        className,
+      )}
+    >
+      {message}
+    </p>
   );
 }
 

@@ -19,7 +19,10 @@ const publishedProduct = {
   id: 'prod-1',
   companyId: 'seller-co',
   name: 'Silk Shirt',
-  images: ['https://cdn/shirt.jpg'],
+  sku: 'SS-01',
+  rate: 450,
+  unit: 'pc',
+  images: ['https://cdn/shirt.jpg', 'https://cdn/shirt-2.jpg'],
   audience: 'everyone',
   audienceCompanyIds: [] as string[],
   status: ProductStatus.Published,
@@ -62,6 +65,9 @@ describe('SavedService.create', () => {
     expect(view.productId).toBe('prod-1');
     expect(view.name).toBe('Silk Shirt');
     expect(view.thumbUrl).toBe('https://cdn/shirt.jpg');
+    expect(view.images).toEqual(['https://cdn/shirt.jpg', 'https://cdn/shirt-2.jpg']);
+    expect(view.sku).toBe('SS-01');
+    expect(view.rate).toBe(450);
     expect(view.company.id).toBe('seller-co');
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -137,7 +143,11 @@ describe('SavedService.list', () => {
               name: 'Monsoon Pack',
               coverImage: 'https://cdn/pack.jpg',
               company: { id: 'seller-co', name: 'Ravi Textiles' },
-              products: [],
+              products: [
+                { product: { images: ['https://cdn/a.jpg'] } },
+                { product: { images: ['https://cdn/b.jpg'] } },
+              ],
+              _count: { products: 5 },
             },
           },
         ],
@@ -148,9 +158,13 @@ describe('SavedService.list', () => {
     const list = await service.list('me');
     expect(list).toHaveLength(2);
     expect(list[0].kind).toBe('product');
+    expect(list[0].sku).toBe('SS-01');
+    expect(list[0].images).toHaveLength(2);
     expect(list[1].kind).toBe('collection');
     expect(list[1].name).toBe('Monsoon Pack');
     expect(list[1].thumbUrl).toBe('https://cdn/pack.jpg');
+    expect(list[1].productCount).toBe(5);
+    expect(list[1].images?.[0]).toBe('https://cdn/pack.jpg');
   });
 });
 

@@ -42,6 +42,7 @@ describe('SettingsService.updateAddress ownership', () => {
         label: 'Shop',
         line1: 'X',
         city: 'Surat',
+        isDefault: false,
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
