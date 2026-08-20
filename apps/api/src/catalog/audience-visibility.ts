@@ -20,9 +20,14 @@ export function canDiscoverCollection(
   viewerCompanyId: string,
   collection: AudienceRow,
   ctx: AudienceViewerContext = { connected: false, following: false },
+  sourceCompanyIds: string[] = [],
 ): boolean {
   if (collection.companyId === viewerCompanyId) {
     return true;
+  }
+  // Curated pack: hide redistribution surface from upstream source companies.
+  if (sourceCompanyIds.includes(viewerCompanyId)) {
+    return false;
   }
   if (collection.audience === PublishAudience.Everyone) {
     return true;
@@ -76,4 +81,17 @@ export function audienceVisibilityOr(viewerCompanyId: string): object[] {
       audienceCompanyIds: { has: viewerCompanyId },
     },
   ];
+}
+
+/**
+ * Hide curated packs from companies that own member products (unless they own the pack).
+ * AND with audience visibility on Collection queries.
+ */
+export function curatedSourceExcludeAnd(viewerCompanyId: string): object {
+  return {
+    OR: [
+      { companyId: viewerCompanyId },
+      { NOT: { products: { some: { product: { companyId: viewerCompanyId } } } } },
+    ],
+  };
 }

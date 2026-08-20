@@ -152,6 +152,20 @@ export function OrderDetailPage() {
     onError: (err) => showToast(actionErrorMessage(err, 'Action failed.'), 'danger'),
   });
 
+  const takeControl = useMutation({
+    mutationFn: () =>
+      api.post<{ downstream: OrderView; upstream: OrderView; cancelledOrderId: string }>(
+        `/orders/${id}/take-control`,
+        {},
+      ),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      showToast('You took control of this order.');
+      navigate(`/orders/${result.downstream.id}`, { replace: true });
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not take control.'), 'danger'),
+  });
+
   const openAmendSheet = () => {
     const items = order.data?.items ?? [];
     const qty: Record<string, string> = {};
@@ -557,8 +571,31 @@ export function OrderDetailPage() {
         ) : null}
       </Card>
 
+      {data.relatedOrders && data.relatedOrders.length > 0 ? (
+        <Card className="flex flex-col gap-2 text-sm">
+          <p className="font-semibold text-ink">Related orders</p>
+          {data.relatedOrders.map((related) => (
+            <button
+              key={related.id}
+              type="button"
+              className="flex flex-col items-start rounded-lg px-1 py-1 text-left hover:bg-foam"
+              onClick={() => navigate(`/orders/${related.id}`)}
+            >
+              <span className="font-medium text-ink">
+                {related.role === 'upstream' ? 'Upstream' : 'Downstream'} ·{' '}
+                {shortOrderLabel(related.id)} · {related.status}
+              </span>
+              {(related.sellerName || related.buyerName) && (
+                <span className="text-xs text-muted">
+                  {[related.buyerName, related.sellerName].filter(Boolean).join(' → ')}
+                </span>
+              )}
+            </button>
+          ))}
+        </Card>
+      ) : null}
+
       <Card className="flex flex-col gap-3">
-        {data.items.map((item) => (
           <div key={item.id} className="flex items-center gap-3">
             {item.image ? (
               <img src={item.image} alt={item.name} className="h-14 w-14 rounded-xl object-cover" />
@@ -707,6 +744,15 @@ export function OrderDetailPage() {
               Decline order
             </Button>
           </>
+        ) : null}
+        {data.canTakeControl ? (
+          <Button
+            variant="secondary"
+            onClick={() => takeControl.mutate()}
+            disabled={takeControl.isPending}
+          >
+            Take control
+          </Button>
         ) : null}
         {isBuyer && data.canAcceptQuote ? (
           <Button onClick={() => act.mutate('accept-quote')} disabled={act.isPending}>

@@ -1,7 +1,7 @@
 # Trader dual trade Slice B — design
 
 **Date:** 2026-08-20  
-**Status:** Approved (design) — platform trade-presence gate in B; deeper settings later  
+**Status:** Implemented (core) — settings ladder beyond Trading toggle still deferred  
 **Surface:** Order routing **Direct** vs **Manage**, back-to-back linking, soft middleman protection; **Trading** presence toggle  
 **Anchors:** [00-concepts.md](../../features/00-concepts.md), [orders.md](../../features/orders.md), [saved.md](../../features/saved.md), [settings.md](../../features/settings.md), [2026-08-19-trader-curation-slice-a-design.md](./2026-08-19-trader-curation-slice-a-design.md), [mvp-garmenthub-gap-matrix.md](../reviews/mvp-garmenthub-gap-matrix.md), [feature-gap-matrix.md](../reviews/feature-gap-matrix.md)
 

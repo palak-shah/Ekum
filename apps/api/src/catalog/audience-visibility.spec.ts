@@ -58,4 +58,36 @@ describe('audience visibility', () => {
       canDiscoverCollection('viewer', collection, { connected: false, following: false }),
     ).toBe(true);
   });
+
+  it('hides curated pack from source supplier companies', () => {
+    const collection = {
+      companyId: 'trader',
+      audience: 'connections',
+      audienceCompanyIds: [],
+    };
+    expect(
+      canDiscoverCollection(
+        'supplier-a',
+        collection,
+        { connected: true, following: false },
+        ['supplier-a'],
+      ),
+    ).toBe(false);
+    expect(
+      canDiscoverCollection(
+        'buyer-b',
+        collection,
+        { connected: true, following: false },
+        ['supplier-a'],
+      ),
+    ).toBe(true);
+    expect(
+      canDiscoverCollection(
+        'trader',
+        collection,
+        { connected: false, following: false },
+        ['supplier-a'],
+      ),
+    ).toBe(true);
+  });
 });

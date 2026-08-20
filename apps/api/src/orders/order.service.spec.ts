@@ -113,6 +113,7 @@ function makeService(options: Options) {
         };
       },
       findUnique: async () => orderState,
+      findMany: async () => [],
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         captured.updateData = args.data;
         if (orderState) {

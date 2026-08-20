@@ -34,16 +34,43 @@ export function useShortlistOrderFlow() {
     mutationFn: (input: {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
       lines: Array<{ productId: string; quantity: number }>;
-    }) =>
-      api.post<CreateOrdersBatchResult>('/orders/batch', {
+      collectionId?: string;
+      facilitatorCompanyId?: string;
+    }) => {
+      if (input.collectionId) {
+        return api.post<CreateOrdersBatchResult>('/orders/from-pack', {
+          collectionId: input.collectionId,
+          kind: OrderKind.Standard,
+          intent: input.intent,
+          items: input.lines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            images: [],
+          })),
+        }).then((payload) => {
+          // Normalize from-pack shape into batch confirm sheet shape
+          const fromPack = payload as unknown as {
+            downstream: CreateOrdersBatchResult['orders'][number];
+            upstreams: CreateOrdersBatchResult['orders'];
+            failures: CreateOrdersBatchResult['failures'];
+          };
+          return {
+            orders: [fromPack.downstream, ...(fromPack.upstreams ?? [])],
+            failures: fromPack.failures ?? [],
+          };
+        });
+      }
+      return api.post<CreateOrdersBatchResult>('/orders/batch', {
         kind: OrderKind.Standard,
         intent: input.intent,
+        facilitatorCompanyId: input.facilitatorCompanyId,
         items: input.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
           images: [],
         })),
-      }),
+      });
+    },
     onSuccess: (payload) => {
       setQtyOpen(false);
       setError(null);
@@ -87,13 +114,29 @@ export function useShortlistOrderFlow() {
     products: entriesAsProducts(shortlist.entries),
     submitting: batch.isPending && batch.variables?.intent !== OrderIntent.Inquiry,
     asking: batch.isPending && batch.variables?.intent === OrderIntent.Inquiry,
-    sendOrder: (lines: Array<{ productId: string; quantity: number }>) => {
+    sendOrder: (
+      lines: Array<{ productId: string; quantity: number }>,
+      opts?: { collectionId?: string; facilitatorCompanyId?: string },
+    ) => {
       setError(null);
-      batch.mutate({ intent: OrderIntent.Order, lines });
+      batch.mutate({
+        intent: OrderIntent.Order,
+        lines,
+        collectionId: opts?.collectionId,
+        facilitatorCompanyId: opts?.facilitatorCompanyId,
+      });
     },
-    askRates: (lines: Array<{ productId: string; quantity: number }>) => {
+    askRates: (
+      lines: Array<{ productId: string; quantity: number }>,
+      opts?: { collectionId?: string; facilitatorCompanyId?: string },
+    ) => {
       setError(null);
-      batch.mutate({ intent: OrderIntent.Inquiry, lines });
+      batch.mutate({
+        intent: OrderIntent.Inquiry,
+        lines,
+        collectionId: opts?.collectionId,
+        facilitatorCompanyId: opts?.facilitatorCompanyId,
+      });
     },
   };
 }

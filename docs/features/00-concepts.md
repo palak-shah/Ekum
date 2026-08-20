@@ -40,8 +40,8 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Stories | Viewer sees a company when they **follow or are connected** and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light attention on new received packs; **Buying** Explore = followed posts + received by day/business |
-| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream** (presence). Linking/split/in-loop = Slice B — not required for curate publish |
-| Orders | Line → **owner of that product/collection**; multi-supplier packs **split** per upstream; middleman may stay **in the loop** (optional anonymity — design open) |
+| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** presence (`I trade on Ekum`) gates Curate + Manage/Direct; product default off (QA may treat unset as on). Linking/split in Slice B |
+| Orders | Curated pack → **Manage** (buyer↔trader + linked upstream by `product.companyId`); forward → **Direct** (facilitator informed, Take control). Soft-hide ends on Manage |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
 

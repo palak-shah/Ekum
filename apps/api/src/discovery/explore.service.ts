@@ -44,12 +44,19 @@ import {
   resolveSuperCategoryId,
   type ResolvedInterest,
 } from './interest-match';
-import { audienceVisibilityOr } from '../catalog/audience-visibility';
+import { audienceVisibilityOr, curatedSourceExcludeAnd } from '../catalog/audience-visibility';
 import { compareByMarketRelevance } from './feed-rank';
 
 /** Posts visible to this viewer by publish audience (everyone/connections/followers/selected). */
 function audienceVisibility(viewerCompanyId: string): { OR: object[] } {
   return { OR: audienceVisibilityOr(viewerCompanyId) };
+}
+
+/** Audience + curated source auto-exclude for collection rows. */
+function collectionAudienceVisibility(viewerCompanyId: string): object {
+  return {
+    AND: [audienceVisibility(viewerCompanyId), curatedSourceExcludeAnd(viewerCompanyId)],
+  };
 }
 
 type CollectionCardRow = Prisma.CollectionGetPayload<{ include: typeof collectionCardInclude }>;
@@ -394,7 +401,7 @@ export class ExploreService {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
       company: companyFilter,
-      AND: [audienceVisibility(viewerCompanyId), ...liveWindowClauses()],
+      AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
     const productWhere: Prisma.ProductWhereInput = {
       status: ProductStatus.Published,
@@ -507,7 +514,7 @@ export class ExploreService {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
       company: this.companyFilter(viewerCompanyId, query),
-      AND: [audienceVisibility(viewerCompanyId), ...liveWindowClauses()],
+      AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
 
     if (query.following) {
@@ -621,7 +628,7 @@ export class ExploreService {
             some: {
               status: CollectionStatus.Published,
               OR: visibleOr,
-              AND: liveWindowClauses(),
+              AND: [curatedSourceExcludeAnd(viewerCompanyId), ...liveWindowClauses()],
             },
           },
         },

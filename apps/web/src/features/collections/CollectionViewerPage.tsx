@@ -441,8 +441,18 @@ export function CollectionViewerPage() {
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        onSendOrder={orderFlow.sendOrder}
-        onAskRates={orderFlow.askRates}
+        onSendOrder={(lines) =>
+          orderFlow.sendOrder(
+            lines,
+            isCuratedPack && id ? { collectionId: id } : undefined,
+          )
+        }
+        onAskRates={(lines) =>
+          orderFlow.askRates(
+            lines,
+            isCuratedPack && id ? { collectionId: id } : undefined,
+          )
+        }
       />
 
       <BatchOrderConfirmSheet

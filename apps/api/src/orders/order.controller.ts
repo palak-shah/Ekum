@@ -133,6 +133,16 @@ export class OrderController {
     return this.orders.deliver(companyId, id);
   }
 
+  @Post(':id/take-control')
+  @HttpCode(200)
+  takeControl(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.orders.takeControl(companyId, user.userId, id);
+  }
+
   @Post(':id/cancel')
   @HttpCode(200)
   cancel(@CurrentCompanyId() companyId: string, @Param('id') id: string) {

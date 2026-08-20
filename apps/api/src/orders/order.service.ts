@@ -217,20 +217,46 @@ export class OrderService {
 
     for (const [sellerCompanyId, group] of groups) {
       try {
-        const order = await this.create(actorCompanyId, userId, {
-          sellerCompanyId,
-          kind: dto.kind ?? OrderKind.Standard,
-          intent: dto.intent ?? OrderIntent.Order,
-          note: dto.note,
-          items: group.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            images: item.images ?? [],
-            note: item.note,
-            unit: item.unit,
-            name: item.name,
-          })),
-        });
+        const createOpts =
+          dto.facilitatorCompanyId &&
+          dto.facilitatorCompanyId !== actorCompanyId &&
+          dto.facilitatorCompanyId !== sellerCompanyId
+            ? {
+                tradeMode: OrderTradeMode.Direct,
+                facilitatorCompanyId: dto.facilitatorCompanyId,
+              }
+            : {};
+        if (createOpts.facilitatorCompanyId) {
+          const settings = await this.prisma.companySettings.findUnique({
+            where: { companyId: createOpts.facilitatorCompanyId },
+            select: { tradeDefaults: true },
+          });
+          if (!resolveTradePresence(settings?.tradeDefaults).trading) {
+            throw new BadRequestException({
+              code: 'TRADING_REQUIRED',
+              message: 'Turn on Trading in Profile to stay in the loop on orders.',
+            });
+          }
+        }
+        const order = await this.create(
+          actorCompanyId,
+          userId,
+          {
+            sellerCompanyId,
+            kind: dto.kind ?? OrderKind.Standard,
+            intent: dto.intent ?? OrderIntent.Order,
+            note: dto.note,
+            items: group.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              images: item.images ?? [],
+              note: item.note,
+              unit: item.unit,
+              name: item.name,
+            })),
+          },
+          createOpts,
+        );
         orders.push(order);
       } catch (err) {
         failures.push({
@@ -484,6 +510,7 @@ export class OrderService {
               OR: [
                 { buyerCompanyId: actorCompanyId },
                 { sellerCompanyId: actorCompanyId },
+                { facilitatorCompanyId: actorCompanyId },
               ],
             };
     const filters: Prisma.OrderWhereInput[] = [partyWhere];
@@ -536,8 +563,17 @@ export class OrderService {
     );
     const view = this.serializer.toOrderView(order, actorCompanyId, threadId);
     const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
+    const relatedOrders = await this.buildRelatedOrders(order, actorCompanyId);
+    const canTakeControl =
+      order.tradeMode === OrderTradeMode.Direct &&
+      order.facilitatorCompanyId === actorCompanyId &&
+      order.status === OrderStatus.Requested &&
+      !sellerQuoted &&
+      order.items.every((item) => item.lineStatus === OrderLineStatus.Open);
     return {
       ...view,
+      relatedOrders,
+      canTakeControl,
       canAmend: await this.buyerCanAmend(order, actorCompanyId),
       hasSellerQuote: sellerQuoted,
       canAcceptQuote: this.buyerCanAcceptQuoteSync(order, actorCompanyId, sellerQuoted),
@@ -1185,6 +1221,108 @@ export class OrderService {
     return view;
   }
 
+  /**
+   * Facilitator Take control: cancel Direct order, create Manage pair (requested only).
+   */
+  async takeControl(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+  ): Promise<{ downstream: OrderView; upstream: OrderView; cancelledOrderId: string }> {
+    const order = await this.loadForParty(id, actorCompanyId, true);
+    if (order.facilitatorCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the company in the loop can take control.',
+      });
+    }
+    if (order.tradeMode !== OrderTradeMode.Direct) {
+      throw new BadRequestException({
+        code: 'NOT_DIRECT',
+        message: 'Only direct orders can be taken over.',
+      });
+    }
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: actorCompanyId },
+      select: { tradeDefaults: true },
+    });
+    if (!resolveTradePresence(settings?.tradeDefaults).trading) {
+      throw new BadRequestException({
+        code: 'TRADING_REQUIRED',
+        message: 'Turn on Trading in Profile to take control.',
+      });
+    }
+    const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
+    if (
+      order.status !== OrderStatus.Requested ||
+      sellerQuoted ||
+      order.items.some((item) => item.lineStatus !== OrderLineStatus.Open)
+    ) {
+      throw new ConflictException({
+        code: 'SELLER_PROGRESS',
+        message: 'Take control only before the supplier responds.',
+      });
+    }
+
+    const lineItems = order.items.map((item) => ({
+      productId: item.productId ?? undefined,
+      quantity: item.quantity.toNumber(),
+      images: item.images ?? [],
+      note: item.note ?? undefined,
+      unit: (item.unit as CreateOrderDto['items'][number]['unit']) ?? undefined,
+      name: item.name,
+    }));
+
+    const downstream = await this.create(
+      order.buyerCompanyId,
+      userId,
+      {
+        sellerCompanyId: actorCompanyId,
+        kind: order.kind as CreateOrderDto['kind'],
+        intent: (order.intent as CreateOrderDto['intent']) ?? OrderIntent.Order,
+        note: order.note ?? undefined,
+        items: lineItems,
+      },
+      { tradeMode: OrderTradeMode.Manage, allowForeignProducts: true },
+    );
+
+    const upstream = await this.create(
+      actorCompanyId,
+      userId,
+      {
+        sellerCompanyId: order.sellerCompanyId,
+        kind: order.kind as CreateOrderDto['kind'],
+        intent: (order.intent as CreateOrderDto['intent']) ?? OrderIntent.Order,
+        note: `Taken over · for #${downstream.id.slice(-6).toUpperCase()}`,
+        items: lineItems.filter((item) => item.productId),
+      },
+      { downstreamOrderId: downstream.id },
+    );
+
+    await this.prisma.order.update({
+      where: { id },
+      data: { status: OrderStatus.Cancelled, closedAt: new Date() },
+    });
+    const orderLabel = shortOrderLabel(id);
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${order.buyer.name} order taken over`,
+      id,
+      {
+        status: OrderStatus.Cancelled,
+        itemCount: order.items.length,
+        event: OrderChatEvent.OrderCancelled,
+        orderLabel,
+        actorLabel: order.buyer.name,
+        actorRole: 'buyer',
+      },
+    );
+
+    return { downstream, upstream, cancelledOrderId: id };
+  }
+
   async cancel(actorCompanyId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     const view = await this.transition(actorCompanyId, id, {
@@ -1485,10 +1623,77 @@ export class OrderService {
           }
         : ORDER_RELATIONS,
     });
-    if (!order || (order.buyerCompanyId !== actorCompanyId && order.sellerCompanyId !== actorCompanyId)) {
+    if (
+      !order ||
+      (order.buyerCompanyId !== actorCompanyId &&
+        order.sellerCompanyId !== actorCompanyId &&
+        order.facilitatorCompanyId !== actorCompanyId)
+    ) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
     }
     return order;
+  }
+
+  private async buildRelatedOrders(
+    order: {
+      id: string;
+      tradeMode: string;
+      downstreamOrderId: string | null;
+      buyerCompanyId: string;
+      sellerCompanyId: string;
+    },
+    actorCompanyId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      role: 'downstream' | 'upstream';
+      status: string;
+      sellerName: string | null;
+      buyerName: string | null;
+    }>
+  > {
+    const related: Array<{
+      id: string;
+      role: 'downstream' | 'upstream';
+      status: string;
+      sellerName: string | null;
+      buyerName: string | null;
+    }> = [];
+
+    if (order.downstreamOrderId) {
+      const down = await this.prisma.order.findUnique({
+        where: { id: order.downstreamOrderId },
+        include: { buyer: true, seller: true },
+      });
+      if (down) {
+        const isSupplierEnd = order.sellerCompanyId === actorCompanyId;
+        related.push({
+          id: down.id,
+          role: 'downstream',
+          status: down.status,
+          sellerName: isSupplierEnd ? null : down.seller.name,
+          buyerName: isSupplierEnd ? null : down.buyer.name,
+        });
+      }
+    }
+
+    const upstreams = await this.prisma.order.findMany({
+      where: { downstreamOrderId: order.id },
+      include: { buyer: true, seller: true },
+    });
+    const isEndBuyer =
+      order.buyerCompanyId === actorCompanyId && order.tradeMode === OrderTradeMode.Manage;
+    for (const up of upstreams) {
+      related.push({
+        id: up.id,
+        role: 'upstream',
+        status: up.status,
+        sellerName: isEndBuyer ? null : up.seller.name,
+        buyerName: isEndBuyer ? null : up.buyer.name,
+      });
+    }
+
+    return related;
   }
 
   private async snapshotItems(
