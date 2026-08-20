@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           aria-live="polite"
           data-testid="app-toast"
           className={cx(
-            'pointer-events-none fixed inset-x-0 z-[70] mx-auto flex max-w-md justify-center px-4',
+            'pointer-events-none fixed inset-x-0 z-[90] mx-auto flex max-w-md justify-center px-4',
             'bottom-[calc(4.75rem+env(safe-area-inset-bottom))]',
           )}
         >

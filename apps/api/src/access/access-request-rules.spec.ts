@@ -79,7 +79,7 @@ describe('AccessService.createRequest rules', () => {
         }),
       }),
     );
-    // Referral attribution must not auto-approve.
+    // Targeted vouch attribution must not auto-approve (open invites redeem separately).
     expect(threads.activateDirectParticipants).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,7 @@ describe('CompanyService.create onboarding', () => {
       ...data,
       verification: 'not_verified',
       logoUrl: null,
-      canRefer: false,
+      canRefer: true,
       canRelist: false,
     }));
     const membershipCreate = vi.fn(async () => ({}));
@@ -51,7 +51,7 @@ describe('CompanyService.create onboarding', () => {
         name: 'Kala Creations',
         contactPerson,
         canPublish: false,
-        capabilities: { publish: false, relist: false, refer: false },
+        capabilities: { publish: false, relist: false, refer: true },
       }),
     } as unknown as CompanySerializer;
     const visibility = {} as unknown as VisibilityService;
@@ -71,6 +71,7 @@ describe('CompanyService.create onboarding', () => {
         data: expect.objectContaining({
           name: 'Kala Creations',
           canPublish: false,
+          canRefer: true,
           superCategories: [SuperCategory.WomensApparel],
         }),
       }),

@@ -48,6 +48,15 @@ const STATUS_LABEL: Record<string, string> = {
   ready: 'Ready',
 };
 
+/** Return pills — `requested` must not read like an order inquiry. */
+const RETURN_STATUS_LABEL: Record<string, string> = {
+  requested: 'Raised',
+  approved: 'Approved',
+  partially_approved: 'Partial',
+  declined: 'Declined',
+  resolved: 'Resolved',
+};
+
 export function statusTone(status: string): StatusTone {
   return STATUS_TONE[status] ?? 'neutral';
 }
@@ -65,4 +74,9 @@ export function statusLabel(status: string): string {
     return STATUS_LABEL[status];
   }
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+}
+
+/** Display label for return lifecycle (list + order detail). */
+export function returnStatusLabel(status: string): string {
+  return RETURN_STATUS_LABEL[status] ?? statusLabel(status);
 }

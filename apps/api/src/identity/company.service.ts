@@ -71,6 +71,7 @@ export class CompanyService {
               buyCategories: dto.buyCategories,
               superCategories: dto.superCategories,
               canPublish: false,
+              canRefer: true,
             },
           });
           await tx.companyMembership.create({

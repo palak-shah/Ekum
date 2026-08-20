@@ -17,6 +17,6 @@ import { CompanySerializer } from './company.serializer';
   imports: [forwardRef(() => ConversationModule)],
   controllers: [AccessController, ConnectionController],
   providers: [AccessService, ConnectionService, VisibilityService, CompanySerializer],
-  exports: [VisibilityService, CompanySerializer],
+  exports: [VisibilityService, CompanySerializer, AccessService],
 })
 export class AccessModule {}

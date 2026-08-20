@@ -144,7 +144,7 @@ export function buildHomeNeeds(input: {
       kind: 'access_request',
       title: `Access request · ${request.company.name}`,
       subtitle: request.company.city || null,
-      to: '/buyers',
+      to: '/network/requests',
       sortAt: request.createdAt,
     });
   }

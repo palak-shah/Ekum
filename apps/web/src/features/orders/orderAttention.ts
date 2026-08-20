@@ -1,6 +1,10 @@
-import type { OrderView, ReturnView } from '@ekum/domain-types';
+import type { OrderView, ReturnView, SampleView } from '@ekum/domain-types';
 
 const COMPLETED = new Set(['delivered', 'declined', 'cancelled']);
+const SAMPLE_PROGRESS = new Set(['requested', 'dispatched']);
+const SAMPLE_DONE = new Set(['received', 'declined', 'converted']);
+const RETURN_PROGRESS = new Set(['requested', 'approved', 'partially_approved']);
+const RETURN_DONE = new Set(['declined', 'resolved']);
 
 /** Buyer can accept only after the seller sent a real quote (not catalog line rates). */
 export function buyerCanAcceptQuote(order: OrderView): boolean {
@@ -39,6 +43,11 @@ export function sellerNeedsReturnReview(ret: ReturnView): boolean {
   return ret.direction === 'selling' && ret.status === 'requested';
 }
 
+/** Buyer waiting on seller review of their return request. */
+export function buyerWaitingReturnReview(ret: ReturnView): boolean {
+  return ret.direction === 'buying' && ret.status === 'requested';
+}
+
 /** Orders that need the signed-in company's action right now. */
 export function matchesNeeds(order: OrderView): boolean {
   if (sellerNeedsRate(order) || sellerCanConfirm(order)) return true;
@@ -55,6 +64,32 @@ export function matchesProgress(order: OrderView): boolean {
 
 export function matchesCompleted(order: OrderView): boolean {
   return COMPLETED.has(order.status);
+}
+
+export function matchesSampleNeeds(sample: SampleView): boolean {
+  if (sample.direction === 'selling' && sample.status === 'requested') return true;
+  if (sample.direction === 'buying' && sample.status === 'dispatched') return true;
+  return false;
+}
+
+export function matchesSampleProgress(sample: SampleView): boolean {
+  return SAMPLE_PROGRESS.has(sample.status);
+}
+
+export function matchesSampleCompleted(sample: SampleView): boolean {
+  return SAMPLE_DONE.has(sample.status);
+}
+
+export function matchesReturnNeeds(ret: ReturnView): boolean {
+  return sellerNeedsReturnReview(ret) || buyerWaitingReturnReview(ret);
+}
+
+export function matchesReturnProgress(ret: ReturnView): boolean {
+  return RETURN_PROGRESS.has(ret.status);
+}
+
+export function matchesReturnCompleted(ret: ReturnView): boolean {
+  return RETURN_DONE.has(ret.status);
 }
 
 export function formatOrderQty(order: OrderView): string {

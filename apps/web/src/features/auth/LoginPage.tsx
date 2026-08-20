@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { AuthSession } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useAuth } from '@/lib/auth';
+import { resolveInviteReturn } from '@/lib/inviteReturn';
 import { BrandMark } from '@/ui/BrandMark';
 import { Button, Field, TextInput } from '@/ui/kit';
 
@@ -13,9 +14,12 @@ interface OtpIssueResult {
 
 /**
  * Mobile login: logo is the hero, then one job (phone → OTP).
+ * Invite deep links (`state.from` / `?invite=`) survive OTP and onboarding.
  */
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [phone, setPhone] = useState('');
@@ -23,6 +27,16 @@ export function LoginPage() {
   const [devCode, setDevCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const fromState = (location.state as { from?: string } | null)?.from ?? null;
+  const inviteReturn = useMemo(
+    () =>
+      resolveInviteReturn({
+        from: fromState,
+        inviteParam: searchParams.get('invite'),
+      }),
+    [fromState, searchParams],
+  );
 
   const requestOtp = async () => {
     setError(null);
@@ -44,7 +58,14 @@ export function LoginPage() {
     try {
       const session = await api.publicPost<AuthSession>('/auth/otp/verify', { phone, code });
       login(session);
-      navigate(session.needsOnboarding ? '/onboarding' : '/', { replace: true });
+      if (session.needsOnboarding) {
+        navigate('/onboarding', {
+          replace: true,
+          state: inviteReturn ? { from: inviteReturn } : undefined,
+        });
+      } else {
+        navigate(inviteReturn ?? '/', { replace: true });
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'That code did not work.');
     } finally {
@@ -58,6 +79,12 @@ export function LoginPage() {
         <div className="mb-14 flex justify-center">
           <BrandMark size="login" />
         </div>
+
+        {inviteReturn ? (
+          <div className="mb-6 rounded-xl border border-accent/30 bg-accent/5 px-3.5 py-3 text-center text-sm text-ink">
+            You&apos;ve been invited — sign in to connect.
+          </div>
+        ) : null}
 
         {step === 'phone' ? (
           <form

@@ -1,24 +1,29 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   agreementStepLabel,
   buildOrderTimelineSteps,
   nextOrderAction,
+  shortOrderLabel,
   type CreateReturnDto,
   type DecideOrderLinesDto,
   type DispatchDto,
   type OrderView,
   type QuoteOrderDto,
+  type ReturnView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatDate, formatRate } from '@/lib/format';
+import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
+import { useToast } from '@/ui/Toast';
 import {
   Button,
   Card,
   ErrorState,
   Field,
+  InlineNotice,
   LoadingBlock,
   Sheet,
   StatusPill,
@@ -27,8 +32,14 @@ import {
   cx,
 } from '@/ui/kit';
 
+function actionErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
+}
 function OrderTimeline({ order }: { order: OrderView }) {
-  const steps = buildOrderTimelineSteps(order);
+  const steps = buildOrderTimelineSteps({
+    ...order,
+    returns: order.returns ?? [],
+  });
   const amended =
     order.amendCount > 0 ||
     (order.status === 'requested' &&
@@ -61,6 +72,7 @@ function OrderTimeline({ order }: { order: OrderView }) {
                 {step.label}
               </p>
               <p className="text-xs text-muted">{step.at ? formatDate(step.at) : '—'}</p>
+              {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
               {step.key === 'requested' && amended ? (
                 <p className="text-xs text-muted">
                   Updated
@@ -93,8 +105,11 @@ function lineStatusLabel(status: string): string {
 
 export function OrderDetailPage() {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
+  const focusReturnId = searchParams.get('return');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -109,12 +124,14 @@ export function OrderDetailPage() {
   }>({});
   const [shipQty, setShipQty] = useState<Record<string, string>>({});
   const [returnReason, setReturnReason] = useState('');
+  const [returnSelected, setReturnSelected] = useState<Record<string, boolean>>({});
+  const [returnQty, setReturnQty] = useState<Record<string, string>>({});
   const [quoteNote, setQuoteNote] = useState('');
   const [rates, setRates] = useState<Record<string, string>>({});
   const [offerQty, setOfferQty] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState<Record<string, boolean>>({});
   const [lineActions, setLineActions] = useState<Record<string, 'confirm' | 'decline'>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [lrTouched, setLrTouched] = useState(false);
 
@@ -126,12 +143,13 @@ export function OrderDetailPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['order', id] });
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    void queryClient.invalidateQueries({ queryKey: ['returns'] });
   };
 
   const act = useMutation({
     mutationFn: (action: string) => api.post<OrderView>(`/orders/${id}/${action}`, {}),
     onSuccess: refresh,
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Action failed.'),
+    onError: (err) => showToast(actionErrorMessage(err, 'Action failed.'), 'danger'),
   });
 
   const openAmendSheet = () => {
@@ -142,8 +160,8 @@ export function OrderDetailPage() {
     }
     setAmendQty(qty);
     setAmendRemoved(new Set());
+    setSheetError(null);
     setAmendOpen(true);
-    setError(null);
   };
 
   const amendOrder = useMutation({
@@ -167,10 +185,11 @@ export function OrderDetailPage() {
     },
     onSuccess: () => {
       setAmendOpen(false);
+      setSheetError(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       refresh();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not update.'),
+    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not update.')),
   });
 
   const shippableItems = useMemo(
@@ -221,7 +240,7 @@ export function OrderDetailPage() {
       refresh();
     },
     onError: (err) =>
-      setDispatchError(err instanceof ApiError ? err.message : 'Could not dispatch.'),
+      setDispatchError(actionErrorMessage(err, 'Could not dispatch.')),
   });
 
   const submitDispatch = () => {
@@ -259,12 +278,13 @@ export function OrderDetailPage() {
     },
     onSuccess: (updated) => {
       setQuoteOpen(false);
+      setSheetError(null);
       refresh();
       if (updated.threadId) {
         navigate(`/chats/${updated.threadId}`);
       }
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not send quote.'),
+    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not send quote.')),
   });
 
   const decideLines = useMutation({
@@ -279,28 +299,66 @@ export function OrderDetailPage() {
     },
     onSuccess: () => {
       setLinesOpen(false);
+      setSheetError(null);
       refresh();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not update lines.'),
+    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not update lines.')),
   });
 
   const raiseReturn = useMutation({
     mutationFn: () => {
+      const items = (order.data?.items ?? [])
+        .filter((item) => item.lineStatus !== 'declined' && returnSelected[item.id])
+        .map((item) => ({
+          orderItemId: item.id,
+          quantity: Number(returnQty[item.id] || 0),
+        }))
+        .filter((line) => line.quantity > 0);
+      if (items.length < 1) {
+        throw new ApiError({
+          statusCode: 400,
+          code: 'EMPTY_RETURN',
+          message: 'Select at least one design to return.',
+        });
+      }
       const dto: CreateReturnDto = {
         orderId: id,
         reason: returnReason || undefined,
-        items: (order.data?.items ?? [])
-          .filter((item) => item.lineStatus !== 'declined')
-          .map((item) => ({ orderItemId: item.id, quantity: item.quantity })),
+        items,
       };
       return api.post('/returns', dto);
     },
     onSuccess: () => {
       setReturnOpen(false);
+      setSheetError(null);
       refresh();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not raise return.'),
+    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not raise return.')),
   });
+
+  const returnAct = useMutation({
+    mutationFn: ({
+      returnId,
+      action,
+    }: {
+      returnId: string;
+      action: 'approve' | 'decline' | 'resolve';
+    }) => {
+      if (action === 'approve') {
+        return api.post<ReturnView>(`/returns/${returnId}/approve`, {});
+      }
+      return api.post<ReturnView>(`/returns/${returnId}/${action}`);
+    },
+    onSuccess: () => refresh(),
+    onError: (err) =>
+      showToast(actionErrorMessage(err, 'Could not update return.'), 'danger'),
+  });
+
+  useEffect(() => {
+    if (!focusReturnId || !order.data?.returns?.length) return;
+    const node = document.getElementById(`return-${focusReturnId}`);
+    node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusReturnId, order.data?.returns]);
 
   const openQuoteSheet = () => {
     const initialRates: Record<string, string> = {};
@@ -316,6 +374,7 @@ export function OrderDetailPage() {
     setOfferQty(initialQty);
     setUnavailable(initialUnavail);
     setQuoteNote('');
+    setSheetError(null);
     setQuoteOpen(true);
   };
 
@@ -325,6 +384,7 @@ export function OrderDetailPage() {
       if (item.lineStatus === 'open') actions[item.id] = 'confirm';
     }
     setLineActions(actions);
+    setSheetError(null);
     setLinesOpen(true);
   };
 
@@ -345,9 +405,57 @@ export function OrderDetailPage() {
     setDispatchOpen(true);
   };
 
+  const openReturnSheet = () => {
+    const selected: Record<string, boolean> = {};
+    const qty: Record<string, string> = {};
+    for (const item of order.data?.items ?? []) {
+      if (item.lineStatus === 'declined') continue;
+      selected[item.id] = true;
+      qty[item.id] = String(item.quantity);
+    }
+    setReturnSelected(selected);
+    setReturnQty(qty);
+    setSheetError(null);
+    setReturnReason('');
+    setReturnOpen(true);
+  };
+
+  const closeSheet = (which: 'quote' | 'lines' | 'dispatch' | 'amend' | 'return') => {
+    setSheetError(null);
+    if (which === 'quote') setQuoteOpen(false);
+    if (which === 'lines') setLinesOpen(false);
+    if (which === 'dispatch') {
+      setDispatchError(null);
+      setDispatchOpen(false);
+    }
+    if (which === 'amend') setAmendOpen(false);
+    if (which === 'return') setReturnOpen(false);
+  };
+
   const openItems = useMemo(
     () => (order.data?.items ?? []).filter((item) => item.lineStatus === 'open'),
     [order.data?.items],
+  );
+
+  const returnableItems = useMemo(
+    () => (order.data?.items ?? []).filter((item) => item.lineStatus !== 'declined'),
+    [order.data?.items],
+  );
+
+  const returnReady = useMemo(
+    () =>
+      returnableItems.some(
+        (item) =>
+          returnSelected[item.id] &&
+          Number(returnQty[item.id] || 0) > 0 &&
+          Number(returnQty[item.id] || 0) <= item.quantity,
+      ),
+    [returnableItems, returnSelected, returnQty],
+  );
+
+  const returnSelectedCount = useMemo(
+    () => returnableItems.filter((item) => returnSelected[item.id]).length,
+    [returnableItems, returnSelected],
   );
 
   const quoteReady = useMemo(() => {
@@ -394,8 +502,10 @@ export function OrderDetailPage() {
     hasOpenQuotedLine: data.hasSellerQuote === true,
     partiallyShipped: data.partiallyShipped,
     intent: data.intent,
+    counterpartName: data.counterpart.name,
   });
   const isInquiry = data.intent === 'inquiry';
+  const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
   const roleSubtitle = isInquiry
     ? data.direction === 'buying'
       ? `Inquiry to ${data.counterpart.name}`
@@ -407,7 +517,7 @@ export function OrderDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={`${isInquiry ? 'Inquiry' : 'Order'} · ${data.counterpart.name}`}
+        title={`${idLabel} · ${data.counterpart.name}`}
         subtitle={`${roleSubtitle} · ${data.kind}`}
         action={
           <div className="flex flex-col items-end gap-0.5">
@@ -481,6 +591,83 @@ export function OrderDetailPage() {
 
       <OrderTimeline order={data} />
 
+      {(data.returns ?? []).length > 0 ? (
+        <Card className="flex flex-col gap-3 text-sm">
+          <p className="font-semibold text-ink">Returns</p>
+          {(data.returns ?? []).map((ret) => {
+            const focused = focusReturnId === ret.id;
+            return (
+              <div
+                key={ret.id}
+                id={`return-${ret.id}`}
+                className={cx(
+                  'border-t border-line pt-3 first:border-0 first:pt-0',
+                  focused && 'rounded-xl bg-foam/80 px-2.5 py-2',
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-ink">
+                    {ret.items.length} {ret.items.length === 1 ? 'design' : 'designs'}
+                    {ret.reason ? ` · ${ret.reason}` : ''}
+                  </p>
+                  <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
+                </div>
+                <ul className="mt-2 flex flex-col gap-1">
+                  {ret.items.map((line) => (
+                    <li key={line.id} className="text-sm text-ink">
+                      <span className="font-medium">{line.name}</span>
+                      <span className="text-muted">
+                        {' '}
+                        · return {line.requestedQuantity}
+                        {line.approvedQuantity != null
+                          ? ` · approved ${line.approvedQuantity}`
+                          : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-xs text-muted">
+                  Raised {formatDate(ret.createdAt)}
+                </p>
+                {isSeller && ret.status === 'requested' ? (
+                  <div className="mt-2 flex flex-col gap-2">
+                    <Button
+                      onClick={() =>
+                        returnAct.mutate({ returnId: ret.id, action: 'approve' })
+                      }
+                      disabled={returnAct.isPending}
+                    >
+                      Approve return
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        returnAct.mutate({ returnId: ret.id, action: 'decline' })
+                      }
+                      disabled={returnAct.isPending}
+                    >
+                      Decline return
+                    </Button>
+                  </div>
+                ) : null}
+                {isSeller &&
+                (ret.status === 'approved' || ret.status === 'partially_approved') ? (
+                  <Button
+                    className="mt-2"
+                    onClick={() =>
+                      returnAct.mutate({ returnId: ret.id, action: 'resolve' })
+                    }
+                    disabled={returnAct.isPending}
+                  >
+                    Mark return resolved
+                  </Button>
+                ) : null}
+              </div>
+            );
+          })}
+        </Card>
+      ) : null}
+
       {data.shipments.length > 0 ? (
         <Card className="flex flex-col gap-3 text-sm">
           <p className="font-semibold text-ink">Shipments</p>
@@ -500,8 +687,6 @@ export function OrderDetailPage() {
           ))}
         </Card>
       ) : null}
-
-      {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
 
       <div className="flex flex-col gap-2">
         {data.threadId ? (
@@ -549,7 +734,7 @@ export function OrderDetailPage() {
           </Button>
         ) : null}
         {isBuyer && data.status === 'delivered' ? (
-          <Button variant="secondary" onClick={() => setReturnOpen(true)}>
+          <Button variant="secondary" onClick={openReturnSheet}>
             Raise a return
           </Button>
         ) : null}
@@ -558,7 +743,7 @@ export function OrderDetailPage() {
         </Button>
       </div>
 
-      <Sheet open={quoteOpen} onClose={() => setQuoteOpen(false)} title="Send quote">
+      <Sheet open={quoteOpen} onClose={() => closeSheet('quote')} title="Send quote">
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
             Quoting {quoteSummary.count} of {quoteSummary.of} open · ₹
@@ -610,6 +795,7 @@ export function OrderDetailPage() {
           <Field label="Note (optional)">
             <TextArea value={quoteNote} onChange={(event) => setQuoteNote(event.target.value)} />
           </Field>
+          {sheetError && quoteOpen ? <InlineNotice message={sheetError} /> : null}
           <Button
             fullWidth
             disabled={!quoteReady || sendQuote.isPending}
@@ -620,7 +806,7 @@ export function OrderDetailPage() {
         </div>
       </Sheet>
 
-      <Sheet open={linesOpen} onClose={() => setLinesOpen(false)} title="Confirm / decline lines">
+      <Sheet open={linesOpen} onClose={() => closeSheet('lines')} title="Confirm / decline lines">
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">Decide each open design without sending rates.</p>
           {openItems.map((item) => (
@@ -654,6 +840,7 @@ export function OrderDetailPage() {
               </div>
             </div>
           ))}
+          {sheetError && linesOpen ? <InlineNotice message={sheetError} /> : null}
           <Button
             fullWidth
             disabled={openItems.length === 0 || decideLines.isPending}
@@ -666,7 +853,7 @@ export function OrderDetailPage() {
 
       <Sheet
         open={dispatchOpen}
-        onClose={() => setDispatchOpen(false)}
+        onClose={() => closeSheet('dispatch')}
         title="Dispatch"
         footer={
           <div className="flex flex-col gap-2.5">
@@ -713,9 +900,7 @@ export function OrderDetailPage() {
                 />
               </Field>
             </div>
-            {dispatchError ? (
-              <p className="text-center text-xs font-medium text-danger">{dispatchError}</p>
-            ) : null}
+            {dispatchError ? <InlineNotice message={dispatchError} /> : null}
             <Button fullWidth onClick={submitDispatch} disabled={dispatchOrder.isPending}>
               {dispatchOrder.isPending ? 'Saving…' : 'Confirm dispatch'}
             </Button>
@@ -727,7 +912,7 @@ export function OrderDetailPage() {
             Ship all remaining, or lower qty per line. Logistics stay pinned below.
           </p>
           {shippableItems.length === 0 ? (
-            <p className="text-sm text-danger">No confirmed quantity left to dispatch.</p>
+            <InlineNotice message="No confirmed quantity left to dispatch." />
           ) : (
             shippableItems.map((item) => (
               <div
@@ -756,7 +941,7 @@ export function OrderDetailPage() {
 
       <Sheet
         open={amendOpen}
-        onClose={() => setAmendOpen(false)}
+        onClose={() => closeSheet('amend')}
         title={isInquiry ? 'Edit inquiry' : 'Edit order'}
       >
         <div className="flex flex-col gap-3">
@@ -812,19 +997,95 @@ export function OrderDetailPage() {
             To add designs, open their collection, select more, and ask rates / order again — or keep
             editing quantities here.
           </p>
+          {sheetError && amendOpen ? <InlineNotice message={sheetError} /> : null}
           <Button fullWidth onClick={() => amendOrder.mutate()} disabled={amendOrder.isPending}>
             {amendOrder.isPending ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
       </Sheet>
 
-      <Sheet open={returnOpen} onClose={() => setReturnOpen(false)} title="Raise a return">
+      <Sheet open={returnOpen} onClose={() => closeSheet('return')} title="Raise a return">
         <div className="flex flex-col gap-3">
-          <p className="text-xs text-muted">This requests a return for supplyable items on the order.</p>
-          <Field label="Reason">
-            <TextArea value={returnReason} onChange={(event) => setReturnReason(event.target.value)} />
+          <p className="text-sm text-muted">
+            {returnableItems.length > 0
+              ? `${returnSelectedCount} of ${returnableItems.length} selected · leave all on for a full return`
+              : 'Pick designs to return'}
+          </p>
+          {returnableItems.length === 0 ? (
+            <InlineNotice message="No supplyable lines left to return." />
+          ) : (
+            returnableItems.map((item) => {
+              const on = Boolean(returnSelected[item.id]);
+              return (
+                <div
+                  key={item.id}
+                  className={cx(
+                    'flex items-center gap-2 rounded-xl border px-2.5 py-2',
+                    on ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    aria-pressed={on}
+                    aria-label={on ? `Skip ${item.name}` : `Return ${item.name}`}
+                    onClick={() => {
+                      setSheetError(null);
+                      setReturnSelected((prev) => ({
+                        ...prev,
+                        [item.id]: !prev[item.id],
+                      }));
+                    }}
+                  >
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt=""
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+                        {item.name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                      <p className="truncate text-xs text-muted">Ordered {item.quantity}</p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted">{on ? 'Return' : 'Skip'}</span>
+                  </button>
+                  <TextInput
+                    type="number"
+                    min={1}
+                    max={item.quantity}
+                    disabled={!on}
+                    className="w-20 shrink-0 min-h-10 px-2 text-center"
+                    value={returnQty[item.id] ?? ''}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      setSheetError(null);
+                      setReturnQty((prev) => ({ ...prev, [item.id]: event.target.value }));
+                    }}
+                  />
+                </div>
+              );
+            })
+          )}
+          <Field label="Reason (optional)">
+            <TextArea
+              value={returnReason}
+              onChange={(event) => {
+                setSheetError(null);
+                setReturnReason(event.target.value);
+              }}
+            />
           </Field>
-          <Button fullWidth onClick={() => raiseReturn.mutate()} disabled={raiseReturn.isPending}>
+          {sheetError && returnOpen ? <InlineNotice message={sheetError} /> : null}
+          <Button
+            fullWidth
+            onClick={() => raiseReturn.mutate()}
+            disabled={!returnReady || raiseReturn.isPending}
+          >
             {raiseReturn.isPending ? 'Submitting…' : 'Submit return'}
           </Button>
         </div>

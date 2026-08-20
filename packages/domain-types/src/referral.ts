@@ -2,10 +2,12 @@ import { z } from 'zod';
 import type { PublicCompanySummary } from './access';
 
 /**
- * Referral / vouch links. A company creates a shareable token that vouches for a
- * business (or is a generic invite). When a recipient opens it, the client can
- * pre-fill an access request with `referredBy` set to the referrer — trust
- * travels through people, not cold outreach.
+ * Referral / vouch links.
+ *
+ * - Open invite (no target): shareable “connect with me” link; redeem creates a
+ *   pending access request to the referrer (they approve on Buyers).
+ * - Targeted vouch: recipient requests access to the target with `referredBy`
+ *   pre-filled — not a trust bypass (seller still approves).
  */
 export const createReferralSchema = z.object({
   targetCompanyId: z.string().min(1).optional(),

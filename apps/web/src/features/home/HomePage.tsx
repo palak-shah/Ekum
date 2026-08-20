@@ -103,7 +103,7 @@ export function HomePage() {
       {
         label: 'Requests',
         value: metrics.requests,
-        to: accessRequests.length > 0 ? '/buyers' : '/chats',
+        to: accessRequests.length > 0 ? '/network/requests' : '/chats',
       },
       { label: 'Returns', value: metrics.returns, to: '/orders?filter=needs' },
     ] as const

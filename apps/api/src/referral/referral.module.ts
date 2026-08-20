@@ -4,9 +4,8 @@ import { ReferralController } from './referral.controller';
 import { ReferralService } from './referral.service';
 
 /**
- * Referral / vouch links. Depends on AccessModule for the shared company
- * serializer; the actual access request is created through the Access domain
- * with `referredBy` set from the resolved referral.
+ * Referral / vouch links. Open invites redeem into access requests to the
+ * referrer; targeted vouch attributes access requests via `referredBy`.
  */
 @Module({
   imports: [AccessModule],

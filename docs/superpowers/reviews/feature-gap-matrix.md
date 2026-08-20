@@ -40,11 +40,11 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Buying: Following-first posts + received by day/business | Missing | — | Required | Slice C; not mixed into market ranking |
 | Explore | Selling: Buyers for you (not My Catalog) | Partial | Untested | Required | Buyers shelf exists; trade-side filter Missing |
 | Explore | Vanity likes ranking | Rejected | — | Reject | |
-| Network | Following / Followers lists | Works | Untested | Required | You → Network |
-| Network | Connections hub (both roles) + Requests | Works | Untested | Required | `/buyers` → Requests |
-| Referrals | Connect-with-me invite create + Share/Copy | Works | Untested | Required | `＋` / Network → Invites; link-only share; see `docs/features/referrals.md` |
-| Referrals | Open invite redeem → access request (approve gate) | Works | Untested | Required | Not auto-connect; `referredBy: Invite` |
-| Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Untested | Required | `inviteReturn` stash |
+| Network | Following / Followers lists | Works | Unit-only | Required | You → Network hub pages restored 2026-08-20 |
+| Network | Connections hub (both roles) + Requests | Works | Unit-only | Required | `/network/connections` + `/network/requests` |
+| Referrals | Connect-with-me invite create + Share/Copy | Works | Unit | Required | `＋` / Network → Invites; link-only share; referral.service.spec |
+| Referrals | Open invite redeem → access request (approve gate) | Works | Unit | Required | Not auto-connect; `referredBy: Invite` |
+| Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Unit-only | Required | `inviteReturn` + Login/onboarding wiring |
 | Referrals | Targeted vouch (optional target company) | Works | Untested | Recommended | Seller still approves |
 | Referrals | Auto-connect / auto-follow on redeem | Rejected | — | Reject | Trust ladder |
 | Trader curation | Dual network (suppliers + buyers) via Connections/Follow | Partial | Untested | Required | Platform 1-hop; long chain possible |

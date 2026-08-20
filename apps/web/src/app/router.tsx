@@ -59,6 +59,14 @@ const CollectionEditorPage = page(
 );
 const CuratePackPage = page(() => import('@/features/catalog/CuratePackPage'), 'CuratePackPage');
 const MyBuyersPage = page(() => import('@/features/buyers/MyBuyersPage'), 'MyBuyersPage');
+const NetworkPage = page(() => import('@/features/network/NetworkPage'), 'NetworkPage');
+const FollowingPage = page(() => import('@/features/network/FollowingPage'), 'FollowingPage');
+const FollowersPage = page(() => import('@/features/network/FollowersPage'), 'FollowersPage');
+const ConnectionsPage = page(
+  () => import('@/features/network/ConnectionsPage'),
+  'ConnectionsPage',
+);
+const RequestsPage = page(() => import('@/features/network/RequestsPage'), 'RequestsPage');
 const BroadcastPage = page(() => import('@/features/broadcast/BroadcastPage'), 'BroadcastPage');
 const BroadcastComposePage = page(
   () => import('@/features/broadcast/BroadcastComposePage'),
@@ -113,6 +121,11 @@ export const router = createBrowserRouter([
           // `new` and real ids share :id so create→edit keeps one component instance.
           { path: 'catalog/collections/:id', element: <CollectionEditorPage /> },
           { path: 'buyers', element: <MyBuyersPage /> },
+          { path: 'network', element: <NetworkPage /> },
+          { path: 'network/following', element: <FollowingPage /> },
+          { path: 'network/followers', element: <FollowersPage /> },
+          { path: 'network/connections', element: <ConnectionsPage /> },
+          { path: 'network/requests', element: <RequestsPage /> },
           { path: 'broadcast', element: <BroadcastPage /> },
           { path: 'broadcast/new', element: <BroadcastComposePage /> },
           { path: 'referrals', element: <ReferralsPage /> },

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   SUPER_CATEGORY_LABEL,
   SuperCategory,
@@ -9,6 +9,7 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useAuth } from '@/lib/auth';
+import { resolveInviteReturn } from '@/lib/inviteReturn';
 import { OnboardingLayout } from '@/app/OnboardingLayout';
 import { Button, Field, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
@@ -17,6 +18,7 @@ const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { status, session, refreshSession } = useAuth();
   const [name, setName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
@@ -24,6 +26,12 @@ export function OnboardingPage() {
   const [superCategories, setSuperCategories] = useState<SuperCategoryType[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const fromState = (location.state as { from?: string } | null)?.from ?? null;
+  const inviteReturn = useMemo(
+    () => resolveInviteReturn({ from: fromState }),
+    [fromState],
+  );
 
   if (status === 'anonymous' || !session) {
     navigate('/login', { replace: true });
@@ -53,7 +61,7 @@ export function OnboardingPage() {
       };
       await api.post<OwnCompanyProfile>('/companies', dto);
       await refreshSession();
-      navigate('/', { replace: true });
+      navigate(inviteReturn ?? '/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create your business.');
     } finally {

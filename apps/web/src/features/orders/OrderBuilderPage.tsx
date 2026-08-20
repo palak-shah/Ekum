@@ -13,7 +13,8 @@ import { formatRate } from '@/lib/format';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, Card, Field, LoadingBlock, TextArea, TextInput, cx } from '@/ui/kit';
+import { Button, Card, Field, InlineNotice, LoadingBlock, TextArea, TextInput, cx } from '@/ui/kit';
+import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 
@@ -50,6 +51,7 @@ function newPhotoId(): string {
 export function OrderBuilderPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const sellerFromUrl = params.get('seller') ?? '';
   const collectionId = params.get('collection') ?? '';
   const productIds = (params.get('products') ?? '')
@@ -158,7 +160,13 @@ export function OrderBuilderPage() {
         navigate(`/orders/${order.id}`, { replace: true });
       }
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not place the order.'),
+    onError: (err) => {
+      setError(null);
+      showToast(
+        err instanceof ApiError ? err.message : 'Could not place the order.',
+        'danger',
+      );
+    },
   });
 
   const openGallery = () => {
@@ -503,7 +511,7 @@ export function OrderBuilderPage() {
         />
       </Field>
 
-      {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
+      {error ? <InlineNotice message={error} /> : null}
 
       <div className="border-t border-line pt-4">
         <Button fullWidth disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>

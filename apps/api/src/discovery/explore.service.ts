@@ -808,9 +808,9 @@ export class ExploreService {
   }
 
   /**
-   * Cross-company collection view. Non-connected viewers get a preview
-   * (products null); only a connection unlocks the full product list. Draft,
-   * blocked, and missing collections are all indistinguishable 404s.
+   * Cross-company collection view. Discoverable audiences (e.g. everyone) get
+   * the product list without a Connection; restricted audiences still gate
+   * products until connected / selected / following as published.
    */
   async collectionDetail(viewerCompanyId: string, id: string): Promise<CollectionPreviewView> {
     const collection = await this.prisma.collection.findUnique({

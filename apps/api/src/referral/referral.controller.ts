@@ -25,4 +25,10 @@ export class ReferralController {
   resolve(@Param('token') token: string) {
     return this.referrals.resolve(token);
   }
+
+  /** Open invite → pending access request to referrer. Targeted vouch is not redeemable. */
+  @Post(':token/redeem')
+  redeem(@CurrentCompanyId() companyId: string, @Param('token') token: string) {
+    return this.referrals.redeem(companyId, token);
+  }
 }

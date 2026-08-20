@@ -1,11 +1,28 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const webDir = fileURLToPath(new URL('.', import.meta.url));
+  const monorepoRoot = fileURLToPath(new URL('../..', import.meta.url));
+  const rootEnv = loadEnv(mode, monorepoRoot, '');
+  const webEnv = loadEnv(mode, webDir, '');
+  const publicOrigin = (
+    webEnv.VITE_PUBLIC_ORIGIN ||
+    rootEnv.VITE_PUBLIC_ORIGIN ||
+    'http://localhost:5173'
+  ).replace(/\/$/, '');
+
+  return {
   plugins: [
+    {
+      name: 'ekum-html-public-origin',
+      transformIndexHtml(html) {
+        return html.replaceAll('%VITE_PUBLIC_ORIGIN%', publicOrigin);
+      },
+    },
     react(),
     tailwindcss(),
     VitePWA({
@@ -57,4 +74,5 @@ export default defineConfig({
     // (separate origins → two independent login sessions side by side).
     host: true,
   },
+};
 });

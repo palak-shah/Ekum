@@ -14,12 +14,11 @@ export function MorePage() {
 
   const menu = [
     ...(selling ? [{ to: '/catalog', label: 'My designs & collections' }] : []),
-    ...(selling ? [{ to: '/buyers', label: 'My buyers' }] : []),
     { to: '/saved', label: 'Saved' },
+    { to: '/network', label: 'Network' },
     { to: '/samples', label: 'Samples' },
     { to: '/returns', label: 'Returns' },
     ...(selling && canPublish ? [{ to: '/broadcast', label: 'Broadcast' }] : []),
-    ...(company.data?.capabilities.refer ? [{ to: '/referrals', label: 'Referrals' }] : []),
     { to: '/settings', label: 'Settings' },
     { to: '/settings/profile', label: 'Business profile' },
   ];
@@ -47,7 +46,6 @@ export function MorePage() {
         {buying ? <Tag tone="info">Buying</Tag> : null}
         {selling ? <Tag tone="info">Selling</Tag> : null}
         {canPublish ? <Tag tone="info">Can publish</Tag> : null}
-        {company.data?.capabilities.refer ? <Tag tone="info">Can refer</Tag> : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">

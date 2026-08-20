@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CursorPage, ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
-import { Avatar, EmptyState, LoadingBlock, cx } from '@/ui/kit';
-import { ExploreIcon, PinIcon } from '@/ui/icons';
+import { Avatar, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
+import { PinIcon, PlusIcon } from '@/ui/icons';
 import { chatTypeMeta, messagePreviewSearchBlob, messagePreviewText } from './messagePreview';
+import { StartChatSheet } from './StartChatSheet';
 
 type Tab = 'active' | 'requests';
 
@@ -20,6 +22,7 @@ export function ChatsPage() {
   const [tab, setTab] = useState<Tab>('active');
   const [query, setQuery] = useState('');
   const [readAllError, setReadAllError] = useState<string | null>(null);
+  const [startOpen, setStartOpen] = useState(false);
 
   const threads = useQuery({
     queryKey: ['threads', { tab }],
@@ -58,15 +61,23 @@ export function ChatsPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-2.5">
-        <ExploreIcon width={18} height={18} className="shrink-0 text-muted" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search chats"
-          className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none ring-0 placeholder:text-muted focus:outline-none focus-visible:outline-none"
-        />
-      </label>
+      <ListSearchRow
+        search={
+          <TextInput
+            className="w-full"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search chats"
+            aria-label="Search chats"
+            autoComplete="off"
+          />
+        }
+        action={
+          <ListSquareButton aria-label="New chat" onClick={() => setStartOpen(true)}>
+            <PlusIcon width={20} height={20} />
+          </ListSquareButton>
+        }
+      />
 
       <div className="flex items-center gap-2">
         {(['active', 'requests'] as const).map((value) => (
@@ -121,16 +132,19 @@ export function ChatsPage() {
           }
           action={
             !query.trim() && tab === 'active' ? (
-              <Link
-                to="/explore"
+              <button
+                type="button"
+                onClick={() => setStartOpen(true)}
                 className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
               >
-                Find businesses
-              </Link>
+                Start a chat
+              </button>
             ) : undefined
           }
         />
       )}
+
+      <StartChatSheet open={startOpen} onClose={() => setStartOpen(false)} />
     </div>
   );
 }

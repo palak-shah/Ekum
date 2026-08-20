@@ -1,5 +1,5 @@
 ---
-description: UI quality bar — simplicity, fewer taps, real estate, no flicker, E2E, consistency
+description: UI quality bar — simplicity, uniformity, ask before diverging components, fewer taps, real estate, no flicker, E2E
 alwaysApply: true
 ---
 
@@ -48,12 +48,32 @@ Before calling any screen with a fixed or sticky bar done (select bars, composer
 - Deep links and redirects must land in the same continuous surface (no stranded “Search” page).
 - Verify the happy path in the running app, not only that types compile.
 
-## 4. UX/UI stays consistent
+## 4. UX/UI stays consistent (maximum uniformity)
 
-- Reuse existing kit patterns before inventing new ones: `Chip` + `FilterRail`, underline tabs, `PageHeader`, anchored ⋯ menus (Explore/Orders), `Card` + `StatusPill` list rows, `EmptyState` / `LoadingBlock`.
-- Same job → same chrome: overflow for occasional lists; text **New** / accent actions; why-line + posted time on Explore cards; one business-card rhythm (not compact rows mixed with albums).
-- Copy voice: plain trader language, short why-lines, no product jargon (“Recommended for you”, “Who should you talk to?”).
-- Match spacing, type scale, and corner language already on sibling screens — don’t introduce a one-off pill style, header, or empty state.
+**Default: match what the product already does.** Reuse kit and sibling-screen patterns before inventing chrome. Same job → same control language across Chats, Explore, Orders, sheets, and pickers.
+
+Reuse before inventing:
+
+- **List chrome:** search + one trailing 46×46 square (`ListSearchRow` / Explore filter / Orders·Chats `+`).
+- **Selection:** tappable rows with `border-accent bg-accent/5` + quiet Selected/Add/Return/Skip — **not** native checkboxes (except rare secondary toggles like quote “Can’t supply”). See `ConnectionPicker`, return sheet, HowManyEach thumbs.
+- **Design lines:** `h-12 w-12` thumb (or initial) + name + compact qty `TextInput` (HowManyEach, dispatch, return).
+- **Sheets / CTAs:** kit `Sheet`, full-width primary `Button`, `Field` + `TextInput`/`TextArea`.
+- **Errors:** in-sheet `InlineNotice`; page CTAs → danger toast (`z-[90]`). Never bury errors behind an open sheet.
+- **Status:** `StatusPill` + shared `status.ts` labels (use `returnStatusLabel` for returns).
+- **Other kit:** `Chip` + `FilterRail`, `PageHeader`, `Card` list rows, `EmptyState` / `LoadingBlock`.
+
+Copy voice: plain trader language, short why-lines, no product jargon.
+
+### 4b. Ask before diverging (Required)
+
+If a screen seems to need a **different** component or interaction than the product pattern above:
+
+1. **Stop** — do not ship a one-off checkbox, pill style, header, empty state, or selection gesture.
+2. **Ask the user explicitly**, naming both sides, e.g.  
+   “Elsewhere we select with accent-border rows (ConnectionPicker / return sheet). For this screen I’m proposing native checkboxes instead — OK to diverge, or match the product pattern?”
+3. Only implement the exception after they confirm.
+
+Treat unasked one-offs as a **blocking design bug**, not polish.
 
 ## When in doubt
 
