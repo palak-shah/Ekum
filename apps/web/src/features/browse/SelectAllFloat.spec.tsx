@@ -28,4 +28,17 @@ describe('SelectAllFloat', () => {
     await userEvent.click(screen.getByTestId('select-all-float-action'));
     expect(onAction).toHaveBeenCalledOnce();
   });
+
+  it('renders in-flow under the host, not as a document.body portal', () => {
+    render(
+      <div data-testid="host">
+        <SelectAllFloat open count={0} action="select-all" onAction={() => {}} />
+      </div>,
+    );
+    const host = screen.getByTestId('host');
+    const bar = screen.getByTestId('select-all-float');
+    expect(host.contains(bar)).toBe(true);
+    expect(bar.className).toMatch(/sticky/);
+    expect(bar.className).not.toMatch(/\bfixed\b/);
+  });
 });

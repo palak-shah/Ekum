@@ -55,7 +55,7 @@ import {
   catalogOrderGoesToLine,
   rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
-import { SelectAllFloat, SELECT_FLOAT_BELOW_PAGE } from '@/features/browse/SelectAllFloat';
+import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import {
@@ -573,7 +573,6 @@ export function ThreadPage() {
         count={selectedIds.size}
         action={selectAll.action}
         onAction={() => setSelectedIds(nextIdSet(forwardableIds, selectedIds))}
-        offsetClass={SELECT_FLOAT_BELOW_PAGE}
       />
 
       {searchOpen ? (
@@ -705,7 +704,6 @@ export function ThreadPage() {
         className={cx(
           'ekum-no-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain',
           canCompose ? 'pb-3' : 'pb-[calc(5rem+env(safe-area-inset-bottom))]',
-          selecting && forwardableIds.length > 0 && 'pt-12',
         )}
       >
         {messages.isLoading ? (

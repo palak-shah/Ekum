@@ -14,7 +14,7 @@ Any signed-in company. Save is available when the design/collection is discovera
 
 1. Open a design (Explore) or collection (viewer) → **Save** (collection-level), or open a design in the collection sheet → **Save**, or **Select** / long-press designs → **Save designs**.
 2. Open **Saved** from the **Explore header bookmark**, **＋ → Saved**, or More → Saved (`/saved`) — default **grid** (Feed toggle): business, SKU / design count, album collage with **`+N`** on the 4th cell when there are more than 4 designs (same as Explore); tap design → photo sheet; tap collection → collection viewer; **×** to unsave.
-3. **Select** / long-press **designs** on Saved (albums still open to pick inside). Floating **Select all** / **Clear** for saved designs. Sticky bar: **Curate** / **Order**.
+3. **Select** / long-press **designs** on Saved (albums still open to pick inside). Sticky **Select all** / **Clear** for saved designs. **Selecting** with picks → clears shortlist; with none → exits. Sticky bar: **Curate** / **Order**.
 
 ### Traveling browse shortlist
 

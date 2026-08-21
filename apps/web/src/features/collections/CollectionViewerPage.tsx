@@ -18,6 +18,7 @@ import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { selectAllState } from '@/features/browse/selectAllState';
+import { applySelectingPill } from '@/features/browse/selectingPill';
 import { FORWARD_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
@@ -260,7 +261,6 @@ export function CollectionViewerPage() {
       className={cx(
         'flex flex-col gap-4',
         selectedCount > 0 && 'pb-[calc(5rem+5.5rem)]',
-        selectMode && products.length > 0 && 'pt-12',
       )}
     >
       <PageHeader
@@ -307,13 +307,7 @@ export function CollectionViewerPage() {
                   'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
                   selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
                 )}
-                onClick={() => {
-                  if (selectMode && selectedCount === 0) {
-                    shortlist.setSelectMode(false);
-                  } else {
-                    shortlist.setSelectMode(true);
-                  }
-                }}
+                onClick={() => applySelectingPill(selectMode, selectedCount, shortlist)}
               >
                 {selectMode ? 'Selecting' : 'Select'}
               </button>

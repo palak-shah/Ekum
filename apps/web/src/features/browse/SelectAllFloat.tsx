@@ -1,10 +1,7 @@
-import { createPortal } from 'react-dom';
 import { cx } from '@/ui/kit';
 import type { SelectAllAction } from './selectAllState';
 
-/** AppShell sticky header (~3.5rem) + PageHeader (~3.25rem). */
-export const SELECT_FLOAT_BELOW_SHELL_AND_PAGE = 'top-[6.75rem]';
-/** Chat thread: PageHeader only (no AppShell title bar). */
+/** Dock under sticky PageHeader (~3.25rem) in the same column. */
 export const SELECT_FLOAT_BELOW_PAGE = 'top-[3.25rem]';
 
 export function SelectAllFloat({
@@ -12,7 +9,7 @@ export function SelectAllFloat({
   count,
   action,
   onAction,
-  offsetClass = SELECT_FLOAT_BELOW_SHELL_AND_PAGE,
+  offsetClass = SELECT_FLOAT_BELOW_PAGE,
 }: {
   open: boolean;
   count: number;
@@ -20,13 +17,13 @@ export function SelectAllFloat({
   onAction: () => void;
   offsetClass?: string;
 }) {
-  if (!open || typeof document === 'undefined') return null;
+  if (!open) return null;
 
-  return createPortal(
+  return (
     <div
       data-testid="select-all-float"
       className={cx(
-        'fixed inset-x-0 z-[25] border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur-md',
+        'sticky z-[25] -mx-4 border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur-md',
         offsetClass,
       )}
     >
@@ -41,7 +38,6 @@ export function SelectAllFloat({
           {action === 'clear' ? 'Clear' : 'Select all'}
         </button>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }

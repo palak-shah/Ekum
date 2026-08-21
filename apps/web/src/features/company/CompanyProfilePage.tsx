@@ -23,6 +23,7 @@ import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { selectAllState } from '@/features/browse/selectAllState';
+import { applySelectingPill } from '@/features/browse/selectingPill';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
@@ -207,6 +208,13 @@ export function CompanyProfilePage() {
     <div className="flex flex-col gap-4">
       <PageHeader title={company.name} subtitle={company.city} />
 
+      <SelectAllFloat
+        open={shopSelectAllOpen}
+        count={shortlist.count}
+        action={selectAll.action}
+        onAction={onSelectAllAction}
+      />
+
       <Card className="flex flex-col items-center gap-3 text-center">
         <Avatar name={company.name} imageUrl={company.logoUrl} size={64} />
         <div>
@@ -292,15 +300,8 @@ export function CompanyProfilePage() {
           className={cx(
             'flex flex-col gap-2',
             shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]',
-            shopSelectAllOpen && 'pt-12',
           )}
         >
-          <SelectAllFloat
-            open={shopSelectAllOpen}
-            count={shortlist.count}
-            action={selectAll.action}
-            onAction={onSelectAllAction}
-          />
           <SectionHeader
             title="Shop"
             action={
@@ -311,13 +312,9 @@ export function CompanyProfilePage() {
                     'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
                     selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
                   )}
-                  onClick={() => {
-                    if (shortlist.selectMode && shortlist.count === 0) {
-                      shortlist.setSelectMode(false);
-                    } else {
-                      shortlist.setSelectMode(true);
-                    }
-                  }}
+                  onClick={() =>
+                    applySelectingPill(shortlist.selectMode, shortlist.count, shortlist)
+                  }
                 >
                   {selecting ? 'Selecting' : 'Select'}
                 </button>

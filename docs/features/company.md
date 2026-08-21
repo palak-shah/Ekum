@@ -14,7 +14,7 @@ Anyone browsing a business; owners edit via **You → profile / settings**.
 
 1. Open from Explore, search, chat, or Home.
 2. View about, city, GST verification badge, buy/sell categories.
-3. Browse published collections and designs (2-col grid). Designs: **Select** / long-press → Order / Curate on the sticky bar. Floating **Select all** / **Clear** for shop designs. Collections open the album to pick designs.
+3. Browse published collections and designs (2-col grid). Designs: **Select** / long-press → Order / Curate on the sticky bar. Sticky **Select all** / **Clear** for shop designs; **Selecting** with picks → clears shortlist; with none → exits. Collections open the album to pick designs.
 4. When **Connected**: see contact name (and phone only if they opted in) via `/companies/:id/contact`; Message / order as available.
 5. Actions: Follow, Request access, Chat (as available).
 
