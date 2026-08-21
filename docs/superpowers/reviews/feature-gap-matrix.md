@@ -64,6 +64,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Trader/Seller badges on Explore | Rejected | — | Reject | Opaque businesses |
 | Trader curation | Home-only dense day/trader share analytics | Rejected | — | Reject | Use Explore Buying + Home attention |
 | Media | Chat photo send | Works | Functional | Required | Green 2026-08-11 |
+| Media | Shared WhatsApp-style photo viewer (pinch/zoom) | Works | Unit | Required | Completeness 2026-08-21; kit + chat + sheets + Explore design |
 | Media | Catalog design upload | Works | Untested | Future | |
 | Media | Top-level Media tab | Rejected | — | Reject | |
 | Media | Upload failure UX | Partial | Untested | Recommended | |

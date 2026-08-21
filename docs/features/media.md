@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Shared photo pipeline for design images, covers, chat photos, and photo orders: direct-to-blob upload, then async thumbnail when configured.
+Shared photo pipeline for design images, covers, chat photos, and photo orders: direct-to-blob upload, then async thumbnail when configured. Viewing uses a shared **PhotoViewer** (pinch / double-tap zoom, swipe within one design or chat album) on chat albums, album/Saved design sheets, and Explore design pages.
 
 ## Who uses it
 

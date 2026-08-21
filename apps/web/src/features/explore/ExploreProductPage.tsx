@@ -11,6 +11,7 @@ import {
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { FORWARD_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import {
+  readCatalogHandlerName,
   resolveFacilitatorForCatalog,
   resolveOrderPathForCatalog,
 } from '@/features/browse/forwardAttribution';
@@ -21,6 +22,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
 import { Button, Card, ErrorState, LoadingBlock, Tag, cx } from '@/ui/kit';
 import { CompanyRow } from '@/ui/cards';
@@ -38,7 +40,8 @@ export function ExploreProductPage() {
     catalogId: id,
     queryPath: searchParams.get('path'),
   });
-  const handlePath = stampedPath === 'handle' && Boolean(facilitatorCompanyId);
+  const stampedHandle = stampedPath === 'handle';
+  const handlePath = stampedHandle && Boolean(facilitatorCompanyId);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -46,6 +49,8 @@ export function ExploreProductPage() {
   const shortlist = useBrowseShortlist();
   const [qtyOpen, setQtyOpen] = useState(false);
   const [curateOpen, setCurateOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
   const [orderError, setOrderError] = useState<string | null>(null);
 
   const product = useQuery({
@@ -186,13 +191,23 @@ export function ExploreProductPage() {
 
       {data.images.length > 0 ? (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1">
-          {data.images.map((image) => (
-            <img
+          {data.images.map((image, i) => (
+            <button
               key={image}
-              src={image}
-              alt={data.name}
-              className="h-56 w-44 shrink-0 rounded-2xl object-cover"
-            />
+              type="button"
+              className="shrink-0 overflow-hidden rounded-2xl"
+              aria-label={`View photo ${i + 1}`}
+              onClick={() => {
+                setPhotoIndex(i);
+                setPhotoOpen(true);
+              }}
+            >
+              <img
+                src={image}
+                alt={data.name}
+                className="h-56 w-44 object-cover"
+              />
+            </button>
           ))}
         </div>
       ) : (
@@ -264,7 +279,11 @@ export function ExploreProductPage() {
         submitting={createOrder.isPending}
         asking={askRates.isPending}
         error={orderError}
-        orderGoesToName={handlePath ? null : data.company.name}
+        orderGoesToName={
+          stampedHandle
+            ? (readCatalogHandlerName('product', id) ?? null)
+            : data.company.name
+        }
         onSendOrder={(lines) => {
           setOrderError(null);
           createOrder.mutate(lines);
@@ -276,6 +295,14 @@ export function ExploreProductPage() {
       />
 
       <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
+
+      <PhotoViewer
+        open={photoOpen && data.images.length > 0}
+        urls={data.images}
+        index={photoIndex}
+        onIndex={setPhotoIndex}
+        onClose={() => setPhotoOpen(false)}
+      />
     </div>
   );
 }

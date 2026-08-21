@@ -15,7 +15,11 @@ Buyers, sellers, and dual-role companies. Explore is not limited to “seller ca
 3. Tap a Story → filter posts from that business (`?story=`); Clear or Open shop if no posts in shelf.
 4. **Businesses for you** (Buying / All); **Buyers for you** (Selling / All when you sell).
 5. Filter by category / city where offered.
-6. Follow businesses; open album or design detail (`/explore/products/:id`, `/collections/:id`). **Bookmark** in the Explore header opens **Saved**. Long-press a design to select — traveling shortlist (**Order** / **Curate**) on the sticky bottom dock. No Select control in the search chrome.
+6. Follow businesses; open album or design detail (`/explore/products/:id`, `/collections/:id`). **Bookmark** in the Explore header opens **Saved**. On a design page, tap a photo → shared **PhotoViewer** (pinch / swipe within that design).
+   - **Album:** long-press → select album. **Design:** long-press → select design. Both can stay selected together.
+   - Sticky dock: **Share** / **Save** apply to everything selected (albums as collection cards, designs as product cards / Saved refs). **Order** / **Curate** (Trading on) use **designs only**. **Clear** empties the pick and **exits** select mode. Untapping the last selected item also exits — then tap opens the album/design again.
+   - Locked (`allowForward: false`): **Can’t share** under the title (before select); toast if selected anyway; **Share** / **Curate** only include shareable items. **Order** / **Save** still work.
+   - Tap still opens the album or design when not selecting. No Select control in the search chrome.
 7. Search — federated company / collection / design; feed stays until the user types (UX rule).
 8. From company cards → public profile → follow / request access / chat.
 
