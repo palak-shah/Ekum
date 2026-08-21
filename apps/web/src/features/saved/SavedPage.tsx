@@ -6,7 +6,9 @@ import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
@@ -25,6 +27,7 @@ import {
   cx,
 } from '@/ui/kit';
 import { CheckIcon } from '@/ui/icons';
+import { savedAlbumImageCount } from './savedAlbumCount';
 import { SAVED_QUERY_KEY, useSavedList } from './useSaveToggle';
 
 type Layout = 'feed' | 'grid';
@@ -71,6 +74,19 @@ export function SavedPage() {
   });
 
   const productItems = (saved.data ?? []).filter((item) => item.kind === 'product');
+  const visibleSavedIds = productItems
+    .map((item) => item.productId)
+    .filter((id): id is string => Boolean(id));
+  const selectAll = selectAllState(visibleSavedIds, shortlist.productIds);
+  const onSelectAllAction = () => {
+    if (selectAll.action === 'clear') {
+      shortlist.removeIds(visibleSavedIds);
+      return;
+    }
+    shortlist.addMany(
+      productItems.map(savedToEntry).filter((entry): entry is BrowseShortlistEntry => Boolean(entry)),
+    );
+  };
   const canCurate =
     shortlist.count > 0 &&
     shortlist.entries.every((entry) => entry.allowForward !== false);
@@ -98,7 +114,13 @@ export function SavedPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-4', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}>
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]',
+        shortlist.selectMode && visibleSavedIds.length > 0 && 'pt-12',
+      )}
+    >
       <PageHeader
         title="Saved"
         action={
@@ -133,6 +155,13 @@ export function SavedPage() {
             </div>
           ) : null
         }
+      />
+
+      <SelectAllFloat
+        open={shortlist.selectMode && visibleSavedIds.length > 0}
+        count={shortlist.count}
+        action={selectAll.action}
+        onAction={onSelectAllAction}
       />
 
       {saved.isLoading ? (
@@ -281,10 +310,7 @@ function SavedGridTile({
   removing: boolean;
 }) {
   const images = item.images?.length ? item.images : item.thumbUrl ? [item.thumbUrl] : [];
-  const imageCount =
-    item.kind === 'collection'
-      ? Math.max(item.imageCount ?? images.length, images.length)
-      : images.length;
+  const imageCount = savedAlbumImageCount(item, images);
   const longPress = useLongPress(onLongSelect);
 
   return (
@@ -348,10 +374,7 @@ function SavedFeedRow({
   removing: boolean;
 }) {
   const images = item.images?.length ? item.images : item.thumbUrl ? [item.thumbUrl] : [];
-  const imageCount =
-    item.kind === 'collection'
-      ? Math.max(item.imageCount ?? images.length, images.length)
-      : images.length;
+  const imageCount = savedAlbumImageCount(item, images);
   const longPress = useLongPress(onLongSelect);
 
   return (

@@ -13,18 +13,22 @@ Any signed-in company. Save is available when the design/collection is discovera
 ### Save / Unsave
 
 1. Open a design (Explore) or collection (viewer) → **Save** (collection-level), or open a design in the collection sheet → **Save**, or **Select** / long-press designs → **Save designs**.
-2. Open **Saved** from the **Explore header bookmark**, **＋ → Saved**, or More → Saved (`/saved`) — default **grid** (Feed toggle): business, SKU / design count, album collage; tap design → photo sheet; tap collection → collection viewer; **×** to unsave.
-3. **Select** / long-press **designs** on Saved (albums still open to pick inside). Sticky bar: **Curate** / **Order**.
+2. Open **Saved** from the **Explore header bookmark**, **＋ → Saved**, or More → Saved (`/saved`) — default **grid** (Feed toggle): business, SKU / design count, album collage with **`+N`** on the 4th cell when there are more than 4 designs (same as Explore); tap design → photo sheet; tap collection → collection viewer; **×** to unsave.
+3. **Select** / long-press **designs** on Saved (albums still open to pick inside). Floating **Select all** / **Clear** for saved designs. Sticky bar: **Curate** / **Order**.
 
 ### Traveling browse shortlist
 
-Selection is a **session** set of design ids (not the same as Saved). It survives Explore ↔ albums ↔ Saved until Clear, successful Order/Curate, or session end.
+Selection is a **session** set of design ids (not the same as Saved). It survives Explore ↔ albums ↔ Saved until Clear, successful Order / Curate (new or add to existing), or session end.
 
-### Curate pack
+### Curate pack / To collection
 
-1. Select designs (any suppliers) → sticky **Curate** → name → **Save draft** / **Publish…**.
+1. Select designs (any suppliers) → sticky **Curate** → sheet **To collection**:
+   - **New** — name → **Save draft** / **Publish…** (creates a pack).
+   - **Existing** — pick an owned album (draft/ready first, then published) → members are **merged** (union); toast **Added to …**. Draft/Ready opens the album editor; **Published** applies immediately (toast only, stay put).
 2. **＋ → Curate pack** opens Saved in select mode (or curates the current shortlist via `/catalog/curate`).
 3. Publish uses the same audience / rates / forward sheet as own collections. Ceiling failures show plain copy (e.g. “This seller doesn’t allow sharing.”).
+4. Sellers use the same sheet for own designs → own albums; traders need **Trading** on for foreign designs (select bar already gates Curate).
+5. **Explore:** long-press albums and/or designs together → **Share** / **Save** cover both; **Order** / **Curate** use designs only.
 
 ## Business rules
 

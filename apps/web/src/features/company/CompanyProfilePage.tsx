@@ -19,8 +19,10 @@ import {
 } from '@/lib/accessRequestNote';
 import { useMyCompany } from '@/lib/queries';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
@@ -117,6 +119,16 @@ export function CompanyProfilePage() {
   const shopReady = shopDesigns.isSuccess && shopCollections.isSuccess;
   const isOwner = Boolean(me.data?.id && id && me.data.id === id);
   const selecting = shortlist.selectMode || shortlist.count > 0;
+  const visibleShopIds = designs.map((product) => product.id);
+  const selectAll = selectAllState(visibleShopIds, shortlist.productIds);
+  const onSelectAllAction = () => {
+    if (selectAll.action === 'clear') {
+      shortlist.removeIds(visibleShopIds);
+      return;
+    }
+    shortlist.addMany(designs.map(toShopShortlistEntry));
+  };
+  const shopSelectAllOpen = shortlist.selectMode && shopTab === 'designs' && designs.length > 0;
   const canSelectDesigns = designs.length > 0 && shopTab === 'designs';
   const canOrder = !isOwner && shortlist.count > 0;
   const canCurate =
@@ -277,8 +289,18 @@ export function CompanyProfilePage() {
         <LoadingBlock label="Loading shop…" />
       ) : (
         <section
-          className={cx('flex flex-col gap-2', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}
+          className={cx(
+            'flex flex-col gap-2',
+            shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]',
+            shopSelectAllOpen && 'pt-12',
+          )}
         >
+          <SelectAllFloat
+            open={shopSelectAllOpen}
+            count={shortlist.count}
+            action={selectAll.action}
+            onAction={onSelectAllAction}
+          />
           <SectionHeader
             title="Shop"
             action={
