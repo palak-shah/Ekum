@@ -2,13 +2,15 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   catalogShareSenderLabel,
   orderViewerIsFacilitator,
-  rememberForwardFacilitator,
   readRememberedFacilitator,
   resolveFacilitatorForCatalog,
   resolveForwardFacilitator,
   resolveOrderPathForCatalog,
   withFacilitatorQuery,
   withOrderPathQuery,
+  catalogOrderGoesToLine,
+  rememberCatalogHandlerName,
+  readCatalogHandlerName,
 } from './forwardAttribution';
 
 describe('resolveForwardFacilitator', () => {
@@ -70,6 +72,42 @@ describe('order path query', () => {
         queryPath: null,
       }),
     ).toBe('handle');
+  });
+});
+
+describe('catalogOrderGoesToLine', () => {
+  it('names the sharer on I handle, the mill on Direct', () => {
+    expect(
+      catalogOrderGoesToLine({
+        path: 'handle',
+        ownerName: 'Ahmedabad Loom Co',
+        handlerName: 'Ravi Textiles',
+      }),
+    ).toBe('Order goes to Ravi Textiles');
+    expect(
+      catalogOrderGoesToLine({
+        path: 'direct',
+        ownerName: 'Ahmedabad Loom Co',
+        handlerName: 'Ravi Textiles',
+      }),
+    ).toBe('Order goes to Ahmedabad Loom Co');
+    expect(
+      catalogOrderGoesToLine({
+        path: 'handle',
+        ownerName: 'Ahmedabad Loom Co',
+        handlerName: 'You',
+        mine: true,
+      }),
+    ).toBe('Order goes to you');
+  });
+});
+
+describe('handler name memory', () => {
+  beforeEach(() => sessionStorage.clear());
+
+  it('sticky remembers sharer name', () => {
+    rememberCatalogHandlerName('collection', 'c1', 'Ravi Textiles');
+    expect(readCatalogHandlerName('collection', 'c1')).toBe('Ravi Textiles');
   });
 });
 

@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
   SuperCategory,
@@ -20,16 +20,22 @@ import {
   type ExploreBuyerOpportunity,
   type ExploreSupplierCard,
   type ExploreStory,
+  type SavedItemView,
   type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
-import { api } from '@/lib/apiClient';
+import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import { AlbumSelectBar } from '@/features/browse/AlbumSelectBar';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { SAVED_QUERY_KEY } from '@/features/saved/useSaveToggle';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import { FORWARD_LOCKED_TOAST, canForwardFlag } from '@/features/browse/forwardGate';
+import { useToast } from '@/ui/Toast';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -148,10 +154,17 @@ function CollectionSection({
   title: string;
   items: ExploreOpportunity[];
 }) {
+  const albumPick = useBrowseAlbumPick();
+  const shortlist = useBrowseShortlist();
+  const { showToast } = useToast();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
+  const selecting =
+    albumPick.count > 0 || shortlist.count > 0 || albumPick.selectMode || shortlist.selectMode;
+  const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
+
   return (
     <Section
       title={title}
@@ -172,6 +185,12 @@ function CollectionSection({
           <OpportunityCollectionCard
             key={opportunity.collection.id}
             opportunity={opportunity}
+            selectMode={selecting}
+            selected={albumPick.collectionIds.has(opportunity.collection.id)}
+            onLongSelect={() => toggleExploreAlbum(albumPick, opportunity, onLocked)}
+            onToggleSelect={
+              selecting ? () => toggleExploreAlbum(albumPick, opportunity, onLocked) : undefined
+            }
           />
         ))}
       </div>
@@ -182,15 +201,42 @@ function CollectionSection({
 function toggleExploreDesign(
   shortlist: ReturnType<typeof useBrowseShortlist>,
   opportunity: ExploreDesignOpportunity,
+  notifyLocked?: () => void,
 ) {
   const { product } = opportunity;
+  const wasSelected = shortlist.productIds.has(product.id);
   shortlist.toggle({
     productId: product.id,
     name: product.name,
     thumbUrl: product.images[0] ?? null,
     companyId: product.company.id,
     companyName: product.company.name,
+    allowForward: product.allowForward,
   });
+  if (!wasSelected && !canForwardFlag(product.allowForward)) {
+    notifyLocked?.();
+  }
+}
+
+function toggleExploreAlbum(
+  albumPick: ReturnType<typeof useBrowseAlbumPick>,
+  opportunity: ExploreOpportunity,
+  notifyLocked?: () => void,
+) {
+  const { collection } = opportunity;
+  const wasSelected = albumPick.collectionIds.has(collection.id);
+  albumPick.toggle({
+    collectionId: collection.id,
+    name: collection.name,
+    coverImage: collection.coverImage,
+    companyId: collection.company.id,
+    companyName: collection.company.name,
+    productCount: collection.productCount,
+    allowForward: collection.allowForward,
+  });
+  if (!wasSelected && !canForwardFlag(collection.allowForward)) {
+    notifyLocked?.();
+  }
 }
 
 function DesignSection({
@@ -201,11 +247,15 @@ function DesignSection({
   items: ExploreDesignOpportunity[];
 }) {
   const shortlist = useBrowseShortlist();
+  const albumPick = useBrowseAlbumPick();
+  const { showToast } = useToast();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
-  const selecting = shortlist.selectMode || shortlist.count > 0;
+  const selecting =
+    shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
+  const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
     <Section
@@ -229,9 +279,9 @@ function DesignSection({
             opportunity={opportunity}
             selectMode={selecting}
             selected={shortlist.productIds.has(opportunity.product.id)}
-            onLongSelect={() => toggleExploreDesign(shortlist, opportunity)}
+            onLongSelect={() => toggleExploreDesign(shortlist, opportunity, onLocked)}
             onToggleSelect={
-              selecting ? () => toggleExploreDesign(shortlist, opportunity) : undefined
+              selecting ? () => toggleExploreDesign(shortlist, opportunity, onLocked) : undefined
             }
           />
         ))}
@@ -242,11 +292,15 @@ function DesignSection({
 
 function MixedSection({ title, items }: { title: string; items: MixedOpportunity[] }) {
   const shortlist = useBrowseShortlist();
+  const albumPick = useBrowseAlbumPick();
+  const { showToast } = useToast();
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
   const overflow = items.length > SECTION_PREVIEW;
-  const selecting = shortlist.selectMode || shortlist.count > 0;
+  const selecting =
+    shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
+  const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
     <Section
@@ -266,16 +320,29 @@ function MixedSection({ title, items }: { title: string; items: MixedOpportunity
       <div className="flex flex-col">
         {visible.map((item) =>
           item.kind === 'collection' ? (
-            <OpportunityCollectionCard key={item.id} opportunity={item.opportunity} />
+            <OpportunityCollectionCard
+              key={item.id}
+              opportunity={item.opportunity}
+              selectMode={selecting}
+              selected={albumPick.collectionIds.has(item.opportunity.collection.id)}
+              onLongSelect={() => toggleExploreAlbum(albumPick, item.opportunity, onLocked)}
+              onToggleSelect={
+                selecting
+                  ? () => toggleExploreAlbum(albumPick, item.opportunity, onLocked)
+                  : undefined
+              }
+            />
           ) : (
             <OpportunityDesignCard
               key={item.id}
               opportunity={item.opportunity}
               selectMode={selecting}
               selected={shortlist.productIds.has(item.opportunity.product.id)}
-              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
+              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity, onLocked)}
               onToggleSelect={
-                selecting ? () => toggleExploreDesign(shortlist, item.opportunity) : undefined
+                selecting
+                  ? () => toggleExploreDesign(shortlist, item.opportunity, onLocked)
+                  : undefined
               }
             />
           ),
@@ -718,8 +785,13 @@ export function ExplorePage() {
   const navigate = useNavigate();
   const company = useMyCompany();
   const shortlist = useBrowseShortlist();
+  const albumPick = useBrowseAlbumPick();
   const orderFlow = useShortlistOrderFlow();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [curateOpen, setCurateOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [savingPick, setSavingPick] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
@@ -952,7 +1024,12 @@ export function ExplorePage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-4', shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]')}>
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        (shortlist.count > 0 || albumPick.count > 0) && 'pb-[calc(5rem+5.5rem)]',
+      )}
+    >
       <div className="relative flex items-center gap-2">
         {searchFocused ? (
           <>
@@ -1132,15 +1209,108 @@ export function ExplorePage() {
         </div>
       )}
 
-      <BrowseSelectBar
-        count={shortlist.count}
-        onClear={() => shortlist.clear()}
-        canCurate={shortlist.entries.every((entry) => entry.allowForward !== false)}
-        onCurate={() => setCurateOpen(true)}
+      <AlbumSelectBar
+        albumCount={albumPick.count}
+        designCount={shortlist.count}
+        onClear={() => {
+          albumPick.clear();
+          shortlist.clear();
+        }}
+        saving={savingPick}
+        onSave={async () => {
+          setSavingPick(true);
+          try {
+            let saved = 0;
+            for (const entry of albumPick.entries) {
+              await api.post<SavedItemView>('/saved', { collectionId: entry.collectionId });
+              saved += 1;
+            }
+            for (const entry of shortlist.entries) {
+              await api.post<SavedItemView>('/saved', { productId: entry.productId });
+              saved += 1;
+            }
+            void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
+            albumPick.clear();
+            shortlist.clear();
+            showToast(saved === 1 ? 'Saved' : `${saved} saved`);
+          } catch (err) {
+            showToast(
+              err instanceof ApiError ? err.message : 'Could not save.',
+              'danger',
+            );
+          } finally {
+            setSavingPick(false);
+          }
+        }}
+        canShare={
+          albumPick.entries.some((entry) => canForwardFlag(entry.allowForward)) ||
+          shortlist.entries.some((entry) => canForwardFlag(entry.allowForward))
+        }
+        onShare={() => {
+          const collections = albumPick.entries.filter((entry) =>
+            canForwardFlag(entry.allowForward),
+          );
+          const products = shortlist.entries.filter((entry) => canForwardFlag(entry.allowForward));
+          if (collections.length + products.length === 0) {
+            showToast(FORWARD_LOCKED_TOAST, 'danger');
+            return;
+          }
+          const skipped =
+            albumPick.count +
+            shortlist.count -
+            collections.length -
+            products.length;
+          if (skipped > 0) {
+            showToast(
+              skipped === 1
+                ? 'Skipped 1 that can’t be shared.'
+                : `Skipped ${skipped} that can’t be shared.`,
+            );
+          }
+          setShareOpen(true);
+        }}
+        canCurate={shortlist.entries.some((entry) => canForwardFlag(entry.allowForward))}
+        onCurate={() => {
+          const locked = shortlist.entries.filter((entry) => !canForwardFlag(entry.allowForward));
+          const allowed = shortlist.entries.filter((entry) => canForwardFlag(entry.allowForward));
+          if (allowed.length === 0) {
+            showToast(FORWARD_LOCKED_TOAST, 'danger');
+            return;
+          }
+          if (locked.length > 0) {
+            shortlist.removeIds(locked.map((entry) => entry.productId));
+            showToast(
+              locked.length === 1
+                ? 'Skipped 1 that can’t be shared.'
+                : `Skipped ${locked.length} that can’t be shared.`,
+            );
+          }
+          setCurateOpen(true);
+        }}
         canOrder={shortlist.count > 0}
         onOrder={() => {
           orderFlow.setError(null);
           orderFlow.setQtyOpen(true);
+        }}
+      />
+      <CatalogShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        collections={albumPick.entries
+          .filter((entry) => canForwardFlag(entry.allowForward))
+          .map((entry) => ({
+            collectionId: entry.collectionId,
+            name: entry.name,
+          }))}
+        products={shortlist.entries
+          .filter((entry) => canForwardFlag(entry.allowForward))
+          .map((entry) => ({
+            productId: entry.productId,
+            name: entry.name,
+          }))}
+        onShared={() => {
+          albumPick.clear();
+          shortlist.clear();
         }}
       />
       <HowManyEachSheet

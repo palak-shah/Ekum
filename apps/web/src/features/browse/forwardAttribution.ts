@@ -83,6 +83,59 @@ export function resolveOrderPathForCatalog(input: {
   return parseOrderPath(readPathMemory()[`${input.catalogKind}:${input.catalogId}`]);
 }
 
+const HANDLER_NAME_MEMORY = 'ekum.handlerNameByCatalog';
+
+export function rememberCatalogHandlerName(
+  catalogKind: 'collection' | 'product',
+  catalogId: string,
+  name: string,
+): void {
+  if (typeof sessionStorage === 'undefined' || !catalogId || !name.trim()) return;
+  try {
+    const next = { ...readHandlerNameMemory(), [`${catalogKind}:${catalogId}`]: name.trim() };
+    sessionStorage.setItem(HANDLER_NAME_MEMORY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function readHandlerNameMemory(): Record<string, string> {
+  if (typeof sessionStorage === 'undefined') return {};
+  try {
+    const raw = sessionStorage.getItem(HANDLER_NAME_MEMORY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+export function readCatalogHandlerName(
+  catalogKind: 'collection' | 'product',
+  catalogId: string,
+): string | undefined {
+  if (!catalogId) return undefined;
+  return readHandlerNameMemory()[`${catalogKind}:${catalogId}`];
+}
+
+/** Who the buyer’s ticket is with — handle = sharer, Direct = design owner. */
+export function catalogOrderGoesToLine(input: {
+  path: 'direct' | 'handle' | undefined;
+  ownerName: string | null | undefined;
+  handlerName: string | null | undefined;
+  mine?: boolean;
+}): string | null {
+  const owner = input.ownerName?.trim();
+  if (input.path === 'handle') {
+    if (input.mine) return 'Order goes to you';
+    const handler = input.handlerName?.trim();
+    if (handler) return `Order goes to ${handler}`;
+  }
+  return owner ? `Order goes to ${owner}` : null;
+}
+
 /** Chat label: own catalog share vs forward of someone else's. */
 export function catalogShareSenderLabel(input: {
   mine: boolean;
