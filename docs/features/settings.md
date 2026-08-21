@@ -18,10 +18,11 @@ Every signed-in company owner/operator in Phase 1.
 
 ### Settings (`/settings`)
 
-1. Toggle **buying** / **selling** presence (affects ＋ sheet and Home emphasis).
+1. **Home attention** — optional age-out for Home Needs (Off / 7 / 14 / 30 days; default Off). Device-local.
 2. Manage **addresses** and **billing GST firms**.
 3. Return policy / trade defaults / my-tools as exposed by the API.
 4. Profile edit → `/settings/profile` (see [company](./company.md)).
+5. Trade presence on Profile: buying / selling / trading, plus **When buyers order from what I share** (**Direct** / **I handle**; default Direct). Overridable per forward/publish/curate.
 
 ## Business rules
 
