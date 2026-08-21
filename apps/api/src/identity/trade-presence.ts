@@ -19,6 +19,14 @@ export function resolveTradePresence(tradeDefaults: unknown): TradePresence {
   };
 }
 
+/** Profile default for Direct vs I handle. Missing ⇒ direct. */
+export function resolveOrderPathPreference(
+  tradeDefaults: unknown,
+): 'direct' | 'handle' {
+  const defaults = asTradeDefaults(tradeDefaults);
+  return defaults.orderPathPreference === 'handle' ? 'handle' : 'direct';
+}
+
 export function asTradeDefaults(value: unknown): TradeDefaults {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return { ...(value as TradeDefaults) };

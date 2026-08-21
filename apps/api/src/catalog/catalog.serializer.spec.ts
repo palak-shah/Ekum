@@ -60,6 +60,7 @@ describe('CatalogSerializer', () => {
       audienceCompanyIds: [],
       audienceGroupIds: [],
       allowForward: true,
+      orderPathPreference: null,
       startsAt: null,
       endsAt: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -69,6 +70,7 @@ describe('CatalogSerializer', () => {
     const view = serializer.toCollectionView(collection);
     expect(view.productCount).toBe(3);
     expect(view.allowForward).toBe(true);
+    expect(view.orderPathPreference).toBeNull();
     expect(view.audienceCompanyIds).toEqual([]);
     expect(view.audienceGroupIds).toEqual([]);
     expect(view.startsAt).toBeNull();
@@ -91,6 +93,7 @@ describe('CatalogSerializer', () => {
       audienceCompanyIds: [],
       audienceGroupIds: [],
       allowForward: false,
+      orderPathPreference: 'handle',
       startsAt: null,
       endsAt: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -99,6 +102,7 @@ describe('CatalogSerializer', () => {
     } as unknown as Collection & { products: (CollectionProduct & { product: Product })[] };
     const detail = serializer.toCollectionDetail(collection);
     expect(detail.productCount).toBe(1);
+    expect(detail.orderPathPreference).toBe('handle');
     expect(detail.products[0]?.name).toBe('Banarasi Silk');
   });
 });

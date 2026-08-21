@@ -71,6 +71,12 @@ export interface CollectionCard {
   productCount: number;
   status: string;
   updatedAt: string;
+  /** Buyers can forward/share this album card (publish snapshot). */
+  allowForward: boolean;
+  /**
+   * Pack Direct | I handle override. null = use owner Profile default.
+   */
+  orderPathPreference: string | null;
   company: PublicCompanySummary;
 }
 
@@ -91,6 +97,8 @@ export interface ExploreProductCard {
   rate: number | null;
   unit: string | null;
   postedAt: string;
+  /** Buyers can forward/share / curate this design (publish snapshot). */
+  allowForward: boolean;
   company: PublicCompanySummary;
 }
 

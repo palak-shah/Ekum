@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { asTradeDefaults, mergeTradeDefaults, resolveTradePresence } from './trade-presence';
+import {
+  asTradeDefaults,
+  mergeTradeDefaults,
+  resolveOrderPathPreference,
+  resolveTradePresence,
+} from './trade-presence';
 
 describe('resolveTradePresence', () => {
   it('defaults buy/sell on and trading on when unset (Slice B WIP)', () => {
@@ -27,6 +32,18 @@ describe('resolveTradePresence', () => {
 
   it('trading on when tradingEnabled true', () => {
     expect(resolveTradePresence({ tradingEnabled: true }).trading).toBe(true);
+  });
+});
+
+describe('resolveOrderPathPreference', () => {
+  it('defaults to direct when missing', () => {
+    expect(resolveOrderPathPreference(null)).toBe('direct');
+    expect(resolveOrderPathPreference({})).toBe('direct');
+    expect(resolveOrderPathPreference({ orderPathPreference: 'direct' })).toBe('direct');
+  });
+
+  it('returns handle when set', () => {
+    expect(resolveOrderPathPreference({ orderPathPreference: 'handle' })).toBe('handle');
   });
 });
 

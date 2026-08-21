@@ -260,6 +260,8 @@ model Collection {
   audienceGroupIds    String[] @default([])
   /** When false, only the owner may share this pack into chat; buyers cannot forward. */
   allowForward        Boolean  @default(true)
+  /** direct | handle; null = use company Profile orderPathPreference. */
+  orderPathPreference String?
   /**
    * Explore sort key. Set on publish and when newly added published designs join
    * a live collection — not on rename/remove-only/reshuffle.

@@ -113,6 +113,9 @@ export class SettingsService {
     if (dto.tradingEnabled !== undefined) {
       presencePatch.tradingEnabled = dto.tradingEnabled;
     }
+    if (dto.orderPathPreference !== undefined) {
+      presencePatch.orderPathPreference = dto.orderPathPreference;
+    }
     const baseDefaults =
       dto.tradeDefaults !== undefined
         ? { ...asTradeDefaults(existing?.tradeDefaults), ...asTradeDefaults(dto.tradeDefaults) }

@@ -115,6 +115,16 @@ export class CollectionService {
         coverImage: dto.coverImage ?? null,
         startsAt: startsAt === undefined ? null : startsAt,
         endsAt: endsAt === undefined ? null : endsAt,
+        ...(dto.orderPathPreference !== undefined
+          ? {
+              orderPathPreference:
+                dto.orderPathPreference === null
+                  ? null
+                  : dto.orderPathPreference === 'handle'
+                    ? 'handle'
+                    : 'direct',
+            }
+          : {}),
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -182,6 +192,16 @@ export class CollectionService {
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),
+        ...(dto.orderPathPreference !== undefined
+          ? {
+              orderPathPreference:
+                dto.orderPathPreference === null
+                  ? null
+                  : dto.orderPathPreference === 'handle'
+                    ? 'handle'
+                    : 'direct',
+            }
+          : {}),
       },
       include: listInclude,
     });
@@ -267,6 +287,14 @@ export class CollectionService {
     // Only the curator's own drafts are auto-published; foreign members stay as-is.
     const memberIds = members.map((row) => row.productId);
     const allowForward = dto.allowForward !== false;
+    const orderPathPreference =
+      dto.orderPathPreference === undefined
+        ? undefined
+        : dto.orderPathPreference === null
+          ? null
+          : dto.orderPathPreference === 'handle'
+            ? 'handle'
+            : 'direct';
     const now = new Date();
     await this.prisma.product.updateMany({
       where: {
@@ -299,6 +327,7 @@ export class CollectionService {
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
+        ...(orderPathPreference !== undefined ? { orderPathPreference } : {}),
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),

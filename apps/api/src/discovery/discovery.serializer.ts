@@ -44,6 +44,13 @@ export class DiscoverySerializer {
       status: collection.status,
       // Explore “when” = last publish / new-design activity when set.
       updatedAt: (collection.exploreActivityAt ?? collection.updatedAt).toISOString(),
+      allowForward: collection.allowForward,
+      orderPathPreference:
+        collection.orderPathPreference === 'handle'
+          ? 'handle'
+          : collection.orderPathPreference === 'direct'
+            ? 'direct'
+            : null,
       company: this.companySerializer.toPublicSummary(collection.company),
     };
   }
@@ -67,6 +74,7 @@ export class DiscoverySerializer {
       rate: product.rate === null ? null : product.rate.toNumber(),
       unit: product.unit,
       postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
+      allowForward: product.allowForward,
       company: this.companySerializer.toPublicSummary(product.company),
     };
   }
