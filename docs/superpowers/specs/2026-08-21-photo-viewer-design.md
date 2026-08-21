@@ -38,7 +38,7 @@ Traders need to **see cloth clearly** — zoom, pan, flip photos. Today chat has
 ```
 
 - Fullscreen dark scrim; portal to `document.body`.
-- **z-index above kit Sheets** so an open design sheet stays underneath; closing the viewer does **not** dismiss the sheet.
+- **z-index `z-[100]`** — above Sheets (`z-[80]`), shell header/nav, and toasts — so AppShell title / bell never show through. Closing the viewer does **not** dismiss an open sheet underneath.
 - Close: Close control, Esc (desktop), or swipe down (when zoom ≈ 1).
 - Counter: `N / M` when `urls.length > 1`; for a single photo, omit counter (or show nothing noisy).
 - **Zoom ≈ 1:** horizontal swipe → next/prev photo (if more than one).

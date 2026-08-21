@@ -36,4 +36,13 @@ describe('PhotoViewer', () => {
     await userEvent.click(screen.getByTestId('photo-viewer-close'));
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('portals above shell chrome (body + z-100)', () => {
+    render(
+      <PhotoViewer open urls={['a.jpg']} index={0} onIndex={() => {}} onClose={() => {}} />,
+    );
+    const bar = screen.getByTestId('photo-viewer');
+    expect(bar.parentElement).toBe(document.body);
+    expect(bar.className).toMatch(/z-\[100\]/);
+  });
 });

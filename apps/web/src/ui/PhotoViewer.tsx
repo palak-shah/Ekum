@@ -49,6 +49,15 @@ export function PhotoViewer({
 
   useEffect(() => {
     if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -153,7 +162,7 @@ export function PhotoViewer({
   return createPortal(
     <div
       data-testid="photo-viewer"
-      className="fixed inset-0 z-[85] flex flex-col bg-ink/92"
+      className="fixed inset-0 z-[100] flex flex-col bg-ink"
       role="dialog"
       aria-modal="true"
       aria-label="Photo viewer"
