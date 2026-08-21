@@ -886,8 +886,20 @@ export class ExploreService {
         }),
       );
 
+      const ownerIds = [
+        ...new Set(collection.products.map((entry) => entry.product.companyId)),
+      ];
+      const ownerRows = await this.prisma.company.findMany({
+        where: { id: { in: ownerIds } },
+        select: { id: true, name: true },
+      });
+      const ownerName = new Map(ownerRows.map((row) => [row.id, row.name]));
+
       products = collection.products.map((entry) => {
-        const view = this.catalog.toProductView(entry.product);
+        const view = {
+          ...this.catalog.toProductView(entry.product),
+          companyName: ownerName.get(entry.product.companyId) ?? null,
+        };
         if (isOwner) {
           return view;
         }

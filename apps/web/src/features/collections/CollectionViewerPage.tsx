@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type AccessRequestView,
@@ -15,11 +15,17 @@ import {
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import { FORWARD_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import {
+  resolveFacilitatorForCatalog,
+  resolveOrderPathForCatalog,
+} from '@/features/browse/forwardAttribution';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { SAVED_QUERY_KEY, useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
@@ -50,13 +56,24 @@ function toShortlistEntry(
     name: product.name,
     thumbUrl: product.images[0] ?? null,
     companyId: product.companyId,
-    companyName,
+    companyName: product.companyName ?? companyName,
     allowForward: product.allowForward,
   };
 }
 
 export function CollectionViewerPage() {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
+  const facilitatorCompanyId = resolveFacilitatorForCatalog({
+    catalogKind: 'collection',
+    catalogId: id,
+    queryFacilitator: searchParams.get('facilitator'),
+  });
+  const stampedPath = resolveOrderPathForCatalog({
+    catalogKind: 'collection',
+    catalogId: id,
+    queryPath: searchParams.get('path'),
+  });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useMyCompany();
@@ -71,6 +88,7 @@ export function CollectionViewerPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [curateOpen, setCurateOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     orderFlow.setQtyOpen(false);
@@ -106,16 +124,31 @@ export function CollectionViewerPage() {
     if (!ownerId || products.length === 0) return false;
     return products.some((product) => product.companyId !== ownerId);
   }, [collection.data?.company.id, products]);
+  const packPath =
+    stampedPath ??
+    (collection.data?.orderPathPreference === 'handle'
+      ? 'handle'
+      : collection.data?.orderPathPreference === 'direct'
+        ? 'direct'
+        : 'direct');
+  const handlePath = packPath === 'handle';
   const canOrderFromPack = !isOwner && shortlist.count > 0;
   const canSelectDesigns = products.length > 0;
   const companyName = collection.data?.company.name ?? '';
+  const ownerNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const product of selectedProducts) {
+      names.set(product.companyId, product.companyName ?? companyName);
+    }
+    return [...names.values()];
+  }, [selectedProducts, companyName]);
   const canCurate =
-    shortlist.count > 0 &&
-    shortlist.entries.every((entry) => entry.allowForward !== false) &&
-    !isOwner;
+    shortlist.entries.some((entry) => entry.allowForward !== false) && !isOwner;
 
   const selectAllDesigns = () => {
-    shortlist.addMany(products.map((product) => toShortlistEntry(product, companyName)));
+    shortlist.addMany(
+      products.map((product) => toShortlistEntry(product, product.companyName ?? companyName)),
+    );
   };
 
   const saveSelected = useMutation({
@@ -172,7 +205,7 @@ export function CollectionViewerPage() {
   });
 
   const toggleProduct = (product: ProductView) => {
-    shortlist.toggle(toShortlistEntry(product, companyName));
+    shortlist.toggle(toShortlistEntry(product, product.companyName ?? companyName));
   };
 
   const openViewer = (product: ProductView, index = 0) => {
@@ -189,7 +222,7 @@ export function CollectionViewerPage() {
   };
 
   const onDesignLongSelect = (product: ProductView) => {
-    shortlist.toggle(toShortlistEntry(product, companyName));
+    shortlist.toggle(toShortlistEntry(product, product.companyName ?? companyName));
   };
 
   if (collection.isLoading) {
@@ -226,6 +259,20 @@ export function CollectionViewerPage() {
               onClick={() => save.toggle()}
             >
               {save.isSaved ? 'Saved' : 'Save'}
+            </button>
+            <button
+              type="button"
+              className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-45"
+              disabled={!id || data.allowForward === false}
+              onClick={() => {
+                if (data.allowForward === false) {
+                  showToast(FORWARD_LOCKED_TOAST, 'danger');
+                  return;
+                }
+                setShareOpen(true);
+              }}
+            >
+              Share
             </button>
             {isOwner ? (
               <button
@@ -409,7 +456,23 @@ export function CollectionViewerPage() {
         count={selectedCount}
         onClear={clearSelection}
         canCurate={canCurate}
-        onCurate={() => setCurateOpen(true)}
+        onCurate={() => {
+          const locked = shortlist.entries.filter((entry) => entry.allowForward === false);
+          const allowed = shortlist.entries.filter((entry) => entry.allowForward !== false);
+          if (allowed.length === 0) {
+            showToast(FORWARD_LOCKED_TOAST, 'danger');
+            return;
+          }
+          if (locked.length > 0) {
+            shortlist.removeIds(locked.map((entry) => entry.productId));
+            showToast(
+              locked.length === 1
+                ? 'Skipped 1 that can’t be shared.'
+                : `Skipped ${locked.length} that can’t be shared.`,
+            );
+          }
+          setCurateOpen(true);
+        }}
         canOrder={canOrderFromPack}
         onOrder={() => {
           orderFlow.setError(null);
@@ -441,16 +504,30 @@ export function CollectionViewerPage() {
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
+        orderGoesToName={handlePath ? companyName : ownerNames.length === 1 ? ownerNames[0] : null}
+        orderGoesToNames={!handlePath && ownerNames.length > 1 ? ownerNames : null}
         onSendOrder={(lines) =>
           orderFlow.sendOrder(
             lines,
-            isCuratedPack && id ? { collectionId: id } : undefined,
+            handlePath && isCuratedPack && id
+              ? { collectionId: id }
+              : !handlePath && (isCuratedPack || facilitatorCompanyId)
+                ? { facilitatorCompanyId: facilitatorCompanyId ?? companyId }
+                : facilitatorCompanyId
+                  ? { facilitatorCompanyId }
+                  : undefined,
           )
         }
         onAskRates={(lines) =>
           orderFlow.askRates(
             lines,
-            isCuratedPack && id ? { collectionId: id } : undefined,
+            handlePath && isCuratedPack && id
+              ? { collectionId: id }
+              : !handlePath && (isCuratedPack || facilitatorCompanyId)
+                ? { facilitatorCompanyId: facilitatorCompanyId ?? companyId }
+                : facilitatorCompanyId
+                  ? { facilitatorCompanyId }
+                  : undefined,
           )
         }
       />
@@ -462,6 +539,12 @@ export function CollectionViewerPage() {
       />
 
       <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
+
+      <CatalogShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        collections={id && data ? [{ collectionId: id, name: data.name }] : []}
+      />
 
       <ProductPhotosSheet
         product={viewerProduct}

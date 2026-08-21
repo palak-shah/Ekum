@@ -37,7 +37,7 @@ import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { createdAtRangeFilter } from '../common/audit';
 import { JobQueue } from '../jobs/job-queue.service';
 import { ThreadService } from '../conversation/thread.service';
-import { resolveTradePresence } from '../identity/trade-presence';
+import { resolveOrderPathPreference, resolveTradePresence } from '../identity/trade-presence';
 import { OrderSerializer } from './order.serializer';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
@@ -101,6 +101,27 @@ export class OrderService {
     dto: CreateOrderDto,
     options: CreateOrderOptions = {},
   ): Promise<OrderView> {
+    const handlePath =
+      dto.orderPathPreference === 'handle' && !options.downstreamOrderId;
+    if (handlePath) {
+      const settings = await this.prisma.companySettings.findUnique({
+        where: { companyId: dto.sellerCompanyId },
+        select: { tradeDefaults: true },
+      });
+      if (!resolveTradePresence(settings?.tradeDefaults).trading) {
+        throw new BadRequestException({
+          code: 'TRADING_REQUIRED',
+          message: 'Turn on Trading in Profile to handle this order.',
+        });
+      }
+      options = {
+        ...options,
+        allowForeignProducts: true,
+        tradeMode: OrderTradeMode.Manage,
+        facilitatorCompanyId: undefined,
+      };
+    }
+
     await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId, {
       productIds: dto.items
         .map((item) => item.productId)
@@ -110,17 +131,24 @@ export class OrderService {
       allowForeignProducts: options.allowForeignProducts === true,
     });
 
+    const resolvedOpts = await this.resolveFacilitatorOptions(
+      actorCompanyId,
+      dto.sellerCompanyId,
+      handlePath ? undefined : dto.facilitatorCompanyId,
+      options,
+    );
+
     const intent = dto.intent ?? OrderIntent.Order;
     const inquiry = intent === OrderIntent.Inquiry;
-    const tradeMode = options.tradeMode ?? OrderTradeMode.Bilateral;
+    const tradeMode = resolvedOpts.tradeMode ?? OrderTradeMode.Bilateral;
     const order = await this.prisma.order.create({
       data: {
         kind: dto.kind,
         intent,
         status: OrderStatus.Requested,
         tradeMode,
-        facilitatorCompanyId: options.facilitatorCompanyId ?? null,
-        downstreamOrderId: options.downstreamOrderId ?? null,
+        facilitatorCompanyId: resolvedOpts.facilitatorCompanyId ?? null,
+        downstreamOrderId: resolvedOpts.downstreamOrderId ?? null,
         buyerCompanyId: actorCompanyId,
         sellerCompanyId: dto.sellerCompanyId,
         createdByCompanyId: actorCompanyId,
@@ -158,7 +186,13 @@ export class OrderService {
       orderId: order.id,
       buyerCompanyId: order.buyerCompanyId,
       sellerCompanyId: order.sellerCompanyId,
+      facilitatorCompanyId: order.facilitatorCompanyId,
     });
+
+    if (handlePath) {
+      await this.spawnHandleUpstreams(dto.sellerCompanyId, userId, order.id, dto);
+    }
+
     return this.serializer.toOrderView(order, actorCompanyId, threadId);
   }
 
@@ -285,6 +319,7 @@ export class OrderService {
       select: {
         id: true,
         companyId: true,
+        orderPathPreference: true,
         company: { select: { settings: { select: { tradeDefaults: true } } } },
         products: { select: { productId: true } },
       },
@@ -332,6 +367,17 @@ export class OrderService {
       throw new BadRequestException({
         code: 'TRADING_REQUIRED',
         message: 'This business is not taking pack orders right now.',
+      });
+    }
+
+    const packPath =
+      collection.orderPathPreference === 'handle' || collection.orderPathPreference === 'direct'
+        ? collection.orderPathPreference
+        : resolveOrderPathPreference(collection.company.settings?.tradeDefaults);
+    if (packPath === 'direct') {
+      throw new BadRequestException({
+        code: 'DIRECT_PACK',
+        message: 'This pack orders from the design owners.',
       });
     }
 
@@ -1562,6 +1608,7 @@ export class OrderService {
       sellerCompanyId: order.sellerCompanyId,
       actorCompanyId,
       status,
+      facilitatorCompanyId: order.facilitatorCompanyId,
     });
     // Same live flags as get() so mutation responses stay honest for CTAs.
     return this.get(actorCompanyId, id);
@@ -1602,12 +1649,44 @@ export class OrderService {
       sellerCompanyId: updated.sellerCompanyId,
       actorCompanyId,
       status: options.next,
+      facilitatorCompanyId: updated.facilitatorCompanyId,
     });
     const threadId = await this.threads.findDirectThreadId(
       updated.buyerCompanyId,
       updated.sellerCompanyId,
     );
     return this.serializer.toOrderView(updated, actorCompanyId, threadId);
+  }
+
+  private async resolveFacilitatorOptions(
+    actorCompanyId: string,
+    sellerCompanyId: string,
+    facilitatorFromDto: string | undefined,
+    options: CreateOrderOptions,
+  ): Promise<CreateOrderOptions> {
+    const facilitatorCompanyId = options.facilitatorCompanyId ?? facilitatorFromDto;
+    if (
+      !facilitatorCompanyId ||
+      facilitatorCompanyId === actorCompanyId ||
+      facilitatorCompanyId === sellerCompanyId
+    ) {
+      return options;
+    }
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: facilitatorCompanyId },
+      select: { tradeDefaults: true },
+    });
+    if (!resolveTradePresence(settings?.tradeDefaults).trading) {
+      throw new BadRequestException({
+        code: 'TRADING_REQUIRED',
+        message: 'Turn on Trading in Profile to stay in the loop on orders.',
+      });
+    }
+    return {
+      ...options,
+      tradeMode: options.tradeMode ?? OrderTradeMode.Direct,
+      facilitatorCompanyId,
+    };
   }
 
   private async loadForParty(id: string, actorCompanyId: string, withReturns = false) {
@@ -1694,6 +1773,51 @@ export class OrderService {
     }
 
     return related;
+  }
+
+  private async spawnHandleUpstreams(
+    handlerCompanyId: string,
+    userId: string,
+    downstreamId: string,
+    dto: CreateOrderDto,
+  ): Promise<void> {
+    const productIds = [
+      ...new Set(dto.items.map((item) => item.productId).filter((id): id is string => Boolean(id))),
+    ];
+    if (productIds.length === 0) return;
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, companyId: true },
+    });
+    const groups = new Map<string, CreateOrderDto['items']>();
+    const byId = new Map(products.map((product) => [product.id, product]));
+    for (const item of dto.items) {
+      if (!item.productId) continue;
+      const product = byId.get(item.productId);
+      if (!product || product.companyId === handlerCompanyId) continue;
+      const bucket = groups.get(product.companyId) ?? [];
+      bucket.push(item);
+      groups.set(product.companyId, bucket);
+    }
+    const shortId = downstreamId.slice(-6).toUpperCase();
+    for (const [sellerCompanyId, items] of groups) {
+      try {
+        await this.create(
+          handlerCompanyId,
+          userId,
+          {
+            sellerCompanyId,
+            kind: dto.kind,
+            intent: dto.intent ?? OrderIntent.Order,
+            note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
+            items,
+          },
+          { downstreamOrderId: downstreamId },
+        );
+      } catch {
+        // Phase A: downstream stays; trader retries upstream later.
+      }
+    }
   }
 
   private async snapshotItems(

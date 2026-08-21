@@ -41,6 +41,10 @@ export const createOrderSchema = z
     /** Soft rate ask vs firm place-order. Default order. */
     intent: z.enum(orderIntentValues).default(OrderIntent.Order),
     note: z.string().trim().max(1000).optional(),
+    /** Direct mode: keep this company informed (must have trading on). */
+    facilitatorCompanyId: z.string().min(1).optional(),
+    /** I handle: buyer ticket is with seller; foreign designs allowed + upstream. */
+    orderPathPreference: z.enum(['direct', 'handle']).optional(),
     items: z.array(orderItemInputSchema).min(1).max(200),
   })
   .superRefine((value, ctx) => {

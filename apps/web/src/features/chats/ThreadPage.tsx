@@ -46,6 +46,13 @@ import {
   replyComposerLabel,
 } from './chatMessageActions';
 import {
+  resolveForwardFacilitator,
+  withFacilitatorQuery,
+  withOrderPathQuery,
+  parseOrderPath,
+  catalogShareSenderLabel,
+} from '@/features/browse/forwardAttribution';
+import {
   buildOrderCardCopy,
   dedupeOrderThreadMessages,
   isRichOrderChatMessage,
@@ -694,6 +701,7 @@ export function ThreadPage() {
               <TimelineItem
                 key={message.id}
                 message={message}
+                viewerCompanyId={companyId}
                 searchHighlight={searchOpen ? searchQ : ''}
                 senderLabel={
                   message.mine
@@ -1453,6 +1461,7 @@ function MessageChrome({
 
 function TimelineItem({
   message,
+  viewerCompanyId,
   searchHighlight = '',
   senderLabel,
   onAcceptQuote,
@@ -1469,6 +1478,7 @@ function TimelineItem({
   actions,
 }: {
   message: MessageView;
+  viewerCompanyId: string | null;
   searchHighlight?: string;
   senderLabel: string;
   onAcceptQuote: (orderId: string) => void;
@@ -1486,10 +1496,32 @@ function TimelineItem({
 }) {
   const hl = (text: string) => highlightSearchText(text, searchHighlight);
   const ref = message.reference;
+  const facilitator = resolveForwardFacilitator({
+    senderCompanyId: message.senderCompanyId,
+    viewerCompanyId,
+    ownerCompanyId: ref?.ownerCompanyId,
+  });
   const meta =
     message.metadata && typeof message.metadata === 'object'
       ? (message.metadata as Record<string, unknown>)
       : null;
+  const sharePath = parseOrderPath(
+    typeof meta?.orderPathPreference === 'string' ? meta.orderPathPreference : undefined,
+  );
+  const collectionPath =
+    ref?.available && ref.id
+      ? withOrderPathQuery(
+          withFacilitatorQuery(`/collections/${ref.id}`, facilitator),
+          sharePath,
+        )
+      : undefined;
+  const productPath =
+    ref?.available && ref.id
+      ? withOrderPathQuery(
+          withFacilitatorQuery(`/explore/products/${ref.id}`, facilitator),
+          sharePath,
+        )
+      : undefined;
   /** Legacy line-decision notices were stored as system; treat as order cards when resolved. */
   const isLegacyOrderNotice =
     message.type === 'system' &&
@@ -1760,7 +1792,12 @@ function TimelineItem({
                   message.mine ? 'text-right' : 'text-left',
                 )}
               >
-                {message.mine ? 'You' : senderLabel}
+                {catalogShareSenderLabel({
+                  mine: message.mine,
+                  senderLabel,
+                  ownerCompanyId: ref?.ownerCompanyId,
+                  senderCompanyId: message.senderCompanyId,
+                })}
               </p>
               <TimelineCard
                 mine={message.mine}
@@ -1779,13 +1816,15 @@ function TimelineItem({
                     : 0
                 }
                 lines={[
-                  ref?.ownerCompanyName ? `from ${ref.ownerCompanyName}` : null,
+                  ref?.ownerCompanyName
+                    ? `Order goes to ${ref.ownerCompanyName}`
+                    : null,
                   ref?.itemCount != null
                     ? `${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`
                     : null,
                 ]}
                 actionLabel={ref?.available ? 'View collection →' : undefined}
-                actionTo={ref?.available ? `/collections/${ref.id}` : undefined}
+                actionTo={collectionPath}
                 actionStyle="link"
                 createdAt={message.createdAt}
               />
@@ -1800,7 +1839,12 @@ function TimelineItem({
                   message.mine ? 'text-right' : 'text-left',
                 )}
               >
-                {message.mine ? 'You' : senderLabel}
+                {catalogShareSenderLabel({
+                  mine: message.mine,
+                  senderLabel,
+                  ownerCompanyId: ref?.ownerCompanyId,
+                  senderCompanyId: message.senderCompanyId,
+                })}
               </p>
               <TimelineCard
                 mine={message.mine}
@@ -1813,11 +1857,13 @@ function TimelineItem({
                 )}
                 image={ref?.image}
                 images={ref?.images}
-                lines={
-                  ref?.ownerCompanyName ? [hl(`from ${ref.ownerCompanyName}`)] : []
-                }
+                lines={[
+                  ref?.ownerCompanyName
+                    ? hl(`Order goes to ${ref.ownerCompanyName}`)
+                    : null,
+                ].filter(Boolean) as string[]}
                 actionLabel={ref?.available ? 'View design →' : undefined}
-                actionTo={ref?.available ? `/explore/products/${ref.id}` : undefined}
+                actionTo={productPath}
                 actionStyle="link"
                 secondaryAction={
                   !message.mine && ref?.available

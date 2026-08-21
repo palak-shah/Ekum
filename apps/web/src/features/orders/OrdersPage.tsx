@@ -16,10 +16,12 @@ import type {
 import { shortOrderLabel } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
+import { useMyCompany } from '@/lib/queries';
 import { Card, Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
+import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
 import {
   dateFacetFromNeedle,
   emptyFindState,
@@ -60,6 +62,7 @@ function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
 
 export function OrdersPage() {
   const navigate = useNavigate();
+  const me = useMyCompany();
   const [params, setSearchParams] = useSearchParams();
   const filterParam = params.get('filter');
   const kindParam = params.get('kind');
@@ -340,7 +343,11 @@ export function OrdersPage() {
           {filtered.length > 0 ? (
             <div className="flex flex-col gap-2">
               {filtered.map((item) => (
-                <TradeRow key={`${item.kind}-${item.id}`} item={item} />
+                <TradeRow
+                  key={`${item.kind}-${item.id}`}
+                  item={item}
+                  companyId={me.data?.id ?? null}
+                />
               ))}
             </div>
           ) : (
@@ -365,13 +372,27 @@ export function OrdersPage() {
   );
 }
 
-function TradeRow({ item }: { item: TradeListItem }) {
+function TradeRow({
+  item,
+  companyId,
+}: {
+  item: TradeListItem;
+  companyId: string | null;
+}) {
   if (item.kind === 'order') {
     const order = item.order;
     const staff =
       order.updatedBy?.name?.trim() || order.createdBy?.name?.trim() || null;
     const isInquiry = order.intent === 'inquiry';
     const idLabel = shortOrderLabel(order.id, { inquiry: isInquiry });
+    const shared = orderViewerIsFacilitator(order, companyId);
+    const roleBit = shared
+      ? 'Shared · '
+      : isInquiry
+        ? null
+        : order.direction === 'buying'
+          ? 'You buy · '
+          : 'You sell · ';
     return (
       <Link to={`/orders/${order.id}`}>
         <Card className="flex items-center justify-between">
@@ -380,7 +401,7 @@ function TradeRow({ item }: { item: TradeListItem }) {
             <p className="text-xs text-muted">
               {idLabel}
               {' · '}
-              {isInquiry ? null : order.direction === 'buying' ? 'You buy · ' : 'You sell · '}
+              {roleBit}
               {order.items.length} {order.items.length === 1 ? 'item' : 'items'} ·{' '}
               {timeAgo(order.createdAt)}
               {staff ? ` · ${staff}` : ''}

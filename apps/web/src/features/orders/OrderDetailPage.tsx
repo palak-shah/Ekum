@@ -14,6 +14,7 @@ import {
   type ReturnView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useCompanyId } from '@/lib/auth';
 import { formatDate, formatRate } from '@/lib/format';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
@@ -105,6 +106,7 @@ function lineStatusLabel(status: string): string {
 
 export function OrderDetailPage() {
   const { id = '' } = useParams();
+  const companyId = useCompanyId();
   const [searchParams] = useSearchParams();
   const focusReturnId = searchParams.get('return');
   const navigate = useNavigate();
@@ -520,13 +522,19 @@ export function OrderDetailPage() {
   });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
-  const roleSubtitle = isInquiry
-    ? data.direction === 'buying'
-      ? `Inquiry to ${data.counterpart.name}`
-      : `Inquiry from ${data.counterpart.name}`
-    : data.direction === 'buying'
-      ? `You buy from ${data.counterpart.name}`
-      : `You sell to ${data.counterpart.name}`;
+  const sharedByYou =
+    data.tradeMode === 'direct' &&
+    data.facilitatorCompanyId &&
+    companyId === data.facilitatorCompanyId;
+  const roleSubtitle = sharedByYou
+    ? `Shared · ${data.sellerName}`
+    : isInquiry
+      ? data.direction === 'buying'
+        ? `Inquiry to ${data.counterpart.name}`
+        : `Inquiry from ${data.counterpart.name}`
+      : data.direction === 'buying'
+        ? `You buy from ${data.counterpart.name}`
+        : `You sell to ${data.counterpart.name}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -564,6 +572,11 @@ export function OrderDetailPage() {
           Seller · <span className="font-medium text-ink">{data.sellerName}</span>
           {data.direction === 'selling' ? ' (you)' : ''}
         </p>
+        {data.tradeMode === 'direct' &&
+        data.facilitatorCompanyId &&
+        companyId === data.facilitatorCompanyId ? (
+          <p className="pt-1 text-sm font-medium text-accent">Shared</p>
+        ) : null}
         {data.status === 'confirmed' && (data.confirmedByName || data.confirmedByRole) ? (
           <p className="pt-1 text-muted">
             {agreementStepLabel(data.confirmedByRole, data.confirmedByName)}
@@ -596,6 +609,7 @@ export function OrderDetailPage() {
       ) : null}
 
       <Card className="flex flex-col gap-3">
+        {data.items.map((item) => (
           <div key={item.id} className="flex items-center gap-3">
             {item.image ? (
               <img src={item.image} alt={item.name} className="h-14 w-14 rounded-xl object-cover" />
@@ -751,7 +765,7 @@ export function OrderDetailPage() {
             onClick={() => takeControl.mutate()}
             disabled={takeControl.isPending}
           >
-            Take control
+            Take over
           </Button>
         ) : null}
         {isBuyer && data.canAcceptQuote ? (

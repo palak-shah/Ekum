@@ -56,7 +56,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Home: received curated packs (attention) | Missing | — | Required | Slice C |
 | Trader curation | Explore Buying: received by day/business | Missing | — | Required | Slice C; was “shares by day/trader” |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |
-| Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Works | Unit | Required | Slice B; Manage from-pack + Direct facilitator + Take control; Trading presence gate |
+| Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Partial | Unit | Required | Direct vs I handle Profile + pack/share override; from-pack only when handle; Direct batch + Shared; Take over; Send-hold still Phase B |
 | Trader curation | Middleman in-loop + optional anonymity (multi-hop) | Missing | — | Required | Slice D; design forks open |
 | Trader curation | Trader attention UX (buy / curate / share / follow-up) | Missing | — | Required | WhatsApp-simple |
 | Trader curation | Trader insights (vendor↔trader analytics) | Later | — | Future | |

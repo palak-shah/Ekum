@@ -122,6 +122,8 @@ export interface ProductView {
   id: string;
   /** Owning company — needed to detect curated (foreign) collection members. */
   companyId: string;
+  /** Present on Explore pack previews so Direct confirm can name each owner. */
+  companyName?: string | null;
   name: string;
   sku: string | null;
   description: string | null;

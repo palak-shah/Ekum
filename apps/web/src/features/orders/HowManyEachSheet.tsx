@@ -38,6 +38,9 @@ export function HowManyEachSheet({
   error,
   onSendOrder,
   onAskRates,
+  /** Who receives the ticket(s). Multiple names = Direct multi-supplier. */
+  orderGoesToName,
+  orderGoesToNames,
 }: {
   open: boolean;
   onClose: () => void;
@@ -48,6 +51,9 @@ export function HowManyEachSheet({
   error?: string | null;
   onSendOrder: (lines: Array<{ productId: string; quantity: number }>) => void;
   onAskRates: (lines: Array<{ productId: string; quantity: number }>) => void;
+  orderGoesToName?: string | null;
+  orderGoesToNames?: string[] | null;
+  informedName?: string | null;
 }) {
   const [sharedQty, setSharedQty] = useState(20);
   const [custom, setCustom] = useState('');
@@ -97,6 +103,16 @@ export function HowManyEachSheet({
           {products.length} design{products.length === 1 ? '' : 's'} · {sharedQty} each
           {Object.keys(overrides).length > 0 ? ' (with adjustments)' : ''}
         </p>
+
+        {orderGoesToNames && orderGoesToNames.length > 0 ? (
+          <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">
+            Order goes to {orderGoesToNames.join(', ')}
+          </p>
+        ) : orderGoesToName ? (
+          <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">
+            Order goes to {orderGoesToName}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {WHOLESALE_QTY_PRESETS.map((preset) => (

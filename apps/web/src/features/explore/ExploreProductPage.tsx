@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
@@ -9,6 +9,11 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { FORWARD_LOCKED_TOAST } from '@/features/browse/forwardGate';
+import {
+  resolveFacilitatorForCatalog,
+  resolveOrderPathForCatalog,
+} from '@/features/browse/forwardAttribution';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
@@ -22,6 +27,18 @@ import { CompanyRow } from '@/ui/cards';
 
 export function ExploreProductPage() {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
+  const facilitatorCompanyId = resolveFacilitatorForCatalog({
+    catalogKind: 'product',
+    catalogId: id,
+    queryFacilitator: searchParams.get('facilitator'),
+  });
+  const stampedPath = resolveOrderPathForCatalog({
+    catalogKind: 'product',
+    catalogId: id,
+    queryPath: searchParams.get('path'),
+  });
+  const handlePath = stampedPath === 'handle' && Boolean(facilitatorCompanyId);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -41,8 +58,12 @@ export function ExploreProductPage() {
   const createOrder = useMutation({
     mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
-        sellerCompanyId: product.data!.company.id,
+        sellerCompanyId:
+          handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
         kind: OrderKind.Standard,
+        ...(handlePath
+          ? { orderPathPreference: 'handle' as const }
+          : { facilitatorCompanyId }),
         items: lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -53,6 +74,7 @@ export function ExploreProductPage() {
       setQtyOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       if (order.threadId) {
         navigate(`/chats/${order.threadId}`, { replace: true });
       } else {
@@ -66,10 +88,14 @@ export function ExploreProductPage() {
   const askRates = useMutation({
     mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
-        sellerCompanyId: product.data!.company.id,
+        sellerCompanyId:
+          handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
         kind: OrderKind.Standard,
         intent: OrderIntent.Inquiry,
         note: product.data?.name ? `Rates for ${product.data.name}` : undefined,
+        ...(handlePath
+          ? { orderPathPreference: 'handle' as const }
+          : { facilitatorCompanyId }),
         items: lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -81,6 +107,7 @@ export function ExploreProductPage() {
       setOrderError(null);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       showToast('Ask for rates sent');
       if (order.threadId) {
         navigate(`/chats/${order.threadId}`, { replace: true });
@@ -117,6 +144,10 @@ export function ExploreProductPage() {
   } as ProductView;
 
   const openCurate = () => {
+    if (data.allowForward === false) {
+      showToast(FORWARD_LOCKED_TOAST, 'danger');
+      return;
+    }
     if (!shortlist.productIds.has(data.id)) {
       shortlist.addMany([
         {
@@ -125,7 +156,7 @@ export function ExploreProductPage() {
           thumbUrl: data.images[0] ?? null,
           companyId: data.company.id,
           companyName: data.company.name,
-          allowForward: undefined,
+          allowForward: data.allowForward,
         },
       ]);
     }
@@ -233,6 +264,7 @@ export function ExploreProductPage() {
         submitting={createOrder.isPending}
         asking={askRates.isPending}
         error={orderError}
+        orderGoesToName={handlePath ? null : data.company.name}
         onSendOrder={(lines) => {
           setOrderError(null);
           createOrder.mutate(lines);

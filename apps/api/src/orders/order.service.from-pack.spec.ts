@@ -18,7 +18,7 @@ describe('OrderService.createFromPack', () => {
         findUnique: vi.fn(async () => ({
           id: 'pack-1',
           companyId: 'trader',
-          company: { settings: { tradeDefaults: { tradingEnabled: true } } },
+          company: { settings: { tradeDefaults: { tradingEnabled: true, orderPathPreference: 'handle' } } },
           products: [{ productId: 'p1' }, { productId: 'p2' }],
         })),
       },
@@ -107,6 +107,42 @@ describe('OrderService.createFromPack', () => {
     await expect(
       service.createFromPack('buyer', 'user-1', {
         collectionId: 'own-pack',
+        items: [{ productId: 'p1', quantity: 1, images: [] }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects Direct packs', async () => {
+    const prisma = {
+      collection: {
+        findUnique: vi.fn(async () => ({
+          id: 'pack-d',
+          companyId: 'trader',
+          orderPathPreference: 'direct',
+          company: { settings: { tradeDefaults: { tradingEnabled: true } } },
+          products: [{ productId: 'p1' }],
+        })),
+      },
+      product: {
+        findMany: vi.fn(async () => [
+          { id: 'p1', companyId: 's1', company: { name: 'Supplier' } },
+        ]),
+      },
+    } as unknown as PrismaService;
+
+    const service = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      { assertCanTrade: async () => undefined } as unknown as TradeAccess,
+      {} as DomainEvents,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      {} as ThreadService,
+    );
+
+    await expect(
+      service.createFromPack('buyer', 'user-1', {
+        collectionId: 'pack-d',
         items: [{ productId: 'p1', quantity: 1, images: [] }],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
