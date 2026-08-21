@@ -718,7 +718,21 @@ function ProductPhotosSheet({
 
   return (
     <>
-      <Sheet open={Boolean(product)} onClose={onClose} title={product.name}>
+      <Sheet
+        open={Boolean(product)}
+        onClose={onClose}
+        title={product.name}
+        footer={
+          <div className="flex flex-col gap-2">
+            <ProductSaveButton productId={product.id} />
+            {selectable ? (
+              <Button variant={selected ? 'secondary' : 'primary'} fullWidth onClick={onToggleSelect}>
+                {selected ? 'Selected' : 'Select design'}
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
         <div className="flex flex-col gap-3">
           {product.sku ? <p className="text-xs font-medium text-muted">SKU {product.sku}</p> : null}
           {current ? (
@@ -748,12 +762,6 @@ function ProductPhotosSheet({
               <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
               <p className="whitespace-pre-wrap text-sm text-ink">{product.description.trim()}</p>
             </div>
-          ) : null}
-          <ProductSaveButton productId={product.id} />
-          {selectable ? (
-            <Button variant={selected ? 'secondary' : 'primary'} fullWidth onClick={onToggleSelect}>
-              {selected ? 'Selected' : 'Select design'}
-            </Button>
           ) : null}
         </div>
       </Sheet>

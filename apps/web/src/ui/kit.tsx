@@ -324,7 +324,7 @@ export function Sheet({
         {title ? (
           <h3 className="mb-4 shrink-0 text-base font-bold tracking-tight text-ink">{title}</h3>
         ) : null}
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer ? <div className="shrink-0 border-t border-line pt-3 mt-2">{footer}</div> : null}
       </div>
     </div>,

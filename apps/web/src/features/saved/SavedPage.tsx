@@ -453,7 +453,23 @@ function SavedPhotosSheet({
 
   return (
     <>
-    <Sheet open={Boolean(item)} onClose={onClose} title={item.name}>
+    <Sheet
+      open={Boolean(item)}
+      onClose={onClose}
+      title={item.name}
+      footer={
+        <div className="flex flex-col gap-2">
+          {item.productId ? (
+            <Link to={`/explore/products/${item.productId}`} className="block" onClick={onClose}>
+              <Button fullWidth>Order / ask rates</Button>
+            </Link>
+          ) : null}
+          <Button variant="ghost" fullWidth disabled={unsaving} onClick={onUnsave}>
+            {unsaving ? 'Removing…' : 'Remove from Saved'}
+          </Button>
+        </div>
+      }
+    >
       <div className="flex flex-col gap-3">
         <p className="text-xs font-medium text-muted">{itemMeta(item)}</p>
         {current ? (
@@ -474,14 +490,6 @@ function SavedPhotosSheet({
             No photos
           </div>
         )}
-        {item.productId ? (
-          <Link to={`/explore/products/${item.productId}`} className="block" onClick={onClose}>
-            <Button fullWidth>Order / ask rates</Button>
-          </Link>
-        ) : null}
-        <Button variant="ghost" fullWidth disabled={unsaving} onClick={onUnsave}>
-          {unsaving ? 'Removing…' : 'Remove from Saved'}
-        </Button>
       </div>
     </Sheet>
     <PhotoViewer
