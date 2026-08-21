@@ -14,7 +14,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 
 1. Open `/catalog` → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
 2. Filters: All / Draft / Published / Archived. Tiles show rate · SKU · photo count · `Published · who` (or Draft/Archived), plus a short staff audit line when known.
-3. **Select** (header or **long-press** a tile) → Publish (unified audience sheet), Archive, or Restore.
+3. **Select** / long-press → floating **Select all** / **Clear** (this filter) → Publish / Archive / Restore on the dock.
 4. Open a design → editor. Back returns to Designs tab.
 
 ### Batch add designs

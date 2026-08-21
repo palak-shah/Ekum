@@ -18,6 +18,8 @@ import { collectionStatusSummary } from './collectionStatusSummary';
 import { auditLine, productTileSubtitle } from './productStatusSummary';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
 import { BulkProductPublishSheet } from './BulkProductPublishSheet';
+import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { useLongPress } from '@/ui/useLongPress';
 
 type Tab = 'products' | 'collections';
@@ -278,7 +280,21 @@ export function MyCatalogPage() {
   const listCount = tab === 'collections' ? filteredCollections.length : filteredProducts.length;
 
   return (
-    <div className={cx('flex flex-col gap-4', selecting && 'pb-28')}>
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        selecting && 'pb-28',
+        selecting && visibleIds.length > 0 && 'pt-12',
+      )}
+    >
+      {selecting && visibleIds.length > 0 ? (
+        <SelectAllFloat
+          open
+          count={selectedIds.size}
+          action={selectAllState(visibleIds, selectedIds).action}
+          onAction={() => setSelectedIds(nextIdSet(visibleIds, selectedIds))}
+        />
+      ) : null}
       <PageHeader
         title="My designs & collections"
         action={
@@ -427,16 +443,6 @@ export function MyCatalogPage() {
         ? createPortal(
             <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
               <div className="mx-auto flex max-w-md flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-ink">{selectedIds.size} selected</p>
-                  <button
-                    type="button"
-                    className="text-xs font-bold text-accent"
-                    onClick={() => setSelectedIds(new Set(visibleIds))}
-                  >
-                    Select all
-                  </button>
-                </div>
                 <div className="flex gap-2">
                   {restorableIds.length > 0 ? (
                     <Button
