@@ -11,7 +11,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 ## User flows
 
 1. Open **Chats** → search + **＋** (start chat with a company or new group); inbox tabs **Chats** (active) / **New** (pending first contact). List tabs share the same search + trailing square chrome as Explore (filter) and Orders (＋).
-2. Open thread → send text / photo; share design, collection, or order cards; receive quote / order action cards from trade flows.
+2. Open thread → send text / photo; share design, collection, or order cards; receive quote / order action cards from trade flows. **Explore / album Share** can also drop a `collection_card` into a chosen chat (catalogue → chat; same `allowForward` rules as Forward).
 3. **Open chat** or **Ignore** a pending first-contact thread (not Accept/Decline — those words are for orders).
 4. Pin chats; mute/leave/groups as supported later.
 5. Unread badge on bottom nav; mark read on open / Mark all read when unread.
@@ -24,9 +24,10 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Unconnected first message | Recipient starts **pending**; reply/accept activates |
 | Open-catalog order | Order / Ask rates on a discoverable post opens/activates a **trade thread** (both Active) with a living order card — **no** Connection and **not** the pending inbox. Distinct from cold Message |
 | Block | Sender may still see a thread; recipient side is silently archived |
-| Owner on cards | Design/collection cards show `from {owner company}`; sender (You/forwarder) sits above the card |
+| Owner on cards | Design/collection cards show **Order goes to** the ticket party: **I handle** → sharer (you); **Direct** → design owner. Sender (You/forwarder) sits above the card |
 | No-forward lock | When `reference.allowForward === false`, non-owners cannot Forward (action hidden). API rejects with `FORWARD_NOT_ALLOWED`. Owner may still share. Same rule for `product_card` and `collection_card`. |
-| Message actions | Top-right chevron opens Reply / Forward / Select (long-press still works) |
+| First share from Explore | Allowed when the album/design is **discoverable** to your business (same bar as Explore) and not forward-locked — not only after it already appeared in a chat. |
+| Message actions | Top-right chevron opens Reply / Forward / Select (long-press still works). While **Select** is on, floating **Select all** / **Clear** (forwardable messages in this thread). Dock: Cancel / Forward. |
 | Owner-only threads | Hidden from staff even with chat permission (domain-ready) |
 | Mute | Local `ThreadAlertLevel`; never signalled to the other party |
 | Access approve | Can activate pending chat participants when trust is granted |

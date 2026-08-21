@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import type {
   CollectionView,
+  CompanySettingsView,
   CreateProductDto,
   CursorPage,
   MessageReference,
@@ -18,7 +19,7 @@ import type {
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
-import { photoUrlsFromMessage } from '@ekum/domain-types';
+import { OrderPathPreference, photoUrlsFromMessage } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
@@ -51,7 +52,12 @@ import {
   withOrderPathQuery,
   parseOrderPath,
   catalogShareSenderLabel,
+  catalogOrderGoesToLine,
+  rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
+import { SelectAllFloat, SELECT_FLOAT_BELOW_PAGE } from '@/features/browse/SelectAllFloat';
+import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
+import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import {
   buildOrderCardCopy,
   dedupeOrderThreadMessages,
@@ -86,6 +92,9 @@ export function ThreadPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [forwardQueue, setForwardQueue] = useState<MessageView[]>([]);
+  const [forwardPath, setForwardPath] = useState<'direct' | 'handle'>(
+    OrderPathPreference.Direct,
+  );
   const [forwardDoneTo, setForwardDoneTo] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<MessageView | null>(null);
   const [selecting, setSelecting] = useState(false);
@@ -303,6 +312,19 @@ export function ThreadPage() {
       setError(err instanceof ApiError ? err.message : 'Could not save to your catalogue.'),
   });
 
+  const catalogForward = forwardQueue.some(
+    (message) => message.type === 'product_card' || message.type === 'collection_card',
+  );
+  const forwardSettings = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get<CompanySettingsView>('/settings'),
+    enabled: catalogForward,
+  });
+  useEffect(() => {
+    if (!catalogForward || !forwardSettings.data) return;
+    setForwardPath(resolveOrderPathPreference(forwardSettings.data.tradeDefaults));
+  }, [catalogForward, forwardSettings.data]);
+
   const forward = useMutation({
     mutationFn: async (threadId: string) => {
       if (forwardQueue.length === 0) {
@@ -312,7 +334,14 @@ export function ThreadPage() {
         const message = forwardQueue[i];
         if (!message) continue;
         setForwardProgress(`Forwarding ${i + 1}/${forwardQueue.length}…`);
-        await api.post<MessageView>(`/threads/${threadId}/messages`, forwardPayload(message));
+        const stampPath =
+          message.type === 'product_card' || message.type === 'collection_card'
+            ? forwardPath
+            : undefined;
+        await api.post<MessageView>(
+          `/threads/${threadId}/messages`,
+          forwardPayload(message, stampPath),
+        );
       }
       return { threadId };
     },
@@ -499,6 +528,9 @@ export function ThreadPage() {
     counterpartId ? order.counterpart.id === counterpartId : true,
   );
 
+  const forwardableIds = ordered.filter((message) => canForward(message)).map((message) => message.id);
+  const selectAll = selectAllState(forwardableIds, selectedIds);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
       <PageHeader
@@ -534,6 +566,14 @@ export function ThreadPage() {
             </button>
           </div>
         }
+      />
+
+      <SelectAllFloat
+        open={selecting && forwardableIds.length > 0}
+        count={selectedIds.size}
+        action={selectAll.action}
+        onAction={() => setSelectedIds(nextIdSet(forwardableIds, selectedIds))}
+        offsetClass={SELECT_FLOAT_BELOW_PAGE}
       />
 
       {searchOpen ? (
@@ -665,6 +705,7 @@ export function ThreadPage() {
         className={cx(
           'ekum-no-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain',
           canCompose ? 'pb-3' : 'pb-[calc(5rem+env(safe-area-inset-bottom))]',
+          selecting && forwardableIds.length > 0 && 'pt-12',
         )}
       >
         {messages.isLoading ? (
@@ -780,50 +821,24 @@ export function ThreadPage() {
       ) : null}
 
       {selecting ? (
-        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 flex-col gap-2 border-t border-line bg-surface px-1 py-2.5">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="text-sm font-semibold text-muted"
-              onClick={() => {
-                setSelecting(false);
-                setSelectedIds(new Set());
-              }}
-            >
-              Cancel
-            </button>
-            <span className="flex-1 text-center text-sm font-medium text-ink">
-              {selectedIds.size} selected
-            </span>
-            <Button
-              disabled={selectedIds.size === 0 || forward.isPending}
-              onClick={openMultiForward}
-            >
-              Forward
-            </Button>
-          </div>
-          <div className="flex items-center justify-center gap-4">
-            <button
-              type="button"
-              className="text-xs font-bold text-accent"
-              onClick={() => {
-                const next = new Set<string>();
-                for (const message of ordered) {
-                  if (canForward(message)) next.add(message.id);
-                }
-                setSelectedIds(next);
-              }}
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              className="text-xs font-bold text-muted"
-              onClick={() => setSelectedIds(new Set())}
-            >
-              Clear all
-            </button>
-          </div>
+        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 items-center gap-3 border-t border-line bg-surface px-1 py-2.5">
+          <button
+            type="button"
+            className="text-sm font-semibold text-muted"
+            onClick={() => {
+              setSelecting(false);
+              setSelectedIds(new Set());
+            }}
+          >
+            Cancel
+          </button>
+          <span className="flex-1" />
+          <Button
+            disabled={selectedIds.size === 0 || forward.isPending}
+            onClick={openMultiForward}
+          >
+            Forward
+          </Button>
         </div>
       ) : null}
 
@@ -1107,6 +1122,42 @@ export function ThreadPage() {
         }}
         title={forwardQueue.length > 1 ? `Forward ${forwardQueue.length}…` : 'Forward to…'}
       >
+        {catalogForward ? (
+          <div className="mb-3 flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">When they order</p>
+            {(
+              [
+                {
+                  value: OrderPathPreference.Direct,
+                  label: 'Direct',
+                  hint: 'Buyers order from the design owners',
+                },
+                {
+                  value: OrderPathPreference.Handle,
+                  label: 'I handle',
+                  hint: 'Buyers order from me',
+                },
+              ] as const
+            ).map((option) => {
+              const selected = forwardPath === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={forward.isPending}
+                  onClick={() => setForwardPath(option.value)}
+                  className={cx(
+                    'rounded-xl px-3 py-2.5 text-left',
+                    selected ? 'bg-accent/10 ring-1 ring-accent' : 'border border-line',
+                  )}
+                >
+                  <p className="text-sm font-semibold text-ink">{option.label}</p>
+                  <p className="text-xs text-muted">{option.hint}</p>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         {forwardThreads.isLoading ? (
           <LoadingBlock />
         ) : (
@@ -1508,6 +1559,13 @@ function TimelineItem({
   const sharePath = parseOrderPath(
     typeof meta?.orderPathPreference === 'string' ? meta.orderPathPreference : undefined,
   );
+  if (ref?.available && ref.id && sharePath === 'handle') {
+    rememberCatalogHandlerName(
+      message.type === 'collection_card' ? 'collection' : 'product',
+      ref.id,
+      senderLabel,
+    );
+  }
   const collectionPath =
     ref?.available && ref.id
       ? withOrderPathQuery(
@@ -1522,6 +1580,12 @@ function TimelineItem({
           sharePath,
         )
       : undefined;
+  const orderGoesTo = catalogOrderGoesToLine({
+    path: sharePath,
+    ownerName: ref?.ownerCompanyName,
+    handlerName: senderLabel,
+    mine: message.mine,
+  });
   /** Legacy line-decision notices were stored as system; treat as order cards when resolved. */
   const isLegacyOrderNotice =
     message.type === 'system' &&
@@ -1816,9 +1880,7 @@ function TimelineItem({
                     : 0
                 }
                 lines={[
-                  ref?.ownerCompanyName
-                    ? `Order goes to ${ref.ownerCompanyName}`
-                    : null,
+                  orderGoesTo,
                   ref?.itemCount != null
                     ? `${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`
                     : null,
@@ -1857,11 +1919,7 @@ function TimelineItem({
                 )}
                 image={ref?.image}
                 images={ref?.images}
-                lines={[
-                  ref?.ownerCompanyName
-                    ? hl(`Order goes to ${ref.ownerCompanyName}`)
-                    : null,
-                ].filter(Boolean) as string[]}
+                lines={[orderGoesTo ? hl(orderGoesTo) : null].filter(Boolean) as string[]}
                 actionLabel={ref?.available ? 'View design →' : undefined}
                 actionTo={productPath}
                 actionStyle="link"

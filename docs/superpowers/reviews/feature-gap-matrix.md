@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-08-19  
+**Updated:** 2026-08-21  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -69,6 +69,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 
 | Collections | Fixed select bar clips last card (BM-07) | Works | Untested (manual fix 2026-08-11) | Required | Padding clears nav + bar; add regression when practical |
+| Browse | Select all float as soon as select starts | Works | Unit | Required | Completeness 2026-08-21; spec select-all-float; not on Explore |
 
 ## Doc drift
 
