@@ -15,6 +15,7 @@ import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { AlbumGrid } from '@/ui/cards';
 import { useToast } from '@/ui/Toast';
 import { useLongPress } from '@/ui/useLongPress';
@@ -440,43 +441,39 @@ function SavedPhotosSheet({
   onUnsave: () => void;
   unsaving: boolean;
 }) {
+  const [photoOpen, setPhotoOpen] = useState(false);
+  useEffect(() => {
+    if (!item) setPhotoOpen(false);
+  }, [item]);
+
   if (!item || item.kind !== 'product') return null;
   const urls = item.images?.length ? item.images : item.thumbUrl ? [item.thumbUrl] : [];
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
   const current = urls[safeIndex] ?? null;
 
   return (
+    <>
     <Sheet open={Boolean(item)} onClose={onClose} title={item.name}>
       <div className="flex flex-col gap-3">
         <p className="text-xs font-medium text-muted">{itemMeta(item)}</p>
         {current ? (
-          <img
-            src={current}
-            alt=""
-            className="max-h-[50vh] w-full rounded-2xl bg-foam object-contain"
-          />
+          <button
+            type="button"
+            className="block w-full overflow-hidden rounded-2xl bg-foam"
+            onClick={() => setPhotoOpen(true)}
+            aria-label="View photo"
+          >
+            <img
+              src={current}
+              alt=""
+              className="max-h-[50vh] w-full object-contain"
+            />
+          </button>
         ) : (
           <div className="flex h-48 items-center justify-center rounded-2xl bg-foam text-muted">
             No photos
           </div>
         )}
-        {urls.length > 1 ? (
-          <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" disabled={safeIndex <= 0} onClick={() => onIndex(safeIndex - 1)}>
-              Prev
-            </Button>
-            <p className="text-xs font-medium text-muted">
-              {safeIndex + 1} / {urls.length}
-            </p>
-            <Button
-              variant="ghost"
-              disabled={safeIndex >= urls.length - 1}
-              onClick={() => onIndex(safeIndex + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        ) : null}
         {item.productId ? (
           <Link to={`/explore/products/${item.productId}`} className="block" onClick={onClose}>
             <Button fullWidth>Order / ask rates</Button>
@@ -487,5 +484,13 @@ function SavedPhotosSheet({
         </Button>
       </div>
     </Sheet>
+    <PhotoViewer
+      open={photoOpen && urls.length > 0}
+      urls={urls}
+      index={safeIndex}
+      onIndex={onIndex}
+      onClose={() => setPhotoOpen(false)}
+    />
+    </>
   );
 }

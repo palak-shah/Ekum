@@ -21,7 +21,7 @@ Sellers building packs for shop / Explore. Buyers view published albums via Expl
 ### View (buyer)
 
 1. Open album from Explore, company profile, or chat card → `/collections/:id` only when status is published **and** now is within `startsAt`/`endsAt`.
-2. Browse member designs; **Select** / long-press → traveling shortlist (survives opening another album) → **Save designs** / **Curate** / **Order** (multi-supplier Order splits via batch). Once **Select** / long-press starts, sticky **Select all** / **Clear** stays under the header (this album’s designs only; other-album shortlist members stay). **Selecting** with picks → clears shortlist; with none → exits select mode.
+2. Browse member designs; **Select** / long-press → traveling shortlist (survives opening another album) → **Save designs** / **Curate** / **Order** (multi-supplier Order splits via batch). Once **Select** / long-press starts, sticky **Select all** / **Clear** stays under the header (this album’s designs only; other-album shortlist members stay). **Selecting** with picks → clears shortlist; with none → exits select mode. Tap a design → sheet; tap the **main photo** → shared **PhotoViewer** (pinch / swipe within that design).
 3. Respect connection / audience for full detail.
 
 ## Business rules

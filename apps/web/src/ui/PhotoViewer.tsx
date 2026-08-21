@@ -88,9 +88,13 @@ export function PhotoViewer({
       pinched.current = false;
     } else if (pointers.current.size === 2) {
       const pts = [...pointers.current.values()];
-      start.current.pinch = distance(pts[0], pts[1]);
-      start.current.scale = scale;
-      pinched.current = true;
+      const a = pts[0];
+      const b = pts[1];
+      if (a && b) {
+        start.current.pinch = distance(a, b);
+        start.current.scale = scale;
+        pinched.current = true;
+      }
     }
   };
 
@@ -99,8 +103,10 @@ export function PhotoViewer({
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.current.size === 2) {
       const pts = [...pointers.current.values()];
-      const now = distance(pts[0], pts[1]);
-      if (start.current.pinch > 0) {
+      const a = pts[0];
+      const b = pts[1];
+      if (a && b && start.current.pinch > 0) {
+        const now = distance(a, b);
         const next = Math.min(PINCH_MAX, Math.max(1, start.current.scale * (now / start.current.pinch)));
         setScale(next);
       }

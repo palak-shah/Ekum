@@ -25,6 +25,7 @@ import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import {
   readCatalogHandlerName,
   resolveFacilitatorForCatalog,
@@ -705,65 +706,65 @@ function ProductPhotosSheet({
   selected: boolean;
   onToggleSelect: () => void;
 }) {
+  const [photoOpen, setPhotoOpen] = useState(false);
+  useEffect(() => {
+    if (!product) setPhotoOpen(false);
+  }, [product]);
+
   if (!product) return null;
   const urls = product.images;
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
   const current = urls[safeIndex] ?? null;
 
   return (
-    <Sheet open={Boolean(product)} onClose={onClose} title={product.name}>
-      <div className="flex flex-col gap-3">
-        {product.sku ? <p className="text-xs font-medium text-muted">SKU {product.sku}</p> : null}
-        {current ? (
-          <img
-            src={current}
-            alt=""
-            className="max-h-[50vh] w-full rounded-2xl object-contain bg-foam"
-          />
-        ) : (
-          <div className="flex h-48 items-center justify-center rounded-2xl bg-foam text-muted">
-            No photos
-          </div>
-        )}
-        {urls.length > 1 ? (
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              variant="ghost"
-              disabled={safeIndex <= 0}
-              onClick={() => onIndex(safeIndex - 1)}
+    <>
+      <Sheet open={Boolean(product)} onClose={onClose} title={product.name}>
+        <div className="flex flex-col gap-3">
+          {product.sku ? <p className="text-xs font-medium text-muted">SKU {product.sku}</p> : null}
+          {current ? (
+            <button
+              type="button"
+              className="block w-full overflow-hidden rounded-2xl bg-foam"
+              onClick={() => setPhotoOpen(true)}
+              aria-label="View photo"
             >
-              Prev
+              <img
+                src={current}
+                alt=""
+                className="max-h-[50vh] w-full object-contain"
+              />
+            </button>
+          ) : (
+            <div className="flex h-48 items-center justify-center rounded-2xl bg-foam text-muted">
+              No photos
+            </div>
+          )}
+          <p className="text-sm font-semibold text-ink">{formatRate(product.rate, product.unit)}</p>
+          {product.moq != null && product.moq > 0 ? (
+            <p className="text-sm font-medium text-ink">Minimum order · {product.moq} pcs</p>
+          ) : null}
+          {product.description?.trim() ? (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
+              <p className="whitespace-pre-wrap text-sm text-ink">{product.description.trim()}</p>
+            </div>
+          ) : null}
+          <ProductSaveButton productId={product.id} />
+          {selectable ? (
+            <Button variant={selected ? 'secondary' : 'primary'} fullWidth onClick={onToggleSelect}>
+              {selected ? 'Selected' : 'Select design'}
             </Button>
-            <p className="text-xs font-medium text-muted">
-              {safeIndex + 1} / {urls.length}
-            </p>
-            <Button
-              variant="ghost"
-              disabled={safeIndex >= urls.length - 1}
-              onClick={() => onIndex(safeIndex + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        ) : null}
-        <p className="text-sm font-semibold text-ink">{formatRate(product.rate, product.unit)}</p>
-        {product.moq != null && product.moq > 0 ? (
-          <p className="text-sm font-medium text-ink">Minimum order · {product.moq} pcs</p>
-        ) : null}
-        {product.description?.trim() ? (
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
-            <p className="whitespace-pre-wrap text-sm text-ink">{product.description.trim()}</p>
-          </div>
-        ) : null}
-        <ProductSaveButton productId={product.id} />
-        {selectable ? (
-          <Button variant={selected ? 'secondary' : 'primary'} fullWidth onClick={onToggleSelect}>
-            {selected ? 'Selected' : 'Select design'}
-          </Button>
-        ) : null}
-      </div>
-    </Sheet>
+          ) : null}
+        </div>
+      </Sheet>
+      <PhotoViewer
+        open={photoOpen && urls.length > 0}
+        urls={urls}
+        index={safeIndex}
+        onIndex={onIndex}
+        onClose={() => setPhotoOpen(false)}
+      />
+    </>
   );
 }
 
