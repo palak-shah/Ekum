@@ -38,6 +38,8 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 
 Message types: text, photo, voice, collection_card, product_card, order_card, rate, system.
 
+Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that album). Close returns to the thread.
+
 ## Edge cases / empty states
 
 - Empty Chats → **Find businesses** → Explore.

@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { cx } from '@/ui/kit';
 
 const GUTTER = 2;
@@ -51,21 +52,6 @@ export function PhotoAlbum({
   // Drop blanks so a bad reference never throws through the router error boundary.
   const clean = urls.filter((url): url is string => Boolean(url));
   const preview = clean.slice(0, 4);
-
-  useEffect(() => {
-    if (viewerIndex === null) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setViewerIndex(null);
-      if (event.key === 'ArrowRight' && viewerIndex < clean.length - 1) {
-        setViewerIndex(viewerIndex + 1);
-      }
-      if (event.key === 'ArrowLeft' && viewerIndex > 0) {
-        setViewerIndex(viewerIndex - 1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [viewerIndex, clean.length]);
 
   if (clean.length === 0) return null;
 
@@ -146,56 +132,16 @@ export function PhotoAlbum({
     );
   }
 
-  const viewerSrc = viewerIndex !== null ? clean[viewerIndex] : undefined;
-
   return (
     <>
       <div className="w-full max-w-[280px] overflow-hidden">{grid}</div>
-      {viewerIndex !== null && viewerSrc ? (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-ink/92"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Photo viewer"
-        >
-          <div className="flex items-center justify-between px-4 py-3 text-white">
-            <button
-              type="button"
-              className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-white/10"
-              onClick={() => setViewerIndex(null)}
-            >
-              Close
-            </button>
-            <p className="text-sm text-white/80">
-              {viewerIndex + 1} / {clean.length}
-            </p>
-            <span className="w-16" />
-          </div>
-          <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-6">
-            {viewerIndex > 0 ? (
-              <button
-                type="button"
-                aria-label="Previous photo"
-                className="absolute left-2 rounded-full bg-white/15 px-3 py-2 text-white hover:bg-white/25"
-                onClick={() => setViewerIndex(viewerIndex - 1)}
-              >
-                ‹
-              </button>
-            ) : null}
-            <img src={viewerSrc} alt="" className="max-h-full max-w-full object-contain" />
-            {viewerIndex < clean.length - 1 ? (
-              <button
-                type="button"
-                aria-label="Next photo"
-                className="absolute right-2 rounded-full bg-white/15 px-3 py-2 text-white hover:bg-white/25"
-                onClick={() => setViewerIndex(viewerIndex + 1)}
-              >
-                ›
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      <PhotoViewer
+        open={viewerIndex !== null}
+        urls={clean}
+        index={viewerIndex ?? 0}
+        onIndex={setViewerIndex}
+        onClose={() => setViewerIndex(null)}
+      />
     </>
   );
 }
