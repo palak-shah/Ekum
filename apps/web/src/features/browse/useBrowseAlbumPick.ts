@@ -26,7 +26,8 @@ export function useBrowseAlbumPick() {
 
   const toggle = useCallback((entry: BrowseAlbumEntry) => {
     const next = toggleBrowseAlbumEntry(entry);
-    if (next.length > 0) setSelectMode(true);
+    // Empty pick must leave select mode (Explore: otherwise taps stay select, not open).
+    setSelectMode(next.length > 0);
     return next;
   }, []);
 

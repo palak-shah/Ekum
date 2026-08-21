@@ -28,18 +28,21 @@ export function useBrowseShortlist() {
 
   const toggle = useCallback((entry: BrowseShortlistEntry) => {
     const next = toggleBrowseShortlistEntry(entry);
-    if (next.length > 0) setSelectMode(true);
+    // Empty pick must leave select mode (Explore: otherwise taps stay select, not open).
+    setSelectMode(next.length > 0);
     return next;
   }, []);
 
   const addMany = useCallback((incoming: BrowseShortlistEntry[]) => {
     const next = addBrowseShortlistMany(incoming);
-    if (next.length > 0) setSelectMode(true);
+    setSelectMode(next.length > 0);
     return next;
   }, []);
 
   const removeIds = useCallback((productIdsToRemove: string[]) => {
-    return removeBrowseShortlistIds(productIdsToRemove);
+    const next = removeBrowseShortlistIds(productIdsToRemove);
+    setSelectMode(next.length > 0);
+    return next;
   }, []);
 
   const clear = useCallback(() => {
