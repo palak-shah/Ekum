@@ -284,17 +284,8 @@ export function MyCatalogPage() {
       className={cx(
         'flex flex-col gap-4',
         selecting && 'pb-28',
-        selecting && visibleIds.length > 0 && 'pt-12',
       )}
     >
-      {selecting && visibleIds.length > 0 ? (
-        <SelectAllFloat
-          open
-          count={selectedIds.size}
-          action={selectAllState(visibleIds, selectedIds).action}
-          onAction={() => setSelectedIds(nextIdSet(visibleIds, selectedIds))}
-        />
-      ) : null}
       <PageHeader
         title="My designs & collections"
         action={
@@ -327,6 +318,13 @@ export function MyCatalogPage() {
             </button>
           )
         }
+      />
+
+      <SelectAllFloat
+        open={selecting && visibleIds.length > 0}
+        count={selectedIds.size}
+        action={selectAllState(visibleIds, selectedIds).action}
+        onAction={() => setSelectedIds(nextIdSet(visibleIds, selectedIds))}
       />
 
       <div className="flex gap-2">
