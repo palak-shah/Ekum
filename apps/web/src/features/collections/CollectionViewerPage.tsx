@@ -16,6 +16,8 @@ import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import { selectAllState } from '@/features/browse/selectAllState';
 import { FORWARD_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
@@ -23,6 +25,7 @@ import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionS
 import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
 import {
+  readCatalogHandlerName,
   resolveFacilitatorForCatalog,
   resolveOrderPathForCatalog,
 } from '@/features/browse/forwardAttribution';
@@ -44,6 +47,7 @@ import {
 import { CheckIcon, LockIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { useLongPress } from '@/ui/useLongPress';
+import { coverMissingFromMembers } from './collectionCover';
 
 type Layout = 'feed' | 'grid';
 
@@ -135,6 +139,16 @@ export function CollectionViewerPage() {
   const canOrderFromPack = !isOwner && shortlist.count > 0;
   const canSelectDesigns = products.length > 0;
   const companyName = collection.data?.company.name ?? '';
+  const handleGoesToName = readCatalogHandlerName('collection', id) ?? companyName;
+  const orderRouteOpts = handlePath
+    ? facilitatorCompanyId
+      ? { handleSellerCompanyId: facilitatorCompanyId }
+      : id
+        ? { collectionId: id }
+        : undefined
+    : facilitatorCompanyId || isCuratedPack
+      ? { facilitatorCompanyId: facilitatorCompanyId ?? companyId }
+      : undefined;
   const ownerNames = useMemo(() => {
     const names = new Map<string, string>();
     for (const product of selectedProducts) {
@@ -145,7 +159,13 @@ export function CollectionViewerPage() {
   const canCurate =
     shortlist.entries.some((entry) => entry.allowForward !== false) && !isOwner;
 
-  const selectAllDesigns = () => {
+  const visibleDesignIds = products.map((product) => product.id);
+  const selectAll = selectAllState(visibleDesignIds, shortlist.productIds);
+  const onSelectAllAction = () => {
+    if (selectAll.action === 'clear') {
+      shortlist.removeIds(visibleDesignIds);
+      return;
+    }
     shortlist.addMany(
       products.map((product) => toShortlistEntry(product, product.companyName ?? companyName)),
     );
@@ -243,8 +263,8 @@ export function CollectionViewerPage() {
     <div
       className={cx(
         'flex flex-col gap-4',
-        /* Clear fixed select bar (bottom-20) + bar height above bottom nav. */
         selectedCount > 0 && 'pb-[calc(5rem+5.5rem)]',
+        selectMode && products.length > 0 && 'pt-12',
       )}
     >
       <PageHeader
@@ -316,7 +336,15 @@ export function CollectionViewerPage() {
         }
       />
 
-      {data.coverImage && layout === 'feed' ? (
+      <SelectAllFloat
+        open={selectMode && products.length > 0}
+        count={selectedCount}
+        action={selectAll.action}
+        onAction={onSelectAllAction}
+      />
+
+      {data.coverImage &&
+      (layout === 'feed' || coverMissingFromMembers(data.coverImage, data.products)) ? (
         <img src={data.coverImage} alt={data.name} className="h-44 w-full rounded-2xl object-cover" />
       ) : null}
 
@@ -439,19 +467,6 @@ export function CollectionViewerPage() {
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
-      {data.products && selectMode ? (
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <button type="button" className="font-bold text-accent" onClick={selectAllDesigns}>
-            Select all on this album
-          </button>
-          {selectedCount > 0 ? (
-            <span className="text-muted">
-              {selectedCount} design{selectedCount === 1 ? '' : 's'} in shortlist
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
       <BrowseSelectBar
         count={selectedCount}
         onClear={clearSelection}
@@ -504,31 +519,13 @@ export function CollectionViewerPage() {
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={handlePath ? companyName : ownerNames.length === 1 ? ownerNames[0] : null}
+        orderGoesToName={handlePath ? handleGoesToName : ownerNames.length === 1 ? ownerNames[0] : null}
         orderGoesToNames={!handlePath && ownerNames.length > 1 ? ownerNames : null}
         onSendOrder={(lines) =>
-          orderFlow.sendOrder(
-            lines,
-            handlePath && isCuratedPack && id
-              ? { collectionId: id }
-              : !handlePath && (isCuratedPack || facilitatorCompanyId)
-                ? { facilitatorCompanyId: facilitatorCompanyId ?? companyId }
-                : facilitatorCompanyId
-                  ? { facilitatorCompanyId }
-                  : undefined,
-          )
+          orderFlow.sendOrder(lines, orderRouteOpts)
         }
         onAskRates={(lines) =>
-          orderFlow.askRates(
-            lines,
-            handlePath && isCuratedPack && id
-              ? { collectionId: id }
-              : !handlePath && (isCuratedPack || facilitatorCompanyId)
-                ? { facilitatorCompanyId: facilitatorCompanyId ?? companyId }
-                : facilitatorCompanyId
-                  ? { facilitatorCompanyId }
-                  : undefined,
-          )
+          orderFlow.askRates(lines, orderRouteOpts)
         }
       />
 
