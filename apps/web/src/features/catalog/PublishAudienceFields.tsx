@@ -17,11 +17,14 @@ export type PublishAudienceState = {
   audienceCompanies: Set<string>;
   rateVisibility: string;
   allowForward: boolean;
+  /** Prefill from Profile; saved on pack at publish. */
+  orderPathPreference: 'direct' | 'handle';
   policyHint: string | null;
 };
 
 export function emptyPublishAudienceState(
   usual?: PublishSheetPolicy,
+  orderPath: 'direct' | 'handle' = 'direct',
 ): PublishAudienceState {
   return {
     audience: PublishAudience.Connections,
@@ -30,6 +33,7 @@ export function emptyPublishAudienceState(
     audienceCompanies: new Set(),
     rateVisibility: usual?.rateVisibility ?? RateVisibility.OnRequest,
     allowForward: usual?.allowForward !== false,
+    orderPathPreference: orderPath,
     policyHint: null,
   };
 }
@@ -41,6 +45,7 @@ export function restorePublishAudienceState(input: {
   audienceGroupIds?: string[];
   rateVisibility: string;
   allowForward: boolean;
+  orderPathPreference?: string | null;
 }): PublishAudienceState {
   const groupIds = input.audienceGroupIds ?? [];
   return {
@@ -51,6 +56,8 @@ export function restorePublishAudienceState(input: {
     audienceCompanies: new Set(input.audienceCompanyIds ?? []),
     rateVisibility: input.rateVisibility || RateVisibility.OnRequest,
     allowForward: input.allowForward !== false,
+    orderPathPreference:
+      input.orderPathPreference === 'handle' ? 'handle' : 'direct',
     policyHint: null,
   };
 }
@@ -385,6 +392,45 @@ export function PublishAudienceFields({
             />
             <span>Buyers can forward</span>
           </label>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">When they order</p>
+            {(
+              [
+                {
+                  value: 'direct' as const,
+                  label: 'Direct',
+                  hint: 'Buyers order from the design owners',
+                },
+                {
+                  value: 'handle' as const,
+                  label: 'I handle',
+                  hint: 'Buyers order from me',
+                },
+              ] as const
+            ).map((option) => {
+              const selected = state.orderPathPreference === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    onChange({
+                      ...state,
+                      orderPathPreference: option.value,
+                      policyHint: null,
+                    })
+                  }
+                  className={cx(
+                    'rounded-xl px-3 py-2.5 text-left',
+                    selected ? 'bg-accent/10 ring-1 ring-accent' : 'border border-line',
+                  )}
+                >
+                  <p className="text-sm font-semibold text-ink">{option.label}</p>
+                  <p className="text-xs text-muted">{option.hint}</p>
+                </button>
+              );
+            })}
+          </div>
           {state.policyHint ? (
             <p className="text-xs text-muted">{state.policyHint}</p>
           ) : null}
