@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { orderPathPreferenceValues } from './enums';
 
 /**
  * Settings reference data owned by a company: dispatch addresses, billing firms
@@ -35,6 +36,8 @@ export const updateCompanySettingsSchema = z.object({
   buyingEnabled: z.boolean().optional(),
   sellingEnabled: z.boolean().optional(),
   tradingEnabled: z.boolean().optional(),
+  /** Direct vs I handle — merged into tradeDefaults.orderPathPreference (default Direct). */
+  orderPathPreference: z.enum(orderPathPreferenceValues).optional(),
 });
 export type UpdateCompanySettingsDto = z.infer<typeof updateCompanySettingsSchema>;
 

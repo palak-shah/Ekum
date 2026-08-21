@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { publishAudienceValues, rateVisibilityValues, unitValues } from './enums';
+import {
+  orderPathPreferenceValues,
+  publishAudienceValues,
+  rateVisibilityValues,
+  unitValues,
+} from './enums';
 
 /**
  * Catalog contracts. A Product (design) is the live entity: name required; rate
@@ -55,6 +60,8 @@ export const createCollectionSchema = z.object({
   startsAt: optionalScheduleInstant,
   /** Live window end. null = evergreen. */
   endsAt: optionalScheduleInstant,
+  /** Direct | I handle; null/omit = use Profile default at order time. */
+  orderPathPreference: z.enum(orderPathPreferenceValues).nullable().optional(),
 });
 export type CreateCollectionDto = z.infer<typeof createCollectionSchema>;
 
@@ -74,6 +81,8 @@ export const publishCollectionSchema = z
     rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
     /** When false, buyers cannot forward this pack/design beyond the supplier. */
     allowForward: z.boolean().default(true),
+    /** Direct | I handle for orders from this pack; null = Profile default. */
+    orderPathPreference: z.enum(orderPathPreferenceValues).nullable().optional(),
     /** Optional single buyer group (legacy / exactly-one convenience). */
     groupId: z.string().min(1).optional(),
     /** Buyer groups chosen on Publish — restore chips on Visibility. */
@@ -149,6 +158,11 @@ export interface CollectionView {
   /** Buyer group IDs last chosen for selected audience (empty when custom list). */
   audienceGroupIds: string[];
   allowForward: boolean;
+  /**
+   * Direct | I handle for orders from this pack.
+   * null = use pack owner Profile default at order time.
+   */
+  orderPathPreference: string | null;
   productCount: number;
   /** Distinct photos across cover + member designs. */
   photoCount: number;

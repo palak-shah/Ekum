@@ -148,6 +148,18 @@ export type OrderTradeMode = (typeof OrderTradeMode)[keyof typeof OrderTradeMode
 export const orderTradeModeValues = values(OrderTradeMode);
 
 /**
+ * Curator/share preference: who the buyer’s ticket is with.
+ * Profile default + per forward/publish/curate override. Missing ⇒ Direct.
+ */
+export const OrderPathPreference = {
+  Direct: 'direct',
+  Handle: 'handle',
+} as const;
+export type OrderPathPreference =
+  (typeof OrderPathPreference)[keyof typeof OrderPathPreference];
+export const orderPathPreferenceValues = values(OrderPathPreference);
+
+/**
  * Commitment level. Inquiry = rate ask (soft); becomes order when the seller
  * quotes / confirms lines or the buyer accepts a quote.
  */
