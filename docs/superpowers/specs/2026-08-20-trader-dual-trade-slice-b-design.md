@@ -2,7 +2,8 @@
 
 **Date:** 2026-08-20  
 **Status:** Implemented (core) — settings ladder beyond Trading toggle still deferred  
-**Surface:** Order routing **Direct** vs **Manage**, back-to-back linking, soft middleman protection; **Trading** presence toggle  
+**Surface:** Order routing **Direct** vs **Manage** (API/internal), back-to-back linking, soft middleman protection; **Trading** presence toggle  
+**Product language (2026-08-21):** Curator **Profile** default **Direct** / **I handle**, override at share/publish/curate — see [2026-08-21-direct-vs-handle-settings-design.md](./2026-08-21-direct-vs-handle-settings-design.md). Curation ≠ handle. Do not show Manage/toll jargon in the product.  
 **Anchors:** [00-concepts.md](../../features/00-concepts.md), [orders.md](../../features/orders.md), [saved.md](../../features/saved.md), [settings.md](../../features/settings.md), [2026-08-19-trader-curation-slice-a-design.md](./2026-08-19-trader-curation-slice-a-design.md), [mvp-garmenthub-gap-matrix.md](../reviews/mvp-garmenthub-gap-matrix.md), [feature-gap-matrix.md](../reviews/feature-gap-matrix.md)
 
 ## Problem
@@ -92,8 +93,8 @@ flowchart TD
 
 | Situation | Mode | Seller on buyer-facing order |
 |-----------|------|------------------------------|
-| Order from **your curated / republished pack** | **Manage** | You (trader) |
-| Order from **your forward** (attributed) | **Direct** | Supplier (`product.companyId`) |
+| Order from **your curated / republished pack** | **Manage** (**toll**) | You (trader) |
+| Order from **your forward** (attributed), incl. Explore opened with facilitator stamp | **Direct** (**open**) | Supplier (`product.companyId`) |
 | Order from supplier shop / Explore with no your share | Normal | Supplier |
 | Own (non-curated) catalog | Normal | You |
 
