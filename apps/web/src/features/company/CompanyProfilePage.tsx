@@ -385,7 +385,6 @@ export function CompanyProfilePage() {
 
       <BrowseSelectBar
         count={shortlist.count}
-        onClear={() => shortlist.clear()}
         canCurate={canCurate}
         onCurate={canCurate ? () => setCurateOpen(true) : undefined}
         canOrder={canOrder}

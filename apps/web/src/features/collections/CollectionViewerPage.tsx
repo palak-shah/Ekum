@@ -99,10 +99,6 @@ export function CollectionViewerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset sheet when album changes
   }, [id]);
 
-  const clearSelection = () => {
-    shortlist.clear();
-  };
-
   const collection = useQuery({
     queryKey: ['collection-preview', id],
     queryFn: () => api.get<CollectionPreviewView>(`/explore/collections/${id}`),
@@ -469,7 +465,6 @@ export function CollectionViewerPage() {
 
       <BrowseSelectBar
         count={selectedCount}
-        onClear={clearSelection}
         canCurate={canCurate}
         onCurate={() => {
           const locked = shortlist.entries.filter((entry) => entry.allowForward === false);

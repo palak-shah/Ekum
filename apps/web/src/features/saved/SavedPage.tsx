@@ -232,7 +232,6 @@ export function SavedPage() {
 
       <BrowseSelectBar
         count={shortlist.count}
-        onClear={() => shortlist.clear()}
         canCurate={canCurate}
         onCurate={() => setCurateOpen(true)}
         canOrder={shortlist.count > 0}
