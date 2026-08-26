@@ -3,11 +3,10 @@ import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
 import { CloseIcon } from '@/ui/icons';
+import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 
-export function cx(...values: Array<string | false | null | undefined>): string {
-  return values.filter(Boolean).join(' ');
-}
+export { cx } from '@/lib/cx';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 

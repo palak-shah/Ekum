@@ -17,8 +17,14 @@ test.describe('trader persona @functional @trader', () => {
   test('Kavita can browse Explore trade sides', async ({ page }) => {
     await loginAsKavita(page);
     await page.goto('/explore');
-    await expect(page.getByTestId('explore-trade-side')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Buying' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Selling' })).toBeVisible();
+
+    await page.getByTestId('explore-filter').click();
+    await expect(page.getByTestId('explore-filter-menu')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('explore-trade-switch')).toHaveText('Explore Buyers');
+
+    await page.getByTestId('explore-trade-switch').click();
+
+    await page.getByTestId('explore-filter').click();
+    await expect(page.getByTestId('explore-trade-switch')).toHaveText('Explore Suppliers');
   });
 });

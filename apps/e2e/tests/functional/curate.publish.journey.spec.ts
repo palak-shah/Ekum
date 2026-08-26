@@ -16,7 +16,7 @@ test.describe('trader curate publish @functional @trader @collections', () => {
     await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible();
 
     await page.getByLabel('Name').fill(packName);
-    await page.getByRole('button', { name: 'Publish…' }).click();
+    await page.getByRole('button', { name: 'Publish to Collection' }).click();
 
     await expect(page).toHaveURL(/\/catalog\/collections\//, { timeout: 20_000 });
     const publishSheet = page.getByRole('dialog');

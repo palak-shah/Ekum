@@ -1,5 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { cx } from '@/ui/kit';
+import { cx } from '@/lib/cx';
 
 /** Shared list chrome: search flexes; one 46×46 trailing square (Explore filter / Chats·Orders +). */
 export function ListSearchRow({
