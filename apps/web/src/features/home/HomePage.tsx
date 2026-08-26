@@ -1,10 +1,12 @@
 import { useMemo, useState, type ComponentType, type SVGProps } from 'react';
+import { useCompanyId } from '@/lib/auth';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type {
   AccessRequestView,
   CompanyCard,
   CursorPage,
+  ExploreHomeView,
   ExplorePost,
   OrderView,
   ReturnView,
@@ -27,6 +29,14 @@ import {
   newFollowedPostsToday,
   type HomeNeedItem,
 } from './homeAttention';
+import { homeReceivedRows } from './homeReceived';
+import { filterSeenHomeNeeds, markHomeNeedSeen } from './homeNeedSeen';
+import {
+  groupPostsByCompany,
+  homePostGroupLink,
+  homePostTitle,
+  type HomePostGroup,
+} from './homeMarket';
 
 const PREVIEW_LIMIT = 8;
 const FOLLOWED_PREVIEW = 5;
@@ -41,7 +51,9 @@ const OPPORTUNITY_PREVIEW = 5;
 export function HomePage() {
   const { buying, selling, isLoading: tradeLoading } = useTradePresence();
   const company = useMyCompany();
+  const companyId = useCompanyId();
   const [showAllNeeds, setShowAllNeeds] = useState(false);
+  const [seenVersion, setSeenVersion] = useState(0);
 
   const incoming = useQuery({
     queryKey: ['access-requests', 'incoming'],
@@ -73,18 +85,28 @@ export function HomePage() {
       api.get<CursorPage<ExplorePost>>('/explore/feed', { following: true, limit: 40 }),
     enabled: !following.isLoading && hasNetwork,
   });
+  const receivedHome = useQuery({
+    queryKey: ['explore', 'home', { receivedCurated: true }],
+    queryFn: () => api.get<ExploreHomeView>('/explore/home'),
+  });
 
   const orderRows = orders.data?.results ?? [];
   const returnRows = returns.data?.results ?? [];
   const accessRequests = incoming.data ?? [];
   const chatRequests = threadRequests.data?.results ?? [];
 
-  const needs = buildHomeNeeds({
-    orders: orderRows,
-    returns: returnRows,
-    accessRequests,
-    chatRequests,
-  });
+  const needs = useMemo(() => {
+    void seenVersion;
+    return filterSeenHomeNeeds(
+      companyId ?? undefined,
+      buildHomeNeeds({
+        orders: orderRows,
+        returns: returnRows,
+        accessRequests,
+        chatRequests,
+      }),
+    );
+  }, [orderRows, returnRows, accessRequests, chatRequests, companyId, seenVersion]);
   const metrics = homeMetrics({
     orders: orderRows,
     returns: returnRows,
@@ -154,12 +176,16 @@ export function HomePage() {
     return <LoadingBlock label="Opening home…" />;
   }
 
+  const packRows = homeReceivedRows(receivedHome.data?.receivedCurated ?? []);
   const visibleNeeds = showAllNeeds ? needs : needs.slice(0, PREVIEW_LIMIT);
   const needsOverflow = needs.length > PREVIEW_LIMIT;
   const greetName =
     company.data?.contactPerson?.trim() || company.data?.name?.trim() || 'there';
-  const followedPreview = newToday.slice(0, FOLLOWED_PREVIEW);
-  const recentPosts = (marketFeed.data?.results ?? []).slice(0, OPPORTUNITY_PREVIEW);
+  const followedPreview = groupPostsByCompany(newToday).slice(0, FOLLOWED_PREVIEW);
+  const recentPosts = groupPostsByCompany(marketFeed.data?.results ?? []).slice(
+    0,
+    OPPORTUNITY_PREVIEW,
+  );
   const suggestedBusinesses = (suggested.data?.results ?? [])
     .filter((row) => !followingIds.has(row.id))
     .slice(0, OPPORTUNITY_PREVIEW);
@@ -169,6 +195,8 @@ export function HomePage() {
     !hasFollowedUpdates &&
     recentPosts.length === 0 &&
     suggestedBusinesses.length === 0;
+  /** First visit / no follows - guide, do not say caught up. */
+  const isColdStart = !hasNeeds && !hasNetwork;
 
   return (
     <div className="ekum-rise flex flex-col gap-5">
@@ -181,9 +209,17 @@ export function HomePage() {
             </span>{' '}
             {needs.length === 1 ? 'needs' : 'need'} attention.
           </p>
+        ) : isColdStart ? (
+          <div className="mt-1 flex flex-col gap-2.5">
+            <p className="text-sm leading-relaxed text-muted">
+              Start by browsing the market - find businesses on Explore.
+            </p>
+            <Link to="/explore" className="self-start text-sm font-bold text-accent">
+              Open Explore →
+            </Link>
+          </div>
         ) : (
           <div className="mt-1 flex flex-col gap-2.5">
-            <p className="text-sm text-muted">Everything&apos;s up to date.</p>
             <p className="text-sm leading-relaxed text-muted">
               Explore what&apos;s new in the market.
             </p>
@@ -201,10 +237,44 @@ export function HomePage() {
         </div>
       ) : null}
 
+      {packRows.length > 0 ? (
+        <section className="flex flex-col gap-2.5">
+          <SectionHeader
+            title="New packs"
+            action={
+              <Link to="/explore?side=buying" className="text-xs font-bold text-accent">
+                See all →
+              </Link>
+            }
+          />
+          {packRows.map((item) => (
+            <Link
+              key={item.id}
+              to={item.to}
+              className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                <p className="truncate text-xs text-muted">{item.subtitle}</p>
+              </div>
+              <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+            </Link>
+          ))}
+        </section>
+      ) : null}
+
       {hasNeeds ? (
         <section className="flex flex-col gap-2.5">
           {visibleNeeds.map((item) => (
-            <NeedCard key={item.id} item={item} />
+            <NeedCard
+              key={item.id}
+              item={item}
+              onOpen={() => {
+                if (!companyId) return;
+                markHomeNeedSeen(companyId, item.id, item.sortAt);
+                setSeenVersion((value) => value + 1);
+              }}
+            />
           ))}
           {needsOverflow && !showAllNeeds ? (
             <button
@@ -275,7 +345,7 @@ function PostListSection({
 }: {
   title: string;
   subtitle?: string;
-  posts: ExplorePost[];
+  posts: HomePostGroup[];
   actionLabel: string;
 }) {
   return (
@@ -290,8 +360,8 @@ function PostListSection({
       />
       {subtitle ? <p className="px-0.5 text-sm font-medium text-muted">{subtitle}</p> : null}
       <div className="overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]">
-        {posts.map((post) => (
-          <MarketPostRow key={post.id} post={post} />
+        {posts.map((group) => (
+          <MarketPostRow key={group.id} group={group} />
         ))}
       </div>
     </section>
@@ -345,42 +415,43 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
   );
 }
 
-function MarketPostRow({ post }: { post: ExplorePost }) {
-  const company = post.kind === 'product' ? post.product.company : post.collection.company;
-  const title = post.kind === 'product' ? post.product.name : post.collection.name;
+function MarketPostRow({ group }: { group: HomePostGroup }) {
+  const post = group.latest;
+  const title = homePostTitle(group.count, group.companyName);
+  const itemName = post.kind === 'product' ? post.product.name : post.collection.name;
   const meta =
     post.kind === 'product'
       ? '1 design'
       : `${post.collection.productCount} design${post.collection.productCount === 1 ? '' : 's'}`;
-  const to =
-    post.kind === 'product'
-      ? `/explore/products/${post.product.id}`
-      : `/collections/${post.collection.id}`;
-  const place = company.city?.trim();
+  const place = group.city;
 
   return (
     <Link
-      to={to}
+      to={homePostGroupLink(group)}
       className="flex items-center gap-3 border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-foam active:bg-foam"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="truncate text-sm font-semibold text-ink">
-          {company.name}
-          {place ? <span className="font-medium text-muted"> · {place}</span> : null}
-        </p>
-        <p className="truncate text-sm text-ink">{title}</p>
-        <p className="truncate text-xs text-muted">{meta}</p>
+        <p className="truncate text-sm font-semibold text-ink">{title}</p>
+        {place ? <p className="truncate text-xs text-muted">{place}</p> : null}
+        {group.count === 1 ? (
+          <>
+            <p className="truncate text-sm text-ink">{itemName}</p>
+            <p className="truncate text-xs text-muted">{meta}</p>
+          </>
+        ) : null}
       </div>
       <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
     </Link>
   );
 }
 
-function NeedCard({ item }: { item: HomeNeedItem }) {
+function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) {
   const Icon = needIcon(item.kind);
   return (
     <Link
       to={item.to}
+      onClick={onOpen}
+      data-testid={`home-need-${item.id}`}
       className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foam text-accent">

@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ProductController } from './product.controller';
 import { CollectionController } from './collection.controller';
+import { ShareLinkController } from './share-link.controller';
 import { ProductService } from './product.service';
 import { CollectionService } from './collection.service';
+import { ShareLinkService } from './share-link.service';
 import { CatalogSerializer } from './catalog.serializer';
 
 /**
@@ -11,8 +13,8 @@ import { CatalogSerializer } from './catalog.serializer';
  * Broadcast. Cross-company/discovery reads are gated by the Access domain (M4).
  */
 @Module({
-  controllers: [ProductController, CollectionController],
-  providers: [ProductService, CollectionService, CatalogSerializer],
+  controllers: [ProductController, CollectionController, ShareLinkController],
+  providers: [ProductService, CollectionService, ShareLinkService, CatalogSerializer],
   exports: [CatalogSerializer],
 })
 export class CatalogModule {}

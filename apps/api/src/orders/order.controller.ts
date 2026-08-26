@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   amendOrderSchema,
+  createForBuyerSchema,
   createOrderSchema,
   createOrdersBatchSchema,
   createOrdersFromPackSchema,
@@ -8,7 +9,9 @@ import {
   dispatchSchema,
   listOrdersQuerySchema,
   quoteOrderSchema,
+  sendUpOrderSchema,
   type AmendOrderDto,
+  type CreateForBuyerDto,
   type CreateOrderDto,
   type CreateOrdersBatchDto,
   type CreateOrdersFromPackDto,
@@ -16,18 +19,25 @@ import {
   type DispatchDto,
   type ListOrdersQuery,
   type QuoteOrderDto,
+  type SendUpOrderDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { RequirePermission } from '../auth/require-permission';
 import { OrderService } from './order.service';
+import { BuyForBuyerService } from './buy-for-buyer.service';
 
 @Controller({ path: 'orders', version: '1' })
 export class OrderController {
-  constructor(private readonly orders: OrderService) {}
+  constructor(
+    private readonly orders: OrderService,
+    private readonly forBuyer: BuyForBuyerService,
+  ) {}
 
   @Post()
+  @RequirePermission('orders')
   create(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -38,6 +48,7 @@ export class OrderController {
 
   @Post('batch')
   @HttpCode(200)
+  @RequirePermission('orders')
   createBatch(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -46,8 +57,19 @@ export class OrderController {
     return this.orders.createBatch(companyId, user.userId, dto);
   }
 
+  @Post('for-buyer')
+  @RequirePermission('orders')
+  createForBuyer(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(createForBuyerSchema)) dto: CreateForBuyerDto,
+  ) {
+    return this.forBuyer.create(companyId, user.userId, dto);
+  }
+
   @Post('from-pack')
   @HttpCode(200)
+  @RequirePermission('orders')
   createFromPack(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -58,12 +80,14 @@ export class OrderController {
 
   @Post(':id/amend')
   @HttpCode(200)
+  @RequirePermission('orders')
   amend(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(amendOrderSchema)) dto: AmendOrderDto,
   ) {
-    return this.orders.amend(companyId, id, dto);
+    return this.orders.amend(companyId, user.userId, id, dto);
   }
 
   @Get()
@@ -81,60 +105,110 @@ export class OrderController {
 
   @Post(':id/confirm')
   @HttpCode(200)
-  confirm(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.orders.confirm(companyId, id);
+  @RequirePermission('orders')
+  confirm(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.orders.confirm(companyId, user.userId, id);
   }
 
   @Post(':id/quote')
   @HttpCode(200)
+  @RequirePermission('orders')
   quote(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(quoteOrderSchema)) dto: QuoteOrderDto,
   ) {
-    return this.orders.quote(companyId, id, dto);
+    return this.orders.quote(companyId, user.userId, id, dto);
   }
 
   @Post(':id/lines/decide')
   @HttpCode(200)
+  @RequirePermission('orders')
   decideLines(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(decideOrderLinesSchema)) dto: DecideOrderLinesDto,
   ) {
-    return this.orders.decideLines(companyId, id, dto);
+    return this.orders.decideLines(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/accept')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  acceptLogged(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.forBuyer.acceptLogged(companyId, user.userId, id);
   }
 
   @Post(':id/accept-quote')
   @HttpCode(200)
-  acceptQuote(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.orders.acceptQuote(companyId, id);
+  @RequirePermission('orders')
+  acceptQuote(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.orders.acceptQuote(companyId, user.userId, id);
   }
 
   @Post(':id/decline')
   @HttpCode(200)
-  decline(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.orders.decline(companyId, id);
+  @RequirePermission('orders')
+  decline(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.orders.decline(companyId, user.userId, id);
   }
 
   @Post(':id/dispatch')
   @HttpCode(200)
+  @RequirePermission('orders')
   dispatch(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(dispatchSchema)) dto: DispatchDto,
   ) {
-    return this.orders.dispatch(companyId, id, dto);
+    return this.orders.dispatch(companyId, user.userId, id, dto);
   }
 
   @Post(':id/deliver')
   @HttpCode(200)
-  deliver(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.orders.deliver(companyId, id);
+  @RequirePermission('orders')
+  deliver(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.orders.deliver(companyId, user.userId, id);
+  }
+
+  @Post(':id/send-up')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  sendUp(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(sendUpOrderSchema)) dto: SendUpOrderDto,
+  ) {
+    return this.orders.sendUp(companyId, user.userId, id, dto);
   }
 
   @Post(':id/take-control')
   @HttpCode(200)
+  @RequirePermission('orders')
   takeControl(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -145,7 +219,12 @@ export class OrderController {
 
   @Post(':id/cancel')
   @HttpCode(200)
-  cancel(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.orders.cancel(companyId, id);
+  @RequirePermission('orders')
+  cancel(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.orders.cancel(companyId, user.userId, id);
   }
 }

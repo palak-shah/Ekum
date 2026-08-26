@@ -12,9 +12,10 @@ Every company. Open via header **bell** → `/notifications`.
 
 1. Tap bell (badge = unread count).
 2. Browse list → open related order / chat / collection / company.
-3. Mark read (item or bulk as UI allows).
-4. Adjust preferences (types / push) where settings expose them.
-5. Subscribe browser push when prompted / enabled.
+3. Mark read (item or **Mark all read**).
+4. **Delete** one (× on the row), **Clear read** (removes read rows), or **Clear all** (empties inbox).
+5. Adjust preferences (types / push) where settings expose them.
+6. Subscribe browser push when prompted / enabled.
 
 ## Business rules
 

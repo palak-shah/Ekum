@@ -3,6 +3,7 @@ import { cursorPageQuerySchema } from './common';
 import {
   OrderIntent,
   OrderKind,
+  PaymentRequestStatus,
   type OrderLineStatus,
   orderDirectionValues,
   orderIntentValues,
@@ -13,6 +14,7 @@ import {
 } from './enums';
 import type { PublicCompanySummary } from './access';
 import type { AuditActorView } from './catalog';
+import type { OrderTimelineStaffInput } from './order-timeline';
 
 /**
  * Orders & Fulfillment contracts. There is one Order object shared by two
@@ -67,6 +69,34 @@ export const createOrderSchema = z
   });
 /** Wire input — `kind` / `intent` default when omitted. */
 export type CreateOrderDto = z.input<typeof createOrderSchema>;
+
+export const createForBuyerSchema = z
+  .object({
+    buyerCompanyId: z.string().min(1).optional(),
+    buyerName: z.string().trim().min(1).max(200).optional(),
+    buyerPhone: z.string().trim().min(8).max(20).optional(),
+    note: z.string().trim().max(1000).optional(),
+    items: z
+      .array(
+        z.object({
+          productId: z.string().min(1),
+          quantity,
+          rate: z.number().nonnegative().max(100_000_000).optional(),
+        }),
+      )
+      .min(1)
+      .max(200),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.buyerCompanyId && !(value.buyerName && value.buyerPhone)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose a buyer or enter name and phone.',
+        path: ['buyerCompanyId'],
+      });
+    }
+  });
+export type CreateForBuyerDto = z.infer<typeof createForBuyerSchema>;
 
 /** Multi-supplier place/ask — server groups lines by product owner. */
 export const createOrdersBatchSchema = z.object({
@@ -135,6 +165,54 @@ export const amendOrderSchema = z.object({
     .max(200),
 });
 export type AmendOrderDto = z.infer<typeof amendOrderSchema>;
+
+/** Handler Send / Change — optional qty/rate patches, then release mill tickets. */
+export const sendUpOrderSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1).optional(),
+        orderItemId: z.string().min(1).optional(),
+        quantity: z.number().positive().max(1_000_000).optional(),
+        rate: z.number().nonnegative().optional(),
+      }),
+    )
+    .max(200)
+    .optional(),
+});
+export type SendUpOrderDto = z.infer<typeof sendUpOrderSchema>;
+
+export const createPaymentRequestSchema = z.object({
+  amount: z.number().positive().max(100_000_000),
+  note: z.string().trim().max(500).optional(),
+  instructions: z.string().trim().max(500).optional(),
+});
+export type CreatePaymentRequestDto = z.infer<typeof createPaymentRequestSchema>;
+
+export interface PaymentRequestView {
+  id: string;
+  orderId: string;
+  amount: number;
+  note: string | null;
+  instructions: string | null;
+  status: PaymentRequestStatus | string;
+  seenAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+/** Sum of rate × qty when every line has a rate; else 0. */
+export function suggestedPaymentAmount(
+  items: Array<{ rate?: number | null; quantity: number }>,
+): number {
+  if (items.length === 0) return 0;
+  let total = 0;
+  for (const item of items) {
+    if (item.rate == null || !Number.isFinite(item.rate)) return 0;
+    total += item.rate * item.quantity;
+  }
+  return Math.round(total * 100) / 100;
+}
 
 /** Dispatch: omit items to ship all remaining confirmed qty; provide for partial. LR required. */
 export const dispatchSchema = z.object({
@@ -341,6 +419,8 @@ export interface OrderRelatedOrderView {
   id: string;
   role: 'downstream' | 'upstream';
   status: string;
+  /** Mill hop not released yet (handler desk: Waiting). */
+  held?: boolean;
   /** Null when soft-hide applies for the viewer. */
   sellerName: string | null;
   buyerName: string | null;
@@ -360,6 +440,8 @@ export interface OrderView {
   relatedOrders: OrderRelatedOrderView[];
   /** Facilitator may Take control (direct, requested, no seller quote). */
   canTakeControl?: boolean;
+  /** Handler may Send / Change held mill tickets from this downstream. */
+  canSendUp?: boolean;
   direction: string;
   /** Times the buyer amended before seller progress. */
   amendCount: number;
@@ -372,6 +454,10 @@ export interface OrderView {
    * Live: buyer may accept — seller has sent a Rate quote (catalog line rates alone do not count).
    */
   canAcceptQuote?: boolean;
+  /** Live: buyer may Accept a seller-logged ticket (not a quote). */
+  canAcceptLogged?: boolean;
+  /** True when the seller created this ticket (Buy for buyer). */
+  createdBySeller?: boolean;
   /** Live: seller has posted at least one Rate card for this order. */
   hasSellerQuote?: boolean;
   note: string | null;
@@ -384,6 +470,8 @@ export interface OrderView {
   dispatch: DispatchInfo | null;
   /** Direct thread where the order/quote cards live, when found. */
   threadId: string | null;
+  /** Living order/rate card in the trade thread — set on create so chat can scroll to it. */
+  livingMessageId?: string | null;
   confirmedAt: string | null;
   /** Display name of who confirmed (seller or buyer), when known. */
   confirmedByName: string | null;
@@ -398,10 +486,30 @@ export interface OrderView {
   partiallyShipped: boolean;
   /** Returns on this order (detail payload; list may send []). */
   returns: ReturnView[];
+  /** Payment asks on this ticket (detail). */
+  paymentRequests?: PaymentRequestView[];
+  canAskPayment?: boolean;
   createdBy: AuditActorView | null;
   updatedBy: AuditActorView | null;
+  /** Staff names per timeline step — only your team's actions; omitted on list payloads. */
+  timelineStaff?: OrderTimelineStaffInput;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateForBuyerResult {
+  order: OrderView;
+  invitePath: string | null;
+}
+
+export interface OrderInviteView {
+  token: string;
+  sellerName: string;
+  buyerName: string;
+  itemCount: number;
+  status: string;
+  expired: boolean;
+  used: boolean;
 }
 
 export interface SampleView {

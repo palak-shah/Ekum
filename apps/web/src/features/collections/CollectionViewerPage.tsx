@@ -14,6 +14,7 @@ import {
 } from '@/lib/accessRequestNote';
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
+import { useTradePresence } from '@/lib/tradePresence';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
@@ -83,6 +84,7 @@ export function CollectionViewerPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useMyCompany();
+  const { selling, trading } = useTradePresence();
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
   const orderFlow = useShortlistOrderFlow();
@@ -134,7 +136,8 @@ export function CollectionViewerPage() {
         ? 'direct'
         : 'direct');
   const handlePath = packPath === 'handle';
-  const canOrderFromPack = !isOwner && shortlist.count > 0;
+  const canLogForBuyer = selling || trading;
+  const canOrderFromPack = shortlist.count > 0 && (!isOwner || canLogForBuyer);
   const canSelectDesigns = products.length > 0;
   const companyName = collection.data?.company.name ?? '';
   const handleGoesToName = readCatalogHandlerName('collection', id) ?? companyName;
@@ -182,15 +185,24 @@ export function CollectionViewerPage() {
       void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
       if (saved > 0) shortlist.removeIds(productIds);
       if (saved > 0 && failed === 0) {
-        showToast(saved === 1 ? 'Saved' : `${saved} designs saved`);
+        showToast(
+          saved === 1 ? 'Bookmarked this design' : `${saved} designs bookmarked`,
+          'success',
+          {
+            action: { label: 'Open', to: '/saved' },
+          },
+        );
       } else if (saved > 0) {
-        showToast(`${saved} saved · ${failed} could not be saved`, 'danger');
+        showToast(`${saved} bookmarked · ${failed} could not be bookmarked`, 'danger');
       } else {
-        showToast('Could not save designs.', 'danger');
+        showToast('Could not bookmark designs.', 'danger');
       }
     },
     onError: (error) =>
-      showToast(error instanceof ApiError ? error.message : 'Could not save designs.', 'danger'),
+      showToast(
+        error instanceof ApiError ? error.message : 'Could not bookmark designs.',
+        'danger',
+      ),
   });
   const accessPending =
     Boolean(companyId) &&
@@ -275,7 +287,7 @@ export function CollectionViewerPage() {
               disabled={!id || save.isPending}
               onClick={() => save.toggle()}
             >
-              {save.isSaved ? 'Saved' : 'Save'}
+              {save.isSaved ? 'Bookmarked' : 'Bookmark'}
             </button>
             <button
               type="button"
@@ -491,11 +503,7 @@ export function CollectionViewerPage() {
               disabled={saveSelected.isPending}
               onClick={() => saveSelected.mutate(selectedProducts.map((product) => product.id))}
             >
-              {saveSelected.isPending
-                ? 'Saving…'
-                : selectedProducts.length === 1
-                  ? 'Save'
-                  : 'Save'}
+              {saveSelected.isPending ? 'Bookmarking…' : 'Bookmark'}
             </Button>
           ) : null
         }
@@ -530,7 +538,11 @@ export function CollectionViewerPage() {
       <CatalogShareSheet
         open={shareOpen}
         onClose={() => setShareOpen(false)}
-        collections={id && data ? [{ collectionId: id, name: data.name }] : []}
+        collections={
+          id && data
+            ? [{ collectionId: id, name: data.name, image: data.coverImage }]
+            : []
+        }
       />
 
       <ProductPhotosSheet
@@ -777,7 +789,13 @@ function ProductPhotosSheet({
 }
 
 function ProductSaveButton({ productId }: { productId: string }) {
-  const save = useSaveToggle({ productId });
+  const save = useSaveToggle(
+    { productId },
+    {
+      toastSaved: 'Bookmarked this design',
+      toastRemoved: 'Removed design bookmark',
+    },
+  );
   return (
     <Button
       variant="secondary"
@@ -785,7 +803,11 @@ function ProductSaveButton({ productId }: { productId: string }) {
       disabled={save.isPending}
       onClick={() => save.toggle()}
     >
-      {save.isPending ? 'Updating…' : save.isSaved ? 'Saved' : 'Save'}
+      {save.isPending
+        ? 'Updating…'
+        : save.isSaved
+          ? 'Design bookmarked'
+          : 'Bookmark this design'}
     </Button>
   );
 }

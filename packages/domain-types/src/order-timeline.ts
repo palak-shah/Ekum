@@ -36,6 +36,16 @@ export interface OrderTimelineInput {
   sellerName?: string | null;
   items?: OrderTimelineQuoteItem[];
   returns?: OrderTimelineReturn[];
+  staff?: OrderTimelineStaffInput;
+}
+
+export interface OrderTimelineStaffInput {
+  /** Staff on your team for each step — only set when your company did the action. */
+  requested?: string | null;
+  quoted?: string | null;
+  confirmed?: string | null;
+  dispatched?: string | null;
+  delivered?: string | null;
 }
 
 export interface OrderTimelineStep {
@@ -46,6 +56,8 @@ export interface OrderTimelineStep {
   current: boolean;
   /** Extra line under the step (e.g. offered vs asked qty). */
   detail?: string | null;
+  /** Quiet staff name for your team's action on this step. */
+  staffLine?: string | null;
 }
 
 /** Timeline / parties verb for the agreement step — buyers never “confirm”. */
@@ -153,12 +165,23 @@ function appendReturnSteps(
   });
 }
 
+function staffLine(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function optionalStaffLine(name: string | null | undefined): { staffLine?: string } {
+  const line = staffLine(name);
+  return line ? { staffLine: line } : {};
+}
+
 export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelineStep[] {
   const closedAt = order.closedAt ?? order.updatedAt;
   const hasQuote = order.hasSellerQuote === true;
   const quoteIsCurrent = hasQuote && order.status === 'requested';
   const returns = order.returns ?? [];
   const hasReturns = returns.length > 0;
+  const staff = order.staff ?? {};
 
   const steps: OrderTimelineStep[] = [
     {
@@ -167,6 +190,7 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
       at: order.createdAt,
       done: true,
       current: order.status === 'requested' && !hasQuote,
+      ...optionalStaffLine(staff.requested),
     },
   ];
 
@@ -178,6 +202,7 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
       done: true,
       current: quoteIsCurrent,
       detail: quoteTimelineDetail(order.items),
+      ...optionalStaffLine(staff.quoted),
     });
   }
 
@@ -194,6 +219,7 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
       at: order.confirmedAt,
       done: Boolean(order.confirmedAt),
       current: order.status === 'confirmed' && !order.partiallyShipped,
+      ...optionalStaffLine(staff.confirmed),
     });
   }
 
@@ -217,6 +243,7 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
       order.status === 'dispatched' ||
       order.status === 'delivered',
     current: order.status === 'dispatched' || order.partiallyShipped,
+    ...optionalStaffLine(staff.dispatched),
   });
   steps.push({
     key: 'delivered',
@@ -224,6 +251,7 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
     at: order.deliveredAt,
     done: Boolean(order.deliveredAt),
     current: order.status === 'delivered' && !hasReturns,
+    ...optionalStaffLine(staff.delivered),
   });
 
   if (hasReturns) {

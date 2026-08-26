@@ -19,9 +19,24 @@ const booleanFlag = z
 export const exploreScopeValues = ['buy', 'sell'] as const;
 export type ExploreScope = (typeof exploreScopeValues)[number];
 
+/** Comma-separated or repeated query values → unique trimmed tags. */
+const listQuery = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value) => {
+    if (value === undefined) return undefined;
+    const parts = (Array.isArray(value) ? value : value.split(','))
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 1 && item.length <= 80);
+    const unique = [...new Set(parts)];
+    return unique.length ? unique : undefined;
+  });
+
 export const exploreQuerySchema = cursorPageQuerySchema.extend({
   category: z.string().trim().min(1).max(80).optional(),
   city: z.string().trim().min(1).max(80).optional(),
+  categories: listQuery,
+  cities: listQuery,
   following: booleanFlag,
   /**
    * When true, only companies with a published collection or Explore-posted
@@ -33,12 +48,34 @@ export const exploreQuerySchema = cursorPageQuerySchema.extend({
 });
 export type ExploreQuery = z.infer<typeof exploreQuerySchema>;
 
+export const exploreTradeSideValues = ['all', 'buying', 'selling'] as const;
+export type ExploreTradeSide = (typeof exploreTradeSideValues)[number];
+
 /** Optional Narrow filters for the sectioned Explore home. */
 export const exploreHomeQuerySchema = z.object({
   category: z.string().trim().min(1).max(80).optional(),
   city: z.string().trim().min(1).max(80).optional(),
+  categories: listQuery,
+  cities: listQuery,
+  /** Trade-side. Omit or `all` = mixed (legacy). Product UI uses buying | selling. */
+  side: z.enum(exploreTradeSideValues).optional(),
 });
 export type ExploreHomeQuery = z.infer<typeof exploreHomeQuerySchema>;
+
+export function exploreNarrowFromQuery(query: {
+  category?: string;
+  city?: string;
+  categories?: string[];
+  cities?: string[];
+}): { categories: string[]; cities: string[] } {
+  const categories = query.categories?.length
+    ? query.categories
+    : query.category
+      ? [query.category]
+      : [];
+  const cities = query.cities?.length ? query.cities : query.city ? [query.city] : [];
+  return { categories, cities };
+}
 
 export const searchTypeValues = ['company', 'collection', 'design'] as const;
 export type SearchType = (typeof searchTypeValues)[number];
@@ -161,10 +198,24 @@ export interface ExploreSupplierCard {
   latestPostedAt: string;
 }
 
+/** Received packs for one publisher on one UTC day. */
+export interface ExploreReceivedGroup {
+  company: PublicCompanySummary;
+  collections: CollectionCard[];
+}
+
+/** Buying Received browse — UTC calendar day then business. */
+export interface ExploreReceivedDay {
+  /** `YYYY-MM-DD` UTC */
+  day: string;
+  groups: ExploreReceivedGroup[];
+}
+
 /**
- * Sectioned Explore home — no Buying/Selling mode.
+ * Sectioned Explore home.
  * Collections and designs are separate shelves. Own company never appears.
  * `lookingForWhatYouSell` is null when the viewer does not sell.
+ * `receivedByDay` is filled when `side=buying`; otherwise [].
  */
 export interface ExploreHomeView {
   forYou: ExploreOpportunity[];
@@ -175,8 +226,11 @@ export interface ExploreHomeView {
   designsFromNetwork: ExploreDesignOpportunity[];
   suggestedBusinesses: ExploreBuyerOpportunity[];
   lookingForWhatYouSell: ExploreBuyerOpportunity[] | null;
-  /** Recently published businesses (Explore Stories rail); empty → hide rail. */
+  /** Recently published follow/connected businesses; empty → hide rail. */
   stories: ExploreStory[];
+  receivedByDay: ExploreReceivedDay[];
+  /** Curated received packs for Home (7 days, cap 5). */
+  receivedCurated: CollectionCard[];
 }
 
 /** Grouped universal search (type omitted on `/search`). */

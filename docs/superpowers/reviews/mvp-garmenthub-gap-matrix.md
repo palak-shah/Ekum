@@ -34,8 +34,8 @@ No product code in this review — decisions only. Design specs before implement
 | Product search/listing | Explore + search | Covered |
 | Product detail | Design / company / collection views | Covered |
 | Network / People: follow, suggestions, connections | Network hub + Explore Businesses for you / Stories | Partial |
-| Explore All / Buying / Selling | Planned trade-side filter; Following-first under Buying | Missing |
-| Stories follow/connected + published | Planned Stories rule | Partial (rail exists; eligibility not tightened) |
+| Explore All / Buying / Selling | Trade-side filter; Following-first under Buying | Covered |
+| Stories follow/connected + published | Follow/connected + published | Covered |
 | Vendor↔trader link + **Trader insights** | — | Later |
 | Share invite code | Referrals create + Share/Copy | Covered (verification Untested) |
 
@@ -54,8 +54,8 @@ No product code in this review — decisions only. Design specs before implement
 |-----|------------------------|--------|
 | Share products to buyers/groups (+ WhatsApp) | Broadcast + chat cards; curated **publish** to Explore | Partial today; curated publish **Missing** |
 | Customer groups | Buyer groups / broadcast lists | Covered |
-| Buyer Home = received shares | **Home**: light attention on new received packs | Keep / Missing |
-| Shares by day / by business | **Explore → Buying**: received browse (not Selling / not market ranking) | Keep / Missing |
+| Buyer Home = received shares | **Home**: light attention on new received packs | Covered |
+| Shares by day / by business | **Explore → Buying**: received browse (not Selling / not market ranking) | Covered |
 | Shared galleries | Collections + chat; curated collections on Explore | Partial; multi-supplier curate **Missing** |
 | Curate from many suppliers → one pack | Within **original seller** forward/audience; `relist` | Keep / Missing |
 | Forward vs Curate | Forward = share card; Curate = own collection then publish | Keep / Missing |
@@ -94,8 +94,8 @@ No product code in this review — decisions only. Design specs before implement
 
 1. **Slice A:** Multi-supplier curation + publish (`relist`) within seller permission; **Saved** reference hub.
 2. **Slice B:** Order split by real upstream supplier; trader **pays/orders upstream** and **sells/sends orders to buyers** (dual trade linking).
-3. **Slice C:** Home received attention + Explore **All/Buying/Selling** + Following-first Buying + received by day/business.
-4. **Slice D:** In-loop / anonymity along multi-hop chain.
+3. **Slice C:** Home received attention + Explore **All/Buying/Selling** + Following-first Buying + received by day/business. **Shipped 2026-08-22.**
+4. **Slice D:** In-loop / anonymity along multi-hop chain — **Later** (no hard restriction now).
 5. Invite path verification.
 
 ## Open for design spec
@@ -121,7 +121,7 @@ No product code in this review — decisions only. Design specs before implement
 | Home received packs | Keep | Home | Light attention |
 | Order → real supplier; split | Keep | Orders | Slice B |
 | Dual trade pay upstream + sell to buyers | Keep | Orders | Slice B; presence already dual |
-| Middleman in-loop / anonymity | Keep | Orders / visibility | Slice D |
+| Middleman in-loop / anonymity | Later | Orders / visibility | Soft-hide only (2026-08-22); no Connection/chat block now |
 | Insights | Later | — | — |
 | Saved | Keep / Map | You → Saved + Curate picker | Slice A companion — references only |
 | Brands | Drop | Categories | — |

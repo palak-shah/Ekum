@@ -105,7 +105,7 @@ export class CompanyService {
 
     return {
       tokens,
-      company: await this.toOwnProfile(company, user.name),
+      company: await this.toOwnProfile(company, user.name, user.id),
     };
   }
 
@@ -114,7 +114,7 @@ export class CompanyService {
       this.prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
       this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true } }),
     ]);
-    return this.toOwnProfile(company, user.name);
+    return this.toOwnProfile(company, user.name, userId);
   }
 
   async updateOwnProfile(
@@ -146,18 +146,29 @@ export class CompanyService {
       where: { id: userId },
       select: { name: true },
     });
-    return this.toOwnProfile(company, user.name);
+    return this.toOwnProfile(company, user.name, userId);
   }
 
   private async toOwnProfile(
     company: Company,
     contactPerson: string | null,
+    userId: string,
   ): Promise<OwnCompanyProfile> {
-    const settings = await this.prisma.companySettings.findUnique({
-      where: { companyId: company.id },
-      select: { tradeDefaults: true },
-    });
-    return this.serializer.toOwnProfile(company, contactPerson, settings?.tradeDefaults);
+    const [settings, membership] = await Promise.all([
+      this.prisma.companySettings.findUnique({
+        where: { companyId: company.id },
+        select: { tradeDefaults: true },
+      }),
+      this.prisma.companyMembership.findUnique({
+        where: { userId_companyId: { userId, companyId: company.id } },
+      }),
+    ]);
+    return this.serializer.toOwnProfile(
+      company,
+      contactPerson,
+      settings?.tradeDefaults,
+      membership,
+    );
   }
 
   async getPublicProfile(viewerCompanyId: string, targetId: string): Promise<PublicCompanyProfile> {
@@ -228,6 +239,7 @@ export class CompanyService {
       rate: row.rate === null ? null : row.rate.toNumber(),
       unit: row.unit,
       postedAt: (row.postedToMarketAt ?? row.createdAt).toISOString(),
+      allowForward: row.allowForward !== false,
       company: this.serializer.toPublicSummary(row.company),
     }));
   }
@@ -286,6 +298,11 @@ export class CompanyService {
         productCount: row._count.products,
         status: row.status,
         updatedAt: row.updatedAt.toISOString(),
+        allowForward: row.allowForward !== false,
+        orderPathPreference:
+          row.orderPathPreference === 'handle' || row.orderPathPreference === 'direct'
+            ? row.orderPathPreference
+            : null,
         company: this.serializer.toPublicSummary(row.company),
       };
     });

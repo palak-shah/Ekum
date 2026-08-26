@@ -1,13 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -46,38 +37,22 @@ import { Avatar, Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/ki
 import {
   BackIcon,
   BookmarkIcon,
-  CheckIcon,
-  ChevronRightIcon,
   ExploreIcon,
   FilterIcon,
 } from '@/ui/icons';
 import { ExploreSearchResults } from './ExploreSearchResults';
+import { isDualTradePresence, resolveExploreTradeSide } from './exploreTradeSide';
+import { clearExploreFilterParams, facetSummary, mergeFacetOptions } from './exploreFilterPanel';
+import {
+  ExploreFilterMenu,
+  contentModeLabel,
+  parseContentMode,
+  type ContentMode,
+} from './ExploreFilterMenu';
+import { SUGGEST_CATEGORIES, SUGGEST_CITIES } from '@/lib/suggestData';
+import { useTradePresence } from '@/lib/tradePresence';
 
-const FALLBACK_CATEGORIES = ['Sarees', 'Salwar', 'Dress Material', 'Fabric'] as const;
-const CITIES = ['Surat', 'Jaipur'] as const;
 const SUPER_IDS = new Set<string>(Object.values(SuperCategory));
-const SECTION_PREVIEW = 4;
-
-type MenuView = 'root' | 'category' | 'city' | 'show';
-/** All = ranked mix; Collections / Designs / Businesses filter by type. */
-type ContentMode = 'all' | 'collections' | 'designs' | 'businesses';
-
-const CONTENT_MODE_OPTIONS: Array<{ id: ContentMode; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'collections', label: 'Collections' },
-  { id: 'designs', label: 'Designs' },
-  { id: 'businesses', label: 'Businesses' },
-];
-
-function parseContentMode(value: string | null): ContentMode {
-  if (value === 'collections' || value === 'designs' || value === 'businesses') return value;
-  return 'all';
-}
-
-function contentModeLabel(mode: ContentMode): string {
-  return CONTENT_MODE_OPTIONS.find((option) => option.id === mode)?.label ?? 'All';
-}
-
 type MixedOpportunity =
   | { kind: 'collection'; id: string; opportunity: ExploreOpportunity; score: number; at: number }
   | { kind: 'design'; id: string; opportunity: ExploreDesignOpportunity; score: number; at: number };
@@ -138,10 +113,12 @@ function Section({
   if (empty) return null;
   return (
     <section className="flex flex-col gap-2.5">
-      <div className="flex items-baseline justify-between gap-3 px-0.5">
-        <h2 className="text-[15px] font-bold tracking-tight text-ink">{title}</h2>
-        {action}
-      </div>
+      {title || action ? (
+        <div className="flex items-baseline justify-between gap-3 px-0.5">
+          {title ? <h2 className="text-[15px] font-bold tracking-tight text-ink">{title}</h2> : null}
+          {action}
+        </div>
+      ) : null}
       {children}
     </section>
   );
@@ -157,31 +134,15 @@ function CollectionSection({
   const albumPick = useBrowseAlbumPick();
   const shortlist = useBrowseShortlist();
   const { showToast } = useToast();
-  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
-  const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
-  const overflow = items.length > SECTION_PREVIEW;
   const selecting =
     albumPick.count > 0 || shortlist.count > 0 || albumPick.selectMode || shortlist.selectMode;
   const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
-    <Section
-      title={title}
-      action={
-        overflow && !expanded ? (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="text-xs font-bold tracking-tight text-accent"
-          >
-            See all {items.length}
-          </button>
-        ) : null
-      }
-    >
+    <Section title={title}>
       <div className="flex flex-col">
-        {visible.map((opportunity) => (
+        {items.map((opportunity) => (
           <OpportunityCollectionCard
             key={opportunity.collection.id}
             opportunity={opportunity}
@@ -249,31 +210,15 @@ function DesignSection({
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const { showToast } = useToast();
-  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
-  const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
-  const overflow = items.length > SECTION_PREVIEW;
   const selecting =
     shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
   const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
-    <Section
-      title={title}
-      action={
-        overflow && !expanded ? (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="text-xs font-bold tracking-tight text-accent"
-          >
-            See all {items.length}
-          </button>
-        ) : null
-      }
-    >
+    <Section title={title}>
       <div className="flex flex-col">
-        {visible.map((opportunity) => (
+        {items.map((opportunity) => (
           <OpportunityDesignCard
             key={opportunity.product.id}
             opportunity={opportunity}
@@ -294,31 +239,15 @@ function MixedSection({ title, items }: { title: string; items: MixedOpportunity
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const { showToast } = useToast();
-  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
-  const visible = expanded ? items : items.slice(0, SECTION_PREVIEW);
-  const overflow = items.length > SECTION_PREVIEW;
   const selecting =
     shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
   const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
-    <Section
-      title={title}
-      action={
-        overflow && !expanded ? (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="text-xs font-bold tracking-tight text-accent"
-          >
-            See all {items.length}
-          </button>
-        ) : null
-      }
-    >
+    <Section title={title}>
       <div className="flex flex-col">
-        {visible.map((item) =>
+        {items.map((item) =>
           item.kind === 'collection' ? (
             <OpportunityCollectionCard
               key={item.id}
@@ -357,47 +286,18 @@ function CompanySection({
   subtitle,
   items,
   intentSide = 'sell',
-  seeAllLabel,
-  onSeeAll,
 }: {
   title: string;
   subtitle?: string;
   items: ExploreBuyerOpportunity[];
   intentSide?: 'buy' | 'sell';
-  seeAllLabel?: string;
-  onSeeAll?: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
-  const visible = expanded || onSeeAll ? items.slice(0, SECTION_PREVIEW) : items.slice(0, SECTION_PREVIEW);
-  const showExpand = !onSeeAll && items.length > SECTION_PREVIEW && !expanded;
-  const showDirectoryLink = Boolean(onSeeAll);
   return (
-    <Section
-      title={title}
-      action={
-        showDirectoryLink ? (
-          <button
-            type="button"
-            onClick={onSeeAll}
-            className="text-xs font-bold tracking-tight text-accent"
-          >
-            {seeAllLabel ?? 'See all →'}
-          </button>
-        ) : showExpand ? (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="text-xs font-bold tracking-tight text-accent"
-          >
-            See all {items.length}
-          </button>
-        ) : null
-      }
-    >
+    <Section title={title}>
       {subtitle ? <p className="px-0.5 text-xs font-medium text-muted">{subtitle}</p> : null}
       <div className="flex flex-col">
-        {(expanded && !onSeeAll ? items : visible).map((opportunity) => (
+        {items.map((opportunity) => (
           <OpportunityBusinessCard
             key={opportunity.company.id}
             company={opportunity.company}
@@ -417,7 +317,7 @@ function CompanySection({
 function SupplierDirectory({
   filters,
 }: {
-  filters: { category?: string; city?: string };
+  filters: { categories?: string; cities?: string };
 }) {
   const directory = useInfiniteQuery({
     queryKey: ['explore', 'suppliers', filters],
@@ -491,249 +391,27 @@ function SupplierDirectory({
   );
 }
 
-/**
- * Compact filter menu. Portaled to document.body so dismiss is not trapped by
- * parent transforms (ekum-rise). Closes on outside tap, Escape, or scroll.
- */
-function FilterMenu({
-  open,
-  onClose,
-  anchorRef,
-  category,
-  city,
-  contentMode,
-  categoryOptions,
-  onCategory,
-  onCity,
-  onContentMode,
+function StoryFilterChip({
+  companyName,
   onClear,
-  filterActive,
+  onOpenShop,
 }: {
-  open: boolean;
-  onClose: () => void;
-  anchorRef: RefObject<HTMLElement | null>;
-  category: string;
-  city: string;
-  contentMode: ContentMode;
-  categoryOptions: string[];
-  onCategory: (value: string) => void;
-  onCity: (value: string) => void;
-  onContentMode: (value: ContentMode) => void;
+  companyName: string;
   onClear: () => void;
-  filterActive: boolean;
-}) {
-  const [view, setView] = useState<MenuView>('root');
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, right: 0 });
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const anchor = anchorRef.current;
-      if (!anchor) return;
-      const rect = anchor.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [open, anchorRef, view]);
-
-  useEffect(() => {
-    if (!open) {
-      setView('root');
-      return;
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      if (anchorRef.current?.contains(target)) return;
-      onClose();
-    };
-    const onScroll = () => onClose();
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open, onClose, anchorRef]);
-
-  if (!open || typeof document === 'undefined') return null;
-
-  const subTitle =
-    view === 'category' ? 'Category' : view === 'city' ? 'City' : view === 'show' ? 'Show' : '';
-
-  return createPortal(
-    <>
-      <button
-        type="button"
-        aria-label="Close filter menu"
-        className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-        onClick={onClose}
-      />
-      <div
-        ref={panelRef}
-        role="menu"
-        data-testid="explore-filter-menu"
-        className="fixed z-[61] w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-        style={{
-          top: pos.top,
-          right: pos.right,
-          animation: 'ekum-rise 160ms ease-out',
-        }}
-      >
-        {view === 'root' ? (
-          <div className="py-1">
-            <MenuRow
-              label="Show"
-              value={contentModeLabel(contentMode)}
-              onClick={() => setView('show')}
-            />
-            <MenuRow
-              label="Category"
-              value={optionLabel(category)}
-              onClick={() => setView('category')}
-            />
-            <MenuRow
-              label="City"
-              value={city === 'All' ? 'Any city' : city}
-              onClick={() => setView('city')}
-            />
-            {filterActive ? (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onClear();
-                  onClose();
-                }}
-                className="flex w-full items-center px-3.5 py-2.5 text-left text-sm font-bold tracking-tight text-accent hover:bg-foam/70"
-              >
-                Clear filters
-              </button>
-            ) : null}
-          </div>
-        ) : view === 'show' ? (
-          <div className="flex max-h-72 flex-col">
-            <button
-              type="button"
-              onClick={() => setView('root')}
-              className="flex shrink-0 items-center gap-1 border-b border-line px-2.5 py-2.5 text-sm font-bold tracking-tight text-ink hover:bg-foam/50"
-            >
-              <BackIcon width={18} height={18} />
-              {subTitle}
-            </button>
-            <ul className="min-h-0 overflow-y-auto py-1">
-              {CONTENT_MODE_OPTIONS.map((option) => {
-                const active = option.id === contentMode;
-                return (
-                  <li key={option.id}>
-                    <button
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={active}
-                      onClick={() => {
-                        onContentMode(option.id);
-                        setView('root');
-                      }}
-                      className={cx(
-                        'flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm tracking-tight hover:bg-foam/70',
-                        active ? 'font-bold text-ink' : 'font-medium text-slate',
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                      {active ? (
-                        <CheckIcon width={16} height={16} className="shrink-0 text-accent" />
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : (
-          <div className="flex max-h-72 flex-col">
-            <button
-              type="button"
-              onClick={() => setView('root')}
-              className="flex shrink-0 items-center gap-1 border-b border-line px-2.5 py-2.5 text-sm font-bold tracking-tight text-ink hover:bg-foam/50"
-            >
-              <BackIcon width={18} height={18} />
-              {subTitle}
-            </button>
-            <ul className="min-h-0 overflow-y-auto py-1">
-              {(view === 'category' ? categoryOptions : ['All', ...CITIES]).map((option) => {
-                const active = view === 'category' ? option === category : option === city;
-                const label =
-                  view === 'category'
-                    ? optionLabel(option)
-                    : option === 'All'
-                      ? 'Any city'
-                      : option;
-                return (
-                  <li key={option}>
-                    <button
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={active}
-                      onClick={() => {
-                        if (view === 'category') onCategory(option);
-                        else onCity(option);
-                        setView('root');
-                      }}
-                      className={cx(
-                        'flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm tracking-tight hover:bg-foam/70',
-                        active ? 'font-bold text-ink' : 'font-medium text-slate',
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{label}</span>
-                      {active ? (
-                        <CheckIcon width={16} height={16} className="shrink-0 text-accent" />
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </div>
-    </>,
-    document.body,
-  );
-}
-
-function MenuRow({
-  label,
-  value,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  onClick: () => void;
+  onOpenShop: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-foam/70"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold tracking-tight text-ink">{label}</span>
-        <span className="block truncate text-xs font-medium text-muted">{value}</span>
-      </span>
-      <ChevronRightIcon width={16} height={16} className="shrink-0 text-muted" />
-    </button>
+    <div className="flex items-center gap-3 rounded-lg border border-line bg-foam/60 px-2.5 py-1.5">
+      <p className="min-w-0 flex-1 truncate text-xs text-ink">
+        Posts from <span className="font-semibold">{companyName}</span>
+      </p>
+      <button type="button" className="shrink-0 text-xs font-bold text-accent" onClick={onClear}>
+        Clear
+      </button>
+      <button type="button" className="shrink-0 text-xs font-bold text-accent" onClick={onOpenShop}>
+        Open shop
+      </button>
+    </div>
   );
 }
 
@@ -749,7 +427,7 @@ function StoriesRail({
   if (stories.length === 0) return null;
   return (
     <div className="-mx-1 overflow-x-auto px-1 scrollbar-gutter-stable">
-      <div className="flex gap-3 pb-1">
+      <div className="flex gap-2.5">
         {stories.map((story) => {
           const active = story.company.id === activeId;
           return (
@@ -757,7 +435,7 @@ function StoriesRail({
               key={story.company.id}
               type="button"
               onClick={() => onSelect(story.company.id)}
-              className="flex w-[72px] shrink-0 flex-col items-center gap-1.5"
+              className="flex w-[60px] shrink-0 flex-col items-center gap-1"
             >
               <span
                 className={cx(
@@ -766,10 +444,10 @@ function StoriesRail({
                 )}
               >
                 <span className="block rounded-full bg-canvas p-[2px]">
-                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={56} />
+                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={44} />
                 </span>
               </span>
-              <span className="w-full truncate text-center text-[11px] font-medium text-ink">
+              <span className="w-full truncate text-center text-[10px] font-medium leading-tight text-ink">
                 {story.company.name}
               </span>
             </button>
@@ -795,9 +473,11 @@ export function ExplorePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
+  const presence = useTradePresence();
+  const tradeSide = resolveExploreTradeSide(searchParams.get('side'), presence);
   const storyCompanyId = searchParams.get('story');
-  const [category, setCategory] = useState('All');
-  const [city, setCity] = useState<string>('All');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
   const [searchFocused, setSearchFocused] = useState(
     () => searchParams.get('search') === '1' || Boolean(searchParams.get('q')),
   );
@@ -875,39 +555,53 @@ export function ExplorePage() {
     );
   };
 
-  const categoryOptions = useMemo(() => {
-    const buy = (company.data?.buyCategories ?? [])
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (buy.length > 0) {
-      return ['All', ...new Set(buy)];
-    }
-    const supers = (company.data?.superCategories ?? [])
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (supers.length > 0) {
-      return ['All', ...new Set(supers)];
-    }
-    return ['All', ...FALLBACK_CATEGORIES];
-  }, [company.data?.buyCategories, company.data?.superCategories]);
+  const categoryOptions = useMemo(
+    () =>
+      mergeFacetOptions(SUGGEST_CATEGORIES, [
+        ...(company.data?.buyCategories ?? []),
+        ...(company.data?.sellCategories ?? []),
+        ...(company.data?.superCategories ?? []),
+        ...categories,
+      ]),
+    [company.data?.buyCategories, company.data?.sellCategories, company.data?.superCategories, categories],
+  );
+  const cityOptions = useMemo(() => mergeFacetOptions(SUGGEST_CITIES, cities), [cities]);
 
-  const activeCategory = categoryOptions.includes(category) ? category : 'All';
   const filters = {
-    ...(activeCategory === 'All' ? {} : { category: activeCategory }),
-    ...(city === 'All' ? {} : { city }),
+    ...(categories.length ? { categories: categories.join(',') } : {}),
+    ...(cities.length ? { cities: cities.join(',') } : {}),
   };
-  const filterActive = activeCategory !== 'All' || city !== 'All' || contentMode !== 'all';
+  const filterActive = categories.length > 0 || cities.length > 0 || contentMode !== 'all';
   const filterSummary = [
     contentMode !== 'all' ? contentModeLabel(contentMode) : null,
-    activeCategory !== 'All' ? optionLabel(activeCategory) : null,
-    city !== 'All' ? city : null,
+    categories.length
+      ? categories.length === 1
+        ? optionLabel(categories[0]!)
+        : `${optionLabel(categories[0]!)} + ${categories.length - 1}`
+      : null,
+    cities.length ? facetSummary(cities, '') : null,
   ]
     .filter(Boolean)
     .join(' · ');
 
+  const setTradeSide = (side: 'buying' | 'selling') => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('side', side);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const home = useQuery({
-    queryKey: ['explore', 'home', filters],
-    queryFn: () => api.get<ExploreHomeView>('/explore/home', filters),
+    queryKey: ['explore', 'home', filters, tradeSide],
+    queryFn: () =>
+      api.get<ExploreHomeView>('/explore/home', {
+        ...filters,
+        side: tradeSide,
+      }),
     enabled: contentMode !== 'businesses',
   });
 
@@ -936,19 +630,30 @@ export function ExplorePage() {
 
   const filteredPosts = useMemo(() => {
     if (!storyCompanyId) return postsForYou;
-    return postsForYou.filter((item) =>
-      item.kind === 'collection'
-        ? item.opportunity.collection.company.id === storyCompanyId
-        : item.opportunity.product.company.id === storyCompanyId,
-    );
+    return postsForYou
+      .filter((item) =>
+        item.kind === 'collection'
+          ? item.opportunity.collection.company.id === storyCompanyId
+          : item.opportunity.product.company.id === storyCompanyId,
+      )
+      .sort((a, b) => b.at - a.at);
   }, [postsForYou, storyCompanyId]);
   const filteredCollections = useMemo(() => {
     if (!storyCompanyId) return collectionsForYou;
-    return collectionsForYou.filter((item) => item.collection.company.id === storyCompanyId);
+    return [...collectionsForYou]
+      .filter((item) => item.collection.company.id === storyCompanyId)
+      .sort(
+        (a, b) =>
+          Date.parse(b.collection.updatedAt) - Date.parse(a.collection.updatedAt),
+      );
   }, [collectionsForYou, storyCompanyId]);
   const filteredDesigns = useMemo(() => {
     if (!storyCompanyId) return designsForYou;
-    return designsForYou.filter((item) => item.product.company.id === storyCompanyId);
+    return [...designsForYou]
+      .filter((item) => item.product.company.id === storyCompanyId)
+      .sort(
+        (a, b) => Date.parse(b.product.postedAt) - Date.parse(a.product.postedAt),
+      );
   }, [designsForYou, storyCompanyId]);
 
   const storyCompany = data?.stories?.find((s) => s.company.id === storyCompanyId)?.company;
@@ -978,7 +683,7 @@ export function ExplorePage() {
 
   const selectStory = (companyId: string) => {
     // Prefer the business shop when this feed has no posts from them yet —
-    // Stories can include publishers who aren’t in the “New for you” shelf.
+    // Stories can include publishers who aren’t in the current feed.
     const inFeed = postsForYou.some((item) =>
       item.kind === 'collection'
         ? item.opportunity.collection.company.id === companyId
@@ -1009,24 +714,24 @@ export function ExplorePage() {
           ? 1
           : filteredPosts.length;
 
-  const suggestedCount = data?.suggestedBusinesses.length ?? 0;
   const buyersCount = data?.lookingForWhatYouSell?.length ?? 0;
   const hasAny =
     contentMode === 'businesses' ||
     Boolean(storyCompanyId) ||
-    contentCount + suggestedCount + buyersCount > 0;
+    (tradeSide === 'selling' ? buyersCount > 0 : contentCount > 0);
 
   const clearFilters = () => {
-    setCategory('All');
-    setCity('All');
-    setContentMode('all');
-    clearStory();
+    setMenuOpen(false);
+    setCategories([]);
+    setCities([]);
+    setSearchParams((prev) => clearExploreFilterParams(prev), { replace: true });
   };
 
   return (
     <div
       className={cx(
-        'flex flex-col gap-4',
+        'flex flex-col',
+        storyCompanyId ? 'gap-2.5' : 'gap-4',
         (shortlist.count > 0 || albumPick.count > 0) && 'pb-[calc(5rem+5.5rem)]',
       )}
     >
@@ -1087,33 +792,39 @@ export function ExplorePage() {
               <FilterIcon width={20} height={20} />
             </button>
 
-            <FilterMenu
+            <ExploreFilterMenu
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
               anchorRef={filterAnchorRef}
-              category={activeCategory}
-              city={city}
               contentMode={contentMode}
+              categories={categories}
+              cities={cities}
               categoryOptions={categoryOptions}
-              onCategory={setCategory}
-              onCity={setCity}
+              cityOptions={cityOptions}
+              labelFor={optionLabel}
               onContentMode={setContentMode}
-              onClear={clearFilters}
-              filterActive={filterActive}
+              onCategories={setCategories}
+              onCities={setCities}
+              switchLabel={
+                isDualTradePresence(presence)
+                  ? tradeSide === 'buying'
+                    ? 'Explore Buyers'
+                    : 'Explore Suppliers'
+                  : null
+              }
+              onSwitch={() => setTradeSide(tradeSide === 'buying' ? 'selling' : 'buying')}
             />
           </>
         )}
       </div>
 
       {!searchFocused && filterActive ? (
-        <div className="flex items-center gap-3 px-0.5">
-          <p className="min-w-0 flex-1 truncate text-xs font-medium text-muted">
-            Showing {filterSummary}
-          </p>
+        <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
+          <p className="text-xs font-medium text-muted">Showing {filterSummary}</p>
           <button
             type="button"
             onClick={clearFilters}
-            className="shrink-0 text-xs font-bold tracking-tight text-accent"
+            className="inline-flex min-h-11 items-center text-xs font-bold tracking-tight text-accent"
           >
             Clear
           </button>
@@ -1135,43 +846,42 @@ export function ExplorePage() {
         <EmptyState
           title="Nothing to explore yet"
           message={
-            contentMode === 'collections'
-              ? 'Published collections that match your interests show up here.'
-              : contentMode === 'designs'
-                ? 'Published designs that match your interests show up here.'
-                : 'Designs, collections, and businesses that match your interests show up here.'
+            tradeSide === 'selling'
+              ? 'Businesses that buy what you sell show up here.'
+              : contentMode === 'collections'
+                ? 'Published collections that match your interests show up here.'
+                : contentMode === 'designs'
+                  ? 'Published designs that match your interests show up here.'
+                  : 'Designs, collections, and businesses that match your interests show up here.'
           }
         />
       ) : (
-        <div className="flex flex-col gap-7">
-          {!searchFocused ? (
-            <StoriesRail
-              stories={data?.stories ?? []}
-              activeId={storyCompanyId}
-              onSelect={selectStory}
+        <div className={cx('flex flex-col', storyCompanyId ? 'gap-3' : 'gap-7')}>
+          {!searchFocused && tradeSide !== 'selling' ? (
+            storyCompanyId ? (
+              <StoryFilterChip
+                companyName={storyCompany?.name ?? 'this business'}
+                onClear={clearStory}
+                onOpenShop={() => navigate(`/company/${storyCompanyId}`)}
+              />
+            ) : (
+              <StoriesRail
+                stories={data?.stories ?? []}
+                activeId={storyCompanyId}
+                onSelect={selectStory}
+              />
+            )
+          ) : null}
+          {tradeSide === 'selling' && storyCompanyId ? (
+            <StoryFilterChip
+              companyName={storyCompany?.name ?? 'this business'}
+              onClear={clearStory}
+              onOpenShop={() => navigate(`/company/${storyCompanyId}`)}
             />
           ) : null}
-          {storyCompanyId ? (
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-foam/60 px-3 py-2">
-              <p className="min-w-0 flex-1 truncate text-sm text-ink">
-                Posts from{' '}
-                <span className="font-semibold">{storyCompany?.name ?? 'this business'}</span>
-              </p>
-              <button type="button" className="text-xs font-bold text-accent" onClick={clearStory}>
-                Clear
-              </button>
-              <button
-                type="button"
-                className="text-xs font-bold text-accent"
-                onClick={() => navigate(`/company/${storyCompanyId}`)}
-              >
-                Open shop
-              </button>
-            </div>
-          ) : null}
-          {contentMode === 'all' ? (
+          {tradeSide !== 'selling' && contentMode === 'all' ? (
             filteredPosts.length > 0 ? (
-              <MixedSection title="New for you" items={filteredPosts} />
+              <MixedSection title="" items={filteredPosts} />
             ) : storyCompanyId ? (
               <EmptyState
                 title="No posts in this feed"
@@ -1184,22 +894,13 @@ export function ExplorePage() {
               />
             )
           ) : null}
-          {contentMode === 'collections' ? (
-            <CollectionSection title="New for you" items={filteredCollections} />
+          {tradeSide !== 'selling' && contentMode === 'collections' ? (
+            <CollectionSection title="" items={filteredCollections} />
           ) : null}
-          {contentMode === 'designs' ? (
-            <DesignSection title="New for you" items={filteredDesigns} />
+          {tradeSide !== 'selling' && contentMode === 'designs' ? (
+            <DesignSection title="" items={filteredDesigns} />
           ) : null}
-          {!storyCompanyId ? (
-            <CompanySection
-              title="Businesses for you"
-              items={data?.suggestedBusinesses ?? []}
-              intentSide="sell"
-              seeAllLabel="See all businesses →"
-              onSeeAll={() => setContentMode('businesses')}
-            />
-          ) : null}
-          {!storyCompanyId && data?.lookingForWhatYouSell ? (
+          {tradeSide === 'selling' && !storyCompanyId && data?.lookingForWhatYouSell ? (
             <CompanySection
               title="Buyers for you"
               items={data.lookingForWhatYouSell}
@@ -1232,10 +933,12 @@ export function ExplorePage() {
             void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
             albumPick.clear();
             shortlist.clear();
-            showToast(saved === 1 ? 'Saved' : `${saved} saved`);
+            showToast(saved === 1 ? 'Bookmarked' : `${saved} bookmarked`, 'success', {
+              action: { label: 'Open', to: '/saved' },
+            });
           } catch (err) {
             showToast(
-              err instanceof ApiError ? err.message : 'Could not save.',
+              err instanceof ApiError ? err.message : 'Could not bookmark.',
               'danger',
             );
           } finally {

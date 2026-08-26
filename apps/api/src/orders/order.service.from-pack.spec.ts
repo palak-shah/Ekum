@@ -73,7 +73,7 @@ describe('OrderService.createFromPack', () => {
       'trader',
       'user-1',
       expect.objectContaining({ sellerCompanyId: 's1' }),
-      expect.objectContaining({ downstreamOrderId: 'down-1' }),
+      expect.objectContaining({ downstreamOrderId: 'down-1', holdUntilSend: true }),
     );
   });
 

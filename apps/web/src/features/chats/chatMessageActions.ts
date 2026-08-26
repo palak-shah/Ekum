@@ -32,6 +32,7 @@ export function canReplyToMessage(message: MessageView): boolean {
     'collection_card',
     'order_card',
     'rate',
+    'payment_card',
   ].includes(message.type);
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
@@ -23,13 +23,12 @@ import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { useLongPress } from '@/ui/useLongPress';
 
 type Tab = 'products' | 'collections';
-type CollectionFilter = 'all' | 'draft' | 'ready' | 'published' | 'archived';
+type CollectionFilter = 'all' | 'draft' | 'published' | 'archived';
 type ProductFilter = 'all' | 'draft' | 'published' | 'archived';
 
 const COLLECTION_FILTERS: { id: CollectionFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'draft', label: 'Draft' },
-  { id: 'ready', label: 'Ready' },
   { id: 'published', label: 'Published' },
   { id: 'archived', label: 'Archived' },
 ];
@@ -43,11 +42,6 @@ const PRODUCT_FILTERS: { id: ProductFilter; label: string }[] = [
 
 function emptyCollectionCopy(filter: CollectionFilter): { title: string; message: string } {
   switch (filter) {
-    case 'ready':
-      return {
-        title: 'No ready collections',
-        message: 'Mark a draft ready when the pack is reviewable.',
-      };
     case 'published':
       return {
         title: 'No published collections',
@@ -119,8 +113,25 @@ export function MyCatalogPage() {
   const { showToast } = useToast();
   const tab = tabFromSearch(searchParams.get('tab'));
   const [postOpen, setPostOpen] = useState(false);
-  const [collectionFilter, setCollectionFilter] = useState<CollectionFilter>('all');
-  const [productFilter, setProductFilter] = useState<ProductFilter>('all');
+  const location = useLocation();
+  const navState = location.state as {
+    productFilter?: ProductFilter;
+    collectionFilter?: CollectionFilter;
+  } | null;
+  const navProductFilter = navState?.productFilter;
+  const navCollectionFilter = navState?.collectionFilter;
+  const initialProductFilter: ProductFilter =
+    navProductFilter && PRODUCT_FILTERS.some((f) => f.id === navProductFilter)
+      ? navProductFilter
+      : 'all';
+  const initialCollectionFilter: CollectionFilter =
+    navCollectionFilter && COLLECTION_FILTERS.some((f) => f.id === navCollectionFilter)
+      ? navCollectionFilter
+      : 'all';
+
+  const [collectionFilter, setCollectionFilter] =
+    useState<CollectionFilter>(initialCollectionFilter);
+  const [productFilter, setProductFilter] = useState<ProductFilter>(initialProductFilter);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
@@ -131,6 +142,12 @@ export function MyCatalogPage() {
       { replace: true },
     );
   };
+
+
+  useEffect(() => {
+    if (!navProductFilter && !navCollectionFilter) return;
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
+  }, [location.pathname, location.search, navProductFilter, navCollectionFilter, navigate]);
 
   const products = useQuery({
     queryKey: ['my-products'],
@@ -153,6 +170,12 @@ export function MyCatalogPage() {
   const filteredCollections = useMemo(() => {
     const rows = collections.data ?? [];
     if (collectionFilter === 'all') return rows;
+    if (collectionFilter === 'draft') {
+      return rows.filter(
+        (row) =>
+          row.status === CollectionStatus.Draft || row.status === CollectionStatus.Ready,
+      );
+    }
     return rows.filter((row) => row.status === collectionFilter);
   }, [collections.data, collectionFilter]);
 
@@ -288,6 +311,7 @@ export function MyCatalogPage() {
     >
       <PageHeader
         title="My designs & collections"
+        onBack={() => navigate('/more')}
         action={
           listCount > 0 ? (
             selecting ? (
@@ -574,7 +598,7 @@ function SellerProductTile({
         <p className="truncate text-sm font-medium text-ink">{product.name}</p>
         <p className="line-clamp-2 text-xs text-muted">{subtitle}</p>
         {auditLine(product) ? (
-          <p className="text-[11px] text-muted/80">{auditLine(product)}</p>
+          <p className="text-[11px] text-muted">{auditLine(product)}</p>
         ) : null}
       </div>
     </>
@@ -692,7 +716,7 @@ function SellerCollectionTile({
       <div className="flex flex-col gap-1 p-3">
         <p className="truncate text-base font-semibold text-ink">{collection.name}</p>
         <p className="line-clamp-2 text-xs text-muted">{subtitle}</p>
-        {whoWhen ? <p className="text-[11px] text-muted/80">{whoWhen}</p> : null}
+        {whoWhen ? <p className="text-[11px] text-muted">{whoWhen}</p> : null}
       </div>
     </>
   );

@@ -16,7 +16,6 @@ export type BuyerGroupName = {
 
 export type CollectionStatusPhase =
   | 'draft'
-  | 'ready'
   | 'scheduled'
   | 'live'
   | 'archived'
@@ -114,20 +113,12 @@ export function collectionStatusSummary(
   groups: BuyerGroupName[] = [],
   now: Date = new Date(),
 ): CollectionStatusSummary {
-  if (collection.status === CollectionStatus.Draft) {
+  if (collection.status === CollectionStatus.Draft || collection.status === CollectionStatus.Ready) {
     return {
       line: 'Draft',
       whoLabel: null,
       scheduleLabel: null,
       phase: 'draft',
-    };
-  }
-  if (collection.status === CollectionStatus.Ready) {
-    return {
-      line: 'Ready for team',
-      whoLabel: null,
-      scheduleLabel: null,
-      phase: 'ready',
     };
   }
   if (collection.status === CollectionStatus.Archived) {

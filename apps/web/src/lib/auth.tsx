@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthSession, SessionUser } from '@ekum/domain-types';
+import { queryClient } from '@/app/queryClient';
+import { clearBrowseShortlist } from '@/features/browse/browseShortlist';
 import { api, getTokens, onTokenChange, setTokens } from './apiClient';
 
 interface SessionState {
@@ -46,11 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!next) {
         setSession(null);
         setStatus('anonymous');
+        queryClient.clear();
       }
     });
   }, [loadMe]);
 
   const login = useCallback((incoming: AuthSession) => {
+    // Drop prior tenant cache so Home never greets the previous company.
+    queryClient.clear();
     setTokens(incoming.tokens);
     setSession({ user: incoming.user, needsOnboarding: incoming.needsOnboarding });
     setStatus('authenticated');
@@ -68,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens(null);
     setSession(null);
     setStatus('anonymous');
+    queryClient.clear();
+    clearBrowseShortlist();
   }, []);
 
   const refreshSession = useCallback(async () => {

@@ -11,6 +11,8 @@ export const DomainEventName = {
   ReturnRequested: 'return.requested',
   ReturnDecided: 'return.decided',
   BroadcastSent: 'broadcast.sent',
+  PaymentRequested: 'payment.requested',
+  PaymentSettled: 'payment.settled',
 } as const;
 
 export interface AccessApprovedEvent {
@@ -23,6 +25,7 @@ export interface OrderCreatedEvent {
   orderId: string;
   buyerCompanyId: string;
   sellerCompanyId: string;
+  facilitatorCompanyId?: string | null;
 }
 
 export interface OrderStatusChangedEvent {
@@ -30,6 +33,7 @@ export interface OrderStatusChangedEvent {
   buyerCompanyId: string;
   sellerCompanyId: string;
   actorCompanyId: string;
+  facilitatorCompanyId?: string | null;
   status: string;
 }
 
@@ -55,4 +59,12 @@ export interface BroadcastSentEvent {
   senderCompanyId: string;
   recipientCompanyIds: string[];
   subject: string;
+}
+
+export interface PaymentAskEvent {
+  paymentRequestId: string;
+  orderId: string;
+  buyerCompanyId: string;
+  sellerCompanyId: string;
+  actorCompanyId?: string;
 }

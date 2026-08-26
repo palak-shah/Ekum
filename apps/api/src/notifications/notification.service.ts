@@ -86,6 +86,28 @@ export class NotificationService {
     return { ok: true };
   }
 
+  async deleteOne(companyId: string, id: string): Promise<{ ok: true }> {
+    await this.prisma.notification.deleteMany({
+      where: { id, recipientCompanyId: companyId },
+    });
+    return { ok: true };
+  }
+
+  /** Removes read notifications from the inbox (keeps unread). */
+  async deleteRead(companyId: string): Promise<{ ok: true; deleted: number }> {
+    const result = await this.prisma.notification.deleteMany({
+      where: { recipientCompanyId: companyId, readAt: { not: null } },
+    });
+    return { ok: true, deleted: result.count };
+  }
+
+  async deleteAll(companyId: string): Promise<{ ok: true; deleted: number }> {
+    const result = await this.prisma.notification.deleteMany({
+      where: { recipientCompanyId: companyId },
+    });
+    return { ok: true, deleted: result.count };
+  }
+
   async getPreferences(userId: string): Promise<NotificationPreferencesView> {
     const preference = await this.prisma.notificationPreference.findUnique({ where: { userId } });
     return {

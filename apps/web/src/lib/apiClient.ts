@@ -177,4 +177,6 @@ export const api = {
   /** Public (unauthenticated) POST — used for OTP request/verify. */
   publicPost: <T>(path: string, body?: unknown) =>
     execute<T>('POST', path, { body, auth: false }, false),
+  publicGet: <T>(path: string, query?: Query) =>
+    execute<T>('GET', path, { query, auth: false }, false),
 };

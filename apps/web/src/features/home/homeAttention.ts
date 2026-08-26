@@ -48,6 +48,109 @@ const KIND_URGENCY: Record<HomeNeedKind, number> = {
   chat_request: 45,
 };
 
+interface OrderNeedDraft {
+  kind: HomeNeedKind;
+  counterpartId: string;
+  counterpartName: string;
+  orderId: string;
+  subtitle: string;
+  sortAt: string;
+}
+
+function orderNeedDraft(order: OrderView): OrderNeedDraft | null {
+  const name = order.counterpart.name;
+  const sortAt = order.updatedAt || order.createdAt;
+  if (sellerNeedsRate(order)) {
+    return {
+      kind: 'send_rate',
+      counterpartId: order.counterpart.id,
+      counterpartName: name,
+      orderId: order.id,
+      subtitle: `${formatOrderQty(order)} · awaiting your rate`,
+      sortAt,
+    };
+  }
+  if (sellerCanConfirm(order)) {
+    return {
+      kind: 'confirm_order',
+      counterpartId: order.counterpart.id,
+      counterpartName: name,
+      orderId: order.id,
+      subtitle: formatOrderQty(order),
+      sortAt,
+    };
+  }
+  if (buyerCanAcceptQuote(order)) {
+    return {
+      kind: 'accept_quote',
+      counterpartId: order.counterpart.id,
+      counterpartName: name,
+      orderId: order.id,
+      subtitle: formatOrderQty(order),
+      sortAt,
+    };
+  }
+  if (sellerNeedsDispatch(order)) {
+    return {
+      kind: 'dispatch',
+      counterpartId: order.counterpart.id,
+      counterpartName: name,
+      orderId: order.id,
+      subtitle: 'ready to send',
+      sortAt,
+    };
+  }
+  if (buyerNeedsDelivery(order)) {
+    return {
+      kind: 'mark_delivered',
+      counterpartId: order.counterpart.id,
+      counterpartName: name,
+      orderId: order.id,
+      subtitle: formatOrderQty(order),
+      sortAt,
+    };
+  }
+  return null;
+}
+
+/** One row per opposite company + action type; count in title when grouped. */
+export function needTitle(kind: HomeNeedKind, count: number, name: string): string {
+  if (count === 1) {
+    switch (kind) {
+      case 'send_rate':
+        return `Order from ${name}`;
+      case 'confirm_order':
+        return `Confirm order · ${name}`;
+      case 'accept_quote':
+        return `Accept quote · ${name}`;
+      case 'dispatch':
+        return `Dispatch to ${name}`;
+      case 'mark_delivered':
+        return `Mark delivered · ${name}`;
+      default:
+        return name;
+    }
+  }
+  switch (kind) {
+    case 'send_rate':
+      return `${count} need rate · ${name}`;
+    case 'confirm_order':
+      return `${count} to confirm · ${name}`;
+    case 'accept_quote':
+      return `${count} quotes · ${name}`;
+    case 'dispatch':
+      return `${count} to dispatch · ${name}`;
+    case 'mark_delivered':
+      return `${count} to mark delivered · ${name}`;
+    default:
+      return `${count} · ${name}`;
+  }
+}
+
+function ordersListLink(counterpartName: string): string {
+  return `/orders?filter=needs&q=${encodeURIComponent(counterpartName)}`;
+}
+
 export function buildHomeNeeds(input: {
   orders: OrderView[];
   returns: ReturnView[];
@@ -56,55 +159,33 @@ export function buildHomeNeeds(input: {
 }): HomeNeedItem[] {
   const items: HomeNeedItem[] = [];
 
+  const orderGroups = new Map<string, OrderNeedDraft[]>();
   for (const order of input.orders) {
-    const name = order.counterpart.name;
-    const sortAt = order.updatedAt || order.createdAt;
-    if (sellerNeedsRate(order)) {
-      items.push({
-        id: `order-rate-${order.id}`,
-        kind: 'send_rate',
-        title: `Order from ${name}`,
-        subtitle: `${formatOrderQty(order)} · awaiting your rate`,
-        to: `/orders/${order.id}`,
-        sortAt,
-      });
-    } else if (sellerCanConfirm(order)) {
-      items.push({
-        id: `order-confirm-${order.id}`,
-        kind: 'confirm_order',
-        title: `Confirm order · ${name}`,
-        subtitle: formatOrderQty(order),
-        to: `/orders/${order.id}`,
-        sortAt,
-      });
-    } else if (buyerCanAcceptQuote(order)) {
-      items.push({
-        id: `order-accept-${order.id}`,
-        kind: 'accept_quote',
-        title: `Accept quote · ${name}`,
-        subtitle: formatOrderQty(order),
-        to: `/orders/${order.id}`,
-        sortAt,
-      });
-    } else if (sellerNeedsDispatch(order)) {
-      items.push({
-        id: `order-dispatch-${order.id}`,
-        kind: 'dispatch',
-        title: `Dispatch to ${name}`,
-        subtitle: 'ready to send',
-        to: `/orders/${order.id}`,
-        sortAt,
-      });
-    } else if (buyerNeedsDelivery(order)) {
-      items.push({
-        id: `order-deliver-${order.id}`,
-        kind: 'mark_delivered',
-        title: `Mark delivered · ${name}`,
-        subtitle: formatOrderQty(order),
-        to: `/orders/${order.id}`,
-        sortAt,
-      });
-    }
+    const draft = orderNeedDraft(order);
+    if (!draft) continue;
+    const key = `${draft.counterpartId}:${draft.kind}`;
+    const list = orderGroups.get(key) ?? [];
+    list.push(draft);
+    orderGroups.set(key, list);
+  }
+
+  for (const group of orderGroups.values()) {
+    const newest = [...group].sort(
+      (a, b) => Date.parse(b.sortAt) - Date.parse(a.sortAt),
+    )[0]!;
+    const n = group.length;
+    const name = newest.counterpartName;
+    items.push({
+      id:
+        n === 1
+          ? `order-${newest.kind}-${newest.orderId}`
+          : `order-group-${newest.counterpartId}-${newest.kind}`,
+      kind: newest.kind,
+      title: needTitle(newest.kind, n, name),
+      subtitle: n === 1 ? newest.subtitle : null,
+      to: n === 1 ? `/orders/${newest.orderId}` : ordersListLink(name),
+      sortAt: newest.sortAt,
+    });
   }
 
   const returnsByCounterpart = new Map<string, ReturnView[]>();

@@ -1,17 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   SUPER_CATEGORY_LABEL,
   SuperCategory,
+  type AuthTokens,
   type CreateCompanyDto,
   type OwnCompanyProfile,
   type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
-import { api, ApiError } from '@/lib/apiClient';
+import { queryClient } from '@/app/queryClient';
+import { api, ApiError, setTokens } from '@/lib/apiClient';
 import { useAuth } from '@/lib/auth';
 import { resolveInviteReturn } from '@/lib/inviteReturn';
 import { OnboardingLayout } from '@/app/OnboardingLayout';
-import { Button, Field, TextInput, cx } from '@/ui/kit';
+import { Button, Field, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
 
 const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
@@ -33,9 +35,40 @@ export function OnboardingPage() {
     [fromState],
   );
 
+  useEffect(() => {
+    if (status !== 'authenticated' || !session) return;
+    if (inviteReturn?.startsWith('/t/')) {
+      navigate(inviteReturn, { replace: true });
+      return;
+    }
+    if (!session.needsOnboarding) {
+      navigate(inviteReturn ?? '/', { replace: true });
+    }
+  }, [status, session, inviteReturn, navigate]);
+
+  if (status === 'loading') {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-canvas">
+        <LoadingBlock label="Starting Ekum…" />
+      </div>
+    );
+  }
+
   if (status === 'anonymous' || !session) {
     navigate('/login', { replace: true });
-    return null;
+    return (
+      <div className="flex min-h-full items-center justify-center bg-canvas">
+        <LoadingBlock label="Starting Ekum…" />
+      </div>
+    );
+  }
+
+  if (!session.needsOnboarding || inviteReturn?.startsWith('/t/')) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-canvas">
+        <LoadingBlock label="Starting Ekum…" />
+      </div>
+    );
   }
 
   const toggle = (value: SuperCategoryType) => {
@@ -59,7 +92,12 @@ export function OnboardingPage() {
         sellCategories: [],
         buyCategories: [],
       };
-      await api.post<OwnCompanyProfile>('/companies', dto);
+      const created = await api.post<{ tokens: AuthTokens; company: OwnCompanyProfile }>(
+        '/companies',
+        dto,
+      );
+      setTokens(created.tokens);
+      queryClient.setQueryData(['company', 'me'], created.company);
       await refreshSession();
       navigate(inviteReturn ?? '/', { replace: true });
     } catch (err) {

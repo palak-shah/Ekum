@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -10,8 +10,11 @@ import { Unit, unitValues } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
+import { ListSquareButton } from '@/ui/ListSearchRow';
+import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
+import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
-import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
+import { Button, Chip, Field, FilterRail, Sheet, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
 import { CameraIcon, PlusIcon } from '@/ui/icons';
 import { useMyCompany } from '@/lib/queries';
@@ -167,6 +170,7 @@ export function DesignBatchPage() {
   const memory = readBatchMemory();
   const phone = isPhoneLike();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraGalleryDraftId, setCameraGalleryDraftId] = useState<string | null>(null);
   const [targetDraftId, setTargetDraftId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -193,6 +197,8 @@ export function DesignBatchPage() {
   const [sheetUnit, setSheetUnit] = useState('');
   const [sheetMoq, setSheetMoq] = useState('');
   const [sheetNotes, setSheetNotes] = useState('');
+  const [sheetDetailMode, setSheetDetailMode] = useState<'same' | 'custom'>('same');
+  const sheetCustomDetailsRef = useRef<HTMLDivElement>(null);
 
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
   const connections = useQuery({
@@ -231,6 +237,16 @@ export function DesignBatchPage() {
     queueMicrotask(() => fileRef.current?.click());
   };
 
+  const openCamera = (draftId: string | null = null) => {
+    if (!draftId && drafts.length >= MAX_DESIGNS) {
+      setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
+      return;
+    }
+    setError(null);
+    setCameraGalleryDraftId(draftId);
+    setCameraOpen(true);
+  };
+
   const openAddPhotos = () => {
     if (drafts.length >= MAX_DESIGNS) {
       setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
@@ -238,7 +254,7 @@ export function DesignBatchPage() {
     }
     setError(null);
     if (phone) {
-      setCameraOpen(true);
+      openCamera(null);
       return;
     }
     openGallery(null);
@@ -247,12 +263,17 @@ export function DesignBatchPage() {
   const onCameraUnavailable = useCallback(() => {
     setCameraOpen(false);
     setError(null);
-    queueMicrotask(() => fileRef.current?.click());
+    setCameraGalleryDraftId((draftId) => {
+      queueMicrotask(() => openGallery(draftId));
+      return null;
+    });
   }, []);
 
-  const openPickerForNew = () => openAddPhotos();
-
   const openPickerForDraft = (draftId: string) => {
+    if (phone) {
+      openCamera(draftId);
+      return;
+    }
     openGallery(draftId);
   };
 
@@ -262,6 +283,7 @@ export function DesignBatchPage() {
     setSheetUnit(draft.overrides.unit ?? sharedUnit);
     setSheetMoq(draft.overrides.moq ?? sharedMoq);
     setSheetNotes(draft.overrides.notes ?? sharedNotes);
+    setSheetDetailMode(hasOverrides(draft.overrides) ? 'custom' : 'same');
     setEditDraftId(draft.id);
   };
 
@@ -451,7 +473,7 @@ export function DesignBatchPage() {
   };
 
   const applySheetDetails = () => {
-    if (!editDraftId) return;
+    if (!editDraftId || sheetDetailMode !== 'custom') return;
     const next: DraftOverrides = {};
     if (sheetCategory !== sharedCategory) next.category = sheetCategory;
     if (sheetRate !== sharedRate) next.rate = sheetRate;
@@ -465,6 +487,7 @@ export function DesignBatchPage() {
 
   const clearSheetOverrides = () => {
     if (!editDraftId) return;
+    setSheetDetailMode('same');
     setSheetCategory(sharedCategory);
     setSheetRate(sharedRate);
     setSheetUnit(sharedUnit);
@@ -474,6 +497,21 @@ export function DesignBatchPage() {
       prev.map((d) => (d.id === editDraftId ? { ...d, overrides: {} } : d)),
     );
   };
+
+  const openSheetCustomDetails = () => {
+    setSheetDetailMode('custom');
+  };
+
+  useEffect(() => {
+    if (!editDraftId || sheetDetailMode !== 'custom') return;
+    const el = sheetCustomDetailsRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+  }, [editDraftId, sheetDetailMode]);
 
   const applyBatchNames = () => {
     const prefix = namePrefix.trim();
@@ -561,7 +599,13 @@ export function DesignBatchPage() {
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       showToast(published ? 'Published' : 'Designs saved');
-      navigate('/catalog', { replace: true });
+      navigate(
+        '/catalog?tab=products',
+        {
+          replace: true,
+          state: published ? { productFilter: 'published' } : { productFilter: 'draft' },
+        },
+      );
     },
     onError: (err) => {
       setProgressLabel(null);
@@ -604,38 +648,57 @@ export function DesignBatchPage() {
     <p className="mb-2 text-base font-semibold text-ink">{title}</p>
   );
 
+  const batchDirty = useMemo(
+    () =>
+      drafts.length > 0 ||
+      drafts.some((draft) => draft.images.some((image) => image.uploading)) ||
+      uploading ||
+      cameraOpen,
+    [drafts, uploading, cameraOpen],
+  );
+  const discard = useDiscardGuard(batchDirty);
+
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <PageHeader title="Add designs" />
+      <DiscardChangesSheet
+        open={discard.confirmOpen}
+        onCancel={discard.cancelLeave}
+        onLeave={discard.confirmLeave}
+      />
+      <PageHeader
+        title="Add Design"
+        onBack={() => discard.tryLeave(() => navigate(-1))}
+      />
 
       {drafts.length === 0 ? (
         <section>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={openAddPhotos}
-              disabled={uploading}
-              className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
-            >
-              <CameraIcon width={36} height={36} className="text-accent" />
-              <span className="text-lg font-semibold text-ink">Add photos</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openGallery(null)}
-              disabled={uploading}
-              className="py-1 text-center text-sm font-medium text-accent"
-            >
-              Choose from gallery
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={openAddPhotos}
+            disabled={uploading}
+            className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
+          >
+            <CameraIcon width={36} height={36} className="text-accent" />
+            <span className="text-lg font-semibold text-ink">Add photos</span>
+          </button>
         </section>
       ) : (
         <>
           <section>
-            {sectionTitle(
-              `Photos · ${drafts.length} design${drafts.length === 1 ? '' : 's'}`,
-            )}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-base font-semibold text-ink">
+                Photos · {drafts.length} design{drafts.length === 1 ? '' : 's'}
+              </p>
+              {drafts.length < MAX_DESIGNS ? (
+                <ListSquareButton
+                  aria-label="Add photos"
+                  disabled={uploading}
+                  onClick={openAddPhotos}
+                >
+                  <CameraIcon width={22} height={22} />
+                </ListSquareButton>
+              ) : null}
+            </div>
             {progressLabel ? (
               <p className="mb-2 text-sm font-medium text-accent">{progressLabel}</p>
             ) : null}
@@ -712,6 +775,9 @@ export function DesignBatchPage() {
                       type="text"
                       value={d.name}
                       onChange={(e) => setName(d.id, e.target.value)}
+                      onFocus={(e) => {
+                        if (!d.nameEdited) e.currentTarget.select();
+                      }}
                       placeholder="Name"
                       disabled={busy}
                       aria-label="Design name"
@@ -720,17 +786,6 @@ export function DesignBatchPage() {
                   </div>
                 );
               })}
-              {!searchQ || !isLarge ? (
-                <button
-                  type="button"
-                  onClick={openPickerForNew}
-                  disabled={uploading || drafts.length >= MAX_DESIGNS}
-                  className="flex aspect-square flex-col items-center justify-center gap-1 self-start rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
-                >
-                  <PlusIcon width={22} height={22} />
-                  <span className="text-xs font-medium">Add</span>
-                </button>
-              ) : null}
             </div>
             {isLarge && searchQ && visibleDrafts.length === 0 ? (
               <p className="mt-2 text-center text-sm text-muted">No designs match that name.</p>
@@ -738,7 +793,7 @@ export function DesignBatchPage() {
           </section>
 
           <section className="rounded-2xl border border-line bg-surface p-4">
-            {sectionTitle('Same for all')}
+            {sectionTitle('Same for all designs')}
             <div className="flex flex-col gap-3">
               <Field label="Category">
                 <SuggestInput
@@ -788,7 +843,7 @@ export function DesignBatchPage() {
             >
               {saveAll.isPending && !publishOpen
                 ? progressLabel || 'Saving…'
-                : `Save ${readyCount || drafts.length} draft${readyCount === 1 ? '' : 's'}`}
+                : `Save ${readyCount || drafts.length} design${(readyCount || drafts.length) === 1 ? '' : 's'} in Draft`}
             </Button>
             <Button
               variant="secondary"
@@ -796,7 +851,7 @@ export function DesignBatchPage() {
               disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
               onClick={() => setPublishOpen(true)}
             >
-              Save & publish…
+              Publish
             </Button>
           </div>
         </>
@@ -863,10 +918,20 @@ export function DesignBatchPage() {
       <ContinuousCamera
         open={cameraOpen}
         maxShots={Math.max(0, MAX_DESIGNS - drafts.length)}
-        onCancel={() => setCameraOpen(false)}
+        onCancel={() => {
+          setCameraOpen(false);
+          setCameraGalleryDraftId(null);
+        }}
         onUnavailable={onCameraUnavailable}
+        onGallery={() => {
+          const draftId = cameraGalleryDraftId;
+          setCameraOpen(false);
+          setCameraGalleryDraftId(null);
+          openGallery(draftId);
+        }}
         onDone={(files) => {
           setCameraOpen(false);
+          setCameraGalleryDraftId(null);
           void onFiles(files);
         }}
       />
@@ -876,6 +941,7 @@ export function DesignBatchPage() {
         onClose={() => {
           applySheetDetails();
           setEditDraftId(null);
+          setSheetDetailMode('same');
         }}
         title="Update this design"
         footer={
@@ -886,6 +952,7 @@ export function DesignBatchPage() {
                 onClick={() => {
                   applySheetDetails();
                   setEditDraftId(null);
+                  setSheetDetailMode('same');
                 }}
               >
                 Done
@@ -903,12 +970,15 @@ export function DesignBatchPage() {
               <TextInput
                 value={editDraft.name}
                 onChange={(e) => setName(editDraft.id, e.target.value)}
+                onFocus={(e) => {
+                  if (!editDraft.nameEdited) e.currentTarget.select();
+                }}
                 placeholder="Design name"
               />
             </Field>
 
             <div>
-              <p className="mb-2 text-sm font-medium text-ink">Photos</p>
+              <p className="mb-2 text-sm font-medium text-ink">More photos for this design</p>
               <div className="grid grid-cols-3 gap-2">
                 {editDraft.images.map((img) => (
                   <div
@@ -943,9 +1013,26 @@ export function DesignBatchPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-line p-3">
-              <p className="mb-2 text-sm font-semibold text-ink">Different details</p>
-              <div className="flex flex-col gap-3">
+            <FilterRail>
+              <Chip
+                active={sheetDetailMode === 'custom'}
+                onClick={() => openSheetCustomDetails()}
+              >
+                Details for this design
+              </Chip>
+              <Chip
+                active={sheetDetailMode === 'same'}
+                onClick={() => clearSheetOverrides()}
+              >
+                Same details for all
+              </Chip>
+            </FilterRail>
+
+            {sheetDetailMode === 'custom' ? (
+              <div
+                ref={sheetCustomDetailsRef}
+                className="flex flex-col gap-3 rounded-xl border border-line p-3"
+              >
                 <Field label="Category">
                   <SuggestInput
                     kind="category"
@@ -983,11 +1070,8 @@ export function DesignBatchPage() {
                     placeholder="e.g. 44 inch, cotton"
                   />
                 </Field>
-                <Button variant="secondary" fullWidth onClick={clearSheetOverrides}>
-                  Use same as all
-                </Button>
               </div>
-            </div>
+            ) : null}
           </div>
         ) : null}
       </Sheet>

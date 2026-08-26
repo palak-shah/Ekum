@@ -1,6 +1,32 @@
 import { Link } from 'react-router-dom';
-import type { CreateOrdersBatchResult } from '@ekum/domain-types';
+import { OrderIntent, type CreateOrdersBatchResult } from '@ekum/domain-types';
 import { Button, Sheet } from '@/ui/kit';
+
+function batchIsInquiry(result: CreateOrdersBatchResult): boolean {
+  return (
+    result.orders.length > 0 &&
+    result.orders.every((order) => order.intent === OrderIntent.Inquiry)
+  );
+}
+
+function batchConfirmTitle(result: CreateOrdersBatchResult): string {
+  const placed = result.orders.length;
+  const attempted = placed + result.failures.length;
+  const inquiry = batchIsInquiry(result);
+
+  if (placed === 0) {
+    return inquiry ? 'Could not send rate requests' : 'Could not place orders';
+  }
+  if (result.failures.length > 0) {
+    return inquiry
+      ? `${placed} of ${attempted} rate requests sent`
+      : `${placed} of ${attempted} orders placed`;
+  }
+  if (placed === 1) {
+    return inquiry ? 'Rate request sent' : '1 order placed';
+  }
+  return inquiry ? `${placed} rate requests sent` : `${placed} orders placed`;
+}
 
 export function BatchOrderConfirmSheet({
   open,
@@ -12,19 +38,10 @@ export function BatchOrderConfirmSheet({
   onClose: () => void;
 }) {
   if (!result) return null;
-  const placed = result.orders.length;
-  const attempted = placed + result.failures.length;
-  const title =
-    placed === 0
-      ? 'Could not place orders'
-      : result.failures.length > 0
-        ? `${placed} of ${attempted} orders placed`
-        : placed === 1
-          ? '1 order placed'
-          : `${placed} orders placed`;
+  const inquiry = batchIsInquiry(result);
 
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    <Sheet open={open} onClose={onClose} title={batchConfirmTitle(result)}>
       <div className="flex flex-col gap-3">
         {result.orders.map((order) => {
           const href = order.threadId ? `/chats/${order.threadId}` : `/orders/${order.id}`;

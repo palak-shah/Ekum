@@ -1,10 +1,12 @@
-import { lazy } from 'react';
+import { lazy, Suspense } from 'react';
 import type { ComponentType } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { RequireAuth } from './RequireAuth';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
+import { LoadingBlock } from '@/ui/kit';
+import { ToastRoot } from '@/ui/Toast';
 
 /**
  * Feature screens are code-split so the first paint (login/onboarding + shell)
@@ -39,6 +41,10 @@ const ProductDetailPage = page(
 );
 const OrdersPage = page(() => import('@/features/orders/OrdersPage'), 'OrdersPage');
 const OrderBuilderPage = page(() => import('@/features/orders/OrderBuilderPage'), 'OrderBuilderPage');
+const OrderInviteLandingPage = page(
+  () => import('@/features/orders/OrderInviteLandingPage'),
+  'OrderInviteLandingPage',
+);
 const OrderDetailPage = page(() => import('@/features/orders/OrderDetailPage'), 'OrderDetailPage');
 const SamplesPage = page(() => import('@/features/orders/SamplesPage'), 'SamplesPage');
 const ReturnsPage = page(() => import('@/features/orders/ReturnsPage'), 'ReturnsPage');
@@ -89,53 +95,78 @@ const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'Set
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
 const SavedPage = page(() => import('@/features/saved/SavedPage'), 'SavedPage');
+const ShareLinkLandingPage = page(
+  () => import('@/features/catalog/ShareLinkLandingPage'),
+  'ShareLinkLandingPage',
+);
+const TeamPage = page(() => import('@/features/team/TeamPage'), 'TeamPage');
+const TeamInviteLandingPage = page(
+  () => import('@/features/team/TeamInviteLandingPage'),
+  'TeamInviteLandingPage',
+);
 
 /** Routing mirrors the settled navigation and the ~40-screen prototype. */
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
-  { path: '/onboarding', element: <OnboardingPage /> },
   {
-    element: <RequireAuth />,
+    element: <ToastRoot />,
     children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/onboarding', element: <OnboardingPage /> },
+      { path: '/s/:token', element: <ShareLinkLandingPage /> },
       {
-        element: <AppShell />,
+        path: '/t/:token',
+        element: (
+          <Suspense fallback={<LoadingBlock label="Opening invite…" />}>
+            <TeamInviteLandingPage />
+          </Suspense>
+        ),
+      },
+      {
+        element: <RequireAuth />,
         children: [
-          { index: true, element: <HomePage /> },
-          { path: 'explore', element: <ExplorePage /> },
-          { path: 'explore/products/:id', element: <ExploreProductPage /> },
-          { path: 'search', element: <SearchPage /> },
-          { path: 'company/:id', element: <CompanyProfilePage /> },
-          { path: 'collections/:id', element: <CollectionViewerPage /> },
-          { path: 'products/:id', element: <ProductDetailPage /> },
-          { path: 'orders', element: <OrdersPage /> },
-          { path: 'orders/new', element: <OrderBuilderPage /> },
-          { path: 'orders/:id', element: <OrderDetailPage /> },
-          { path: 'samples', element: <SamplesPage /> },
-          { path: 'returns', element: <ReturnsPage /> },
-          { path: 'chats', element: <ChatsPage /> },
-          { path: 'chats/:id', element: <ThreadPage /> },
-          { path: 'catalog', element: <MyCatalogPage /> },
-          { path: 'catalog/curate', element: <CuratePackPage /> },
-          { path: 'catalog/products/new', element: <DesignBatchPage /> },
-          { path: 'catalog/products/:id', element: <ProductEditorPage /> },
-          // `new` and real ids share :id so create→edit keeps one component instance.
-          { path: 'catalog/collections/:id', element: <CollectionEditorPage /> },
-          { path: 'buyers', element: <MyBuyersPage /> },
-          { path: 'network', element: <NetworkPage /> },
-          { path: 'network/following', element: <FollowingPage /> },
-          { path: 'network/followers', element: <FollowersPage /> },
-          { path: 'network/connections', element: <ConnectionsPage /> },
-          { path: 'network/requests', element: <RequestsPage /> },
-          { path: 'broadcast', element: <BroadcastPage /> },
-          { path: 'broadcast/new', element: <BroadcastComposePage /> },
-          { path: 'referrals', element: <ReferralsPage /> },
-          { path: 'referrals/new', element: <ReferralComposePage /> },
-          { path: 'r/:token', element: <ReferralLandingPage /> },
-          { path: 'notifications', element: <NotificationsPage /> },
-          { path: 'settings', element: <SettingsPage /> },
-          { path: 'settings/profile', element: <ProfilePage /> },
-          { path: 'saved', element: <SavedPage /> },
-          { path: 'more', element: <MorePage /> },
+          {
+            element: <AppShell />,
+            children: [
+              { index: true, element: <HomePage /> },
+              { path: 'explore', element: <ExplorePage /> },
+              { path: 'explore/products/:id', element: <ExploreProductPage /> },
+              { path: 'search', element: <SearchPage /> },
+              { path: 'company/:id', element: <CompanyProfilePage /> },
+              { path: 'collections/:id', element: <CollectionViewerPage /> },
+              { path: 'products/:id', element: <ProductDetailPage /> },
+              { path: 'orders', element: <OrdersPage /> },
+              { path: 'orders/new', element: <OrderBuilderPage /> },
+              { path: 'orders/:id', element: <OrderDetailPage /> },
+              { path: 'o/:token', element: <OrderInviteLandingPage /> },
+              { path: 'samples', element: <SamplesPage /> },
+              { path: 'returns', element: <ReturnsPage /> },
+              { path: 'chats', element: <ChatsPage /> },
+              { path: 'chats/:id', element: <ThreadPage /> },
+              { path: 'catalog', element: <MyCatalogPage /> },
+              { path: 'catalog/curate', element: <CuratePackPage /> },
+              { path: 'catalog/products/new', element: <DesignBatchPage /> },
+              { path: 'catalog/products/:id', element: <ProductEditorPage /> },
+              // `new` and real ids share :id so create→edit keeps one component instance.
+              { path: 'catalog/collections/:id', element: <CollectionEditorPage /> },
+              { path: 'buyers', element: <MyBuyersPage /> },
+              { path: 'network', element: <NetworkPage /> },
+              { path: 'network/following', element: <FollowingPage /> },
+              { path: 'network/followers', element: <FollowersPage /> },
+              { path: 'network/connections', element: <ConnectionsPage /> },
+              { path: 'network/requests', element: <RequestsPage /> },
+              { path: 'broadcast', element: <BroadcastPage /> },
+              { path: 'broadcast/new', element: <BroadcastComposePage /> },
+              { path: 'referrals', element: <ReferralsPage /> },
+              { path: 'referrals/new', element: <ReferralComposePage /> },
+              { path: 'r/:token', element: <ReferralLandingPage /> },
+              { path: 'notifications', element: <NotificationsPage /> },
+              { path: 'settings', element: <SettingsPage /> },
+              { path: 'settings/profile', element: <ProfilePage /> },
+              { path: 'team', element: <TeamPage /> },
+              { path: 'saved', element: <SavedPage /> },
+              { path: 'more', element: <MorePage /> },
+            ],
+          },
         ],
       },
     ],

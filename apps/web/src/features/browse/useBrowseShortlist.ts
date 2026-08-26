@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   addBrowseShortlistMany,
   clearBrowseShortlist,
@@ -16,9 +16,17 @@ export function useBrowseShortlist() {
     () => [] as BrowseShortlistEntry[],
   );
   const [selectMode, setSelectMode] = useState(() => readBrowseShortlist().length > 0);
+  const prevCountRef = useRef(entries.length);
 
   useEffect(() => {
-    if (entries.length > 0) setSelectMode(true);
+    const prev = prevCountRef.current;
+    prevCountRef.current = entries.length;
+    if (entries.length > 0) {
+      setSelectMode(true);
+    } else if (prev > 0) {
+      // Another surface (e.g. order flow hook) cleared the shared shortlist.
+      setSelectMode(false);
+    }
   }, [entries.length]);
 
   const productIds = useMemo(

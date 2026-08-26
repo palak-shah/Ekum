@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
@@ -9,6 +10,7 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { useToast } from '@/ui/Toast';
 
 export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[] {
   return entries.map(
@@ -25,6 +27,8 @@ export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[
 export function useShortlistOrderFlow() {
   const shortlist = useBrowseShortlist();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
   const [qtyOpen, setQtyOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [result, setResult] = useState<CreateOrdersBatchResult | null>(null);
@@ -71,7 +75,7 @@ export function useShortlistOrderFlow() {
         })),
       });
     },
-    onSuccess: (payload) => {
+    onSuccess: (payload, variables) => {
       setQtyOpen(false);
       setError(null);
       const failedIds = new Set(payload.failures.flatMap((failure) => failure.productIds));
@@ -84,11 +88,31 @@ export function useShortlistOrderFlow() {
       if (removeIds.length > 0) shortlist.removeIds(removeIds);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+
+      const inquiry = variables.intent === OrderIntent.Inquiry;
+      if (inquiry && payload.orders.length === 1 && payload.failures.length === 0) {
+        const order = payload.orders[0]!;
+        showToast('Rate request sent');
+        if (order.threadId) {
+          navigate(`/chats/${order.threadId}`);
+          return;
+        }
+        navigate(`/orders/${order.id}`);
+        return;
+      }
+
       setResult(payload);
       setConfirmOpen(true);
     },
-    onError: (err) => {
-      setError(err instanceof ApiError ? err.message : 'Could not place the order.');
+    onError: (err, variables) => {
+      const inquiry = variables?.intent === OrderIntent.Inquiry;
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : inquiry
+            ? 'Could not ask for rates.'
+            : 'Could not place the order.',
+      );
     },
   });
 

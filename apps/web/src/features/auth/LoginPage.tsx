@@ -59,10 +59,14 @@ export function LoginPage() {
       const session = await api.publicPost<AuthSession>('/auth/otp/verify', { phone, code });
       login(session);
       if (session.needsOnboarding) {
-        navigate('/onboarding', {
-          replace: true,
-          state: inviteReturn ? { from: inviteReturn } : undefined,
-        });
+        if (inviteReturn?.startsWith('/t/')) {
+          navigate(inviteReturn, { replace: true });
+        } else {
+          navigate('/onboarding', {
+            replace: true,
+            state: inviteReturn ? { from: inviteReturn } : undefined,
+          });
+        }
       } else {
         navigate(inviteReturn ?? '/', { replace: true });
       }
@@ -82,7 +86,11 @@ export function LoginPage() {
 
         {inviteReturn ? (
           <div className="mb-6 rounded-xl border border-accent/30 bg-accent/5 px-3.5 py-3 text-center text-sm text-ink">
-            You&apos;ve been invited — sign in to connect.
+            {inviteReturn.startsWith('/s/')
+              ? 'Sign in to open this on Ekum.'
+              : inviteReturn.startsWith('/t/')
+                ? "You've been invited to join a team — sign in to continue."
+                : "You've been invited — sign in to connect."}
           </div>
         ) : null}
 

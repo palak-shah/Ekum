@@ -146,7 +146,7 @@ export function catalogShareSenderLabel(input: {
   const owner = input.ownerCompanyId?.trim();
   const sender = input.senderCompanyId?.trim();
   const isForward = Boolean(owner && sender && owner !== sender);
-  if (input.mine) return isForward ? 'You forwarded' : 'You';
+  if (input.mine) return isForward ? `${input.senderLabel} forwarded` : input.senderLabel;
   if (isForward) return `${input.senderLabel} forwarded`;
   return input.senderLabel;
 }

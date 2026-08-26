@@ -6,7 +6,7 @@ import { LoadingBlock } from '@/ui/kit';
 /**
  * Auth + onboarding gate. Anonymous users go to /login; authenticated users
  * without a company are held on /onboarding until they create one.
- * Invite deep links (`/r/:token`) are stashed so OTP / onboarding can return.
+ * Invite deep links (`/r/:token`, `/t/:token`) are stashed so OTP can return.
  */
 export function RequireAuth() {
   const { status, session } = useAuth();
@@ -31,7 +31,15 @@ export function RequireAuth() {
       <Navigate
         to="/onboarding"
         replace
-        state={{ from: location.pathname.startsWith('/r/') ? location.pathname : undefined }}
+        state={{
+          from:
+            location.pathname.startsWith('/r/') ||
+            location.pathname.startsWith('/o/') ||
+            location.pathname.startsWith('/s/') ||
+            location.pathname.startsWith('/t/')
+              ? location.pathname
+              : undefined,
+        }}
       />
     );
   }

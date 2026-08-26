@@ -5,4 +5,6 @@ export const API_URL = process.env.EKUM_API_URL ?? 'http://127.0.0.1:3000/api/v1
 export const PHONES = {
   ravi: '+919800000001',
   meena: '+919800000002',
+  kavita: '+919800000003',
+  amit: '+919800000004',
 } as const;

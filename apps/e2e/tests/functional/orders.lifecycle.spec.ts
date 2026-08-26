@@ -33,11 +33,11 @@ test.describe('order lifecycle @functional @orders', () => {
     await loginAsMeena(page);
     await page.goto(`/chats/${order.threadId}`);
 
-    const accept = page.getByTestId('accept-quote');
+    const accept = page.getByTestId(`accept-quote-${order.id}`);
     await expect(accept).toBeVisible({ timeout: 15_000 });
     await accept.click();
 
-    await expect(page.getByTestId('accept-quote')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId(`accept-quote-${order.id}`)).toHaveCount(0, { timeout: 15_000 });
     await expect(page.getByText(/Accepted|confirmed|Quote accepted/i).first()).toBeVisible({
       timeout: 15_000,
     });

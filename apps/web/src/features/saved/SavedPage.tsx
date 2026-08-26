@@ -33,6 +33,11 @@ import { savedAlbumImageCount } from './savedAlbumCount';
 import { SAVED_QUERY_KEY, useSavedList } from './useSaveToggle';
 
 type Layout = 'feed' | 'grid';
+type Tab = 'designs' | 'collections';
+
+function tabFromSearch(value: string | null): Tab {
+  return value === 'collections' ? 'collections' : 'designs';
+}
 
 function savedToEntry(item: SavedItemView): BrowseShortlistEntry | null {
   if (item.kind !== 'product' || !item.productId) return null;
@@ -47,22 +52,34 @@ function savedToEntry(item: SavedItemView): BrowseShortlistEntry | null {
 
 export function SavedPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
   const orderFlow = useShortlistOrderFlow();
   const saved = useSavedList();
+  const tab = tabFromSearch(searchParams.get('tab'));
   const [layout, setLayout] = useState<Layout>('grid');
   const [viewer, setViewer] = useState<SavedItemView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [curateOpen, setCurateOpen] = useState(false);
 
-  useEffect(() => {
-    if (searchParams.get('select') === '1') {
-      shortlist.setSelectMode(true);
+  const setTab = (next: Tab) => {
+    if (next === 'collections' && shortlist.selectMode) {
+      shortlist.setSelectMode(false);
     }
-  }, [searchParams]);
+    setSearchParams(next === 'collections' ? { tab: 'collections' } : {}, { replace: true });
+  };
+
+  useEffect(() => {
+    if (searchParams.get('select') !== '1') return;
+    if (tab === 'collections') {
+      setSearchParams({ select: '1' }, { replace: true });
+    }
+    shortlist.setSelectMode(true);
+    // Intentional: only react to URL; shortlist setter is stable enough for this entry path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mirror prior select=1 effect
+  }, [searchParams, tab, setSearchParams]);
 
   const unsave = useMutation({
     mutationFn: (id: string) => api.del(`/saved/${id}`),
@@ -76,6 +93,8 @@ export function SavedPage() {
   });
 
   const productItems = (saved.data ?? []).filter((item) => item.kind === 'product');
+  const collectionItems = (saved.data ?? []).filter((item) => item.kind === 'collection');
+  const tabItems = tab === 'designs' ? productItems : collectionItems;
   const visibleSavedIds = productItems
     .map((item) => item.productId)
     .filter((id): id is string => Boolean(id));
@@ -110,10 +129,14 @@ export function SavedPage() {
   };
 
   const onLongSelectItem = (item: SavedItemView) => {
+    if (tab !== 'designs') return;
     const entry = savedToEntry(item);
     if (!entry) return;
     shortlist.toggle(entry);
   };
+
+  const showSelectChrome = tab === 'designs' && productItems.length > 0;
+  const showLayoutToggle = tabItems.length > 0;
 
   return (
     <div
@@ -125,9 +148,9 @@ export function SavedPage() {
       <PageHeader
         title="Saved"
         action={
-          saved.data && saved.data.length > 0 ? (
+          showSelectChrome || showLayoutToggle ? (
             <div className="flex items-center gap-1">
-              {productItems.length > 0 ? (
+              {showSelectChrome ? (
                 <button
                   type="button"
                   className={cx(
@@ -141,21 +164,23 @@ export function SavedPage() {
                   {shortlist.selectMode ? 'Selecting' : 'Select'}
                 </button>
               ) : null}
-              <button
-                type="button"
-                aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                onClick={() => setLayout((prev) => (prev === 'feed' ? 'grid' : 'feed'))}
-              >
-                {layout === 'feed' ? 'Grid' : 'Feed'}
-              </button>
+              {showLayoutToggle ? (
+                <button
+                  type="button"
+                  aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
+                  onClick={() => setLayout((prev) => (prev === 'feed' ? 'grid' : 'feed'))}
+                >
+                  {layout === 'feed' ? 'Grid' : 'Feed'}
+                </button>
+              ) : null}
             </div>
           ) : null
         }
       />
 
       <SelectAllFloat
-        open={shortlist.selectMode && visibleSavedIds.length > 0}
+        open={tab === 'designs' && shortlist.selectMode && visibleSavedIds.length > 0}
         count={shortlist.count}
         action={selectAll.action}
         onAction={onSelectAllAction}
@@ -168,63 +193,80 @@ export function SavedPage() {
           message="Couldn’t load Saved. Try again."
           onRetry={() => void saved.refetch()}
         />
-      ) : saved.data && saved.data.length > 0 ? (
+      ) : (
         <>
-          {(saved.data ?? []).some((item) => item.kind === 'collection') ? (
-            <p className="text-xs text-muted">
-              Albums open to pick designs. Select designs here (or in albums) then Curate or Order.
-            </p>
-          ) : null}
-          {layout === 'grid' ? (
-            <div className="grid grid-cols-2 gap-3">
-              {saved.data.map((item) => (
-                <SavedGridTile
-                  key={item.id}
-                  item={item}
-                  selected={Boolean(
-                    item.productId && shortlist.productIds.has(item.productId),
-                  )}
-                  selectMode={shortlist.selectMode}
-                  removing={unsave.isPending}
-                  onOpen={() => onActivateItem(item)}
-                  onLongSelect={
-                    item.kind === 'product' ? () => onLongSelectItem(item) : undefined
-                  }
-                  onUnsave={() => unsave.mutate(item.id)}
-                />
-              ))}
-            </div>
+          <div className="flex gap-2">
+            {(['designs', 'collections'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTab(value)}
+                className={cx(
+                  'rounded-full px-4 py-1.5 text-sm font-medium',
+                  tab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
+                )}
+              >
+                {value === 'designs' ? 'Designs' : 'Collections'}
+              </button>
+            ))}
+          </div>
+
+          {tabItems.length > 0 ? (
+            layout === 'grid' ? (
+              <div className="grid grid-cols-2 gap-3">
+                {tabItems.map((item) => (
+                  <SavedGridTile
+                    key={item.id}
+                    item={item}
+                    selected={Boolean(
+                      item.productId && shortlist.productIds.has(item.productId),
+                    )}
+                    selectMode={tab === 'designs' && shortlist.selectMode}
+                    removing={unsave.isPending}
+                    onOpen={() => onActivateItem(item)}
+                    onLongSelect={
+                      item.kind === 'product' ? () => onLongSelectItem(item) : undefined
+                    }
+                    onUnsave={() => unsave.mutate(item.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {tabItems.map((item) => (
+                  <SavedFeedRow
+                    key={item.id}
+                    item={item}
+                    selected={Boolean(
+                      item.productId && shortlist.productIds.has(item.productId),
+                    )}
+                    selectMode={tab === 'designs' && shortlist.selectMode}
+                    removing={unsave.isPending}
+                    onOpen={() => onActivateItem(item)}
+                    onLongSelect={
+                      item.kind === 'product' ? () => onLongSelectItem(item) : undefined
+                    }
+                    onUnsave={() => unsave.mutate(item.id)}
+                  />
+                ))}
+              </div>
+            )
           ) : (
-            <div className="flex flex-col">
-              {saved.data.map((item) => (
-                <SavedFeedRow
-                  key={item.id}
-                  item={item}
-                  selected={Boolean(
-                    item.productId && shortlist.productIds.has(item.productId),
-                  )}
-                  selectMode={shortlist.selectMode}
-                  removing={unsave.isPending}
-                  onOpen={() => onActivateItem(item)}
-                  onLongSelect={
-                    item.kind === 'product' ? () => onLongSelectItem(item) : undefined
-                  }
-                  onUnsave={() => unsave.mutate(item.id)}
-                />
-              ))}
-            </div>
+            <EmptyState
+              title={tab === 'designs' ? 'No bookmarked designs' : 'No bookmarked collections'}
+              message={
+                tab === 'designs'
+                  ? 'Bookmark designs from Explore or inside a collection.'
+                  : 'Bookmark a collection from Explore or a collection page.'
+              }
+              action={
+                <Button variant="secondary" onClick={() => navigate('/explore')}>
+                  Open Explore
+                </Button>
+              }
+            />
           )}
         </>
-      ) : (
-        <EmptyState
-          title="Nothing saved yet"
-          message="Save designs from Explore or Select a few inside a collection."
-          action={
-            <Button variant="secondary" onClick={() => navigate('/explore')}>
-              Open Explore
-            </Button>
-          }
-        />
       )}
 
       <BrowseSelectBar
@@ -273,10 +315,12 @@ export function SavedPage() {
 }
 
 function itemMeta(item: SavedItemView): string {
+  const savedBy = item.savedBy?.name?.trim();
   if (item.kind === 'product') {
     const bits = [item.company.name];
     if (item.sku) bits.push(item.sku);
     bits.push(formatRate(item.rate ?? null, item.unit ?? null));
+    if (savedBy) bits.push(savedBy);
     return bits.join(' · ');
   }
   const bits = [item.company.name];
@@ -285,6 +329,7 @@ function itemMeta(item: SavedItemView): string {
   } else {
     bits.push('Collection');
   }
+  if (savedBy) bits.push(savedBy);
   return bits.join(' · ');
 }
 

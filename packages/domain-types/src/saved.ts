@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { PublicCompanySummary } from './access';
+import type { AuditActorView } from './catalog';
 
 /**
  * Saved references — designs and collections bookmarked for later curate.
@@ -46,6 +47,8 @@ export interface SavedItemView {
   imageCount?: number;
   productCount?: number;
   createdAt: string;
+  /** Staff who saved this for the company (internal). */
+  savedBy: AuditActorView | null;
 }
 
 export type SavedListView = SavedItemView[];

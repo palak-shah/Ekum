@@ -4,6 +4,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { RequirePermission } from '../auth/require-permission';
 import { MediaService } from './media.service';
 
 @Controller({ path: 'media', version: '1' })
@@ -11,6 +12,7 @@ export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post('upload-url')
+  @RequirePermission('uploads')
   createUploadUrl(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -21,6 +23,7 @@ export class MediaController {
 
   @Post(':id/complete')
   @HttpCode(200)
+  @RequirePermission('uploads')
   complete(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.media.complete(companyId, id);
   }

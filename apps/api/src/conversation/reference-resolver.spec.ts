@@ -119,7 +119,7 @@ describe('ReferenceResolver catalog cards', () => {
     expect(reference?.name).toBeNull();
   });
 
-  it('resolves order cards with one thumb per line item', async () => {
+  it('resolves order cards with all line photos for the viewer', async () => {
     const resolver = makeResolver();
     const references = await resolver.resolve(
       [message({ id: 'm3', type: MessageType.OrderCard, referenceId: 'ord1' })],
@@ -127,7 +127,7 @@ describe('ReferenceResolver catalog cards', () => {
     );
     const reference = references.get('m3');
     expect(reference?.kind).toBe('order');
-    expect(reference?.images).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+    expect(reference?.images).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'c2.jpg']);
     expect(reference?.image).toBe('a.jpg');
     expect(reference?.itemCount).toBe(3);
   });
@@ -454,6 +454,40 @@ describe('ReferenceResolver canAcceptQuote live affordance', () => {
       'seller',
     );
     expect(references.get('m-quote')?.canAcceptQuote).toBe(false);
+  });
+});
+
+describe('ReferenceResolver payment cards', () => {
+  it('resolves amount and open status', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: { findMany: async () => [] },
+      paymentRequest: {
+        findMany: async () => [
+          {
+            id: 'pay-1',
+            orderId: 'ord1',
+            amount: { toNumber: () => 2500 },
+            status: 'open',
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma);
+    const references = await resolver.resolve([
+      message({
+        id: 'm-pay',
+        type: MessageType.PaymentCard,
+        referenceId: 'pay-1',
+      }),
+    ]);
+    const reference = references.get('m-pay');
+    expect(reference?.kind).toBe('payment');
+    expect(reference?.name).toBe('Payment · ₹2,500');
+    expect(reference?.status).toBe('open');
+    expect(reference?.totalLabel).toBe('₹2,500');
+    expect(reference?.available).toBe(true);
   });
 });
 

@@ -2,6 +2,8 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTML
 import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
+import { CloseIcon } from '@/ui/icons';
+import { listSquareButtonClass } from '@/ui/ListSearchRow';
 
 export function cx(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
@@ -322,7 +324,17 @@ export function Sheet({
       >
         <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
         {title ? (
-          <h3 className="mb-4 shrink-0 text-base font-bold tracking-tight text-ink">{title}</h3>
+          <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
+            <h3 className="text-base font-bold tracking-tight text-ink">{title}</h3>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              className={cx(listSquareButtonClass, 'text-slate')}
+            >
+              <CloseIcon width={20} height={20} />
+            </button>
+          </div>
         ) : null}
         <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer ? <div className="shrink-0 border-t border-line pt-3 mt-2">{footer}</div> : null}

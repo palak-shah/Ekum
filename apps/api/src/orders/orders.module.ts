@@ -2,9 +2,13 @@ import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { OrderController } from './order.controller';
+import { OrderInviteController } from './order-invite.controller';
+import { BuyForBuyerService } from './buy-for-buyer.service';
 import { SampleController } from './sample.controller';
 import { ReturnController } from './return.controller';
 import { ComplaintController } from './complaint.controller';
+import { OrderPaymentController, PaymentRequestController } from './payment.controller';
+import { PaymentService } from './payment.service';
 import { OrderService } from './order.service';
 import { SampleService } from './sample.service';
 import { ReturnService } from './return.service';
@@ -20,12 +24,22 @@ import { TradeAccess } from './trade-access';
  */
 @Module({
   imports: [AccessModule, ConversationModule],
-  controllers: [OrderController, SampleController, ReturnController, ComplaintController],
+  controllers: [
+    OrderController,
+    OrderInviteController,
+    SampleController,
+    ReturnController,
+    ComplaintController,
+    OrderPaymentController,
+    PaymentRequestController,
+  ],
   providers: [
     OrderService,
+    BuyForBuyerService,
     SampleService,
     ReturnService,
     ComplaintService,
+    PaymentService,
     OrderSerializer,
     TradeAccess,
   ],

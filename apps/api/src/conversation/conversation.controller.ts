@@ -30,9 +30,11 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { RequirePermission } from '../auth/require-permission';
 import { ThreadService } from './thread.service';
 import { MessageService } from './message.service';
 
+@RequirePermission('chats')
 @Controller({ path: 'threads', version: '1' })
 export class ConversationController {
   constructor(
@@ -46,7 +48,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Body(new ZodValidationPipe(startDirectThreadSchema)) dto: StartDirectThreadDto,
   ) {
-    return this.threads.startDirect(companyId, user.role, dto);
+    return this.threads.startDirect(companyId, user.role, dto, user.userId);
   }
 
   @Post('group')
@@ -55,7 +57,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Body(new ZodValidationPipe(createGroupThreadSchema)) dto: CreateGroupThreadDto,
   ) {
-    return this.threads.createGroup(companyId, user.role, dto);
+    return this.threads.createGroup(companyId, user.role, dto, user.userId);
   }
 
   @Get()
@@ -64,7 +66,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Query(new ZodValidationPipe(listThreadsQuerySchema)) query: ListThreadsQuery,
   ) {
-    return this.threads.list(companyId, user.role, query);
+    return this.threads.list(companyId, user.role, query, user.userId);
   }
 
   @Post('read-all')
@@ -87,27 +89,25 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
   ) {
-    return this.threads.get(companyId, user.role, id);
+    return this.threads.get(companyId, user.role, id, user.userId);
   }
 
   @Get(':id/messages')
   listMessages(
-    @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Query(new ZodValidationPipe(listThreadMessagesQuerySchema)) query: ListThreadMessagesQuery,
   ) {
-    return this.messages.list(companyId, user.role, id, query);
+    return this.messages.list(user, id, query);
   }
 
   @Post(':id/messages')
   send(
-    @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(sendMessageSchema)) dto: SendMessageDto,
   ) {
-    return this.messages.send(companyId, user.role, id, dto);
+    return this.messages.send(user, id, dto);
   }
 
   @Post(':id/read')
@@ -117,7 +117,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
   ) {
-    return this.threads.markRead(companyId, user.role, id);
+    return this.threads.markRead(companyId, user.role, id, user.userId);
   }
 
   @Patch(':id/alert')
@@ -127,7 +127,7 @@ export class ConversationController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(setAlertLevelSchema)) dto: SetAlertLevelDto,
   ) {
-    return this.threads.setAlertLevel(companyId, user.role, id, dto);
+    return this.threads.setAlertLevel(companyId, user.role, id, dto, user.userId);
   }
 
   @Patch(':id/pin')
@@ -137,7 +137,7 @@ export class ConversationController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(setThreadPinnedSchema)) dto: SetThreadPinnedDto,
   ) {
-    return this.threads.setPinned(companyId, user.role, id, dto);
+    return this.threads.setPinned(companyId, user.role, id, dto, user.userId);
   }
 
   @Post(':id/accept')
@@ -147,7 +147,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
   ) {
-    return this.threads.accept(companyId, user.role, id);
+    return this.threads.accept(companyId, user.role, id, user.userId);
   }
 
   @Post(':id/decline')
@@ -177,6 +177,6 @@ export class ConversationController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(addParticipantsSchema)) dto: AddParticipantsDto,
   ) {
-    return this.threads.addParticipants(companyId, user.role, id, dto);
+    return this.threads.addParticipants(companyId, user.role, id, dto, user.userId);
   }
 }

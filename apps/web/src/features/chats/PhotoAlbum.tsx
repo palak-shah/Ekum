@@ -14,12 +14,14 @@ function Cell({
   onClick,
   overlay,
   rounded,
+  overlayClass,
 }: {
   src: string;
   className?: string;
   onClick: () => void;
   overlay?: string;
   rounded?: string;
+  overlayClass?: string;
 }) {
   return (
     <button
@@ -31,7 +33,10 @@ function Cell({
       {overlay ? (
         <span
           data-testid="photo-album-overflow"
-          className="absolute inset-0 flex items-center justify-center bg-ink/55 text-2xl font-semibold text-white"
+          className={cx(
+            'absolute inset-0 flex items-center justify-center bg-ink/55 font-semibold text-white',
+            overlayClass ?? 'text-2xl',
+          )}
         >
           {overlay}
         </span>
@@ -40,18 +45,23 @@ function Cell({
   );
 }
 
+/** Full = photo messages; compact = share cards (~40% linear for denser threads). */
 export function PhotoAlbum({
   urls,
   /** Extra items beyond `urls` (e.g. more designs in a collection than preview thumbs). */
   overflowCount = 0,
+  size = 'full',
 }: {
   urls: string[];
   overflowCount?: number;
+  size?: 'full' | 'compact';
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Drop blanks so a bad reference never throws through the router error boundary.
   const clean = urls.filter((url): url is string => Boolean(url));
   const preview = clean.slice(0, 4);
+  const compact = size === 'compact';
+  const overlayClass = compact ? 'text-sm' : 'text-2xl';
 
   if (clean.length === 0) return null;
 
@@ -72,12 +82,15 @@ export function PhotoAlbum({
         <img
           src={urlAt(preview, 0)}
           alt=""
-          className="max-h-72 w-full object-cover"
+          className={cx('w-full object-cover', compact ? 'max-h-28' : 'max-h-72')}
         />
         {moreLabel ? (
           <span
             data-testid="photo-album-overflow"
-            className="absolute inset-0 flex items-center justify-center bg-ink/55 text-2xl font-semibold text-white"
+            className={cx(
+              'absolute inset-0 flex items-center justify-center bg-ink/55 font-semibold text-white',
+              overlayClass,
+            )}
           >
             {moreLabel}
           </span>
@@ -86,47 +99,79 @@ export function PhotoAlbum({
     );
   } else if (count === 2) {
     grid = (
-      <div className="grid h-40 grid-cols-2" style={{ gap: GUTTER }}>
-        <Cell src={urlAt(preview, 0)} onClick={() => open(0)} rounded="rounded-l-2xl" />
+      <div className={cx('grid grid-cols-2', compact ? 'h-16' : 'h-40')} style={{ gap: GUTTER }}>
+        <Cell
+          src={urlAt(preview, 0)}
+          onClick={() => open(0)}
+          rounded="rounded-l-2xl"
+          overlayClass={overlayClass}
+        />
         <Cell
           src={urlAt(preview, 1)}
           onClick={() => open(1)}
           rounded="rounded-r-2xl"
           overlay={moreLabel}
+          overlayClass={overlayClass}
         />
       </div>
     );
   } else if (count === 3) {
     grid = (
-      <div className="grid h-52 grid-cols-2" style={{ gap: GUTTER }}>
+      <div className={cx('grid grid-cols-2', compact ? 'h-20' : 'h-52')} style={{ gap: GUTTER }}>
         <Cell
           src={urlAt(preview, 0)}
           onClick={() => open(0)}
           rounded="rounded-l-2xl"
           className="row-span-2"
+          overlayClass={overlayClass}
         />
         <div className="grid h-full grid-rows-2" style={{ gap: GUTTER }}>
-          <Cell src={urlAt(preview, 1)} onClick={() => open(1)} rounded="rounded-tr-2xl" />
+          <Cell
+            src={urlAt(preview, 1)}
+            onClick={() => open(1)}
+            rounded="rounded-tr-2xl"
+            overlayClass={overlayClass}
+          />
           <Cell
             src={urlAt(preview, 2)}
             onClick={() => open(2)}
             rounded="rounded-br-2xl"
             overlay={moreLabel}
+            overlayClass={overlayClass}
           />
         </div>
       </div>
     );
   } else {
     grid = (
-      <div className="grid h-52 grid-cols-2 grid-rows-2" style={{ gap: GUTTER }}>
-        <Cell src={urlAt(preview, 0)} onClick={() => open(0)} rounded="rounded-tl-2xl" />
-        <Cell src={urlAt(preview, 1)} onClick={() => open(1)} rounded="rounded-tr-2xl" />
-        <Cell src={urlAt(preview, 2)} onClick={() => open(2)} rounded="rounded-bl-2xl" />
+      <div
+        className={cx('grid grid-cols-2 grid-rows-2', compact ? 'h-20' : 'h-52')}
+        style={{ gap: GUTTER }}
+      >
+        <Cell
+          src={urlAt(preview, 0)}
+          onClick={() => open(0)}
+          rounded="rounded-tl-2xl"
+          overlayClass={overlayClass}
+        />
+        <Cell
+          src={urlAt(preview, 1)}
+          onClick={() => open(1)}
+          rounded="rounded-tr-2xl"
+          overlayClass={overlayClass}
+        />
+        <Cell
+          src={urlAt(preview, 2)}
+          onClick={() => open(2)}
+          rounded="rounded-bl-2xl"
+          overlayClass={overlayClass}
+        />
         <Cell
           src={urlAt(preview, 3)}
           onClick={() => open(3)}
           rounded="rounded-br-2xl"
           overlay={moreLabel}
+          overlayClass={overlayClass}
         />
       </div>
     );
@@ -134,7 +179,9 @@ export function PhotoAlbum({
 
   return (
     <>
-      <div className="w-full max-w-[280px] overflow-hidden">{grid}</div>
+      <div className={cx('overflow-hidden', compact ? 'w-[120px]' : 'w-full max-w-[280px]')}>
+        {grid}
+      </div>
       <PhotoViewer
         open={viewerIndex !== null}
         urls={clean}

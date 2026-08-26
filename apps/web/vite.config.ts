@@ -1,8 +1,45 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const SHARE_LINK_BOT =
+  /WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|Slackbot|LinkedInBot/i;
+
+function shareLinkOgMiddleware(
+  webEnv: Record<string, string>,
+  rootEnv: Record<string, string>,
+) {
+  const apiBase = (
+    webEnv.VITE_API_BASE_URL ||
+    rootEnv.VITE_API_BASE_URL ||
+    'http://localhost:3000/api/v1'
+  ).replace(/\/$/, '');
+
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const path = req.url?.split('?')[0] ?? '';
+    const match = path.match(/^\/s\/([^/]+)$/);
+    if (!match || !SHARE_LINK_BOT.test(req.headers['user-agent'] ?? '')) {
+      next();
+      return;
+    }
+    try {
+      const card = await fetch(`${apiBase}/share-links/${match[1]}/card`);
+      if (!card.ok) {
+        next();
+        return;
+      }
+      const html = await card.text();
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(html);
+    } catch {
+      next();
+    }
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const webDir = fileURLToPath(new URL('.', import.meta.url));
@@ -21,6 +58,15 @@ export default defineConfig(({ mode }) => {
       name: 'ekum-html-public-origin',
       transformIndexHtml(html) {
         return html.replaceAll('%VITE_PUBLIC_ORIGIN%', publicOrigin);
+      },
+    },
+    {
+      name: 'ekum-share-link-og',
+      configureServer(server) {
+        server.middlewares.use(shareLinkOgMiddleware(webEnv, rootEnv));
+      },
+      configurePreviewServer(server) {
+        server.middlewares.use(shareLinkOgMiddleware(webEnv, rootEnv));
       },
     },
     react(),

@@ -8,6 +8,7 @@ import {
   type MessageSentEvent,
   type OrderCreatedEvent,
   type OrderStatusChangedEvent,
+  type PaymentAskEvent,
   type ReturnEvent,
 } from '../events/domain-events';
 import { NotificationService } from './notification.service';
@@ -118,6 +119,37 @@ export class NotificationListeners {
         body: 'New broadcast from a business you follow.',
         refType: 'broadcast',
         refId: event.broadcastId,
+      }),
+    );
+  }
+
+  @OnEvent(DomainEventName.PaymentRequested)
+  async onPaymentRequested(event: PaymentAskEvent): Promise<void> {
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId: event.buyerCompanyId,
+        type: NotificationType.Order,
+        title: 'Payment asked',
+        body: 'A business asked for payment on an order.',
+        refType: 'order',
+        refId: event.orderId,
+      }),
+    );
+  }
+
+  @OnEvent(DomainEventName.PaymentSettled)
+  async onPaymentSettled(event: PaymentAskEvent): Promise<void> {
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId:
+          event.actorCompanyId === event.sellerCompanyId
+            ? event.buyerCompanyId
+            : event.sellerCompanyId,
+        type: NotificationType.Order,
+        title: 'Payment marked paid',
+        body: 'A payment ask was marked paid.',
+        refType: 'order',
+        refId: event.orderId,
       }),
     );
   }

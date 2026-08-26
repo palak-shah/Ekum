@@ -8,7 +8,7 @@ import {
 export type CollectionBadgeInput = CollectionSummaryInput;
 
 export type CollectionBadge = {
-  /** Primary: Draft / Ready / Starts… / Live / Archived */
+  /** Primary: Draft / Starts… / Live / Archived */
   primary: string;
   /** Secondary: Evergreen or Ends… when Live */
   secondary: string | null;
@@ -20,11 +20,8 @@ export function collectionScheduleBadge(
   now: Date = new Date(),
 ): CollectionBadge {
   const summary = collectionStatusSummary(collection, [], now);
-  if (collection.status === CollectionStatus.Draft) {
+  if (collection.status === CollectionStatus.Draft || collection.status === CollectionStatus.Ready) {
     return { primary: 'Draft', secondary: null };
-  }
-  if (collection.status === CollectionStatus.Ready) {
-    return { primary: 'Ready', secondary: null };
   }
   if (collection.status === CollectionStatus.Archived) {
     return { primary: 'Archived', secondary: null };

@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
 import { TokenService } from './token.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PermissionGuard } from './require-permission';
 
 @Module({
   imports: [
@@ -24,8 +25,10 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
     AuthService,
     OtpService,
     TokenService,
+    PermissionGuard,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
   ],
-  exports: [TokenService],
+  exports: [TokenService, PermissionGuard],
 })
 export class AuthModule {}

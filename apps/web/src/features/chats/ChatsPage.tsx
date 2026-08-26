@@ -1,37 +1,44 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CursorPage, ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useTeamCaps } from '@/lib/teamCaps';
 import { timeAgo } from '@/lib/format';
 import { Avatar, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { PinIcon, PlusIcon } from '@/ui/icons';
-import { chatTypeMeta, messagePreviewSearchBlob, messagePreviewText } from './messagePreview';
+import { threadDisplayTitle } from './chatsListSearch';
+import { chatTypeMeta, messagePreviewText } from './messagePreview';
 import { StartChatSheet } from './StartChatSheet';
 
 type Tab = 'active' | 'requests';
 
 const TAB_LABEL: Record<Tab, string> = {
-  active: 'Chats',
-  requests: 'New',
+  active: 'All Chats',
+  requests: 'Requests Received',
 };
 
 export function ChatsPage() {
   const queryClient = useQueryClient();
+  const { can } = useTeamCaps();
+  const canChat = can('chats');
   const [tab, setTab] = useState<Tab>('active');
   const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query.trim());
   const [readAllError, setReadAllError] = useState<string | null>(null);
   const [startOpen, setStartOpen] = useState(false);
 
   const threads = useQuery({
-    queryKey: ['threads', { tab }],
+    queryKey: ['threads', { tab, q: deferredQuery || undefined }],
     queryFn: () =>
       api.get<CursorPage<ThreadSummary>>('/threads', {
         limit: 40,
         state: tab === 'requests' ? 'pending' : 'active',
+        ...(deferredQuery ? { q: deferredQuery } : {}),
       }),
-    refetchInterval: 5_000,
+    refetchInterval: deferredQuery ? false : 5_000,
+    placeholderData: (previous) => previous,
   });
 
   const readAll = useMutation({
@@ -46,18 +53,9 @@ export function ChatsPage() {
       setReadAllError(err instanceof ApiError ? err.message : 'Could not mark chats read.'),
   });
 
-  const filtered = useMemo(() => {
-    const rows = threads.data?.results ?? [];
-    const needle = query.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((thread) => {
-      const title = (thread.title ?? thread.counterpart?.name ?? '').toLowerCase();
-      const preview = messagePreviewSearchBlob(thread.lastMessage);
-      return title.includes(needle) || preview.includes(needle);
-    });
-  }, [threads.data?.results, query]);
-
-  const hasUnread = (threads.data?.results ?? []).some((thread) => thread.unreadCount > 0);
+  const list = threads.data?.results ?? [];
+  const hasUnread = list.some((thread) => thread.unreadCount > 0);
+  const searching = Boolean(deferredQuery);
 
   return (
     <div className="flex flex-col gap-3">
@@ -73,9 +71,11 @@ export function ChatsPage() {
           />
         }
         action={
-          <ListSquareButton aria-label="New chat" onClick={() => setStartOpen(true)}>
-            <PlusIcon width={20} height={20} />
-          </ListSquareButton>
+          canChat ? (
+            <ListSquareButton aria-label="New chat" onClick={() => setStartOpen(true)}>
+              <PlusIcon width={20} height={20} />
+            </ListSquareButton>
+          ) : undefined
         }
       />
 
@@ -93,7 +93,7 @@ export function ChatsPage() {
             {TAB_LABEL[value]}
           </button>
         ))}
-        {hasUnread ? (
+        {hasUnread && !searching ? (
           <button
             type="button"
             disabled={readAll.isPending}
@@ -106,32 +106,32 @@ export function ChatsPage() {
       </div>
       {readAllError ? <p className="text-center text-sm text-danger">{readAllError}</p> : null}
 
-      {threads.isLoading ? (
+      {threads.isLoading && !threads.data ? (
         <LoadingBlock />
-      ) : filtered.length > 0 ? (
+      ) : list.length > 0 ? (
         <div className="-mx-4 overflow-hidden border-y border-line bg-surface">
-          {filtered.map((thread) => (
+          {list.map((thread) => (
             <ThreadRow key={thread.id} thread={thread} />
           ))}
         </div>
       ) : (
         <EmptyState
           title={
-            query.trim()
+            searching
               ? 'No matches'
               : tab === 'requests'
-                ? 'No new messages'
+                ? 'No requests received'
                 : 'No chats yet'
           }
           message={
-            query.trim()
-              ? 'Try another name or message.'
+            searching
+              ? 'Try another name, order, or message.'
               : tab === 'requests'
-                ? 'New messages from businesses you don’t know yet land here.'
+                ? 'Messages from businesses you don’t know yet land here.'
                 : 'Find a business to start chatting.'
           }
           action={
-            !query.trim() && tab === 'active' ? (
+            !searching && tab === 'active' ? (
               <button
                 type="button"
                 onClick={() => setStartOpen(true)}
@@ -150,14 +150,19 @@ export function ChatsPage() {
 }
 
 function ThreadRow({ thread }: { thread: ThreadSummary }) {
-  const title = thread.title ?? thread.counterpart?.name ?? 'Conversation';
-  const preview = messagePreviewText(thread.lastMessage);
-  const meta = thread.lastMessage ? chatTypeMeta(thread.lastMessage.type) : null;
+  const title = threadDisplayTitle(thread);
+  const whyLine = thread.searchHitPreview?.trim() || null;
+  const preview = whyLine ?? messagePreviewText(thread.lastMessage);
+  const meta = !whyLine && thread.lastMessage ? chatTypeMeta(thread.lastMessage.type) : null;
   const PreviewIcon = meta?.Icon;
+  const to =
+    whyLine && thread.searchHitMessageId
+      ? `/chats/${thread.id}?message=${encodeURIComponent(thread.searchHitMessageId)}`
+      : `/chats/${thread.id}`;
 
   return (
     <Link
-      to={`/chats/${thread.id}`}
+      to={to}
       className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-foam active:bg-foam"
     >
       <Avatar name={title} imageUrl={thread.counterpart?.logoUrl} />

@@ -46,6 +46,8 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
       return { kind: 'photo', label: 'Photo', Icon: CameraIcon };
     case 'return_card':
       return { kind: 'return', label: 'Return', Icon: ReturnIcon };
+    case 'payment_card':
+      return { kind: 'order', label: 'Payment', Icon: OrdersIcon };
     case 'document':
       return { kind: 'document', label: 'Document', Icon: DocumentIcon };
     case 'text':
@@ -53,6 +55,19 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
     default:
       return { kind: 'other', label: 'Attachment', Icon: DocumentIcon };
   }
+}
+
+/** Outbound label for your company's messages: teammate name or You. */
+export function outboundMessageLabel(message: MessageView): string {
+  return message.actor?.name?.trim() || 'You';
+}
+
+/** Minimal in-card sender: teammate on outgoing; business name on incoming. */
+export function inCardSenderLine(message: MessageView, partyLabel: string): string | null {
+  if (message.mine) {
+    return message.actor?.name?.trim() || null;
+  }
+  return partyLabel.trim() || null;
 }
 
 /** Action-aware one-line preview for the chats inbox. */
@@ -76,6 +91,9 @@ export function messagePreviewText(message: MessageView | null | undefined): str
     case 'collection_card':
       core = name ? `Shared: ${name}` : 'Shared a card';
       break;
+    case 'payment_card':
+      core = name || 'Payment';
+      break;
     case 'order_card':
     case 'rate': {
       core = orderMessagePreviewCore(message) ?? (message.type === 'rate' ? 'Quote' : 'Order update');
@@ -94,7 +112,7 @@ export function messagePreviewText(message: MessageView | null | undefined): str
       core = name || 'Shared a card';
   }
 
-  return message.mine ? `You: ${core}` : core;
+  return message.mine ? `${outboundMessageLabel(message)} · ${core}` : core;
 }
 
 export function messagePreviewSearchBlob(message: MessageView | null | undefined): string {

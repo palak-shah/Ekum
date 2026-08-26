@@ -269,6 +269,7 @@ export const MessageType = {
   OrderCard: 'order_card',
   Rate: 'rate',
   System: 'system',
+  PaymentCard: 'payment_card',
 } as const;
 export type MessageType = (typeof MessageType)[keyof typeof MessageType];
 export const messageTypeValues = values(MessageType);
@@ -286,6 +287,14 @@ export const NotificationType = {
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 export const notificationTypeValues = values(NotificationType);
+
+export const PaymentRequestStatus = {
+  Open: 'open',
+  Paid: 'paid',
+  Cancelled: 'cancelled',
+} as const;
+export type PaymentRequestStatus = (typeof PaymentRequestStatus)[keyof typeof PaymentRequestStatus];
+export const paymentRequestStatusValues = values(PaymentRequestStatus);
 
 /** Phase 1 broadcast sends immediately; scheduling/tiering is Phase 2. */
 export const BroadcastStatus = {

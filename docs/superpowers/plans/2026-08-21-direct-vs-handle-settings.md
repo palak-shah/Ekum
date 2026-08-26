@@ -281,11 +281,11 @@ git commit -m "feat: Shared and Take over copy; Direct multi-seller confirm"
 
 **Produces:** Spec desk verbs; soft-hide unchanged.
 
-- [ ] **Step 1: Spec visibility rule** — `requireOrder` denies supplier while `upstreamReleaseAt` null (or status `held`).
+- [x] **Step 1: Spec visibility rule** — `requireOrder` denies supplier while `upstreamReleaseAt` null (or status `held`).
 
-- [ ] **Step 2: API Send-up with optional line rate/qty patches.
+- [x] **Step 2: API Send-up with optional line rate/qty patches.
 
-- [ ] **Step 3: Web desk CTAs**.
+- [x] **Step 3: Web desk CTAs**.
 
 - [ ] **Step 4: Live test** — Handle path: Kavita 404/empty until Ravi Send.
 

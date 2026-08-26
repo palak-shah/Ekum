@@ -33,6 +33,7 @@ const MEENA = 'seed-company-meena';
 /** Peer supplier so Ravi (who owns the main catalog) still has Explore posts. */
 const KAVITA = 'seed-company-kavita';
 const U_RAVI = 'seed-user-ravi';
+const U_RAVI_STAFF = 'seed-user-ravi-staff';
 const U_MEENA = 'seed-user-meena';
 const U_KAVITA = 'seed-user-kavita';
 
@@ -42,6 +43,12 @@ async function main(): Promise<void> {
     where: { id: U_RAVI },
     create: { id: U_RAVI, phone: '+919800000001', name: 'Ravi' },
     update: { name: 'Ravi' },
+  });
+  // Staff on Surat Silk House — OTP +919800000004 (no uploads / payments).
+  await prisma.user.upsert({
+    where: { id: U_RAVI_STAFF },
+    create: { id: U_RAVI_STAFF, phone: '+919800000004', name: 'Amit' },
+    update: { name: 'Amit' },
   });
   await prisma.user.upsert({
     where: { id: U_MEENA },
@@ -137,6 +144,29 @@ async function main(): Promise<void> {
       displayPhone: '+919800000001',
     },
     update: { showPhone: true, displayPhone: '+919800000001' },
+  });
+  await prisma.companyMembership.upsert({
+    where: { userId_companyId: { userId: U_RAVI_STAFF, companyId: RAVI } },
+    create: {
+      id: 'seed-mem-ravi-staff',
+      userId: U_RAVI_STAFF,
+      companyId: RAVI,
+      role: 'staff',
+      contactRole: 'Sales assistant',
+      canUploads: false,
+      canChats: true,
+      canOrders: true,
+      canPayments: false,
+      canTeam: false,
+    },
+    update: {
+      role: 'staff',
+      canUploads: false,
+      canChats: true,
+      canOrders: true,
+      canPayments: false,
+      canTeam: false,
+    },
   });
   await prisma.companyMembership.upsert({
     where: { userId_companyId: { userId: U_MEENA, companyId: MEENA } },
@@ -575,15 +605,43 @@ async function main(): Promise<void> {
     });
   }
   const messages = [
-    { id: 'seed-msg-1', senderCompanyId: MEENA, type: MessageType.Text, body: 'Hi Ravi, loved the new wedding edit!', referenceId: null },
-    { id: 'seed-msg-2', senderCompanyId: RAVI, type: MessageType.CollectionCard, body: null, referenceId: 'seed-col-1' },
-    { id: 'seed-msg-3', senderCompanyId: MEENA, type: MessageType.Text, body: 'Sending an order now.', referenceId: null },
+    {
+      id: 'seed-msg-1',
+      senderCompanyId: MEENA,
+      senderUserId: U_MEENA,
+      senderName: 'Meena',
+      type: MessageType.Text,
+      body: 'Hi Ravi, loved the new wedding edit!',
+      referenceId: null,
+    },
+    {
+      id: 'seed-msg-2',
+      senderCompanyId: RAVI,
+      senderUserId: U_RAVI,
+      senderName: 'Ravi',
+      type: MessageType.CollectionCard,
+      body: null,
+      referenceId: 'seed-col-1',
+    },
+    {
+      id: 'seed-msg-3',
+      senderCompanyId: MEENA,
+      senderUserId: U_MEENA,
+      senderName: 'Meena',
+      type: MessageType.Text,
+      body: 'Sending an order now.',
+      referenceId: null,
+    },
   ];
   for (const message of messages) {
     await prisma.message.upsert({
       where: { id: message.id },
       create: { ...message, threadId: 'seed-thread-1' },
-      update: { body: message.body },
+      update: {
+        body: message.body,
+        senderUserId: message.senderUserId,
+        senderName: message.senderName,
+      },
     });
   }
 

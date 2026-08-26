@@ -15,16 +15,16 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 1. Open `/catalog` → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
 2. Filters: All / Draft / Published / Archived. Tiles show rate · SKU · photo count · `Published · who` (or Draft/Archived), plus a short staff audit line when known.
 3. **Select** / long-press → floating **Select all** / **Clear** (this filter) → Publish / Archive / Restore on the dock.
-4. Open a design → editor. Back returns to Designs tab.
+4. Open a design → editor. Back returns to Designs tab. After **Publish** or **Save in Draft** from Add Design batch, app opens **My designs** (Designs tab with **Published** or **Draft** filter). Add Design photo grid shows a top-right camera button to add more (same as photo order).
 
 ### Batch add designs
 
-**＋ → Add designs** — phone: continuous in-app camera (torch/zoom when supported) or gallery multi-select; desktop: file multi-select. Then photo grid (name under each thumb; tap photo → update sheet) → **Same for all** (category, rate, unit, MOQ, notes — category/unit pre-filled from last save) → **Save drafts** or **Save & publish…** (audience sheet). One photo ≈ one design. (Single-design path: `/catalog/products/new`.)
+**＋ → Add designs** — opens **Add Design** (`/catalog/products/new`): phone continuous camera or gallery multi-select; desktop file multi-select. Photo grid (auto name under each thumb — focus selects default text for easy replace; tap photo → **Update this design** sheet with **More photos for this design** and chips **Details for this design** / **Same details for all**) → page **Same for all designs** (category, rate, unit, MOQ, notes — category/unit pre-filled from last save) → **Save N designs in Draft** or **Publish** (audience sheet). One photo ≈ one design; each becomes a single catalog row (`draft` or `published`, never two copies). Single-design editor: `/catalog/products/:id`.
 
 ### Edit & publish a design
 
 1. Open design → photos first; **Name**, rate, unit, MOQ; **More details** for SKU / categories / notes.
-2. Status line under title (tap → Visibility when published). Sticky dock: **Save** · **Publish** / **Visibility**.
+2. Status line under title (tap → Visibility when published). Sticky dock: **Update** · **Publish** / **Visibility**.
 3. Publish sheet: Who (Everyone / Connections / Followers / Selected) / rates / forward. First time: consent. Publish = Explore for that audience.
 4. **⋯**: Hide → draft, Archive. Restore from archived.
 

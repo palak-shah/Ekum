@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Company, Message, Thread, ThreadParticipant } from '@prisma/client';
 import {
   ThreadType,
+  type AuditActorView,
   type MessageReference,
   type MessageReplyPreview,
   type MessageView,
@@ -20,6 +21,8 @@ export interface ThreadSummaryInput {
   mine: ThreadParticipant;
   unreadCount: number;
   lastMessage: MessageView | null;
+  searchHitPreview?: string | null;
+  searchHitMessageId?: string | null;
 }
 
 @Injectable()
@@ -29,9 +32,21 @@ export class ConversationSerializer {
   toMessageView(
     message: Message,
     viewerCompanyId: string,
+    viewerUserId: string | null,
     reference: MessageReference | null,
     replyTo: MessageReplyPreview | null = null,
   ): MessageView {
+    const mine = message.senderCompanyId === viewerCompanyId;
+    let actor: AuditActorView | null = null;
+    if (
+      mine &&
+      message.senderUserId &&
+      viewerUserId &&
+      message.senderUserId !== viewerUserId &&
+      message.senderName?.trim()
+    ) {
+      actor = { id: message.senderUserId, name: message.senderName.trim() };
+    }
     return {
       id: message.id,
       threadId: message.threadId,
@@ -41,7 +56,8 @@ export class ConversationSerializer {
       reference,
       metadata: message.metadata ?? null,
       createdAt: message.createdAt.toISOString(),
-      mine: message.senderCompanyId === viewerCompanyId,
+      mine,
+      actor,
       replyTo,
     };
   }
@@ -78,6 +94,8 @@ export class ConversationSerializer {
         ? this.companySerializer.toPublicSummary(counterpartParticipant.company)
         : null,
       participantCount: participants.length,
+      searchHitPreview: input.searchHitPreview ?? null,
+      searchHitMessageId: input.searchHitMessageId ?? null,
     };
   }
 

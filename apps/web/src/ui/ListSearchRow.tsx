@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cx } from '@/ui/kit';
 
 /** Shared list chrome: search flexes; one 46×46 trailing square (Explore filter / Chats·Orders +). */
@@ -19,23 +19,30 @@ export function ListSearchRow({
   );
 }
 
-export const listSquareButtonClass =
-  'flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate transition-colors hover:bg-foam';
+const listSquareButtonBase =
+  'flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border transition-colors';
 
-export function ListSquareButton({
-  className,
-  active,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+export const listSquareButtonClass = cx(
+  listSquareButtonBase,
+  'border-line bg-surface text-slate hover:bg-foam',
+);
+
+export const ListSquareButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }
+>(function ListSquareButton({ className, active, ...props }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       className={cx(
-        listSquareButtonClass,
-        active && 'border-accent bg-accent text-white hover:bg-accent',
+        listSquareButtonBase,
+        active
+          ? 'border-accent bg-accent text-white hover:bg-accent'
+          : 'border-line bg-surface text-slate hover:bg-foam',
         className,
       )}
       {...props}
     />
   );
-}
+});

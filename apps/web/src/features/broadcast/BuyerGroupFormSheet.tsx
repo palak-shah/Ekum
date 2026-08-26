@@ -89,7 +89,7 @@ export function BuyerGroupFormSheet({
     },
     onSuccess: (list) => {
       invalidate();
-      showToast(draft.id ? 'Group saved' : 'Group created');
+      showToast(draft.id ? 'Group updated' : 'Group created');
       onClose();
       onSaved?.(list);
     },
@@ -207,7 +207,13 @@ export function BuyerGroupFormSheet({
           disabled={!draft.name.trim() || save.isPending}
           onClick={() => save.mutate()}
         >
-          {save.isPending ? 'Saving…' : draft.id ? 'Save group' : 'Create group'}
+          {save.isPending
+            ? draft.id
+              ? 'Updating…'
+              : 'Saving…'
+            : draft.id
+              ? 'Update group'
+              : 'Create group'}
         </Button>
         {allowDelete && draft.id ? (
           <Button

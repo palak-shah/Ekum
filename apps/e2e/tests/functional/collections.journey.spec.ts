@@ -14,7 +14,9 @@ test.describe('collections journey @functional @collections', () => {
     await expect(page.getByRole('button', { name: 'Ask rates' })).toBeVisible();
     await page.getByRole('button', { name: 'Ask rates' }).click();
 
-    await expect(page.getByText(/\d+ selected/)).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByTestId('collection-select')).toHaveText(/Select/i);
+    await expect(page).toHaveURL(/\/chats\//, { timeout: 20_000 });
+    await page.goto('/collections/seed-col-1');
+    await expect(page.getByTestId('collection-select')).toHaveText(/Select/i, { timeout: 10_000 });
+    await expect(page.getByText(/\d+ selected/)).toHaveCount(0);
   });
 });

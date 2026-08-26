@@ -15,3 +15,4 @@ export * from './referral';
 export * from './notification';
 export * from './media';
 export * from './saved';
+export * from './team';

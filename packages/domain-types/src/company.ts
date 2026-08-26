@@ -90,4 +90,6 @@ export interface OwnCompanyProfile extends PublicCompanyProfile {
   contactPerson: string | null;
   capabilities: CompanyCapabilities;
   tradePresence: TradePresence;
+  role: string;
+  permissions: CompanyPermissions;
 }

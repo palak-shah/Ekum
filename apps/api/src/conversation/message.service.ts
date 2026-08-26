@@ -17,6 +17,8 @@ import { ThreadService } from './thread.service';
 import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
 import { DomainEvents } from '../events/events.module';
+import type { AuthPrincipal } from '../auth/auth.types';
+import { messageSearchOrClause } from './message-search';
 
 @Injectable()
 export class MessageService {
@@ -29,14 +31,20 @@ export class MessageService {
   ) {}
 
   async send(
-    actorCompanyId: string,
-    role: string | null,
+    actor: AuthPrincipal,
     threadId: string,
     dto: SendMessageDto,
   ): Promise<MessageView> {
-    const mine = await this.threads.membershipOrThrow(threadId, actorCompanyId, role);
+    const actorCompanyId = actor.companyId!;
+    const mine = await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role);
     await this.validateReference(actorCompanyId, dto);
     await this.validateReplyTarget(threadId, dto.replyToMessageId);
+
+    const sender = await this.prisma.user.findUnique({
+      where: { id: actor.userId },
+      select: { name: true },
+    });
+    const senderName = sender?.name?.trim() || null;
 
     const now = new Date();
     const message = await this.prisma.$transaction(async (tx) => {
@@ -44,6 +52,8 @@ export class MessageService {
         data: {
           threadId,
           senderCompanyId: actorCompanyId,
+          senderUserId: actor.userId,
+          senderName,
           type: dto.type,
           body: dto.body ?? null,
           referenceId: dto.referenceId ?? null,
@@ -72,20 +82,21 @@ export class MessageService {
     return this.serializer.toMessageView(
       message,
       actorCompanyId,
+      actor.userId,
       references.get(message.id) ?? null,
       replyMap.get(message.id) ?? null,
     );
   }
 
   async list(
-    actorCompanyId: string,
-    role: string | null,
+    actor: AuthPrincipal,
     threadId: string,
     query: ListThreadMessagesQuery,
   ): Promise<CursorPage<MessageView>> {
-    await this.threads.membershipOrThrow(threadId, actorCompanyId, role);
+    const actorCompanyId = actor.companyId!;
+    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role);
 
-    const where = this.listWhere(threadId, query);
+    const where = await this.listWhere(threadId, query);
     const rows = await this.prisma.message.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -101,6 +112,7 @@ export class MessageService {
       this.serializer.toMessageView(
         message,
         actorCompanyId,
+        actor.userId,
         references.get(message.id) ?? null,
         replyMap.get(message.id) ?? null,
       ),
@@ -109,13 +121,23 @@ export class MessageService {
     return { results, nextCursor: hasMore && last ? last.id : null };
   }
 
-  private listWhere(threadId: string, query: ListThreadMessagesQuery): Prisma.MessageWhereInput {
+  private async listWhere(
+    threadId: string,
+    query: ListThreadMessagesQuery,
+  ): Promise<Prisma.MessageWhereInput> {
     const view = query.view ?? 'all';
     const q = query.q?.trim();
     const clauses: Prisma.MessageWhereInput[] = [{ threadId }];
 
-    if (view === 'media') {
+    if (view === 'photos') {
+      clauses.push({ type: MessageType.Photo });
+    } else if (view === 'media') {
+      // Deprecated alias — older clients asked for photo+voice.
       clauses.push({ type: { in: [MessageType.Photo, MessageType.Voice] } });
+    } else if (view === 'collections') {
+      clauses.push({ type: MessageType.CollectionCard });
+    } else if (view === 'designs') {
+      clauses.push({ type: MessageType.ProductCard });
     } else if (view === 'orders') {
       clauses.push({
         OR: [
@@ -191,12 +213,10 @@ export class MessageService {
     }
 
     if (q) {
-      clauses.push({
-        OR: [
-          { body: { contains: q, mode: 'insensitive' } },
-          { metadata: { path: ['orderLabel'], string_contains: q } },
-        ],
-      });
+      const searchOr = await messageSearchOrClause(this.prisma, q, { threadId });
+      if (searchOr) {
+        clauses.push(searchOr);
+      }
     }
 
     return clauses.length === 1 ? clauses[0]! : { AND: clauses };

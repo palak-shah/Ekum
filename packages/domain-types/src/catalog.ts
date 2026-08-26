@@ -182,6 +182,44 @@ export interface CollectionDetailView extends CollectionView {
   products: ProductView[];
 }
 
+export const createShareLinkSchema = z
+  .object({
+    collectionId: z.string().min(1).optional(),
+    productId: z.string().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const hasCollection = Boolean(value.collectionId);
+    const hasProduct = Boolean(value.productId);
+    if (hasCollection === hasProduct) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Pick one album or one design.',
+        path: ['collectionId'],
+      });
+    }
+  });
+export type CreateShareLinkDto = z.infer<typeof createShareLinkSchema>;
+
+export interface ShareLinkDesignPreview {
+  id: string;
+  name: string;
+  image: string | null;
+}
+
+export interface ShareLinkView {
+  token: string;
+  kind: 'collection' | 'product';
+  targetId: string;
+  name: string;
+  image: string | null;
+  audience: string;
+  /** Everyone + live: guest may see design thumbs. Closed packs stay cover + name. */
+  open: boolean;
+  designs: ShareLinkDesignPreview[];
+  expired: boolean;
+  path: string;
+}
+
 /**
  * The immutable shape captured onto an order line at order time. Defined here so
  * the Orders domain and the future Flutter client share one contract. Prices and

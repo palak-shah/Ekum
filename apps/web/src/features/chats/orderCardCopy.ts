@@ -105,6 +105,22 @@ export function isRichOrderChatMessage(
  * Hide legacy duplicate order/rate cards for the same order — keep the newest.
  * `messages` should be chronological (oldest → newest), as rendered in the thread.
  */
+/** Newest incoming rate card that can still be accepted — only that one gets the primary CTA. */
+export function primaryAcceptQuoteMessageId(messages: MessageView[]): string | null {
+  let best: { id: string; at: number } | null = null;
+  for (const message of messages) {
+    if (message.type !== 'rate' || message.mine) continue;
+    const ref = message.reference;
+    if (!ref?.canAcceptQuote || !ref.available || !ref.id) continue;
+    const at = Date.parse(message.createdAt);
+    if (!Number.isFinite(at)) continue;
+    if (!best || at > best.at) {
+      best = { id: message.id, at };
+    }
+  }
+  return best?.id ?? null;
+}
+
 export function dedupeOrderThreadMessages(messages: MessageView[]): MessageView[] {
   const latestIndex = new Map<string, number>();
   messages.forEach((message, index) => {

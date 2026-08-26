@@ -17,6 +17,10 @@ function makeService(collectionRow: unknown, visibility: VisibilityStub) {
   const prisma = {
     collection: { findUnique: async () => collectionRow },
     follow: { findUnique: async () => null },
+    company: {
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        (where.id.in ?? []).map((id) => ({ id, name: id })),
+    },
   } as unknown as PrismaService;
   const visibilityService = {
     isBlocked: async () => visibility.blocked ?? false,

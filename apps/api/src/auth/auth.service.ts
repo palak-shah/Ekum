@@ -4,6 +4,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { OtpService, type OtpIssueResult } from './otp.service';
 import { TokenService } from './token.service';
 import type { AuthPrincipal } from './auth.types';
+import { attachPendingOrderInvite } from '../orders/order-invite-claim';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +22,10 @@ export class AuthService {
     await this.otp.verify(phone, code);
 
     const user = await this.resolveUserByPhone(phone);
-    const activeCompanyId = user.memberships[0]?.companyId ?? null;
+    let activeCompanyId: string | null = user.memberships[0]?.companyId ?? null;
+    if (!activeCompanyId) {
+      activeCompanyId = await attachPendingOrderInvite(this.prisma, user.id, user.phone);
+    }
     const tokens = await this.tokens.issue(
       { id: user.id, phone: user.phone },
       activeCompanyId,
@@ -30,7 +34,7 @@ export class AuthService {
     return {
       tokens,
       user: { userId: user.id, phone: user.phone, companyId: activeCompanyId },
-      needsOnboarding: user.memberships.length === 0,
+      needsOnboarding: activeCompanyId == null,
     };
   }
 
@@ -106,6 +110,8 @@ export class AuthService {
         userId: principal.userId,
         phone: principal.phone,
         companyId: principal.companyId,
+        role: principal.role,
+        permissions: principal.permissions,
       },
       needsOnboarding: memberships === 0,
     };

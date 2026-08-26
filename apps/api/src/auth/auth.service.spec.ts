@@ -20,6 +20,12 @@ describe('AuthService.verifyOtp', () => {
           { id: 'u1', phone: '+919800000099', memberships: [] },
         ],
       },
+      companyMembership: {
+        findFirst: async () => null,
+      },
+      orderAcceptInvite: {
+        findFirst: async () => null,
+      },
     } as unknown as PrismaService;
 
     const service = new AuthService(prisma, otp, tokens);
@@ -105,6 +111,7 @@ describe('AuthService.me', () => {
       phone: '+9198',
       companyId: null,
       role: null,
+      permissions: null,
     });
     expect(result.needsOnboarding).toBe(true);
   });

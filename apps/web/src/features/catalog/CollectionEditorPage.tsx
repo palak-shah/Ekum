@@ -21,6 +21,8 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
+import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
+import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import {
   Button,
   Field,
@@ -35,8 +37,9 @@ import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/i
 import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
-import { defaultCollectionName, nameFromFilename } from './collectionCreateHelpers';
+import { nameFromFilename } from './collectionCreateHelpers';
 import { collectionStatusSummary } from './collectionStatusSummary';
+import { auditLine } from './productStatusSummary';
 import {
   clampAudienceToCeiling,
   maxPublishAudienceForCuratedPack,
@@ -96,10 +99,11 @@ export function CollectionEditorPage() {
   const [creating, setCreating] = useState(false);
   const [designSearch, setDesignSearch] = useState('');
   const [form, setForm] = useState({
-    name: defaultCollectionName(),
+    name: '',
     description: '',
     coverImage: '',
   });
+  const leaveBypassRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [publishAudience, setPublishAudience] = useState<PublishAudienceState>(() =>
     emptyPublishAudienceState(),
@@ -107,11 +111,10 @@ export function CollectionEditorPage() {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [evergreen, setEvergreen] = useState(true);
-  /** Quiet flag applied on Save — not a primary CTA. */
-  const [readyOnSave, setReadyOnSave] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [consent, setConsent] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedSnapshotRef = useRef<string | null>(null);
   /** Create mode: photos and/or library designs; Publish/Share after create. */
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
   const [libraryPicks, setLibraryPicks] = useState<Set<string>>(new Set());
@@ -147,8 +150,8 @@ export function CollectionEditorPage() {
   const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
   const status = existing.data?.status;
   const isPublished = status === CollectionStatus.Published;
-  const isReady = status === CollectionStatus.Ready;
-  const isDraft = status === CollectionStatus.Draft;
+  const isDraft =
+    status === CollectionStatus.Draft || status === CollectionStatus.Ready;
   const isArchived = status === CollectionStatus.Archived;
   const statusSummary = existing.data
     ? collectionStatusSummary(existing.data, broadcastLists.data ?? [])
@@ -218,8 +221,13 @@ export function CollectionEditorPage() {
       setStartsAt(toDateInput(existing.data.startsAt));
       setEndsAt(toDateInput(existing.data.endsAt));
       setEvergreen(!existing.data.endsAt);
-      setReadyOnSave(existing.data.status === CollectionStatus.Ready);
       setNoteOpen(Boolean(existing.data.description?.trim()));
+      savedSnapshotRef.current = JSON.stringify({
+        name: existing.data.name,
+        description: existing.data.description ?? '',
+        coverImage: existing.data.coverImage ?? '',
+        productIds: existing.data.products.map((product) => product.id).sort(),
+      });
     }
   }, [existing.data]);
 
@@ -354,31 +362,11 @@ export function CollectionEditorPage() {
         description: form.description.trim() || undefined,
         coverImage: form.coverImage.trim() || undefined,
       };
-      const patched = await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
-      const current = patched.status;
-      // Ready is a save option for draft/ready albums only — not a main CTA.
-      if (
-        (current === CollectionStatus.Draft || current === CollectionStatus.Ready) &&
-        canPublishAlbum
-      ) {
-        if (readyOnSave && current === CollectionStatus.Draft) {
-          return api.post<CollectionDetailView>(`/collections/${id}/ready`, {});
-        }
-        if (!readyOnSave && current === CollectionStatus.Ready) {
-          return api.post<CollectionDetailView>(`/collections/${id}/unready`, {});
-        }
-      }
-      return patched;
+      return api.patch<CollectionDetailView>(`/collections/${id}`, dto);
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       invalidate();
-      if (data.status === CollectionStatus.Ready && readyOnSave) {
-        showToast('Saved · Ready');
-      } else if (data.status === CollectionStatus.Draft && !readyOnSave && isReady) {
-        showToast('Saved · Draft');
-      } else {
-        showToast('Saved');
-      }
+      showToast('Updated');
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not save.';
@@ -427,7 +415,7 @@ export function CollectionEditorPage() {
   });
 
   const lifecycle = useMutation({
-    mutationFn: (action: 'unpublish' | 'archive' | 'unarchive' | 'ready' | 'unready') =>
+    mutationFn: (action: 'unpublish' | 'archive' | 'unarchive') =>
       api.post(`/collections/${id}/${action}`, {}),
     onSuccess: (_data, action) => {
       setPublishOpen(false);
@@ -437,8 +425,6 @@ export function CollectionEditorPage() {
         archive: 'Archived',
         unarchive: 'Restored to draft',
         unpublish: 'Hidden',
-        ready: 'Marked ready',
-        unready: 'Back to draft',
       };
       showToast(messages[action] ?? 'Updated');
     },
@@ -547,6 +533,10 @@ export function CollectionEditorPage() {
       setError('Add photos or pick designs.');
       return;
     }
+    if (!form.name.trim()) {
+      setError('Enter a collection name.');
+      return;
+    }
     if (opts?.publish) {
       const canPublishCreate =
         (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
@@ -560,7 +550,7 @@ export function CollectionEditorPage() {
     setError(null);
     setSheetError(null);
     try {
-      const name = form.name.trim() || defaultCollectionName();
+      const name = form.name.trim();
       const cover =
         createCoverUrl && /^https?:\/\//i.test(createCoverUrl) ? createCoverUrl : undefined;
       const created = await api.post<CollectionDetailView>('/collections', {
@@ -577,7 +567,7 @@ export function CollectionEditorPage() {
         createdIds.push(product.id);
       }
       const productIds = [...createdIds, ...libraryPicks];
-      const detail = await api.put<CollectionDetailView>(
+      await api.put<CollectionDetailView>(
         `/collections/${created.id}/products`,
         { productIds },
       );
@@ -588,8 +578,6 @@ export function CollectionEditorPage() {
           allowForward: publishAudience.allowForward,
           ...publishAudienceDtoFields(publishAudience),
           ...(canPublishAlready ? {} : { consentToSell: true }),
-          ...(startsAt ? { startsAt } : {}),
-          ...(endsAt ? { endsAt } : {}),
         });
       }
       for (const photo of pendingPhotos) {
@@ -598,12 +586,14 @@ export function CollectionEditorPage() {
       setPendingPhotos([]);
       setLibraryPicks(new Set());
       setPublishOpen(false);
-      queryClient.setQueryData(['collection', created.id], detail);
-      navigate(`/catalog/collections/${created.id}`, {
+      leaveBypassRef.current = true;
+      showToast(opts?.publish ? 'Published' : 'Collection saved');
+      navigate('/catalog?tab=collections', {
         replace: true,
-        state: { notice: opts?.publish ? 'Published' : 'Collection created' },
+        state: {
+          collectionFilter: opts?.publish ? 'published' : 'draft',
+        },
       });
-      void queryClient.invalidateQueries({ queryKey: ['collection', created.id] });
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
     } catch (err) {
@@ -658,7 +648,43 @@ export function CollectionEditorPage() {
   const showLifecycleMenu =
     editing &&
     Boolean(existing.data) &&
-    (isDraft || isReady || isPublished || isArchived);
+    (isDraft || isPublished || isArchived);
+
+  const editSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        name: form.name,
+        description: form.description,
+        coverImage: form.coverImage,
+        productIds: [...selected].sort(),
+      }),
+    [form, selected],
+  );
+  const collectionDirty = useMemo(() => {
+    if (quickUploading || savingDesigns || creating) return true;
+    if (!editing) {
+      return (
+        pendingPhotos.length > 0 ||
+        libraryPicks.size > 0 ||
+        Boolean(form.description.trim()) ||
+        Boolean(form.coverImage) ||
+        Boolean(form.name.trim())
+      );
+    }
+    return savedSnapshotRef.current !== null && editSnapshot !== savedSnapshotRef.current;
+  }, [
+    editing,
+    editSnapshot,
+    quickUploading,
+    savingDesigns,
+    creating,
+    pendingPhotos.length,
+    libraryPicks.size,
+    form.description,
+    form.coverImage,
+    form.name,
+  ]);
+  const discard = useDiscardGuard(collectionDirty, leaveBypassRef);
 
   // No early returns above — loading/error are branches so hook order never changes.
   if (editing && existing.isLoading) {
@@ -679,9 +705,14 @@ export function CollectionEditorPage() {
 
   return (
     <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-8')}>
+      <DiscardChangesSheet
+        open={discard.confirmOpen}
+        onCancel={discard.cancelLeave}
+        onLeave={discard.confirmLeave}
+      />
       <PageHeader
         title={editing ? 'Edit collection' : 'New collection'}
-        onBack={() => navigate('/catalog?tab=collections')}
+        onBack={() => discard.tryLeave(() => navigate(-1))}
         action={
           editing && existing.data ? (
             <div className="flex items-center gap-1">
@@ -724,9 +755,13 @@ export function CollectionEditorPage() {
               className="text-left text-sm text-muted"
             >
               {statusSummary.line}
+              {auditLine(existing.data) ? ` · ${auditLine(existing.data)}` : ''}
             </button>
           ) : (
-            <p className="text-sm text-muted">{statusSummary.line}</p>
+            <p className="text-sm text-muted">
+              {statusSummary.line}
+              {auditLine(existing.data) ? ` · ${auditLine(existing.data)}` : ''}
+            </p>
           )}
           {isPublished && existing.data.rateVisibility === RateVisibility.OnRequest ? (
             <p className="text-xs text-muted">Buyers may need to ask for rates</p>
@@ -836,26 +871,39 @@ export function CollectionEditorPage() {
           <Field label="Name" error={error}>
             <TextInput
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder={defaultCollectionName()}
+              onChange={(e) => {
+                setError(null);
+                setForm({ ...form, name: e.target.value });
+              }}
+              placeholder="e.g. Festive 2026"
               autoComplete="off"
             />
           </Field>
           <div className="flex flex-col gap-2">
             <Button
               fullWidth
-              disabled={creating || quickUploading || createMemberCount < 1}
+              disabled={
+                creating ||
+                quickUploading ||
+                createMemberCount < 1 ||
+                !form.name.trim()
+              }
               onClick={() => void onCreate()}
             >
-              {creating && !publishOpen ? 'Creating…' : 'Create draft'}
+              {creating && !publishOpen ? 'Saving…' : 'Save Collection in Draft'}
             </Button>
             <Button
               variant="secondary"
               fullWidth
-              disabled={creating || quickUploading || createMemberCount < 1}
+              disabled={
+                creating ||
+                quickUploading ||
+                createMemberCount < 1 ||
+                !form.name.trim()
+              }
               onClick={() => setPublishOpen(true)}
             >
-              Create & publish…
+              Create & Publish
             </Button>
           </div>
         </>
@@ -1045,18 +1093,6 @@ export function CollectionEditorPage() {
         ? createPortal(
             <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
               <div className="mx-auto flex max-w-md flex-col gap-2">
-                {isDraft || isReady ? (
-                  <label className="flex items-center gap-2 text-sm text-muted">
-                    <input
-                      type="checkbox"
-                      className="accent-accent"
-                      checked={readyOnSave}
-                      disabled={!canPublishAlbum}
-                      onChange={(e) => setReadyOnSave(e.target.checked)}
-                    />
-                    <span>Ready for team review (not buyer-visible)</span>
-                  </label>
-                ) : null}
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
@@ -1064,7 +1100,7 @@ export function CollectionEditorPage() {
                     disabled={!form.name.trim() || save.isPending}
                     onClick={() => save.mutate()}
                   >
-                    {save.isPending ? 'Saving…' : 'Save'}
+                    {save.isPending ? 'Updating…' : 'Update'}
                   </Button>
                   {isArchived ? (
                     <Button
@@ -1230,7 +1266,7 @@ export function CollectionEditorPage() {
         }}
         title={
           !editing
-            ? 'Create & publish'
+            ? 'Create & Publish'
             : isPublished
               ? 'Visibility & rates'
               : 'Publish collection'
@@ -1257,17 +1293,6 @@ export function CollectionEditorPage() {
             tradeDefaults={settings.data?.tradeDefaults}
             isVisibilityUpdate={editing && isPublished}
             maxAudience={maxCuratedAudience}
-            schedule={{
-              startsAt,
-              endsAt,
-              evergreen,
-              onStartsAt: setStartsAt,
-              onEndsAt: setEndsAt,
-              onEvergreen: (value) => {
-                setEvergreen(value);
-                if (value) setEndsAt('');
-              },
-            }}
             showConsent={!canPublishAlready}
             consent={consent}
             onConsent={setConsent}
@@ -1287,6 +1312,7 @@ export function CollectionEditorPage() {
               editing
                 ? !canSubmitPublish || publish.isPending
                 : creating ||
+                  !form.name.trim() ||
                   !((canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience))
             }
             onClick={() => {
@@ -1300,7 +1326,7 @@ export function CollectionEditorPage() {
             {creating || publish.isPending
               ? 'Publishing…'
               : !editing
-                ? 'Create & publish'
+                ? 'Create & Publish'
                 : isPublished
                   ? 'Update visibility'
                   : 'Publish'}

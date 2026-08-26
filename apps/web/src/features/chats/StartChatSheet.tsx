@@ -4,14 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConnectionView,
   CreateGroupThreadDto,
+  StartDirectThreadDto,
   ThreadSummary,
 } from '@ekum/domain-types';
 import { ThreadVisibility } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useTeamCaps } from '@/lib/teamCaps';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, Field, InlineNotice, Sheet, TextInput } from '@/ui/kit';
+import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 
-type Step = 'menu' | 'company' | 'group';
+type Step = 'menu' | 'company' | 'visibility' | 'group';
 
 type Props = {
   open: boolean;
@@ -21,9 +23,13 @@ type Props = {
 export function StartChatSheet({ open, onClose }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { can, isOwner } = useTeamCaps();
+  const canChat = can('chats');
+
   const [step, setStep] = useState<Step>('menu');
   const [groupTitle, setGroupTitle] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [pickedCompanyId, setPickedCompanyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,19 +37,20 @@ export function StartChatSheet({ open, onClose }: Props) {
     setStep('menu');
     setGroupTitle('');
     setMemberIds([]);
+    setPickedCompanyId(null);
     setError(null);
   }, [open]);
 
   const connections = useQuery({
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
-    enabled: open,
+    enabled: open && canChat,
   });
   const active = (connections.data ?? []).filter((c) => c.status === 'active');
 
   const startDirect = useMutation({
-    mutationFn: (companyId: string) =>
-      api.post<ThreadSummary>('/threads/direct', { companyId }),
+    mutationFn: (payload: StartDirectThreadDto) =>
+      api.post<ThreadSummary>('/threads/direct', payload),
     onSuccess: (thread) => {
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       onClose();
@@ -72,12 +79,49 @@ export function StartChatSheet({ open, onClose }: Props) {
   });
 
   const title =
-    step === 'company' ? 'Chat with a company' : step === 'group' ? 'New group' : 'New';
+    step === 'company'
+      ? 'Chat with a company'
+      : step === 'visibility'
+        ? 'Who can see this?'
+        : step === 'group'
+          ? 'New group'
+          : 'New';
+
+  const pickCompany = (companyId: string) => {
+    if (startDirect.isPending) return;
+    setError(null);
+    if (isOwner) {
+      setPickedCompanyId(companyId);
+      setStep('visibility');
+      return;
+    }
+    startDirect.mutate({ companyId, visibility: ThreadVisibility.Shared });
+  };
+
+  const openWithVisibility = (visibility: typeof ThreadVisibility.Shared | typeof ThreadVisibility.OwnerOnly) => {
+    if (!pickedCompanyId || startDirect.isPending) return;
+    setError(null);
+    startDirect.mutate({ companyId: pickedCompanyId, visibility });
+  };
+
+  const handleSheetDismiss = () => {
+    if (step === 'menu') {
+      onClose();
+      return;
+    }
+    setError(null);
+    if (step === 'visibility') {
+      setPickedCompanyId(null);
+      setStep('company');
+      return;
+    }
+    setStep('menu');
+  };
 
   return (
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={handleSheetDismiss}
       title={title}
       footer={
         step === 'group' ? (
@@ -98,9 +142,13 @@ export function StartChatSheet({ open, onClose }: Props) {
         ) : undefined
       }
     >
-      {error && step !== 'group' ? <InlineNotice className="mb-2" message={error} /> : null}
+      {!canChat ? (
+        <InlineNotice message="You cannot start chats for this business." />
+      ) : null}
 
-      {step === 'menu' ? (
+      {error && step !== 'group' && canChat ? <InlineNotice className="mb-2" message={error} /> : null}
+
+      {canChat && step === 'menu' ? (
         <div className="flex flex-col gap-2">
           <button
             type="button"
@@ -127,7 +175,7 @@ export function StartChatSheet({ open, onClose }: Props) {
         </div>
       ) : null}
 
-      {step === 'company' ? (
+      {canChat && step === 'company' ? (
         <div className="flex flex-col gap-3">
           <button
             type="button"
@@ -146,9 +194,8 @@ export function StartChatSheet({ open, onClose }: Props) {
             loading={connections.isPending}
             value={null}
             onChange={(companyId) => {
-              if (!companyId || startDirect.isPending) return;
-              setError(null);
-              startDirect.mutate(companyId);
+              if (!companyId) return;
+              pickCompany(companyId);
             }}
             label="Connections"
             emptyMessage="Connect with a business first — or find one in Explore."
@@ -159,7 +206,48 @@ export function StartChatSheet({ open, onClose }: Props) {
         </div>
       ) : null}
 
-      {step === 'group' ? (
+      {canChat && step === 'visibility' ? (
+        <div className="flex flex-col gap-3">
+          <button
+            type="button"
+            className="self-start text-sm font-semibold text-accent"
+            onClick={() => {
+              setError(null);
+              setPickedCompanyId(null);
+              setStep('company');
+            }}
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            onClick={() => openWithVisibility(ThreadVisibility.Shared)}
+            className={cx(
+              'rounded-xl border px-3.5 py-3 text-left',
+              'border-line bg-surface hover:border-accent hover:bg-accent/5',
+            )}
+          >
+            <p className="text-sm font-semibold text-ink">Team can see</p>
+            <p className="text-xs text-muted">Shared with your staff on Ekum</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => openWithVisibility(ThreadVisibility.OwnerOnly)}
+            className={cx(
+              'rounded-xl border px-3.5 py-3 text-left',
+              'border-line bg-surface hover:border-accent hover:bg-accent/5',
+            )}
+          >
+            <p className="text-sm font-semibold text-ink">Only you</p>
+            <p className="text-xs text-muted">Hidden from your team</p>
+          </button>
+          {startDirect.isPending ? (
+            <p className="text-center text-sm text-muted">Opening chat…</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {canChat && step === 'group' ? (
         <div className="flex flex-col gap-3">
           <button
             type="button"

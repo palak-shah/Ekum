@@ -42,6 +42,7 @@ describe('SavedService.create', () => {
       productId: 'prod-1',
       collectionId: null,
       createdAt: new Date('2026-08-01T10:00:00.000Z'),
+      savedByUser: { id: 'u-amit', name: 'Amit' },
       product: publishedProduct,
       collection: null,
     }));
@@ -59,7 +60,7 @@ describe('SavedService.create', () => {
     };
     const service = makeService(prisma);
 
-    const view = await service.create('me', { productId: 'prod-1' });
+    const view = await service.create('me', 'u1', { productId: 'prod-1' });
 
     expect(view.kind).toBe('product');
     expect(view.productId).toBe('prod-1');
@@ -69,11 +70,12 @@ describe('SavedService.create', () => {
     expect(view.sku).toBe('SS-01');
     expect(view.rate).toBe(450);
     expect(view.company.id).toBe('seller-co');
+    expect(view.savedBy).toEqual({ id: 'u-amit', name: 'Amit' });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { companyId_productId: { companyId: 'me', productId: 'prod-1' } },
-        create: { companyId: 'me', productId: 'prod-1' },
-        update: {},
+        create: { companyId: 'me', productId: 'prod-1', savedByUserId: 'u1' },
+        update: { savedByUserId: 'u1' },
       }),
     );
   });
@@ -97,7 +99,7 @@ describe('SavedService.create', () => {
     };
     const service = makeService(prisma);
 
-    await expect(service.create('me', { productId: 'prod-1' })).rejects.toBeInstanceOf(
+    await expect(service.create('me', 'u1', { productId: 'prod-1' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(prisma.savedItem.upsert).not.toHaveBeenCalled();
@@ -106,13 +108,13 @@ describe('SavedService.create', () => {
   it('rejects both productId and collectionId', async () => {
     const service = makeService({});
     await expect(
-      service.create('me', { productId: 'p1', collectionId: 'c1' }),
+      service.create('me', 'u1', { productId: 'p1', collectionId: 'c1' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects neither productId nor collectionId', async () => {
     const service = makeService({});
-    await expect(service.create('me', {})).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.create('me', 'u1', {})).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
@@ -127,6 +129,7 @@ describe('SavedService.list', () => {
             productId: 'prod-1',
             collectionId: null,
             createdAt: new Date('2026-08-02T10:00:00.000Z'),
+            savedByUser: { id: 'u-amit', name: 'Amit' },
             product: publishedProduct,
             collection: null,
           },
@@ -136,6 +139,7 @@ describe('SavedService.list', () => {
             productId: null,
             collectionId: 'col-1',
             createdAt: new Date('2026-08-01T10:00:00.000Z'),
+            savedByUser: null,
             product: null,
             collection: {
               id: 'col-1',
@@ -222,7 +226,7 @@ describe('SavedService.create (connected audience)', () => {
     };
     const service = makeService(prisma);
 
-    const view = await service.create('me', { productId: 'prod-1' });
+    const view = await service.create('me', 'u1', { productId: 'prod-1' });
     expect(view.productId).toBe('prod-1');
     expect(upsert).toHaveBeenCalled();
   });

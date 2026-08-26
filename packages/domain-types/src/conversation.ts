@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { cursorPageQuerySchema } from './common';
+import type { AuditActorView } from './catalog';
 import {
   MessageType,
   messageTypeValues,
@@ -103,11 +104,21 @@ export type SendMessageDto = z.infer<typeof sendMessageSchema>;
 
 export const listThreadsQuerySchema = cursorPageQuerySchema.extend({
   state: z.enum(threadParticipantStateValues).optional(),
+  /** Inbox search: company name and/or message content. */
+  q: z.string().trim().max(80).optional(),
 });
 export type ListThreadsQuery = z.infer<typeof listThreadsQuerySchema>;
 
-/** Thread message list: optional Media/Orders scope + in-chat search. */
-export const threadMessageViewValues = ['all', 'media', 'orders'] as const;
+/** Thread message list: optional scope chips + in-chat search. */
+export const threadMessageViewValues = [
+  'all',
+  'photos',
+  'collections',
+  'designs',
+  'orders',
+  /** @deprecated Use `photos` — kept for older clients. */
+  'media',
+] as const;
 export type ThreadMessageView = (typeof threadMessageViewValues)[number];
 
 export const listThreadMessagesQuerySchema = cursorPageQuerySchema.extend({
@@ -137,7 +148,7 @@ export type AddParticipantsDto = z.infer<typeof addParticipantsSchema>;
 // --- View models ------------------------------------------------------------
 
 export interface MessageReference {
-  kind: 'product' | 'collection' | 'order' | 'rate';
+  kind: 'product' | 'collection' | 'order' | 'rate' | 'payment';
   id: string;
   name: string | null;
   image: string | null;
@@ -180,6 +191,8 @@ export interface MessageReference {
    * Not frozen history — quote card copy/status stay as posted.
    */
   canAcceptQuote?: boolean;
+  /** Seller-logged ticket: buyer may Accept (not Accept quote). */
+  canAcceptLogged?: boolean;
 }
 
 export interface MessageReplyPreview {
@@ -198,7 +211,10 @@ export interface MessageView {
   reference: MessageReference | null;
   metadata: unknown;
   createdAt: string;
+  /** Same company as viewer — bubble alignment (not necessarily the viewer). */
   mine: boolean;
+  /** Teammate who sent when mine && not you. Never exposed to other companies. */
+  actor: AuditActorView | null;
   replyTo: MessageReplyPreview | null;
 }
 
@@ -224,6 +240,13 @@ export interface ThreadSummary {
   lastMessageAt: string;
   counterpart: PublicCompanySummary | null;
   participantCount: number;
+  /**
+   * When inbox `q` matched inside the thread (not only the title), muted why-line
+   * e.g. `In chat · Order #OKYD`. Null/omitted → show last-message preview.
+   */
+  searchHitPreview?: string | null;
+  /** Message id for deep link `?message=` when searchHitPreview is set. */
+  searchHitMessageId?: string | null;
 }
 
 export interface ThreadDetail extends ThreadSummary {

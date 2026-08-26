@@ -4,11 +4,15 @@ import { NotificationService } from './notification.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { WebPushService } from './web-push.service';
 
-function makeService() {
+function makeService(overrides: Partial<PrismaService> = {}) {
   const capturedPushUserIds: string[] = [];
   const sendMany = vi.fn(async () => undefined);
   const prisma = {
-    notification: { create: vi.fn(async () => ({ id: 'n1' })) },
+    notification: {
+      create: vi.fn(async () => ({ id: 'n1' })),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+      ...overrides.notification,
+    },
     companyMembership: {
       findMany: async () => [{ userId: 'u1' }, { userId: 'u2' }],
     },
@@ -24,9 +28,10 @@ function makeService() {
         return where.userId.in.map((userId) => ({ userId, endpoint: `e/${userId}`, p256dh: 'k', auth: 'a' }));
       },
     },
+    ...overrides,
   } as unknown as PrismaService;
   const webPush = { sendMany } as unknown as WebPushService;
-  return { service: new NotificationService(prisma, webPush), sendMany, capturedPushUserIds };
+  return { service: new NotificationService(prisma, webPush), sendMany, capturedPushUserIds, prisma };
 }
 
 describe('NotificationService.create push fan-out', () => {
@@ -51,5 +56,42 @@ describe('NotificationService.create push fan-out', () => {
     });
     expect(capturedPushUserIds).toEqual(['u2']);
     expect(sendMany).toHaveBeenCalledOnce();
+  });
+});
+
+describe('NotificationService.delete', () => {
+  it('deleteOne scopes to recipient company', async () => {
+    const deleteMany = vi.fn(async () => ({ count: 1 }));
+    const { service } = makeService({
+      notification: { deleteMany },
+    } as Partial<PrismaService>);
+    await service.deleteOne('co-a', 'n-1');
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: 'n-1', recipientCompanyId: 'co-a' },
+    });
+  });
+
+  it('deleteRead removes only read rows', async () => {
+    const deleteMany = vi.fn(async () => ({ count: 3 }));
+    const { service } = makeService({
+      notification: { deleteMany },
+    } as Partial<PrismaService>);
+    const result = await service.deleteRead('co-a');
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { recipientCompanyId: 'co-a', readAt: { not: null } },
+    });
+    expect(result.deleted).toBe(3);
+  });
+
+  it('deleteAll removes every row for the company', async () => {
+    const deleteMany = vi.fn(async () => ({ count: 5 }));
+    const { service } = makeService({
+      notification: { deleteMany },
+    } as Partial<PrismaService>);
+    const result = await service.deleteAll('co-a');
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { recipientCompanyId: 'co-a' },
+    });
+    expect(result.deleted).toBe(5);
   });
 });

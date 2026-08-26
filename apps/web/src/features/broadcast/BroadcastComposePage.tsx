@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
@@ -11,6 +11,8 @@ import type {
 import { CollectionStatus, MessageType } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
+import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
+import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { Button, Card, Field, LoadingBlock, TextArea, TextInput, cx } from '@/ui/kit';
 
@@ -112,6 +114,20 @@ export function BroadcastComposePage() {
         : false;
   const canSend = Boolean(kind && contentReady && hasAudience);
 
+  const broadcastDirty = useMemo(
+    () =>
+      Boolean(
+        kind ||
+          subject.trim() ||
+          body.trim() ||
+          recipients.length > 0 ||
+          lists.size > 0 ||
+          collectionId,
+      ),
+    [kind, subject, body, recipients.length, lists.size, collectionId],
+  );
+  const discard = useDiscardGuard(broadcastDirty);
+
   const toggleList = (id: string) => {
     setLists((prev) => {
       const next = new Set(prev);
@@ -123,7 +139,15 @@ export function BroadcastComposePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Compose broadcast" />
+      <DiscardChangesSheet
+        open={discard.confirmOpen}
+        onCancel={discard.cancelLeave}
+        onLeave={discard.confirmLeave}
+      />
+      <PageHeader
+        title="Compose broadcast"
+        onBack={() => discard.tryLeave(() => navigate('/broadcast'))}
+      />
 
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium text-ink">What to share</p>
@@ -131,7 +155,7 @@ export function BroadcastComposePage() {
           {(
             [
               ['collection', 'Collection', 'Share a published album with buyers'],
-              ['text', 'Coming soon / message', 'Announce something without a collection'],
+              ['text', 'Text message', 'Announce something without a collection'],
             ] as const
           ).map(([value, label, hint]) => (
             <button
@@ -213,7 +237,7 @@ export function BroadcastComposePage() {
             <TextInput
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Coming soon — wedding edit"
+              placeholder="Wedding edit is live"
             />
           </Field>
           <Field label="Message" error={error}>

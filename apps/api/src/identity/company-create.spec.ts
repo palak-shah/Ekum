@@ -13,6 +13,7 @@ const principal: AuthPrincipal = {
   phone: '+919800000099',
   companyId: null,
   role: null,
+  permissions: null,
 };
 
 describe('CompanyService.create onboarding', () => {
@@ -43,6 +44,7 @@ describe('CompanyService.create onboarding', () => {
         findUniqueOrThrow: async () => ({ id: 'user-new', phone: '+919800000099', name: 'Kiran' }),
       },
       companySettings: { findUnique: async () => null },
+      companyMembership: { findUnique: async () => null },
     } as unknown as PrismaService;
     const tokens = { issue } as unknown as TokenService;
     const serializer = {

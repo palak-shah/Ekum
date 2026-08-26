@@ -16,6 +16,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { RequirePermission } from '../auth/require-permission';
 import { ProductService } from './product.service';
 
 @Controller({ path: 'products', version: '1' })
@@ -23,6 +24,7 @@ export class ProductController {
   constructor(private readonly products: ProductService) {}
 
   @Post()
+  @RequirePermission('uploads')
   create(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -45,6 +47,7 @@ export class ProductController {
   }
 
   @Patch(':id')
+  @RequirePermission('uploads')
   update(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -55,6 +58,7 @@ export class ProductController {
   }
 
   @Post(':id/publish')
+  @RequirePermission('uploads')
   publish(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -65,6 +69,7 @@ export class ProductController {
   }
 
   @Post(':id/post-to-market')
+  @RequirePermission('uploads')
   postToMarket(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -75,6 +80,7 @@ export class ProductController {
   }
 
   @Post(':id/unpost-from-market')
+  @RequirePermission('uploads')
   unpostFromMarket(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -84,6 +90,7 @@ export class ProductController {
   }
 
   @Post(':id/archive')
+  @RequirePermission('uploads')
   archive(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -93,6 +100,7 @@ export class ProductController {
   }
 
   @Post(':id/unarchive')
+  @RequirePermission('uploads')
   unarchive(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -102,6 +110,7 @@ export class ProductController {
   }
 
   @Post(':id/unpublish')
+  @RequirePermission('uploads')
   unpublish(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -112,6 +121,7 @@ export class ProductController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequirePermission('uploads')
   remove(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.products.remove(companyId, id);
   }

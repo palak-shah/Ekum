@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type Thread, type ThreadParticipant } from '@prisma/client';
 import {
   MAX_PINNED_THREADS,
@@ -22,6 +22,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
+import { findThreadSearchHits, threadSurfaceMatchesQ } from './message-search';
 
 type MembershipWithThread = ThreadParticipant & { thread: Thread };
 
@@ -61,7 +62,15 @@ export class ThreadService {
     actorCompanyId: string,
     role: string | null,
     dto: StartDirectThreadDto,
+    viewerUserId: string | null = null,
   ): Promise<ThreadSummary> {
+    const visibility = dto.visibility ?? ThreadVisibility.Shared;
+    if (visibility === ThreadVisibility.OwnerOnly && role !== MembershipRole.Owner) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the owner can start a private chat.',
+      });
+    }
     if (dto.companyId === actorCompanyId) {
       throw new BadRequestException({
         code: 'INVALID_TARGET',
@@ -76,7 +85,7 @@ export class ThreadService {
       throw this.notFound();
     }
 
-    const existing = await this.findDirectThread(actorCompanyId, dto.companyId);
+    const existing = await this.findDirectThread(actorCompanyId, dto.companyId, visibility);
     if (existing) {
       const mine = existing.participants.find((p) => p.companyId === actorCompanyId);
       if (mine && (mine.leftAt || mine.state === ThreadParticipantState.Archived)) {
@@ -85,7 +94,7 @@ export class ThreadService {
           data: { state: ThreadParticipantState.Active, leftAt: null },
         });
       }
-      return this.summaryById(existing.id, actorCompanyId, role);
+      return this.summaryById(existing.id, actorCompanyId, role, viewerUserId);
     }
 
     // A first message to a company that has blocked you is silently dropped: the
@@ -102,7 +111,7 @@ export class ThreadService {
     const thread = await this.prisma.thread.create({
       data: {
         type: ThreadType.Direct,
-        visibility: dto.visibility,
+        visibility,
         createdByCompanyId: actorCompanyId,
         participants: {
           create: [
@@ -112,13 +121,14 @@ export class ThreadService {
         },
       },
     });
-    return this.summaryById(thread.id, actorCompanyId, role);
+    return this.summaryById(thread.id, actorCompanyId, role, viewerUserId);
   }
 
   async createGroup(
     actorCompanyId: string,
     role: string | null,
     dto: CreateGroupThreadDto,
+    viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     const inviteeIds = [...new Set(dto.participantCompanyIds)].filter((id) => id !== actorCompanyId);
     if (inviteeIds.length === 0) {
@@ -147,13 +157,14 @@ export class ThreadService {
         },
       },
     });
-    return this.detail(thread.id, actorCompanyId, role);
+    return this.detail(thread.id, actorCompanyId, role, viewerUserId);
   }
 
   async list(
     actorCompanyId: string,
     role: string | null,
     query: ListThreadsQuery,
+    viewerUserId: string | null = null,
   ): Promise<CursorPage<ThreadSummary>> {
     const where: Prisma.ThreadParticipantWhereInput = {
       companyId: actorCompanyId,
@@ -162,6 +173,72 @@ export class ThreadService {
     };
     if (role !== MembershipRole.Owner) {
       where.thread = { visibility: { not: ThreadVisibility.OwnerOnly } };
+    }
+
+    const q = query.q?.trim() || '';
+    const deepHits = q ? await findThreadSearchHits(this.prisma, actorCompanyId, q) : new Map();
+
+    if (q) {
+      // Surface (name/title/city) + deep message hits. Cap scan for trader-scale inboxes.
+      const candidates = await this.prisma.threadParticipant.findMany({
+        where,
+        include: { thread: { include: { participants: { include: { company: true } } } } },
+        orderBy: [
+          { pinnedAt: { sort: 'desc', nulls: 'last' } },
+          { thread: { lastMessageAt: 'desc' } },
+          { id: 'desc' },
+        ],
+        take: 200,
+      });
+
+      const matched = candidates.filter((participant) => {
+        const counterpart =
+          participant.thread.type === ThreadType.Direct
+            ? participant.thread.participants.find((p) => p.companyId !== actorCompanyId)?.company
+            : undefined;
+        const surface = threadSurfaceMatchesQ({
+          title: participant.thread.title,
+          counterpartName: counterpart?.name,
+          counterpartCity: counterpart?.city,
+          q,
+        });
+        return surface || deepHits.has(participant.threadId);
+      });
+
+      const hasMore = matched.length > query.limit;
+      const pageRows = hasMore ? matched.slice(0, query.limit) : matched;
+      const last = pageRows[pageRows.length - 1];
+
+      const results = await Promise.all(
+        pageRows.map(async (participant) => {
+          const [unreadCount, lastMessage] = await Promise.all([
+            this.unreadCount(participant.threadId, actorCompanyId, participant.lastReadAt),
+            this.lastMessageView(participant.threadId, actorCompanyId, viewerUserId),
+          ]);
+          const counterpart =
+            participant.thread.type === ThreadType.Direct
+              ? participant.thread.participants.find((p) => p.companyId !== actorCompanyId)?.company
+              : undefined;
+          const surface = threadSurfaceMatchesQ({
+            title: participant.thread.title,
+            counterpartName: counterpart?.name,
+            counterpartCity: counterpart?.city,
+            q,
+          });
+          const deep = !surface ? deepHits.get(participant.threadId) : undefined;
+          return this.serializer.toThreadSummary({
+            thread: participant.thread,
+            participants: participant.thread.participants,
+            mine: participant,
+            unreadCount,
+            lastMessage,
+            searchHitPreview: deep?.preview ?? null,
+            searchHitMessageId: deep?.messageId ?? null,
+          });
+        }),
+      );
+
+      return { results, nextCursor: hasMore && last ? last.id : null };
     }
 
     const rows = await this.prisma.threadParticipant.findMany({
@@ -184,7 +261,7 @@ export class ThreadService {
       pageRows.map(async (participant) => {
         const [unreadCount, lastMessage] = await Promise.all([
           this.unreadCount(participant.threadId, actorCompanyId, participant.lastReadAt),
-          this.lastMessageView(participant.threadId, actorCompanyId),
+          this.lastMessageView(participant.threadId, actorCompanyId, viewerUserId),
         ]);
         return this.serializer.toThreadSummary({
           thread: participant.thread,
@@ -199,17 +276,27 @@ export class ThreadService {
     return { results, nextCursor: hasMore && last ? last.id : null };
   }
 
-  get(actorCompanyId: string, role: string | null, threadId: string): Promise<ThreadDetail> {
-    return this.detail(threadId, actorCompanyId, role);
+  get(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
-  async markRead(actorCompanyId: string, role: string | null, threadId: string): Promise<ThreadDetail> {
+  async markRead(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
       data: { lastReadAt: new Date() },
     });
-    return this.detail(threadId, actorCompanyId, role);
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
   /** Clears unread on every chat the company still belongs to. */
@@ -259,13 +346,14 @@ export class ThreadService {
     role: string | null,
     threadId: string,
     dto: SetAlertLevelDto,
+    viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
       data: { alertLevel: dto.alertLevel },
     });
-    return this.detail(threadId, actorCompanyId, role);
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
   async setPinned(
@@ -273,6 +361,7 @@ export class ThreadService {
     role: string | null,
     threadId: string,
     dto: SetThreadPinnedDto,
+    viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
     if (dto.pinned) {
@@ -301,10 +390,15 @@ export class ThreadService {
         data: { pinnedAt: null },
       });
     }
-    return this.detail(threadId, actorCompanyId, role);
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
-  async accept(actorCompanyId: string, role: string | null, threadId: string): Promise<ThreadDetail> {
+  async accept(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
     if (mine.state === ThreadParticipantState.Pending) {
       await this.prisma.threadParticipant.update({
@@ -312,7 +406,7 @@ export class ThreadService {
         data: { state: ThreadParticipantState.Active },
       });
     }
-    return this.detail(threadId, actorCompanyId, role);
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
   async decline(
@@ -346,6 +440,7 @@ export class ThreadService {
     role: string | null,
     threadId: string,
     dto: AddParticipantsDto,
+    viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
     if (mine.thread.type !== ThreadType.Group) {
@@ -364,7 +459,7 @@ export class ThreadService {
       (id) => id !== actorCompanyId && !existingIds.has(id),
     );
     if (inviteeIds.length === 0) {
-      return this.detail(threadId, actorCompanyId, role);
+      return this.detail(threadId, actorCompanyId, role, viewerUserId);
     }
     await this.assertInvitable(actorCompanyId, inviteeIds);
 
@@ -376,18 +471,19 @@ export class ThreadService {
         invitedBy: actorCompanyId,
       })),
     });
-    return this.detail(threadId, actorCompanyId, role);
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
   async summaryById(
     threadId: string,
     actorCompanyId: string,
     role: string | null,
+    viewerUserId: string | null = null,
   ): Promise<ThreadSummary> {
     const { thread, participants, mine } = await this.loadForViewer(threadId, actorCompanyId, role);
     const [unreadCount, lastMessage] = await Promise.all([
       this.unreadCount(threadId, actorCompanyId, mine.lastReadAt),
-      this.lastMessageView(threadId, actorCompanyId),
+      this.lastMessageView(threadId, actorCompanyId, viewerUserId),
     ]);
     return this.serializer.toThreadSummary({ thread, participants, mine, unreadCount, lastMessage });
   }
@@ -396,11 +492,12 @@ export class ThreadService {
     threadId: string,
     actorCompanyId: string,
     role: string | null,
+    viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     const { thread, participants, mine } = await this.loadForViewer(threadId, actorCompanyId, role);
     const [unreadCount, lastMessage] = await Promise.all([
       this.unreadCount(threadId, actorCompanyId, mine.lastReadAt),
-      this.lastMessageView(threadId, actorCompanyId),
+      this.lastMessageView(threadId, actorCompanyId, viewerUserId),
     ]);
     return this.serializer.toThreadDetail({ thread, participants, mine, unreadCount, lastMessage });
   }
@@ -426,6 +523,7 @@ export class ThreadService {
   private async lastMessageView(
     threadId: string,
     viewerCompanyId: string,
+    viewerUserId: string | null = null,
   ): Promise<MessageView | null> {
     const [message] = await this.prisma.message.findMany({
       where: { threadId },
@@ -436,7 +534,12 @@ export class ThreadService {
       return null;
     }
     const references = await this.references.resolve([message], viewerCompanyId);
-    return this.serializer.toMessageView(message, viewerCompanyId, references.get(message.id) ?? null);
+    return this.serializer.toMessageView(
+      message,
+      viewerCompanyId,
+      viewerUserId,
+      references.get(message.id) ?? null,
+    );
   }
 
   private unreadCount(
@@ -551,13 +654,18 @@ export class ThreadService {
   }
 
   findDirectThreadId(a: string, b: string): Promise<string | null> {
-    return this.findDirectThread(a, b).then((thread) => thread?.id ?? null);
+    return this.findDirectThread(a, b, ThreadVisibility.Shared).then((thread) => thread?.id ?? null);
   }
 
-  private findDirectThread(a: string, b: string) {
+  private findDirectThread(
+    a: string,
+    b: string,
+    visibility: ThreadVisibility = ThreadVisibility.Shared,
+  ) {
     return this.prisma.thread.findFirst({
       where: {
         type: ThreadType.Direct,
+        visibility,
         AND: [
           { participants: { some: { companyId: a } } },
           { participants: { some: { companyId: b } } },

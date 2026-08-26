@@ -282,6 +282,9 @@ function makeService(options: Options) {
     thread: {
       update: async () => ({}),
     },
+    paymentRequest: {
+      findMany: async () => [],
+    },
     $transaction: async (ops: unknown) => {
       if (typeof ops === 'function') {
         return ops(prisma);
@@ -401,7 +404,7 @@ describe('OrderService.create snapshots', () => {
         items: [openItem('oi1', 10)],
       },
     });
-    await service.amend('buyer', 'o1', {
+    await service.amend('buyer', 'u1', 'o1', {
       items: [
         { productId: 'p1', quantity: 12, images: [] },
         { productId: 'p2', quantity: 5, images: [] },
@@ -442,7 +445,7 @@ describe('OrderService quote + accept (partial)', () => {
 
   it('lets the seller quote with lower qty and decline a line', async () => {
     const { service, captured } = makeService({ order: requested });
-    await service.quote('seller', 'o1', {
+    await service.quote('seller', 'u1', 'o1', {
       items: [
         { orderItemId: 'oi1', rate: 150, quantity: 20 },
         { orderItemId: 'oi2', unavailable: true },
@@ -476,7 +479,7 @@ describe('OrderService quote + accept (partial)', () => {
         items: [openItem('oi1', 10)],
       },
     });
-    await service.quote('seller', 'o1', {
+    await service.quote('seller', 'u1', 'o1', {
       items: [{ orderItemId: 'oi1', rate: 200, quantity: 8 }],
     });
     expect(captured.messageUpdate).toMatchObject({
@@ -494,7 +497,7 @@ describe('OrderService quote + accept (partial)', () => {
     const { service, captured } = makeService({
       order: { ...requested, intent: OrderIntent.Inquiry },
     });
-    await service.quote('seller', 'o1', {
+    await service.quote('seller', 'u1', 'o1', {
       items: [{ orderItemId: 'oi1', rate: 150, quantity: 20 }],
     });
     expect(captured.updateData).toMatchObject({ intent: OrderIntent.Order });
@@ -508,7 +511,7 @@ describe('OrderService quote + accept (partial)', () => {
         items: [openItem('oi1', 20, 150)],
       },
     });
-    await service.acceptQuote('buyer', 'o1');
+    await service.acceptQuote('buyer', 'u1', 'o1');
     expect(captured.updateData?.status).toBe(OrderStatus.Confirmed);
   });
 
@@ -521,13 +524,13 @@ describe('OrderService quote + accept (partial)', () => {
         items: [openItem('oi1', 10, 2450)],
       },
     });
-    await expect(service.acceptQuote('buyer', 'o1')).rejects.toThrow(/not sent a quote/i);
+    await expect(service.acceptQuote('buyer', 'u1', 'o1')).rejects.toThrow(/not sent a quote/i);
   });
 
   it('forbids the buyer from quoting', async () => {
     const { service } = makeService({ order: requested });
     await expect(
-      service.quote('buyer', 'o1', { items: [{ orderItemId: 'oi1', rate: 10 }] }),
+      service.quote('buyer', 'u1', 'o1', { items: [{ orderItemId: 'oi1', rate: 10 }] }),
     ).rejects.toThrow();
   });
 });
@@ -543,7 +546,7 @@ describe('OrderService decideLines', () => {
         items: [openItem('oi1', 5), openItem('oi2', 5)],
       },
     });
-    await service.decideLines('seller', 'o1', {
+    await service.decideLines('seller', 'u1', 'o1', {
       items: [
         { orderItemId: 'oi1', action: 'confirm' },
         { orderItemId: 'oi2', action: 'decline' },
@@ -574,7 +577,7 @@ describe('OrderService decideLines', () => {
         items: [openItem('oi1', 5), openItem('oi2', 5)],
       },
     });
-    await service.decideLines('seller', 'o1', {
+    await service.decideLines('seller', 'u1', 'o1', {
       items: [
         { orderItemId: 'oi1', action: 'confirm' },
         { orderItemId: 'oi2', action: 'confirm', quantity: 3 },
@@ -597,7 +600,7 @@ describe('OrderService lifecycle action cards', () => {
         items: [openItem('oi1', 20, 150)],
       },
     });
-    await service.acceptQuote('buyer', 'o1');
+    await service.acceptQuote('buyer', 'u1', 'o1');
     const posted = captured.messageUpdate ?? captured.messageCreate;
     expect(captured.messageUpdate).toBeTruthy();
     expect(posted).toMatchObject({
@@ -617,7 +620,7 @@ describe('OrderService lifecycle action cards', () => {
         items: [openItem('oi1', 2)],
       },
     });
-    await service.cancel('buyer', 'ordCancel1');
+    await service.cancel('buyer', 'u1', 'ordCancel1');
     expect(captured.messageCreate).toMatchObject({
       type: 'order_card',
       metadata: expect.objectContaining({
@@ -648,7 +651,7 @@ describe('OrderService lifecycle action cards', () => {
         shipments: [],
       },
     });
-    await service.dispatch('seller', 'o1', {
+    await service.dispatch('seller', 'u1', 'o1', {
       items: [{ orderItemId: 'oi1', quantity: 4 }],
       lrNumber: 'LR-1',
     });
@@ -674,19 +677,19 @@ describe('OrderService state machine', () => {
 
   it('lets the seller confirm a requested order', async () => {
     const { service, captured } = makeService({ order: requested });
-    await service.confirm('seller', 'o1');
+    await service.confirm('seller', 'u1', 'o1');
     expect(captured.updateData?.status).toBe(OrderStatus.Confirmed);
   });
 
   it('forbids the buyer from confirming', async () => {
     const { service, captured } = makeService({ order: requested });
-    await expect(service.confirm('buyer', 'o1')).rejects.toThrow();
+    await expect(service.confirm('buyer', 'u1', 'o1')).rejects.toThrow();
     expect(captured.updateData).toBeNull();
   });
 
   it('rejects dispatching an order that is not yet confirmed', async () => {
     const { service } = makeService({ order: requested });
-    await expect(service.dispatch('seller', 'o1', { lrNumber: 'LR-1' })).rejects.toThrow();
+    await expect(service.dispatch('seller', 'u1', 'o1', { lrNumber: 'LR-1' })).rejects.toThrow();
   });
 
   it('rejects dispatch of open (unconfirmed) lines', async () => {
@@ -701,7 +704,7 @@ describe('OrderService state machine', () => {
       },
     });
     await expect(
-      service.dispatch('seller', 'o1', {
+      service.dispatch('seller', 'u1', 'o1', {
         lrNumber: 'LR-1',
         items: [{ orderItemId: 'oi1', quantity: 5 }],
       }),
@@ -728,7 +731,7 @@ describe('OrderService state machine', () => {
         shipments: [],
       },
     });
-    await service.dispatch('seller', 'o1', {
+    await service.dispatch('seller', 'u1', 'o1', {
       items: [{ orderItemId: 'oi1', quantity: 4 }],
       lrNumber: 'LR-1',
     });
@@ -741,6 +744,6 @@ describe('OrderService state machine', () => {
 
   it('404s an order the caller is not a party to', async () => {
     const { service } = makeService({ order: requested });
-    await expect(service.confirm('stranger', 'o1')).rejects.toThrow();
+    await expect(service.confirm('stranger', 'u1', 'o1')).rejects.toThrow();
   });
 });

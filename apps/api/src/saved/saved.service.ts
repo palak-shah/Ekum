@@ -12,6 +12,7 @@ import {
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { CompanySerializer } from '../access/company.serializer';
+import { toAuditActor } from '../common/audit';
 import { canDiscoverCollection } from '../catalog/audience-visibility';
 import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
 
@@ -65,6 +66,7 @@ const companySelect = {
 } as const;
 
 const listInclude = {
+  savedByUser: { select: { id: true, name: true } },
   product: { include: { company: { select: companySelect } } },
   collection: {
     include: {
@@ -99,7 +101,7 @@ export class SavedService {
     return rows.map((row) => this.toView(row));
   }
 
-  async create(companyId: string, dto: CreateSavedItemDto): Promise<SavedItemView> {
+  async create(companyId: string, userId: string, dto: CreateSavedItemDto): Promise<SavedItemView> {
     const hasProduct = Boolean(dto.productId);
     const hasCollection = Boolean(dto.collectionId);
     if (hasProduct === hasCollection) {
@@ -110,9 +112,9 @@ export class SavedService {
     }
 
     if (dto.productId) {
-      return this.saveProduct(companyId, dto.productId);
+      return this.saveProduct(companyId, userId, dto.productId);
     }
-    return this.saveCollection(companyId, dto.collectionId!);
+    return this.saveCollection(companyId, userId, dto.collectionId!);
   }
 
   async remove(companyId: string, id: string): Promise<void> {
@@ -126,7 +128,7 @@ export class SavedService {
     await this.prisma.savedItem.delete({ where: { id } });
   }
 
-  private async saveProduct(companyId: string, productId: string): Promise<SavedItemView> {
+  private async saveProduct(companyId: string, userId: string, productId: string): Promise<SavedItemView> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: { company: { select: companySelect } },
@@ -143,8 +145,8 @@ export class SavedService {
 
     const row = await this.prisma.savedItem.upsert({
       where: { companyId_productId: { companyId, productId } },
-      create: { companyId, productId },
-      update: {},
+      create: { companyId, productId, savedByUserId: userId },
+      update: { savedByUserId: userId },
       include: listInclude,
     });
     return this.toView(row);
@@ -152,6 +154,7 @@ export class SavedService {
 
   private async saveCollection(
     companyId: string,
+    userId: string,
     collectionId: string,
   ): Promise<SavedItemView> {
     const collection = await this.prisma.collection.findUnique({
@@ -178,8 +181,8 @@ export class SavedService {
 
     const row = await this.prisma.savedItem.upsert({
       where: { companyId_collectionId: { companyId, collectionId } },
-      create: { companyId, collectionId },
-      update: {},
+      create: { companyId, collectionId, savedByUserId: userId },
+      update: { savedByUserId: userId },
       include: listInclude,
     });
     return this.toView(row);
@@ -256,9 +259,11 @@ export class SavedService {
     productId: string | null;
     collectionId: string | null;
     createdAt: Date;
+    savedByUser: { id: string; name: string | null } | null;
     product: ProductRow | null;
     collection: CollectionRow | null;
   }): SavedItemView {
+    const savedBy = toAuditActor(row.savedByUser);
     if (row.productId && row.product) {
       const images = row.product.images ?? [];
       const rawRate = row.product.rate;
@@ -282,6 +287,7 @@ export class SavedService {
         rate: Number.isFinite(rate as number) ? (rate as number) : null,
         unit: row.product.unit ?? null,
         createdAt: row.createdAt.toISOString(),
+        savedBy,
       };
     }
     if (row.collectionId && row.collection) {
@@ -305,6 +311,7 @@ export class SavedService {
         imageCount: Math.max(imageCount, images.length),
         productCount,
         createdAt: row.createdAt.toISOString(),
+        savedBy,
       };
     }
     throw new BadRequestException({

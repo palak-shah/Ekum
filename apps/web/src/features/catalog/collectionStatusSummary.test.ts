@@ -6,12 +6,15 @@ import { collectionStatusSummary, whoCanSeeLabel } from './collectionStatusSumma
 describe('collectionStatusSummary', () => {
   const now = new Date('2026-09-15T12:00:00.000Z');
 
-  it('labels draft and ready', () => {
+  it('labels draft (Ready maps to Draft)', () => {
     expect(collectionStatusSummary({ status: CollectionStatus.Draft }, [], now).line).toBe(
       'Draft',
     );
     expect(collectionStatusSummary({ status: CollectionStatus.Ready }, [], now).line).toBe(
-      'Ready for team',
+      'Draft',
+    );
+    expect(collectionStatusSummary({ status: CollectionStatus.Ready }, [], now).phase).toBe(
+      'draft',
     );
   });
 

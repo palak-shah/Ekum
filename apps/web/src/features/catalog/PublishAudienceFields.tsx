@@ -421,8 +421,10 @@ export function PublishAudienceFields({
                     })
                   }
                   className={cx(
-                    'rounded-xl px-3 py-2.5 text-left',
-                    selected ? 'bg-accent/10 ring-1 ring-accent' : 'border border-line',
+                    'w-full rounded-xl border px-3 py-2.5 text-left',
+                    selected
+                      ? 'border-accent bg-accent/5'
+                      : 'border-line bg-surface',
                   )}
                 >
                   <p className="text-sm font-semibold text-ink">{option.label}</p>

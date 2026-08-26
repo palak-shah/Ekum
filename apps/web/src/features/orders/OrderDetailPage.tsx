@@ -6,18 +6,29 @@ import {
   buildOrderTimelineSteps,
   nextOrderAction,
   shortOrderLabel,
+  suggestedPaymentAmount,
+  type CreatePaymentRequestDto,
   type CreateReturnDto,
   type DecideOrderLinesDto,
   type DispatchDto,
+  type OrderItemView,
   type OrderView,
   type QuoteOrderDto,
   type ReturnView,
+  type SendUpOrderDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { auditLine } from '@/features/catalog/productStatusSummary';
+import {
+  galleryIndexForItem,
+  orderItemGalleryUrls,
+  urlsForOrderItem,
+} from '@/features/orders/orderItemImages';
 import { useCompanyId } from '@/lib/auth';
 import { formatDate, formatRate } from '@/lib/format';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
 import {
   Button,
@@ -40,6 +51,7 @@ function OrderTimeline({ order }: { order: OrderView }) {
   const steps = buildOrderTimelineSteps({
     ...order,
     returns: order.returns ?? [],
+    staff: order.timelineStaff,
   });
   const amended =
     order.amendCount > 0 ||
@@ -73,6 +85,9 @@ function OrderTimeline({ order }: { order: OrderView }) {
                 {step.label}
               </p>
               <p className="text-xs text-muted">{step.at ? formatDate(step.at) : '—'}</p>
+              {step.staffLine ? (
+                <p className="text-[11px] text-muted">{step.staffLine}</p>
+              ) : null}
               {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
               {step.key === 'requested' && amended ? (
                 <p className="text-xs text-muted">
@@ -104,6 +119,47 @@ function lineStatusLabel(status: string): string {
   }
 }
 
+function OrderLinePhoto({
+  item,
+  items,
+  onOpen,
+  size = 'md',
+}: {
+  item: OrderItemView;
+  items: OrderItemView[];
+  onOpen: (index: number) => void;
+  size?: 'md' | 'sm';
+}) {
+  const url = urlsForOrderItem(item)[0];
+  const dim = size === 'sm' ? 'h-12 w-12 rounded-lg' : 'h-14 w-14 rounded-xl';
+  if (!url) {
+    return (
+      <div
+        className={cx(
+          'flex shrink-0 items-center justify-center bg-foam text-muted',
+          dim,
+          size === 'sm' && 'text-sm font-bold',
+        )}
+      >
+        {item.name.charAt(0)}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="shrink-0"
+      aria-label={`View photo for ${item.name}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(galleryIndexForItem(items, item.id));
+      }}
+    >
+      <img src={url} alt="" className={cx(dim, 'object-cover')} />
+    </button>
+  );
+}
+
 export function OrderDetailPage() {
   const { id = '' } = useParams();
   const companyId = useCompanyId();
@@ -117,6 +173,14 @@ export function OrderDetailPage() {
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
   const [amendOpen, setAmendOpen] = useState(false);
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payNote, setPayNote] = useState('');
+  const [payHow, setPayHow] = useState('');
+  const [payError, setPayError] = useState<string | null>(null);
+  const [changeQty, setChangeQty] = useState<Record<string, string>>({});
+  const [changeRate, setChangeRate] = useState<Record<string, string>>({});
   const [amendQty, setAmendQty] = useState<Record<string, string>>({});
   const [amendRemoved, setAmendRemoved] = useState<Set<string>>(() => new Set());
   const [dispatch, setDispatch] = useState<{
@@ -136,22 +200,46 @@ export function OrderDetailPage() {
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [lrTouched, setLrTouched] = useState(false);
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
 
   const order = useQuery({
     queryKey: ['order', id],
     queryFn: () => api.get<OrderView>(`/orders/${id}`),
   });
 
+  useEffect(() => {
+    if (order.data?.direction !== 'buying') return;
+    for (const ask of order.data.paymentRequests ?? []) {
+      if (ask.status === 'open' && !ask.seenAt) {
+        void api.post(`/payment-requests/${ask.id}/seen`, {}).then(() => {
+          void queryClient.invalidateQueries({ queryKey: ['order', id] });
+        });
+      }
+    }
+  }, [order.data, id, queryClient]);
+
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['order', id] });
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
     void queryClient.invalidateQueries({ queryKey: ['returns'] });
+    void queryClient.invalidateQueries({ queryKey: ['threads'] });
   };
 
   const act = useMutation({
     mutationFn: (action: string) => api.post<OrderView>(`/orders/${id}/${action}`, {}),
     onSuccess: refresh,
     onError: (err) => showToast(actionErrorMessage(err, 'Action failed.'), 'danger'),
+  });
+
+  const sendUp = useMutation({
+    mutationFn: (body: SendUpOrderDto) => api.post<OrderView>(`/orders/${id}/send-up`, body),
+    onSuccess: () => {
+      setChangeOpen(false);
+      refresh();
+      showToast('Sent.');
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not send.'), 'danger'),
   });
 
   const takeControl = useMutation({
@@ -167,6 +255,51 @@ export function OrderDetailPage() {
     },
     onError: (err) => showToast(actionErrorMessage(err, 'Could not take control.'), 'danger'),
   });
+
+  const askPay = useMutation({
+    mutationFn: () => {
+      const amount = Number(payAmount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new ApiError({
+          statusCode: 400,
+          code: 'AMOUNT_REQUIRED',
+          message: 'Enter an amount.',
+        });
+      }
+      const dto: CreatePaymentRequestDto = {
+        amount,
+        note: payNote.trim() || undefined,
+        instructions: payHow.trim() || undefined,
+      };
+      return api.post(`/orders/${id}/payment-requests`, dto);
+    },
+    onSuccess: () => {
+      setPayOpen(false);
+      setPayError(null);
+      refresh();
+      showToast('Asked for payment.');
+    },
+    onError: (err) => setPayError(actionErrorMessage(err, 'Could not ask for payment.')),
+  });
+
+  const payAct = useMutation({
+    mutationFn: ({ askId, action }: { askId: string; action: 'paid' | 'received' }) =>
+      api.post(`/payment-requests/${askId}/${action}`, {}),
+    onSuccess: () => {
+      refresh();
+      showToast('Updated.');
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not update payment.'), 'danger'),
+  });
+
+  const openPaySheet = () => {
+    const suggested = suggestedPaymentAmount(order.data?.items ?? []);
+    setPayAmount(suggested > 0 ? String(suggested) : '');
+    setPayNote('');
+    setPayHow('');
+    setPayError(null);
+    setPayOpen(true);
+  };
 
   const openAmendSheet = () => {
     const items = order.data?.items ?? [];
@@ -436,7 +569,7 @@ export function OrderDetailPage() {
     setReturnOpen(true);
   };
 
-  const closeSheet = (which: 'quote' | 'lines' | 'dispatch' | 'amend' | 'return') => {
+  const closeSheet = (which: 'quote' | 'lines' | 'dispatch' | 'amend' | 'return' | 'pay') => {
     setSheetError(null);
     if (which === 'quote') setQuoteOpen(false);
     if (which === 'lines') setLinesOpen(false);
@@ -446,6 +579,10 @@ export function OrderDetailPage() {
     }
     if (which === 'amend') setAmendOpen(false);
     if (which === 'return') setReturnOpen(false);
+    if (which === 'pay') {
+      setPayError(null);
+      setPayOpen(false);
+    }
   };
 
   const openItems = useMemo(
@@ -509,6 +646,11 @@ export function OrderDetailPage() {
   }
 
   const data = order.data;
+  const photoGallery = orderItemGalleryUrls(data.items);
+  const openPhotoViewer = (index: number) => {
+    setPhotoViewerIndex(index);
+    setPhotoViewerOpen(true);
+  };
   const isSeller = data.direction === 'selling';
   const isBuyer = data.direction === 'buying';
   const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
@@ -582,6 +724,9 @@ export function OrderDetailPage() {
             {agreementStepLabel(data.confirmedByRole, data.confirmedByName)}
           </p>
         ) : null}
+        {auditLine(data) ? (
+          <p className="text-xs text-muted">{auditLine(data)}</p>
+        ) : null}
       </Card>
 
       {data.relatedOrders && data.relatedOrders.length > 0 ? (
@@ -595,8 +740,11 @@ export function OrderDetailPage() {
               onClick={() => navigate(`/orders/${related.id}`)}
             >
               <span className="font-medium text-ink">
-                {related.role === 'upstream' ? 'Upstream' : 'Downstream'} ·{' '}
-                {shortOrderLabel(related.id)} · {related.status}
+                {related.held
+                  ? `Waiting${related.sellerName ? ` · ${related.sellerName}` : ''}`
+                  : related.role === 'upstream'
+                    ? `${related.sellerName ?? 'Linked'} · ${related.status}`
+                    : `${related.buyerName ?? 'Linked'} · ${related.status}`}
               </span>
               {(related.sellerName || related.buyerName) && (
                 <span className="text-xs text-muted">
@@ -611,13 +759,7 @@ export function OrderDetailPage() {
       <Card className="flex flex-col gap-3">
         {data.items.map((item) => (
           <div key={item.id} className="flex items-center gap-3">
-            {item.image ? (
-              <img src={item.image} alt={item.name} className="h-14 w-14 rounded-xl object-cover" />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-foam text-muted">
-                {item.name.charAt(0)}
-              </div>
-            )}
+            <OrderLinePhoto item={item} items={data.items} onOpen={openPhotoViewer} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">{item.name}</p>
               <p className="text-xs text-muted">
@@ -739,10 +881,52 @@ export function OrderDetailPage() {
         </Card>
       ) : null}
 
+      {(data.paymentRequests?.length ?? 0) > 0 ? (
+        <Card className="flex flex-col gap-3 text-sm">
+          <p className="font-semibold text-ink">Payment</p>
+          {data.paymentRequests!.map((ask) => (
+            <div key={ask.id} className="border-t border-line pt-2 first:border-0 first:pt-0">
+              <p className="font-medium text-ink">
+                {ask.status === 'paid' ? 'Paid' : 'Asked'} · ₹
+                {ask.amount.toLocaleString('en-IN')}
+              </p>
+              {ask.note ? <p className="text-muted">{ask.note}</p> : null}
+              {ask.instructions ? <p className="text-muted">{ask.instructions}</p> : null}
+              {ask.status === 'paid' && ask.paidAt ? (
+                <p className="text-muted">{formatDate(ask.paidAt)}</p>
+              ) : null}
+              {ask.status === 'open' && isBuyer ? (
+                <Button
+                  className="mt-2"
+                  onClick={() => payAct.mutate({ askId: ask.id, action: 'paid' })}
+                  disabled={payAct.isPending}
+                >
+                  Paid
+                </Button>
+              ) : null}
+              {ask.status === 'open' && isSeller ? (
+                <Button
+                  className="mt-2"
+                  onClick={() => payAct.mutate({ askId: ask.id, action: 'received' })}
+                  disabled={payAct.isPending}
+                >
+                  Mark received
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </Card>
+      ) : null}
+
       <div className="flex flex-col gap-2">
         {data.threadId ? (
           <Button variant="secondary" onClick={() => navigate(`/chats/${data.threadId}`)}>
             Open chat
+          </Button>
+        ) : null}
+        {data.canAskPayment ? (
+          <Button variant="secondary" onClick={openPaySheet}>
+            Ask for payment
           </Button>
         ) : null}
         {isSeller && data.status === 'requested' ? (
@@ -759,6 +943,31 @@ export function OrderDetailPage() {
             </Button>
           </>
         ) : null}
+        {data.canSendUp ? (
+          <>
+            <Button onClick={() => sendUp.mutate({})} disabled={sendUp.isPending}>
+              {sendUp.isPending ? 'Sending…' : 'Send'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const qty: Record<string, string> = {};
+                const rate: Record<string, string> = {};
+                for (const item of data.items) {
+                  if (!item.productId) continue;
+                  qty[item.productId] = String(item.quantity);
+                  rate[item.productId] = item.rate != null ? String(item.rate) : '';
+                }
+                setChangeQty(qty);
+                setChangeRate(rate);
+                setSheetError(null);
+                setChangeOpen(true);
+              }}
+            >
+              Change
+            </Button>
+          </>
+        ) : null}
         {data.canTakeControl ? (
           <Button
             variant="secondary"
@@ -767,6 +976,16 @@ export function OrderDetailPage() {
           >
             Take over
           </Button>
+        ) : null}
+        {isBuyer && data.canAcceptLogged ? (
+          <>
+            <Button onClick={() => act.mutate('accept')} disabled={act.isPending}>
+              Accept
+            </Button>
+            <Button variant="secondary" onClick={() => act.mutate('cancel')} disabled={act.isPending}>
+              Decline
+            </Button>
+          </>
         ) : null}
         {isBuyer && data.canAcceptQuote ? (
           <Button onClick={() => act.mutate('accept-quote')} disabled={act.isPending}>
@@ -1097,17 +1316,12 @@ export function OrderDetailPage() {
                       }));
                     }}
                   >
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt=""
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
-                        {item.name.charAt(0)}
-                      </div>
-                    )}
+                    <OrderLinePhoto
+                      item={item}
+                      items={order.data?.items ?? []}
+                      onOpen={openPhotoViewer}
+                      size="sm"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
                       <p className="truncate text-xs text-muted">Ordered {item.quantity}</p>
@@ -1150,6 +1364,132 @@ export function OrderDetailPage() {
           </Button>
         </div>
       </Sheet>
+
+      <Sheet
+        open={changeOpen}
+        onClose={() => setChangeOpen(false)}
+        title="Change"
+        footer={
+          <Button
+            fullWidth
+            disabled={sendUp.isPending}
+            onClick={() => {
+              const items = (order.data?.items ?? [])
+                .filter((item) => item.productId)
+                .map((item) => {
+                  const qty = Number(changeQty[item.productId!]);
+                  const rateRaw = changeRate[item.productId!]?.trim();
+                  const rate = rateRaw === '' ? undefined : Number(rateRaw);
+                  return {
+                    productId: item.productId!,
+                    ...(Number.isFinite(qty) && qty > 0 ? { quantity: qty } : {}),
+                    ...(rate != null && Number.isFinite(rate) ? { rate } : {}),
+                  };
+                });
+              sendUp.mutate({ items });
+            }}
+          >
+            {sendUp.isPending ? 'Sending…' : 'Send'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Edit qty or rate, then Send to the design owners.</p>
+          {(order.data?.items ?? [])
+            .filter((item) => item.productId)
+            .map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <OrderLinePhoto
+                  item={item}
+                  items={order.data?.items ?? []}
+                  onOpen={openPhotoViewer}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                  <div className="mt-1 flex gap-2">
+                    <Field label="Qty">
+                      <TextInput
+                        type="number"
+                        min={1}
+                        className="min-h-10"
+                        value={changeQty[item.productId!] ?? ''}
+                        onChange={(event) =>
+                          setChangeQty((prev) => ({
+                            ...prev,
+                            [item.productId!]: event.target.value,
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Rate">
+                      <TextInput
+                        type="number"
+                        min={0}
+                        className="min-h-10"
+                        value={changeRate[item.productId!] ?? ''}
+                        onChange={(event) =>
+                          setChangeRate((prev) => ({
+                            ...prev,
+                            [item.productId!]: event.target.value,
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+            ))}
+          {sheetError && changeOpen ? <InlineNotice message={sheetError} /> : null}
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={payOpen}
+        onClose={() => closeSheet('pay')}
+        title="Ask for payment"
+        footer={
+          <Button fullWidth onClick={() => askPay.mutate()} disabled={askPay.isPending}>
+            {askPay.isPending ? 'Asking…' : 'Ask for payment'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Field label="Amount">
+            <TextInput
+              type="number"
+              min={0}
+              inputMode="decimal"
+              value={payAmount}
+              placeholder="₹"
+              onChange={(event) => setPayAmount(event.target.value)}
+            />
+          </Field>
+          <Field label="Note">
+            <TextArea
+              value={payNote}
+              placeholder="Optional"
+              onChange={(event) => setPayNote(event.target.value)}
+            />
+          </Field>
+          <Field label="Pay how">
+            <TextArea
+              value={payHow}
+              placeholder="UPI / bank — optional"
+              onChange={(event) => setPayHow(event.target.value)}
+            />
+          </Field>
+          {payError ? <InlineNotice message={payError} /> : null}
+        </div>
+      </Sheet>
+
+      <PhotoViewer
+        open={photoViewerOpen && photoGallery.length > 0}
+        urls={photoGallery}
+        index={photoViewerIndex}
+        onIndex={setPhotoViewerIndex}
+        onClose={() => setPhotoViewerOpen(false)}
+      />
     </div>
   );
 }

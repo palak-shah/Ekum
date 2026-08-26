@@ -27,6 +27,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { RequirePermission } from '../auth/require-permission';
 import { CollectionService } from './collection.service';
 
 @Controller({ path: 'collections', version: '1' })
@@ -34,6 +35,7 @@ export class CollectionController {
   constructor(private readonly collections: CollectionService) {}
 
   @Post()
+  @RequirePermission('uploads')
   create(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -56,6 +58,7 @@ export class CollectionController {
   }
 
   @Patch(':id')
+  @RequirePermission('uploads')
   update(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -66,6 +69,7 @@ export class CollectionController {
   }
 
   @Put(':id/products')
+  @RequirePermission('uploads')
   setProducts(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -76,6 +80,7 @@ export class CollectionController {
   }
 
   @Post(':id/publish')
+  @RequirePermission('uploads')
   publish(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -86,6 +91,7 @@ export class CollectionController {
   }
 
   @Post(':id/ready')
+  @RequirePermission('uploads')
   ready(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -95,6 +101,7 @@ export class CollectionController {
   }
 
   @Post(':id/unready')
+  @RequirePermission('uploads')
   unready(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -104,6 +111,7 @@ export class CollectionController {
   }
 
   @Post(':id/archive')
+  @RequirePermission('uploads')
   archive(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -118,6 +126,7 @@ export class CollectionController {
   }
 
   @Post(':id/unarchive')
+  @RequirePermission('uploads')
   unarchive(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -127,6 +136,7 @@ export class CollectionController {
   }
 
   @Post(':id/unpublish')
+  @RequirePermission('uploads')
   unpublish(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
@@ -137,6 +147,7 @@ export class CollectionController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequirePermission('uploads')
   remove(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.collections.remove(companyId, id);
   }

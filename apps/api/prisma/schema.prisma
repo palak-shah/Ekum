@@ -39,8 +39,13 @@ model User {
   productsUpdated    Product[]    @relation("ProductUpdatedBy")
   collectionsCreated Collection[] @relation("CollectionCreatedBy")
   collectionsUpdated Collection[] @relation("CollectionUpdatedBy")
-  ordersCreated      Order[]      @relation("OrderCreatedByUser")
-  ordersUpdated      Order[]      @relation("OrderUpdatedByUser")
+  ordersCreated      Order[]         @relation("OrderCreatedByUser")
+  ordersUpdated      Order[]         @relation("OrderUpdatedByUser")
+  ordersQuoted       Order[]         @relation("OrderQuotedByUser")
+  ordersConfirmed    Order[]         @relation("OrderConfirmedByUser")
+  ordersDelivered    Order[]         @relation("OrderDeliveredByUser")
+  shipmentsDispatched OrderShipment[] @relation("ShipmentDispatchedByUser")
+  savedItems         SavedItem[]
 }
 
 /// The tenant root. A company may buy, sell, or both — capabilities are data.
@@ -99,6 +104,7 @@ model Company {
   notifications   Notification[]
   media           Media[]
   savedItems      SavedItem[]
+  teamInvites     TeamInvite[]
 }
 
 /// The join between a User and a Company. Modelled many-to-many from day one so
@@ -130,6 +136,24 @@ model CompanyMembership {
 
   @@unique([userId, companyId])
   @@index([companyId])
+}
+
+/// Owner-issued invite for a person to join as staff (phone-bound).
+model TeamInvite {
+  id              String    @id @default(cuid())
+  companyId       String
+  invitedByUserId String
+  token           String    @unique
+  name            String
+  phone           String
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([phone])
 }
 
 /// A hashed refresh token (rotation). The raw token is only ever held by the client.
@@ -312,11 +336,13 @@ model SavedItem {
   companyId    String
   productId    String?
   collectionId String?
+  savedByUserId String?
   createdAt    DateTime @default(now())
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   product    Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
   collection Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  savedByUser User?      @relation(fields: [savedByUserId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdAt])
   @@unique([companyId, productId])
@@ -391,6 +417,10 @@ model Message {
   id               String  @id @default(cuid())
   threadId         String
   senderCompanyId  String
+  /** Staff member who sent (null for legacy / system-generated). */
+  senderUserId     String?
+  /** Snapshot of sender display name at send time (team-visible only). */
+  senderName       String?
   type             String  @default("text") // MessageType
   body             String?
   referenceId      String? // product / collection / order id for *_card types
@@ -431,6 +461,8 @@ model Order {
   facilitatorCompanyId String?
   /// Upstream Manage hop points at buyer-facing manage order
   downstreamOrderId    String?
+  /// Null + downstreamOrderId set = held from the mill until Send.
+  upstreamReleasedAt   DateTime?
   note               String?
   transporter        String?
   lrNumber           String?
@@ -438,8 +470,12 @@ model Order {
   confirmedAt          DateTime?
   /** Company that moved the order to confirmed (seller confirm or buyer accept-quote). */
   confirmedByCompanyId String?
+  confirmedByUserId    String?
+  quotedAt             DateTime?
+  quotedByUserId       String?
   dispatchedAt         DateTime?
   deliveredAt          DateTime?
+  deliveredByUserId    String?
   // The buyer may raise returns until this instant; a background job closes the
   // window when it passes. Null until the order is delivered.
   returnWindowClosesAt DateTime?
@@ -454,12 +490,17 @@ model Order {
   facilitator   Company?    @relation("OrderFacilitator", fields: [facilitatorCompanyId], references: [id], onDelete: SetNull)
   downstream    Order?      @relation("OrderUpstreamLink", fields: [downstreamOrderId], references: [id], onDelete: SetNull)
   upstreams     Order[]     @relation("OrderUpstreamLink")
-  createdByUser User?       @relation("OrderCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedByUser User?       @relation("OrderUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdByUser   User?       @relation("OrderCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser   User?       @relation("OrderUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  quotedByUser    User?       @relation("OrderQuotedByUser", fields: [quotedByUserId], references: [id], onDelete: SetNull)
+  confirmedByUser User?       @relation("OrderConfirmedByUser", fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  deliveredByUser User?       @relation("OrderDeliveredByUser", fields: [deliveredByUserId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   shipments     OrderShipment[]
-  returns       Return[]
-  complaints    Complaint[]
+  returns          Return[]
+  complaints       Complaint[]
+  paymentRequests  PaymentRequest[]
+  acceptInvites    OrderAcceptInvite[]
 
   @@index([buyerCompanyId, status])
   @@index([sellerCompanyId, status])
@@ -467,6 +508,9 @@ model Order {
   @@index([downstreamOrderId])
   @@index([createdByUserId])
   @@index([updatedByUserId])
+  @@index([confirmedByUserId])
+  @@index([quotedByUserId])
+  @@index([deliveredByUserId])
 }
 
 /// Line snapshot. requestedQuantity is the buyer ask; quantity is the current
@@ -503,10 +547,12 @@ model OrderShipment {
   lrNumber     String?
   parcelCount  Int?
   dispatchedAt DateTime  @default(now())
+  dispatchedByUserId String?
   createdAt    DateTime  @default(now())
 
-  order Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  items OrderShipmentItem[]
+  order            Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dispatchedByUser User? @relation("ShipmentDispatchedByUser", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
+  items            OrderShipmentItem[]
 
   @@index([orderId])
 }
@@ -607,6 +653,52 @@ model Complaint {
   @@index([orderId])
   @@index([raisedByCompanyId])
   @@index([againstCompanyId])
+}
+
+/// Honour-system pay ask on an order. Ekum does not move money.
+model PaymentRequest {
+  id           String    @id @default(cuid())
+  orderId      String
+  amount       Decimal
+  note         String?
+  instructions String?
+  status       String    @default("open") // PaymentRequestStatus
+  seenAt       DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+}
+
+/// Off-app 48h door to one album or design. After login, normal audience rules.
+model CatalogShareLink {
+  id                 String   @id @default(cuid())
+  token              String   @unique
+  collectionId       String?
+  productId          String?
+  createdByCompanyId String
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+/// Off-app Accept link for a seller-logged order. One use; ~7 days.
+model OrderAcceptInvite {
+  id        String    @id @default(cuid())
+  orderId   String
+  token     String    @unique
+  phone     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([phone, usedAt])
 }
 
 // --- Settings (reference data) ----------------------------------------------

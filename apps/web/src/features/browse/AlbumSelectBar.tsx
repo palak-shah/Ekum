@@ -15,7 +15,7 @@ function pickLabel(albumCount: number, designCount: number): string {
 }
 
 /**
- * Explore dock: Share / Save for albums + designs; Order / Curate when designs present.
+ * Explore dock: Share / Bookmark for albums + designs; Order / Curate when designs present.
  */
 export function AlbumSelectBar({
   albumCount,
@@ -68,7 +68,7 @@ export function AlbumSelectBar({
           {extra}
           {onSave ? (
             <Button variant="secondary" className="min-w-0 flex-1" disabled={busy} onClick={onSave}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Bookmarking…' : 'Bookmark'}
             </Button>
           ) : null}
           {showShare ? (

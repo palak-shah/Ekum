@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MessageType, type SendMessageDto } from '@ekum/domain-types';
 import { MessageService } from './message.service';
+import type { AuthPrincipal } from '../auth/auth.types';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { ThreadService } from './thread.service';
 import type { ConversationSerializer } from './conversation.serializer';
@@ -9,6 +10,10 @@ import type { DomainEvents } from '../events/events.module';
 
 const activeMembership = { id: 'p', state: 'active' };
 const events = { messageSent: () => undefined } as unknown as DomainEvents;
+
+function actor(companyId: string, role = 'owner'): AuthPrincipal {
+  return { userId: 'u1', companyId, phone: '+910000000000', role, permissions: null };
+}
 
 describe('MessageService.send', () => {
   it('rejects sharing a product the sender does not own and has not received in chat', async () => {
@@ -25,7 +30,7 @@ describe('MessageService.send', () => {
       events,
     );
     const dto = { type: MessageType.ProductCard, referenceId: 'not-mine' } as SendMessageDto;
-    await expect(service.send('me', 'owner', 't', dto)).rejects.toThrow();
+    await expect(service.send(actor('me'), 't', dto)).rejects.toThrow();
   });
 
   it('allows forwarding a product already shared into the sender chat', async () => {
@@ -55,6 +60,7 @@ describe('MessageService.send', () => {
           threadParticipant: { update: async () => ({}) },
         }),
       threadParticipant: { findMany: async () => [] },
+      user: { findUnique: async () => ({ name: 'Owner' }) },
     } as unknown as PrismaService;
     const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
     const serializer = {
@@ -70,7 +76,7 @@ describe('MessageService.send', () => {
       referenceId: 'p1',
       body: 'Banarasi',
     } as SendMessageDto;
-    await expect(service.send('me', 'owner', 't2', dto)).resolves.toMatchObject({ id: 'm1' });
+    await expect(service.send(actor('me'), 't2', dto)).resolves.toMatchObject({ id: 'm1' });
   });
 
   it('rejects non-owner forward when allowForward is false', async () => {
@@ -97,7 +103,7 @@ describe('MessageService.send', () => {
       referenceId: 'p1',
     } as SendMessageDto;
     try {
-      await service.send('me', 'owner', 't2', dto);
+      await service.send(actor('me'), 't2', dto);
       expect.fail('expected FORWARD_NOT_ALLOWED');
     } catch (error) {
       expect((error as { getResponse: () => unknown }).getResponse()).toMatchObject({
@@ -133,6 +139,7 @@ describe('MessageService.send', () => {
           threadParticipant: { update: async () => ({}) },
         }),
       threadParticipant: { findMany: async () => [] },
+      user: { findUnique: async () => ({ name: 'Owner' }) },
     } as unknown as PrismaService;
     const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
     const serializer = {
@@ -159,7 +166,7 @@ describe('MessageService.send', () => {
       type: MessageType.ProductCard,
       referenceId: 'p1',
     } as SendMessageDto;
-    await expect(service.send('supplier', 'owner', 't2', dto)).resolves.toMatchObject({
+    await expect(service.send(actor('supplier'), 't2', dto)).resolves.toMatchObject({
       id: 'm1',
     });
   });
@@ -183,6 +190,7 @@ describe('MessageService.send', () => {
           threadParticipant: { update: async () => ({}) },
         }),
       threadParticipant: { findMany: async () => [] },
+      user: { findUnique: async () => ({ name: 'Owner' }) },
     } as unknown as PrismaService;
     const threads = {
       membershipOrThrow: async () => ({ id: 'p', state: 'pending' }),
@@ -194,7 +202,7 @@ describe('MessageService.send', () => {
     const service = new MessageService(prisma, threads, serializer, references, events);
 
     const dto = { type: MessageType.Text, body: 'hello' } as SendMessageDto;
-    await expect(service.send('me', 'owner', 't', dto)).resolves.toMatchObject({ id: 'm1' });
+    await expect(service.send(actor('me'), 't', dto)).resolves.toMatchObject({ id: 'm1' });
   });
 });
 
@@ -239,6 +247,9 @@ describe('MessageService.list filters', () => {
           return rows.slice(0, args.take);
         },
       },
+      $queryRaw: async () => [] as { id: string }[],
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
     } as unknown as PrismaService;
     const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
     const serializer = {
@@ -248,10 +259,46 @@ describe('MessageService.list filters', () => {
     return new MessageService(prisma, threads, serializer, references, events);
   }
 
-  it('scopes media to photo and voice', async () => {
+  it('scopes photos to photo only', async () => {
     const captured: { where: unknown } = { where: null };
     const service = listService(captured);
-    await service.list('me', 'owner', 't', { view: 'media', limit: 20 });
+    await service.list(actor('me'), 't', { view: 'photos', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        { type: MessageType.Photo },
+      ]),
+    });
+  });
+
+  it('scopes collections to collection_card', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list(actor('me'), 't', { view: 'collections', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        { type: MessageType.CollectionCard },
+      ]),
+    });
+  });
+
+  it('scopes designs to product_card', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list(actor('me'), 't', { view: 'designs', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        { type: MessageType.ProductCard },
+      ]),
+    });
+  });
+
+  it('scopes media (legacy) to photo and voice', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list(actor('me'), 't', { view: 'media', limit: 20 });
     expect(captured.where).toMatchObject({
       AND: expect.arrayContaining([
         { threadId: 't' },
@@ -263,7 +310,7 @@ describe('MessageService.list filters', () => {
   it('scopes orders to order_card, rate, and legacy system notices', async () => {
     const captured: { where: unknown } = { where: null };
     const service = listService(captured);
-    await service.list('me', 'owner', 't', { view: 'orders', limit: 20 });
+    await service.list(actor('me'), 't', { view: 'orders', limit: 20 });
     expect(captured.where).toMatchObject({
       AND: expect.arrayContaining([
         { threadId: 't' },
@@ -279,13 +326,58 @@ describe('MessageService.list filters', () => {
   it('applies case-insensitive body search with q', async () => {
     const captured: { where: unknown } = { where: null };
     const service = listService(captured);
-    await service.list('me', 'owner', 't', { view: 'all', q: 'Wedding', limit: 20 });
+    await service.list(actor('me'), 't', { view: 'all', q: 'Wedding', limit: 20 });
     expect(captured.where).toMatchObject({
       AND: expect.arrayContaining([
         { threadId: 't' },
         {
           OR: expect.arrayContaining([
             { body: { contains: 'Wedding', mode: 'insensitive' } },
+          ]),
+        },
+      ]),
+    });
+  });
+
+  it('includes orderLabel match ids from case-insensitive raw lookup', async () => {
+    const captured: { where: unknown } = { where: null };
+    const rows = [
+      {
+        id: 'm-photo',
+        threadId: 't',
+        senderCompanyId: 'me',
+        type: MessageType.Photo,
+        body: 'https://img/a.jpg',
+        referenceId: null,
+        metadata: { urls: ['https://img/a.jpg'] },
+        createdAt: new Date(),
+      },
+    ];
+    const prisma = {
+      message: {
+        findMany: async (args: { where: unknown; take: number }) => {
+          captured.where = args.where;
+          return rows.slice(0, args.take);
+        },
+      },
+      $queryRaw: async () => [{ id: 'm-order-hit' }],
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
+    const service = new MessageService(prisma, threads, serializer, references, events);
+    await service.list(actor('me'), 't', { view: 'all', q: 'okyd', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        {
+          OR: expect.arrayContaining([
+            { body: { contains: 'okyd', mode: 'insensitive' } },
+            { id: { in: ['m-order-hit'] } },
           ]),
         },
       ]),

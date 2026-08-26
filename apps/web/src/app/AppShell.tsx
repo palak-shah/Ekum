@@ -2,6 +2,7 @@ import { Suspense, useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
+import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import {
@@ -27,12 +28,13 @@ function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/orders')) return pathname === '/orders' ? 'Orders' : null;
   if (pathname.startsWith('/explore') || pathname.startsWith('/search')) return 'Explore';
   if (pathname.startsWith('/notifications')) return 'Notifications';
+  if (pathname.startsWith('/team')) return 'Team';
   if (pathname.startsWith('/more') || pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
     return 'More';
   }
   if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
   if (pathname.startsWith('/following') || pathname.startsWith('/followers')) return 'Network';
-  if (pathname.startsWith('/catalog')) return 'My designs';
+  if (pathname.startsWith('/catalog')) return null;
   if (pathname.startsWith('/company')) return 'Business';
   if (pathname.startsWith('/collections')) return 'Collection';
   if (pathname.startsWith('/products')) return 'Design';
@@ -53,6 +55,7 @@ export function AppShell() {
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
   const { buying, selling, trading, canPublish } = useTradePresence();
+  const { can } = useTeamCaps();
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
   /** Thread detail: counterpart header owns the top chrome (WhatsApp-style). */
@@ -151,23 +154,24 @@ export function AppShell() {
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
         <div className="flex flex-col gap-2">
-          <Button variant="secondary" fullWidth onClick={() => go('/saved')}>
-            Saved
-          </Button>
-          {buying ? (
+          {buying && can('orders') ? (
             <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
               Photo order
             </Button>
           ) : null}
           {selling ? (
             <>
-              <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
-                Add designs
-              </Button>
-              <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
-                New collection
-              </Button>
-              {trading ? (
+              {can('uploads') ? (
+                <>
+                  <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
+                    Add designs
+                  </Button>
+                  <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
+                    New collection
+                  </Button>
+                </>
+              ) : null}
+              {trading && can('uploads') ? (
                 <Button variant="secondary" fullWidth onClick={() => go('/saved?select=1')}>
                   Curate pack
                 </Button>

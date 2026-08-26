@@ -26,8 +26,13 @@ function findSavedItem(items: SavedItemView[] | undefined, target: SaveTarget) {
   );
 }
 
+type SaveToggleCopy = {
+  toastSaved?: string;
+  toastRemoved?: string;
+};
+
 /** Save / unsave a discoverable design or collection (Follow-style toggle). */
-export function useSaveToggle(target: SaveTarget) {
+export function useSaveToggle(target: SaveTarget, copy?: SaveToggleCopy) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const saved = useSavedList();
@@ -48,10 +53,19 @@ export function useSaveToggle(target: SaveTarget) {
     },
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
-      showToast(result === 'removed' ? 'Removed from Saved' : 'Saved');
+      if (result === 'removed') {
+        showToast(copy?.toastRemoved ?? 'Removed bookmark');
+        return;
+      }
+      showToast(copy?.toastSaved ?? 'Bookmarked', 'success', {
+        action: {
+          label: 'Open',
+          to: target.productId ? '/saved' : '/saved?tab=collections',
+        },
+      });
     },
     onError: (err) =>
-      showToast(err instanceof ApiError ? err.message : 'Could not update Saved.', 'danger'),
+      showToast(err instanceof ApiError ? err.message : 'Could not update bookmark.', 'danger'),
   });
 
   return {

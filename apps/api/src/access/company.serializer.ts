@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 import type { Company, CompanyMembership, User } from '@prisma/client';
 import type {
   CompanyContactPoint,
+  CompanyPermissions,
   OwnCompanyProfile,
   PublicCompanyProfile,
   PublicCompanySummary,
   TradePresence,
 } from '@ekum/domain-types';
+import { MembershipRole } from '@ekum/domain-types';
 import { resolveTradePresence } from '../identity/trade-presence';
+import { membershipPermissions } from '../auth/require-permission';
 
 type MembershipWithUser = CompanyMembership & { user: Pick<User, 'name' | 'phone'> };
 
@@ -45,8 +48,25 @@ export class CompanySerializer {
     company: Company,
     contactPerson: string | null = null,
     tradeDefaults: unknown = null,
+    membership: {
+      role: string;
+      canUploads: boolean;
+      canChats: boolean;
+      canOrders: boolean;
+      canPayments: boolean;
+      canTeam: boolean;
+    } | null = null,
   ): OwnCompanyProfile {
     const tradePresence: TradePresence = resolveTradePresence(tradeDefaults);
+    const permissions: CompanyPermissions = membership
+      ? membershipPermissions(membership)
+      : {
+          uploads: true,
+          chats: true,
+          orders: true,
+          payments: true,
+          team: true,
+        };
     return {
       ...this.toPublicProfile(company),
       gstNumber: company.gstNumber,
@@ -59,6 +79,8 @@ export class CompanySerializer {
         refer: company.canRefer,
       },
       tradePresence,
+      role: membership?.role ?? MembershipRole.Owner,
+      permissions,
     };
   }
 

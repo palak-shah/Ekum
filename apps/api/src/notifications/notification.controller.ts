@@ -52,10 +52,28 @@ export class NotificationController {
     return this.notifications.markAllRead(companyId);
   }
 
+  @Delete('read')
+  @HttpCode(200)
+  clearRead(@CurrentCompanyId() companyId: string) {
+    return this.notifications.deleteRead(companyId);
+  }
+
+  @Delete()
+  @HttpCode(200)
+  clearAll(@CurrentCompanyId() companyId: string) {
+    return this.notifications.deleteAll(companyId);
+  }
+
   @Post(':id/read')
   @HttpCode(200)
   markRead(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.notifications.markRead(companyId, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  deleteOne(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+    return this.notifications.deleteOne(companyId, id);
   }
 
   @Post('push')

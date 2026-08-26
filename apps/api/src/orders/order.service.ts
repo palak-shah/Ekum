@@ -17,6 +17,7 @@ import {
   OrderLineStatus,
   OrderStatus,
   OrderTradeMode,
+  PaymentRequestStatus,
   shortOrderLabel,
   type AmendOrderDto,
   type CreateOrderDto,
@@ -30,6 +31,7 @@ import {
   type ListOrdersQuery,
   type OrderView,
   type QuoteOrderDto,
+  type SendUpOrderDto,
 } from '@ekum/domain-types';
 import type { Env } from '../core/config/config.schema';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -41,6 +43,7 @@ import { resolveOrderPathPreference, resolveTradePresence } from '../identity/tr
 import { OrderSerializer } from './order.serializer';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
+import { isHeldFromSupplier } from './orderHold';
 
 const ORDER_RELATIONS = {
   buyer: true,
@@ -48,9 +51,15 @@ const ORDER_RELATIONS = {
   items: true,
   createdByUser: { select: { id: true, name: true } },
   updatedByUser: { select: { id: true, name: true } },
+  quotedByUser: { select: { id: true, name: true } },
+  confirmedByUser: { select: { id: true, name: true } },
+  deliveredByUser: { select: { id: true, name: true } },
   shipments: {
     orderBy: { dispatchedAt: 'desc' as const },
-    include: { items: { include: { orderItem: { select: { id: true, name: true } } } } },
+    include: {
+      dispatchedByUser: { select: { id: true, name: true } },
+      items: { include: { orderItem: { select: { id: true, name: true } } } },
+    },
   },
 } as const;
 
@@ -61,6 +70,8 @@ type CreateOrderOptions = {
   facilitatorCompanyId?: string | null;
   downstreamOrderId?: string | null;
   allowForeignProducts?: boolean;
+  /** Linked mill hop — skip mill thread/notify until Send. */
+  holdUntilSend?: boolean;
 };
 
 /** Chat body for line decisions — omit zero counts; Order # lives on the card title. */
@@ -80,7 +91,7 @@ interface TransitionOptions {
   actor: 'buyer' | 'seller';
   from: string[];
   next: string;
-  data?: Prisma.OrderUpdateInput;
+  data?: Prisma.OrderUncheckedUpdateInput;
 }
 
 @Injectable()
@@ -149,6 +160,8 @@ export class OrderService {
         tradeMode,
         facilitatorCompanyId: resolvedOpts.facilitatorCompanyId ?? null,
         downstreamOrderId: resolvedOpts.downstreamOrderId ?? null,
+        upstreamReleasedAt:
+          resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId ? null : undefined,
         buyerCompanyId: actorCompanyId,
         sellerCompanyId: dto.sellerCompanyId,
         createdByCompanyId: actorCompanyId,
@@ -160,40 +173,45 @@ export class OrderService {
       include: ORDER_RELATIONS,
     });
 
-    const threadId = await this.threads.ensureTradeThread(actorCompanyId, dto.sellerCompanyId);
-    const orderLabel = shortOrderLabel(order.id, { inquiry });
-    const actorLabel = order.buyer.name;
-    const event = inquiry ? OrderChatEvent.RateRequested : OrderChatEvent.OrderRequested;
-    await this.upsertOrderThreadMessage(
-      actorCompanyId,
-      dto.sellerCompanyId,
-      actorCompanyId,
-      dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
-      order.id,
-      {
-        status: order.status,
-        itemCount: order.items.length,
-        event,
-        orderLabel,
-        actorLabel,
-        actorRole: 'buyer',
-        intent,
-      },
-      MessageType.OrderCard,
-    );
+    const held = Boolean(resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId);
+    let threadId: string | null = null;
+    let livingMessageId: string | null = null;
+    if (!held) {
+      threadId = await this.threads.ensureTradeThread(actorCompanyId, dto.sellerCompanyId);
+      const orderLabel = shortOrderLabel(order.id, { inquiry });
+      const actorLabel = order.buyer.name;
+      const event = inquiry ? OrderChatEvent.RateRequested : OrderChatEvent.OrderRequested;
+      livingMessageId = await this.upsertOrderThreadMessage(
+        actorCompanyId,
+        dto.sellerCompanyId,
+        actorCompanyId,
+        dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
+        order.id,
+        {
+          status: order.status,
+          itemCount: order.items.length,
+          event,
+          orderLabel,
+          actorLabel,
+          actorRole: 'buyer',
+          intent,
+        },
+        MessageType.OrderCard,
+      );
 
-    this.events.orderCreated({
-      orderId: order.id,
-      buyerCompanyId: order.buyerCompanyId,
-      sellerCompanyId: order.sellerCompanyId,
-      facilitatorCompanyId: order.facilitatorCompanyId,
-    });
+      this.events.orderCreated({
+        orderId: order.id,
+        buyerCompanyId: order.buyerCompanyId,
+        sellerCompanyId: order.sellerCompanyId,
+        facilitatorCompanyId: order.facilitatorCompanyId,
+      });
+    }
 
     if (handlePath) {
       await this.spawnHandleUpstreams(dto.sellerCompanyId, userId, order.id, dto);
     }
 
-    return this.serializer.toOrderView(order, actorCompanyId, threadId);
+    return this.serializer.toOrderView(order, actorCompanyId, threadId, livingMessageId);
   }
 
   /**
@@ -441,7 +459,7 @@ export class OrderService {
               name: item.name,
             })),
           },
-          { downstreamOrderId: downstream.id },
+          { downstreamOrderId: downstream.id, holdUntilSend: true },
         );
         upstreams.push(upstream);
       } catch (err) {
@@ -464,6 +482,7 @@ export class OrderService {
    */
   async amend(
     actorCompanyId: string,
+    userId: string,
     id: string,
     dto: AmendOrderDto,
   ): Promise<OrderView> {
@@ -511,6 +530,7 @@ export class OrderService {
           deleteMany: {},
           create: snapshots,
         },
+        ...this.withActor(userId),
       },
     });
 
@@ -582,6 +602,13 @@ export class OrderService {
         ],
       });
     }
+    filters.push({
+      NOT: {
+        sellerCompanyId: actorCompanyId,
+        downstreamOrderId: { not: null },
+        upstreamReleasedAt: null,
+      },
+    });
     const listWhere: Prisma.OrderWhereInput =
       filters.length === 1 ? filters[0]! : { AND: filters };
 
@@ -610,23 +637,56 @@ export class OrderService {
     const view = this.serializer.toOrderView(order, actorCompanyId, threadId);
     const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
     const relatedOrders = await this.buildRelatedOrders(order, actorCompanyId);
+    const canSendUp =
+      order.sellerCompanyId === actorCompanyId &&
+      order.tradeMode === OrderTradeMode.Manage &&
+      relatedOrders.some((related) => related.role === 'upstream' && related.held);
     const canTakeControl =
       order.tradeMode === OrderTradeMode.Direct &&
       order.facilitatorCompanyId === actorCompanyId &&
       order.status === OrderStatus.Requested &&
       !sellerQuoted &&
       order.items.every((item) => item.lineStatus === OrderLineStatus.Open);
+    const paymentRequests = (
+      await this.prisma.paymentRequest.findMany({
+        where: { orderId: id },
+        orderBy: { createdAt: 'desc' },
+      })
+    ).map((row) => ({
+      id: row.id,
+      orderId: row.orderId,
+      amount: row.amount.toNumber(),
+      note: row.note,
+      instructions: row.instructions,
+      status: row.status,
+      seenAt: row.seenAt ? row.seenAt.toISOString() : null,
+      paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+      createdAt: row.createdAt.toISOString(),
+    }));
     return {
       ...view,
       relatedOrders,
+      canSendUp,
       canTakeControl,
       canAmend: await this.buyerCanAmend(order, actorCompanyId),
       hasSellerQuote: sellerQuoted,
       canAcceptQuote: this.buyerCanAcceptQuoteSync(order, actorCompanyId, sellerQuoted),
+      createdBySeller: order.createdByCompanyId === order.sellerCompanyId,
+      canAcceptLogged:
+        order.buyerCompanyId === actorCompanyId &&
+        order.status === OrderStatus.Requested &&
+        order.createdByCompanyId === order.sellerCompanyId,
+      paymentRequests,
+      canAskPayment:
+        order.sellerCompanyId === actorCompanyId &&
+        (order.status === OrderStatus.Confirmed ||
+          order.status === OrderStatus.Dispatched ||
+          order.status === OrderStatus.Delivered) &&
+        !paymentRequests.some((ask) => ask.status === PaymentRequestStatus.Open),
     };
   }
 
-  async confirm(actorCompanyId: string, id: string): Promise<OrderView> {
+  async confirm(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     if (order.sellerCompanyId !== actorCompanyId) {
       throw new ForbiddenException({
@@ -662,7 +722,9 @@ export class OrderService {
           status: OrderStatus.Confirmed,
           confirmedAt: new Date(),
           confirmedByCompanyId: actorCompanyId,
+          confirmedByUserId: userId,
           ...this.firmInquiryData(order.intent),
+          ...this.withActor(userId),
         },
       }),
     ]);
@@ -690,7 +752,7 @@ export class OrderService {
     return this.emitAndGet(actorCompanyId, id, OrderStatus.Confirmed);
   }
 
-  async acceptQuote(actorCompanyId: string, id: string): Promise<OrderView> {
+  async acceptQuote(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     if (order.buyerCompanyId !== actorCompanyId) {
       throw new ForbiddenException({
@@ -734,7 +796,9 @@ export class OrderService {
           status: OrderStatus.Confirmed,
           confirmedAt: new Date(),
           confirmedByCompanyId: actorCompanyId,
+          confirmedByUserId: userId,
           ...this.firmInquiryData(order.intent),
+          ...this.withActor(userId),
         },
       }),
     ]);
@@ -759,7 +823,7 @@ export class OrderService {
     return this.emitAndGet(actorCompanyId, id, OrderStatus.Confirmed);
   }
 
-  async quote(actorCompanyId: string, id: string, dto: QuoteOrderDto): Promise<OrderView> {
+  async quote(actorCompanyId: string, userId: string, id: string, dto: QuoteOrderDto): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     if (order.sellerCompanyId !== actorCompanyId) {
       throw new ForbiddenException({
@@ -874,7 +938,23 @@ export class OrderService {
     if (order.intent === OrderIntent.Inquiry) {
       await this.prisma.order.update({
         where: { id },
-        data: { intent: OrderIntent.Order },
+        data: {
+          intent: OrderIntent.Order,
+          ...(order.quotedByUserId
+            ? {}
+            : { quotedByUserId: userId, quotedAt: new Date() }),
+          ...this.withActor(userId),
+        },
+      });
+    } else {
+      await this.prisma.order.update({
+        where: { id },
+        data: {
+          ...(order.quotedByUserId
+            ? {}
+            : { quotedByUserId: userId, quotedAt: new Date() }),
+          ...this.withActor(userId),
+        },
       });
     }
 
@@ -883,6 +963,7 @@ export class OrderService {
 
   async decideLines(
     actorCompanyId: string,
+    userId: string,
     id: string,
     dto: DecideOrderLinesDto,
   ): Promise<OrderView> {
@@ -958,7 +1039,7 @@ export class OrderService {
       nextStatus = OrderStatus.Declined;
       await this.prisma.order.update({
         where: { id },
-        data: { status: OrderStatus.Declined, closedAt: new Date() },
+        data: { status: OrderStatus.Declined, closedAt: new Date(), ...this.withActor(userId) },
       });
     } else if (!stillOpen && anyConfirmed) {
       nextStatus = OrderStatus.Confirmed;
@@ -968,13 +1049,15 @@ export class OrderService {
           status: OrderStatus.Confirmed,
           confirmedAt: new Date(),
           confirmedByCompanyId: actorCompanyId,
+          confirmedByUserId: userId,
           ...firmInquiry,
+          ...this.withActor(userId),
         },
       });
     } else if (Object.keys(firmInquiry).length > 0) {
       await this.prisma.order.update({
         where: { id },
-        data: firmInquiry,
+        data: { ...firmInquiry, ...this.withActor(userId) },
       });
     }
 
@@ -1006,12 +1089,16 @@ export class OrderService {
     if (nextStatus !== order.status) {
       return this.emitAndGet(actorCompanyId, id, nextStatus);
     }
+    await this.prisma.order.update({
+      where: { id },
+      data: this.withActor(userId),
+    });
     return this.get(actorCompanyId, id);
   }
 
-  async decline(actorCompanyId: string, id: string): Promise<OrderView> {
+  async decline(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
-    await this.transition(actorCompanyId, id, {
+    await this.transition(actorCompanyId, userId, id, {
       actor: 'seller',
       from: [OrderStatus.Requested],
       next: OrderStatus.Declined,
@@ -1041,7 +1128,7 @@ export class OrderService {
     return this.get(actorCompanyId, id);
   }
 
-  async dispatch(actorCompanyId: string, id: string, dto: DispatchDto): Promise<OrderView> {
+  async dispatch(actorCompanyId: string, userId: string, id: string, dto: DispatchDto): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     if (order.sellerCompanyId !== actorCompanyId) {
       throw new ForbiddenException({
@@ -1111,6 +1198,7 @@ export class OrderService {
         lrNumber: dto.lrNumber ?? null,
         parcelCount: dto.parcelCount ?? null,
         dispatchedAt: now,
+        dispatchedByUserId: userId,
         items: {
           create: candidates.map((line) => ({
             orderItemId: line.orderItemId,
@@ -1163,6 +1251,7 @@ export class OrderService {
           transporter: dto.transporter ?? order.transporter,
           lrNumber: dto.lrNumber ?? order.lrNumber,
           parcelCount: dto.parcelCount ?? order.parcelCount,
+          ...this.withActor(userId),
         },
       });
       await this.postOrderCard(
@@ -1192,6 +1281,7 @@ export class OrderService {
         transporter: dto.transporter ?? order.transporter,
         lrNumber: dto.lrNumber ?? order.lrNumber,
         parcelCount: dto.parcelCount ?? order.parcelCount,
+        ...this.withActor(userId),
       },
     });
     await this.postOrderCard(
@@ -1214,7 +1304,7 @@ export class OrderService {
     return this.get(actorCompanyId, id);
   }
 
-  async deliver(actorCompanyId: string, id: string): Promise<OrderView> {
+  async deliver(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     if (order.buyerCompanyId !== actorCompanyId) {
       throw new ForbiddenException({
@@ -1238,11 +1328,15 @@ export class OrderService {
       },
       data: { lineStatus: OrderLineStatus.Delivered },
     });
-    const view = await this.transition(actorCompanyId, id, {
+    const view = await this.transition(actorCompanyId, userId, id, {
       actor: 'buyer',
       from: [OrderStatus.Dispatched],
       next: OrderStatus.Delivered,
-      data: { deliveredAt: new Date(), returnWindowClosesAt: closesAt },
+      data: {
+        deliveredAt: new Date(),
+        returnWindowClosesAt: closesAt,
+        deliveredByUserId: userId,
+      },
     });
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.buyer.name;
@@ -1265,6 +1359,108 @@ export class OrderService {
       await this.jobs.enqueue(JobType.ReturnWindowExpire, { orderId: id }, closesAt);
     }
     return view;
+  }
+
+  /**
+   * I handle desk: patch held mill hops (optional) then release to suppliers.
+   */
+  async sendUp(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: SendUpOrderDto = {},
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId || order.tradeMode !== OrderTradeMode.Manage) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only you can send this on.',
+      });
+    }
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: actorCompanyId },
+      select: { tradeDefaults: true },
+    });
+    if (!resolveTradePresence(settings?.tradeDefaults).trading) {
+      throw new BadRequestException({
+        code: 'TRADING_REQUIRED',
+        message: 'Turn on Trading in Profile to send this on.',
+      });
+    }
+
+    const upstreams = await this.prisma.order.findMany({
+      where: { downstreamOrderId: id, upstreamReleasedAt: null },
+      include: { items: true },
+    });
+    if (upstreams.length === 0) {
+      throw new BadRequestException({
+        code: 'NOTHING_TO_SEND',
+        message: 'Nothing waiting to send.',
+      });
+    }
+
+    const patches = dto.items ?? [];
+    const now = new Date();
+    for (const up of upstreams) {
+      for (const item of up.items) {
+        const patch = patches.find(
+          (row) =>
+            (row.orderItemId && row.orderItemId === item.id) ||
+            (row.productId && row.productId === item.productId),
+        );
+        if (!patch) continue;
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: {
+            ...(patch.quantity != null
+              ? { quantity: patch.quantity, requestedQuantity: patch.quantity }
+              : {}),
+            ...(patch.rate != null ? { rate: patch.rate } : {}),
+          },
+        });
+      }
+      await this.prisma.order.update({
+        where: { id: up.id },
+        data: { upstreamReleasedAt: now, updatedByUserId: userId },
+      });
+      await this.announceReleasedUpstream(up.id, actorCompanyId);
+    }
+
+    return this.get(actorCompanyId, id);
+  }
+
+  private async announceReleasedUpstream(orderId: string, actorCompanyId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: ORDER_RELATIONS,
+    });
+    if (!order) return;
+    const inquiry = order.intent === OrderIntent.Inquiry;
+    await this.threads.ensureTradeThread(order.buyerCompanyId, order.sellerCompanyId);
+    const actorLabel = order.buyer.name;
+    await this.upsertOrderThreadMessage(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      order.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
+      order.id,
+      {
+        status: order.status,
+        itemCount: order.items.length,
+        event: inquiry ? OrderChatEvent.RateRequested : OrderChatEvent.OrderRequested,
+        orderLabel: shortOrderLabel(order.id, { inquiry }),
+        actorLabel,
+        actorRole: 'buyer',
+        intent: order.intent,
+      },
+      MessageType.OrderCard,
+    );
+    this.events.orderCreated({
+      orderId: order.id,
+      buyerCompanyId: order.buyerCompanyId,
+      sellerCompanyId: order.sellerCompanyId,
+      facilitatorCompanyId: order.facilitatorCompanyId,
+    });
   }
 
   /**
@@ -1342,12 +1538,12 @@ export class OrderService {
         note: `Taken over · for #${downstream.id.slice(-6).toUpperCase()}`,
         items: lineItems.filter((item) => item.productId),
       },
-      { downstreamOrderId: downstream.id },
+      { downstreamOrderId: downstream.id, holdUntilSend: true },
     );
 
     await this.prisma.order.update({
       where: { id },
-      data: { status: OrderStatus.Cancelled, closedAt: new Date() },
+      data: { status: OrderStatus.Cancelled, closedAt: new Date(), ...this.withActor(userId) },
     });
     const orderLabel = shortOrderLabel(id);
     await this.postOrderCard(
@@ -1369,9 +1565,9 @@ export class OrderService {
     return { downstream, upstream, cancelledOrderId: id };
   }
 
-  async cancel(actorCompanyId: string, id: string): Promise<OrderView> {
+  async cancel(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
-    const view = await this.transition(actorCompanyId, id, {
+    const view = await this.transition(actorCompanyId, userId, id, {
       actor: 'buyer',
       from: [OrderStatus.Requested, OrderStatus.Confirmed],
       next: OrderStatus.Cancelled,
@@ -1527,8 +1723,8 @@ export class OrderService {
     body: string,
     orderId: string,
     metadata: Record<string, unknown>,
-  ): Promise<void> {
-    await this.upsertOrderThreadMessage(
+  ): Promise<string> {
+    return this.upsertOrderThreadMessage(
       buyerCompanyId,
       sellerCompanyId,
       senderCompanyId,
@@ -1547,7 +1743,7 @@ export class OrderService {
     orderId: string,
     metadata: Record<string, unknown>,
     type: typeof MessageType.OrderCard | typeof MessageType.Rate,
-  ): Promise<void> {
+  ): Promise<string> {
     const threadId = await this.threads.ensureTradeThread(buyerCompanyId, sellerCompanyId);
     const existing = await this.prisma.message.findFirst({
       where: {
@@ -1578,22 +1774,29 @@ export class OrderService {
           metadata: nextMeta as Prisma.InputJsonValue,
         },
       });
-    } else {
-      await this.prisma.message.create({
-        data: {
-          threadId,
-          senderCompanyId,
-          type,
-          body,
-          referenceId: orderId,
-          metadata: nextMeta as Prisma.InputJsonValue,
-        },
+      await this.prisma.thread.update({
+        where: { id: threadId },
+        data: { lastMessageAt: new Date() },
       });
+      return existing.id;
     }
+
+    const created = await this.prisma.message.create({
+      data: {
+        threadId,
+        senderCompanyId,
+        type,
+        body,
+        referenceId: orderId,
+        metadata: nextMeta as Prisma.InputJsonValue,
+      },
+      select: { id: true },
+    });
     await this.prisma.thread.update({
       where: { id: threadId },
       data: { lastMessageAt: new Date() },
     });
+    return created.id;
   }
 
   private async emitAndGet(
@@ -1614,8 +1817,13 @@ export class OrderService {
     return this.get(actorCompanyId, id);
   }
 
+  private withActor(userId: string | null): Pick<Prisma.OrderUncheckedUpdateInput, 'updatedByUserId'> {
+    return userId ? { updatedByUserId: userId } : {};
+  }
+
   private async transition(
     actorCompanyId: string,
+    userId: string | null,
     id: string,
     options: TransitionOptions,
   ): Promise<OrderView> {
@@ -1640,7 +1848,7 @@ export class OrderService {
 
     const updated = await this.prisma.order.update({
       where: { id },
-      data: { status: options.next, ...options.data },
+      data: { status: options.next, ...options.data, ...this.withActor(userId) },
       include: ORDER_RELATIONS,
     });
     this.events.orderStatusChanged({
@@ -1706,7 +1914,8 @@ export class OrderService {
       !order ||
       (order.buyerCompanyId !== actorCompanyId &&
         order.sellerCompanyId !== actorCompanyId &&
-        order.facilitatorCompanyId !== actorCompanyId)
+        order.facilitatorCompanyId !== actorCompanyId) ||
+      isHeldFromSupplier(order, actorCompanyId)
     ) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
     }
@@ -1727,6 +1936,7 @@ export class OrderService {
       id: string;
       role: 'downstream' | 'upstream';
       status: string;
+      held?: boolean;
       sellerName: string | null;
       buyerName: string | null;
     }>
@@ -1735,6 +1945,7 @@ export class OrderService {
       id: string;
       role: 'downstream' | 'upstream';
       status: string;
+      held?: boolean;
       sellerName: string | null;
       buyerName: string | null;
     }> = [];
@@ -1767,6 +1978,7 @@ export class OrderService {
         id: up.id,
         role: 'upstream',
         status: up.status,
+        held: up.upstreamReleasedAt == null,
         sellerName: isEndBuyer ? null : up.seller.name,
         buyerName: isEndBuyer ? null : up.buyer.name,
       });
@@ -1812,7 +2024,7 @@ export class OrderService {
             note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
             items,
           },
-          { downstreamOrderId: downstreamId },
+          { downstreamOrderId: downstreamId, holdUntilSend: true },
         );
       } catch {
         // Phase A: downstream stays; trader retries upstream later.

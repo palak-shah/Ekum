@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,8 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
+import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
+import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
 import { CameraIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
@@ -72,6 +74,7 @@ export function ProductEditorPage() {
     emptyPublishAudienceState(),
   );
   const [consent, setConsent] = useState(false);
+  const savedSnapshotRef = useRef<string | null>(null);
 
   const existing = useQuery({
     queryKey: ['product', id],
@@ -141,6 +144,19 @@ export function ProductEditorPage() {
           allowForward: existing.data.allowForward !== false,
         }),
       );
+      savedSnapshotRef.current = JSON.stringify({
+        name: existing.data.name,
+        sku: existing.data.sku ?? '',
+        rate: existing.data.rate === null ? '' : String(existing.data.rate),
+        moq:
+          existing.data.moq === null || existing.data.moq === undefined
+            ? ''
+            : String(existing.data.moq),
+        unit: existing.data.unit ?? '',
+        description: existing.data.description ?? '',
+        categories: existing.data.categories.join(', '),
+        images: existing.data.images,
+      });
     }
   }, [existing.data]);
 
@@ -254,7 +270,7 @@ export function ProductEditorPage() {
         writeCatalogFieldMemory(form.categories, form.unit);
       }
       invalidate();
-      showToast(editing ? 'Saved' : 'Design saved');
+      showToast(editing ? 'Updated' : 'Design saved');
       navigate(`/catalog/products/${product.id}`, { replace: true });
     },
     onError: (err) => {
@@ -279,10 +295,17 @@ export function ProductEditorPage() {
       setMarketOpen(false);
       invalidate();
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      const firstPublish = !isPublished;
       if (!publishAudience.allowForward) {
         showToast('Buyers can’t forward this.');
       } else {
         showToast(onMarket || isPublished ? 'Visibility updated' : 'Published');
+      }
+      if (firstPublish) {
+        navigate('/catalog?tab=products', {
+          replace: true,
+          state: { productFilter: 'published' },
+        });
       }
     },
     onError: (err) => {
@@ -333,15 +356,52 @@ export function ProductEditorPage() {
     (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
   const showLifecycleMenu = editing && Boolean(existing.data);
 
+  const formSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        name: form.name,
+        sku: form.sku,
+        rate: form.rate,
+        moq: form.moq,
+        unit: form.unit,
+        description: form.description,
+        categories: form.categories,
+        images: imageUrls,
+      }),
+    [form, imageUrls],
+  );
+  const productDirty = useMemo(
+    () =>
+      editing
+        ? savedSnapshotRef.current !== null && formSnapshot !== savedSnapshotRef.current
+        : Boolean(
+            form.name.trim() ||
+              form.sku.trim() ||
+              form.rate.trim() ||
+              form.moq.trim() ||
+              form.description.trim() ||
+              form.categories.trim() ||
+              imageUrls.length > 0 ||
+              uploading,
+          ),
+    [editing, formSnapshot, form, imageUrls.length, uploading],
+  );
+  const discard = useDiscardGuard(productDirty);
+
   if (editing && existing.isLoading) {
     return <LoadingBlock label="Loading design…" />;
   }
 
   return (
     <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-8')}>
+      <DiscardChangesSheet
+        open={discard.confirmOpen}
+        onCancel={discard.cancelLeave}
+        onLeave={discard.confirmLeave}
+      />
       <PageHeader
         title={editing ? 'Edit design' : 'Upload a design'}
-        onBack={() => navigate('/catalog?tab=products')}
+        onBack={() => discard.tryLeave(() => navigate(-1))}
         action={
           showLifecycleMenu ? (
             <button
@@ -376,7 +436,7 @@ export function ProductEditorPage() {
             <p className="text-sm text-muted">{statusLine}</p>
           )}
           {existing.data ? (
-            <p className="mt-0.5 text-xs text-muted/80">{auditLine(existing.data)}</p>
+            <p className="mt-0.5 text-xs text-muted">{auditLine(existing.data)}</p>
           ) : null}
         </div>
       ) : null}
@@ -533,7 +593,7 @@ export function ProductEditorPage() {
                   disabled={!form.name.trim() || save.isPending || uploading}
                   onClick={() => save.mutate()}
                 >
-                  {save.isPending ? 'Saving…' : 'Save'}
+                  {save.isPending ? 'Updating…' : 'Update'}
                 </Button>
                 {isArchived ? (
                   <Button

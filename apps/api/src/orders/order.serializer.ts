@@ -17,6 +17,7 @@ import {
   type ComplaintView,
   type OrderItemView,
   type OrderShipmentView,
+  type OrderTimelineStaffInput,
   type OrderView,
   type ReturnView,
   type SampleView,
@@ -27,6 +28,7 @@ import { toAuditActor } from '../common/audit';
 type ActorUser = { id: string; name: string | null };
 
 type ShipmentWithItems = OrderShipment & {
+  dispatchedByUser?: ActorUser | null;
   items: (OrderShipmentItem & { orderItem: Pick<OrderItem, 'id' | 'name'> })[];
 };
 
@@ -38,6 +40,9 @@ type OrderWithRelations = Order & {
   returns?: (Return & { items: ReturnItem[] })[];
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
+  quotedByUser?: ActorUser | null;
+  confirmedByUser?: ActorUser | null;
+  deliveredByUser?: ActorUser | null;
   tradeMode?: string;
   facilitatorCompanyId?: string | null;
   downstreamOrderId?: string | null;
@@ -61,6 +66,7 @@ export class OrderSerializer {
     order: OrderWithRelations,
     viewerCompanyId: string,
     threadId: string | null = null,
+    livingMessageId: string | null = null,
   ): OrderView {
     const buying = order.buyerCompanyId === viewerCompanyId;
     const confirmedByCompanyId = order.confirmedByCompanyId ?? null;
@@ -138,6 +144,7 @@ export class OrderSerializer {
             }
           : null,
       threadId,
+      livingMessageId,
       confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
       confirmedByName,
       confirmedByRole,
@@ -155,9 +162,35 @@ export class OrderSerializer {
       ),
       createdBy: toAuditActor(order.createdByUser),
       updatedBy: toAuditActor(order.updatedByUser),
+      timelineStaff: this.timelineStaff(order, viewerCompanyId),
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     };
+  }
+
+  private staffName(user: ActorUser | null | undefined): string | null {
+    return user?.name?.trim() || null;
+  }
+
+  private timelineStaff(
+    order: OrderWithRelations,
+    viewerCompanyId: string,
+  ): OrderTimelineStaffInput {
+    const staff: OrderTimelineStaffInput = {};
+    if (order.createdByCompanyId === viewerCompanyId) {
+      staff.requested = this.staffName(order.createdByUser);
+    }
+    if (order.sellerCompanyId === viewerCompanyId) {
+      staff.quoted = this.staffName(order.quotedByUser);
+      staff.dispatched = this.staffName(order.shipments?.[0]?.dispatchedByUser);
+    }
+    if (order.confirmedByCompanyId === viewerCompanyId) {
+      staff.confirmed = this.staffName(order.confirmedByUser);
+    }
+    if (order.buyerCompanyId === viewerCompanyId) {
+      staff.delivered = this.staffName(order.deliveredByUser);
+    }
+    return staff;
   }
 
   toSampleView(sample: SampleWithRelations, viewerCompanyId: string): SampleView {

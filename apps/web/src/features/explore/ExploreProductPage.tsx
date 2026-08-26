@@ -19,8 +19,9 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api, ApiError } from '@/lib/apiClient';
-import { formatRate } from '@/lib/format';
+import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useMyCompany } from '@/lib/queries';
+import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
@@ -46,6 +47,7 @@ export function ExploreProductPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const me = useMyCompany();
+  const { selling, trading } = useTradePresence();
   const shortlist = useBrowseShortlist();
   const [qtyOpen, setQtyOpen] = useState(false);
   const [curateOpen, setCurateOpen] = useState(false);
@@ -80,11 +82,7 @@ export function ExploreProductPage() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      if (order.threadId) {
-        navigate(`/chats/${order.threadId}`, { replace: true });
-      } else {
-        navigate(`/orders/${order.id}`, { replace: true });
-      }
+      void navigateToOrderChat(navigate, queryClient, order, { replace: true });
     },
     onError: (error) =>
       setOrderError(error instanceof ApiError ? error.message : 'Could not place the order.'),
@@ -113,12 +111,8 @@ export function ExploreProductPage() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      showToast('Ask for rates sent');
-      if (order.threadId) {
-        navigate(`/chats/${order.threadId}`, { replace: true });
-      } else {
-        navigate(`/orders/${order.id}`, { replace: true });
-      }
+      showToast('Rate request sent');
+      void navigateToOrderChat(navigate, queryClient, order, { replace: true });
     },
     onError: (error) =>
       setOrderError(error instanceof ApiError ? error.message : 'Could not ask for rates.'),
@@ -139,13 +133,14 @@ export function ExploreProductPage() {
   const data = product.data;
   const notes = data.description?.trim();
   const isOwner = Boolean(me.data?.id && me.data.id === data.company.id);
-  const canTrade = data.visible && !isOwner;
+  const canTrade = data.visible && (!isOwner || selling || trading);
   const canCurate = data.visible && !isOwner;
   const orderProduct = {
     id: data.id,
     name: data.name,
     images: data.images,
     moq: data.moq ?? null,
+    companyId: data.company.id,
   } as ProductView;
 
   const openCurate = () => {
@@ -184,7 +179,7 @@ export function ExploreProductPage() {
             disabled={!id || save.isPending}
             onClick={() => save.toggle()}
           >
-            {save.isSaved ? 'Saved' : 'Save'}
+            {save.isSaved ? 'Bookmarked' : 'Bookmark'}
           </button>
         }
       />

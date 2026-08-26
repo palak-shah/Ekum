@@ -1,7 +1,13 @@
 import { createElement, type ReactNode } from 'react';
 import type { MessageView } from '@ekum/domain-types';
 
-export type ThreadMessageViewScope = 'all' | 'media' | 'orders';
+export type ThreadMessageViewScope =
+  | 'all'
+  | 'photos'
+  | 'collections'
+  | 'designs'
+  | 'orders'
+  | 'media';
 
 function metaOf(message: MessageView): Record<string, unknown> | null {
   return message.metadata && typeof message.metadata === 'object'

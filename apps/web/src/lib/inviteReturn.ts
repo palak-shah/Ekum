@@ -2,7 +2,16 @@ const INVITE_RETURN_KEY = 'ekum.inviteReturn';
 
 /** Persist a post-login return path for invite / referral deep links. */
 export function stashInviteReturn(path: string | null | undefined): void {
-  if (!path || !path.startsWith('/r/')) return;
+  if (
+    !path ||
+    !(
+      path.startsWith('/r/') ||
+      path.startsWith('/o/') ||
+      path.startsWith('/s/') ||
+      path.startsWith('/t/')
+    )
+  )
+    return;
   try {
     sessionStorage.setItem(INVITE_RETURN_KEY, path);
   } catch {
@@ -21,7 +30,13 @@ export function clearInviteReturn(): void {
 export function peekInviteReturn(): string | null {
   try {
     const stored = sessionStorage.getItem(INVITE_RETURN_KEY);
-    return stored?.startsWith('/r/') ? stored : null;
+    return stored &&
+      (stored.startsWith('/r/') ||
+        stored.startsWith('/o/') ||
+        stored.startsWith('/s/') ||
+        stored.startsWith('/t/'))
+      ? stored
+      : null;
   } catch {
     return null;
   }
@@ -35,7 +50,12 @@ export function resolveInviteReturn(options: {
   from?: string | null;
   inviteParam?: string | null;
 }): string | null {
-  if (options.from?.startsWith('/r/')) {
+  if (
+    options.from?.startsWith('/r/') ||
+    options.from?.startsWith('/o/') ||
+    options.from?.startsWith('/s/') ||
+    options.from?.startsWith('/t/')
+  ) {
     stashInviteReturn(options.from);
     return options.from;
   }

@@ -3,6 +3,8 @@ import { AuthModule } from '../auth/auth.module';
 import { AccessModule } from '../access/access.module';
 import { CompanyController } from './company.controller';
 import { CompanyService } from './company.service';
+import { TeamController } from './team.controller';
+import { TeamService } from './team.service';
 
 /**
  * Identity & Onboarding. Owns Company profiles and memberships. Depends on Auth
@@ -11,7 +13,7 @@ import { CompanyService } from './company.service';
  */
 @Module({
   imports: [AuthModule, AccessModule],
-  controllers: [CompanyController],
-  providers: [CompanyService],
+  controllers: [CompanyController, TeamController],
+  providers: [CompanyService, TeamService],
 })
 export class IdentityModule {}

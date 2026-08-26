@@ -17,7 +17,7 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
 | **Trade presence** | `buyingEnabled` / `sellingEnabled` toggles what ＋ and Home emphasize. Creating catalog content turns selling back on. |
 
-Membership roles (`owner` / `staff`) and permissions exist in the domain for future team use; Phase 1 UX treats the signed-in company as the actor.
+Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person. The **company** still trades. **You → Team** invites staff by phone. Counterparties see the business name. Owner-only chats stay hidden from staff.
 
 ## Platform & dual-network companies
 
@@ -39,7 +39,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Forward vs Curate | **Forward** = share someone’s card as-is; **Curate** = assemble into **your** collection then publish (still under source ceiling) |
 | Stories | Viewer sees a company when they **follow or are connected** and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
-| Surfaces | **Home** = light attention on new received packs; **Buying** Explore = followed posts + received by day/business |
+| Surfaces | **Home** = light **New packs** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** presence (`I trade on Ekum`) gates Curate + Manage/Direct; product default off (QA may treat unset as on). Linking/split in Slice B |
 | Orders | Curated pack → **Manage** (buyer↔trader + linked upstream by `product.companyId`); forward → **Direct** (facilitator informed, Take control). Soft-hide ends on Manage |
 
@@ -71,7 +71,6 @@ flowchart LR
 | Status | Designs | Collections |
 |--------|---------|-------------|
 | **Draft** | Private library work-in-progress | Album work-in-progress |
-| **Ready** | — | Company-only review queue (not buyer-visible) |
 | **Published** | On the company shop | Live for buyers only inside `startsAt`/`endsAt` window |
 | **Archived** | Ended / out of season | Ended / out of season |
 
@@ -83,7 +82,7 @@ flowchart LR
 | `endsAt` null | **Evergreen** (no scheduled hide) |
 | Past `endsAt` | Same as Hide → **draft** (job + read guards; not auto-archive) |
 
-Seller My Catalog badges: **Draft** · **Ready** · **Starts…** · **Live** (+ **Evergreen** or **Ends…**) · **Archived**.
+Seller My Catalog badges: **Draft** · **Starts…** · **Live** (+ **Evergreen** or **Ends…**) · **Archived**.
 
 ### Publish = Explore
 

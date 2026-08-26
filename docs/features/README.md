@@ -2,6 +2,8 @@
 
 Product-functional docs for Phase 1: what users can do, the business rules that must hold, and how to walk through flows with seed data. Each file also has a short **Where it lives** footer for developers. This is not an API reference.
 
+**Demo / review:** [Demo review checklist](./demo-review-checklist.md) — setup, personas, ~20 min script, 10 min cut.
+
 ## Product model
 
 Ekum is a **B2B textile trade PWA**. One **company account** (no buyer/seller role picker). Buying and selling capabilities appear as data; **publish** unlocks on first “start selling” consent. Discover → showcase → chat → order, under server-enforced visibility and contact protection.

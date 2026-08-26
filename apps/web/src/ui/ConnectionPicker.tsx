@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ConnectionView } from '@ekum/domain-types';
+import { uniqueConnectionsByCompany } from '@/ui/uniqueConnections';
+import { ChevronRightIcon } from '@/ui/icons';
 import { Avatar, Button, Sheet, TextInput, cx } from '@/ui/kit';
 
 type SingleProps = {
@@ -36,12 +38,16 @@ function matchesSearch(connection: ConnectionView, query: string): boolean {
 
 export function ConnectionPicker(props: ConnectionPickerProps) {
   const {
-    connections,
+    connections: connectionRows,
     label = 'Connections',
     emptyMessage = 'Connect with a business first.',
     loading = false,
     embedded = false,
   } = props;
+  const connections = useMemo(
+    () => uniqueConnectionsByCompany(connectionRows),
+    [connectionRows],
+  );
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -150,34 +156,55 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
       {label ? <p className="text-sm font-medium text-ink">{label}</p> : null}
 
       {selectedConnections.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          {selectedConnections.slice(0, 3).map((connection) => (
-            <div
-              key={connection.company.id}
-              className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-3"
-            >
-              <Avatar
-                name={connection.company.name}
-                imageUrl={connection.company.logoUrl}
-                size={40}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
-                <p className="truncate text-xs text-muted">{connection.company.city}</p>
-              </div>
-            </div>
-          ))}
-          {selectedConnections.length > 3 ? (
-            <p className="text-xs text-muted">+{selectedConnections.length - 3} more</p>
-          ) : null}
+        props.mode === 'single' ? (
           <button
             type="button"
-            className="self-start text-sm font-medium text-accent"
             onClick={() => setOpen(true)}
+            className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-3 text-left hover:bg-foam"
           >
-            Change
+            <Avatar
+              name={selectedConnections[0].company.name}
+              imageUrl={selectedConnections[0].company.logoUrl}
+              size={40}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink">
+                {selectedConnections[0].company.name}
+              </p>
+              <p className="truncate text-xs text-muted">{selectedConnections[0].company.city}</p>
+            </div>
+            <ChevronRightIcon className="shrink-0 text-muted" width={20} height={20} />
           </button>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {selectedConnections.slice(0, 3).map((connection) => (
+              <div
+                key={connection.company.id}
+                className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-3"
+              >
+                <Avatar
+                  name={connection.company.name}
+                  imageUrl={connection.company.logoUrl}
+                  size={40}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
+                  <p className="truncate text-xs text-muted">{connection.company.city}</p>
+                </div>
+              </div>
+            ))}
+            {selectedConnections.length > 3 ? (
+              <p className="text-xs text-muted">+{selectedConnections.length - 3} more</p>
+            ) : null}
+            <button
+              type="button"
+              className="self-start text-sm font-medium text-accent"
+              onClick={() => setOpen(true)}
+            >
+              Change
+            </button>
+          </div>
+        )
       ) : (
         <button
           type="button"

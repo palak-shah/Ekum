@@ -7,6 +7,7 @@ import {
   type MessageSentEvent,
   type OrderCreatedEvent,
   type OrderStatusChangedEvent,
+  type PaymentAskEvent,
   type ReturnEvent,
 } from './domain-events';
 
@@ -44,6 +45,14 @@ export class DomainEvents {
 
   broadcastSent(payload: BroadcastSentEvent): void {
     this.emitter.emit(DomainEventName.BroadcastSent, payload);
+  }
+
+  paymentRequested(payload: PaymentAskEvent): void {
+    this.emitter.emit(DomainEventName.PaymentRequested, payload);
+  }
+
+  paymentSettled(payload: PaymentAskEvent): void {
+    this.emitter.emit(DomainEventName.PaymentSettled, payload);
   }
 }
 

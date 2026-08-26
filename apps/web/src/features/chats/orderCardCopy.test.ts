@@ -4,6 +4,7 @@ import {
   buildOrderCardCopy,
   dedupeOrderThreadMessages,
   isRichOrderChatMessage,
+  primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { orderCardMessage, orderRef, textMessage } from '@/test/messageFixtures';
 
@@ -22,6 +23,35 @@ describe('dedupeOrderThreadMessages', () => {
     const other = textMessage({ id: 't1', body: 'hi' });
     const out = dedupeOrderThreadMessages([older, other, newer]);
     expect(out.map((m) => m.id)).toEqual(['t1', 'm-new']);
+  });
+});
+
+describe('primaryAcceptQuoteMessageId', () => {
+  it('picks the newest incoming rate card that can be accepted', () => {
+    const older = orderCardMessage({
+      id: 'rate-old',
+      type: 'rate',
+      mine: false,
+      createdAt: '2026-01-01T10:00:00.000Z',
+      reference: orderRef({
+        id: 'ord-1',
+        canAcceptQuote: true,
+        available: true,
+      }),
+    });
+    const newer = orderCardMessage({
+      id: 'rate-new',
+      type: 'rate',
+      mine: false,
+      createdAt: '2026-01-02T10:00:00.000Z',
+      reference: orderRef({
+        id: 'ord-2',
+        canAcceptQuote: true,
+        available: true,
+      }),
+    });
+    expect(primaryAcceptQuoteMessageId([older, newer])).toBe('rate-new');
+    expect(primaryAcceptQuoteMessageId([newer, older])).toBe('rate-new');
   });
 });
 

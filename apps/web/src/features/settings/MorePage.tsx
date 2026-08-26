@@ -19,6 +19,7 @@ export function MorePage() {
     { to: '/samples', label: 'Samples' },
     { to: '/returns', label: 'Returns' },
     ...(selling && canPublish ? [{ to: '/broadcast', label: 'Broadcast' }] : []),
+    { to: '/team', label: 'Team' },
     { to: '/settings', label: 'Settings' },
     { to: '/settings/profile', label: 'Business profile' },
   ];

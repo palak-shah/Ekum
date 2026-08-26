@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { CompanyPermissions } from './company';
 
 /**
  * Canonical Indian mobile form used as the user identity key.
@@ -54,7 +55,10 @@ export const sessionUserSchema = z.object({
   phone: z.string(),
   companyId: z.string().nullable(),
 });
-export type SessionUser = z.infer<typeof sessionUserSchema>;
+export type SessionUser = z.infer<typeof sessionUserSchema> & {
+  role?: string | null;
+  permissions?: CompanyPermissions | null;
+};
 
 /** The result of a successful login. `needsOnboarding` is true until a company exists. */
 export interface AuthSession {

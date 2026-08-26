@@ -33,6 +33,6 @@ export const collectionCardInclude = {
   products: {
     orderBy: { position: 'asc' as const },
     take: 12,
-    include: { product: { select: { images: true } } },
+    include: { product: { select: { images: true, companyId: true } } },
   },
 } as const;

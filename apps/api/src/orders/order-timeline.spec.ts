@@ -279,4 +279,27 @@ describe('buildOrderTimelineSteps', () => {
       current: true,
     });
   });
+
+  it('shows quiet staff lines on your team steps only', () => {
+    const steps = buildOrderTimelineSteps({
+      ...base,
+      status: 'delivered',
+      hasSellerQuote: true,
+      sellerName: 'Surat Silk House',
+      confirmedAt: '2026-08-11T01:30:00.000Z',
+      confirmedByRole: 'seller',
+      confirmedByName: 'Surat Silk House',
+      deliveredAt: '2026-08-12T10:00:00.000Z',
+      dispatch: { dispatchedAt: '2026-08-12T08:00:00.000Z' },
+      staff: {
+        quoted: 'Ravi',
+        confirmed: 'Amit',
+        dispatched: 'Ravi',
+      },
+    });
+    expect(steps.find((s) => s.key === 'quoted')?.staffLine).toBe('Ravi');
+    expect(steps.find((s) => s.key === 'confirmed')?.staffLine).toBe('Amit');
+    expect(steps.find((s) => s.key === 'dispatched')?.staffLine).toBe('Ravi');
+    expect(steps.find((s) => s.key === 'delivered')?.staffLine).toBeUndefined();
+  });
 });

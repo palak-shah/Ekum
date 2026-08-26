@@ -5,6 +5,7 @@ import {
   ConnectionStatus,
   MessageType,
   ProductStatus,
+  PublishAudience,
   RateVisibility,
   VerificationStatus,
   type CollectionCard,
@@ -41,11 +42,23 @@ import { cursorArgs, toCursorPage } from './pagination';
 import {
   matchesCompanyInterest,
   resolveInterestFromCompany,
-  resolveSuperCategoryId,
   type ResolvedInterest,
 } from './interest-match';
 import { audienceVisibilityOr, curatedSourceExcludeAnd } from '../catalog/audience-visibility';
 import { compareByMarketRelevance } from './feed-rank';
+import {
+  categoryHasSomeWhere,
+  cityEqualsWhere,
+  interestFromNarrowCategories,
+  narrowLists,
+} from './explore-narrow';
+import {
+  groupReceivedByDay,
+  isCuratedCollection,
+  isDirectedAudience,
+  isEligibleStoryPublisher,
+  pickReceivedCurated,
+} from './exploreReceived';
 
 /** Posts visible to this viewer by publish audience (everyone/connections/followers/selected). */
 function audienceVisibility(viewerCompanyId: string): { OR: object[] } {
@@ -107,15 +120,18 @@ export class ExploreService {
   ) {}
 
   /**
-   * Sectioned Explore home: opportunity shelves first (no buy/sell mode).
-   * Optional category/city Narrow filters apply across sections.
+   * Sectioned Explore home. Optional category/city Narrow filters apply across sections.
+   * `side=buying` fills receivedByDay; receivedCurated is always populated for Home.
    */
   async home(viewerCompanyId: string, query: ExploreHomeQuery = {}): Promise<ExploreHomeView> {
-    const sectionLimit = 8;
+    const sectionLimit = 24;
+    const { categories: homeCategories, cities: homeCities } = narrowLists(query);
     const base: ExploreQuery = {
       limit: sectionLimit,
-      ...(query.category ? { category: query.category } : {}),
-      ...(query.city ? { city: query.city } : {}),
+      ...(homeCategories[0] ? { category: homeCategories[0] } : {}),
+      ...(homeCities[0] ? { city: homeCities[0] } : {}),
+      ...(homeCategories.length ? { categories: homeCategories } : {}),
+      ...(homeCities.length ? { cities: homeCities } : {}),
     };
 
     const viewer = await this.prisma.company.findUnique({
@@ -128,15 +144,8 @@ export class ExploreService {
       },
     });
     const sells = (viewer?.sellCategories ?? []).some((tag) => tag.trim().length > 0);
-    const interest = query.category
-      ? {
-          tags: [query.category],
-          supers: resolveSuperCategoryId(query.category)
-            ? [resolveSuperCategoryId(query.category)!]
-            : [],
-          preferFine: !resolveSuperCategoryId(query.category),
-        }
-      : resolveInterestFromCompany(viewer ?? {});
+    const interest = interestFromNarrowCategories(homeCategories) ??
+      resolveInterestFromCompany(viewer ?? {});
 
     const [
       networkPage,
@@ -147,6 +156,7 @@ export class ExploreService {
       buyersPage,
       connectedRows,
       followedRows,
+      broadcastRows,
     ] = await Promise.all([
       this.collections(viewerCompanyId, { ...base, following: true }),
       this.collections(viewerCompanyId, base),
@@ -166,6 +176,14 @@ export class ExploreService {
       this.prisma.follow.findMany({
         where: { followerCompanyId: viewerCompanyId },
         select: { followedCompanyId: true },
+      }),
+      this.prisma.broadcast.findMany({
+        where: {
+          type: MessageType.CollectionCard,
+          referenceId: { not: null },
+          recipients: { some: { recipientCompanyId: viewerCompanyId } },
+        },
+        select: { referenceId: true },
       }),
     ]);
 
@@ -270,12 +288,30 @@ export class ExploreService {
 
     const stories = this.buildStories({
       fromNetwork,
-      forYou,
       designsFromNetwork,
-      designsForYou,
-      suggestedBusinesses,
-      lookingForWhatYouSell,
+      followedIds,
+      connectedIds,
     });
+
+    const broadcastCollectionIds = [
+      ...new Set(
+        broadcastRows
+          .map((row) => row.referenceId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const receivedPacks = await this.loadReceivedPacks(viewerCompanyId, base, broadcastCollectionIds);
+    const receivedByDay =
+      query.side === 'buying'
+        ? groupReceivedByDay(receivedPacks).map((day) => ({
+            day: day.day,
+            groups: day.groups.map((group) => ({
+              company: group.items[0]!.company,
+              collections: group.items,
+            })),
+          }))
+        : [];
+    const receivedCurated = pickReceivedCurated(receivedPacks);
 
     return {
       forYou,
@@ -285,43 +321,82 @@ export class ExploreService {
       suggestedBusinesses,
       lookingForWhatYouSell,
       stories,
+      receivedByDay,
+      receivedCurated,
     };
   }
 
-  /** Rank companies by newest visible post for the Stories rail. */
+  /** Rank follow/connected publishers by newest visible post for the Stories rail. */
   private buildStories(input: {
     fromNetwork: ExploreHomeView['fromNetwork'];
-    forYou: ExploreHomeView['forYou'];
     designsFromNetwork: ExploreHomeView['designsFromNetwork'];
-    designsForYou: ExploreHomeView['designsForYou'];
-    suggestedBusinesses: ExploreHomeView['suggestedBusinesses'];
-    lookingForWhatYouSell: ExploreHomeView['lookingForWhatYouSell'];
+    followedIds: Set<string>;
+    connectedIds: Set<string>;
   }): ExploreStory[] {
     const latest = new Map<string, ExploreStory>();
     const touch = (company: ExploreStory['company'], at: string | null | undefined) => {
       if (!company?.id || !at) return;
+      if (!isEligibleStoryPublisher(company.id, input.followedIds, input.connectedIds)) return;
       const prev = latest.get(company.id);
       if (!prev || prev.latestPostedAt < at) {
         latest.set(company.id, { company, latestPostedAt: at });
       }
     };
 
-    for (const row of [...input.fromNetwork, ...input.forYou]) {
+    for (const row of input.fromNetwork) {
       touch(row.collection.company, row.collection.updatedAt);
     }
-    for (const row of [...input.designsFromNetwork, ...input.designsForYou]) {
+    for (const row of input.designsFromNetwork) {
       touch(row.product.company, row.product.postedAt);
-    }
-    for (const row of [
-      ...input.suggestedBusinesses,
-      ...(input.lookingForWhatYouSell ?? []),
-    ]) {
-      touch(row.company, row.latestPostedAt);
     }
 
     return [...latest.values()]
       .sort((a, b) => (a.latestPostedAt < b.latestPostedAt ? 1 : -1))
       .slice(0, 16);
+  }
+
+  private async loadReceivedPacks(
+    viewerCompanyId: string,
+    query: ExploreQuery,
+    broadcastCollectionIds: string[],
+  ) {
+    const audienceOr: Prisma.CollectionWhereInput[] = [
+      { audience: { in: [PublishAudience.Connections, PublishAudience.Followers, PublishAudience.Selected] } },
+    ];
+    if (broadcastCollectionIds.length > 0) {
+      audienceOr.push({ id: { in: broadcastCollectionIds } });
+    }
+
+    const rows = await this.prisma.collection.findMany({
+      where: {
+        status: CollectionStatus.Published,
+        companyId: { not: viewerCompanyId },
+        company: this.companyFilter(viewerCompanyId, query),
+        AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
+        OR: audienceOr,
+      },
+      include: {
+        ...collectionCardInclude,
+        products: {
+          include: { product: { select: { images: true, companyId: true } } },
+        },
+      },
+      orderBy: [{ exploreActivityAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
+      take: 80,
+    });
+
+    return rows
+      .filter((row) => isDirectedAudience(row.audience) || broadcastCollectionIds.includes(row.id))
+      .map((row) => {
+        const card = this.discovery.toCollectionCard(row);
+        const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
+        return {
+          postedAt: row.exploreActivityAt ?? row.updatedAt,
+          companyId: row.companyId,
+          curated: isCuratedCollection(row.companyId, memberCompanyIds),
+          payload: card,
+        };
+      });
   }
 
   /** Published designs on Explore (posted to market), excluding the viewer. */
@@ -491,7 +566,7 @@ export class ExploreService {
     ].sort(byPostedAtDesc);
 
     const { interest, city } = await this.resolveViewerRankContext(viewerCompanyId, query);
-    const softRank = interest.tags.length > 0 && !query.category;
+    const softRank = interest.tags.length > 0 && narrowLists(query).categories.length === 0;
     const merged = softRank
       ? this.mergeFollowThenInterest(followedRows, otherRows, interest, city)
       : [
@@ -563,7 +638,7 @@ export class ExploreService {
     ]);
 
     const { interest, city } = await this.resolveViewerRankContext(viewerCompanyId, query);
-    const softRank = interest.tags.length > 0 && !query.category;
+    const softRank = interest.tags.length > 0 && narrowLists(query).categories.length === 0;
     const followedFeed = followedRows.map((row) => this.toCollectionFeedRow(row));
     const otherFeed = otherRows.map((row) => this.toCollectionFeedRow(row));
     const mergedFeed = softRank
@@ -583,23 +658,22 @@ export class ExploreService {
 
   async companies(viewerCompanyId: string, query: ExploreQuery): Promise<CursorPage<CompanyCard>> {
     const lookingForBuyers = query.scope === 'sell';
+    const { categories, cities } = narrowLists(query);
+    const categoryClause = lookingForBuyers
+      ? categories.length
+        ? categoryHasSomeWhere(categories, 'buyCategories')
+        : { buyCategories: { isEmpty: false } }
+      : categories.length
+        ? categoryHasSomeWhere(categories, 'sellCategories')
+        : { sellCategories: { isEmpty: false } };
     const where: Prisma.CompanyWhereInput = {
       id: { not: viewerCompanyId },
-      // Buy scope → suppliers; sell scope → businesses that buy (retailers).
-      ...(lookingForBuyers
-        ? {
-            buyCategories: query.category ? { has: query.category } : { isEmpty: false },
-          }
-        : {
-            sellCategories: query.category ? { has: query.category } : { isEmpty: false },
-          }),
+      ...categoryClause,
       connectionsAsOwner: {
         none: { viewerCompanyId, status: ConnectionStatus.Blocked },
       },
+      ...cityEqualsWhere(cities),
     };
-    if (query.city) {
-      where.city = query.city;
-    }
     if (query.following) {
       where.followers = { some: { followerCompanyId: viewerCompanyId } };
     }
@@ -618,6 +692,7 @@ export class ExploreService {
     query: ExploreQuery,
   ): Promise<CursorPage<ExploreSupplierCard>> {
     const lookingForBuyers = query.scope === 'sell';
+    const { categories, cities } = narrowLists(query);
     const visibleOr = audienceVisibilityOr(viewerCompanyId) as Prisma.CollectionWhereInput[];
     const visibleProductOr = audienceVisibilityOr(viewerCompanyId) as Prisma.ProductWhereInput[];
 
@@ -651,26 +726,14 @@ export class ExploreService {
       },
       AND: [postedContent],
       ...(lookingForBuyers
-        ? {
-            buyCategories: query.category ? { has: query.category } : { isEmpty: false },
-          }
-        : query.category
-          ? (() => {
-              const superId = resolveSuperCategoryId(query.category);
-              return superId
-                ? {
-                    OR: [
-                      { superCategories: { has: superId } },
-                      { sellCategories: { has: query.category } },
-                    ],
-                  }
-                : { sellCategories: { has: query.category } };
-            })()
+        ? categories.length
+          ? categoryHasSomeWhere(categories, 'buyCategories')
+          : { buyCategories: { isEmpty: false } }
+        : categories.length
+          ? categoryHasSomeWhere(categories, 'sellCategories')
           : {}),
+      ...cityEqualsWhere(cities),
     };
-    if (query.city) {
-      where.city = query.city;
-    }
     if (query.following) {
       where.followers = { some: { followerCompanyId: viewerCompanyId } };
     }
@@ -1385,16 +1448,10 @@ export class ExploreService {
       select: { buyCategories: true, superCategories: true, city: true },
     });
     const city = viewer?.city?.trim() || null;
-    if (query.category) {
-      const superId = resolveSuperCategoryId(query.category);
-      return {
-        city,
-        interest: {
-          tags: [query.category],
-          supers: superId ? [superId] : [],
-          preferFine: !superId,
-        },
-      };
+    const { categories } = narrowLists(query);
+    const fromNarrow = interestFromNarrowCategories(categories);
+    if (fromNarrow) {
+      return { city, interest: fromNarrow };
     }
     return { interest: resolveInterestFromCompany(viewer ?? {}), city };
   }
@@ -1405,20 +1462,8 @@ export class ExploreService {
         none: { viewerCompanyId, status: ConnectionStatus.Blocked },
       },
     };
-    if (query.city) {
-      filter.city = query.city;
-    }
-    if (query.category) {
-      const superId = resolveSuperCategoryId(query.category);
-      if (superId) {
-        filter.OR = [
-          { superCategories: { has: superId } },
-          { sellCategories: { has: query.category } },
-        ];
-      } else {
-        filter.sellCategories = { has: query.category };
-      }
-    }
+    const { categories, cities } = narrowLists(query);
+    Object.assign(filter, cityEqualsWhere(cities), categoryHasSomeWhere(categories, 'sellCategories'));
     if (query.following) {
       filter.followers = { some: { followerCompanyId: viewerCompanyId } };
     }

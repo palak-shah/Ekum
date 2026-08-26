@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type {
@@ -7,7 +7,6 @@ import type {
   SetCollectionProductsDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { defaultCollectionName } from '@/features/catalog/collectionCreateHelpers';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useToast } from '@/ui/Toast';
 import { Button, Field, Sheet, TextInput } from '@/ui/kit';
@@ -30,18 +29,27 @@ export function CurateFromSelectionSheet({
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
-  const [name, setName] = useState(() => defaultCollectionName());
+  const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setName('');
+  }, [open]);
 
   const ids = productIds ?? shortlist.entries.map((entry) => entry.productId);
   const entries = shortlist.entries.filter((entry) => ids.includes(entry.productId));
+  const canSubmit = entries.length >= 1 && Boolean(name.trim());
 
   const createDraft = async (opts?: { openPublish?: boolean }) => {
     if (entries.length < 1) {
       showToast('Pick at least one design.', 'danger');
       return;
     }
-    const packName = name.trim() || defaultCollectionName();
+    const packName = name.trim();
+    if (!packName) {
+      showToast('Enter a pack name.', 'danger');
+      return;
+    }
     const firstThumb = entries.find((item) => isHttpUrl(item.thumbUrl))?.thumbUrl;
     setSaving(true);
     try {
@@ -84,20 +92,21 @@ export function CurateFromSelectionSheet({
           <TextInput
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={defaultCollectionName()}
+            placeholder="e.g. Festive 2026"
             autoComplete="off"
+            autoFocus
           />
         </Field>
-        <Button fullWidth disabled={saving || entries.length < 1} onClick={() => void createDraft()}>
-          {saving ? 'Saving…' : 'Save draft'}
+        <Button fullWidth disabled={saving || !canSubmit} onClick={() => void createDraft()}>
+          {saving ? 'Saving…' : 'Save Collection in Draft'}
         </Button>
         <Button
           variant="secondary"
           fullWidth
-          disabled={saving || entries.length < 1}
+          disabled={saving || !canSubmit}
           onClick={() => void createDraft({ openPublish: true })}
         >
-          Publish…
+          Publish to Collection
         </Button>
       </div>
     </Sheet>

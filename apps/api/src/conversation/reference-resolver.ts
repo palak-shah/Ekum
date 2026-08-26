@@ -32,8 +32,9 @@ export class ReferenceResolver {
       ...this.idsFor(messages, MessageType.Rate),
       ...this.orderLineSystemIds(messages),
     ];
+    const paymentIds = this.idsFor(messages, MessageType.PaymentCard);
 
-    const [products, collections, orders] = await Promise.all([
+    const [products, collections, orders, payments] = await Promise.all([
       productIds.length
         ? this.prisma.product.findMany({
             where: { id: { in: productIds } },
@@ -74,6 +75,7 @@ export class ReferenceResolver {
               status: true,
               buyerCompanyId: true,
               sellerCompanyId: true,
+              createdByCompanyId: true,
               confirmedByCompanyId: true,
               buyer: { select: { name: true } },
               seller: { select: { name: true } },
@@ -87,11 +89,24 @@ export class ReferenceResolver {
             },
           })
         : Promise.resolve([]),
+      paymentIds.length
+        ? this.prisma.paymentRequest.findMany({
+            where: { id: { in: paymentIds } },
+            select: {
+              id: true,
+              orderId: true,
+              amount: true,
+              status: true,
+              order: { select: { buyerCompanyId: true, sellerCompanyId: true } },
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     const productById = new Map(products.map((product) => [product.id, product]));
     const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
     const orderById = new Map(orders.map((order) => [order.id, order]));
+    const paymentById = new Map(payments.map((row) => [row.id, row]));
 
     const references = new Map<string, MessageReference>();
     for (const message of messages) {
@@ -133,6 +148,19 @@ export class ReferenceResolver {
           allowForward: collection ? collection.allowForward !== false : true,
           available: Boolean(collection),
         });
+      } else if (message.type === MessageType.PaymentCard) {
+        const ask = paymentById.get(message.referenceId);
+        const amount = ask ? ask.amount.toNumber() : null;
+        references.set(message.id, {
+          kind: 'payment',
+          id: message.referenceId,
+          name: ask ? `Payment · ₹${amount!.toLocaleString('en-IN')}` : 'Payment',
+          image: null,
+          available: Boolean(ask),
+          status: ask?.status ?? null,
+          totalLabel: amount != null ? `₹${amount.toLocaleString('en-IN')}` : null,
+          orderLabel: ask ? shortOrderLabel(ask.orderId) : null,
+        });
       } else if (
         message.type === MessageType.OrderCard ||
         message.type === MessageType.Rate ||
@@ -162,11 +190,17 @@ export class ReferenceResolver {
             confirmedByName = order.seller.name;
           }
         }
-        // One primary thumb per line (images[0] or legacy image), max 4 for the card album.
-        const previewImages = (order?.items ?? [])
-          .map((item) => item.images[0] || item.image || null)
-          .filter((url): url is string => Boolean(url))
-          .slice(0, 4);
+        // All line photos for the viewer; card grid still previews first 4 via PhotoAlbum.
+        const allImages = (order?.items ?? []).flatMap((line) => {
+          const urls =
+            line.images.length > 0
+              ? line.images.filter((url): url is string => Boolean(url))
+              : line.image
+                ? [line.image]
+                : [];
+          return urls;
+        });
+        const previewImages = allImages.slice(0, 4);
 
         // Totals are frozen on the message at send time. Never recompute from live
         // order lines — a later quote must not rewrite earlier order/quote cards.
@@ -226,6 +260,12 @@ export class ReferenceResolver {
           order!.items.some(
             (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
           );
+        const canAcceptLogged =
+          !isRateCard &&
+          Boolean(order) &&
+          direction === 'buying' &&
+          order!.status === OrderStatus.Requested &&
+          order!.createdByCompanyId === order!.sellerCompanyId;
 
         references.set(message.id, {
           kind: isRateCard ? 'rate' : 'order',
@@ -234,7 +274,7 @@ export class ReferenceResolver {
             ? 'Quote'
             : (frozenOrderLabel ?? (order ? shortOrderLabel(order.id) : 'Order')),
           image: previewImages[0] ?? null,
-          images: previewImages.length > 0 ? previewImages : null,
+          images: allImages.length > 0 ? allImages : null,
           available: Boolean(order),
           status: frozenStatus,
           itemCount: frozenItemCount ?? order?._count.items ?? null,
@@ -249,6 +289,7 @@ export class ReferenceResolver {
           orderLabel: frozenOrderLabel ?? (order ? shortOrderLabel(order.id) : null),
           actorLabel,
           canAcceptQuote,
+          canAcceptLogged,
         });
       }
     }

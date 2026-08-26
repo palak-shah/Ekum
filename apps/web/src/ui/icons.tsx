@@ -76,6 +76,13 @@ export const BackIcon = (props: IconProps) => (
   </Icon>
 );
 
+export const CloseIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m18 6-12 12" />
+    <path d="m6 6 12 12" />
+  </Icon>
+);
+
 export const ChevronRightIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="m9 6 6 6-6 6" />

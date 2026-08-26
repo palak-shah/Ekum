@@ -9,6 +9,8 @@ export interface ContinuousCameraProps {
   onCancel: () => void;
   /** Permission / device failure — parent should fall back to gallery. */
   onUnavailable: () => void;
+  /** Pick from gallery instead — discards in-progress shots and closes camera. */
+  onGallery?: () => void;
 }
 
 interface Shot {
@@ -65,6 +67,7 @@ export function ContinuousCamera({
   onDone,
   onCancel,
   onUnavailable,
+  onGallery,
 }: ContinuousCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -256,6 +259,14 @@ export function ContinuousCamera({
     onDone(files);
   };
 
+  const handleGallery = () => {
+    if (!onGallery) return;
+    revokeShots(shots);
+    setShots([]);
+    stopStream();
+    onGallery();
+  };
+
   return (
     <div className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
       <div className="relative min-h-0 flex-1">
@@ -272,15 +283,26 @@ export function ContinuousCamera({
           </div>
         ) : null}
 
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/60 to-transparent px-4 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="min-h-11 rounded-xl px-3 text-sm font-semibold text-white"
-          >
-            Cancel
-          </button>
-          <p className="text-sm font-semibold tabular-nums">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/60 to-transparent px-4 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-white"
+            >
+              Cancel
+            </button>
+            {onGallery ? (
+              <button
+                type="button"
+                onClick={handleGallery}
+                className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
+              >
+                Gallery
+              </button>
+            ) : null}
+          </div>
+          <p className="shrink-0 text-sm font-semibold tabular-nums">
             {shots.length}/{maxShots}
           </p>
           <Button

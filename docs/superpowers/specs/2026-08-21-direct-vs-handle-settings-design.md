@@ -1,7 +1,7 @@
 # Order path: Direct vs I handle — trust-first design
 
 **Date:** 2026-08-21  
-**Status:** Approved  
+**Status:** Approved (Send-hold shipped 2026-08-22)  
 **Supersedes for product language/routing:** [2026-08-21-open-toll-trade-simplicity-design.md](./2026-08-21-open-toll-trade-simplicity-design.md)  
 **Anchors:** [2026-08-20-trader-dual-trade-slice-b-design.md](./2026-08-20-trader-dual-trade-slice-b-design.md), [orders.md](../../features/orders.md), [settings.md](../../features/settings.md)
 

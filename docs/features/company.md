@@ -6,7 +6,7 @@ Public shop card for a business (logo, city, about, verification, categories, pu
 
 ## Who uses it
 
-Anyone browsing a business; owners edit via **You → profile / settings**.
+Anyone browsing a business; owners edit via **You → profile / settings**. Members manage people via **You → Team**.
 
 ## User flows
 
@@ -23,6 +23,12 @@ Anyone browsing a business; owners edit via **You → profile / settings**.
 1. From You / Settings → edit name, city, about, logo, GST, categories, super-categories.
 2. Save → reflected on public profile and session company card.
 
+### Team (`/team`)
+
+1. **You → Team** — every member sees the list (name + Owner / Staff).
+2. With **Team** cap: **Invite** (name + 10-digit) → share `/t/:token`. Edit caps on a row. Remove staff.
+3. Recipient OTP on that phone → Join. Becomes staff if they have no business yet. Last owner cannot be removed.
+
 ## Business rules
 
 | Rule | Detail |
@@ -32,6 +38,7 @@ Anyone browsing a business; owners edit via **You → profile / settings**.
 | Capabilities | Shown as data (`publish`, `relist`, `refer`) on own company |
 | Verification | `not_verified` · `gst_verified` |
 | Own vs other | Editing only for the acting company’s profile |
+| Team | People under this company (`owner` / `staff` + five caps). Invite is phone-bound; a phone that already has a business cannot join. No company switcher. |
 
 ## Edge cases / empty states
 

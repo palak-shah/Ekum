@@ -118,3 +118,56 @@ describe('ThreadService.membershipOrThrow owner_only visibility', () => {
     await expect(service.membershipOrThrow('t', 'me', 'staff')).resolves.toMatchObject({ id: 'p' });
   });
 });
+
+describe('ThreadService.findDirectThread visibility', () => {
+  it('creates an owner_only direct when only a shared thread exists', async () => {
+    const findFirstCalls: unknown[] = [];
+    const prisma = {
+      company: { findUnique: async () => ({ id: 'target' }) },
+      thread: {
+        findFirst: async (args: unknown) => {
+          findFirstCalls.push(args);
+          return null;
+        },
+        create: async () => ({ id: 'owner-only-thread' }),
+        findUnique: async () => ({
+          id: 'owner-only-thread',
+          type: 'direct',
+          visibility: ThreadVisibility.OwnerOnly,
+          title: null,
+          lastMessageAt: new Date(),
+          participants: [
+            {
+              id: 'p-me',
+              companyId: 'me',
+              state: 'active',
+              alertLevel: 'all',
+              lastReadAt: null,
+              leftAt: null,
+              company: { id: 'me' },
+            },
+          ],
+        }),
+      },
+      threadParticipant: { update: async () => ({}) },
+      message: { count: async () => 0, findMany: async () => [] },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'owner-only-thread' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+    );
+
+    await service.startDirect('me', 'owner', {
+      companyId: 'target',
+      visibility: ThreadVisibility.OwnerOnly,
+    });
+
+    expect(findFirstCalls).toHaveLength(1);
+    expect((findFirstCalls[0] as { where: { visibility: string } }).where.visibility).toBe(
+      ThreadVisibility.OwnerOnly,
+    );
+  });
+});

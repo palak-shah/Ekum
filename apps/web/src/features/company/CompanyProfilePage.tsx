@@ -18,6 +18,7 @@ import {
   resolveAccessRequestNote,
 } from '@/lib/accessRequestNote';
 import { useMyCompany } from '@/lib/queries';
+import { useTradePresence } from '@/lib/tradePresence';
 import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
@@ -62,6 +63,7 @@ export function CompanyProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useMyCompany();
+  const { selling, trading } = useTradePresence();
   const shortlist = useBrowseShortlist();
   const orderFlow = useShortlistOrderFlow();
   const [gateOpen, setGateOpen] = useState(false);
@@ -131,7 +133,7 @@ export function CompanyProfilePage() {
   };
   const shopSelectAllOpen = shortlist.selectMode && shopTab === 'designs' && designs.length > 0;
   const canSelectDesigns = designs.length > 0 && shopTab === 'designs';
-  const canOrder = !isOwner && shortlist.count > 0;
+  const canOrder = shortlist.count > 0 && (!isOwner || selling || trading);
   const canCurate =
     !isOwner &&
     shortlist.count > 0 &&

@@ -6,9 +6,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import type { AuthenticatedRequest } from '../auth.types';
+import type { AuthenticatedRequest, AuthPrincipal } from '../auth.types';
 import { TokenService } from '../token.service';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { membershipPermissions } from '../require-permission';
 
 /**
  * Global guard. Every route requires a valid access token unless explicitly
@@ -44,19 +45,28 @@ export class JwtAuthGuard implements CanActivate {
     // company-scoped routes deny access rather than trust the claim outright.
     let companyId = payload.companyId;
     let role: string | null = null;
+    let permissions = null as AuthPrincipal['permissions'];
     if (companyId) {
       const membership = await this.prisma.companyMembership.findUnique({
         where: { userId_companyId: { userId: payload.sub, companyId } },
-        select: { role: true },
+        select: {
+          role: true,
+          canUploads: true,
+          canChats: true,
+          canOrders: true,
+          canPayments: true,
+          canTeam: true,
+        },
       });
       if (membership) {
         role = membership.role;
+        permissions = membershipPermissions(membership);
       } else {
         companyId = null;
       }
     }
 
-    request.user = { userId: payload.sub, phone: payload.phone, companyId, role };
+    request.user = { userId: payload.sub, phone: payload.phone, companyId, role, permissions };
     return true;
   }
 }

@@ -19,7 +19,7 @@ import { timeAgo } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { Card, Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { PlusIcon } from '@/ui/icons';
+import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
 import {
@@ -38,22 +38,11 @@ import {
   toTradeItems,
   type TradeListItem,
 } from './tradeList';
+import { OrdersFilterMenu } from './OrdersFilterMenu';
+import { statusFromParam, tradeMenuFilterSummary } from './ordersFilterConfig';
 
 type Direction = 'all' | 'buying' | 'selling';
 type StatusFilter = 'needs' | 'progress' | 'completed';
-
-/** Quiet inline shortcuts — no floating panel. List is the result. */
-const QUICK_STATUS = [
-  { label: 'Requested', status: 'requested' },
-  { label: 'Confirmed', status: 'confirmed' },
-  { label: 'Dispatched', status: 'dispatched' },
-  { label: 'Delivered', status: 'delivered' },
-] as const;
-
-const QUICK_KIND: { label: string; kind: TradeKindFacet }[] = [
-  { label: 'Sample', kind: 'sample' },
-  { label: 'Return', kind: 'return' },
-];
 
 function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
   if (value === 'sample' || value === 'return' || value === 'order') return value;
@@ -66,7 +55,9 @@ export function OrdersPage() {
   const [params, setSearchParams] = useSearchParams();
   const filterParam = params.get('filter');
   const kindParam = params.get('kind');
-  const findWrapRef = useRef<HTMLDivElement>(null);
+  const statusParam = params.get('status');
+  const filterAnchorRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [direction, setDirection] = useState<Direction>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     filterParam === 'needs' || filterParam === 'progress' || filterParam === 'completed'
@@ -76,8 +67,8 @@ export function OrdersPage() {
   const [find, setFind] = useState<TradeFindState>(() => ({
     ...emptyFindState(),
     kindFacet: kindFromParam(kindParam),
+    statusFacet: statusFromParam(statusParam),
   }));
-  const [findFocused, setFindFocused] = useState(false);
   const listStatus = useDeferredValue(statusFilter);
   const listDirection = useDeferredValue(direction);
   const deferredFind = useDeferredValue(find);
@@ -92,6 +83,11 @@ export function OrdersPage() {
     const next = kindFromParam(kindParam);
     setFind((prev) => (prev.kindFacet === next ? prev : { ...prev, kindFacet: next }));
   }, [kindParam]);
+
+  useEffect(() => {
+    const next = statusFromParam(statusParam);
+    setFind((prev) => (prev.statusFacet === next ? prev : { ...prev, statusFacet: next }));
+  }, [statusParam]);
 
   const serverFind = findNeedsServer(deferredFind);
   const orderParams = useMemo(() => {
@@ -138,6 +134,11 @@ export function OrdersPage() {
     Boolean(dateFacetFromNeedle(deferredFind.needle)) ||
     deferredFind.needle.trim().length > 0;
 
+  const filterApplied = Boolean(
+    find.statusFacet || find.kindFacet || find.dateFacet,
+  );
+  const filterIconActive = filterApplied || menuOpen;
+
   const filtered = useMemo(() => {
     return merged.filter((item) => {
       if (!tradeMatchesFind(item, deferredFind)) return false;
@@ -158,17 +159,34 @@ export function OrdersPage() {
     (samples.isPending && !samples.data) ||
     (returns.isPending && !returns.data);
 
-  const setKindFacet = (kind: TradeKindFacet | null) => {
-    setFind((prev) => ({ ...prev, kindFacet: kind, needle: '' }));
+  const syncFindParams = (statusFacet: string | null, kindFacet: TradeKindFacet | null) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (!kind || kind === 'order') next.delete('kind');
-        else next.set('kind', kind);
+        if (statusFacet) next.set('status', statusFacet);
+        else next.delete('status');
+        if (!kindFacet || kindFacet === 'order') next.delete('kind');
+        else next.set('kind', kindFacet);
         return next;
       },
       { replace: true },
     );
+  };
+
+  const setKindFacet = (kind: TradeKindFacet | null) => {
+    setFind((prev) => {
+      const next = { ...prev, kindFacet: kind, needle: '' };
+      syncFindParams(prev.statusFacet, kind);
+      return next;
+    });
+  };
+
+  const setStatusFacet = (status: string | null) => {
+    setFind((prev) => {
+      const next = { ...prev, statusFacet: status, needle: '' };
+      syncFindParams(status, prev.kindFacet);
+      return next;
+    });
   };
 
   const onFindNeedleChange = (raw: string) => {
@@ -180,107 +198,111 @@ export function OrdersPage() {
     setFind((prev) => ({ ...prev, needle: raw }));
   };
 
-  const clearFind = () => {
-    setFind(emptyFindState());
+  const clearMenuFilters = () => {
+    setFind((prev) => ({
+      ...prev,
+      statusFacet: null,
+      kindFacet: null,
+      dateFacet: null,
+    }));
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete('kind');
+        next.delete('status');
         return next;
       },
       { replace: true },
     );
   };
 
-  const activeLabel = [
-    find.kindFacet === 'sample'
-      ? 'Sample'
-      : find.kindFacet === 'return'
-        ? 'Return'
-        : find.kindFacet === 'order'
-          ? 'Order'
-          : null,
-    find.statusFacet?.replace(/_/g, ' '),
-    find.dateFacet?.label,
-    find.needle.trim() || null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const clearFind = () => {
+    setFind(emptyFindState());
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('kind');
+        next.delete('status');
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
-  const showQuick =
-    findFocused &&
-    !find.needle.trim() &&
-    !find.kindFacet &&
-    !find.statusFacet &&
-    !find.dateFacet;
+  const menuFilterSummary = tradeMenuFilterSummary({
+    statusFacet: find.statusFacet,
+    kindFacet: find.kindFacet,
+    dateFacet: find.dateFacet,
+  });
+
+  const searchLabel = find.needle.trim() || null;
+  const summaryLabel = [menuFilterSummary, searchLabel].filter(Boolean).join(' · ');
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div ref={findWrapRef} className="flex w-full flex-col gap-1.5">
+      <div className="flex w-full flex-col gap-1.5">
         <ListSearchRow
           search={
             <TextInput
               className="w-full"
               value={find.needle}
               onChange={(e) => onFindNeedleChange(e.target.value)}
-              onFocus={() => setFindFocused(true)}
-              onBlur={() => {
-                window.setTimeout(() => setFindFocused(false), 150);
-              }}
               placeholder="Name, status, today…"
               aria-label="Search orders, samples, returns"
               autoComplete="off"
             />
           }
           action={
-            <ListSquareButton
-              aria-label="New order"
-              onClick={() => navigate('/orders/new')}
-            >
-              <PlusIcon width={20} height={20} />
-            </ListSquareButton>
+            <div className="flex shrink-0 items-center gap-2">
+              <ListSquareButton
+                ref={filterAnchorRef}
+                data-testid="orders-filter"
+                data-filter-active={filterApplied ? 'true' : 'false'}
+                aria-label="Filter"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                aria-pressed={filterApplied}
+                active={filterIconActive}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <FilterIcon
+                  width={20}
+                  height={20}
+                  className={filterIconActive ? 'text-white' : undefined}
+                />
+              </ListSquareButton>
+              <ListSquareButton
+                aria-label="New order"
+                onClick={() => navigate('/orders/new')}
+              >
+                <PlusIcon width={20} height={20} />
+              </ListSquareButton>
+            </div>
           }
         />
-        {showQuick ? (
-          <div className="flex flex-wrap gap-x-3 gap-y-1 px-0.5">
-            {QUICK_STATUS.map((item) => (
-              <button
-                key={item.status}
-                type="button"
-                className="text-[12px] font-medium text-muted hover:text-ink"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() =>
-                  setFind((prev) => ({
-                    ...prev,
-                    statusFacet: item.status,
-                    needle: '',
-                  }))
-                }
-              >
-                {item.label}
-              </button>
-            ))}
-            {QUICK_KIND.map((item) => (
-              <button
-                key={item.kind}
-                type="button"
-                className="text-[12px] font-medium text-muted hover:text-ink"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setKindFacet(item.kind)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {activeLabel ? (
-          <p className="px-0.5 text-[12px] text-muted">
-            <span className="capitalize text-ink">{activeLabel}</span>
-            {' · '}
-            <button type="button" className="font-medium text-accent" onClick={clearFind}>
+        <OrdersFilterMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          anchorRef={filterAnchorRef}
+          statusFacet={find.statusFacet}
+          kindFacet={find.kindFacet}
+          onStatus={setStatusFacet}
+          onKind={setKindFacet}
+          onClearAll={clearMenuFilters}
+        />
+        {summaryLabel ? (
+          <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
+            <p className="text-xs font-medium text-muted">
+              Showing <span className="capitalize text-ink">{summaryLabel}</span>
+            </p>
+            <button
+              type="button"
+              onClick={clearFind}
+              className="inline-flex min-h-11 items-center text-xs font-bold tracking-tight text-accent"
+            >
               Clear
             </button>
-          </p>
+          </div>
         ) : null}
       </div>
 

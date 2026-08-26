@@ -1,26 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { CompanySettingsView, CursorPage, MessageView, ThreadSummary } from '@ekum/domain-types';
+import type {
+  CompanySettingsView,
+  CursorPage,
+  MessageView,
+  ShareLinkView,
+  ThreadSummary,
+} from '@ekum/domain-types';
 import { MessageType, OrderPathPreference } from '@ekum/domain-types';
 import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
+import { rankShareChats } from '@/features/browse/rankShareChats';
 import { api, ApiError } from '@/lib/apiClient';
+import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
 import { Avatar, LoadingBlock, Sheet, cx } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
   name: string;
+  image?: string | null;
 };
 
 export type CatalogShareProductItem = {
   productId: string;
   name: string;
+  image?: string | null;
 };
 
 /**
  * Catalogue → chat: post collection_card / product_card into a chosen thread.
  * Same trust gate as Forward (allowForward enforced by API).
  * Stamps orderPathPreference on message metadata for buyer order routing.
+ * Quiet text under the chat list: 48h link (any app) when exactly one album or design.
  */
 export function CatalogShareSheet({
   open,
@@ -62,6 +73,11 @@ export function CatalogShareSheet({
     enabled: open && total > 0,
   });
 
+  const rankedChats = useMemo(
+    () => rankShareChats(threads.data?.results ?? []),
+    [threads.data?.results],
+  );
+
   const share = useMutation({
     mutationFn: async (threadId: string) => {
       if (total === 0) throw new Error('Nothing to share');
@@ -83,8 +99,8 @@ export function CatalogShareSheet({
         });
       }
       const title =
-        threads.data?.results.find((row) => row.id === threadId)?.title ??
-        threads.data?.results.find((row) => row.id === threadId)?.counterpart?.name ??
+        rankedChats.find((row) => row.id === threadId)?.title ??
+        rankedChats.find((row) => row.id === threadId)?.counterpart?.name ??
         'chat';
       return title;
     },
@@ -95,6 +111,37 @@ export function CatalogShareSheet({
     },
     onError: (err) => {
       showToast(err instanceof ApiError ? err.message : 'Could not share.', 'danger');
+    },
+  });
+
+  const singleCollection = albumItems.length === 1 && designItems.length === 0;
+  const singleProduct = designItems.length === 1 && albumItems.length === 0;
+  const canLink = singleCollection || singleProduct;
+  const makeLink = useMutation({
+    mutationFn: () =>
+      api.post<ShareLinkView>(
+        '/share-links',
+        singleCollection
+          ? { collectionId: albumItems[0]!.collectionId }
+          : { productId: designItems[0]!.productId },
+      ),
+    onSuccess: async (link) => {
+      const url = `${window.location.origin}${link.path}`;
+      const copy = catalogShareCopy({ name: link.name, kind: link.kind });
+      try {
+        const result = await shareOrCopyInvite({
+          url,
+          title: copy.title,
+          text: copy.text,
+        });
+        if (result === 'copied') showToast('Link copied · 48 hours');
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        showToast('Could not share the link.', 'danger');
+      }
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not make a link.', 'danger');
     },
   });
 
@@ -139,8 +186,8 @@ export function CatalogShareSheet({
               disabled={share.isPending}
               onClick={() => setOrderPath(option.value)}
               className={cx(
-                'rounded-xl px-3 py-2.5 text-left',
-                selected ? 'bg-accent/10 ring-1 ring-accent' : 'border border-line',
+                'w-full rounded-xl border px-3 py-2.5 text-left',
+                selected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
               )}
             >
               <p className="text-sm font-semibold text-ink">{option.label}</p>
@@ -152,8 +199,8 @@ export function CatalogShareSheet({
       {threads.isLoading ? (
         <LoadingBlock />
       ) : (
-        <div className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
-          {(threads.data?.results ?? []).map((row) => {
+        <div className="flex max-h-80 flex-col gap-0.5">
+          {rankedChats.map((row) => {
             const chatTitle = row.title ?? row.counterpart?.name ?? 'Conversation';
             return (
               <button
@@ -177,8 +224,22 @@ export function CatalogShareSheet({
               </button>
             );
           })}
-          {(threads.data?.results.length ?? 0) === 0 ? (
+          {rankedChats.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted">No chats yet</p>
+          ) : null}
+          {canLink ? (
+            <button
+              type="button"
+              disabled={share.isPending || makeLink.isPending}
+              onClick={() => makeLink.mutate()}
+              className="px-2 pt-3 text-left text-sm text-accent disabled:opacity-50"
+            >
+              {makeLink.isPending
+                ? 'Making link…'
+                : canNativeShare()
+                  ? 'Share a link · 48 hours'
+                  : 'Copy a link · 48 hours'}
+            </button>
           ) : null}
         </div>
       )}

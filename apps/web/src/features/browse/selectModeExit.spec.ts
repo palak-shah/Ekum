@@ -42,6 +42,28 @@ describe('useBrowseShortlist selectMode', () => {
     expect(result.current.count).toBe(0);
     expect(result.current.selectMode).toBe(false);
   });
+
+  it('exits select mode when the shared shortlist is cleared elsewhere', () => {
+    const { result } = renderHook(() => useBrowseShortlist());
+    act(() => {
+      result.current.toggle(design);
+    });
+    expect(result.current.selectMode).toBe(true);
+    act(() => {
+      clearBrowseShortlist();
+    });
+    expect(result.current.count).toBe(0);
+    expect(result.current.selectMode).toBe(false);
+  });
+
+  it('stays in select mode when entering with an empty shortlist', () => {
+    const { result } = renderHook(() => useBrowseShortlist());
+    act(() => {
+      result.current.setSelectMode(true);
+    });
+    expect(result.current.count).toBe(0);
+    expect(result.current.selectMode).toBe(true);
+  });
 });
 
 describe('useBrowseAlbumPick selectMode', () => {

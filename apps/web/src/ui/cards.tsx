@@ -13,7 +13,7 @@ import type {
   PublicCompanySummary,
 } from '@ekum/domain-types';
 import { formatRate, timeAgo } from '@/lib/format';
-import { Avatar, Tag, cx } from './kit';
+import { Avatar, Chip, Tag, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
 import { useLongPress } from './useLongPress';
 
@@ -65,12 +65,24 @@ export function CompanyRow({
 /** Company-primary Explore opportunity — collection evidence is secondary. */
 export function OpportunityCollectionCard({
   opportunity,
+  selected = false,
+  selectMode = false,
+  onLongSelect,
+  onToggleSelect,
+  onOpen,
 }: {
   opportunity: ExploreOpportunity;
+  selected?: boolean;
+  selectMode?: boolean;
+  onLongSelect?: () => void;
+  onToggleSelect?: () => void;
+  onOpen?: () => void;
 }) {
   const { collection, relevance } = opportunity;
   const company = collection.company;
   const when = postedWhen(collection.updatedAt);
+  const longPress = useLongPress(onLongSelect);
+  const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
       <div className="flex items-center gap-3 px-4 py-2.5">
@@ -87,17 +99,51 @@ export function OpportunityCollectionCard({
           <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
         ) : null}
       </div>
-      <Link to={`/collections/${collection.id}`} className="block px-3">
-        <AlbumGrid
-          images={collection.previewImages}
-          imageCount={collection.imageCount}
-          alt={collection.name}
-        />
-      </Link>
-      <Link to={`/collections/${collection.id}`} className="mt-2 block px-4">
-        <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
-        <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
-      </Link>
+      {open ? (
+        <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>
+          <AlbumGrid
+            images={collection.previewImages}
+            imageCount={collection.imageCount}
+            alt={collection.name}
+          />
+          <span
+            className={cx(
+              'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+            )}
+          >
+            <CheckIcon width={14} height={14} />
+          </span>
+        </button>
+      ) : (
+        <Link
+          to={`/collections/${collection.id}`}
+          className="block px-3"
+          onClick={() => onOpen?.()}
+          {...longPress}
+        >
+          <AlbumGrid
+            images={collection.previewImages}
+            imageCount={collection.imageCount}
+            alt={collection.name}
+          />
+        </Link>
+      )}
+      {open ? (
+        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
+          <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
+          <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
+        </button>
+      ) : (
+        <Link
+          to={`/collections/${collection.id}`}
+          className="mt-2 block px-4"
+          onClick={() => onOpen?.()}
+        >
+          <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
+          <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
+        </Link>
+      )}
     </article>
   );
 }
@@ -139,12 +185,15 @@ function postedWhen(iso: string | null | undefined): string {
 }
 
 /**
- * Explore business row — same chrome as design/collection posts, not a fake album.
- * Header + buys/sells line. Shop photos live on the company page grid.
+ * Explore business row — match design/collection posts: header + shop mosaic when available.
  */
 export function OpportunityBusinessCard({
   company,
   relevance,
+  previewImages = [],
+  designCount = 0,
+  collectionCount = 0,
+  latestPostedAt = null,
   intentSide = 'sell',
 }: {
   company: BusinessCardModel['company'];
@@ -159,20 +208,56 @@ export function OpportunityBusinessCard({
   const intentCats = (
     intentSide === 'buy' ? company.buyCategories : company.sellCategories
   ).filter(Boolean);
+  const when = postedWhen(latestPostedAt);
+  const previews = previewImages.filter(Boolean);
+  const imageCount = Math.max(previews.length, designCount + collectionCount);
+  const hasShopVisual = imageCount > 0;
+  const shopTo = `/company/${company.id}`;
+
+  const catalogLine = [
+    designCount > 0 ? `${designCount} design${designCount === 1 ? '' : 's'}` : null,
+    collectionCount > 0 ? `${collectionCount} album${collectionCount === 1 ? '' : 's'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
       <div className="flex items-center gap-3 px-4 py-2.5">
-        <Link to={`/company/${company.id}`} className="shrink-0">
+        <Link to={shopTo} className="shrink-0">
           <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
         </Link>
-        <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
+        <Link to={shopTo} className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
           <p className="truncate text-xs font-medium text-muted">{why}</p>
         </Link>
+        {when ? (
+          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
+        ) : (
+          <VerificationTag verification={company.verification} />
+        )}
       </div>
-      <Link to={`/company/${company.id}`} className="block px-3">
-        <BusinessIntentPanel intentSide={intentSide} categories={intentCats} />
+      <Link to={shopTo} className="block px-3">
+        {hasShopVisual ? (
+          <>
+            <AlbumGrid images={previews} imageCount={imageCount} alt={company.name} />
+            <div className="mt-2 flex items-start justify-between gap-3 px-1">
+              <div className="min-w-0">
+                {catalogLine ? (
+                  <p className="text-sm font-semibold tracking-tight text-ink">{catalogLine}</p>
+                ) : null}
+                <BusinessIntentLine intentSide={intentSide} categories={intentCats} />
+              </div>
+              <span className="shrink-0 pt-0.5 text-xs font-bold text-accent">View shop →</span>
+            </div>
+          </>
+        ) : (
+          <BusinessIntentCard
+            company={company}
+            intentSide={intentSide}
+            categories={intentCats}
+          />
+        )}
       </Link>
     </article>
   );
@@ -212,8 +297,8 @@ export function BusinessShopTile({
   );
 }
 
-/** Soft block when a business has no photos — plain words, no chip clutter. */
-function BusinessIntentPanel({
+/** Compact intent line under a shop mosaic. */
+function BusinessIntentLine({
   intentSide,
   categories,
 }: {
@@ -229,9 +314,43 @@ function BusinessIntentPanel({
         ? 'May want what you sell'
         : 'Supplier on Ekum';
 
+  return <p className="mt-0.5 text-xs font-medium text-muted">{line}</p>;
+}
+
+/** Card for buyers/suppliers with no shop photos yet — chips, not a blank foam slab. */
+function BusinessIntentCard({
+  company,
+  intentSide,
+  categories,
+}: {
+  company: BusinessCardModel['company'];
+  intentSide: 'buy' | 'sell';
+  categories: string[];
+}) {
+  const cats = categories.slice(0, 4);
+  const heading = intentSide === 'buy' ? 'Looking for' : 'Sells';
+
   return (
-    <div className="rounded-2xl bg-foam/80 px-4 py-5">
-      <p className="text-[15px] font-semibold leading-snug tracking-tight text-ink">{line}</p>
+    <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-[var(--shadow-soft)]">
+      <Avatar name={company.name} imageUrl={company.logoUrl} size={56} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{heading}</p>
+        {cats.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {cats.map((category) => (
+              <Chip key={category} className="h-7 px-2.5 text-[11px]">
+                {category}
+              </Chip>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-1 text-sm font-semibold text-ink">
+            {intentSide === 'buy' ? 'May want what you sell' : 'Browse their shop'}
+          </p>
+        )}
+        <p className="mt-2 text-xs font-bold text-accent">View shop →</p>
+      </div>
+      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
     </div>
   );
 }
@@ -258,12 +377,14 @@ export function OpportunityDesignCard({
   selectMode = false,
   onLongSelect,
   onToggleSelect,
+  onOpen,
 }: {
   opportunity: ExploreDesignOpportunity;
   selected?: boolean;
   selectMode?: boolean;
   onLongSelect?: () => void;
   onToggleSelect?: () => void;
+  onOpen?: () => void;
 }) {
   const { product, relevance } = opportunity;
   const company = product.company;
@@ -300,7 +421,12 @@ export function OpportunityDesignCard({
           </span>
         </button>
       ) : (
-        <Link to={`/explore/products/${product.id}`} className="block px-3" {...longPress}>
+        <Link
+          to={`/explore/products/${product.id}`}
+          className="block px-3"
+          onClick={() => onOpen?.()}
+          {...longPress}
+        >
           <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
         </Link>
       )}
@@ -310,7 +436,11 @@ export function OpportunityDesignCard({
           <p className="text-xs font-medium text-muted">Design</p>
         </button>
       ) : (
-        <Link to={`/explore/products/${product.id}`} className="mt-2 block px-4">
+        <Link
+          to={`/explore/products/${product.id}`}
+          className="mt-2 block px-4"
+          onClick={() => onOpen?.()}
+        >
           <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
           <p className="text-xs font-medium text-muted">Design</p>
         </Link>
