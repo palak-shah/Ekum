@@ -94,6 +94,7 @@ export class ConversationController {
 
   @Get(':id/messages')
   listMessages(
+    @CurrentCompanyId() _companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Query(new ZodValidationPipe(listThreadMessagesQuerySchema)) query: ListThreadMessagesQuery,
@@ -103,6 +104,7 @@ export class ConversationController {
 
   @Post(':id/messages')
   send(
+    @CurrentCompanyId() _companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(sendMessageSchema)) dto: SendMessageDto,

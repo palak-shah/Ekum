@@ -25,6 +25,18 @@ export function assertPermission(principal: AuthPrincipal, key: PermissionKey): 
   }
 }
 
+/** Throws when the principal has no active company (matches CurrentCompanyId decorator). */
+export function assertActiveCompany(principal: AuthPrincipal): string {
+  const companyId = principal.companyId;
+  if (!companyId) {
+    throw new ForbiddenException({
+      code: 'NO_ACTIVE_COMPANY',
+      message: 'Set up your business to continue.',
+    });
+  }
+  return companyId;
+}
+
 export function membershipPermissions(row: {
   canUploads: boolean;
   canChats: boolean;

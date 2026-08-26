@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ForbiddenException } from '@nestjs/common';
 import { MessageType, type SendMessageDto } from '@ekum/domain-types';
 import { MessageService } from './message.service';
 import type { AuthPrincipal } from '../auth/auth.types';
@@ -16,6 +17,29 @@ function actor(companyId: string, role = 'owner'): AuthPrincipal {
 }
 
 describe('MessageService.send', () => {
+  it('rejects when actor has no active company', async () => {
+    const threads = {
+      membershipOrThrow: async () => {
+        expect.fail('membershipOrThrow should not run without a company');
+      },
+    } as unknown as ThreadService;
+    const service = new MessageService(
+      {} as PrismaService,
+      threads,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      events,
+    );
+    const dto = { type: MessageType.Text, body: 'hi' } as SendMessageDto;
+    await expect(
+      service.send(
+        { userId: 'u1', companyId: null, phone: '+910000000000', role: null, permissions: null },
+        't',
+        dto,
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
   it('rejects sharing a product the sender does not own and has not received in chat', async () => {
     const prisma = {
       product: { findFirst: async () => null },

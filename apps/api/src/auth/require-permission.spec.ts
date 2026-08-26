@@ -2,7 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { MembershipRole } from '@ekum/domain-types';
 import type { AuthPrincipal } from './auth.types';
-import { assertPermission, membershipPermissions } from './require-permission';
+import { assertPermission, assertActiveCompany, membershipPermissions } from './require-permission';
 
 function staff(over: Partial<AuthPrincipal['permissions']> = {}): AuthPrincipal {
   return {
@@ -53,6 +53,24 @@ describe('assertPermission', () => {
         { userId: 'u', phone: '+91', companyId: null, role: null, permissions: null },
         'orders',
       ),
+    ).toThrow(ForbiddenException);
+  });
+});
+
+describe('assertActiveCompany', () => {
+  it('returns companyId when present', () => {
+    expect(assertActiveCompany(staff())).toBe('c1');
+  });
+
+  it('rejects when there is no company', () => {
+    expect(() =>
+      assertActiveCompany({
+        userId: 'u',
+        phone: '+91',
+        companyId: null,
+        role: null,
+        permissions: null,
+      }),
     ).toThrow(ForbiddenException);
   });
 });

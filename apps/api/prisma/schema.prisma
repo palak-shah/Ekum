@@ -103,8 +103,9 @@ model Company {
   referralsFor    Referral[]      @relation("ReferralTarget")
   notifications   Notification[]
   media           Media[]
-  savedItems      SavedItem[]
-  teamInvites     TeamInvite[]
+  savedItems        SavedItem[]
+  teamInvites       TeamInvite[]
+  catalogShareLinks CatalogShareLink[]
 }
 
 /// The join between a User and a Company. Modelled many-to-many from day one so
@@ -683,7 +684,10 @@ model CatalogShareLink {
   expiresAt          DateTime
   createdAt          DateTime @default(now())
 
+  createdByCompany Company @relation(fields: [createdByCompanyId], references: [id], onDelete: Cascade)
+
   @@index([expiresAt])
+  @@index([createdByCompanyId])
 }
 
 /// Off-app Accept link for a seller-logged order. One use; ~7 days.

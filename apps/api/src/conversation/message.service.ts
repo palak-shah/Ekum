@@ -18,6 +18,7 @@ import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
 import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { assertActiveCompany } from '../auth/require-permission';
 import { messageSearchOrClause } from './message-search';
 
 @Injectable()
@@ -35,7 +36,7 @@ export class MessageService {
     threadId: string,
     dto: SendMessageDto,
   ): Promise<MessageView> {
-    const actorCompanyId = actor.companyId!;
+    const actorCompanyId = assertActiveCompany(actor);
     const mine = await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role);
     await this.validateReference(actorCompanyId, dto);
     await this.validateReplyTarget(threadId, dto.replyToMessageId);
@@ -93,7 +94,7 @@ export class MessageService {
     threadId: string,
     query: ListThreadMessagesQuery,
   ): Promise<CursorPage<MessageView>> {
-    const actorCompanyId = actor.companyId!;
+    const actorCompanyId = assertActiveCompany(actor);
     await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role);
 
     const where = await this.listWhere(threadId, query);
