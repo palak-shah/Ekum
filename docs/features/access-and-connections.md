@@ -18,7 +18,7 @@ Buyers request / follow; sellers approve and manage connections. Both roles use 
 
 ### Request access
 
-1. On company profile or collection → Request access. Note is prefilled with a default (“Hi, we would like to see rates…”). Tap the field to clear and write your own; send with empty field still uses the default.
+1. On company profile, collection, or **Find on Ekum** (most connection pickers: name, mobile, or GST field; **Chats ＋** uses a Find on Ekum **link** after the business search — see [chat](./chat.md)) → Request access. Note is prefilled with a default (“Hi, we would like to see rates…”). Tap the field to clear and write your own; send with empty field still uses the default. Profile still lets you edit the note; picker send uses the default.
 2. Seller sees incoming on **Network → Requests** and Home Needs → Approve or Decline.
 3. Outgoing pending: same Requests page.
 
@@ -50,7 +50,8 @@ See [concepts](./00-concepts.md) for the trust ladder diagram.
 
 ## Edge cases / empty states
 
-- No connections → empty Connections list + invite / Explore.
+- No connections → empty Connections list + **Find on Ekum** (name / mobile / GST) + Explore.
+- Find on Ekum: match → Request access / Message (or Select/Add if already connected). Phone-like query with no match → **Send invite link**. Name miss → no match, not invite.
 - Declined request → can request again per product rules (do not invent auto-retry UX).
 - Self-follow / self-access → rejected.
 

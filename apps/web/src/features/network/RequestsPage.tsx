@@ -2,14 +2,12 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AccessRequestView } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
-import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Button, Card, EmptyState, LoadingBlock, SectionHeader } from '@/ui/kit';
 
 /** Incoming (approve) + outgoing pending access requests. */
 export function RequestsPage() {
   const queryClient = useQueryClient();
-  const { selling, canPublish } = useTradePresence();
   const incoming = useQuery({
     queryKey: ['access-requests', 'incoming'],
     queryFn: () => api.get<AccessRequestView[]>('/access-requests/incoming'),
@@ -35,16 +33,9 @@ export function RequestsPage() {
       <PageHeader
         title="Requests"
         action={
-          <div className="flex items-center gap-3">
-            {selling && canPublish ? (
-              <Link to="/broadcast" className="text-sm font-medium text-accent">
-                Buyer groups
-              </Link>
-            ) : null}
-            <Link to="/network/connections" className="text-sm font-medium text-accent">
-              Connections
-            </Link>
-          </div>
+          <Link to="/network/connections" className="text-sm font-medium text-accent">
+            Connections
+          </Link>
         }
       />
 

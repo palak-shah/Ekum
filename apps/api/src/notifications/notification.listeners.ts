@@ -72,7 +72,7 @@ export class NotificationListeners {
   @OnEvent(DomainEventName.MessageSent)
   async onMessageSent(event: MessageSentEvent): Promise<void> {
     await this.guard(() =>
-      this.notifications.createForMany(event.recipientCompanyIds, {
+      this.notifications.createForRecipients(event.recipientCompanyIds, event.recipientUserIds, {
         type: NotificationType.Message,
         title: 'New message',
         body: event.preview,

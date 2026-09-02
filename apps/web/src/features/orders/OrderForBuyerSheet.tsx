@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConnectionView, CreateForBuyerDto, CreateForBuyerResult } from '@ekum/domain-types';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
@@ -25,6 +25,7 @@ export function OrderForBuyerSheet({ open, onClose, lines, productIds, onInvite,
   const { showToast } = useToast();
   const [buyerId, setBuyerId] = useState<string | null>(null);
   const [offApp, setOffApp] = useState(false);
+  const [findMiss, setFindMiss] = useState(false);
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
 
@@ -38,9 +39,14 @@ export function OrderForBuyerSheet({ open, onClose, lines, productIds, onInvite,
     if (!open) return;
     setBuyerId(null);
     setOffApp(false);
+    setFindMiss(false);
     setBuyerName('');
     setBuyerPhone('');
   }, [open]);
+
+  const onFindMissChange = useCallback((miss: boolean) => {
+    setFindMiss(miss);
+  }, []);
 
   const buyerReady = offApp
     ? buyerName.trim().length > 0 && isTenDigitPhone(buyerPhone)
@@ -73,6 +79,7 @@ export function OrderForBuyerSheet({ open, onClose, lines, productIds, onInvite,
   });
 
   const busy = logForBuyer.isPending;
+  const showOffAppToggle = offApp || findMiss;
 
   return (
     <Sheet open={open} onClose={onClose} title="Order for buyer">
@@ -85,24 +92,29 @@ export function OrderForBuyerSheet({ open, onClose, lines, productIds, onInvite,
             loading={connections.isLoading}
             value={buyerId}
             onChange={setBuyerId}
+            onFindMissChange={onFindMissChange}
             label="Buyer"
             chooseLabel="Choose buyer"
-            emptyMessage="No connections yet — use name and phone."
+            emptyMessage="No connections yet — find them on Ekum."
           />
         ) : null}
-        <button
-          type="button"
-          className="self-start text-sm font-bold text-accent"
-          disabled={busy}
-          onClick={() => {
-            setOffApp((on) => !on);
-            setBuyerId(null);
-            setBuyerName('');
-            setBuyerPhone('');
-          }}
-        >
-          {offApp ? 'Choose a connected buyer' : 'Not on Ekum yet'}
-        </button>
+        {showOffAppToggle ? (
+          <button
+            type="button"
+            data-testid="order-for-buyer-off-app"
+            className="self-start text-sm font-bold text-accent"
+            disabled={busy}
+            onClick={() => {
+              setOffApp((on) => !on);
+              setBuyerId(null);
+              setBuyerName('');
+              setBuyerPhone('');
+              if (offApp) setFindMiss(false);
+            }}
+          >
+            {offApp ? 'Choose a connected buyer' : 'Not on Ekum yet'}
+          </button>
+        ) : null}
         {offApp ? (
           <>
             <Field label="Name">

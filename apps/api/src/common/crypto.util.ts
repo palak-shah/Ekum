@@ -28,9 +28,9 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufferA, bufferB);
 }
 
-/** Parses durations like "15m", "30d", "1h", "45s" into milliseconds. */
+/** Parses durations like "15m", "30d", "1h", "45s", "10y" into milliseconds. Years = 365 days. */
 export function parseDurationMs(input: string): number {
-  const match = /^(\d+)([smhd])$/.exec(input.trim());
+  const match = /^(\d+)([smhdy])$/.exec(input.trim());
   if (!match) {
     throw new Error(`Invalid duration: ${input}`);
   }
@@ -41,6 +41,7 @@ export function parseDurationMs(input: string): number {
     m: 60_000,
     h: 3_600_000,
     d: 86_400_000,
+    y: 365 * 86_400_000,
   };
   return amount * multipliers[unit as keyof typeof multipliers];
 }

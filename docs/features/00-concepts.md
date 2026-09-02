@@ -17,7 +17,7 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
 | **Trade presence** | `buyingEnabled` / `sellingEnabled` toggles what ＋ and Home emphasize. Creating catalog content turns selling back on. |
 
-Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person. The **company** still trades. **You → Team** invites staff by phone. Counterparties see the business name. Owner-only chats stay hidden from staff.
+Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person. The **company** still trades. **You → Team** invites staff by phone. Counterparties see the business name. New chats start with **owners**; staff see a thread only after an owner adds them. Do not label chats Private or Team.
 
 ## Platform & dual-network companies
 
@@ -122,6 +122,9 @@ When publishing (or updating visibility), the sheet sets:
 | Role | First-class library items | Named albums that **group** designs |
 | Standalone | Yes — sell or Explore alone | Always made of designs |
 | Many-to-many | A design can sit in many collections | — |
+| **Kind color** | Clay (`kind-design`) | Steel (`kind-collection`) |
+
+**Platform kind colors** (object type, not status): **Order** teal (brand accent) · **Collection** steel · **Design** clay. Shared via `kindTone` / CSS `--color-kind-*`. Status colors (success / danger / tangerine) stay separate.
 
 See [Catalog](./catalog.md) and [Collections](./collections.md).
 

@@ -2,19 +2,34 @@
 
 ## Purpose
 
-**Buyer groups** (saved `BroadcastList` rows) are reusable recipient sets for private publish audience, share, and broadcast. Sellers also **compose once and send now** a text or published design/collection card to many buyers.
+**Buyer groups** (saved `BroadcastList` rows) are one reusable recipient set used everywhere: **broadcast send**, **Publish → Selected audience**, and **Visibility** on published packs. Sellers also **compose once and send now** a text or published collection card to many buyers.
 
 ## Who uses it
 
-Companies with **selling** on and **`canPublish`** (unlocked after first publish consent). Entry: **＋ → Broadcast to buyers**, You → Broadcast / Buyer groups, or **Network → Requests → Buyer groups**.
+Companies with **selling** on and **`canPublish`** (unlocked after first publish consent).
+
+**Entry points:**
+- **＋ → Broadcast to buyers** — compose; pick buyer groups and **Create group** inline
+- **Network → Buyer groups** — manage groups (edit members, rate/forward defaults)
+- **Publish → Selected** — pick or create groups without leaving Publish (same lists)
+
+## Where the same groups are used
+
+| Job | Where |
+|-----|--------|
+| Send card/text now | **＋ → Compose** → buyer group chips + `listIds` on send |
+| Private publish audience | **Publish → Selected** on design / collection / batch |
+| Expand audience later | **Visibility** on published pack (`audienceGroupIds` restore) |
+| Edit / delete groups | **Network → Buyer groups** (`/broadcast`) |
+
+One group (e.g. “Jaipur retailers”) is the same list in all four places.
 
 ## User flows
 
-1. Open `/broadcast` — manage **Buyer groups** (name, members; publish defaults **Same as my usual** or **Different for this group**); compose entry.
-2. **New** (`/broadcast/new`) — compose text and/or attach a **published** product or collection card.
-3. Pick recipients and/or a saved group → send immediately.
-4. On collection / design **Publish** with Selected audience: pick a Buyer group → fills members + resolved rates/forward. **Create group** / **Add group** on that sheet invents a group without leaving Publish (no “save current pick as group”).
-5. Recipients get a notification / chat delivery per product rules.
+1. **Compose** (`/broadcast/new`) — pick **Buyer groups** and/or individual companies → send text or published collection card. **Create group** / **Add group** opens inline sheet (draft preserved).
+2. **Manage** (`/broadcast`) — list groups; edit members; optional rate/forward defaults; link to **Compose**.
+3. **Publish Selected** — pick buyer groups; **Create group** / **Add group** on Publish sheet (unchanged).
+4. Recipients get notification / chat delivery per product rules.
 
 ## Business rules
 
@@ -30,13 +45,13 @@ Companies with **selling** on and **`canPublish`** (unlocked after first publish
 
 ## Edge cases / empty states
 
-- No `canPublish` → Broadcast hidden from ＋.
-- Empty groups → create a group before bulk send / private Selected publish.
+- No `canPublish` → Broadcast hidden from ＋; no Buyer groups row on Network.
+- Empty groups on compose → **Create group** prompt; same on Publish Selected.
 - Unpublished design selected → rejected server-side.
 
 ## Seed walkthrough
 
-1. As **Ravi** (already `canPublish`): open Buyer groups → create a group with Jaipur Emporium → use it on Wedding Edit publish Selected, or Broadcast a card.
+1. As **Ravi** (already `canPublish`): **Network → Buyer groups** → create a group with Jaipur Emporium — or **＋ → Broadcast** → **Create group** on compose. Use the group on Wedding Edit publish Selected, or send a broadcast card.
 2. As **Meena**: confirm notification / inbox signal for the broadcast.
 
 ## Where it lives

@@ -46,6 +46,7 @@ model User {
   ordersDelivered    Order[]         @relation("OrderDeliveredByUser")
   shipmentsDispatched OrderShipment[] @relation("ShipmentDispatchedByUser")
   savedItems         SavedItem[]
+  threadMembers      ThreadMember[]
 }
 
 /// The tenant root. A company may buy, sell, or both — capabilities are data.
@@ -129,8 +130,10 @@ model CompanyMembership {
   showPhone    Boolean @default(false)
   displayPhone String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  /** Leave Team: archived, not deleted. Cannot sign in as this company. */
+  archivedAt DateTime?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -370,12 +373,12 @@ model Follow {
 // --- Conversation -----------------------------------------------------------
 
 /// A conversation between companies. Direct threads are the canonical 1:1
-/// channel (find-or-created); group threads (trader + supplier + buyer) carry a
-/// title. `visibility` scopes an owner_only thread away from staff members.
+/// channel (find-or-created); group threads carry a title.
+/// `visibility` is leftover (`shared` | `owner_only`); access is ThreadMember.
 model Thread {
   id                 String   @id @default(cuid())
   type               String   @default("direct") // ThreadType: direct | group
-  visibility         String   @default("shared") // ThreadVisibility: shared | owner_only
+  visibility         String   @default("shared")
   title              String?
   createdByCompanyId String
   lastMessageAt      DateTime @default(now())
@@ -384,6 +387,7 @@ model Thread {
 
   createdBy    Company             @relation("ThreadCreator", fields: [createdByCompanyId], references: [id], onDelete: Cascade)
   participants ThreadParticipant[]
+  members      ThreadMember[]
   messages     Message[]
 
   @@index([type])
@@ -410,6 +414,25 @@ model ThreadParticipant {
   @@unique([threadId, companyId])
   @@index([companyId, state])
   @@index([companyId, pinnedAt])
+}
+
+/// A person on a thread. Company row stays for inbox/request/archive.
+model ThreadMember {
+  id         String    @id @default(cuid())
+  threadId   String
+  userId     String
+  companyId  String
+  state      String    @default("active") // ThreadMemberState
+  alertLevel String    @default("all") // ThreadAlertLevel
+  joinedAt   DateTime  @default(now())
+  leftAt     DateTime?
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([companyId, state])
+  @@index([userId, state])
 }
 
 /// A single message. Cards reference a trade object by id (never a copy), so the
@@ -831,6 +854,8 @@ model Referral {
 model Notification {
   id                 String   @id @default(cuid())
   recipientCompanyId String
+  /** When set, only this person sees the row. Null = whole company (legacy). */
+  recipientUserId    String?
   type               String // NotificationType
   title              String
   body               String?
@@ -843,6 +868,7 @@ model Notification {
 
   @@index([recipientCompanyId, readAt])
   @@index([recipientCompanyId, createdAt])
+  @@index([recipientUserId, readAt])
 }
 
 /// Per-user delivery preferences. A missing row means all defaults (push on).

@@ -57,6 +57,26 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
   }
 }
 
+/** Resolve message type for inbox preview icon (legacy system order notices → order_card). */
+export function inboxPreviewTypeKey(message: MessageView | null | undefined): string | null {
+  if (!message || message.type === 'text') {
+    return null;
+  }
+  const meta =
+    message.metadata && typeof message.metadata === 'object'
+      ? (message.metadata as Record<string, unknown>)
+      : null;
+  const ref = message.reference;
+  if (
+    message.type === 'system' &&
+    Boolean(ref?.id) &&
+    (ref?.kind === 'order' || meta?.kind === 'order_lines')
+  ) {
+    return 'order_card';
+  }
+  return message.type;
+}
+
 /** Outbound label for your company's messages: teammate name or You. */
 export function outboundMessageLabel(message: MessageView): string {
   return message.actor?.name?.trim() || 'You';

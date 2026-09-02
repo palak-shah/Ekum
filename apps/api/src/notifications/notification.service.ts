@@ -15,6 +15,7 @@ import { WebPushService } from './web-push.service';
 
 export interface CreateNotificationInput {
   recipientCompanyId: string;
+  recipientUserId?: string | null;
   type: string;
   title: string;
   body?: string | null;
@@ -34,6 +35,7 @@ export class NotificationService {
     await this.prisma.notification.create({
       data: {
         recipientCompanyId: input.recipientCompanyId,
+        recipientUserId: input.recipientUserId ?? null,
         type: input.type,
         title: input.title,
         body: input.body ?? null,
@@ -52,12 +54,39 @@ export class NotificationService {
     );
   }
 
+  async createForRecipients(
+    recipientCompanyIds: string[],
+    recipientUserIds: string[] | undefined,
+    base: Omit<CreateNotificationInput, 'recipientCompanyId' | 'recipientUserId'>,
+  ): Promise<void> {
+    if (recipientUserIds && recipientUserIds.length > 0) {
+      const members = await this.prisma.companyMembership.findMany({
+        where: { userId: { in: recipientUserIds }, archivedAt: null },
+        select: { userId: true, companyId: true },
+      });
+      await Promise.all(
+        members.map((row) =>
+          this.create({ ...base, recipientCompanyId: row.companyId, recipientUserId: row.userId }),
+        ),
+      );
+      return;
+    }
+    await this.createForMany(recipientCompanyIds, base);
+  }
+
   async list(
     companyId: string,
     query: ListNotificationsQuery,
+    userId?: string,
   ): Promise<CursorPage<NotificationView>> {
     const rows = await this.prisma.notification.findMany({
-      where: { recipientCompanyId: companyId, ...(query.unreadOnly ? { readAt: null } : {}) },
+      where: {
+        recipientCompanyId: companyId,
+        ...(query.unreadOnly ? { readAt: null } : {}),
+        ...(userId
+          ? { OR: [{ recipientUserId: null }, { recipientUserId: userId }] }
+          : {}),
+      },
       ...cursorArgs(query),
     });
     return toCursorPage(rows, query.limit, (row) => this.toView(row));
@@ -181,7 +210,11 @@ export class NotificationService {
 
   private async deliverPush(input: CreateNotificationInput): Promise<void> {
     const memberships = await this.prisma.companyMembership.findMany({
-      where: { companyId: input.recipientCompanyId },
+      where: {
+        companyId: input.recipientCompanyId,
+        archivedAt: null,
+        ...(input.recipientUserId ? { userId: input.recipientUserId } : {}),
+      },
       select: { userId: true },
     });
     if (memberships.length === 0) {

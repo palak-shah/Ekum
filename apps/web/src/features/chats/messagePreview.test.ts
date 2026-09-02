@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { MessageView } from '@ekum/domain-types';
-import { messagePreviewText, outboundMessageLabel, inCardSenderLine } from './messagePreview';
+import {
+  inboxPreviewTypeKey,
+  messagePreviewText,
+  outboundMessageLabel,
+  inCardSenderLine,
+} from './messagePreview';
 
 function message(partial: Partial<MessageView>): MessageView {
   return {
@@ -54,5 +59,42 @@ describe('messagePreviewText actor prefix', () => {
 
   it('keeps You for own messages', () => {
     expect(messagePreviewText(message({ body: 'On my way' }))).toBe('You · On my way');
+  });
+});
+
+describe('inboxPreviewTypeKey', () => {
+  it('returns null for text messages', () => {
+    expect(inboxPreviewTypeKey(message({ type: 'text' }))).toBeNull();
+    expect(inboxPreviewTypeKey(null)).toBeNull();
+  });
+
+  it('passes card types through unchanged', () => {
+    expect(inboxPreviewTypeKey(message({ type: 'collection_card' }))).toBe('collection_card');
+    expect(inboxPreviewTypeKey(message({ type: 'product_card' }))).toBe('product_card');
+    expect(inboxPreviewTypeKey(message({ type: 'order_card' }))).toBe('order_card');
+  });
+
+  it('maps legacy system order notices to order_card', () => {
+    expect(
+      inboxPreviewTypeKey(
+        message({
+          type: 'system',
+          reference: { id: 'ord-1', kind: 'order', name: 'Order #35RY' },
+        }),
+      ),
+    ).toBe('order_card');
+    expect(
+      inboxPreviewTypeKey(
+        message({
+          type: 'system',
+          reference: { id: 'ord-2', kind: 'other', name: 'Lines' },
+          metadata: { kind: 'order_lines' },
+        }),
+      ),
+    ).toBe('order_card');
+  });
+
+  it('keeps non-order system messages as system', () => {
+    expect(inboxPreviewTypeKey(message({ type: 'system', body: 'Joined the chat' }))).toBe('system');
   });
 });

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentType, type SVGProps } from 'react';
-import { useCompanyId } from '@/lib/auth';
+import { useAuth, useCompanyId } from '@/lib/auth';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type {
@@ -50,6 +50,7 @@ const OPPORTUNITY_PREVIEW = 5;
  */
 export function HomePage() {
   const { buying, selling, isLoading: tradeLoading } = useTradePresence();
+  const { session } = useAuth();
   const company = useMyCompany();
   const companyId = useCompanyId();
   const [showAllNeeds, setShowAllNeeds] = useState(false);
@@ -180,7 +181,10 @@ export function HomePage() {
   const visibleNeeds = showAllNeeds ? needs : needs.slice(0, PREVIEW_LIMIT);
   const needsOverflow = needs.length > PREVIEW_LIMIT;
   const greetName =
-    company.data?.contactPerson?.trim() || company.data?.name?.trim() || 'there';
+    session?.user.name?.trim() ||
+    company.data?.contactPerson?.trim() ||
+    company.data?.name?.trim() ||
+    '';
   const followedPreview = groupPostsByCompany(newToday).slice(0, FOLLOWED_PREVIEW);
   const recentPosts = groupPostsByCompany(marketFeed.data?.results ?? []).slice(
     0,
@@ -201,7 +205,9 @@ export function HomePage() {
   return (
     <div className="ekum-rise flex flex-col gap-5">
       <header className="flex flex-col gap-1.5">
-        <h1 className="text-xl font-bold tracking-tight text-ink">Namaste, {greetName}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-ink">
+          {greetName ? `Namaste, ${greetName}` : 'Namaste'}
+        </h1>
         {hasNeeds ? (
           <p className="text-sm text-muted">
             <span className="font-semibold text-accent">

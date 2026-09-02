@@ -7,6 +7,7 @@ export * from './catalog';
 export * from './settings';
 export * from './discovery';
 export * from './conversation';
+export * from './chat-membership';
 export * from './orders';
 export * from './order-timeline';
 export * from './order-events';

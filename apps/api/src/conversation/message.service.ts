@@ -20,6 +20,7 @@ import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { assertActiveCompany } from '../auth/require-permission';
 import { messageSearchOrClause } from './message-search';
+import { messageVisibleToCompany } from './side-message';
 
 @Injectable()
 export class MessageService {
@@ -37,7 +38,12 @@ export class MessageService {
     dto: SendMessageDto,
   ): Promise<MessageView> {
     const actorCompanyId = assertActiveCompany(actor);
-    const mine = await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role);
+    const mine = await this.threads.membershipOrThrow(
+      threadId,
+      actorCompanyId,
+      actor.role,
+      actor.userId,
+    );
     await this.validateReference(actorCompanyId, dto);
     await this.validateReplyTarget(threadId, dto.replyToMessageId);
 
@@ -76,7 +82,8 @@ export class MessageService {
       return created;
     });
 
-    await this.announce(threadId, actorCompanyId, message.id, dto);
+    const nudged = await this.threads.nudgeArchivedRecipients(threadId, actorCompanyId);
+    await this.announce(threadId, actorCompanyId, message.id, dto, nudged);
 
     const references = await this.references.resolve([message], actorCompanyId);
     const replyMap = await this.replyPreviews([message], actorCompanyId);
@@ -95,7 +102,7 @@ export class MessageService {
     query: ListThreadMessagesQuery,
   ): Promise<CursorPage<MessageView>> {
     const actorCompanyId = assertActiveCompany(actor);
-    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role);
+    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
 
     const where = await this.listWhere(threadId, query);
     const rows = await this.prisma.message.findMany({
@@ -106,7 +113,9 @@ export class MessageService {
     });
 
     const hasMore = rows.length > query.limit;
-    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const page = (hasMore ? rows.slice(0, query.limit) : rows).filter((row) =>
+      messageVisibleToCompany(row, actorCompanyId),
+    );
     const references = await this.references.resolve(page, actorCompanyId);
     const replyMap = await this.replyPreviews(page, actorCompanyId);
     const results = page.map((message) =>
@@ -226,31 +235,28 @@ export class MessageService {
   /**
    * Announces a new message to the other active participants so Notifications can
    * project it. Pending recipients (a first message in the requests inbox) are
-   * excluded — they are notified through the requests inbox, not the feed.
    */
   private async announce(
     threadId: string,
     senderCompanyId: string,
     messageId: string,
     dto: SendMessageDto,
+    extraUserIds: string[] = [],
   ): Promise<void> {
-    const others = await this.prisma.threadParticipant.findMany({
-      where: {
-        threadId,
-        state: ThreadParticipantState.Active,
-        leftAt: null,
-        companyId: { not: senderCompanyId },
-      },
-      select: { companyId: true },
-    });
-    if (others.length === 0) {
+    const { companyIds, userIds } = await this.threads.notifyUserIdsForMessage(
+      threadId,
+      senderCompanyId,
+    );
+    const recipients = [...new Set([...userIds, ...extraUserIds])];
+    if (companyIds.length === 0 && recipients.length === 0) {
       return;
     }
     this.events.messageSent({
       threadId,
       messageId,
       senderCompanyId,
-      recipientCompanyIds: others.map((participant) => participant.companyId),
+      recipientCompanyIds: companyIds,
+      recipientUserIds: recipients,
       preview: dto.body?.slice(0, 140) ?? `Shared a ${dto.type.replace('_', ' ')}`,
     });
   }

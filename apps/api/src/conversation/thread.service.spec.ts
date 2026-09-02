@@ -40,6 +40,14 @@ function makeStartDirectService(options: { blocked?: boolean; connected?: boolea
       }),
     },
     threadParticipant: { update: async () => ({}) },
+    threadMember: {
+      createMany: async () => ({}),
+      updateMany: async () => ({}),
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
+    companyMembership: { findMany: async () => [] },
+    user: { findUnique: async () => ({ name: 'Me' }) },
     message: { count: async () => 0, findMany: async () => [] },
   } as unknown as PrismaService;
 
@@ -62,11 +70,12 @@ function targetState(created: CreatedData): string | undefined {
 describe('ThreadService.startDirect request gating', () => {
   it('opens a pending request to an unconnected business', async () => {
     const { service, created } = makeStartDirectService({ connected: false });
-    await service.startDirect('me', 'owner', {
+    const result = await service.startDirect('me', 'owner', {
       companyId: 'target',
       visibility: ThreadVisibility.Shared,
     });
     expect(targetState(created)).toBe(ThreadParticipantState.Pending);
+    expect(result.opened).toBe('created');
   });
 
   it('opens an active thread with a connected business', async () => {
@@ -119,21 +128,24 @@ describe('ThreadService.membershipOrThrow owner_only visibility', () => {
   });
 });
 
-describe('ThreadService.findDirectThread visibility', () => {
-  it('creates an owner_only direct when only a shared thread exists', async () => {
-    const findFirstCalls: unknown[] = [];
+describe('ThreadService.findDirectThread one 1:1', () => {
+  it('reuses the shared shop chat even if the client asks for owner_only', async () => {
+    const created: { id?: string } = {};
     const prisma = {
       company: { findUnique: async () => ({ id: 'target' }) },
       thread: {
-        findFirst: async (args: unknown) => {
-          findFirstCalls.push(args);
-          return null;
+        findFirst: async () => ({
+          id: 'shared-1',
+          participants: [{ companyId: 'me', leftAt: null, state: 'active' }],
+        }),
+        create: async (args: { data: { id?: string } }) => {
+          created.id = 'new';
+          return args.data;
         },
-        create: async () => ({ id: 'owner-only-thread' }),
         findUnique: async () => ({
-          id: 'owner-only-thread',
+          id: 'shared-1',
           type: 'direct',
-          visibility: ThreadVisibility.OwnerOnly,
+          visibility: ThreadVisibility.Shared,
           title: null,
           lastMessageAt: new Date(),
           participants: [
@@ -150,24 +162,31 @@ describe('ThreadService.findDirectThread visibility', () => {
         }),
       },
       threadParticipant: { update: async () => ({}) },
+      threadMember: {
+        createMany: async () => ({}),
+        updateMany: async () => ({}),
+        findUnique: async () => ({ state: 'active', companyId: 'me' }),
+        findMany: async () => [],
+      },
+      companyMembership: { findMany: async () => [] },
+      user: { findUnique: async () => ({ name: 'Me' }) },
       message: { count: async () => 0, findMany: async () => [] },
     } as unknown as PrismaService;
 
     const service = new ThreadService(
       prisma,
       { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'owner-only-thread' }) } as ConversationSerializer,
+      { toThreadSummary: () => ({ id: 'shared-1' }) } as ConversationSerializer,
       { resolve: async () => new Map() } as ReferenceResolver,
     );
 
-    await service.startDirect('me', 'owner', {
+    const result = await service.startDirect('me', 'owner', {
       companyId: 'target',
       visibility: ThreadVisibility.OwnerOnly,
-    });
+      memberUserIds: [],
+    }, 'user-1');
 
-    expect(findFirstCalls).toHaveLength(1);
-    expect((findFirstCalls[0] as { where: { visibility: string } }).where.visibility).toBe(
-      ThreadVisibility.OwnerOnly,
-    );
+    expect(result).toEqual({ id: 'shared-1', opened: 'existing' });
+    expect(created.id).toBeUndefined();
   });
 });

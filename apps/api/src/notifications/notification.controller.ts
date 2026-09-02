@@ -22,9 +22,10 @@ export class NotificationController {
   @Get()
   list(
     @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
     @Query(new ZodValidationPipe(listNotificationsQuerySchema)) query: ListNotificationsQuery,
   ) {
-    return this.notifications.list(companyId, query);
+    return this.notifications.list(companyId, query, user.userId);
   }
 
   @Get('unread-count')

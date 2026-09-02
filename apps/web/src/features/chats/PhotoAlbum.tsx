@@ -45,7 +45,7 @@ function Cell({
   );
 }
 
-/** Full = photo messages; compact = share cards (~40% linear for denser threads). */
+/** Full = photo messages; compact = legacy share cards; thumb = inline chat trade cards. */
 export function PhotoAlbum({
   urls,
   /** Extra items beyond `urls` (e.g. more designs in a collection than preview thumbs). */
@@ -54,22 +54,69 @@ export function PhotoAlbum({
 }: {
   urls: string[];
   overflowCount?: number;
-  size?: 'full' | 'compact';
+  size?: 'full' | 'compact' | 'thumb';
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Drop blanks so a bad reference never throws through the router error boundary.
   const clean = urls.filter((url): url is string => Boolean(url));
-  const preview = clean.slice(0, 4);
+  const thumb = size === 'thumb';
+  const preview = clean.slice(0, thumb ? 2 : 4);
   const compact = size === 'compact';
-  const overlayClass = compact ? 'text-sm' : 'text-2xl';
+  const overlayClass = thumb ? 'text-[10px]' : compact ? 'text-sm' : 'text-2xl';
 
   if (clean.length === 0) return null;
 
   const open = (index: number) => setViewerIndex(index);
-  /** Thumbs beyond the 4-slot preview, plus designs with no image still counted on the card. */
+  /** Thumbs beyond the preview, plus designs with no image still counted on the card. */
   const extra = Math.max(0, clean.length - preview.length) + Math.max(0, overflowCount);
   const moreLabel = extra > 0 ? `+${extra}` : undefined;
   const count = preview.length;
+
+  if (thumb) {
+    // Fixed ~40px cells — single design thumbs must not expand to bubble width.
+    const grid =
+      count === 1 ? (
+        <div className="h-10 w-10">
+          <Cell
+            src={urlAt(preview, 0)}
+            onClick={() => open(0)}
+            rounded="rounded-md"
+            overlay={moreLabel}
+            overlayClass={overlayClass}
+          />
+        </div>
+      ) : (
+        <div className="grid h-10 w-[5.25rem] grid-cols-2" style={{ gap: GUTTER }}>
+          <Cell
+            src={urlAt(preview, 0)}
+            onClick={() => open(0)}
+            rounded="rounded-l-md"
+            overlayClass={overlayClass}
+          />
+          <Cell
+            src={urlAt(preview, 1)}
+            onClick={() => open(1)}
+            rounded="rounded-r-md"
+            overlay={moreLabel}
+            overlayClass={overlayClass}
+          />
+        </div>
+      );
+    return (
+      <>
+        <div className="h-10 w-fit shrink-0 overflow-hidden" data-testid="photo-album-thumb">
+          {grid}
+        </div>
+        <PhotoViewer
+          open={viewerIndex !== null}
+          urls={clean}
+          index={viewerIndex ?? 0}
+          onIndex={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      </>
+    );
+  }
 
   let grid: ReactNode;
   if (count === 1) {

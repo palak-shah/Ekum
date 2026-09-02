@@ -6,11 +6,23 @@ import type { Env } from '../core/config/config.schema';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { hmacHash, parseDurationMs, randomToken } from '../common/crypto.util';
 import type { JwtPayload } from './auth.types';
+import { actingUserId, preferredSeedCompanyId } from './seed-accounts';
 
 interface TokenSubject {
   id: string;
   phone: string;
 }
+
+interface RefreshGraceEntry {
+  tokens: AuthTokens;
+  userId: string;
+  phone: string;
+  companyId: string | null;
+  expiresAt: number;
+}
+
+/** Reuse window for parallel refresh (multi-tab) after rotation. */
+const REFRESH_GRACE_MS = 60_000;
 
 /**
  * Issues and rotates auth tokens. The access token is a short-lived JWT; the
@@ -20,6 +32,9 @@ interface TokenSubject {
  */
 @Injectable()
 export class TokenService {
+  /** Recently rotated refresh hashes → issued tokens (multi-tab grace). */
+  private readonly refreshGraceByOldHash = new Map<string, RefreshGraceEntry>();
+
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService<Env, true>,
@@ -47,7 +62,19 @@ export class TokenService {
     phone: string;
     companyId: string | null;
   }> {
+    this.pruneRefreshGrace();
+
     const tokenHash = this.hashRefreshToken(rawRefreshToken);
+    const grace = this.refreshGraceByOldHash.get(tokenHash);
+    if (grace && grace.expiresAt > Date.now()) {
+      return {
+        tokens: grace.tokens,
+        userId: grace.userId,
+        phone: grace.phone,
+        companyId: grace.companyId,
+      };
+    }
+
     const existing = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
       include: { user: { include: { memberships: { orderBy: { createdAt: 'asc' } } } } },
@@ -65,9 +92,27 @@ export class TokenService {
 
     // Preserve the acting company across refresh so onboarded users are not
     // forced back through OTP. Phase 1 exposes one company per user.
-    const companyId = existing.user.memberships[0]?.companyId ?? null;
-    const tokens = await this.issue({ id: existing.user.id, phone: existing.user.phone }, companyId);
-    return { tokens, userId: existing.user.id, phone: existing.user.phone, companyId };
+    const userId = actingUserId(existing.user.phone, existing.user.id);
+    const memberships = existing.user.memberships.filter(
+      (row) => !('archivedAt' in row) || !row.archivedAt,
+    );
+    const preferred = preferredSeedCompanyId(userId);
+    const companyId =
+      (preferred && memberships.find((row) => row.companyId === preferred)?.companyId) ??
+      memberships[0]?.companyId ??
+      existing.user.memberships[0]?.companyId ??
+      null;
+    const tokens = await this.issue({ id: userId, phone: existing.user.phone }, companyId);
+
+    this.refreshGraceByOldHash.set(tokenHash, {
+      tokens,
+      userId,
+      phone: existing.user.phone,
+      companyId,
+      expiresAt: Date.now() + REFRESH_GRACE_MS,
+    });
+
+    return { tokens, userId, phone: existing.user.phone, companyId };
   }
 
   async revoke(rawRefreshToken: string): Promise<void> {
@@ -91,5 +136,13 @@ export class TokenService {
 
   private hashRefreshToken(raw: string): string {
     return hmacHash(raw, this.config.get('JWT_REFRESH_SECRET', { infer: true }));
+  }
+
+  private pruneRefreshGrace(now = Date.now()): void {
+    for (const [hash, entry] of this.refreshGraceByOldHash) {
+      if (entry.expiresAt <= now) {
+        this.refreshGraceByOldHash.delete(hash);
+      }
+    }
   }
 }

@@ -13,7 +13,9 @@ import { rankShareChats } from '@/features/browse/rankShareChats';
 import { api, ApiError } from '@/lib/apiClient';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
-import { Avatar, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { threadVisibilityLabel, threadVisibilitySubtitle } from '@/features/chats/threadVisibilityLabel';
+import { FindInExploreLink } from '@/ui/FindInExploreLink';
+import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
@@ -202,6 +204,10 @@ export function CatalogShareSheet({
         <div className="flex max-h-80 flex-col gap-0.5">
           {rankedChats.map((row) => {
             const chatTitle = row.title ?? row.counterpart?.name ?? 'Conversation';
+            const visLine = threadVisibilitySubtitle(
+              threadVisibilityLabel(row),
+              row.counterpart?.city,
+            );
             return (
               <button
                 key={row.id}
@@ -215,19 +221,40 @@ export function CatalogShareSheet({
                   <span className="block truncate text-sm font-semibold text-ink">
                     {chatTitle}
                   </span>
-                  {row.counterpart?.city ? (
-                    <span className="block truncate text-[11px] text-muted">
-                      {row.counterpart.city}
-                    </span>
+                  {visLine ? (
+                    <span className="block truncate text-[11px] text-muted">{visLine}</span>
                   ) : null}
                 </span>
               </button>
             );
           })}
           {rankedChats.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-muted">No chats yet</p>
+            <div className="flex flex-col gap-3 px-2 py-4 text-center">
+              <div>
+                <p className="text-sm font-semibold text-ink">No chats yet</p>
+                <p className="mt-1 text-sm text-muted">
+                  Find a business on Explore, then message them here.
+                </p>
+              </div>
+              <FindInExploreLink />
+              {canLink ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  disabled={share.isPending || makeLink.isPending}
+                  onClick={() => makeLink.mutate()}
+                >
+                  {makeLink.isPending
+                    ? 'Making link…'
+                    : canNativeShare()
+                      ? 'Share a link · 48 hours'
+                      : 'Copy a link · 48 hours'}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
-          {canLink ? (
+          {rankedChats.length > 0 && canLink ? (
             <button
               type="button"
               disabled={share.isPending || makeLink.isPending}

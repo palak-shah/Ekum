@@ -15,6 +15,7 @@ import {
   listThreadsQuerySchema,
   sendMessageSchema,
   setAlertLevelSchema,
+  setThreadMembersSchema,
   setThreadPinnedSchema,
   startDirectThreadSchema,
   type AddParticipantsDto,
@@ -23,6 +24,7 @@ import {
   type ListThreadsQuery,
   type SendMessageDto,
   type SetAlertLevelDto,
+  type SetThreadMembersDto,
   type SetThreadPinnedDto,
   type StartDirectThreadDto,
 } from '@ekum/domain-types';
@@ -80,7 +82,7 @@ export class ConversationController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
   ) {
-    return this.threads.unreadTotal(companyId, user.role);
+    return this.threads.unreadTotal(companyId, user.role, user.userId);
   }
 
   @Get(':id')
@@ -159,7 +161,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
   ) {
-    return this.threads.decline(companyId, user.role, id);
+    return this.threads.decline(companyId, user.role, id, user.userId);
   }
 
   @Post(':id/leave')
@@ -169,7 +171,37 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
   ) {
-    return this.threads.leave(companyId, user.role, id);
+    return this.threads.leave(companyId, user.role, id, user.userId);
+  }
+
+  @Post(':id/archive')
+  @HttpCode(200)
+  archiveGroup(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.threads.archiveGroup(companyId, user.role, id, user.userId);
+  }
+
+  @Post(':id/members')
+  addMembers(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setThreadMembersSchema)) dto: SetThreadMembersDto,
+  ) {
+    return this.threads.addMembers(companyId, user.role, id, dto, user.userId);
+  }
+
+  @Post(':id/members/remove')
+  removeMembers(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setThreadMembersSchema)) dto: SetThreadMembersDto,
+  ) {
+    return this.threads.removeMembers(companyId, user.role, id, dto, user.userId);
   }
 
   @Post(':id/participants')

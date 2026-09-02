@@ -12,6 +12,14 @@ import type { DomainEvents } from '../events/events.module';
 const activeMembership = { id: 'p', state: 'active' };
 const events = { messageSent: () => undefined } as unknown as DomainEvents;
 
+function threadStub(membership = activeMembership) {
+  return {
+    membershipOrThrow: async () => membership,
+    nudgeArchivedRecipients: async () => [],
+    notifyUserIdsForMessage: async () => ({ companyIds: [], userIds: [] }),
+  } as unknown as ThreadService;
+}
+
 function actor(companyId: string, role = 'owner'): AuthPrincipal {
   return { userId: 'u1', companyId, phone: '+910000000000', role, permissions: null };
 }
@@ -45,7 +53,7 @@ describe('MessageService.send', () => {
       product: { findFirst: async () => null },
       message: { findFirst: async () => null },
     } as unknown as PrismaService;
-    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const threads = threadStub();
     const service = new MessageService(
       prisma,
       threads,
@@ -86,7 +94,7 @@ describe('MessageService.send', () => {
       threadParticipant: { findMany: async () => [] },
       user: { findUnique: async () => ({ name: 'Owner' }) },
     } as unknown as PrismaService;
-    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const threads = threadStub();
     const serializer = {
       toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
     } as unknown as ConversationSerializer;
@@ -114,7 +122,7 @@ describe('MessageService.send', () => {
       },
       message: { findFirst: async () => ({ id: 'prior' }) },
     } as unknown as PrismaService;
-    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const threads = threadStub();
     const service = new MessageService(
       prisma,
       threads,
@@ -165,7 +173,7 @@ describe('MessageService.send', () => {
       threadParticipant: { findMany: async () => [] },
       user: { findUnique: async () => ({ name: 'Owner' }) },
     } as unknown as PrismaService;
-    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const threads = threadStub();
     const serializer = {
       toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
     } as unknown as ConversationSerializer;
@@ -216,9 +224,7 @@ describe('MessageService.send', () => {
       threadParticipant: { findMany: async () => [] },
       user: { findUnique: async () => ({ name: 'Owner' }) },
     } as unknown as PrismaService;
-    const threads = {
-      membershipOrThrow: async () => ({ id: 'p', state: 'pending' }),
-    } as unknown as ThreadService;
+    const threads = threadStub({ id: 'p', state: 'pending' });
     const serializer = {
       toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
     } as unknown as ConversationSerializer;
@@ -275,7 +281,7 @@ describe('MessageService.list filters', () => {
       product: { findMany: async () => [] },
       collection: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const threads = threadStub();
     const serializer = {
       toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
     } as unknown as ConversationSerializer;
@@ -388,7 +394,7 @@ describe('MessageService.list filters', () => {
       product: { findMany: async () => [] },
       collection: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const threads = { membershipOrThrow: async () => activeMembership } as unknown as ThreadService;
+    const threads = threadStub();
     const serializer = {
       toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
     } as unknown as ConversationSerializer;

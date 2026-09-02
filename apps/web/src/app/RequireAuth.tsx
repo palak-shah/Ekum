@@ -9,13 +9,24 @@ import { LoadingBlock } from '@/ui/kit';
  * Invite deep links (`/r/:token`, `/t/:token`) are stashed so OTP can return.
  */
 export function RequireAuth() {
-  const { status, session } = useAuth();
+  const { status, session, refreshSession } = useAuth();
   const location = useLocation();
 
-  if (status === 'loading') {
+  if (status === 'loading' || status === 'degraded') {
     return (
-      <div className="flex min-h-full items-center justify-center">
-        <LoadingBlock label="Starting Ekum…" />
+      <div className="flex min-h-full flex-col items-center justify-center gap-4 px-6">
+        <LoadingBlock
+          label={status === 'degraded' ? 'Reconnecting to Ekum…' : 'Starting Ekum…'}
+        />
+        {status === 'degraded' ? (
+          <button
+            type="button"
+            className="text-sm font-bold text-accent"
+            onClick={() => void refreshSession()}
+          >
+            Try again
+          </button>
+        ) : null}
       </div>
     );
   }

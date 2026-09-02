@@ -8,7 +8,7 @@ import { ChevronRightIcon } from '@/ui/icons';
 
 export function MorePage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, session } = useAuth();
   const company = useMyCompany();
   const { buying, selling, canPublish } = useTradePresence();
 
@@ -16,9 +16,6 @@ export function MorePage() {
     ...(selling ? [{ to: '/catalog', label: 'My designs & collections' }] : []),
     { to: '/saved', label: 'Saved' },
     { to: '/network', label: 'Network' },
-    { to: '/samples', label: 'Samples' },
-    { to: '/returns', label: 'Returns' },
-    ...(selling && canPublish ? [{ to: '/broadcast', label: 'Broadcast' }] : []),
     { to: '/team', label: 'Team' },
     { to: '/settings', label: 'Settings' },
     { to: '/settings/profile', label: 'Business profile' },
@@ -38,7 +35,14 @@ export function MorePage() {
           <p className="truncate text-base font-semibold text-ink">
             {company.data?.name ?? 'Your business'}
           </p>
-          <p className="truncate text-xs text-muted">{company.data?.city}</p>
+          <p className="truncate text-xs text-muted">
+            {[
+              company.data?.contactPerson?.trim() || session?.user.name?.trim(),
+              company.data?.city,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
         </div>
         {company.data?.verification === 'gst_verified' ? <Tag tone="success">Verified</Tag> : null}
       </Card>

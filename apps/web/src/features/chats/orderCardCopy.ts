@@ -11,7 +11,7 @@ import {
 } from '@ekum/domain-types';
 
 export interface OrderCardCopy {
-  /** Top line: Order #3YLK · Confirmed (order id first, never wraps mid-id). */
+  /** Header: Order #3YLK Requested (order id first, never wraps mid-id). */
   title: string;
   /** Action word shown beside the order id. */
   action: string;
@@ -156,7 +156,7 @@ function partyNameFallback(
 }
 
 /**
- * Chat order/quote copy: Order # · Action on top; You/party in the body.
+ * Chat order/quote copy: Order # Action on top; You/party in the body.
  * Never paints Seller/Buyer, role chips, or live order status.
  */
 export function buildOrderCardCopy(
@@ -236,14 +236,14 @@ export function buildOrderCardCopy(
   }
 
   return {
-    title: `${orderLabel} · ${action}`,
+    title: `${orderLabel} ${action}`,
     action,
     headline,
     lines,
   };
 }
 
-/** Inbox one-liner: Order # · Action (or quote total). */
+/** Inbox one-liner: Order # Action (or quote total). */
 export function orderMessagePreviewCore(message: MessageView): string | null {
   const ref = message.reference;
   if (
@@ -259,7 +259,10 @@ export function orderMessagePreviewCore(message: MessageView): string | null {
   const copy = buildOrderCardCopy(message, ref);
   if (message.type === 'rate' || ref?.event === OrderChatEvent.QuoteSent) {
     const total = ref?.totalLabel?.trim();
-    return total ? `${copy.title.split(' · ')[0]} · ${total}` : copy.title;
+    if (!total) return copy.title;
+    const escaped = copy.action.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const orderLabel = copy.title.replace(new RegExp(`\\s+${escaped}$`), '').trim() || copy.title;
+    return `${orderLabel} · ${total}`;
   }
   return copy.title;
 }

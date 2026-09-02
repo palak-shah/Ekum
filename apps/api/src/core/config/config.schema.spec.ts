@@ -13,6 +13,7 @@ describe('validateEnv', () => {
     expect(env.NODE_ENV).toBe('development');
     expect(env.PORT).toBe(3000);
     expect(env.JWT_ACCESS_TTL).toBe('15m');
+    expect(env.JWT_REFRESH_TTL).toBe('10y');
     expect(env.OTP_EXPOSE_DEV_CODE).toBe(false);
   });
 

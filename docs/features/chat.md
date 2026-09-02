@@ -10,10 +10,10 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 
 ## User flows
 
-1. Open **Chats** → search + **＋** (start chat with a company or new group); inbox tabs **All Chats** (active) / **Requests Received** (pending first contact). List tabs share the same search + trailing square chrome as Explore (filter) and Orders (＋).
-2. Open thread → send text / photo; share design, collection, or order cards (same layout, **dense/narrow** so more messages fit on a phone); receive quote / order action cards from trade flows. **Explore / album Share** can also drop a `collection_card` into a chosen chat (catalogue → chat; same `allowForward` rules as Forward).
+1. Open **Chats** → search + **＋**. One sheet, sequential (no pills). **New chat** = pick businesses first (Find on Ekum is a **link** after 2+ characters in search, or **immediately** if there are no connections; tap shows shops **not already in Connections**; **Send invite** is OS share / copy — not a phone-book sync; empty query + no connections → name / mobile / GST field after tap). Need at least one other business. Owner with staff: **Next** → **Add your team** (**Optional — add teammates or skip** inline link when two+ shops; search when 10+ staff; **Select all** / **Clear**). One footer: **Open chat with {business}** (one shop) or **Next** (two+). Success toast says **Chat started** / **Opened chat** / **Back in chat** from API `opened`. Two+ shops then **New group** (name) → **Create**. No staff / not owner: one shop **Open chat**; two+ **Next** → name. Header **Back** is the previous step (keeps picks); **Close** dismisses. Sheet height is fixed; steps stay mounted (hide, don’t remount). Inbox tabs **All Chats** / **Requests Received**. List chrome matches Explore (filter) and Orders (＋). Inbox/headers show **business name** (or group title) only — no Team/Private labels.
+2. Open thread → send text / photo; share design, collection, or order cards (**uniform layout** — header is the primary: `Order #… Requested` / pack name / design name; **kind badge + left color rail** (Order teal / Collection steel / Design clay); who, detail, CTA below; tiny inline thumbs left; ~92% width; no Design/Collection type-label line — CTA names the kind); receive quote / order action cards from trade flows. **Explore / album Share** can also drop a `collection_card` into a chosen chat (catalogue → chat; same `allowForward` rules as Forward).
 3. **Open chat** or **Ignore** a pending first-contact thread (not Accept/Decline — those words are for orders).
-4. Pin chats; mute/leave/groups as supported later.
+4. Pin. **Mute** (stay on, no pings — other shop does not see). **Leave** (confirm sheet → off this chat; rejoin via `＋` → Open existing if still live). Last owner on the shop **1:1** cannot Leave — they mute. Groups: owner can **Remove group** (confirm sheet → archive for our shop). **Team on chat** (⋯, owners only): staff list — on chat highlighted **Selected**, tap to take off; tap **Add** to include. Owner(s) pinned at the bottom. Saves immediately.
 5. Unread badge on bottom nav; mark read on open / Mark all read when unread.
 
 ## Business rules
@@ -24,16 +24,25 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Unconnected first message | Recipient starts **pending**; reply/accept activates |
 | Open-catalog order | Order / Ask rates on a discoverable post opens/activates a **trade thread** (both Active) with a living order card — **no** Connection and **not** the pending inbox. Distinct from cold Message |
 | Block | Sender may still see a thread; recipient side is silently archived |
-| Owner on cards | Design/collection cards show **Order goes to** the ticket party: **I handle** → sharer (you); **Direct** → design owner. Sender (You/forwarder) sits above the card |
+| Owner on cards | Design/collection cards show **Order goes to** the ticket party: **I handle** → sharer (you); **Direct** → design owner. Header is pack/design name (no Design/Collection label); who-acted lives under the header |
 | No-forward lock | When `reference.allowForward === false`, non-owners cannot Forward (action hidden). API rejects with `FORWARD_NOT_ALLOWED`. Owner may still share. Same rule for `product_card` and `collection_card`. |
 | First share from Explore | Allowed when the album/design is **discoverable** to your business (same bar as Explore) and not forward-locked — not only after it already appeared in a chat. |
 | Message actions | Top-right chevron opens Reply / Forward / Select (long-press still works). While **Select** is on, floating **Select all** / **Clear** (forwardable messages in this thread). Dock: Cancel / Forward. |
-| Owner-only threads | Hidden from staff even with chat permission. Owner starts **Only you**; shared 1:1 / groups are **Team can see**. `findDirect` keys on pair + visibility so Only you does not reopen the trade thread. |
-| Mute | Local `ThreadAlertLevel`; never signalled to the other party |
+| Who is on a chat | New chats start with **active owners**. Staff see it only after an owner adds them. Other shop sees **business name** only. No Private/Team word. |
+| One 1:1 | One direct thread per company pair (**order home**). `findDirect` is the pair only. Do not create a second owner-only thread. |
+| Groups | Unique by **other companies + your people** (self-leave and archived Team still count; owner × does not). Same shops + different staff = two groups OK. Create/add/× clone → **That’s the same as [name]. Open that chat?** No silent merge. |
+| First reach | **Every active owner** is notified. Open chat / Ignore = any owner. Ignore is for the whole company. They can write again later (new request). Archived Team people are not notified. |
+| Archived group inbound | If they write again and you have **not** Network-blocked them → ping owners again; Open restores inbox. `＋` Open existing also restores. |
+| Block | Reuse Network **Block** (silent). While blocked: no first-reach ping, no archived-group ping. Unblock only from Network. |
+| Mute | Per person on the thread (`ThreadMember.alertLevel`). Stay on the chat. Other shop does not see that. Unmute is the same control. |
+| Leave | Confirm first (Cancel / Leave). Off the thread, out of inbox. Your side only: “Priya left this chat.” Last **owner** on the 1:1 cannot Leave (mute instead). Groups: last owner on an empty our-side may Remove group or mute. Rejoin if live via Open existing. Leave is not Leave Team. |
+| Remove group | Confirm first (Cancel / Remove group). Owner archives **our** company on that group (inbox gone, history kept). Other companies keep their thread. Not a hard delete. No Remove on the 1:1. |
+| Team on chat | Owners toggle staff (⋯ only). Highlighted = on chat; tap to take off. Owner(s) at bottom. No search. |
+| Roster vs company row | Company `ThreadParticipant` = request / archive / pin / read. Person `ThreadMember` = who can open it. |
 | Access approve | Can activate pending chat participants when trust is granted |
 | Team sender line | Your staff see **who on your team** sent each outgoing bubble (`Ravi` vs implicit you) as quiet text inside the bubble — on **every** teammate message once `senderUserId` is stored. Other businesses still see only your **business name** — never staff names. Messages sent before sender attribution may lack a name until backfilled. |
 | Order card actors | Body says **You** (mine) or the other party’s **business name** — never Seller/Buyer |
-| One living order reference | Each order has **one** trade-thread message (`order_card` / `rate`) that **updates in place**. Inquiry/order create + quote stay rich cards (designs clubbed, Order/Inquiry #) with a **dense mosaic** (~40% scale, narrow bubble) so more of the thread fits on a phone; later status pulses become a compact chip. Tap → order detail (full timeline). Legacy stacks: UI shows only the latest per order. |
+| One living order reference | Each order has **one** trade-thread message (`order_card` / `rate`) that **updates in place**. Inquiry/order create + quote stay **rich bubble cards** (header = `Order #… Action`, kind badge + left rail in **Order teal**, tiny inline thumbs, wide bubble); later status pulses use the **same header grammar** as a compact left-accent chip. Tap → order detail (full timeline). Legacy stacks: UI shows only the latest per order. |
 | Payment card | One living `payment_card` per ask (amount → **Paid**). Tap → order. Buyer **Paid**; seller **Mark received**. No Seller/Buyer on the card. |
 | Buy for buyer | Seller-logged ticket: living order card + **Accept** (not Accept quote). Off-app `/o/:token`. |
 | Order card CTAs | Quiet **View order →** (whole card also opens order); solid **Accept quote** only when live `canAcceptQuote` — never rewrite frozen Quote card copy |
@@ -48,7 +57,11 @@ Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that alb
 
 ## Edge cases / empty states
 
-- Empty Chats → **Find businesses** → Explore.
+- Empty Chats → **Find businesses** → Explore (`Businesses Only` + search open).
+- Empty **New** (no connections) → **Find on Ekum** link immediately, then name / mobile / GST if they tap with an empty search; **Find in Explore**. Other pickers still use the Find on Ekum **field**.
+- Find on Ekum hit → **Request access** or **Message** (opens/starts a thread; not auto-connect). Already on the connection list → omitted from Find results (Add from the list above).
+- Chats ＋ **Send invite** (after Find is opened) → connect link via OS share. Other pickers: invite only on a phone-like miss.
+- Explore **Share** with no chats → same **Find in Explore** CTA; single album/design still offers **48h link**.
 - Empty New → short line that unknown businesses land here.
 - Blocked counterpart → no confirmation of block in UI.
 - Thread detail uses counterpart header (shell title suppressed).
@@ -61,9 +74,9 @@ Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that alb
 
 ## Automated verification
 
-- **Functional:** `pnpm test:e2e:functional` — `@chat` send + in-thread search scopes/stepper
+- **Functional:** `pnpm test:e2e:functional` — `@chat` send + in-thread search + `＋` opens chat (no Private); `@chat` requests Open/Ignore
 - **Regression:** `pnpm test:e2e:smoke` + `pnpm --filter @ekum/web test` — PhotoAlbum BM-01, order card copy/dedupe, thread search helpers
-- Completeness: `docs/superpowers/reviews/completeness/2026-08-11-chat-completeness.md`
+- Completeness: `docs/superpowers/reviews/completeness/2026-09-01-chat-membership-completeness.md`, `2026-09-01-new-chat-sheet-completeness.md`
 - CI: units via `pnpm test`; E2E smoke via manual `workflow_dispatch`
 
 ## Where it lives

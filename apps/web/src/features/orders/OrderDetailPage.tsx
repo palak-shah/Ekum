@@ -993,12 +993,16 @@ export function OrderDetailPage() {
           </Button>
         ) : null}
         {isSeller && data.status === 'confirmed' && hasRemaining ? (
-          <Button onClick={openDispatchSheet}>
+          <Button data-testid="order-dispatch-open" onClick={openDispatchSheet}>
             {data.partiallyShipped ? 'Dispatch remaining' : 'Dispatch shipment'}
           </Button>
         ) : null}
         {isBuyer && data.status === 'dispatched' ? (
-          <Button onClick={() => act.mutate('deliver')} disabled={act.isPending}>
+          <Button
+            data-testid="order-deliver"
+            onClick={() => act.mutate('deliver')}
+            disabled={act.isPending}
+          >
             Mark delivered
           </Button>
         ) : null}
@@ -1180,7 +1184,12 @@ export function OrderDetailPage() {
               </Field>
             </div>
             {dispatchError ? <InlineNotice message={dispatchError} /> : null}
-            <Button fullWidth onClick={submitDispatch} disabled={dispatchOrder.isPending}>
+            <Button
+              fullWidth
+              data-testid="order-dispatch-confirm"
+              onClick={submitDispatch}
+              disabled={dispatchOrder.isPending}
+            >
               {dispatchOrder.isPending ? 'Saving…' : 'Confirm dispatch'}
             </Button>
           </div>

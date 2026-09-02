@@ -1,6 +1,7 @@
 import { Suspense, useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/auth';
 import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
@@ -50,6 +51,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { session } = useAuth();
   const company = useMyCompany();
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
@@ -89,6 +91,8 @@ export function AppShell() {
           )}
           <div className="flex shrink-0 items-center gap-0.5">
             <button
+              type="button"
+              data-testid="notifications-bell"
               aria-label="Notifications"
               className="relative rounded-full p-2 text-slate hover:bg-foam"
               onClick={() => navigate('/notifications')}
@@ -107,7 +111,7 @@ export function AppShell() {
               onClick={() => navigate('/more')}
             >
               <Avatar
-                name={company.data?.name ?? 'E'}
+                name={company.data?.name ?? session?.user.name ?? 'E'}
                 imageUrl={company.data?.logoUrl}
                 size={36}
               />

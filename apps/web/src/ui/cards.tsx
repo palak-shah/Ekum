@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type {
   CollectionCard,
@@ -70,6 +71,7 @@ export function OpportunityCollectionCard({
   onLongSelect,
   onToggleSelect,
   onOpen,
+  headerTrailing,
 }: {
   opportunity: ExploreOpportunity;
   selected?: boolean;
@@ -77,6 +79,8 @@ export function OpportunityCollectionCard({
   onLongSelect?: () => void;
   onToggleSelect?: () => void;
   onOpen?: () => void;
+  /** Follow control or other header trailing chrome (replaces posted time when set). */
+  headerTrailing?: ReactNode;
 }) {
   const { collection, relevance } = opportunity;
   const company = collection.company;
@@ -95,9 +99,10 @@ export function OpportunityCollectionCard({
             {relevance?.trim() || company.city}
           </p>
         </Link>
-        {when ? (
-          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-        ) : null}
+        {headerTrailing ??
+          (when ? (
+            <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
+          ) : null)}
       </div>
       {open ? (
         <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>
@@ -378,6 +383,7 @@ export function OpportunityDesignCard({
   onLongSelect,
   onToggleSelect,
   onOpen,
+  headerTrailing,
 }: {
   opportunity: ExploreDesignOpportunity;
   selected?: boolean;
@@ -385,6 +391,7 @@ export function OpportunityDesignCard({
   onLongSelect?: () => void;
   onToggleSelect?: () => void;
   onOpen?: () => void;
+  headerTrailing?: ReactNode;
 }) {
   const { product, relevance } = opportunity;
   const company = product.company;
@@ -404,9 +411,10 @@ export function OpportunityDesignCard({
             {relevance?.trim() || company.city}
           </p>
         </Link>
-        {when ? (
-          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-        ) : null}
+        {headerTrailing ??
+          (when ? (
+            <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
+          ) : null)}
       </div>
       {open ? (
         <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>

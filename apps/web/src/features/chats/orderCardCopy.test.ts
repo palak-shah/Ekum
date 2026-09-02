@@ -87,7 +87,7 @@ describe('buildOrderCardCopy', () => {
     expect(copy.headline).not.toMatch(/Seller|Buyer/);
     expect(copy.title).not.toMatch(/Seller|Buyer/);
     expect(copy.action).toBe('Requested');
-    expect(copy.title).toBe('Order #ECNL · Requested');
+    expect(copy.title).toBe('Order #ECNL Requested');
     expect(copy.headline).toBe('You requested');
     expect(copy.lines).toEqual([]);
   });

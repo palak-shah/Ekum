@@ -42,6 +42,9 @@ export function photoUrlsFromMessage(message: {
 
 export const startDirectThreadSchema = z.object({
   companyId: z.string().min(1),
+  /** Extra staff to put on this chat. Owners are always added. */
+  memberUserIds: z.array(z.string().min(1)).max(50).optional(),
+  /** Ignored. New chats are always shared. */
   visibility: z.enum(threadVisibilityValues).default(ThreadVisibility.Shared),
 });
 export type StartDirectThreadDto = z.infer<typeof startDirectThreadSchema>;
@@ -49,6 +52,7 @@ export type StartDirectThreadDto = z.infer<typeof startDirectThreadSchema>;
 export const createGroupThreadSchema = z.object({
   title: z.string().trim().min(1).max(120),
   participantCompanyIds: z.array(z.string().min(1)).min(1).max(50),
+  memberUserIds: z.array(z.string().min(1)).max(50).optional(),
   visibility: z.enum(threadVisibilityValues).default(ThreadVisibility.Shared),
 });
 export type CreateGroupThreadDto = z.infer<typeof createGroupThreadSchema>;
@@ -144,6 +148,25 @@ export const addParticipantsSchema = z.object({
   companyIds: z.array(z.string().min(1)).min(1).max(50),
 });
 export type AddParticipantsDto = z.infer<typeof addParticipantsSchema>;
+
+export const setThreadMembersSchema = z.object({
+  userIds: z.array(z.string().min(1)).min(1).max(50),
+});
+export type SetThreadMembersDto = z.infer<typeof setThreadMembersSchema>;
+
+export interface ThreadPersonView {
+  userId: string;
+  name: string;
+  role: string;
+  state: string;
+}
+
+export interface ThreadCloneConflict {
+  code: 'SAME_CHAT';
+  message: string;
+  threadId: string;
+  title: string | null;
+}
 
 // --- View models ------------------------------------------------------------
 
@@ -249,6 +272,18 @@ export interface ThreadSummary {
   searchHitMessageId?: string | null;
 }
 
+/** How POST /threads/direct resolved the 1:1 (not sent on list/detail reads). */
+export type DirectThreadOpen = 'created' | 'existing' | 'restored';
+
+export interface StartDirectThreadResult extends ThreadSummary {
+  opened: DirectThreadOpen;
+}
+
 export interface ThreadDetail extends ThreadSummary {
   participants: ParticipantView[];
+  /** Your shop’s people on this thread (never sent to the other company). */
+  people?: ThreadPersonView[];
+  canLeave?: boolean;
+  canRemoveGroup?: boolean;
+  canManagePeople?: boolean;
 }

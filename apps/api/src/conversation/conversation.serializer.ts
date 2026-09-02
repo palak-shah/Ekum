@@ -23,6 +23,11 @@ export interface ThreadSummaryInput {
   lastMessage: MessageView | null;
   searchHitPreview?: string | null;
   searchHitMessageId?: string | null;
+  people?: ThreadDetail['people'];
+  canLeave?: boolean;
+  canRemoveGroup?: boolean;
+  canManagePeople?: boolean;
+  alertLevel?: string;
 }
 
 @Injectable()
@@ -85,7 +90,7 @@ export class ConversationSerializer {
       visibility: thread.visibility,
       title: thread.title,
       state: mine.state,
-      alertLevel: mine.alertLevel,
+      alertLevel: input.alertLevel ?? mine.alertLevel,
       pinned: Boolean(mine.pinnedAt),
       unreadCount,
       lastMessage,
@@ -103,6 +108,10 @@ export class ConversationSerializer {
     return {
       ...this.toThreadSummary(input),
       participants: input.participants.map((participant) => this.toParticipantView(participant)),
+      people: input.people ?? [],
+      canLeave: input.canLeave ?? false,
+      canRemoveGroup: input.canRemoveGroup ?? false,
+      canManagePeople: input.canManagePeople ?? false,
     };
   }
 }

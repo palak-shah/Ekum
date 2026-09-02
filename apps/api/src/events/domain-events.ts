@@ -42,6 +42,7 @@ export interface MessageSentEvent {
   messageId: string;
   senderCompanyId: string;
   recipientCompanyIds: string[];
+  recipientUserIds?: string[];
   preview: string;
 }
 

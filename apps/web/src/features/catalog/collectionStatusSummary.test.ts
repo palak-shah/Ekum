@@ -40,7 +40,7 @@ describe('collectionStatusSummary', () => {
     expect(summary.phase).toBe('scheduled');
   });
 
-  it('shows Published · who · Evergreen', () => {
+  it('shows Published · who without schedule when no end date', () => {
     const summary = collectionStatusSummary(
       {
         status: CollectionStatus.Published,
@@ -51,8 +51,8 @@ describe('collectionStatusSummary', () => {
       [],
       now,
     );
-    expect(summary.line).toBe('Published · Everyone · Evergreen');
-    expect(summary.scheduleLabel).toBe('Evergreen');
+    expect(summary.line).toBe('Published · Everyone');
+    expect(summary.scheduleLabel).toBeNull();
   });
 
   it('shows Ends in Nd when within a week', () => {
@@ -83,7 +83,7 @@ describe('collectionStatusSummary', () => {
       ],
       now,
     );
-    expect(summary.line).toBe('Published · Diwali buyers + 1 more · Evergreen');
+    expect(summary.line).toBe('Published · Diwali buyers + 1 more');
   });
 
   it('uses business count when selected without groups', () => {
@@ -115,7 +115,7 @@ describe('whoCanSeeLabel', () => {
 describe('collectionScheduleBadge (thin wrapper)', () => {
   const now = new Date('2026-09-15T12:00:00.000Z');
 
-  it('uses Evergreen when there is no end date', () => {
+  it('omits schedule secondary when there is no end date', () => {
     const badge = collectionScheduleBadge(
       {
         status: CollectionStatus.Published,
@@ -125,6 +125,6 @@ describe('collectionScheduleBadge (thin wrapper)', () => {
       now,
     );
     expect(badge.primary).toBe('Live');
-    expect(badge.secondary).toBe('Evergreen');
+    expect(badge.secondary).toBeNull();
   });
 });

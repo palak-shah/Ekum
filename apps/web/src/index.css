@@ -3,7 +3,8 @@
 
 /*
  * Market-sharp tokens aligned to v5 HTML prototype + brand presentation.
- * Teal is the only accent; tangerine is alerts only.
+ * Brand accent is teal; tangerine is alerts only.
+ * Kind colors (Order / Collection / Design) are platform object hues — not status.
  */
 @theme {
   --color-ink: #33271b;
@@ -26,6 +27,12 @@
   --color-warning-ink: #9b5c00;
   --color-danger: #e5484d;
   --color-danger-soft: #fdecec;
+  --color-kind-order: #2b7379;
+  --color-kind-order-soft: #e8f2f1;
+  --color-kind-collection: #4a6572;
+  --color-kind-collection-soft: #e6eef1;
+  --color-kind-design: #8a5a3b;
+  --color-kind-design-soft: #f3e8df;
   --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --shadow-soft: 0 12px 28px rgb(51 39 27 / 0.1);
 }
@@ -92,6 +99,11 @@ body {
 
 .ekum-rise {
   animation: ekum-rise 280ms ease-out both;
+}
+
+/* Class, not inline style — re-setting animation on each React render restarts the slide. */
+.ekum-sheet {
+  animation: ekum-sheet 280ms ease-out;
 }
 
 .ekum-msg-flash {

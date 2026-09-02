@@ -17,7 +17,7 @@ describe('AuthService.verifyOtp', () => {
     const prisma = {
       user: {
         findMany: async () => [
-          { id: 'u1', phone: '+919800000099', memberships: [] },
+          { id: 'u1', phone: '+919800000099', name: null, memberships: [] },
         ],
       },
       companyMembership: {
@@ -51,6 +51,11 @@ describe('AuthService.verifyOtp', () => {
     } as unknown as TokenService;
     const prisma = {
       user: {
+        findUnique: async () => ({
+          id: 'seed-user-ravi',
+          phone: '+919800000001',
+          memberships: [{ companyId: 'seed-company-ravi' }],
+        }),
         findMany: async () => [
           {
             id: 'seed-user-ravi',
@@ -68,7 +73,7 @@ describe('AuthService.verifyOtp', () => {
     expect(session.user.companyId).toBe('seed-company-ravi');
   });
 
-  it('prefers the canonical + phone row when legacy variants exist', async () => {
+  it('prefers the seed user over a same-number leftover (91… without +)', async () => {
     const otp = { verify: vi.fn(async () => undefined) } as unknown as OtpService;
     const tokens = {
       issue: vi.fn(async () => ({
@@ -79,6 +84,11 @@ describe('AuthService.verifyOtp', () => {
     } as unknown as TokenService;
     const prisma = {
       user: {
+        findUnique: async () => ({
+          id: 'seed-user-ravi',
+          phone: '+919800000001',
+          memberships: [{ companyId: 'seed-company-ravi' }],
+        }),
         findMany: async () => [
           { id: 'legacy', phone: '919800000001', memberships: [] },
           {
@@ -97,9 +107,10 @@ describe('AuthService.verifyOtp', () => {
 });
 
 describe('AuthService.me', () => {
-  it('reports needsOnboarding from membership count', async () => {
+  it('reports needsOnboarding when the user has no live membership', async () => {
     const prisma = {
-      companyMembership: { count: async () => 0 },
+      companyMembership: { findFirst: async () => null },
+      user: { findUnique: async () => ({ name: null }) },
     } as unknown as PrismaService;
     const service = new AuthService(
       prisma,
@@ -115,6 +126,52 @@ describe('AuthService.me', () => {
     });
     expect(result.needsOnboarding).toBe(true);
   });
+
+  it('restores the company when the token lost it but membership exists', async () => {
+    const prisma = {
+      companyMembership: {
+        findFirst: async () => ({ companyId: 'seed-company-ravi', role: 'owner' }),
+      },
+      user: { findUnique: async () => ({ name: 'Ravi' }) },
+    } as unknown as PrismaService;
+    const service = new AuthService(
+      prisma,
+      {} as OtpService,
+      {} as TokenService,
+    );
+    const result = await service.me({
+      userId: 'seed-user-ravi',
+      phone: '+919800000001',
+      companyId: null,
+      role: null,
+      permissions: null,
+    });
+    expect(result.needsOnboarding).toBe(false);
+    expect(result.user.companyId).toBe('seed-company-ravi');
+  });
+
+  it('rewrites leftover demo-phone sessions to the seed person', async () => {
+    const prisma = {
+      companyMembership: {
+        findFirst: async ({ where }: { where: { companyId?: string } }) =>
+          where.companyId === 'seed-company-ravi'
+            ? { companyId: 'seed-company-ravi', role: 'owner' }
+            : null,
+      },
+      user: { findUnique: async () => ({ name: 'Ravi' }) },
+    } as unknown as PrismaService;
+    const service = new AuthService(prisma, {} as OtpService, {} as TokenService);
+    const result = await service.me({
+      userId: 'leftover-amit',
+      phone: '919800000001',
+      companyId: 'textile-hub',
+      role: 'owner',
+      permissions: null,
+    });
+    expect(result.user.userId).toBe('seed-user-ravi');
+    expect(result.user.companyId).toBe('seed-company-ravi');
+    expect(result.user.name).toBe('Ravi');
+  });
 });
 
 describe('AuthService.refresh / logout', () => {
@@ -128,7 +185,11 @@ describe('AuthService.refresh / logout', () => {
       })),
       revoke: vi.fn(async () => undefined),
     } as unknown as TokenService;
-    const service = new AuthService({} as PrismaService, {} as OtpService, tokens);
+    const service = new AuthService(
+      { user: { findUnique: async () => ({ name: 'Ravi' }) } } as unknown as PrismaService,
+      {} as OtpService,
+      tokens,
+    );
 
     const session = await service.refresh('raw');
     expect(session.needsOnboarding).toBe(true);

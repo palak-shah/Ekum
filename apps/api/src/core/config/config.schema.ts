@@ -15,7 +15,7 @@ export const envSchema = z
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
     JWT_REFRESH_SECRET: z.string().min(32, 'must be at least 32 characters'),
     JWT_ACCESS_TTL: z.string().default('15m'),
-    JWT_REFRESH_TTL: z.string().default('30d'),
+    JWT_REFRESH_TTL: z.string().default('10y'),
     // When true (never in production), the OTP is returned in the API response to
     // ease local testing. Off by default so a misconfigured deploy cannot leak it.
     OTP_EXPOSE_DEV_CODE: z

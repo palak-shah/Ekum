@@ -17,7 +17,7 @@ Start with [Shared concepts](./00-concepts.md) before area docs.
 | **Home · Chats · ＋ · Explore · Orders** | Bottom nav (`AppShell`) |
 | **＋ sheet** | Buying: Photo order. Selling: Add designs, New collection, **Curate pack**, Broadcast (if `canPublish`). **Invite to connect** (all companies). Find suppliers via **Explore**. |
 | **Bell** | Notifications only — not mirrored on Home |
-| **Avatar → You** | `/more` — catalog, **Saved**, **Network**, samples, returns, settings, logout |
+| **Avatar → You** | `/more` — catalog, **Saved**, **Network**, team, settings, profile, logout |
 
 ## Seed personas
 

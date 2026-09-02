@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
-import { WEB_URL } from './helpers/env';
+import { API_URL, WEB_URL } from './helpers/env';
+
+const apiOrigin = API_URL.replace(/\/api\/v1\/?$/, '');
 
 export default defineConfig({
   testDir: './tests',
@@ -12,5 +14,22 @@ export default defineConfig({
     trace: 'on-first-retry',
     ...devices['Pixel 7'],
   },
-  // Prefer starting servers outside CI locally; in CI set webServer or workflow services.
+  webServer: [
+    {
+      command: 'pnpm --filter @ekum/api dev',
+      url: `${apiOrigin}/api/v1/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        ...process.env,
+        OTP_EXPOSE_DEV_CODE: 'true',
+      },
+    },
+    {
+      command: 'pnpm --filter @ekum/web dev',
+      url: WEB_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 });

@@ -41,6 +41,8 @@ import {
   FilterIcon,
 } from '@/ui/icons';
 import { ExploreSearchResults } from './ExploreSearchResults';
+import { exploreFeedFollowTrailing } from './exploreFeedFollowTrailing';
+import { useExploreCompanyRelationships } from './useExploreCompanyRelationships';
 import { isDualTradePresence, resolveExploreTradeSide } from './exploreTradeSide';
 import { clearExploreFilterParams, facetSummary, mergeFacetOptions } from './exploreFilterPanel';
 import {
@@ -127,9 +129,11 @@ function Section({
 function CollectionSection({
   title,
   items,
+  feedRelationships,
 }: {
   title: string;
   items: ExploreOpportunity[];
+  feedRelationships: ReturnType<typeof useExploreCompanyRelationships>;
 }) {
   const albumPick = useBrowseAlbumPick();
   const shortlist = useBrowseShortlist();
@@ -152,6 +156,12 @@ function CollectionSection({
             onToggleSelect={
               selecting ? () => toggleExploreAlbum(albumPick, opportunity, onLocked) : undefined
             }
+            headerTrailing={exploreFeedFollowTrailing(
+              opportunity.collection.company.id,
+              opportunity.collection.company.name,
+              selecting,
+              feedRelationships,
+            )}
           />
         ))}
       </div>
@@ -203,9 +213,11 @@ function toggleExploreAlbum(
 function DesignSection({
   title,
   items,
+  feedRelationships,
 }: {
   title: string;
   items: ExploreDesignOpportunity[];
+  feedRelationships: ReturnType<typeof useExploreCompanyRelationships>;
 }) {
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
@@ -228,6 +240,12 @@ function DesignSection({
             onToggleSelect={
               selecting ? () => toggleExploreDesign(shortlist, opportunity, onLocked) : undefined
             }
+            headerTrailing={exploreFeedFollowTrailing(
+              opportunity.product.company.id,
+              opportunity.product.company.name,
+              selecting,
+              feedRelationships,
+            )}
           />
         ))}
       </div>
@@ -235,7 +253,15 @@ function DesignSection({
   );
 }
 
-function MixedSection({ title, items }: { title: string; items: MixedOpportunity[] }) {
+function MixedSection({
+  title,
+  items,
+  feedRelationships,
+}: {
+  title: string;
+  items: MixedOpportunity[];
+  feedRelationships: ReturnType<typeof useExploreCompanyRelationships>;
+}) {
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const { showToast } = useToast();
@@ -260,6 +286,12 @@ function MixedSection({ title, items }: { title: string; items: MixedOpportunity
                   ? () => toggleExploreAlbum(albumPick, item.opportunity, onLocked)
                   : undefined
               }
+              headerTrailing={exploreFeedFollowTrailing(
+                item.opportunity.collection.company.id,
+                item.opportunity.collection.company.name,
+                selecting,
+                feedRelationships,
+              )}
             />
           ) : (
             <OpportunityDesignCard
@@ -273,6 +305,12 @@ function MixedSection({ title, items }: { title: string; items: MixedOpportunity
                   ? () => toggleExploreDesign(shortlist, item.opportunity, onLocked)
                   : undefined
               }
+              headerTrailing={exploreFeedFollowTrailing(
+                item.opportunity.product.company.id,
+                item.opportunity.product.company.name,
+                selecting,
+                feedRelationships,
+              )}
             />
           ),
         )}
@@ -467,6 +505,7 @@ export function ExplorePage() {
   const orderFlow = useShortlistOrderFlow();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const feedRelationships = useExploreCompanyRelationships();
   const [curateOpen, setCurateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [savingPick, setSavingPick] = useState(false);
@@ -881,7 +920,11 @@ export function ExplorePage() {
           ) : null}
           {tradeSide !== 'selling' && contentMode === 'all' ? (
             filteredPosts.length > 0 ? (
-              <MixedSection title="" items={filteredPosts} />
+              <MixedSection
+                title=""
+                items={filteredPosts}
+                feedRelationships={feedRelationships}
+              />
             ) : storyCompanyId ? (
               <EmptyState
                 title="No posts in this feed"
@@ -895,10 +938,18 @@ export function ExplorePage() {
             )
           ) : null}
           {tradeSide !== 'selling' && contentMode === 'collections' ? (
-            <CollectionSection title="" items={filteredCollections} />
+            <CollectionSection
+              title=""
+              items={filteredCollections}
+              feedRelationships={feedRelationships}
+            />
           ) : null}
           {tradeSide !== 'selling' && contentMode === 'designs' ? (
-            <DesignSection title="" items={filteredDesigns} />
+            <DesignSection
+              title=""
+              items={filteredDesigns}
+              feedRelationships={feedRelationships}
+            />
           ) : null}
           {tradeSide === 'selling' && !storyCompanyId && data?.lookingForWhatYouSell ? (
             <CompanySection

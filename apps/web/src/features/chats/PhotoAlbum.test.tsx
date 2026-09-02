@@ -33,4 +33,27 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     );
     expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
   });
+
+  it('thumb size shows at most two cells with +N overflow', () => {
+    render(
+      <PhotoAlbum
+        urls={[
+          'https://example.com/a.jpg',
+          'https://example.com/b.jpg',
+          'https://example.com/c.jpg',
+        ]}
+        overflowCount={1}
+        size="thumb"
+      />,
+    );
+    expect(screen.getByTestId('photo-album-overflow')).toHaveTextContent('+2');
+  });
+
+  it('thumb size keeps a single image in a fixed 40px box', () => {
+    render(<PhotoAlbum urls={['https://example.com/a.jpg']} size="thumb" />);
+    const wrap = screen.getByTestId('photo-album-thumb');
+    expect(wrap.className).toMatch(/h-10/);
+    expect(wrap.className).toMatch(/w-fit/);
+    expect(wrap.querySelector('img')).toBeTruthy();
+  });
 });

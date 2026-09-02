@@ -54,6 +54,7 @@ export const sessionUserSchema = z.object({
   userId: z.string(),
   phone: z.string(),
   companyId: z.string().nullable(),
+  name: z.string().nullable().optional(),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema> & {
   role?: string | null;

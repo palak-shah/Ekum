@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type Thread, type ThreadParticipant } from '@prisma/client';
 import {
   MAX_PINNED_THREADS,
   MembershipRole,
   MessageType,
+  ThreadMemberState,
   ThreadParticipantState,
   ThreadType,
   ThreadVisibility,
@@ -13,9 +14,12 @@ import {
   type ListThreadsQuery,
   type MessageView,
   type SetAlertLevelDto,
+  type SetThreadMembersDto,
   type SetThreadPinnedDto,
   type StartDirectThreadDto,
+  type StartDirectThreadResult,
   type ThreadDetail,
+  type ThreadPersonView,
   type ThreadSummary,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -23,6 +27,15 @@ import { VisibilityService } from '../access/visibility.service';
 import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
 import { findThreadSearchHits, threadSurfaceMatchesQ } from './message-search';
+import { messageVisibleToCompany } from './side-message';
+import {
+  countedPeopleForCompany,
+  lastOwnerMute,
+  ownerOnlyRoster,
+  peopleFingerprint,
+  sameChatConflict,
+  seedOwnersAndStaff,
+} from './thread-roster';
 
 type MembershipWithThread = ThreadParticipant & { thread: Thread };
 
@@ -44,6 +57,7 @@ export class ThreadService {
     threadId: string,
     companyId: string,
     role: string | null,
+    userId: string | null = null,
   ): Promise<MembershipWithThread> {
     const participant = await this.prisma.threadParticipant.findUnique({
       where: { threadId_companyId: { threadId, companyId } },
@@ -52,7 +66,18 @@ export class ThreadService {
     if (!participant || participant.leftAt || participant.state === ThreadParticipantState.Archived) {
       throw this.notFound();
     }
-    if (participant.thread.visibility === ThreadVisibility.OwnerOnly && role !== MembershipRole.Owner) {
+    if (userId) {
+      const member = await this.prisma.threadMember.findUnique({
+        where: { threadId_userId: { threadId, userId } },
+      });
+      const onThread = member?.state === ThreadMemberState.Active && member.companyId === companyId;
+      if (!onThread) {
+        throw this.notFound();
+      }
+    } else if (
+      participant.thread.visibility === ThreadVisibility.OwnerOnly &&
+      role !== MembershipRole.Owner
+    ) {
       throw this.notFound();
     }
     return participant;
@@ -63,14 +88,7 @@ export class ThreadService {
     role: string | null,
     dto: StartDirectThreadDto,
     viewerUserId: string | null = null,
-  ): Promise<ThreadSummary> {
-    const visibility = dto.visibility ?? ThreadVisibility.Shared;
-    if (visibility === ThreadVisibility.OwnerOnly && role !== MembershipRole.Owner) {
-      throw new ForbiddenException({
-        code: 'NOT_ALLOWED',
-        message: 'Only the owner can start a private chat.',
-      });
-    }
+  ): Promise<StartDirectThreadResult> {
     if (dto.companyId === actorCompanyId) {
       throw new BadRequestException({
         code: 'INVALID_TARGET',
@@ -85,16 +103,25 @@ export class ThreadService {
       throw this.notFound();
     }
 
-    const existing = await this.findDirectThread(actorCompanyId, dto.companyId, visibility);
+    const existing = await this.findDirectThread(actorCompanyId, dto.companyId);
     if (existing) {
       const mine = existing.participants.find((p) => p.companyId === actorCompanyId);
-      if (mine && (mine.leftAt || mine.state === ThreadParticipantState.Archived)) {
+      const wasArchived =
+        mine && (mine.leftAt || mine.state === ThreadParticipantState.Archived);
+      if (wasArchived) {
         await this.prisma.threadParticipant.update({
           where: { id: mine.id },
           data: { state: ThreadParticipantState.Active, leftAt: null },
         });
       }
-      return this.summaryById(existing.id, actorCompanyId, role, viewerUserId);
+      if (viewerUserId) {
+        await seedOwnersAndStaff(this.prisma, existing.id, actorCompanyId, [
+          viewerUserId,
+          ...(dto.memberUserIds ?? []),
+        ]);
+      }
+      const summary = await this.summaryById(existing.id, actorCompanyId, role, viewerUserId);
+      return { ...summary, opened: wasArchived ? 'restored' : 'existing' };
     }
 
     // A first message to a company that has blocked you is silently dropped: the
@@ -111,7 +138,7 @@ export class ThreadService {
     const thread = await this.prisma.thread.create({
       data: {
         type: ThreadType.Direct,
-        visibility,
+        visibility: ThreadVisibility.Shared,
         createdByCompanyId: actorCompanyId,
         participants: {
           create: [
@@ -121,7 +148,14 @@ export class ThreadService {
         },
       },
     });
-    return this.summaryById(thread.id, actorCompanyId, role, viewerUserId);
+    await seedOwnersAndStaff(this.prisma, thread.id, actorCompanyId, [
+      ...(viewerUserId ? [viewerUserId] : []),
+      ...(dto.memberUserIds ?? []),
+    ]);
+    if (targetState !== ThreadParticipantState.Archived) {
+      await seedOwnersAndStaff(this.prisma, thread.id, dto.companyId, []);
+    }
+    return { ...(await this.summaryById(thread.id, actorCompanyId, role, viewerUserId)), opened: 'created' };
   }
 
   async createGroup(
@@ -139,10 +173,27 @@ export class ThreadService {
     }
     await this.assertInvitable(actorCompanyId, inviteeIds);
 
+    const wantedPeople = peopleFingerprint([
+      ...(viewerUserId ? [viewerUserId] : []),
+      ...(dto.memberUserIds ?? []),
+      ...(await this.ownerIds(actorCompanyId)),
+    ]);
+    const clone = await this.findGroupByFingerprint(actorCompanyId, inviteeIds, wantedPeople);
+    if (clone) {
+      const mine = clone.participants.find((p) => p.companyId === actorCompanyId);
+      if (mine && (mine.leftAt || mine.state === ThreadParticipantState.Archived)) {
+        await this.prisma.threadParticipant.update({
+          where: { id: mine.id },
+          data: { state: ThreadParticipantState.Active, leftAt: null },
+        });
+      }
+      throw sameChatConflict(clone.id, clone.title);
+    }
+
     const thread = await this.prisma.thread.create({
       data: {
         type: ThreadType.Group,
-        visibility: dto.visibility,
+        visibility: ThreadVisibility.Shared,
         title: dto.title,
         createdByCompanyId: actorCompanyId,
         participants: {
@@ -157,12 +208,19 @@ export class ThreadService {
         },
       },
     });
+    await seedOwnersAndStaff(this.prisma, thread.id, actorCompanyId, [
+      ...(viewerUserId ? [viewerUserId] : []),
+      ...(dto.memberUserIds ?? []),
+    ]);
+    for (const id of inviteeIds) {
+      await seedOwnersAndStaff(this.prisma, thread.id, id, []);
+    }
     return this.detail(thread.id, actorCompanyId, role, viewerUserId);
   }
 
   async list(
     actorCompanyId: string,
-    role: string | null,
+    _role: string | null,
     query: ListThreadsQuery,
     viewerUserId: string | null = null,
   ): Promise<CursorPage<ThreadSummary>> {
@@ -170,10 +228,20 @@ export class ThreadService {
       companyId: actorCompanyId,
       state: query.state ?? ThreadParticipantState.Active,
       leftAt: null,
+      ...(viewerUserId
+        ? {
+            thread: {
+              members: {
+                some: {
+                  userId: viewerUserId,
+                  companyId: actorCompanyId,
+                  state: ThreadMemberState.Active,
+                },
+              },
+            },
+          }
+        : {}),
     };
-    if (role !== MembershipRole.Owner) {
-      where.thread = { visibility: { not: ThreadVisibility.OwnerOnly } };
-    }
 
     const q = query.q?.trim() || '';
     const deepHits = q ? await findThreadSearchHits(this.prisma, actorCompanyId, q) : new Map();
@@ -291,7 +359,7 @@ export class ThreadService {
     threadId: string,
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
       data: { lastReadAt: new Date() },
@@ -314,16 +382,27 @@ export class ThreadService {
    */
   async unreadTotal(
     actorCompanyId: string,
-    role: string | null,
+    _role: string | null,
+    viewerUserId: string | null = null,
   ): Promise<{ count: number }> {
     const where: Prisma.ThreadParticipantWhereInput = {
       companyId: actorCompanyId,
       state: ThreadParticipantState.Active,
       leftAt: null,
+      ...(viewerUserId
+        ? {
+            thread: {
+              members: {
+                some: {
+                  userId: viewerUserId,
+                  companyId: actorCompanyId,
+                  state: ThreadMemberState.Active,
+                },
+              },
+            },
+          }
+        : {}),
     };
-    if (role !== MembershipRole.Owner) {
-      where.thread = { visibility: { not: ThreadVisibility.OwnerOnly } };
-    }
 
     const participants = await this.prisma.threadParticipant.findMany({
       where,
@@ -348,11 +427,19 @@ export class ThreadService {
     dto: SetAlertLevelDto,
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
-    await this.prisma.threadParticipant.update({
-      where: { id: mine.id },
-      data: { alertLevel: dto.alertLevel },
-    });
+    await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    if (viewerUserId) {
+      await this.prisma.threadMember.updateMany({
+        where: { threadId, userId: viewerUserId, companyId: actorCompanyId },
+        data: { alertLevel: dto.alertLevel },
+      });
+    } else {
+      const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+      await this.prisma.threadParticipant.update({
+        where: { id: mine.id },
+        data: { alertLevel: dto.alertLevel },
+      });
+    }
     return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
@@ -363,7 +450,7 @@ export class ThreadService {
     dto: SetThreadPinnedDto,
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
     if (dto.pinned) {
       if (!mine.pinnedAt) {
         const pinnedCount = await this.prisma.threadParticipant.count({
@@ -399,7 +486,7 @@ export class ThreadService {
     threadId: string,
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
     if (mine.state === ThreadParticipantState.Pending) {
       await this.prisma.threadParticipant.update({
         where: { id: mine.id },
@@ -413,8 +500,9 @@ export class ThreadService {
     actorCompanyId: string,
     role: string | null,
     threadId: string,
+    viewerUserId: string | null = null,
   ): Promise<{ ok: true }> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
       data: { state: ThreadParticipantState.Archived, leftAt: new Date() },
@@ -426,13 +514,105 @@ export class ThreadService {
     actorCompanyId: string,
     role: string | null,
     threadId: string,
+    viewerUserId: string,
   ): Promise<{ ok: true }> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    if (mine.thread.type === ThreadType.Direct && role === MembershipRole.Owner) {
+      const activeOwners = await this.prisma.threadMember.count({
+        where: {
+          threadId,
+          companyId: actorCompanyId,
+          state: ThreadMemberState.Active,
+          userId: {
+            in: await this.ownerIds(actorCompanyId),
+          },
+        },
+      });
+      if (activeOwners <= 1) {
+        throw lastOwnerMute();
+      }
+    }
+    await this.prisma.threadMember.update({
+      where: { threadId_userId: { threadId, userId: viewerUserId } },
+      data: { state: ThreadMemberState.Left, leftAt: new Date() },
+    });
+    const user = await this.prisma.user.findUnique({
+      where: { id: viewerUserId },
+      select: { name: true },
+    });
+    const name = user?.name?.trim() || 'Someone';
+    await this.prisma.message.create({
+      data: {
+        threadId,
+        senderCompanyId: actorCompanyId,
+        senderUserId: viewerUserId,
+        senderName: name,
+        type: MessageType.System,
+        body: `${name} left this chat.`,
+        metadata: { side: 'company', companyId: actorCompanyId } as Prisma.InputJsonValue,
+      },
+    });
+    return { ok: true };
+  }
+
+  async archiveGroup(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    viewerUserId: string | null = null,
+  ): Promise<{ ok: true }> {
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    if (mine.thread.type !== ThreadType.Group) {
+      throw new BadRequestException({
+        code: 'NOT_A_GROUP',
+        message: 'Use mute on a shop chat. You cannot remove it.',
+      });
+    }
+    if (role !== MembershipRole.Owner) {
+      throw ownerOnlyRoster();
+    }
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
       data: { state: ThreadParticipantState.Archived, leftAt: new Date() },
     });
     return { ok: true };
+  }
+
+  async addMembers(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    dto: SetThreadMembersDto,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
+    if (role !== MembershipRole.Owner) throw ownerOnlyRoster();
+    await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    const nextPeople = peopleFingerprint([
+      ...(await countedPeopleForCompany(this.prisma, threadId, actorCompanyId)),
+      ...dto.userIds,
+    ]);
+    await this.assertPeopleClone(threadId, actorCompanyId, nextPeople);
+    await seedOwnersAndStaff(this.prisma, threadId, actorCompanyId, dto.userIds);
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
+  }
+
+  async removeMembers(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    dto: SetThreadMembersDto,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
+    if (role !== MembershipRole.Owner) throw ownerOnlyRoster();
+    await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    const current = await countedPeopleForCompany(this.prisma, threadId, actorCompanyId);
+    const nextPeople = peopleFingerprint(current.filter((id) => !dto.userIds.includes(id)));
+    await this.assertPeopleClone(threadId, actorCompanyId, nextPeople);
+    await this.prisma.threadMember.updateMany({
+      where: { threadId, companyId: actorCompanyId, userId: { in: dto.userIds } },
+      data: { state: ThreadMemberState.Removed, leftAt: new Date() },
+    });
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
   async addParticipants(
@@ -442,7 +622,7 @@ export class ThreadService {
     dto: AddParticipantsDto,
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
     if (mine.thread.type !== ThreadType.Group) {
       throw new BadRequestException({
         code: 'NOT_A_GROUP',
@@ -471,6 +651,9 @@ export class ThreadService {
         invitedBy: actorCompanyId,
       })),
     });
+    for (const id of inviteeIds) {
+      await seedOwnersAndStaff(this.prisma, threadId, id, []);
+    }
     return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
@@ -480,7 +663,12 @@ export class ThreadService {
     role: string | null,
     viewerUserId: string | null = null,
   ): Promise<ThreadSummary> {
-    const { thread, participants, mine } = await this.loadForViewer(threadId, actorCompanyId, role);
+    const { thread, participants, mine } = await this.loadForViewer(
+      threadId,
+      actorCompanyId,
+      role,
+      viewerUserId,
+    );
     const [unreadCount, lastMessage] = await Promise.all([
       this.unreadCount(threadId, actorCompanyId, mine.lastReadAt),
       this.lastMessageView(threadId, actorCompanyId, viewerUserId),
@@ -494,15 +682,33 @@ export class ThreadService {
     role: string | null,
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
-    const { thread, participants, mine } = await this.loadForViewer(threadId, actorCompanyId, role);
+    const { thread, participants, mine } = await this.loadForViewer(
+      threadId,
+      actorCompanyId,
+      role,
+      viewerUserId,
+    );
     const [unreadCount, lastMessage] = await Promise.all([
       this.unreadCount(threadId, actorCompanyId, mine.lastReadAt),
       this.lastMessageView(threadId, actorCompanyId, viewerUserId),
     ]);
-    return this.serializer.toThreadDetail({ thread, participants, mine, unreadCount, lastMessage });
+    const extras = await this.detailExtras(threadId, actorCompanyId, role, viewerUserId, thread.type);
+    return this.serializer.toThreadDetail({
+      thread,
+      participants,
+      mine,
+      unreadCount,
+      lastMessage,
+      ...extras,
+    });
   }
 
-  private async loadForViewer(threadId: string, actorCompanyId: string, role: string | null) {
+  private async loadForViewer(
+    threadId: string,
+    actorCompanyId: string,
+    role: string | null,
+    viewerUserId: string | null = null,
+  ) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId },
       include: { participants: { include: { company: true } } },
@@ -514,7 +720,14 @@ export class ThreadService {
     if (!mine || mine.leftAt || mine.state === ThreadParticipantState.Archived) {
       throw this.notFound();
     }
-    if (thread.visibility === ThreadVisibility.OwnerOnly && role !== MembershipRole.Owner) {
+    if (viewerUserId) {
+      const member = await this.prisma.threadMember.findUnique({
+        where: { threadId_userId: { threadId, userId: viewerUserId } },
+      });
+      if (!member || member.state !== ThreadMemberState.Active || member.companyId !== actorCompanyId) {
+        throw this.notFound();
+      }
+    } else if (thread.visibility === ThreadVisibility.OwnerOnly && role !== MembershipRole.Owner) {
       throw this.notFound();
     }
     return { thread, participants: thread.participants, mine };
@@ -525,11 +738,12 @@ export class ThreadService {
     viewerCompanyId: string,
     viewerUserId: string | null = null,
   ): Promise<MessageView | null> {
-    const [message] = await this.prisma.message.findMany({
+    const recent = await this.prisma.message.findMany({
       where: { threadId },
       orderBy: { createdAt: 'desc' },
-      take: 1,
+      take: 8,
     });
+    const message = recent.find((row) => messageVisibleToCompany(row, viewerCompanyId));
     if (!message) {
       return null;
     }
@@ -650,27 +864,191 @@ export class ThreadService {
         },
       },
     });
+    await seedOwnersAndStaff(this.prisma, thread.id, buyerCompanyId, []);
+    await seedOwnersAndStaff(this.prisma, thread.id, sellerCompanyId, []);
     return thread.id;
   }
 
   findDirectThreadId(a: string, b: string): Promise<string | null> {
-    return this.findDirectThread(a, b, ThreadVisibility.Shared).then((thread) => thread?.id ?? null);
+    return this.findDirectThread(a, b).then((thread) => thread?.id ?? null);
   }
 
-  private findDirectThread(
-    a: string,
-    b: string,
-    visibility: ThreadVisibility = ThreadVisibility.Shared,
-  ) {
-    return this.prisma.thread.findFirst({
+  async nudgeArchivedRecipients(threadId: string, senderCompanyId: string): Promise<string[]> {
+    const others = await this.prisma.threadParticipant.findMany({
       where: {
-        type: ThreadType.Direct,
-        visibility,
-        AND: [
-          { participants: { some: { companyId: a } } },
-          { participants: { some: { companyId: b } } },
-        ],
+        threadId,
+        companyId: { not: senderCompanyId },
+        state: ThreadParticipantState.Archived,
       },
+    });
+    const notified: string[] = [];
+    for (const row of others) {
+      if (await this.visibility.isBlocked(senderCompanyId, row.companyId)) {
+        continue;
+      }
+      await this.prisma.threadParticipant.update({
+        where: { id: row.id },
+        data: { state: ThreadParticipantState.Pending, leftAt: null },
+      });
+      await seedOwnersAndStaff(this.prisma, threadId, row.companyId, []);
+      notified.push(...(await this.ownerIds(row.companyId)));
+    }
+    return notified;
+  }
+
+  async notifyUserIdsForMessage(
+    threadId: string,
+    senderCompanyId: string,
+  ): Promise<{ companyIds: string[]; userIds: string[] }> {
+    const others = await this.prisma.threadParticipant.findMany({
+      where: {
+        threadId,
+        companyId: { not: senderCompanyId },
+        state: { in: [ThreadParticipantState.Active, ThreadParticipantState.Pending] },
+        leftAt: null,
+      },
+      select: { companyId: true, state: true },
+    });
+    const companyIds = others.map((row) => row.companyId);
+    const members = await this.prisma.threadMember.findMany({
+      where: {
+        threadId,
+        companyId: { in: companyIds },
+        state: ThreadMemberState.Active,
+        alertLevel: { not: 'muted' },
+      },
+      select: { userId: true, companyId: true },
+    });
+    const pendingCompanies = new Set(
+      others.filter((row) => row.state === ThreadParticipantState.Pending).map((row) => row.companyId),
+    );
+    const ownerSet = new Set<string>();
+    for (const companyId of pendingCompanies) {
+      for (const id of await this.ownerIds(companyId)) ownerSet.add(id);
+    }
+    const userIds = [
+      ...new Set([
+        ...members.map((m) => m.userId),
+        ...[...ownerSet],
+      ]),
+    ];
+    return { companyIds, userIds };
+  }
+
+  private async detailExtras(
+    threadId: string,
+    actorCompanyId: string,
+    role: string | null,
+    viewerUserId: string | null,
+    type: string,
+  ): Promise<{
+    people: ThreadPersonView[];
+    canLeave: boolean;
+    canRemoveGroup: boolean;
+    canManagePeople: boolean;
+    alertLevel: string;
+  }> {
+    const peopleRows = await this.prisma.threadMember.findMany({
+      where: { threadId, companyId: actorCompanyId, state: ThreadMemberState.Active },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    const memberships = await this.prisma.companyMembership.findMany({
+      where: { companyId: actorCompanyId, userId: { in: peopleRows.map((r) => r.userId) } },
+      select: { userId: true, role: true },
+    });
+    const roleByUser = new Map(memberships.map((m) => [m.userId, m.role]));
+    const people: ThreadPersonView[] = peopleRows.map((row) => ({
+      userId: row.userId,
+      name: row.user.name?.trim() || 'Team',
+      role: roleByUser.get(row.userId) ?? 'staff',
+      state: row.state,
+    }));
+    let canLeave = Boolean(viewerUserId);
+    if (canLeave && type === ThreadType.Direct && role === MembershipRole.Owner) {
+      const owners = await this.ownerIds(actorCompanyId);
+      const activeOwners = peopleRows.filter((row) => owners.includes(row.userId)).length;
+      canLeave = activeOwners > 1;
+    }
+    const mineMember = viewerUserId
+      ? peopleRows.find((row) => row.userId === viewerUserId)
+      : undefined;
+    return {
+      people,
+      canLeave,
+      canRemoveGroup: type === ThreadType.Group && role === MembershipRole.Owner,
+      canManagePeople: role === MembershipRole.Owner,
+      alertLevel: mineMember?.alertLevel ?? 'all',
+    };
+  }
+
+  private async ownerIds(companyId: string): Promise<string[]> {
+    const rows = await this.prisma.companyMembership.findMany({
+      where: { companyId, role: MembershipRole.Owner, archivedAt: null },
+      select: { userId: true },
+    });
+    return rows.map((row) => row.userId);
+  }
+
+  private async assertPeopleClone(
+    threadId: string,
+    actorCompanyId: string,
+    nextPeopleKey: string,
+  ): Promise<void> {
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId },
+      include: { participants: true },
+    });
+    if (!thread || thread.type !== ThreadType.Group) return;
+    const others = thread.participants
+      .map((p) => p.companyId)
+      .filter((id) => id !== actorCompanyId);
+    const hit = await this.findGroupByFingerprint(actorCompanyId, others, nextPeopleKey, threadId);
+    if (hit) throw sameChatConflict(hit.id, hit.title);
+  }
+
+  private async findGroupByFingerprint(
+    actorCompanyId: string,
+    otherCompanyIds: string[],
+    peopleKey: string,
+    exceptThreadId?: string,
+  ) {
+    const wanted = new Set([actorCompanyId, ...otherCompanyIds]);
+    const candidates = await this.prisma.thread.findMany({
+      where: {
+        type: ThreadType.Group,
+        ...(exceptThreadId ? { id: { not: exceptThreadId } } : {}),
+        AND: [...wanted].map((companyId) => ({
+          participants: { some: { companyId } },
+        })),
+      },
+      include: { participants: true },
+    });
+    for (const candidate of candidates) {
+      const ids = new Set(candidate.participants.map((p) => p.companyId));
+      if (ids.size !== wanted.size) continue;
+      const people = peopleFingerprint(
+        await countedPeopleForCompany(this.prisma, candidate.id, actorCompanyId),
+      );
+      if (people === peopleKey) return candidate;
+    }
+    return null;
+  }
+
+  private async findDirectThread(a: string, b: string) {
+    const pair = {
+      type: ThreadType.Direct,
+      AND: [
+        { participants: { some: { companyId: a } } },
+        { participants: { some: { companyId: b } } },
+      ],
+    };
+    const shared = await this.prisma.thread.findFirst({
+      where: { ...pair, visibility: ThreadVisibility.Shared },
+      include: { participants: true },
+    });
+    if (shared) return shared;
+    return this.prisma.thread.findFirst({
+      where: pair,
       include: { participants: true },
     });
   }

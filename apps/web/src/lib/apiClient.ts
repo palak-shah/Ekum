@@ -1,9 +1,13 @@
-import type { AuthTokens, ErrorEnvelope } from '@ekum/domain-types';
+import type { AuthSession, AuthTokens, ErrorEnvelope } from '@ekum/domain-types';
+import {
+  TOKEN_STORAGE_KEY,
+  isDefinitiveAuthFailure,
+  readStoredTokens,
+  refreshAuthTokens,
+} from './tokenRefresh';
 
 const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3000/api/v1';
-
-const TOKEN_STORAGE_KEY = 'ekum.tokens';
 
 /**
  * A typed error carrying the server's ErrorEnvelope. UI shows `message`; code is
@@ -26,20 +30,32 @@ export class ApiError extends Error {
 let tokens: AuthTokens | null = readStoredTokens();
 const listeners = new Set<(tokens: AuthTokens | null) => void>();
 
-function readStoredTokens(): AuthTokens | null {
-  try {
-    const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AuthTokens) : null;
-  } catch {
-    return null;
-  }
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== TOKEN_STORAGE_KEY) return;
+    if (event.newValue) {
+      try {
+        tokens = JSON.parse(event.newValue) as AuthTokens;
+      } catch {
+        tokens = null;
+      }
+    } else {
+      tokens = null;
+    }
+    for (const listener of listeners) {
+      listener(tokens);
+    }
+  });
 }
 
 export function getTokens(): AuthTokens | null {
   return tokens;
 }
 
-export function setTokens(next: AuthTokens | null): void {
+export function setTokens(
+  next: AuthTokens | null,
+  options?: { notify?: boolean },
+): void {
   tokens = next;
   try {
     if (next) {
@@ -50,8 +66,10 @@ export function setTokens(next: AuthTokens | null): void {
   } catch {
     // Storage may be unavailable (private mode); the in-memory copy still works.
   }
-  for (const listener of listeners) {
-    listener(next);
+  if (options?.notify !== false) {
+    for (const listener of listeners) {
+      listener(next);
+    }
   }
 }
 
@@ -81,36 +99,64 @@ function buildUrl(path: string, query?: Query): string {
   return url.toString();
 }
 
-// Single-flight refresh: concurrent 401s share one refresh round-trip.
-let refreshInFlight: Promise<AuthTokens | null> | null = null;
+let refreshInFlight: Promise<AuthSession | null> | null = null;
 
-async function refreshTokens(): Promise<AuthTokens | null> {
-  if (!tokens?.refreshToken) {
-    return null;
+async function fetchRefreshSession(refreshToken: string): Promise<{
+  ok: boolean;
+  status: number;
+  code?: string;
+  session?: AuthSession;
+}> {
+  try {
+    const response = await fetch(buildUrl('/auth/refresh'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (response.ok) {
+      const session = (await response.json()) as AuthSession;
+      return { ok: true, status: response.status, session };
+    }
+    let code: string | undefined;
+    try {
+      const envelope = (await response.json()) as Partial<ErrorEnvelope>;
+      code = envelope.code;
+    } catch {
+      // ignore parse errors
+    }
+    return { ok: false, status: response.status, code };
+  } catch {
+    return { ok: false, status: 0, code: 'NETWORK' };
   }
+}
+
+/** Single-flight, cross-tab-safe refresh. Clears tokens only on definitive auth failure. */
+export async function performTokenRefresh(): Promise<AuthSession | null> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      try {
-        const response = await fetch(buildUrl('/auth/refresh'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ refreshToken: tokens?.refreshToken }),
-        });
-        if (!response.ok) {
-          setTokens(null);
-          return null;
-        }
-        const session = (await response.json()) as { tokens: AuthTokens };
-        setTokens(session.tokens);
-        return session.tokens;
-      } catch {
+      const result = await refreshAuthTokens(tokens, fetchRefreshSession);
+      if (result.cleared) {
+        setTokens(null);
         return null;
-      } finally {
-        refreshInFlight = null;
       }
-    })();
+      if (result.session) {
+        setTokens(result.session.tokens, { notify: false });
+        return result.session;
+      }
+      if (result.tokens) {
+        setTokens(result.tokens, { notify: false });
+      }
+      return null;
+    })().finally(() => {
+      refreshInFlight = null;
+    });
   }
   return refreshInFlight;
+}
+
+async function refreshTokens(): Promise<AuthTokens | null> {
+  const session = await performTokenRefresh();
+  return session?.tokens ?? null;
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -154,6 +200,14 @@ async function execute<T>(
     if (refreshed) {
       return execute<T>(method, path, options, false);
     }
+    if (!getTokens()?.refreshToken) {
+      throw await parseError(response);
+    }
+    throw new ApiError({
+      statusCode: 503,
+      code: 'SESSION_REFRESH_PENDING',
+      message: 'Could not reach Ekum to refresh your session. Try again.',
+    });
   }
 
   if (!response.ok) {
@@ -180,3 +234,5 @@ export const api = {
   publicGet: <T>(path: string, query?: Query) =>
     execute<T>('GET', path, { query, auth: false }, false),
 };
+
+export { isDefinitiveAuthFailure };

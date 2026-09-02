@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BroadcastListView,
   BroadcastView,
@@ -15,11 +15,13 @@ import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { Button, Card, Field, LoadingBlock, TextArea, TextInput, cx } from '@/ui/kit';
+import { BuyerGroupFormSheet } from './BuyerGroupFormSheet';
 
 type BroadcastKind = 'collection' | 'text';
 
 export function BroadcastComposePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const preselectedCollectionId = params.get('collectionId');
   const [kind, setKind] = useState<BroadcastKind | null>(
@@ -30,6 +32,7 @@ export function BroadcastComposePage() {
   const [body, setBody] = useState('');
   const [recipients, setRecipients] = useState<string[]>([]);
   const [lists, setLists] = useState<Set<string>>(new Set());
+  const [groupSheetOpen, setGroupSheetOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<number | null>(null);
 
@@ -105,6 +108,9 @@ export function BroadcastComposePage() {
   }
 
   const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
+  const buyerGroups = savedLists.data ?? [];
+  const selectedGroups = buyerGroups.filter((list) => lists.has(list.id));
+  const groupMemberCount = new Set(selectedGroups.flatMap((list) => list.memberCompanyIds)).size;
   const hasAudience = recipients.length > 0 || lists.size > 0;
   const contentReady =
     kind === 'collection'
@@ -252,31 +258,52 @@ export function BroadcastComposePage() {
 
       {kind ? (
         <>
-          {savedLists.data && savedLists.data.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-ink">Saved lists</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-ink">Buyer groups</p>
+              <button
+                type="button"
+                className="text-xs font-medium text-accent"
+                onClick={() => setGroupSheetOpen(true)}
+              >
+                {buyerGroups.length > 0 ? 'Add group' : 'Create group'}
+              </button>
+            </div>
+            {savedLists.isLoading ? (
+              <LoadingBlock label="Loading groups…" />
+            ) : buyerGroups.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {savedLists.data.map((list) => (
+                {buyerGroups.map((list) => (
                   <button
                     key={list.id}
                     type="button"
                     onClick={() => toggleList(list.id)}
                     className={cx(
-                      'rounded-full px-3 py-1.5 text-sm',
-                      lists.has(list.id) ? 'bg-accent text-white' : 'bg-foam text-muted',
+                      'rounded-full border px-3 py-1.5 text-sm',
+                      lists.has(list.id)
+                        ? 'border-accent bg-accent/5 font-medium text-ink'
+                        : 'border-line bg-foam text-muted',
                     )}
                   >
                     {list.name} · {list.memberCount}
                   </button>
                 ))}
               </div>
-            </div>
-          ) : null}
+            ) : (
+              <p className="text-xs text-muted">Reuse the same buyers next time</p>
+            )}
+            {lists.size > 0 ? (
+              <p className="text-xs text-muted">
+                {groupMemberCount} business{groupMemberCount === 1 ? '' : 'es'} in selected groups
+                {selectedGroups.length > 1 ? ` · ${selectedGroups.length} groups` : ''}
+              </p>
+            ) : null}
+          </div>
 
           <ConnectionPicker
             mode="multi"
-            label="Recipients"
-            chooseLabel="Choose recipients"
+            label={lists.size > 0 ? 'Or add companies' : 'Recipients'}
+            chooseLabel={lists.size > 0 ? 'Add companies' : 'Choose recipients'}
             connections={activeConnections}
             value={recipients}
             onChange={setRecipients}
@@ -292,6 +319,15 @@ export function BroadcastComposePage() {
               {send.isPending ? 'Sending…' : 'Send broadcast'}
             </Button>
           </div>
+
+          <BuyerGroupFormSheet
+            open={groupSheetOpen}
+            onClose={() => setGroupSheetOpen(false)}
+            onSaved={(list) => {
+              void queryClient.invalidateQueries({ queryKey: ['broadcast-lists'] });
+              setLists((prev) => new Set(prev).add(list.id));
+            }}
+          />
         </>
       ) : null}
     </div>

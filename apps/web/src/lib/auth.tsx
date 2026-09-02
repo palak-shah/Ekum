@@ -1,9 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthSession, SessionUser } from '@ekum/domain-types';
 import { queryClient } from '@/app/queryClient';
 import { clearBrowseShortlist } from '@/features/browse/browseShortlist';
-import { api, getTokens, onTokenChange, setTokens } from './apiClient';
+import {
+  ApiError,
+  api,
+  getTokens,
+  isDefinitiveAuthFailure,
+  onTokenChange,
+  performTokenRefresh,
+  setTokens,
+} from './apiClient';
 
 interface SessionState {
   user: SessionUser;
@@ -11,7 +19,7 @@ interface SessionState {
 }
 
 interface AuthContextValue {
-  status: 'loading' | 'authenticated' | 'anonymous';
+  status: 'loading' | 'authenticated' | 'anonymous' | 'degraded';
   session: SessionState | null;
   login: (session: AuthSession) => void;
   logout: () => Promise<void>;
@@ -24,20 +32,40 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthContextValue['status']>('loading');
   const [session, setSession] = useState<SessionState | null>(null);
+  const loadSeq = useRef(0);
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   const loadMe = useCallback(async () => {
+    const seq = ++loadSeq.current;
     if (!getTokens()?.accessToken) {
+      if (seq !== loadSeq.current) return;
       setSession(null);
       setStatus('anonymous');
       return;
     }
     try {
       const me = await api.get<{ user: SessionUser; needsOnboarding: boolean }>('/auth/me');
+      if (seq !== loadSeq.current) return;
       setSession({ user: me.user, needsOnboarding: me.needsOnboarding });
       setStatus('authenticated');
-    } catch {
-      setSession(null);
-      setStatus('anonymous');
+    } catch (err) {
+      if (seq !== loadSeq.current) return;
+      if (!getTokens()?.accessToken) {
+        setSession(null);
+        setStatus('anonymous');
+        return;
+      }
+      if (err instanceof ApiError && isDefinitiveAuthFailure(err.statusCode, err.code)) {
+        if (getTokens()?.accessToken) {
+          setTokens(null);
+        }
+        setSession(null);
+        setStatus('anonymous');
+        return;
+      }
+      // Transient API/network failure — keep tokens; do not send user to OTP.
+      setStatus((prev) => (prev === 'authenticated' ? 'authenticated' : 'degraded'));
     }
   }, []);
 
@@ -46,17 +74,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A 401 that fails to refresh clears tokens; reflect that as sign-out.
     return onTokenChange((next) => {
       if (!next) {
+        loadSeq.current += 1;
         setSession(null);
         setStatus('anonymous');
         queryClient.clear();
+        return;
       }
+      // Token rotation already paired with session; skip /auth/me races after login/refresh.
+      if (statusRef.current === 'authenticated') return;
+      void loadMe();
     });
   }, [loadMe]);
 
+  useEffect(() => {
+    if (status !== 'degraded') return;
+    const id = window.setInterval(() => {
+      void loadMe();
+    }, 5_000);
+    return () => window.clearInterval(id);
+  }, [status, loadMe]);
+
   const login = useCallback((incoming: AuthSession) => {
+    loadSeq.current += 1;
     // Drop prior tenant cache so Home never greets the previous company.
     queryClient.clear();
-    setTokens(incoming.tokens);
+    setTokens(incoming.tokens, { notify: false });
     setSession({ user: incoming.user, needsOnboarding: incoming.needsOnboarding });
     setStatus('authenticated');
   }, []);
@@ -70,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Best-effort; clear locally regardless.
       }
     }
+    loadSeq.current += 1;
     setTokens(null);
     setSession(null);
     setStatus('anonymous');
@@ -78,12 +121,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshSession = useCallback(async () => {
-    const refreshToken = getTokens()?.refreshToken;
-    if (!refreshToken) {
+    const next = await performTokenRefresh();
+    if (!next) {
+      if (!getTokens()?.refreshToken) {
+        loadSeq.current += 1;
+        setSession(null);
+        setStatus('anonymous');
+      }
       return;
     }
-    const next = await api.publicPost<AuthSession>('/auth/refresh', { refreshToken });
-    setTokens(next.tokens);
+    loadSeq.current += 1;
+    setTokens(next.tokens, { notify: false });
     setSession({ user: next.user, needsOnboarding: next.needsOnboarding });
     setStatus('authenticated');
   }, []);

@@ -64,4 +64,26 @@ test.describe('chat journey @functional @chat', () => {
       });
     }
   });
+
+  test('owner more menu has mute and not Private', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/chats/seed-thread-1');
+
+    await page.getByTestId('thread-more').click();
+    await expect(page.getByTestId('thread-more-menu')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('thread-pin')).toBeVisible();
+    await expect(page.getByTestId('thread-mute')).toBeVisible();
+    await expect(page.getByTestId('thread-open-private')).toHaveCount(0);
+    await expect(page.getByText('Private')).toHaveCount(0);
+  });
+
+  test('plus sheet is New chat without Private', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/chats');
+    await page.getByRole('button', { name: 'New chat' }).click();
+    await expect(page.getByRole('heading', { name: 'New chat' })).toBeVisible();
+    await expect(page.getByText('Your team and one or more businesses')).toHaveCount(0);
+    await expect(page.getByTestId('start-private-chat')).toHaveCount(0);
+    await expect(page.getByTestId('start-team-chat')).toHaveCount(0);
+  });
 });

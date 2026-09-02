@@ -45,6 +45,11 @@ describe('ThreadService.accept / decline', () => {
         }),
       },
       message: { count: async () => 0, findMany: async () => [] },
+      threadMember: {
+        findUnique: async () => ({ state: 'active', companyId: 'me' }),
+        findMany: async () => [],
+      },
+      companyMembership: { findMany: async () => [] },
     } as unknown as PrismaService;
     const serializer = {
       toThreadDetail: () => ({ id: 't1', state: ThreadParticipantState.Active }),

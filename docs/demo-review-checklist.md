@@ -169,6 +169,8 @@ Log out on both browsers (**You → Log out**), then log in again.
 |---------|-----|
 | No OTP on screen | `OTP_EXPOSE_DEV_CODE=true` in `apps/api/.env`; restart API |
 | Empty Explore / wrong data | `pnpm --filter @ekum/api db:seed`; re-login |
+| Broken Explore thumbs (Mill Lot / Wedding Edit) | Fabric photos live in `apps/api/prisma/seed-assets/`. Seed copies them to `apps/api/.media/seed/*.jpg`. Run `pnpm --filter @ekum/api db:seed` and hard-refresh; restart API if thumbs 404. Do not rely on picsum.photos |
+| Logged out after DB wipe / migrate reset | Expected — refresh rows gone; OTP once (like a new phone). Ordinary `db:seed` does not wipe sessions |
 | 401 / blank shell | Log out from **You**, log in again |
 | Stale UI | Hard refresh or incognito |
 

@@ -10,7 +10,7 @@ export type CollectionBadgeInput = CollectionSummaryInput;
 export type CollectionBadge = {
   /** Primary: Draft / Starts… / Live / Archived */
   primary: string;
-  /** Secondary: Evergreen or Ends… when Live */
+  /** Secondary: Ends… when Live and an end date is set */
   secondary: string | null;
 };
 

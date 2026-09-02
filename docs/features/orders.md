@@ -8,7 +8,7 @@ Sellers can fulfill **partially**: quote fewer qty / skip designs, confirm or de
 
 ## Who uses it
 
-Buyers place / accept quotes; sellers quote, confirm, dispatch, deliver. Both manage samples and returns from You menu and Orders tab.
+Buyers place / accept quotes; sellers quote, confirm, dispatch, deliver. Samples and returns are managed from the **Orders** tab (unified feed + type filter).
 
 ## User flows
 
@@ -37,7 +37,9 @@ Set on **You → Profile** (default) and override on each forward / publish / cu
 
 ### Samples & returns (on Orders)
 
-Samples and returns appear in the same `/orders` list (meta line says Sample / Return). Find → **Sample** or **Return**, or open `/orders?kind=sample|return` (You links). Sample rows are glanceable (no detail route yet); return rows open the related order with `?return=` so detail shows and highlights that return.
+Samples and returns appear in the same `/orders` list (meta line says Sample / Return). Find → **Sample** or **Return**, or open `/orders?kind=sample|return`. Sample rows are glanceable (no detail route yet); return rows open the related order with `?return=` so detail shows and highlights that return.
+
+**Sample (planned):** a toggle on the order builder marks the trade as a sample — an indicator only, same lifecycle as a normal order (parallel to **Inquiry**). No separate Samples menu or ＋ entry.
 
 | Need | How |
 |------|-----|
@@ -48,7 +50,7 @@ Samples and returns appear in the same `/orders` list (meta line says Sample / R
 
 ### Samples (`/samples`)
 
-Redirects to `/orders?kind=sample`. Lifecycle: request → seller dispatch → buyer receive / decline → optional **convert** to order.
+Redirects to `/orders?kind=sample` (deep link only — not in You menu). Future: sample is an order-level toggle at place time, not a separate workflow.
 
 ### Returns (`/returns`)
 
@@ -94,7 +96,7 @@ Redirects to `/orders?kind=return`. Within return window after **full** deliver 
 | Dispatchable qty | Only `confirmed` / `dispatched` lines have remaining qty — `open` lines cannot be shipped |
 | Return window | Set on full deliver (`RETURN_WINDOW_DAYS`); job `return_window.expire` |
 | Payment ask | Seller **Ask for payment** after confirmed / dispatched / delivered. Amount required; note and pay-how optional. One `open` ask at a time. Buyer **Paid**; seller **Mark received**. Honour system — Ekum does not move money. Living `payment_card` in the trade thread. |
-| Buy for buyer | Same select → quantity sheet (`{n} design(s)`). If selling/trading: **Place Order** + **Ask rates** when sourcing for yourself; **Order for buyer** opens buyer picker (connected buyer or Not on Ekum yet) → log `requested`; they **Accept**. Own designs only → **Order for buyer** only. Off-app `/o/:token`. No ＋ page. No auto Send-up. |
+| Buy for buyer | Same select → quantity sheet (`{n} design(s)`). If selling/trading: **Place Order** + **Ask rates** when sourcing for yourself; **Order for buyer** opens buyer picker (connections + **Find on Ekum**). **Not on Ekum yet** (name + phone) appears only after a Find search with no match — not beside the empty search. Log `requested`; they **Accept**. Own designs only → **Order for buyer** only. Off-app `/o/:token`. No ＋ page. No auto Send-up. |
 
 ## Edge cases / empty states
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-**You** (`/more`) is the personal hub: catalog, buyers, samples, returns, tools, profile, trade presence, and logout. Settings hold addresses, billing firms, and company preferences.
+**You** (`/more`) is the personal hub: catalog, saved items, network, tools, profile, trade presence, and logout. Settings hold addresses, billing firms, and company preferences. Samples and returns live on the **Orders** tab only (filter by type).
 
 ## Who uses it
 
@@ -13,7 +13,7 @@ Every signed-in company owner/operator in Phase 1.
 ### You (`/more`)
 
 1. Avatar → You.
-2. Jump to My designs, **Saved**, Network, Samples, Returns, Broadcast/Referrals (when allowed), Settings, Profile.
+2. Jump to My designs, **Saved**, Network, Team, Settings, Profile.
 3. Logout.
 
 ### Settings (`/settings`)
@@ -29,7 +29,7 @@ Every signed-in company owner/operator in Phase 1.
 | Rule | Detail |
 |------|--------|
 | Trade presence | Turning selling off hides seller ＋ actions; creating catalog content can force selling back on |
-| Capabilities | `publish` / `refer` still gate Broadcast / Refer even if selling is on |
+| Capabilities | `publish` / `refer` still gate ＋ Broadcast and Refer even if selling is on |
 | Contact person vs business | Profile edits business fields; auth user name is the person |
 | Logout | Clears tokens; next open → login |
 
@@ -42,7 +42,7 @@ Every signed-in company owner/operator in Phase 1.
 ## Seed walkthrough
 
 1. As **Ravi**: You → My designs → Surat Silk House catalog; Settings → confirm selling on.
-2. As **Meena**: You → Samples / Returns; confirm business name Jaipur Emporium on profile.
+2. As **Meena**: You → Business profile; confirm business name Jaipur Emporium. Orders → filter **Return** to see returns.
 3. Toggle buying off briefly → ＋ loses buyer actions → restore.
 
 ## Where it lives

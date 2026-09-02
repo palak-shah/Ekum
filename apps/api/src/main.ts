@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import { join } from 'node:path';
 import { VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -7,6 +6,7 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import type { Env } from './core/config/config.schema';
 import { mountLocalMedia } from './media/local-media.mount';
+import { resolveLocalMediaRoot } from './media/local-media-root';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -28,8 +28,9 @@ async function bootstrap(): Promise<void> {
   const azureAccount = config.get('AZURE_STORAGE_ACCOUNT', { infer: true });
   const azureKey = config.get('AZURE_STORAGE_KEY', { infer: true });
   if (!azureAccount || !azureKey) {
-    mountLocalMedia(app, join(process.cwd(), '.media'));
-    app.get(Logger).warn('Local media mounted at /.media (dev uploads)');
+    const mediaRoot = resolveLocalMediaRoot();
+    mountLocalMedia(app, mediaRoot);
+    app.get(Logger).warn(`Local media mounted at ${mediaRoot}`);
   }
 
   const port = config.get('PORT', { infer: true });

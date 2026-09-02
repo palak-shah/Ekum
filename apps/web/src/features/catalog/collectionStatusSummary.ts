@@ -91,7 +91,8 @@ function scheduleForPublished(
     };
   }
 
-  let scheduleLabel: string | null = 'Evergreen';
+  // No end date = live indefinitely; omit schedule label until scheduling ships.
+  let scheduleLabel: string | null = null;
   if (endsAt && collection.endsAt) {
     const days = daysUntil(collection.endsAt, now);
     scheduleLabel =

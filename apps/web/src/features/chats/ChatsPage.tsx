@@ -5,11 +5,14 @@ import type { CursorPage, ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { timeAgo } from '@/lib/format';
+import { FindInExploreLink } from '@/ui/FindInExploreLink';
 import { Avatar, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { PinIcon, PlusIcon } from '@/ui/icons';
 import { threadDisplayTitle } from './chatsListSearch';
-import { chatTypeMeta, messagePreviewText } from './messagePreview';
+import { threadVisibilityLabel } from './threadVisibilityLabel';
+import { inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
+import { KindIconBadge } from './KindIconBadge';
 import { StartChatSheet } from './StartChatSheet';
 
 type Tab = 'active' | 'requests';
@@ -132,13 +135,16 @@ export function ChatsPage() {
           }
           action={
             !searching && tab === 'active' ? (
-              <button
-                type="button"
-                onClick={() => setStartOpen(true)}
-                className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
-              >
-                Start a chat
-              </button>
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStartOpen(true)}
+                  className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white"
+                >
+                  Start a chat
+                </button>
+                <FindInExploreLink label="Find businesses" variant="ghost" fullWidth={false} />
+              </div>
             ) : undefined
           }
         />
@@ -151,10 +157,11 @@ export function ChatsPage() {
 
 function ThreadRow({ thread }: { thread: ThreadSummary }) {
   const title = threadDisplayTitle(thread);
+  const visibility = threadVisibilityLabel(thread);
   const whyLine = thread.searchHitPreview?.trim() || null;
   const preview = whyLine ?? messagePreviewText(thread.lastMessage);
-  const meta = !whyLine && thread.lastMessage ? chatTypeMeta(thread.lastMessage.type) : null;
-  const PreviewIcon = meta?.Icon;
+  const previewType =
+    !whyLine && thread.lastMessage ? inboxPreviewTypeKey(thread.lastMessage) : null;
   const to =
     whyLine && thread.searchHitMessageId
       ? `/chats/${thread.id}?message=${encodeURIComponent(thread.searchHitMessageId)}`
@@ -168,11 +175,14 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
       <Avatar name={title} imageUrl={thread.counterpart?.logoUrl} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1.5 truncate text-[15px] font-semibold text-ink">
+          <p className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-ink">
             {thread.pinned ? (
               <PinIcon width={12} height={12} className="shrink-0 text-muted" aria-hidden />
             ) : null}
             <span className="truncate">{title}</span>
+            {visibility ? (
+              <span className="shrink-0 text-xs font-medium text-muted">· {visibility}</span>
+            ) : null}
           </p>
           <span
             className={cx(
@@ -185,8 +195,8 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="flex min-w-0 items-center gap-1 truncate text-sm text-muted">
-            {PreviewIcon && thread.lastMessage && thread.lastMessage.type !== 'text' ? (
-              <PreviewIcon width={14} height={14} className="shrink-0 text-slate" aria-hidden />
+            {previewType ? (
+              <KindIconBadge messageType={previewType} size={18} iconSize={14} />
             ) : null}
             <span className="truncate">{preview}</span>
           </p>

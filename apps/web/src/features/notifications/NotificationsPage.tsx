@@ -103,6 +103,7 @@ export function NotificationsPage() {
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
           <button
             type="button"
+            data-testid="notifications-mark-all-read"
             className="text-xs font-bold tracking-tight text-accent disabled:opacity-50"
             onClick={() => markAll.mutate()}
             disabled={markAll.isPending}
@@ -137,6 +138,7 @@ export function NotificationsPage() {
           {items.map((item) => (
             <div
               key={item.id}
+              data-testid="notification-item"
               className="flex items-start gap-1 rounded-xl px-1 py-2.5 hover:bg-foam"
             >
               <Link to={link(item)} className="flex min-w-0 flex-1 items-start gap-2 px-1">
@@ -151,6 +153,7 @@ export function NotificationsPage() {
               </Link>
               <button
                 type="button"
+                data-testid="notification-delete"
                 aria-label="Delete notification"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-muted hover:bg-surface hover:text-ink"
                 onClick={() => deleteOne.mutate(item.id)}

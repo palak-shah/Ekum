@@ -59,7 +59,7 @@ export class TeamService {
 
   async listMembers(companyId: string): Promise<TeamMemberView[]> {
     const rows = await this.prisma.companyMembership.findMany({
-      where: { companyId },
+      where: { companyId, archivedAt: null },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       include: { user: { select: { id: true, name: true, phone: true } } },
     });
@@ -125,6 +125,17 @@ export class TeamService {
     });
     if (existing) {
       if (existing.companyId === invite.companyId) {
+        if (existing.archivedAt) {
+          await this.prisma.companyMembership.update({
+            where: { id: existing.id },
+            data: { archivedAt: null },
+          });
+          const tokens = await this.tokens.issue(
+            { id: actor.userId, phone: actor.phone },
+            invite.companyId,
+          );
+          return { tokens, companyId: invite.companyId };
+        }
         throw new ConflictException({
           code: 'ALREADY_MEMBER',
           message: 'You are already on this team.',
@@ -222,9 +233,32 @@ export class TeamService {
         message: 'You cannot remove yourself here.',
       });
     }
-    await this.prisma.companyMembership.delete({
+    await this.prisma.companyMembership.update({
       where: { userId_companyId: { userId, companyId } },
+      data: { archivedAt: new Date() },
     });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const name = user?.name?.trim() || 'Someone';
+    const threads = await this.prisma.threadMember.findMany({
+      where: { userId, companyId, state: { not: 'removed' } },
+      select: { threadId: true },
+    });
+    if (threads.length > 0) {
+      await this.prisma.message.createMany({
+        data: threads.map((row) => ({
+          threadId: row.threadId,
+          senderCompanyId: companyId,
+          senderUserId: userId,
+          senderName: name,
+          type: 'system',
+          body: `${name} left the team.`,
+          metadata: { side: 'company', companyId },
+        })),
+      });
+    }
   }
 
   private async requireOpenInvite(token: string) {

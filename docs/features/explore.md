@@ -18,6 +18,7 @@ Buyers, sellers, and dual-role companies. Explore is not limited to “seller ca
 6. Follow businesses; open album or design detail (`/explore/products/:id`, `/collections/:id`). **Bookmark** in the Explore header opens **Saved**. On a design page, tap a photo → shared **PhotoViewer** (pinch / swipe within that design).
    - **Album:** long-press → select album. **Design:** long-press → select design. Both can stay selected together.
    - Sticky dock: **Share** / **Bookmark** apply to everything selected (albums as collection cards, designs as product cards / Saved refs). **Order** / **Curate** (Trading on) use **designs only**. **Clear** empties the pick and **exits** select mode. Untapping the last selected item also exits — then tap opens the album/design again.
+   - **Follow** on post card header when you are not following and not connected (instant — not a request). Request access stays on the business profile.
    - Locked (`allowForward: false`): **Can’t share** under the title (before select); toast if selected anyway; **Share** / **Curate** only include shareable items. **Order** / **Bookmark** still work.
    - Tap still opens the album or design when not selecting. No Select control in the search chrome.
 7. Search — federated company / collection / design; feed stays until the user types (UX rule).
@@ -50,8 +51,10 @@ User control is **Buying** or **Selling** only (`?side=`). Dual presence (I buy 
 
 ## Edge cases / empty states
 
-- Cold start: prompt to browse businesses.
+- Cold start: **Find in Explore** from empty Chats and Share sheets → browse businesses (`?show=businesses&search=1`).
+- Share with no chats yet → **Find in Explore** (not a dead end); single selection still has **48h link**.
 - Buying + no follows → empty followed shelf; still offer supplier discovery.
+- Post feed: **Follow** on card when stranger views a discoverable post; hidden when following, connected, own post, or select mode.
 - Selected-audience posts hidden from non-selected viewers.
 - Story with no posts in current shelves → Open shop → company profile.
 

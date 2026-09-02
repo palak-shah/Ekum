@@ -25,6 +25,7 @@ import {
   ThreadType,
   VerificationStatus,
 } from '@ekum/domain-types';
+import { ensureSeedImages } from '../src/common/seed-media';
 
 const prisma = new PrismaClient();
 
@@ -37,28 +38,55 @@ const U_RAVI_STAFF = 'seed-user-ravi-staff';
 const U_MEENA = 'seed-user-meena';
 const U_KAVITA = 'seed-user-kavita';
 
+const DEMO_PEOPLE = [
+  { id: U_RAVI, phone: '+919800000001', last10: '9800000001', name: 'Ravi' },
+  { id: U_RAVI_STAFF, phone: '+919800000004', last10: '9800000004', name: 'Amit' },
+  { id: U_MEENA, phone: '+919800000002', last10: '9800000002', name: 'Meena' },
+  { id: U_KAVITA, phone: '+919800000003', last10: '9800000003', name: 'Kavita' },
+] as const;
+
+/** Leftover OTP rows (91… without +) must not steal demo numbers. */
+async function reclaimDemoPhones(): Promise<void> {
+  const rows = await prisma.user.findMany({ select: { id: true, phone: true } });
+  let n = 0;
+  for (const row of rows) {
+    const last10 = row.phone.replace(/\D/g, '').slice(-10);
+    const demo = DEMO_PEOPLE.find((person) => person.last10 === last10);
+    if (!demo || row.id === demo.id) continue;
+    await prisma.user.update({
+      where: { id: row.id },
+      data: { phone: `+9198099${String(n).padStart(5, '0')}` },
+    });
+    n += 1;
+  }
+}
+
 async function main(): Promise<void> {
+  const img = await ensureSeedImages();
+
+  await reclaimDemoPhones();
+
   // --- People -------------------------------------------------------------
   await prisma.user.upsert({
     where: { id: U_RAVI },
     create: { id: U_RAVI, phone: '+919800000001', name: 'Ravi' },
-    update: { name: 'Ravi' },
+    update: { phone: '+919800000001', name: 'Ravi' },
   });
   // Staff on Surat Silk House — OTP +919800000004 (no uploads / payments).
   await prisma.user.upsert({
     where: { id: U_RAVI_STAFF },
     create: { id: U_RAVI_STAFF, phone: '+919800000004', name: 'Amit' },
-    update: { name: 'Amit' },
+    update: { phone: '+919800000004', name: 'Amit' },
   });
   await prisma.user.upsert({
     where: { id: U_MEENA },
     create: { id: U_MEENA, phone: '+919800000002', name: 'Meena' },
-    update: { name: 'Meena' },
+    update: { phone: '+919800000002', name: 'Meena' },
   });
   await prisma.user.upsert({
     where: { id: U_KAVITA },
     create: { id: U_KAVITA, phone: '+919800000003', name: 'Kavita' },
-    update: { name: 'Kavita' },
+    update: { phone: '+919800000003', name: 'Kavita' },
   });
 
   // --- Businesses ---------------------------------------------------------
@@ -189,7 +217,7 @@ async function main(): Promise<void> {
       rate: 2450,
       unit: 'pc',
       categories: ['Sarees'],
-      images: ['https://picsum.photos/seed/banarasi/600/800'],
+      images: [img.banarasi],
     },
     {
       id: 'seed-prod-2',
@@ -198,7 +226,7 @@ async function main(): Promise<void> {
       rate: 1290,
       unit: 'pc',
       categories: ['Sarees'],
-      images: ['https://picsum.photos/seed/georgette/600/800'],
+      images: [img.georgette],
     },
     {
       id: 'seed-prod-3',
@@ -207,7 +235,7 @@ async function main(): Promise<void> {
       rate: 640,
       unit: 'set',
       categories: ['Dress Material'],
-      images: ['https://picsum.photos/seed/cotton/600/800'],
+      images: [img.cotton],
     },
     {
       id: 'seed-prod-4',
@@ -216,7 +244,7 @@ async function main(): Promise<void> {
       rate: 5200,
       unit: 'pc',
       categories: ['Sarees'],
-      images: ['https://picsum.photos/seed/kanjee/600/800'],
+      images: [img.kanjee],
     },
     {
       id: 'seed-prod-5',
@@ -225,7 +253,7 @@ async function main(): Promise<void> {
       rate: 980,
       unit: 'pc',
       categories: ['Sarees'],
-      images: ['https://picsum.photos/seed/chiffon/600/800'],
+      images: [img.chiffon],
     },
     {
       id: 'seed-prod-6',
@@ -234,7 +262,7 @@ async function main(): Promise<void> {
       rate: 750,
       unit: 'set',
       categories: ['Salwar'],
-      images: ['https://picsum.photos/seed/salwar/600/800'],
+      images: [img.salwar],
     },
     {
       id: 'seed-prod-7',
@@ -243,7 +271,7 @@ async function main(): Promise<void> {
       rate: 1100,
       unit: 'pc',
       categories: ['Sarees'],
-      images: ['https://picsum.photos/seed/linen/600/800'],
+      images: [img.linen],
     },
     {
       id: 'seed-prod-8',
@@ -252,7 +280,7 @@ async function main(): Promise<void> {
       rate: 1680,
       unit: 'pc',
       categories: ['Sarees'],
-      images: ['https://picsum.photos/seed/organza/600/800'],
+      images: [img.organza],
     },
     {
       id: 'seed-prod-no-image',
@@ -300,7 +328,7 @@ async function main(): Promise<void> {
       companyId: RAVI,
       name: 'Wedding Edit 2026',
       description: 'Hand-picked bridal and festive designs.',
-      coverImage: 'https://picsum.photos/seed/wedding/800/600',
+      coverImage: img.wedding,
       status: CollectionStatus.Published,
       audience: PublishAudience.Everyone,
       allowForward: true,
@@ -308,7 +336,7 @@ async function main(): Promise<void> {
     },
     update: {
       status: CollectionStatus.Published,
-      coverImage: 'https://picsum.photos/seed/wedding/800/600',
+      coverImage: img.wedding,
       audience: PublishAudience.Everyone,
       allowForward: true,
       exploreActivityAt: postedAt,
@@ -336,7 +364,7 @@ async function main(): Promise<void> {
       rate: 85,
       unit: 'mtr',
       categories: ['Fabric'],
-      images: ['https://picsum.photos/seed/greyfabric/600/800'],
+      images: [img.greyfabric],
     },
     {
       id: 'seed-prod-fabric-2',
@@ -345,7 +373,7 @@ async function main(): Promise<void> {
       rate: 42,
       unit: 'mtr',
       categories: ['Fabric'],
-      images: ['https://picsum.photos/seed/lining/600/800'],
+      images: [img.lining],
     },
     {
       id: 'seed-prod-fabric-3',
@@ -354,7 +382,7 @@ async function main(): Promise<void> {
       rate: 110,
       unit: 'mtr',
       categories: ['Fabric'],
-      images: ['https://picsum.photos/seed/geobase/600/800'],
+      images: [img.geobase],
     },
   ];
   for (const product of fabricProducts) {
@@ -387,7 +415,7 @@ async function main(): Promise<void> {
       companyId: KAVITA,
       name: 'Mill Lot — March',
       description: 'Fresh grey and lining for garment houses.',
-      coverImage: 'https://picsum.photos/seed/millot/800/600',
+      coverImage: img.millot,
       status: CollectionStatus.Published,
       audience: PublishAudience.Everyone,
       allowForward: true,
@@ -395,7 +423,7 @@ async function main(): Promise<void> {
     },
     update: {
       status: CollectionStatus.Published,
-      coverImage: 'https://picsum.photos/seed/millot/800/600',
+      coverImage: img.millot,
       audience: PublishAudience.Everyone,
       allowForward: true,
       exploreActivityAt: postedAt,
@@ -476,7 +504,7 @@ async function main(): Promise<void> {
             sku: 'BNS-001',
             rate: 2450,
             unit: 'pc',
-            image: 'https://picsum.photos/seed/banarasi/600/800',
+            image: img.banarasi,
             quantity: 10,
             requestedQuantity: 10,
             lineStatus: OrderLineStatus.Delivered,
@@ -515,7 +543,7 @@ async function main(): Promise<void> {
             sku: 'KJV-088',
             rate: 5200,
             unit: 'pc',
-            image: 'https://picsum.photos/seed/kanjee/600/800',
+            image: img.kanjee,
             quantity: 4,
             requestedQuantity: 4,
             lineStatus: OrderLineStatus.Open,
@@ -557,7 +585,7 @@ async function main(): Promise<void> {
       sku: 'KJV-088',
       rate: 5200,
       unit: 'pc',
-      image: 'https://picsum.photos/seed/kanjee/600/800',
+      image: img.kanjee,
       quantity: 4,
       requestedQuantity: 4,
       lineStatus: OrderLineStatus.Open,
@@ -567,6 +595,7 @@ async function main(): Promise<void> {
       requestedQuantity: 4,
       lineStatus: OrderLineStatus.Open,
       rate: 5200,
+      image: img.kanjee,
     },
   });
   await prisma.orderItem.update({
@@ -574,6 +603,7 @@ async function main(): Promise<void> {
     data: {
       requestedQuantity: 10,
       lineStatus: OrderLineStatus.Delivered,
+      image: img.banarasi,
     },
   });
 

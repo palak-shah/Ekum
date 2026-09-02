@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTML
 import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
-import { CloseIcon } from '@/ui/icons';
+import { BackIcon, CloseIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 
@@ -296,16 +296,24 @@ export function InlineNotice({
 export function Sheet({
   open,
   onClose,
+  onBack,
+  backTestId = 'sheet-back',
   title,
   children,
   footer,
+  panelClassName,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Previous step in this sheet. Same 46×46 square as Close; does not dismiss. */
+  onBack?: () => void;
+  backTestId?: string;
   title?: string;
   children: ReactNode;
   /** Pinned below the scroll region (e.g. primary action + compact fields). */
   footer?: ReactNode;
+  /** Extra classes on the panel (e.g. a fixed height so select does not resize). */
+  panelClassName?: string;
 }) {
   if (!open || typeof document === 'undefined') {
     return null;
@@ -318,13 +326,30 @@ export function Sheet({
     >
       <button aria-label="Close" className="absolute inset-0 bg-ink/35" onClick={onClose} />
       <div
-        className="relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-[22px] bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]"
-        style={{ animation: 'ekum-sheet 280ms ease-out' }}
+        className={cx(
+          'ekum-sheet relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-[22px] bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
+          panelClassName,
+        )}
       >
         <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
-        {title ? (
-          <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
-            <h3 className="text-base font-bold tracking-tight text-ink">{title}</h3>
+        {title || onBack ? (
+          <div className="mb-4 flex shrink-0 items-center gap-2">
+            {onBack ? (
+              <button
+                type="button"
+                aria-label="Back"
+                data-testid={backTestId}
+                onClick={onBack}
+                className={cx(listSquareButtonClass, 'text-slate')}
+              >
+                <BackIcon width={20} height={20} />
+              </button>
+            ) : null}
+            {title ? (
+              <h3 className="min-w-0 flex-1 text-base font-bold tracking-tight text-ink">{title}</h3>
+            ) : (
+              <span className="min-w-0 flex-1" />
+            )}
             <button
               type="button"
               aria-label="Close"

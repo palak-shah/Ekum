@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ConnectionView } from '@ekum/domain-types';
+import { FindOnEkumBlock } from '@/features/access/FindOnEkumBlock';
+import { EXPLORE_BUSINESSES_SEARCH_HREF } from '@/features/explore/exploreDiscoveryHref';
+import { FindInExploreLink } from '@/ui/FindInExploreLink';
 import { uniqueConnectionsByCompany } from '@/ui/uniqueConnections';
 import { ChevronRightIcon } from '@/ui/icons';
 import { Avatar, Button, Sheet, TextInput, cx } from '@/ui/kit';
@@ -25,6 +28,14 @@ type CommonProps = {
   loading?: boolean;
   /** Search + list inline (e.g. inside another Sheet). */
   embedded?: boolean;
+  /** When empty, link to business discovery on Explore. */
+  exploreHref?: string;
+  /** Name / mobile / GST lookup. `true` = field (default). `link` = Chats ＋. */
+  findOnEkum?: boolean | 'link';
+  /** Message an unconnected hit (Chats). */
+  onMessageFound?: (companyId: string) => void;
+  /** Find on Ekum finished with zero hits. */
+  onFindMissChange?: (miss: boolean) => void;
 };
 
 export type ConnectionPickerProps = CommonProps & (SingleProps | MultiProps);
@@ -43,7 +54,12 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
     emptyMessage = 'Connect with a business first.',
     loading = false,
     embedded = false,
+    exploreHref = EXPLORE_BUSINESSES_SEARCH_HREF,
+    findOnEkum = true,
+    onMessageFound,
+    onFindMissChange,
   } = props;
+  const findMode = findOnEkum === 'link' ? 'link' : findOnEkum === false ? 'off' : 'field';
   const connections = useMemo(
     () => uniqueConnectionsByCompany(connectionRows),
     [connectionRows],
@@ -51,6 +67,9 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const showBusinessSearch = connections.length > 0 || findMode === 'link';
+  const showFindLink =
+    findMode === 'link' && (query.trim().length >= 2 || connections.length === 0);
 
   const selectedIds = useMemo(() => {
     if (props.mode === 'single') {
@@ -77,7 +96,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
 
   const list = (
     <div className="flex flex-col gap-2">
-      {connections.length > 0 ? (
+      {showBusinessSearch ? (
         <TextInput
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -128,6 +147,29 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
           })}
         </div>
       )}
+      {findMode === 'field' ? (
+        <FindOnEkumBlock
+          onSelectConnected={(companyId) => toggle(companyId)}
+          onMessage={onMessageFound}
+          onMissChange={onFindMissChange}
+          connectedLabel={props.mode === 'multi' ? 'Add' : 'Select'}
+        />
+      ) : null}
+      {showFindLink ? (
+        <FindOnEkumBlock
+          variant="link"
+          inviteAlways
+          externalQuery={query.trim()}
+          excludeCompanyIds={connections.map((row) => row.company.id)}
+          onSelectConnected={(companyId) => toggle(companyId)}
+          onMessage={onMessageFound}
+          onMissChange={onFindMissChange}
+          connectedLabel={props.mode === 'multi' ? 'Add' : 'Select'}
+        />
+      ) : null}
+      {connections.length === 0 ? (
+        <FindInExploreLink href={exploreHref} variant="secondary" />
+      ) : null}
       {props.mode === 'multi' && !embedded && selectedIds.size > 0 ? (
         <Button fullWidth variant="secondary" onClick={() => setOpen(false)}>
           Done · {selectedIds.size} selected
@@ -140,9 +182,6 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
     return (
       <div className="flex flex-col gap-2">
         {label ? <p className="text-sm font-medium text-ink">{label}</p> : null}
-        {props.mode === 'multi' && selectedIds.size > 0 ? (
-          <p className="text-xs text-muted">{selectedIds.size} selected</p>
-        ) : null}
         {list}
       </div>
     );

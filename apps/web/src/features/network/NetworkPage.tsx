@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { ChevronRightIcon } from '@/ui/icons';
 
-const LINKS = [
+const BASE_LINKS = [
   { to: '/network/connections', label: 'Connections', hint: 'Businesses you trade with' },
   { to: '/network/following', label: 'Following', hint: 'Businesses you follow' },
   { to: '/network/followers', label: 'Followers', hint: 'Businesses that follow you' },
@@ -12,6 +13,22 @@ const LINKS = [
 
 /** You → Network: one entry to relationship lists (companies, not people). */
 export function NetworkPage() {
+  const { selling, canPublish } = useTradePresence();
+
+  const links = [
+    ...BASE_LINKS.slice(0, 1),
+    ...(selling && canPublish
+      ? [
+          {
+            to: '/broadcast',
+            label: 'Buyer groups',
+            hint: 'Saved buyer lists for publish and broadcast',
+          },
+        ]
+      : []),
+    ...BASE_LINKS.slice(1),
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Network" />
@@ -19,7 +36,7 @@ export function NetworkPage() {
         Manage connections, follows, and invites between businesses.
       </p>
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        {LINKS.map((item) => (
+        {links.map((item) => (
           <Link
             key={item.to}
             to={item.to}

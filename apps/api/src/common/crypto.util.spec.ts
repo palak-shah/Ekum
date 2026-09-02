@@ -22,6 +22,7 @@ describe('crypto utilities', () => {
     expect(parseDurationMs('15m')).toBe(900_000);
     expect(parseDurationMs('30d')).toBe(2_592_000_000);
     expect(parseDurationMs('45s')).toBe(45_000);
+    expect(parseDurationMs('10y')).toBe(10 * 365 * 86_400_000);
     expect(() => parseDurationMs('nope')).toThrow();
   });
 });

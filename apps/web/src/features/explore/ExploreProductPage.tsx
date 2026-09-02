@@ -19,6 +19,7 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api, ApiError } from '@/lib/apiClient';
+import { formatRate } from '@/lib/format';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';

@@ -61,6 +61,15 @@ export async function quoteOrder(
   }>;
 }
 
+/** Alias for accept-quote — order moves to confirmed. */
+export async function confirmOrder(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+): Promise<{ id: string; status: string; threadId: string }> {
+  return acceptQuote(request, accessToken, orderId);
+}
+
 export async function acceptQuote(
   request: APIRequestContext,
   accessToken: string,
@@ -74,6 +83,66 @@ export async function acceptQuote(
     throw new Error(`accept quote failed: ${res.status()} ${await res.text()}`);
   }
   return res.json() as Promise<{ id: string; status: string; threadId: string }>;
+}
+
+export async function dispatchOrder(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+  body: { lrNumber: string; transporter?: string; parcelCount?: number },
+): Promise<{ id: string; status: string }> {
+  const res = await request.post(`${API_URL}/orders/${orderId}/dispatch`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data: body,
+  });
+  if (!res.ok()) {
+    throw new Error(`dispatch failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json() as Promise<{ id: string; status: string }>;
+}
+
+export async function deliverOrder(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+): Promise<{ id: string; status: string }> {
+  const res = await request.post(`${API_URL}/orders/${orderId}/deliver`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data: {},
+  });
+  if (!res.ok()) {
+    throw new Error(`deliver failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json() as Promise<{ id: string; status: string }>;
+}
+
+/** Request → quote → accept-quote for a two-line seed order. */
+export async function setupConfirmedOrder(
+  request: APIRequestContext,
+  buyerToken: string,
+  sellerToken: string,
+): Promise<{ id: string; threadId: string }> {
+  const order = await createOrder(request, buyerToken, {
+    sellerCompanyId: 'seed-company-ravi',
+    intent: 'order',
+    items: [
+      { productId: 'seed-prod-1', quantity: 40 },
+      { productId: 'seed-prod-2', quantity: 40 },
+    ],
+  });
+  const detailed = await getOrder(request, sellerToken, order.id);
+  await quoteOrder(
+    request,
+    sellerToken,
+    order.id,
+    detailed.items.map((item) => ({
+      orderItemId: item.id,
+      rate: 120,
+      quantity: item.quantity,
+    })),
+  );
+  await acceptQuote(request, buyerToken, order.id);
+  return { id: order.id, threadId: order.threadId };
 }
 
 export async function accessTokenFromPage(page: {

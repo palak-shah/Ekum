@@ -229,7 +229,7 @@ export const ThreadType = {
 export type ThreadType = (typeof ThreadType)[keyof typeof ThreadType];
 export const threadTypeValues = values(ThreadType);
 
-/** Owner-only threads are hidden from staff even with chat permission. */
+/** @deprecated Leftover DB values only. New chats are always shared; roster is ThreadMember. */
 export const ThreadVisibility = {
   Shared: 'shared',
   OwnerOnly: 'owner_only',
@@ -258,6 +258,15 @@ export const ThreadAlertLevel = {
 } as const;
 export type ThreadAlertLevel = (typeof ThreadAlertLevel)[keyof typeof ThreadAlertLevel];
 export const threadAlertLevelValues = values(ThreadAlertLevel);
+
+/** A person on a thread. `left` still counts in group uniqueness; `removed` does not. */
+export const ThreadMemberState = {
+  Active: 'active',
+  Left: 'left',
+  Removed: 'removed',
+} as const;
+export type ThreadMemberState = (typeof ThreadMemberState)[keyof typeof ThreadMemberState];
+export const threadMemberStateValues = values(ThreadMemberState);
 
 /** Messages carry references (not copies) of shared trade objects. */
 export const MessageType = {

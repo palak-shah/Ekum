@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   useInfiniteQuery,
   useMutation,
@@ -16,28 +17,33 @@ import type {
   MessageView,
   OrderView,
   ProductView,
+  TeamMemberView,
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
 import { OrderPathPreference, photoUrlsFromMessage } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
+import { useTeamCaps } from '@/lib/teamCaps';
+import { useToast } from '@/ui/Toast';
 import { timeAgo } from '@/lib/format';
 import { uploadImage } from '@/lib/mediaUpload';
 import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
+import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
+import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
 import { Avatar, Button, Chip, ErrorState, FilterRail, InlineNotice, LoadingBlock, Sheet, TextInput, cx } from '@/ui/kit';
+import { kindToneClassesForMessageType } from '@/lib/kindTone';
 import {
-  BackIcon,
   CameraIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   CollectionIcon,
   OrdersIcon,
-  PinIcon,
+  MoreHorizontalIcon,
   PlusIcon,
   ProductIcon,
   SearchIcon,
@@ -54,7 +60,6 @@ import {
   withFacilitatorQuery,
   withOrderPathQuery,
   parseOrderPath,
-  catalogShareSenderLabel,
   catalogOrderGoesToLine,
   rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
@@ -62,13 +67,15 @@ import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import {
-  buildOrderCardCopy,
   dedupeOrderThreadMessages,
   isRichOrderChatMessage,
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
+import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
+import { buildChatTradeCard } from './chatTradeCard';
+import { ChatTradeCard } from './ChatTradeCardView';
 import {
   highlightSearchText,
   searchHitIdsNewestFirst,
@@ -101,6 +108,8 @@ export function ThreadPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const refMessageId = searchParams.get('message');
   const companyId = useCompanyId();
+  const { isOwner } = useTeamCaps();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canForward = (message: MessageView) => canForwardMessage(message, companyId);
@@ -126,6 +135,15 @@ export function ThreadPage() {
   const [forwardProgress, setForwardProgress] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleClone, setPeopleClone] = useState<{ threadId: string; title: string | null } | null>(
+    null,
+  );
+  const [confirmAction, setConfirmAction] = useState<'leave' | 'remove' | null>(null);
+  const [morePos, setMorePos] = useState({ top: 0, right: 0 });
+  const moreAnchorRef = useRef<HTMLButtonElement>(null);
+  const morePanelRef = useRef<HTMLDivElement>(null);
   const [searchView, setSearchView] = useState<ThreadMessageViewScope>('all');
   const [searchDraft, setSearchDraft] = useState('');
   const [searchQ, setSearchQ] = useState('');
@@ -177,6 +195,49 @@ export function ThreadPage() {
       queueMicrotask(() => searchInputRef.current?.focus());
     }
   }, [searchOpen]);
+
+  useLayoutEffect(() => {
+    if (!moreOpen) return;
+    const place = () => {
+      const anchor = moreAnchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setMorePos({
+        top: rect.bottom + 6,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [moreOpen]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = () => setMoreOpen(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (morePanelRef.current?.contains(target)) return;
+      if (moreAnchorRef.current?.contains(target)) return;
+      close();
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [moreOpen]);
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [id]);
+
   const myCollections = useQuery({
     queryKey: ['my-collections'],
     queryFn: () => api.get<CollectionView[]>('/collections'),
@@ -388,6 +449,79 @@ export function ThreadPage() {
       setError(null);
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not update pin.'),
+  });
+
+  const setAlert = useMutation({
+    mutationFn: (alertLevel: 'all' | 'muted') =>
+      api.patch<ThreadDetail>(`/threads/${id}/alert`, { alertLevel }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['thread', id] });
+      setError(null);
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not mute.'),
+  });
+
+  const leaveThread = useMutation({
+    mutationFn: () => api.post(`/threads/${id}/leave`, {}),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      navigate('/chats');
+    },
+    onError: (err) => {
+      setConfirmAction(null);
+      showToast(err instanceof ApiError ? err.message : 'Could not leave this chat.', 'danger');
+    },
+  });
+
+  const archiveGroup = useMutation({
+    mutationFn: () => api.post(`/threads/${id}/archive`, {}),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      navigate('/chats');
+    },
+    onError: (err) => {
+      setConfirmAction(null);
+      showToast(err instanceof ApiError ? err.message : 'Could not remove this group.', 'danger');
+    },
+  });
+
+  const teamPeople = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => api.get<TeamMemberView[]>('/team/members'),
+    enabled: peopleOpen && isOwner,
+  });
+
+  const onPeopleMutationError = (err: unknown, fallback: string) => {
+    if (err instanceof ApiError && err.code === 'SAME_CHAT') {
+      const details = err.details as { threadId?: string; title?: string | null } | undefined;
+      if (details?.threadId) {
+        setPeopleClone({ threadId: details.threadId, title: details.title ?? null });
+        return;
+      }
+    }
+    setPeopleClone(null);
+    showToast(err instanceof ApiError ? err.message : fallback, 'danger');
+  };
+
+  const addMember = useMutation({
+    mutationFn: (userId: string) => api.post<ThreadDetail>(`/threads/${id}/members`, { userIds: [userId] }),
+    onSuccess: () => {
+      setPeopleClone(null);
+      void queryClient.invalidateQueries({ queryKey: ['thread', id] });
+    },
+    onError: (err) => onPeopleMutationError(err, 'Could not add them.'),
+  });
+
+  const removeMember = useMutation({
+    mutationFn: (userId: string) =>
+      api.post<ThreadDetail>(`/threads/${id}/members/remove`, { userIds: [userId] }),
+    onSuccess: () => {
+      setPeopleClone(null);
+      void queryClient.invalidateQueries({ queryKey: ['thread', id] });
+    },
+    onError: (err) => onPeopleMutationError(err, 'Could not take them off.'),
   });
 
   const curate = useMutation({
@@ -814,13 +948,16 @@ export function ThreadPage() {
   }
 
   const detail = thread.data;
+  const counterpartId = detail.counterpart?.id;
   const title = detail.title ?? detail.counterpart?.name ?? 'Conversation';
   const canCompose = detail.state === 'active';
-  const counterpartId = detail.counterpart?.id;
   const headerSubtitle =
     detail.type === 'group'
       ? `${detail.participantCount} businesses`
-      : detail.counterpart?.city || undefined;
+      : threadVisibilitySubtitle(
+          threadVisibilityLabel(detail),
+          detail.counterpart?.city,
+        );
 
   const attachTitle =
     attachStep === 'menu'
@@ -842,6 +979,26 @@ export function ThreadPage() {
         open={discard.confirmOpen}
         onCancel={discard.cancelLeave}
         onLeave={discard.confirmLeave}
+      />
+      <ConfirmActionSheet
+        open={confirmAction === 'leave'}
+        title="Leave this chat?"
+        body="Off your inbox. Others stay."
+        confirmLabel="Leave"
+        testId="thread-leave-confirm"
+        busy={leaveThread.isPending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => leaveThread.mutate()}
+      />
+      <ConfirmActionSheet
+        open={confirmAction === 'remove'}
+        title="Remove this group?"
+        body="Gone from your inbox. Other shops keep it."
+        confirmLabel="Remove group"
+        testId="thread-remove-confirm"
+        busy={archiveGroup.isPending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => archiveGroup.mutate()}
       />
       <PageHeader
         title={title}
@@ -870,20 +1027,115 @@ export function ThreadPage() {
               <SearchIcon width={20} height={20} />
             </button>
             <button
+              ref={moreAnchorRef}
               type="button"
-              aria-label={detail.pinned ? 'Unpin chat' : 'Pin chat'}
-              disabled={pinThread.isPending}
-              onClick={() => pinThread.mutate(!detail.pinned)}
+              data-testid="thread-more"
+              aria-label="More"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((open) => !open)}
               className={cx(
-                'rounded-full p-2',
-                detail.pinned ? 'text-accent' : 'text-muted hover:bg-foam hover:text-ink',
+                'flex h-9 w-9 items-center justify-center rounded-full transition-colors',
+                moreOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam hover:text-ink',
               )}
             >
-              <PinIcon width={20} height={20} />
+              <MoreHorizontalIcon width={20} height={20} />
             </button>
           </div>
         }
       />
+
+      {moreOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <>
+              <button
+                type="button"
+                aria-label="Close menu"
+                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
+                onClick={() => setMoreOpen(false)}
+              />
+              <div
+                ref={morePanelRef}
+                role="menu"
+                data-testid="thread-more-menu"
+                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
+                style={{ top: morePos.top, right: morePos.right }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="thread-pin"
+                  disabled={pinThread.isPending}
+                  className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    pinThread.mutate(!detail.pinned);
+                  }}
+                >
+                  {detail.pinned ? 'Unpin chat' : 'Pin chat'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="thread-mute"
+                  disabled={setAlert.isPending}
+                  className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setAlert.mutate(detail.alertLevel === 'muted' ? 'all' : 'muted');
+                  }}
+                >
+                  {detail.alertLevel === 'muted' ? 'Unmute' : 'Mute'}
+                </button>
+                {detail.canManagePeople ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="thread-people"
+                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setPeopleOpen(true);
+                    }}
+                  >
+                    Team on chat
+                  </button>
+                ) : null}
+                {detail.canLeave ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="thread-leave"
+                    disabled={leaveThread.isPending}
+                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setConfirmAction('leave');
+                    }}
+                  >
+                    Leave
+                  </button>
+                ) : null}
+                {detail.canRemoveGroup ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="thread-remove-group"
+                    disabled={archiveGroup.isPending}
+                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setConfirmAction('remove');
+                    }}
+                  >
+                    Remove group
+                  </button>
+                ) : null}
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
 
       <SelectAllFloat
         open={selecting && forwardableIds.length > 0}
@@ -974,19 +1226,28 @@ export function ThreadPage() {
                 ['designs', 'Designs'],
                 ['orders', 'Orders'],
               ] as const
-            ).map(([value, label]) => (
-              <Chip
-                key={value}
-                active={searchView === value}
-                onClick={() => {
-                  setSearchView(value);
-                  // Chip browse / search: start at newest (bottom), WhatsApp-style.
-                  stickToBottom.current = true;
-                }}
-              >
-                {label}
-              </Chip>
-            ))}
+            ).map(([value, label]) => {
+              const kindTone = kindToneClassesForMessageType(value);
+              const active = searchView === value;
+              return (
+                <Chip
+                  key={value}
+                  active={active && !kindTone}
+                  className={
+                    active && kindTone
+                      ? cx(kindTone.soft, kindTone.ink, 'border-transparent')
+                      : undefined
+                  }
+                  onClick={() => {
+                    setSearchView(value);
+                    // Chip browse / search: start at newest (bottom), WhatsApp-style.
+                    stickToBottom.current = true;
+                  }}
+                >
+                  {label}
+                </Chip>
+              );
+            })}
           </FilterRail>
         </div>
       ) : null}
@@ -1119,7 +1380,9 @@ export function ThreadPage() {
                       ? 'No orders in this chat'
                       : searchOpen && searchView === 'all'
                         ? 'Type to search this chat'
-                        : 'No messages yet. Say hello.'}
+                        : detail.counterpart?.name
+                          ? `Say hello to ${detail.counterpart.name}.`
+                          : 'Say hello.'}
           </p>
         )}
       </div>
@@ -1234,6 +1497,8 @@ export function ThreadPage() {
       <Sheet
         open={attachOpen}
         onClose={closeAttachSheet}
+        onBack={attachStep !== 'menu' ? () => goAttachStep('menu') : undefined}
+        backTestId="attach-back"
         title={attachTitle}
         footer={
           attachStep !== 'menu' && attachSelectedIds.size > 0 ? (
@@ -1256,14 +1521,14 @@ export function ThreadPage() {
                   label: 'Design',
                   subtitle: 'Share a design',
                   Icon: ProductIcon,
-                  iconClass: 'bg-foam text-accent',
+                  iconClass: 'bg-kind-design-soft text-kind-design',
                 },
                 {
                   step: 'collection' as const,
                   label: 'Collection',
                   subtitle: 'Share a collection',
                   Icon: CollectionIcon,
-                  iconClass: 'bg-linen text-slate',
+                  iconClass: 'bg-kind-collection-soft text-kind-collection',
                 },
                 {
                   step: 'photo' as const,
@@ -1277,7 +1542,7 @@ export function ThreadPage() {
                   label: 'Order',
                   subtitle: 'Share an order',
                   Icon: OrdersIcon,
-                  iconClass: 'bg-ink/5 text-ink',
+                  iconClass: 'bg-kind-order-soft text-kind-order',
                 },
               ] as const
             ).map(({ step, label, subtitle, Icon, iconClass }) => (
@@ -1328,7 +1593,6 @@ export function ThreadPage() {
                 attachSelectedIds,
               ))
             }
-            onBack={() => goAttachStep('menu')}
             error={attachSendError}
             listPadForSend={attachSelectedIds.size > 0}
           >
@@ -1385,7 +1649,6 @@ export function ThreadPage() {
                 attachSelectedIds,
               ))
             }
-            onBack={() => goAttachStep('menu')}
             error={attachSendError}
             listPadForSend={attachSelectedIds.size > 0}
           >
@@ -1451,7 +1714,6 @@ export function ThreadPage() {
                 attachSelectedIds,
               ))
             }
-            onBack={() => goAttachStep('menu')}
             error={attachSendError}
             listPadForSend={attachSelectedIds.size > 0}
           >
@@ -1541,6 +1803,10 @@ export function ThreadPage() {
               .filter((row) => row.id !== id)
               .map((row) => {
                 const chatTitle = row.title ?? row.counterpart?.name ?? 'Conversation';
+                const visLine = threadVisibilitySubtitle(
+                  threadVisibilityLabel(row),
+                  row.counterpart?.city,
+                );
                 return (
                   <button
                     key={row.id}
@@ -1554,9 +1820,9 @@ export function ThreadPage() {
                       <span className="block truncate text-sm font-semibold text-ink">
                         {chatTitle}
                       </span>
-                      {row.counterpart?.city ? (
+                      {visLine ? (
                         <span className="block truncate text-[11px] text-muted">
-                          {row.counterpart.city}
+                          {visLine}
                         </span>
                       ) : null}
                     </span>
@@ -1574,6 +1840,25 @@ export function ThreadPage() {
           </p>
         ) : null}
       </Sheet>
+
+      <ThreadPeopleSheet
+        open={peopleOpen}
+        onClose={() => {
+          setPeopleOpen(false);
+          setPeopleClone(null);
+        }}
+        people={detail.people ?? []}
+        team={teamPeople.data ?? []}
+        busy={addMember.isPending || removeMember.isPending}
+        onAdd={(userId) => addMember.mutate(userId)}
+        onRemove={(userId) => removeMember.mutate(userId)}
+        existingChat={peopleClone}
+        onOpenExisting={(threadId) => {
+          setPeopleOpen(false);
+          setPeopleClone(null);
+          navigate(`/chats/${threadId}`);
+        }}
+      />
     </div>
   );
 }
@@ -1581,7 +1866,6 @@ export function ThreadPage() {
 function AttachList({
   loading,
   empty,
-  onBack,
   children,
   isEmpty,
   searchPlaceholder,
@@ -1596,7 +1880,6 @@ function AttachList({
 }: {
   loading: boolean;
   empty: string;
-  onBack: () => void;
   children: ReactNode;
   isEmpty: boolean;
   searchPlaceholder: string;
@@ -1614,15 +1897,6 @@ function AttachList({
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={onBack}
-        aria-label="Back"
-        data-testid="attach-back"
-        className="self-start rounded-full p-1.5 text-accent hover:bg-foam"
-      >
-        <BackIcon width={20} height={20} />
-      </button>
       {!isEmpty ? (
         <TextInput
           data-testid="attach-search"
@@ -1706,64 +1980,6 @@ function InCardActor({ message, label }: { message: MessageView; label: string }
     <p className={cx('text-[11px] leading-tight', message.mine ? 'text-white/55' : 'text-muted')}>
       {line}
     </p>
-  );
-}
-
-/** Compact living order reference for status pulses (tap → order). */
-function OrderActivityChip({
-  title,
-  subtitle,
-  actorLine,
-  mine,
-  createdAt,
-  onOpen,
-}: {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  actorLine?: string | null;
-  mine: boolean;
-  createdAt: string;
-  onOpen?: () => void;
-}) {
-  const className = cx(
-    'w-full rounded-lg border border-line border-l-[3px] px-2.5 py-2 text-left',
-    mine ? 'border-l-white/70 bg-accent/15' : 'border-l-accent bg-surface/90',
-    onOpen && (mine ? 'hover:bg-accent/25 active:bg-accent/30' : 'hover:bg-foam active:bg-linen'),
-  );
-  const body = (
-    <>
-      {actorLine ? (
-        <p className={cx('text-[11px] leading-tight', mine ? 'text-white/55' : 'text-muted')}>
-          {actorLine}
-        </p>
-      ) : null}
-      <p className={cx('text-sm font-bold tracking-tight', mine ? 'text-accent-dark' : 'text-accent')}>
-        {title}
-      </p>
-      {subtitle ? (
-        <p className={cx('mt-0.5 truncate text-sm', mine ? 'text-slate' : 'text-muted')}>
-          {subtitle}
-        </p>
-      ) : null}
-      <p className={cx('mt-1 text-right text-xs', mine ? 'text-muted' : 'text-muted')}>
-        {timeAgo(createdAt)}
-      </p>
-    </>
-  );
-  if (!onOpen) {
-    return <div className={className}>{body}</div>;
-  }
-  return (
-    <button
-      type="button"
-      className={className}
-      onClick={(event) => {
-        event.stopPropagation();
-        onOpen();
-      }}
-    >
-      {body}
-    </button>
   );
 }
 
@@ -2060,9 +2276,6 @@ function TimelineItem({
     isLegacyOrderNotice;
   const isOrderLikeCard =
     message.type === 'order_card' || message.type === 'rate' || isLegacyOrderNotice;
-  const orderCopy = isOrderLikeCard
-    ? buildOrderCardCopy(message, ref, { partyName: senderLabel })
-    : null;
   const typeMeta = chatTypeMeta(isLegacyOrderNotice ? 'order_card' : message.type);
   const TypeIcon = typeMeta.Icon;
   const reply = message.replyTo;
@@ -2208,12 +2421,6 @@ function TimelineItem({
     message.id === primaryAcceptQuoteId
       ? () => onAcceptQuote(ref.id)
       : undefined;
-  const olderQuotedOrder =
-    message.type === 'rate' &&
-    !message.mine &&
-    ref?.canAcceptQuote &&
-    ref.available &&
-    message.id !== primaryAcceptQuoteId;
   const loggedAccept =
     (message.type === 'order_card' || isLegacyOrderNotice) &&
     !message.mine &&
@@ -2222,20 +2429,23 @@ function TimelineItem({
       ? () => onAcceptLogged(ref.id)
       : undefined;
   const richOrder = isOrderLikeCard && isRichOrderChatMessage(message, ref);
-  const cardActorLine =
-    inCardSenderLine(message, senderLabel) ||
-    (() => {
-      const share = catalogShareSenderLabel({
-        mine: message.mine,
-        senderLabel,
-        ownerCompanyId: ref?.ownerCompanyId,
-        senderCompanyId: message.senderCompanyId,
-      });
-      if (share.endsWith('forwarded')) return share;
-      return !message.mine ? share : null;
-    })();
+  const tradeCard = buildChatTradeCard(message, ref, senderLabel, {
+    compact: isOrderLikeCard && !richOrder,
+    orderGoesTo,
+    actions: {
+      openOrder,
+      quoteAccept,
+      loggedAccept,
+      accepting,
+      collectionPath,
+      productPath,
+      onCurate: ref?.available ? () => onCurate(ref) : undefined,
+      curating,
+      curated,
+    },
+  });
 
-  if (isOrderLikeCard && orderCopy && !richOrder) {
+  if (tradeCard) {
     return (
       <MessageChrome
         messageId={message.id}
@@ -2251,13 +2461,11 @@ function TimelineItem({
           {reply ? (
             <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
           ) : null}
-          <OrderActivityChip
-            title={hl(orderCopy.title)}
-            subtitle={hl(orderCopy.headline)}
-            actorLine={inCardSenderLine(message, senderLabel)}
-            mine={message.mine}
-            createdAt={message.createdAt}
+          <ChatTradeCard
+            model={tradeCard}
+            highlight={hl}
             onOpen={openOrder && !selecting ? openOrder : undefined}
+            selecting={selecting}
           />
         </div>
       </MessageChrome>
@@ -2273,366 +2481,51 @@ function TimelineItem({
       highlighted={highlighted}
       onToggleSelect={onToggleSelect}
       actions={actions}
-      className="w-fit max-w-[min(100%,9.5rem)]"
+      className="max-w-[92%]"
     >
-      <div
-        role={openOrder && !selecting ? 'button' : undefined}
-        tabIndex={openOrder && !selecting ? 0 : undefined}
-        onClick={
-          openOrder && !selecting
-            ? (event) => {
-                // Primary Accept quote button stops propagation itself.
-                if ((event.target as HTMLElement).closest('[data-card-action]')) return;
-                openOrder();
-              }
-            : undefined
-        }
-        onKeyDown={
-          openOrder && !selecting
-            ? (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  openOrder();
-                }
-              }
-            : undefined
-        }
-        className={cx(
-          'overflow-hidden rounded-2xl border text-sm shadow-sm',
-          message.mine
-            ? 'rounded-br-md border-accent/35 bg-accent text-white'
-            : 'rounded-bl-md border-line bg-foam text-ink',
-          openOrder && !selecting && 'cursor-pointer',
-        )}
-      >
+      <div className="flex flex-col gap-0.5">
+        {reply ? (
+          <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+        ) : null}
         <div
           className={cx(
-            'flex items-center gap-1.5 px-1.5 py-1',
-            message.mine ? 'border-b border-white/20' : 'border-b border-line/70',
+            'overflow-hidden rounded-2xl border text-sm shadow-sm',
+            message.mine
+              ? 'rounded-br-md border-accent/35 bg-accent text-white'
+              : 'rounded-bl-md border-line bg-foam text-ink',
           )}
         >
-          <TypeIcon
-            width={12}
-            height={12}
-            className={cx('shrink-0', message.mine ? 'text-white' : 'text-accent')}
-            aria-hidden
-          />
-          <p
+          <div
             className={cx(
-              'min-w-0 flex-1 truncate text-xs font-bold tracking-tight',
-              message.mine ? 'text-white' : 'text-ink',
-              isOrderLikeCard && 'whitespace-nowrap',
+              'flex items-center gap-1.5 px-2 py-1',
+              message.mine ? 'border-b border-white/20' : 'border-b border-line/70',
             )}
           >
-            {orderCopy ? hl(orderCopy.title) : typeMeta.label}
-          </p>
-        </div>
-        <div className="px-1.5 py-1.5">
-          <InCardActor message={message} label={senderLabel} />
-          {reply ? (
-            <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
-          ) : null}
-          {message.type === 'order_card' || isLegacyOrderNotice ? (
-            <TimelineCard
-              mine={message.mine}
-              title={hl(orderCopy?.headline ?? ref?.name ?? 'Order')}
-              image={ref?.image}
-              images={ref?.images}
-              imageOverflow={
-                ref?.itemCount != null && ref.images?.length
-                  ? Math.max(0, ref.itemCount - ref.images.length)
-                  : 0
-              }
-              lines={(orderCopy?.lines ?? []).map((line) => hl(line))}
-              actionLabel={
-                loggedAccept
-                  ? accepting
-                    ? 'Accepting…'
-                    : 'Accept'
-                  : ref?.available
-                    ? 'View order →'
-                    : undefined
-              }
-              onAction={loggedAccept ?? openOrder}
-              actionStyle={loggedAccept ? 'primary' : 'link'}
-              createdAt={message.createdAt}
+            <TypeIcon
+              width={12}
+              height={12}
+              className={cx('shrink-0', message.mine ? 'text-white' : 'text-accent')}
+              aria-hidden
             />
-          ) : null}
-
-          {message.type === 'rate' ? (
-            <TimelineCard
-              mine={message.mine}
-              orderId={ref?.id}
-              title={hl(orderCopy?.headline ?? ref?.totalLabel ?? 'Quote')}
-              image={ref?.image}
-              images={ref?.images}
-              imageOverflow={
-                ref?.itemCount != null && ref.images?.length
-                  ? Math.max(0, ref.itemCount - ref.images.length)
-                  : 0
-              }
-              lines={(orderCopy?.lines ?? []).map((line) => hl(line))}
-              actionLabel={
-                quoteAccept
-                  ? accepting
-                    ? 'Accepting…'
-                    : 'Accept quote'
-                  : olderQuotedOrder || ref?.available
-                    ? 'View order →'
-                    : undefined
-              }
-              onAction={quoteAccept ?? openOrder}
-              actionStyle={quoteAccept ? 'primary' : 'link'}
-              createdAt={message.createdAt}
-            />
-          ) : null}
-
-          {message.type === 'collection_card' ? (
-            <TimelineCard
-              mine={message.mine}
-              actorLine={cardActorLine}
-              title={hl(
-                  ref?.available
-                    ? (ref.name ?? message.body ?? 'Collection')
-                    : ref
-                      ? 'Unavailable'
-                      : (message.body?.trim() || 'Collection'),
-                )}
-                image={ref?.image}
-                images={ref?.images}
-                imageOverflow={
-                  ref?.itemCount != null && ref.images?.length
-                    ? Math.max(0, ref.itemCount - ref.images.length)
-                    : 0
-                }
-                lines={[
-                  orderGoesTo,
-                  ref?.itemCount != null
-                    ? `${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`
-                    : null,
-                ]}
-                actionLabel={ref?.available ? 'View collection →' : undefined}
-                actionTo={collectionPath}
-                actionStyle="link"
-                createdAt={message.createdAt}
-              />
-          ) : null}
-
-          {message.type === 'product_card' ? (
-            <TimelineCard
-              mine={message.mine}
-              actorLine={cardActorLine}
-              title={hl(
-                  ref?.available
-                    ? (ref.name ?? message.body ?? 'Design')
-                    : ref
-                      ? 'Unavailable'
-                      : (message.body?.trim() || 'Design'),
-                )}
-                image={ref?.image}
-                images={ref?.images}
-                lines={[orderGoesTo ? hl(orderGoesTo) : null].filter(Boolean) as string[]}
-                actionLabel={ref?.available ? 'View design →' : undefined}
-                actionTo={productPath}
-                actionStyle="link"
-                secondaryAction={
-                  !message.mine && ref?.available
-                    ? curated
-                      ? 'Saved to my designs'
-                      : curating
-                        ? 'Saving…'
-                        : 'Save to my designs'
-                    : undefined
-                }
-                onSecondaryAction={
-                  !message.mine && ref?.available && !curated && !curating
-                    ? () => onCurate(ref)
-                    : undefined
-                }
-                createdAt={message.createdAt}
-              />
-          ) : null}
-
-          {!isLegacyOrderNotice &&
-          !['order_card', 'rate', 'collection_card', 'product_card'].includes(message.type) ? (
-            <TimelineCard
-              mine={message.mine}
-              title={hl(message.body?.trim() || 'Shared attachment')}
-              createdAt={message.createdAt}
-            />
-          ) : null}
+            <p
+              className={cx(
+                'min-w-0 flex-1 truncate text-xs font-bold tracking-tight',
+                message.mine ? 'text-white' : 'text-ink',
+              )}
+            >
+              {typeMeta.label}
+            </p>
+          </div>
+          <div className="px-2 py-1.5">
+            <p className={cx('text-xs font-semibold', message.mine ? 'text-white' : 'text-ink')}>
+              {hl(message.body?.trim() || 'Shared attachment')}
+            </p>
+            <p className={cx('mt-0.5 text-right text-[10px]', message.mine ? 'text-white/70' : 'text-muted')}>
+              {timeAgo(message.createdAt)}
+            </p>
+          </div>
         </div>
       </div>
     </MessageChrome>
-  );
-}
-
-function TimelineCard({
-  title,
-  lines = [],
-  actorLine,
-  image,
-  images,
-  imageOverflow = 0,
-  actionLabel,
-  actionTo,
-  onAction,
-  actionStyle = 'link',
-  secondaryAction,
-  onSecondaryAction,
-  createdAt,
-  mine = false,
-  orderId,
-}: {
-  title: ReactNode;
-  lines?: Array<ReactNode | null | undefined>;
-  actorLine?: string | null;
-  image?: string | null;
-  images?: string[] | null;
-  imageOverflow?: number;
-  actionLabel?: string;
-  actionTo?: string;
-  onAction?: () => void;
-  /** primary = high-stakes (Accept quote); solid = full-width secondary CTA; link = text. */
-  actionStyle?: 'primary' | 'solid' | 'link';
-  secondaryAction?: string;
-  onSecondaryAction?: () => void;
-  createdAt: string;
-  mine?: boolean;
-  orderId?: string;
-}) {
-  const visibleLines = lines.filter((line) => {
-    if (line == null) return false;
-    if (typeof line === 'string') return Boolean(line.trim());
-    return true;
-  });
-  const muted = mine ? 'text-white/75' : 'text-muted';
-  const ink = mine ? 'text-white' : 'text-ink';
-  const linkAction = mine ? 'text-white underline decoration-white/50' : 'text-accent';
-  const gallery = images && images.length > 0 ? images : image ? [image] : [];
-
-  const solidClass = mine
-    ? 'mt-1.5 w-full rounded-lg border border-white/40 bg-white/15 px-2 py-1.5 text-center text-xs font-bold text-white'
-    : 'mt-1.5 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-center text-xs font-bold text-ink';
-  const primaryClass =
-    'mt-1.5 w-full rounded-lg bg-accent px-2 py-1.5 text-center text-xs font-bold text-white';
-
-  const renderAction = () => {
-    if (!actionLabel) return null;
-    if (actionStyle === 'primary' && onAction) {
-      return (
-        <button
-          type="button"
-          data-card-action
-          data-testid={
-            actionLabel === 'Accept quote' && orderId
-              ? `accept-quote-${orderId}`
-              : actionLabel === 'Accept quote'
-                ? 'accept-quote'
-                : undefined
-          }
-          onClick={(event) => {
-            event.stopPropagation();
-            onAction();
-          }}
-          className={primaryClass}
-        >
-          {actionLabel}
-        </button>
-      );
-    }
-    if (actionStyle === 'solid') {
-      if (actionTo) {
-        return (
-          <Link
-            to={actionTo}
-            data-card-action
-            onClick={(event) => event.stopPropagation()}
-            className={solidClass}
-          >
-            {actionLabel}
-          </Link>
-        );
-      }
-      if (onAction) {
-        return (
-          <button
-            type="button"
-            data-card-action
-            onClick={(event) => {
-              event.stopPropagation();
-              onAction();
-            }}
-            className={solidClass}
-          >
-            {actionLabel}
-          </button>
-        );
-      }
-    }
-    if (actionTo) {
-      return (
-        <Link
-          to={actionTo}
-          data-card-action
-          onClick={(event) => event.stopPropagation()}
-          className={cx('mt-0.5 text-xs font-bold', linkAction)}
-        >
-          {actionLabel}
-        </Link>
-      );
-    }
-    if (onAction) {
-      return (
-        <button
-          type="button"
-          data-card-action
-          onClick={(event) => {
-            event.stopPropagation();
-            onAction();
-          }}
-          className={cx('mt-0.5 self-start text-xs font-bold', linkAction)}
-        >
-          {actionLabel}
-        </button>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <div className="flex w-[120px] max-w-full flex-col gap-0.5">
-      {gallery.length > 0 ? (
-        <div className="mb-0.5">
-          <PhotoAlbum urls={gallery} overflowCount={imageOverflow} size="compact" />
-        </div>
-      ) : null}
-      {actorLine ? (
-        <p className={cx('text-[10px] leading-tight', mine ? 'text-white/55' : 'text-muted')}>
-          {actorLine}
-        </p>
-      ) : null}
-      <p className={cx('text-xs font-semibold tracking-tight', ink)}>{title}</p>
-      {visibleLines.map((line, index) => (
-        <p key={index} className={cx('text-[11px] font-medium leading-snug', muted)}>
-          {line}
-        </p>
-      ))}
-      {renderAction()}
-      {secondaryAction ? (
-        onSecondaryAction ? (
-          <button
-            type="button"
-            onClick={onSecondaryAction}
-            className={cx('mt-0.5 self-start text-xs font-medium', linkAction)}
-          >
-            {secondaryAction}
-          </button>
-        ) : (
-          <p className={cx('mt-0.5 text-xs font-medium', muted)}>{secondaryAction}</p>
-        )
-      ) : null}
-      <p className={cx('mt-0.5 text-right text-[10px]', muted)}>{timeAgo(createdAt)}</p>
-    </div>
   );
 }
