@@ -9,11 +9,16 @@ type ActorUser = Pick<User, 'id' | 'name'>;
 type ProductWithActors = Product & {
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
+  company?: { id: string; name: string } | null;
+};
+
+type MemberProduct = Product & {
+  company?: { id: string; name: string } | null;
 };
 
 type CollectionWithCount = Collection & {
   _count?: { products: number };
-  products?: (CollectionProduct & { product: Product })[];
+  products?: (CollectionProduct & { product: MemberProduct })[];
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
 };
@@ -39,6 +44,7 @@ export class CatalogSerializer {
     return {
       id: product.id,
       companyId: product.companyId,
+      companyName: product.company?.name ?? null,
       name: product.name,
       sku: product.sku,
       description: product.description,
@@ -66,8 +72,16 @@ export class CatalogSerializer {
 
   toCollectionView(collection: CollectionWithCount, productCount?: number): CollectionView {
     const preview = collectionPreviewFromRow(collection);
+    const shops = new Map<string, string>();
+    for (const row of collection.products ?? []) {
+      const id = row.product.company?.id ?? row.product.companyId;
+      const name = row.product.company?.name ?? '';
+      if (id) shops.set(id, name || shops.get(id) || '');
+    }
     return {
       id: collection.id,
+      companyId: collection.companyId,
+      memberShops: [...shops.entries()].map(([id, name]) => ({ id, name })),
       name: collection.name,
       description: collection.description,
       coverImage: collection.coverImage,

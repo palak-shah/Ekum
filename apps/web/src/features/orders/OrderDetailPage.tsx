@@ -25,16 +25,37 @@ import {
   urlsForOrderItem,
 } from '@/features/orders/orderItemImages';
 import { useCompanyId } from '@/lib/auth';
-import { formatDate, formatRate } from '@/lib/format';
+import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
+import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
+import { VoicePlayer } from '@/features/voice/VoicePlayer';
+import {
+  itemsForMill,
+  millCue,
+  millFromToCells,
+  millLineForParent,
+  quotePrefillFromMills,
+  showSellerConfirmOnDesk,
+  showSendQuoteOnDeskFace,
+  traderActionsBehindTakeOver,
+  traderDeskNextAction,
+} from '@/features/orders/iHandleDesk';
+import {
+  allReturnLinesSelected,
+  clearReturnSelection,
+  selectAllReturnLines,
+} from '@/features/orders/returnRaiseSelect';
+import { ratesWithSharedValue, type QuoteRateMode } from '@/features/orders/quoteSameRate';
 import {
   Button,
   Card,
+  Chip,
   ErrorState,
   Field,
+  FilterRail,
   InlineNotice,
   LoadingBlock,
   Sheet,
@@ -44,10 +65,88 @@ import {
   cx,
 } from '@/ui/kit';
 
+function RateFigure({
+  amount,
+  unit,
+  qtyPrefix,
+  muted,
+}: {
+  amount: string;
+  unit: string;
+  qtyPrefix?: string;
+  muted?: boolean;
+}) {
+  return (
+    <p
+      className={cx(
+        'text-center tabular-nums leading-tight',
+        muted ? 'text-muted' : 'text-ink',
+      )}
+    >
+      {qtyPrefix ? (
+        <span className="text-[10px] font-medium text-muted">{qtyPrefix}</span>
+      ) : null}
+      <span className="text-sm font-semibold">{amount}</span>
+      {unit ? (
+        <span className="text-[10px] font-normal text-muted">{unit}</span>
+      ) : null}
+    </p>
+  );
+}
+
+function rateAmount(rate: number | null): string {
+  if (rate == null) return '—';
+  return `₹${rate.toLocaleString('en-IN')}`;
+}
+
+function rateUnitSuffix(unit: string | null): string {
+  const label = formatUnit(unit);
+  return label ? `/${label}` : '';
+}
+
 function actionErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
+
 function OrderTimeline({ order }: { order: OrderView }) {
+  const trail = order.trail ?? [];
+  if (trail.length > 0) {
+    return (
+      <Card className="flex flex-col gap-0">
+        <p className="mb-3 text-sm font-semibold text-ink">Timeline</p>
+        <ol className="flex flex-col">
+          {trail.map((step, index) => (
+            <li key={step.id} className="flex gap-3">
+              <div className="flex w-4 flex-col items-center">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
+                {index < trail.length - 1 ? (
+                  <span className="my-1 min-h-4 w-px flex-1 bg-accent/40" />
+                ) : null}
+              </div>
+              <div className={cx('min-w-0 pb-3', index === trail.length - 1 && 'pb-0')}>
+                <p className="text-sm font-medium text-ink">{step.summary ?? step.type}</p>
+                <p className="text-xs text-muted">{formatDate(step.at)}</p>
+                {step.who ? <p className="text-[11px] text-muted">{step.who}</p> : null}
+                {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
+                {step.note ? (
+                  <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted">{step.note}</p>
+                ) : null}
+                {step.noteVoiceUrl ? (
+                  <div className="mt-1">
+                    <VoicePlayer
+                      src={step.noteVoiceUrl}
+                      durationMs={step.noteVoiceDurationMs}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Card>
+    );
+  }
+
   const steps = buildOrderTimelineSteps({
     ...order,
     returns: order.returns ?? [],
@@ -169,6 +268,7 @@ export function OrderDetailPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [settleOpen, setSettleOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
@@ -190,23 +290,49 @@ export function OrderDetailPage() {
   }>({});
   const [shipQty, setShipQty] = useState<Record<string, string>>({});
   const [returnReason, setReturnReason] = useState('');
+  const [returnReasonVoice, setReturnReasonVoice] = useState<NoteVoiceValue>(null);
   const [returnSelected, setReturnSelected] = useState<Record<string, boolean>>({});
   const [returnQty, setReturnQty] = useState<Record<string, string>>({});
+  const [dispatchNote, setDispatchNote] = useState('');
+  const [dispatchNoteVoice, setDispatchNoteVoice] = useState<NoteVoiceValue>(null);
+  const [amendNote, setAmendNote] = useState('');
+  const [amendNoteVoice, setAmendNoteVoice] = useState<NoteVoiceValue>(null);
+  const [linesNote, setLinesNote] = useState('');
+  const [linesNoteVoice, setLinesNoteVoice] = useState<NoteVoiceValue>(null);
+  const [payNoteVoice, setPayNoteVoice] = useState<NoteVoiceValue>(null);
+  const [actionNoteOpen, setActionNoteOpen] = useState<'cancel' | 'decline' | null>(null);
+  const [actionNote, setActionNote] = useState('');
+  const [actionNoteVoice, setActionNoteVoice] = useState<NoteVoiceValue>(null);
   const [quoteNote, setQuoteNote] = useState('');
+  const [quoteNoteVoice, setQuoteNoteVoice] = useState<NoteVoiceValue>(null);
+  const [quoteVoiceBusy, setQuoteVoiceBusy] = useState(false);
+  const [settleNote, setSettleNote] = useState('');
+  const [settleNoteVoice, setSettleNoteVoice] = useState<NoteVoiceValue>(null);
   const [rates, setRates] = useState<Record<string, string>>({});
   const [offerQty, setOfferQty] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState<Record<string, boolean>>({});
+  const [quoteRateMode, setQuoteRateMode] = useState<QuoteRateMode>('same');
+  const [sharedQuoteRate, setSharedQuoteRate] = useState('');
+  const [millRateMode, setMillRateMode] = useState<QuoteRateMode>('same');
+  const [sharedMillRate, setSharedMillRate] = useState('');
   const [lineActions, setLineActions] = useState<Record<string, 'confirm' | 'decline'>>({});
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [lrTouched, setLrTouched] = useState(false);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
   const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
+  const [takeOverOpen, setTakeOverOpen] = useState(false);
 
   const order = useQuery({
     queryKey: ['order', id],
     queryFn: () => api.get<OrderView>(`/orders/${id}`),
   });
+
+  useEffect(() => {
+    const desk = order.data?.deskOrderId;
+    if (!desk || desk === id) return;
+    navigate(`/orders/${desk}`, { replace: true });
+  }, [order.data?.deskOrderId, id, navigate]);
 
   useEffect(() => {
     if (order.data?.direction !== 'buying') return;
@@ -224,11 +350,34 @@ export function OrderDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
     void queryClient.invalidateQueries({ queryKey: ['returns'] });
     void queryClient.invalidateQueries({ queryKey: ['threads'] });
+    const threadId = order.data?.threadId;
+    if (threadId) {
+      void queryClient.invalidateQueries({ queryKey: ['thread', threadId, 'messages'] });
+    }
   };
 
   const act = useMutation({
     mutationFn: (action: string) => api.post<OrderView>(`/orders/${id}/${action}`, {}),
     onSuccess: refresh,
+    onError: (err) => showToast(actionErrorMessage(err, 'Action failed.'), 'danger'),
+  });
+
+  const actionWithNote = useMutation({
+    mutationFn: () => {
+      const action = actionNoteOpen;
+      if (!action) throw new Error('No action');
+      return api.post<OrderView>(`/orders/${id}/${action}`, {
+        note: actionNote.trim() || undefined,
+        noteVoiceMediaId: actionNoteVoice?.mediaId,
+        noteVoiceDurationMs: actionNoteVoice?.durationMs,
+      });
+    },
+    onSuccess: () => {
+      setActionNoteOpen(null);
+      setActionNote('');
+      setActionNoteVoice(null);
+      refresh();
+    },
     onError: (err) => showToast(actionErrorMessage(err, 'Action failed.'), 'danger'),
   });
 
@@ -241,6 +390,27 @@ export function OrderDetailPage() {
     },
     onError: (err) => showToast(actionErrorMessage(err, 'Could not send.'), 'danger'),
   });
+
+  const millHold = useMutation({
+    mutationFn: (body: { upstreamOrderId: string; held: boolean }) =>
+      api.post<OrderView>(`/orders/${id}/mill-hold`, body),
+    onSuccess: refresh,
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
+  });
+
+  const [millQty, setMillQty] = useState<Record<string, string>>({});
+  const [millRate, setMillRate] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!order.data) return;
+    const qty: Record<string, string> = {};
+    const rate: Record<string, string> = {};
+    for (const item of order.data.items) {
+      qty[item.id] = String(item.quantity);
+      rate[item.id] = item.rate != null ? String(item.rate) : '';
+    }
+    setMillQty(qty);
+    setMillRate(rate);
+  }, [order.data]);
 
   const takeControl = useMutation({
     mutationFn: () =>
@@ -269,12 +439,16 @@ export function OrderDetailPage() {
       const dto: CreatePaymentRequestDto = {
         amount,
         note: payNote.trim() || undefined,
+        noteVoiceMediaId: payNoteVoice?.mediaId,
+        noteVoiceDurationMs: payNoteVoice?.durationMs,
         instructions: payHow.trim() || undefined,
       };
       return api.post(`/orders/${id}/payment-requests`, dto);
     },
     onSuccess: () => {
       setPayOpen(false);
+      setPayNote('');
+      setPayNoteVoice(null);
       setPayError(null);
       refresh();
       showToast('Asked for payment.');
@@ -330,10 +504,17 @@ export function OrderDetailPage() {
           message: 'Keep at least one design.',
         });
       }
-      return api.post<OrderView>(`/orders/${id}/amend`, { items });
+      return api.post<OrderView>(`/orders/${id}/amend`, {
+        items,
+        note: amendNote.trim() || undefined,
+        noteVoiceMediaId: amendNoteVoice?.mediaId,
+        noteVoiceDurationMs: amendNoteVoice?.durationMs,
+      });
     },
     onSuccess: () => {
       setAmendOpen(false);
+      setAmendNote('');
+      setAmendNoteVoice(null);
       setSheetError(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       refresh();
@@ -379,12 +560,17 @@ export function OrderDetailPage() {
         transporter: dispatch.transporter?.trim() || undefined,
         parcelCount: dispatch.parcelCount,
         items,
+        note: dispatchNote.trim() || undefined,
+        noteVoiceMediaId: dispatchNoteVoice?.mediaId,
+        noteVoiceDurationMs: dispatchNoteVoice?.durationMs,
       };
       return api.post<OrderView>(`/orders/${id}/dispatch`, dto);
     },
     onSuccess: () => {
       setDispatchOpen(false);
       setDispatchError(null);
+      setDispatchNote('');
+      setDispatchNoteVoice(null);
       setLrTouched(false);
       refresh();
     },
@@ -407,10 +593,36 @@ export function OrderDetailPage() {
     dispatchOrder.mutate();
   };
 
+  const settleOrder = useMutation({
+    mutationFn: () =>
+      api.post<OrderView>(`/orders/${id}/settle`, {
+        note: settleNote.trim() || undefined,
+        noteVoiceMediaId: settleNoteVoice?.mediaId,
+        noteVoiceDurationMs: settleNoteVoice?.durationMs,
+      }),
+    onSuccess: (updated) => {
+      setSettleOpen(false);
+      setSettleNote('');
+      setSettleNoteVoice(null);
+      setSheetError(null);
+      queryClient.setQueryData(['order', id], updated);
+      refresh();
+      if (updated.threadId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['thread', updated.threadId, 'messages'],
+        });
+      }
+      showToast('Order settled.');
+    },
+    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not settle.')),
+  });
+
   const sendQuote = useMutation({
     mutationFn: () => {
       const dto: QuoteOrderDto = {
         note: quoteNote || undefined,
+        noteVoiceMediaId: quoteNoteVoice?.mediaId,
+        noteVoiceDurationMs: quoteNoteVoice?.durationMs,
         items: (order.data?.items ?? [])
           .filter((item) => item.lineStatus === 'open')
           .map((item) =>
@@ -427,9 +639,13 @@ export function OrderDetailPage() {
     },
     onSuccess: (updated) => {
       setQuoteOpen(false);
+      setQuoteNote('');
+      setQuoteNoteVoice(null);
+      setQuoteVoiceBusy(false);
       setSheetError(null);
       refresh();
       if (updated.threadId) {
+        void queryClient.invalidateQueries({ queryKey: ['thread', updated.threadId, 'messages'] });
         navigate(`/chats/${updated.threadId}`);
       }
     },
@@ -443,11 +659,16 @@ export function OrderDetailPage() {
           orderItemId,
           action,
         })),
+        note: linesNote.trim() || undefined,
+        noteVoiceMediaId: linesNoteVoice?.mediaId,
+        noteVoiceDurationMs: linesNoteVoice?.durationMs,
       };
       return api.post<OrderView>(`/orders/${id}/lines/decide`, dto);
     },
     onSuccess: () => {
       setLinesOpen(false);
+      setLinesNote('');
+      setLinesNoteVoice(null);
       setSheetError(null);
       refresh();
     },
@@ -473,12 +694,16 @@ export function OrderDetailPage() {
       const dto: CreateReturnDto = {
         orderId: id,
         reason: returnReason || undefined,
+        reasonVoiceMediaId: returnReasonVoice?.mediaId,
+        reasonVoiceDurationMs: returnReasonVoice?.durationMs,
         items,
       };
       return api.post('/returns', dto);
     },
     onSuccess: () => {
       setReturnOpen(false);
+      setReturnReason('');
+      setReturnReasonVoice(null);
       setSheetError(null);
       refresh();
     },
@@ -510,19 +735,27 @@ export function OrderDetailPage() {
   }, [focusReturnId, order.data?.returns]);
 
   const openQuoteSheet = () => {
-    const initialRates: Record<string, string> = {};
-    const initialQty: Record<string, string> = {};
+    const data = order.data;
+    if (!data) return;
+    const prefill = quotePrefillFromMills(data.items, data.millDesks);
     const initialUnavail: Record<string, boolean> = {};
-    for (const item of order.data?.items ?? []) {
+    const openIds: string[] = [];
+    for (const item of data.items) {
       if (item.lineStatus !== 'open') continue;
-      initialRates[item.id] = item.rate != null ? String(item.rate) : '';
-      initialQty[item.id] = String(item.quantity);
       initialUnavail[item.id] = false;
+      openIds.push(item.id);
     }
-    setRates(initialRates);
-    setOfferQty(initialQty);
+    const prefills = openIds.map((id) => prefill.rates[id] ?? '').filter((v) => v !== '');
+    const allSame =
+      prefills.length > 0 && prefills.length === openIds.length && prefills.every((v) => v === prefills[0]);
+    setRates(prefill.rates);
+    setOfferQty(prefill.qty);
     setUnavailable(initialUnavail);
+    setQuoteRateMode(allSame || prefills.length === 0 ? 'same' : 'each');
+    setSharedQuoteRate(allSame ? prefills[0]! : '');
     setQuoteNote('');
+    setQuoteNoteVoice(null);
+    setQuoteVoiceBusy(false);
     setSheetError(null);
     setQuoteOpen(true);
   };
@@ -555,21 +788,18 @@ export function OrderDetailPage() {
   };
 
   const openReturnSheet = () => {
-    const selected: Record<string, boolean> = {};
-    const qty: Record<string, string> = {};
-    for (const item of order.data?.items ?? []) {
-      if (item.lineStatus === 'declined') continue;
-      selected[item.id] = true;
-      qty[item.id] = String(item.quantity);
-    }
-    setReturnSelected(selected);
-    setReturnQty(qty);
+    const returnable = (order.data?.items ?? []).filter((item) => item.lineStatus !== 'declined');
+    const next = selectAllReturnLines(returnable);
+    setReturnSelected(next.selected);
+    setReturnQty(next.qty);
     setSheetError(null);
     setReturnReason('');
     setReturnOpen(true);
   };
 
-  const closeSheet = (which: 'quote' | 'lines' | 'dispatch' | 'amend' | 'return' | 'pay') => {
+  const closeSheet = (
+    which: 'quote' | 'lines' | 'dispatch' | 'settle' | 'amend' | 'return' | 'pay',
+  ) => {
     setSheetError(null);
     if (which === 'quote') setQuoteOpen(false);
     if (which === 'lines') setLinesOpen(false);
@@ -577,6 +807,7 @@ export function OrderDetailPage() {
       setDispatchError(null);
       setDispatchOpen(false);
     }
+    if (which === 'settle') setSettleOpen(false);
     if (which === 'amend') setAmendOpen(false);
     if (which === 'return') setReturnOpen(false);
     if (which === 'pay') {
@@ -610,6 +841,22 @@ export function OrderDetailPage() {
     () => returnableItems.filter((item) => returnSelected[item.id]).length,
     [returnableItems, returnSelected],
   );
+  const returnAllSelected = useMemo(
+    () => allReturnLinesSelected(returnableItems, returnSelected),
+    [returnableItems, returnSelected],
+  );
+
+  const selectAllReturnable = () => {
+    setSheetError(null);
+    const next = selectAllReturnLines(returnableItems);
+    setReturnSelected(next.selected);
+    setReturnQty(next.qty);
+  };
+
+  const clearReturnable = () => {
+    setSheetError(null);
+    setReturnSelected(clearReturnSelection(returnableItems));
+  };
 
   const quoteReady = useMemo(() => {
     const supplyable = openItems.filter((item) => !unavailable[item.id]);
@@ -654,14 +901,37 @@ export function OrderDetailPage() {
   const isSeller = data.direction === 'selling';
   const isBuyer = data.direction === 'buying';
   const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
-  const nextCue = nextOrderAction({
-    status: data.status,
-    direction: data.direction === 'selling' ? 'selling' : 'buying',
-    hasOpenQuotedLine: data.hasSellerQuote === true,
-    partiallyShipped: data.partiallyShipped,
-    intent: data.intent,
-    counterpartName: data.counterpart.name,
-  });
+  const openForDispatch =
+    data.status === 'confirmed' || data.status === 'part_shipped';
+  const behindTakeOver = traderActionsBehindTakeOver(data.millDesks);
+  const quoteOnFace =
+    !behindTakeOver || showSendQuoteOnDeskFace(data.millDesks);
+  const takeOverHasWork =
+    behindTakeOver &&
+    Boolean(
+      data.threadId ||
+        data.canAskPayment ||
+        (isSeller && data.status === 'requested') ||
+        (isSeller && openForDispatch && hasRemaining) ||
+        (isSeller && data.canSettle),
+    );
+  // I-handle desks own the cue — don't fall through to bilateral “dispatch remaining”
+  // when all mills are done and the parent is about to / just healed to Settled.
+  const nextCue = data.millDesks?.length
+    ? traderDeskNextAction({
+        status: data.status,
+        counterpartName: data.counterpart.name,
+        hasSellerQuote: data.hasSellerQuote === true,
+        millDesks: data.millDesks,
+      })
+    : nextOrderAction({
+        status: data.status,
+        direction: data.direction === 'selling' ? 'selling' : 'buying',
+        hasOpenQuotedLine: data.hasSellerQuote === true,
+        partiallyShipped: data.partiallyShipped,
+        intent: data.intent,
+        counterpartName: data.counterpart.name,
+      });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
   const sharedByYou =
@@ -674,9 +944,11 @@ export function OrderDetailPage() {
       ? data.direction === 'buying'
         ? `Inquiry to ${data.counterpart.name}`
         : `Inquiry from ${data.counterpart.name}`
-      : data.direction === 'buying'
-        ? `You buy from ${data.counterpart.name}`
-        : `You sell to ${data.counterpart.name}`;
+      : data.tradeMode === 'manage' && data.direction === 'selling'
+        ? `Trading with ${data.counterpart.name}`
+        : data.direction === 'buying'
+          ? `You buy from ${data.counterpart.name}`
+          : `You sell to ${data.counterpart.name}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -691,7 +963,10 @@ export function OrderDetailPage() {
                 Inquiry
               </span>
             ) : null}
-            {data.partiallyShipped ? (
+            {/* Part shipped is only a mid-fulfillment pill/timeline cue — never after Settled. */}
+            {data.partiallyShipped &&
+            data.status === 'confirmed' &&
+            data.status !== 'settled' ? (
               <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
                 Part shipped
               </span>
@@ -719,7 +994,8 @@ export function OrderDetailPage() {
         companyId === data.facilitatorCompanyId ? (
           <p className="pt-1 text-sm font-medium text-accent">Shared</p>
         ) : null}
-        {data.status === 'confirmed' && (data.confirmedByName || data.confirmedByRole) ? (
+        {(data.status === 'confirmed' || data.status === 'part_shipped') &&
+        (data.confirmedByName || data.confirmedByRole) ? (
           <p className="pt-1 text-muted">
             {agreementStepLabel(data.confirmedByRole, data.confirmedByName)}
           </p>
@@ -729,33 +1005,272 @@ export function OrderDetailPage() {
         ) : null}
       </Card>
 
-      {data.relatedOrders && data.relatedOrders.length > 0 ? (
-        <Card className="flex flex-col gap-2 text-sm">
-          <p className="font-semibold text-ink">Related orders</p>
-          {data.relatedOrders.map((related) => (
-            <button
-              key={related.id}
-              type="button"
-              className="flex flex-col items-start rounded-lg px-1 py-1 text-left hover:bg-foam"
-              onClick={() => navigate(`/orders/${related.id}`)}
-            >
-              <span className="font-medium text-ink">
-                {related.held
-                  ? `Waiting${related.sellerName ? ` · ${related.sellerName}` : ''}`
-                  : related.role === 'upstream'
-                    ? `${related.sellerName ?? 'Linked'} · ${related.status}`
-                    : `${related.buyerName ?? 'Linked'} · ${related.status}`}
-              </span>
-              {(related.sellerName || related.buyerName) && (
-                <span className="text-xs text-muted">
-                  {[related.buyerName, related.sellerName].filter(Boolean).join(' → ')}
-                </span>
-              )}
-            </button>
-          ))}
-        </Card>
+      {data.needsQuotePass ? (
+        <p className="rounded-xl bg-warning-soft px-3 py-2 text-sm font-medium text-warning-ink">
+          Mill sent rates — the buyer has not seen them
+        </p>
       ) : null}
 
+      {data.millDesks && data.millDesks.length > 0
+        ? data.millDesks.map((desk) => {
+            const rows = itemsForMill(data.items, desk);
+            const cue = millCue(desk);
+            return (
+              <Card key={desk.upstreamOrderId} className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">
+                      {desk.sellerName}
+                      {!desk.held ? (
+                        <span className="ml-1.5 text-xs font-semibold text-accent">
+                          {shortOrderLabel(desk.upstreamOrderId)}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {desk.held
+                        ? 'Mill cannot see this yet'
+                        : desk.passHeld
+                          ? 'Held'
+                          : cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {!desk.held ? (
+                      <StatusPill status={desk.status === 'requested' ? 'requested' : desk.status} />
+                    ) : null}
+                    {!desk.held ? (
+                      <details className="relative">
+                        <summary className="cursor-pointer list-none px-1 text-lg leading-none text-muted">
+                          ⋯
+                        </summary>
+                        <div className="absolute right-0 z-20 mt-1 min-w-[9rem] rounded-xl border border-line bg-surface p-1 shadow-sm">
+                          <button
+                            type="button"
+                            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-foam"
+                            disabled={millHold.isPending}
+                            onClick={() =>
+                              millHold.mutate({
+                                upstreamOrderId: desk.upstreamOrderId,
+                                held: !desk.passHeld,
+                              })
+                            }
+                          >
+                            {desk.passHeld ? `Resume ${desk.sellerName}` : `Hold ${desk.sellerName}`}
+                          </button>
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                </div>
+                {!desk.held && desk.millQuoted ? (
+                  <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-end gap-2 border-t border-line pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                      Design
+                    </p>
+                    <p className="text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                      From
+                      <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
+                        {desk.sellerName}
+                      </span>
+                    </p>
+                    <p className="text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                      To
+                      <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
+                        {data.counterpart.name}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
+                {desk.held ? (
+                  <div className="flex flex-col gap-2 border-t border-line pt-2">
+                    {rows.length > 1 ? (
+                      <>
+                        <FilterRail>
+                          <Chip
+                            active={millRateMode === 'same'}
+                            onClick={() => {
+                              setMillRateMode('same');
+                              if (sharedMillRate.trim()) {
+                                setMillRate((prev) => ({
+                                  ...prev,
+                                  ...ratesWithSharedValue(
+                                    rows.map((item) => item.id),
+                                    sharedMillRate,
+                                  ),
+                                }));
+                              }
+                            }}
+                          >
+                            Same rate for all
+                          </Chip>
+                          <Chip
+                            active={millRateMode === 'each'}
+                            onClick={() => setMillRateMode('each')}
+                          >
+                            Each design
+                          </Chip>
+                        </FilterRail>
+                        {millRateMode === 'same' ? (
+                          <Field label="Rate for every design">
+                            <TextInput
+                              type="number"
+                              min={0}
+                              placeholder="Rate"
+                              value={sharedMillRate}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setSharedMillRate(value);
+                                setMillRate((prev) => ({
+                                  ...prev,
+                                  ...ratesWithSharedValue(
+                                    rows.map((item) => item.id),
+                                    value,
+                                  ),
+                                }));
+                              }}
+                            />
+                          </Field>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5rem] gap-x-2 gap-y-0">
+                      <p className="pb-2 text-[10px] font-bold uppercase tracking-wide text-muted">
+                        Design
+                      </p>
+                      <p className="pb-2 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                        Qty
+                      </p>
+                      <p className="pb-2 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                        {millRateMode === 'same' && rows.length > 1 ? '' : 'Rate'}
+                      </p>
+                      {rows.map((item) => (
+                        <div
+                          key={item.id}
+                          className="col-span-3 grid grid-cols-subgrid items-center gap-x-2 border-t border-line pt-3"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <OrderLinePhoto
+                              item={item}
+                              items={data.items}
+                              onOpen={openPhotoViewer}
+                            />
+                            <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+                              {item.name}
+                            </p>
+                          </div>
+                          <TextInput
+                            className="w-full min-w-0 px-1.5 text-center tabular-nums"
+                            value={millQty[item.id] ?? String(item.quantity)}
+                            onChange={(e) =>
+                              setMillQty((prev) => ({ ...prev, [item.id]: e.target.value }))
+                            }
+                            aria-label={`Quantity for ${item.name}`}
+                          />
+                          {millRateMode === 'each' || rows.length <= 1 ? (
+                            <TextInput
+                              className="w-full min-w-0 px-1.5 text-center tabular-nums"
+                              value={
+                                millRate[item.id] ?? (item.rate != null ? String(item.rate) : '')
+                              }
+                              onChange={(e) =>
+                                setMillRate((prev) => ({ ...prev, [item.id]: e.target.value }))
+                              }
+                              aria-label={`Rate for ${item.name}`}
+                            />
+                          ) : (
+                            <p className="text-center text-xs tabular-nums text-muted">
+                              {millRate[item.id] ||
+                                (item.rate != null ? String(item.rate) : '—')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  rows.map((item) => {
+                    const millLine = millLineForParent(desk, item.id);
+                    const cells = desk.millQuoted
+                      ? millFromToCells({
+                          millQuoted: true,
+                          millDeclined: millLine?.millDeclined ?? false,
+                          millRate: millLine?.millRate ?? null,
+                          millQuantity: millLine?.millQuantity ?? null,
+                          buyerQuoted: data.hasSellerQuote === true,
+                          buyerRate: item.rate,
+                          buyerQuantity: item.quantity,
+                          unit: item.unit,
+                          formatAmount: rateAmount,
+                          formatUnitSuffix: rateUnitSuffix,
+                        })
+                      : null;
+                    return (
+                      <div
+                        key={item.id}
+                        className={cx(
+                          'border-t border-line pt-3',
+                          cells
+                            ? 'grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-center gap-2'
+                            : 'flex items-center gap-3',
+                        )}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <OrderLinePhoto
+                            item={item}
+                            items={data.items}
+                            onOpen={openPhotoViewer}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                            {!cells ? (
+                              <p className="text-xs text-muted">
+                                {item.quantity} × {formatRate(item.rate, item.unit)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        {cells ? (
+                          <>
+                            <RateFigure
+                              amount={cells.fromAmount}
+                              unit={cells.fromUnit}
+                              qtyPrefix={cells.fromQtyPrefix || undefined}
+                            />
+                            <RateFigure
+                              amount={cells.toAmount}
+                              unit={cells.toUnit}
+                              muted={!data.hasSellerQuote}
+                            />
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
+                {desk.held ? (
+                  <Button
+                    onClick={() => {
+                      const items = rows
+                        .map((item) => ({
+                          productId: item.productId ?? undefined,
+                          quantity: Number(millQty[item.id] ?? item.quantity),
+                          rate: millRate[item.id] ? Number(millRate[item.id]) : undefined,
+                        }))
+                        .filter((row) => row.productId);
+                      sendUp.mutate({ upstreamOrderId: desk.upstreamOrderId, items });
+                    }}
+                    disabled={sendUp.isPending}
+                  >
+                    {sendUp.isPending ? 'Sending…' : `Send to ${desk.sellerName}`}
+                  </Button>
+                ) : null}
+              </Card>
+            );
+          })
+        : null}
+
+      {!(data.millDesks && data.millDesks.length > 0) ? (
       <Card className="flex flex-col gap-3">
         {data.items.map((item) => (
           <div key={item.id} className="flex items-center gap-3">
@@ -780,7 +1295,34 @@ export function OrderDetailPage() {
           </div>
         ))}
         {data.note ? <p className="border-t border-line pt-2 text-sm text-muted">{data.note}</p> : null}
+        {data.noteVoiceUrl ? (
+          <div className="border-t border-line pt-2">
+            <VoicePlayer src={data.noteVoiceUrl} durationMs={data.noteVoiceDurationMs} />
+          </div>
+        ) : null}
+        {data.hasSellerQuote && (data.quoteNote || data.quoteNoteVoiceUrl) ? (
+          <div className="flex flex-col gap-1.5 border-t border-line pt-2">
+            <p className="text-xs font-semibold text-ink">Quote note</p>
+            {data.quoteNote ? (
+              <p className="whitespace-pre-wrap text-sm text-muted">{data.quoteNote}</p>
+            ) : null}
+            {data.quoteNoteVoiceUrl ? (
+              <VoicePlayer
+                src={data.quoteNoteVoiceUrl}
+                durationMs={data.quoteNoteVoiceDurationMs}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </Card>
+      ) : data.note || data.noteVoiceUrl ? (
+        <Card className="flex flex-col gap-2">
+          {data.note ? <p className="text-sm text-muted">{data.note}</p> : null}
+          {data.noteVoiceUrl ? (
+            <VoicePlayer src={data.noteVoiceUrl} durationMs={data.noteVoiceDurationMs} />
+          ) : null}
+        </Card>
+      ) : null}
 
       <OrderTimeline order={data} />
 
@@ -822,6 +1364,14 @@ export function OrderDetailPage() {
                 <p className="mt-1.5 text-xs text-muted">
                   Raised {formatDate(ret.createdAt)}
                 </p>
+                {ret.reasonVoiceUrl ? (
+                  <div className="mt-2">
+                    <VoicePlayer
+                      src={ret.reasonVoiceUrl}
+                      durationMs={ret.reasonVoiceDurationMs}
+                    />
+                  </div>
+                ) : null}
                 {isSeller && ret.status === 'requested' ? (
                   <div className="mt-2 flex flex-col gap-2">
                     <Button
@@ -891,6 +1441,11 @@ export function OrderDetailPage() {
                 {ask.amount.toLocaleString('en-IN')}
               </p>
               {ask.note ? <p className="text-muted">{ask.note}</p> : null}
+              {ask.noteVoiceUrl ? (
+                <div className="mt-1">
+                  <VoicePlayer src={ask.noteVoiceUrl} durationMs={ask.noteVoiceDurationMs} />
+                </div>
+              ) : null}
               {ask.instructions ? <p className="text-muted">{ask.instructions}</p> : null}
               {ask.status === 'paid' && ask.paidAt ? (
                 <p className="text-muted">{formatDate(ask.paidAt)}</p>
@@ -919,31 +1474,47 @@ export function OrderDetailPage() {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        {data.threadId ? (
+        {!behindTakeOver && data.threadId ? (
           <Button variant="secondary" onClick={() => navigate(`/chats/${data.threadId}`)}>
             Open chat
           </Button>
         ) : null}
-        {data.canAskPayment ? (
+        {!behindTakeOver && data.canAskPayment ? (
           <Button variant="secondary" onClick={openPaySheet}>
             Ask for payment
           </Button>
         ) : null}
         {isSeller && data.status === 'requested' ? (
           <>
-            <Button onClick={openQuoteSheet}>Send quote</Button>
-            <Button variant="secondary" onClick={openLinesSheet}>
-              Confirm / decline lines
-            </Button>
-            <Button variant="secondary" onClick={() => act.mutate('confirm')} disabled={act.isPending}>
-              Confirm all open
-            </Button>
-            <Button variant="secondary" onClick={() => act.mutate('decline')} disabled={act.isPending}>
-              Decline order
-            </Button>
+            {quoteOnFace ? <Button onClick={openQuoteSheet}>Send quote</Button> : null}
+            {showSellerConfirmOnDesk(data.millDesks) ? (
+              <>
+                <Button variant="secondary" onClick={openLinesSheet}>
+                  Confirm / decline lines
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => act.mutate('confirm')}
+                  disabled={act.isPending}
+                >
+                  Confirm all open
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setActionNote('');
+                    setActionNoteVoice(null);
+                    setActionNoteOpen('decline');
+                  }}
+                  disabled={act.isPending || actionWithNote.isPending}
+                >
+                  Decline order
+                </Button>
+              </>
+            ) : null}
           </>
         ) : null}
-        {data.canSendUp ? (
+        {data.canSendUp && !(data.millDesks && data.millDesks.length > 0) ? (
           <>
             <Button onClick={() => sendUp.mutate({})} disabled={sendUp.isPending}>
               {sendUp.isPending ? 'Sending…' : 'Send'}
@@ -992,19 +1563,87 @@ export function OrderDetailPage() {
             Accept quote
           </Button>
         ) : null}
-        {isSeller && data.status === 'confirmed' && hasRemaining ? (
+        {!behindTakeOver && isSeller && openForDispatch && hasRemaining ? (
           <Button data-testid="order-dispatch-open" onClick={openDispatchSheet}>
-            {data.partiallyShipped ? 'Dispatch remaining' : 'Dispatch shipment'}
+            {data.partiallyShipped ? 'Dispatch more' : 'Dispatch shipment'}
           </Button>
         ) : null}
-        {isBuyer && data.status === 'dispatched' ? (
+        {!behindTakeOver && isSeller && data.canSettle ? (
           <Button
-            data-testid="order-deliver"
-            onClick={() => act.mutate('deliver')}
-            disabled={act.isPending}
+            data-testid="order-settle-open"
+            variant="secondary"
+            onClick={() => {
+              setSettleNote('');
+              setSettleNoteVoice(null);
+              setSheetError(null);
+              setSettleOpen(true);
+            }}
           >
-            Mark delivered
+            Settle order
           </Button>
+        ) : null}
+        {takeOverHasWork ? (
+          <div className="flex flex-col gap-2" data-testid="order-take-over">
+            <Button
+              variant="secondary"
+              data-testid="order-take-over-toggle"
+              onClick={() => setTakeOverOpen((open) => !open)}
+            >
+              Take over
+            </Button>
+            {takeOverOpen ? (
+              <>
+                {isSeller && data.status === 'requested' && !quoteOnFace ? (
+                  <Button onClick={openQuoteSheet}>Send quote</Button>
+                ) : null}
+                {data.threadId ? (
+                  <Button variant="secondary" onClick={() => navigate(`/chats/${data.threadId}`)}>
+                    Open chat
+                  </Button>
+                ) : null}
+                {data.canAskPayment ? (
+                  <Button variant="secondary" onClick={openPaySheet}>
+                    Ask for payment
+                  </Button>
+                ) : null}
+                {isSeller && data.status === 'requested' ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setActionNote('');
+                      setActionNoteVoice(null);
+                      setActionNoteOpen('decline');
+                    }}
+                    disabled={act.isPending || actionWithNote.isPending}
+                  >
+                    Decline order
+                  </Button>
+                ) : null}
+                {isSeller && openForDispatch && hasRemaining ? (
+                  <Button data-testid="order-dispatch-open" onClick={openDispatchSheet}>
+                    {data.partiallyShipped ? 'Dispatch more' : 'Dispatch shipment'}
+                  </Button>
+                ) : null}
+                {isSeller && data.canSettle ? (
+                  <Button
+                    data-testid="order-settle-open"
+                    variant="secondary"
+                    onClick={() => {
+                      setSettleNote('');
+                      setSettleNoteVoice(null);
+                      setSheetError(null);
+                      setSettleOpen(true);
+                    }}
+                  >
+                    Settle order
+                  </Button>
+                ) : null}
+                <Button variant="ghost" onClick={() => navigate(`/company/${data.counterpart.id}`)}>
+                  View {data.counterpart.name}
+                </Button>
+              </>
+            ) : null}
+          </div>
         ) : null}
         {isBuyer && data.canAmend ? (
           <Button variant="secondary" onClick={openAmendSheet}>
@@ -1012,18 +1651,28 @@ export function OrderDetailPage() {
           </Button>
         ) : null}
         {isBuyer && (data.status === 'requested' || data.status === 'confirmed') ? (
-          <Button variant="secondary" onClick={() => act.mutate('cancel')} disabled={act.isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setActionNote('');
+              setActionNoteVoice(null);
+              setActionNoteOpen('cancel');
+            }}
+            disabled={act.isPending || actionWithNote.isPending}
+          >
             {isInquiry && data.status === 'requested' ? 'Cancel inquiry' : 'Cancel order'}
           </Button>
         ) : null}
-        {isBuyer && data.status === 'delivered' ? (
+        {isBuyer && (data.status === 'delivered' || data.status === 'settled' || data.status === 'dispatched') ? (
           <Button variant="secondary" onClick={openReturnSheet}>
             Raise a return
           </Button>
         ) : null}
-        <Button variant="ghost" onClick={() => navigate(`/company/${data.counterpart.id}`)}>
-          View {data.counterpart.name}
-        </Button>
+        {!behindTakeOver ? (
+          <Button variant="ghost" onClick={() => navigate(`/company/${data.counterpart.id}`)}>
+            View {data.counterpart.name}
+          </Button>
+        ) : null}
       </div>
 
       <Sheet open={quoteOpen} onClose={() => closeSheet('quote')} title="Send quote">
@@ -1032,56 +1681,176 @@ export function OrderDetailPage() {
             Quoting {quoteSummary.count} of {quoteSummary.of} open · ₹
             {quoteSummary.total.toLocaleString('en-IN')}
           </p>
-          {openItems.map((item) => (
-            <div key={item.id} className="flex flex-col gap-2 rounded-xl border border-line p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-ink">{item.name}</p>
-                <label className="flex items-center gap-1.5 text-xs text-muted">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(unavailable[item.id])}
-                    onChange={(event) =>
-                      setUnavailable((prev) => ({ ...prev, [item.id]: event.target.checked }))
+          {openItems.filter((item) => !unavailable[item.id]).length > 1 ? (
+            <>
+              <FilterRail>
+                <Chip
+                  active={quoteRateMode === 'same'}
+                  onClick={() => {
+                    setQuoteRateMode('same');
+                    const ids = openItems
+                      .filter((item) => !unavailable[item.id])
+                      .map((item) => item.id);
+                    if (sharedQuoteRate.trim()) {
+                      setRates((prev) => ({ ...prev, ...ratesWithSharedValue(ids, sharedQuoteRate) }));
                     }
-                  />
-                  Can’t supply
-                </label>
-              </div>
-              {!unavailable[item.id] ? (
-                <>
-                  <Field label={`Offer qty (asked ${item.requestedQuantity})`}>
-                    <TextInput
-                      type="number"
-                      min={1}
-                      max={item.requestedQuantity}
-                      value={offerQty[item.id] ?? ''}
-                      onChange={(event) =>
-                        setOfferQty((prev) => ({ ...prev, [item.id]: event.target.value }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Rate">
-                    <TextInput
-                      type="number"
-                      min={0}
-                      placeholder="Rate"
-                      value={rates[item.id] ?? ''}
-                      onChange={(event) =>
-                        setRates((prev) => ({ ...prev, [item.id]: event.target.value }))
-                      }
-                    />
-                  </Field>
-                </>
+                  }}
+                >
+                  Same rate for all
+                </Chip>
+                <Chip
+                  active={quoteRateMode === 'each'}
+                  onClick={() => setQuoteRateMode('each')}
+                >
+                  Each design
+                </Chip>
+              </FilterRail>
+              {quoteRateMode === 'same' ? (
+                <TextInput
+                  type="number"
+                  min={0}
+                  placeholder="Rate for every design"
+                  className="min-h-10"
+                  value={sharedQuoteRate}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSharedQuoteRate(value);
+                    const ids = openItems
+                      .filter((item) => !unavailable[item.id])
+                      .map((item) => item.id);
+                    setRates((prev) => ({ ...prev, ...ratesWithSharedValue(ids, value) }));
+                  }}
+                />
               ) : null}
-            </div>
-          ))}
-          <Field label="Note (optional)">
-            <TextArea value={quoteNote} onChange={(event) => setQuoteNote(event.target.value)} />
-          </Field>
+            </>
+          ) : null}
+          {(() => {
+            const showFrom = (data.millDesks ?? []).some((desk) => desk.millQuoted && !desk.held);
+            const showPerRateCol =
+              quoteRateMode === 'each' ||
+              openItems.filter((row) => !unavailable[row.id]).length <= 1;
+            const cols = showFrom
+              ? showPerRateCol
+                ? 'grid-cols-[minmax(0,1fr)_3.75rem_3.5rem_4rem]'
+                : 'grid-cols-[minmax(0,1fr)_3.75rem_3.5rem]'
+              : showPerRateCol
+                ? 'grid-cols-[minmax(0,1fr)_3.5rem_4rem]'
+                : 'grid-cols-[minmax(0,1fr)_3.5rem]';
+            const span = showFrom ? (showPerRateCol ? 4 : 3) : showPerRateCol ? 3 : 2;
+            return (
+              <div className={cx('grid gap-x-2 gap-y-0', cols)}>
+                <p className="pb-1 text-[10px] font-bold uppercase tracking-wide text-muted">
+                  Design
+                </p>
+                {showFrom ? (
+                  <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                    From
+                  </p>
+                ) : null}
+                <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                  Qty
+                </p>
+                {showPerRateCol ? (
+                  <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                    Rate
+                  </p>
+                ) : null}
+                {openItems.map((item) => {
+                  const millLine = (data.millDesks ?? [])
+                    .filter((desk) => desk.millQuoted && !desk.held)
+                    .map((desk) => ({ desk, line: millLineForParent(desk, item.id) }))
+                    .find((row) => row.line && !row.line.millDeclined && row.line.millRate != null);
+                  const fromRate = millLine?.line?.millRate ?? null;
+                  const fromUnit = fromRate != null ? rateUnitSuffix(item.unit) : '';
+                  return (
+                    <div
+                      key={item.id}
+                      className="grid grid-cols-subgrid items-center gap-x-2 border-t border-line py-2"
+                      style={{ gridColumn: `span ${span} / span ${span}` }}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                        <label className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5"
+                            checked={Boolean(unavailable[item.id])}
+                            onChange={(event) =>
+                              setUnavailable((prev) => ({
+                                ...prev,
+                                [item.id]: event.target.checked,
+                              }))
+                            }
+                          />
+                          Can’t supply
+                        </label>
+                      </div>
+                      {showFrom ? (
+                        unavailable[item.id] ? (
+                          <p className="text-center text-[11px] text-muted">—</p>
+                        ) : fromRate != null ? (
+                          <div className="text-center">
+                            <p className="text-sm font-semibold tabular-nums text-ink">
+                              {rateAmount(fromRate)}
+                            </p>
+                            {fromUnit ? (
+                              <p className="text-[10px] font-normal text-muted">{fromUnit}</p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="text-center text-[11px] text-muted">—</p>
+                        )
+                      ) : null}
+                      {!unavailable[item.id] ? (
+                        <TextInput
+                          type="number"
+                          min={1}
+                          max={item.requestedQuantity}
+                          className="min-h-10 w-full min-w-0 px-1 text-center text-sm tabular-nums"
+                          value={offerQty[item.id] ?? ''}
+                          onChange={(event) =>
+                            setOfferQty((prev) => ({ ...prev, [item.id]: event.target.value }))
+                          }
+                          aria-label={`Quantity for ${item.name}`}
+                        />
+                      ) : (
+                        <p className="text-center text-[11px] text-muted">—</p>
+                      )}
+                      {showPerRateCol ? (
+                        unavailable[item.id] ? (
+                          <p className="text-center text-[11px] text-muted">Skip</p>
+                        ) : (
+                          <TextInput
+                            type="number"
+                            min={0}
+                            placeholder="Rate"
+                            className="min-h-10 w-full min-w-0 px-1 text-center text-sm tabular-nums"
+                            value={rates[item.id] ?? ''}
+                            onChange={(event) =>
+                              setRates((prev) => ({ ...prev, [item.id]: event.target.value }))
+                            }
+                            aria-label={`Rate for ${item.name}`}
+                          />
+                        )
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <NoteVoiceField
+            label="Note"
+            note={quoteNote}
+            onNoteChange={setQuoteNote}
+            voice={quoteNoteVoice}
+            onVoiceChange={setQuoteNoteVoice}
+            onBusyChange={setQuoteVoiceBusy}
+          />
           {sheetError && quoteOpen ? <InlineNotice message={sheetError} /> : null}
           <Button
             fullWidth
-            disabled={!quoteReady || sendQuote.isPending}
+            disabled={!quoteReady || sendQuote.isPending || quoteVoiceBusy}
             onClick={() => sendQuote.mutate()}
           >
             {sendQuote.isPending ? 'Sending…' : 'Send quote in chat'}
@@ -1124,6 +1893,13 @@ export function OrderDetailPage() {
             </div>
           ))}
           {sheetError && linesOpen ? <InlineNotice message={sheetError} /> : null}
+          <NoteVoiceField
+            label="Note"
+            note={linesNote}
+            onNoteChange={setLinesNote}
+            voice={linesNoteVoice}
+            onVoiceChange={setLinesNoteVoice}
+          />
           <Button
             fullWidth
             disabled={openItems.length === 0 || decideLines.isPending}
@@ -1224,6 +2000,62 @@ export function OrderDetailPage() {
               </div>
             ))
           )}
+          <NoteVoiceField
+            label="Note"
+            note={dispatchNote}
+            onNoteChange={setDispatchNote}
+            voice={dispatchNoteVoice}
+            onVoiceChange={setDispatchNoteVoice}
+          />
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={settleOpen}
+        onClose={() => closeSheet('settle')}
+        title="Settle order"
+        footer={
+          <Button
+            fullWidth
+            data-testid="order-settle-confirm"
+            disabled={settleOrder.isPending}
+            onClick={() => settleOrder.mutate()}
+          >
+            {settleOrder.isPending ? 'Settling…' : 'Settle order'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3 pb-2">
+          <p className="text-sm text-muted">
+            Won’t ship the rest. Quantities become what already left, and this ticket closes as
+            Settled.
+          </p>
+          {(data.items ?? [])
+            .filter((item) => item.lineStatus !== 'declined')
+            .map((item) => {
+              const shipped = item.shippedQuantity ?? 0;
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-line p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                    <p className="text-xs text-muted">
+                      Asked {item.requestedQuantity} · final {shipped}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          <NoteVoiceField
+            label="Note"
+            note={settleNote}
+            onNoteChange={setSettleNote}
+            voice={settleNoteVoice}
+            onVoiceChange={setSettleNoteVoice}
+          />
+          {sheetError && settleOpen ? <InlineNotice message={sheetError} /> : null}
         </div>
       </Sheet>
 
@@ -1286,6 +2118,13 @@ export function OrderDetailPage() {
             editing quantities here.
           </p>
           {sheetError && amendOpen ? <InlineNotice message={sheetError} /> : null}
+          <NoteVoiceField
+            label="Note"
+            note={amendNote}
+            onNoteChange={setAmendNote}
+            voice={amendNoteVoice}
+            onVoiceChange={setAmendNoteVoice}
+          />
           <Button fullWidth onClick={() => amendOrder.mutate()} disabled={amendOrder.isPending}>
             {amendOrder.isPending ? 'Saving…' : 'Save changes'}
           </Button>
@@ -1294,11 +2133,37 @@ export function OrderDetailPage() {
 
       <Sheet open={returnOpen} onClose={() => closeSheet('return')} title="Raise a return">
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted">
-            {returnableItems.length > 0
-              ? `${returnSelectedCount} of ${returnableItems.length} selected · leave all on for a full return`
-              : 'Pick designs to return'}
-          </p>
+          {returnableItems.length > 0 ? (
+            <div
+              data-testid="return-raise-select-chrome"
+              className="flex items-center justify-between gap-2"
+            >
+              <p className="text-sm font-semibold text-ink">
+                {returnSelectedCount} of {returnableItems.length} selected
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  data-testid="return-raise-select-all"
+                  disabled={returnAllSelected}
+                  className="text-xs font-bold text-accent disabled:opacity-40"
+                  onClick={selectAllReturnable}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  data-testid="return-raise-clear"
+                  className="text-xs font-bold text-accent"
+                  onClick={clearReturnable}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Pick designs to return</p>
+          )}
           {returnableItems.length === 0 ? (
             <InlineNotice message="No supplyable lines left to return." />
           ) : (
@@ -1354,15 +2219,16 @@ export function OrderDetailPage() {
               );
             })
           )}
-          <Field label="Reason (optional)">
-            <TextArea
-              value={returnReason}
-              onChange={(event) => {
-                setSheetError(null);
-                setReturnReason(event.target.value);
-              }}
-            />
-          </Field>
+          <NoteVoiceField
+            label="Note"
+            note={returnReason}
+            onNoteChange={(value) => {
+              setSheetError(null);
+              setReturnReason(value);
+            }}
+            voice={returnReasonVoice}
+            onVoiceChange={setReturnReasonVoice}
+          />
           {sheetError && returnOpen ? <InlineNotice message={sheetError} /> : null}
           <Button
             fullWidth
@@ -1474,13 +2340,13 @@ export function OrderDetailPage() {
               onChange={(event) => setPayAmount(event.target.value)}
             />
           </Field>
-          <Field label="Note">
-            <TextArea
-              value={payNote}
-              placeholder="Optional"
-              onChange={(event) => setPayNote(event.target.value)}
-            />
-          </Field>
+          <NoteVoiceField
+            label="Note"
+            note={payNote}
+            onNoteChange={setPayNote}
+            voice={payNoteVoice}
+            onVoiceChange={setPayNoteVoice}
+          />
           <Field label="Pay how">
             <TextArea
               value={payHow}
@@ -1489,6 +2355,36 @@ export function OrderDetailPage() {
             />
           </Field>
           {payError ? <InlineNotice message={payError} /> : null}
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={actionNoteOpen != null}
+        onClose={() => setActionNoteOpen(null)}
+        title={actionNoteOpen === 'decline' ? 'Decline order' : 'Cancel order'}
+        footer={
+          <Button
+            fullWidth
+            disabled={actionWithNote.isPending}
+            onClick={() => actionWithNote.mutate()}
+          >
+            {actionWithNote.isPending
+              ? 'Saving…'
+              : actionNoteOpen === 'decline'
+                ? 'Decline order'
+                : 'Cancel order'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Optional note for the other shop.</p>
+          <NoteVoiceField
+            label="Note"
+            note={actionNote}
+            onNoteChange={setActionNote}
+            voice={actionNoteVoice}
+            onVoiceChange={setActionNoteVoice}
+          />
         </div>
       </Sheet>
 

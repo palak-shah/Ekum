@@ -1,25 +1,33 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   amendOrderSchema,
+  cancelOrderSchema,
   createForBuyerSchema,
   createOrderSchema,
   createOrdersBatchSchema,
   createOrdersFromPackSchema,
   decideOrderLinesSchema,
+  declineOrderSchema,
   dispatchSchema,
   listOrdersQuerySchema,
   quoteOrderSchema,
+  millPassHoldSchema,
   sendUpOrderSchema,
+  settleOrderSchema,
   type AmendOrderDto,
+  type CancelOrderDto,
   type CreateForBuyerDto,
   type CreateOrderDto,
   type CreateOrdersBatchDto,
   type CreateOrdersFromPackDto,
   type DecideOrderLinesDto,
+  type DeclineOrderDto,
   type DispatchDto,
   type ListOrdersQuery,
   type QuoteOrderDto,
+  type MillPassHoldDto,
   type SendUpOrderDto,
+  type SettleOrderDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
@@ -167,8 +175,9 @@ export class OrderController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
+    @Body(new ZodValidationPipe(declineOrderSchema)) dto: DeclineOrderDto,
   ) {
-    return this.orders.decline(companyId, user.userId, id);
+    return this.orders.decline(companyId, user.userId, id, dto);
   }
 
   @Post(':id/dispatch')
@@ -181,6 +190,18 @@ export class OrderController {
     @Body(new ZodValidationPipe(dispatchSchema)) dto: DispatchDto,
   ) {
     return this.orders.dispatch(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/settle')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  settle(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(settleOrderSchema)) dto: SettleOrderDto,
+  ) {
+    return this.orders.settle(companyId, user.userId, id, dto);
   }
 
   @Post(':id/deliver')
@@ -206,6 +227,18 @@ export class OrderController {
     return this.orders.sendUp(companyId, user.userId, id, dto);
   }
 
+  @Post(':id/mill-hold')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  millHold(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(millPassHoldSchema)) dto: MillPassHoldDto,
+  ) {
+    return this.orders.millPassHold(companyId, user.userId, id, dto);
+  }
+
   @Post(':id/take-control')
   @HttpCode(200)
   @RequirePermission('orders')
@@ -224,7 +257,8 @@ export class OrderController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
+    @Body(new ZodValidationPipe(cancelOrderSchema)) dto: CancelOrderDto,
   ) {
-    return this.orders.cancel(companyId, user.userId, id);
+    return this.orders.cancel(companyId, user.userId, id, dto);
   }
 }

@@ -48,6 +48,31 @@ describe('audience visibility', () => {
     ).toBe(true);
   });
 
+  it('unlocks view when Granted on request even without follow', () => {
+    const collection = {
+      companyId: 'owner',
+      audience: 'followers',
+      audienceCompanyIds: [],
+    };
+    expect(
+      canViewCollectionProducts(
+        'meena',
+        collection,
+        { connected: false, following: false },
+        true,
+      ),
+    ).toBe(true);
+    expect(
+      canDiscoverCollection(
+        'meena',
+        collection,
+        { connected: false, following: false },
+        [],
+        true,
+      ),
+    ).toBe(true);
+  });
+
   it('everyone is discoverable', () => {
     const collection = {
       companyId: 'owner',

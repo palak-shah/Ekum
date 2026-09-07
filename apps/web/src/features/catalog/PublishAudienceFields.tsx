@@ -9,6 +9,11 @@ import {
   unionGroupMembers,
   type PublishSheetPolicy,
 } from './publishDefaults';
+import {
+  DEFAULT_PUBLISH_AUDIENCE,
+  PUBLISH_WHO_OPTIONS,
+  audienceForPublishSheet,
+} from './publishAudienceOptions';
 
 export type PublishAudienceState = {
   audience: string;
@@ -27,7 +32,7 @@ export function emptyPublishAudienceState(
   orderPath: 'direct' | 'handle' = 'direct',
 ): PublishAudienceState {
   return {
-    audience: PublishAudience.Connections,
+    audience: DEFAULT_PUBLISH_AUDIENCE,
     selectedGroupIds: [],
     pickCompanies: false,
     audienceCompanies: new Set(),
@@ -46,13 +51,15 @@ export function restorePublishAudienceState(input: {
   rateVisibility: string;
   allowForward: boolean;
   orderPathPreference?: string | null;
+  maxAudience?: string | null;
 }): PublishAudienceState {
   const groupIds = input.audienceGroupIds ?? [];
+  const sheetAudience = audienceForPublishSheet(input.audience, input.maxAudience ?? null);
   return {
-    audience: input.audience || PublishAudience.Connections,
+    audience: sheetAudience,
     selectedGroupIds: groupIds,
     pickCompanies:
-      input.audience === PublishAudience.Selected && groupIds.length === 0,
+      sheetAudience === PublishAudience.Selected && groupIds.length === 0,
     audienceCompanies: new Set(input.audienceCompanyIds ?? []),
     rateVisibility: input.rateVisibility || RateVisibility.OnRequest,
     allowForward: input.allowForward !== false,
@@ -218,14 +225,7 @@ export function PublishAudienceFields({
           <p className="mb-2 text-xs text-muted">Add groups or companies anytime.</p>
         ) : null}
         <div className="flex flex-col gap-1.5">
-          {(
-            [
-              [PublishAudience.Everyone, 'Everyone'],
-              [PublishAudience.Connections, 'My connections'],
-              [PublishAudience.Followers, 'My followers'],
-              [PublishAudience.Selected, 'Selected'],
-            ] as const
-          ).map(([value, label]) => {
+          {PUBLISH_WHO_OPTIONS.map(([value, label]) => {
             const allowed = isAudienceWithinCeiling(value, maxAudience ?? null);
             return (
               <button
@@ -390,7 +390,7 @@ export function PublishAudienceFields({
                 })
               }
             />
-            <span>Buyers can forward</span>
+            <span>Buyers can put this in their pack</span>
           </label>
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold text-ink">When they order</p>

@@ -65,7 +65,7 @@ export function BulkProductPublishSheet({ open, onClose, productIds, onDone }: P
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
     setPublishAudience((prev) => ({
       ...emptyPublishAudienceState(usual),
-      audience: prev.audience || PublishAudience.Connections,
+      audience: prev.audience || PublishAudience.Followers,
     }));
     setConsent(false);
     setError(null);

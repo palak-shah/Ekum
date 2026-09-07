@@ -14,7 +14,7 @@ import { ListSquareButton } from '@/ui/ListSearchRow';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
-import { Button, Chip, Field, FilterRail, Sheet, TextInput, cx } from '@/ui/kit';
+import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
 import { CameraIcon, PlusIcon } from '@/ui/icons';
 import { useMyCompany } from '@/lib/queries';
@@ -33,6 +33,14 @@ import {
   type PublishAudienceState,
 } from './PublishAudienceFields';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
+import {
+  createProductIdentity,
+  detailsCardTitle,
+  gridHeading,
+  overridesFromSheet,
+  uniqueDraftSku,
+  type DraftOverrides,
+} from './designBatchHelpers';
 
 /** One-line by default; grows while typing / when focused. */
 function ExpandableNotes({
@@ -80,14 +88,6 @@ type DraftImage = {
   uploading: boolean;
 };
 
-type DraftOverrides = {
-  category?: string;
-  rate?: string;
-  unit?: string;
-  moq?: string;
-  notes?: string;
-};
-
 type Draft = {
   id: string;
   images: DraftImage[];
@@ -132,13 +132,6 @@ async function mapPool<T, R>(
   const workers = Math.min(concurrency, Math.max(items.length, 1));
   await Promise.all(Array.from({ length: workers }, () => worker()));
   return results;
-}
-
-/** Red_Banarasi.jpg → Red Banarasi; IMG_1234.JPG → IMG 1234 */
-function nameFromFilename(filename: string): string {
-  const base = filename.replace(/^.*[/\\]/, '').replace(/\.[^.]+$/, '');
-  const cleaned = base.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return cleaned || 'Design';
 }
 
 function parseCategories(raw: string) {
@@ -197,8 +190,6 @@ export function DesignBatchPage() {
   const [sheetUnit, setSheetUnit] = useState('');
   const [sheetMoq, setSheetMoq] = useState('');
   const [sheetNotes, setSheetNotes] = useState('');
-  const [sheetDetailMode, setSheetDetailMode] = useState<'same' | 'custom'>('same');
-  const sheetCustomDetailsRef = useRef<HTMLDivElement>(null);
 
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
   const connections = useQuery({
@@ -223,7 +214,7 @@ export function DesignBatchPage() {
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
     setPublishAudience((prev) => ({
       ...emptyPublishAudienceState(usual),
-      audience: prev.audience || PublishAudience.Connections,
+      audience: prev.audience || PublishAudience.Followers,
     }));
   }, [publishOpen, settings.data]);
 
@@ -283,7 +274,6 @@ export function DesignBatchPage() {
     setSheetUnit(draft.overrides.unit ?? sharedUnit);
     setSheetMoq(draft.overrides.moq ?? sharedMoq);
     setSheetNotes(draft.overrides.notes ?? sharedNotes);
-    setSheetDetailMode(hasOverrides(draft.overrides) ? 'custom' : 'same');
     setEditDraftId(draft.id);
   };
 
@@ -364,13 +354,18 @@ export function DesignBatchPage() {
     setUploading(true);
     setProgressLabel(`Uploading 0 of ${selected.length}…`);
     try {
-      const jobs = selected.map((file) => ({
-        file,
-        draftId: crypto.randomUUID(),
-        imageId: crypto.randomUUID(),
-        previewUrl: URL.createObjectURL(file),
-        name: nameFromFilename(file.name),
-      }));
+      const existingSkus: string[] = [];
+      const jobs = selected.map((file) => {
+        const name = uniqueDraftSku([...drafts.map((d) => d.name), ...existingSkus]);
+        existingSkus.push(name);
+        return {
+          file,
+          draftId: crypto.randomUUID(),
+          imageId: crypto.randomUUID(),
+          previewUrl: URL.createObjectURL(file),
+          name,
+        };
+      });
       setDrafts((prev) => [
         ...prev,
         ...jobs.map((j) => ({
@@ -473,13 +468,23 @@ export function DesignBatchPage() {
   };
 
   const applySheetDetails = () => {
-    if (!editDraftId || sheetDetailMode !== 'custom') return;
-    const next: DraftOverrides = {};
-    if (sheetCategory !== sharedCategory) next.category = sheetCategory;
-    if (sheetRate !== sharedRate) next.rate = sheetRate;
-    if (sheetUnit !== sharedUnit) next.unit = sheetUnit;
-    if (sheetMoq !== sharedMoq) next.moq = sheetMoq;
-    if (sheetNotes !== sharedNotes) next.notes = sheetNotes;
+    if (!editDraftId) return;
+    const next = overridesFromSheet(
+      {
+        category: sheetCategory,
+        rate: sheetRate,
+        unit: sheetUnit,
+        moq: sheetMoq,
+        notes: sheetNotes,
+      },
+      {
+        category: sharedCategory,
+        rate: sharedRate,
+        unit: sharedUnit,
+        moq: sharedMoq,
+        notes: sharedNotes,
+      },
+    );
     setDrafts((prev) =>
       prev.map((d) => (d.id === editDraftId ? { ...d, overrides: next } : d)),
     );
@@ -487,7 +492,6 @@ export function DesignBatchPage() {
 
   const clearSheetOverrides = () => {
     if (!editDraftId) return;
-    setSheetDetailMode('same');
     setSheetCategory(sharedCategory);
     setSheetRate(sharedRate);
     setSheetUnit(sharedUnit);
@@ -497,21 +501,6 @@ export function DesignBatchPage() {
       prev.map((d) => (d.id === editDraftId ? { ...d, overrides: {} } : d)),
     );
   };
-
-  const openSheetCustomDetails = () => {
-    setSheetDetailMode('custom');
-  };
-
-  useEffect(() => {
-    if (!editDraftId || sheetDetailMode !== 'custom') return;
-    const el = sheetCustomDetailsRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
-    });
-  }, [editDraftId, sheetDetailMode]);
 
   const applyBatchNames = () => {
     const prefix = namePrefix.trim();
@@ -548,7 +537,7 @@ export function DesignBatchPage() {
         throw new ApiError({
           statusCode: 400,
           code: 'VALIDATION',
-          message: 'Name each design before saving.',
+          message: 'Give each design a SKU before saving.',
           details: null,
         });
       }
@@ -562,8 +551,10 @@ export function DesignBatchPage() {
         async (draft) => {
           const e = effectiveFor(draft);
           const images = draft.images.map((i) => i.imageUrl).filter(Boolean);
+          const identity = createProductIdentity(draft.name);
           const dto: CreateProductDto = {
-            name: draft.name.trim(),
+            name: identity.name,
+            sku: identity.sku,
             rate: e.rate.trim() ? Number(e.rate) : null,
             moq: e.moq.trim() ? Number(e.moq) : null,
             description: e.notes.trim() || undefined,
@@ -666,7 +657,7 @@ export function DesignBatchPage() {
         onLeave={discard.confirmLeave}
       />
       <PageHeader
-        title="Add Design"
+        title="Add designs"
         onBack={() => discard.tryLeave(() => navigate(-1))}
       />
 
@@ -676,22 +667,24 @@ export function DesignBatchPage() {
             type="button"
             onClick={openAddPhotos}
             disabled={uploading}
-            className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
+            aria-label="Add designs — one photo per design"
+            className="flex min-h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
           >
             <CameraIcon width={36} height={36} className="text-accent" />
-            <span className="text-lg font-semibold text-ink">Add photos</span>
+            <span className="text-lg font-semibold text-ink">One photo per design</span>
+            <span className="max-w-xs text-center text-sm text-muted">
+              Each photo becomes its own design — not more shots of the same one.
+            </span>
           </button>
         </section>
       ) : (
         <>
           <section>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-base font-semibold text-ink">
-                Photos · {drafts.length} design{drafts.length === 1 ? '' : 's'}
-              </p>
+              <p className="text-base font-semibold text-ink">{gridHeading(drafts.length)}</p>
               {drafts.length < MAX_DESIGNS ? (
                 <ListSquareButton
-                  aria-label="Add photos"
+                  aria-label="Add designs"
                   disabled={uploading}
                   onClick={openAddPhotos}
                 >
@@ -699,6 +692,9 @@ export function DesignBatchPage() {
                 </ListSquareButton>
               ) : null}
             </div>
+            <p className="mb-2 text-sm text-muted">
+              Tap a design to edit details or add more photos.
+            </p>
             {progressLabel ? (
               <p className="mb-2 text-sm font-medium text-accent">{progressLabel}</p>
             ) : null}
@@ -778,9 +774,9 @@ export function DesignBatchPage() {
                       onFocus={(e) => {
                         if (!d.nameEdited) e.currentTarget.select();
                       }}
-                      placeholder="Name"
+                      placeholder="SKU"
                       disabled={busy}
-                      aria-label="Design name"
+                      aria-label="SKU"
                       className="min-h-9 w-full rounded-lg border border-line bg-surface px-1.5 text-center text-xs font-medium text-ink outline-none focus:border-accent disabled:opacity-50"
                     />
                   </div>
@@ -793,7 +789,7 @@ export function DesignBatchPage() {
           </section>
 
           <section className="rounded-2xl border border-line bg-surface p-4">
-            {sectionTitle('Same for all designs')}
+            {sectionTitle(detailsCardTitle(drafts.length))}
             <div className="flex flex-col gap-3">
               <Field label="Category">
                 <SuggestInput
@@ -941,7 +937,6 @@ export function DesignBatchPage() {
         onClose={() => {
           applySheetDetails();
           setEditDraftId(null);
-          setSheetDetailMode('same');
         }}
         title="Update this design"
         footer={
@@ -952,11 +947,15 @@ export function DesignBatchPage() {
                 onClick={() => {
                   applySheetDetails();
                   setEditDraftId(null);
-                  setSheetDetailMode('same');
                 }}
               >
                 Done
               </Button>
+              {drafts.length > 1 ? (
+                <Button variant="ghost" fullWidth onClick={clearSheetOverrides}>
+                  Use same as all designs
+                </Button>
+              ) : null}
               <Button variant="ghost" fullWidth onClick={() => removeDraft(editDraft.id)}>
                 Remove design
               </Button>
@@ -966,14 +965,14 @@ export function DesignBatchPage() {
       >
         {editDraft ? (
           <div className="flex flex-col gap-3">
-            <Field label="Name">
+            <Field label="SKU">
               <TextInput
                 value={editDraft.name}
                 onChange={(e) => setName(editDraft.id, e.target.value)}
                 onFocus={(e) => {
                   if (!editDraft.nameEdited) e.currentTarget.select();
                 }}
-                placeholder="Design name"
+                placeholder="SKU"
               />
             </Field>
 
@@ -1013,65 +1012,45 @@ export function DesignBatchPage() {
               </div>
             </div>
 
-            <FilterRail>
-              <Chip
-                active={sheetDetailMode === 'custom'}
-                onClick={() => openSheetCustomDetails()}
-              >
-                Details for this design
-              </Chip>
-              <Chip
-                active={sheetDetailMode === 'same'}
-                onClick={() => clearSheetOverrides()}
-              >
-                Same details for all
-              </Chip>
-            </FilterRail>
-
-            {sheetDetailMode === 'custom' ? (
-              <div
-                ref={sheetCustomDetailsRef}
-                className="flex flex-col gap-3 rounded-xl border border-line p-3"
-              >
-                <Field label="Category">
-                  <SuggestInput
-                    kind="category"
-                    mode="list"
-                    value={sheetCategory}
-                    onChange={setSheetCategory}
-                    placeholder="Sarees"
-                  />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Rate">
-                    <TextInput
-                      type="number"
-                      value={sheetRate}
-                      onChange={(e) => setSheetRate(e.target.value)}
-                      placeholder="1200"
-                    />
-                  </Field>
-                  <Field label="Unit">{unitSelect(sheetUnit, setSheetUnit)}</Field>
-                </div>
-                <Field label="Minimum order">
+            <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
+              <Field label="Category">
+                <SuggestInput
+                  kind="category"
+                  mode="list"
+                  value={sheetCategory}
+                  onChange={setSheetCategory}
+                  placeholder="Sarees"
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Rate">
                   <TextInput
                     type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={sheetMoq}
-                    onChange={(e) => setSheetMoq(e.target.value)}
-                    placeholder="100 pieces"
+                    value={sheetRate}
+                    onChange={(e) => setSheetRate(e.target.value)}
+                    placeholder="1200"
                   />
                 </Field>
-                <Field label="Notes">
-                  <ExpandableNotes
-                    value={sheetNotes}
-                    onChange={setSheetNotes}
-                    placeholder="e.g. 44 inch, cotton"
-                  />
-                </Field>
+                <Field label="Unit">{unitSelect(sheetUnit, setSheetUnit)}</Field>
               </div>
-            ) : null}
+              <Field label="Minimum order">
+                <TextInput
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  value={sheetMoq}
+                  onChange={(e) => setSheetMoq(e.target.value)}
+                  placeholder="100 pieces"
+                />
+              </Field>
+              <Field label="Notes">
+                <ExpandableNotes
+                  value={sheetNotes}
+                  onChange={setSheetNotes}
+                  placeholder="e.g. 44 inch, cotton"
+                />
+              </Field>
+            </div>
           </div>
         ) : null}
       </Sheet>

@@ -9,12 +9,14 @@ import {
   orderIntentValues,
   orderKindValues,
   orderStatusValues,
+  orderTradeModeValues,
   returnStatusValues,
   unitValues,
 } from './enums';
 import type { PublicCompanySummary } from './access';
 import type { AuditActorView } from './catalog';
 import type { OrderTimelineStaffInput } from './order-timeline';
+import type { OrderTrailEventView } from './order-trail';
 
 /**
  * Orders & Fulfillment contracts. There is one Order object shared by two
@@ -43,6 +45,9 @@ export const createOrderSchema = z
     /** Soft rate ask vs firm place-order. Default order. */
     intent: z.enum(orderIntentValues).default(OrderIntent.Order),
     note: z.string().trim().max(1000).optional(),
+    /** Optional voice clip beside the text note (media id after upload). */
+    noteVoiceMediaId: z.string().min(1).optional(),
+    noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
     /** Direct mode: keep this company informed (must have trading on). */
     facilitatorCompanyId: z.string().min(1).optional(),
     /** I handle: buyer ticket is with seller; foreign designs allowed + upstream. */
@@ -152,9 +157,16 @@ export interface CreateOrdersBatchResult {
   failures: CreateOrdersBatchFailure[];
 }
 
+/** Optional text + voice note fields shared by order update DTOs. */
+export const orderNoteVoiceFields = {
+  note: z.string().trim().max(1000).optional(),
+  noteVoiceMediaId: z.string().min(1).optional(),
+  noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
+} as const;
+
 /** Buyer amends catalog lines before any seller quote/confirm/decline. */
 export const amendOrderSchema = z.object({
-  note: z.string().trim().max(1000).optional(),
+  ...orderNoteVoiceFields,
   items: z
     .array(
       orderItemInputSchema.extend({
@@ -166,8 +178,24 @@ export const amendOrderSchema = z.object({
 });
 export type AmendOrderDto = z.infer<typeof amendOrderSchema>;
 
+/** Seller settles a part-shipped order: qty → shipped, status → settled. */
+export const settleOrderSchema = z.object({
+  ...orderNoteVoiceFields,
+});
+export type SettleOrderDto = z.infer<typeof settleOrderSchema>;
+
+/** Buyer cancel — optional note + voice. Empty body still valid. */
+export const cancelOrderSchema = z.object(orderNoteVoiceFields).default({});
+export type CancelOrderDto = z.infer<typeof cancelOrderSchema>;
+
+/** Seller decline — optional note + voice. Empty body still valid. */
+export const declineOrderSchema = z.object(orderNoteVoiceFields).default({});
+export type DeclineOrderDto = z.infer<typeof declineOrderSchema>;
+
 /** Handler Send / Change — optional qty/rate patches, then release mill tickets. */
 export const sendUpOrderSchema = z.object({
+  /** One mill hop. Omit to release every hop still waiting. */
+  upstreamOrderId: z.string().min(1).optional(),
   items: z
     .array(
       z.object({
@@ -180,11 +208,41 @@ export const sendUpOrderSchema = z.object({
     .max(200)
     .optional(),
 });
+
+export const millPassHoldSchema = z.object({
+  upstreamOrderId: z.string().min(1),
+  held: z.boolean(),
+});
+export type MillPassHoldDto = z.infer<typeof millPassHoldSchema>;
+
+export interface OrderMillDeskView {
+  upstreamOrderId: string;
+  sellerCompanyId: string;
+  sellerName: string;
+  /** Not released to the mill yet. */
+  held: boolean;
+  /** Trader froze pass-through (⋯). */
+  passHeld: boolean;
+  status: string;
+  itemIds: string[];
+  confirmedCount: number;
+  declinedCount: number;
+  millQuoted: boolean;
+  /** Mill hop rates keyed to parent line ids (trader From/To desk). */
+  lines: Array<{
+    parentItemId: string;
+    millRate: number | null;
+    millQuantity: number | null;
+    millDeclined: boolean;
+  }>;
+}
 export type SendUpOrderDto = z.infer<typeof sendUpOrderSchema>;
 
 export const createPaymentRequestSchema = z.object({
   amount: z.number().positive().max(100_000_000),
   note: z.string().trim().max(500).optional(),
+  noteVoiceMediaId: z.string().min(1).optional(),
+  noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
   instructions: z.string().trim().max(500).optional(),
 });
 export type CreatePaymentRequestDto = z.infer<typeof createPaymentRequestSchema>;
@@ -194,6 +252,8 @@ export interface PaymentRequestView {
   orderId: string;
   amount: number;
   note: string | null;
+  noteVoiceUrl: string | null;
+  noteVoiceDurationMs: number | null;
   instructions: string | null;
   status: PaymentRequestStatus | string;
   seenAt: string | null;
@@ -229,6 +289,7 @@ export const dispatchSchema = z.object({
     .min(1)
     .max(200)
     .optional(),
+  ...orderNoteVoiceFields,
 });
 export type DispatchDto = z.infer<typeof dispatchSchema>;
 
@@ -250,6 +311,8 @@ export const quoteOrderSchema = z
       .min(1)
       .max(200),
     note: z.string().trim().max(1000).optional(),
+    noteVoiceMediaId: z.string().min(1).optional(),
+    noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
     validUntil: z.string().datetime().optional(),
   })
   .superRefine((value, ctx) => {
@@ -289,7 +352,7 @@ export const decideOrderLinesSchema = z.object({
     )
     .min(1)
     .max(200),
-  note: z.string().trim().max(1000).optional(),
+  ...orderNoteVoiceFields,
 });
 export type DecideOrderLinesDto = z.infer<typeof decideOrderLinesSchema>;
 
@@ -300,6 +363,7 @@ export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   createdFrom: z.string().min(1).max(40).optional(),
   createdTo: z.string().min(1).max(40).optional(),
   q: z.string().trim().min(1).max(80).optional(),
+  tradeMode: z.enum(orderTradeModeValues).optional(),
 });
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
 
@@ -330,6 +394,8 @@ export type SampleDispatchDto = z.infer<typeof sampleDispatchSchema>;
 export const createReturnSchema = z.object({
   orderId: z.string().min(1),
   reason: z.string().trim().max(1000).optional(),
+  reasonVoiceMediaId: z.string().min(1).optional(),
+  reasonVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
   items: z
     .array(z.object({ orderItemId: z.string().min(1), quantity }))
     .min(1)
@@ -346,9 +412,14 @@ export const approveReturnSchema = z
       )
       .max(200)
       .optional(),
+    ...orderNoteVoiceFields,
   })
   .default({});
 export type ApproveReturnDto = z.infer<typeof approveReturnSchema>;
+
+/** Seller declines a return — optional note + voice. */
+export const declineReturnSchema = z.object(orderNoteVoiceFields).default({});
+export type DeclineReturnDto = z.infer<typeof declineReturnSchema>;
 
 export const escalateReturnSchema = z.object({
   upstreamOrderId: z.string().min(1),
@@ -442,6 +513,14 @@ export interface OrderView {
   canTakeControl?: boolean;
   /** Handler may Send / Change held mill tickets from this downstream. */
   canSendUp?: boolean;
+  /** Trader mill hop: open this id (buyer ticket) instead of the subset. */
+  deskOrderId?: string | null;
+  /** I-handle parent: mills on this desk. */
+  millDesks?: OrderMillDeskView[];
+  /** Mill sent rates; trader has not quoted the buyer yet. */
+  needsQuotePass?: boolean;
+  /** I-handle parent: mill shops (and subset id after Send) for list / Find. */
+  linkedMills?: Array<{ name: string; orderId: string | null }>;
   direction: string;
   /** Times the buyer amended before seller progress. */
   amendCount: number;
@@ -461,6 +540,14 @@ export interface OrderView {
   /** Live: seller has posted at least one Rate card for this order. */
   hasSellerQuote?: boolean;
   note: string | null;
+  /** Playable URL when a voice note was attached at create. */
+  noteVoiceUrl: string | null;
+  noteVoiceDurationMs: number | null;
+  noteVoiceMediaId: string | null;
+  /** Latest seller quote note (text), when quoted — not the create-order note. */
+  quoteNote?: string | null;
+  quoteNoteVoiceUrl?: string | null;
+  quoteNoteVoiceDurationMs?: number | null;
   buyerCompanyId: string;
   sellerCompanyId: string;
   counterpart: PublicCompanySummary;
@@ -480,6 +567,8 @@ export interface OrderView {
   buyerName: string;
   sellerName: string;
   deliveredAt: string | null;
+  /** Set when seller Settles a qty mismatch (not on full dispatch). */
+  settledAt: string | null;
   /** Set when cancelled, declined, or return window closed. */
   closedAt: string | null;
   /** True when some but not all shippable qty has left. */
@@ -493,6 +582,10 @@ export interface OrderView {
   updatedBy: AuditActorView | null;
   /** Staff names per timeline step — only your team's actions; omitted on list payloads. */
   timelineStaff?: OrderTimelineStaffInput;
+  /** Append-only audit trail for Order detail Timeline (detail payloads). */
+  trail?: OrderTrailEventView[];
+  /** Live: seller may Settle (part shipped, remaining > 0). */
+  canSettle?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -541,6 +634,8 @@ export interface ReturnView {
   orderId: string;
   status: string;
   reason: string | null;
+  reasonVoiceUrl: string | null;
+  reasonVoiceDurationMs: number | null;
   direction: string;
   counterpart: PublicCompanySummary;
   items: ReturnItemView[];

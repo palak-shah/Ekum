@@ -13,6 +13,10 @@ describe('savedAlbumImageCount', () => {
     expect(savedAlbumImageCount(album, ['a', 'b', 'c', 'd'])).toBe(9);
   });
 
+  it('does not invent empty cells when only two thumbs exist', () => {
+    expect(savedAlbumImageCount(album, ['a', 'b'])).toBe(2);
+  });
+
   it('keeps a design’s own photo count', () => {
     expect(
       savedAlbumImageCount({ kind: 'product' } as SavedItemView, ['a', 'b']),

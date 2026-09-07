@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type {
   AccessRequestView,
+  CollectionViewGrantView,
   CompanyCard,
   CursorPage,
   ExploreHomeView,
@@ -95,6 +96,12 @@ export function HomePage() {
   const returnRows = returns.data?.results ?? [];
   const accessRequests = incoming.data ?? [];
   const chatRequests = threadRequests.data?.results ?? [];
+  const myGrants = useQuery({
+    queryKey: ['collection-view-grants', 'mine'],
+    queryFn: () =>
+      api.get<CollectionViewGrantView[]>('/collection-view-requests/grants/mine'),
+  });
+  const grantRows = myGrants.data ?? [];
 
   const needs = useMemo(() => {
     void seenVersion;
@@ -105,9 +112,10 @@ export function HomePage() {
         returns: returnRows,
         accessRequests,
         chatRequests,
+        collectionViewGrants: grantRows,
       }),
     );
-  }, [orderRows, returnRows, accessRequests, chatRequests, companyId, seenVersion]);
+  }, [orderRows, returnRows, accessRequests, chatRequests, grantRows, companyId, seenVersion]);
   const metrics = homeMetrics({
     orders: orderRows,
     returns: returnRows,
@@ -387,12 +395,17 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
           <Button fullWidth>Explore →</Button>
         </Link>
         {selling ? (
-          <Link
-            to="/catalog/products/new"
-            className="mt-3 block text-center text-sm font-bold text-accent"
-          >
-            {buying ? 'Add designs' : 'Add designs to start'}
-          </Link>
+          <div className="mt-3 flex flex-col gap-2">
+            <Link to="/catalog" className="block text-center text-sm font-bold text-accent">
+              My designs
+            </Link>
+            <Link
+              to="/catalog/products/new"
+              className="block text-center text-sm font-medium text-muted"
+            >
+              {buying ? 'Add designs' : 'Add designs to start'}
+            </Link>
+          </div>
         ) : null}
       </div>
     </section>

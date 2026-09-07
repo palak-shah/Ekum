@@ -49,8 +49,8 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
 
     if (!product.allowForward) {
       throw new BadRequestException({
-        code: 'FORWARD_NOT_ALLOWED',
-        message: "This seller doesn't allow sharing.",
+        code: 'RELIST_NOT_ALLOWED',
+        message: "This seller doesn't allow putting this in a pack.",
       });
     }
 

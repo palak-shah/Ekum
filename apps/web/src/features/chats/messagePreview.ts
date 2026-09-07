@@ -5,6 +5,7 @@ import {
   ChatIcon,
   CollectionIcon,
   DocumentIcon,
+  MicIcon,
   OrdersIcon,
   ProductIcon,
   QuoteIcon,
@@ -44,6 +45,8 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
       return { kind: 'quote', label: 'Quote', Icon: QuoteIcon };
     case 'photo':
       return { kind: 'photo', label: 'Photo', Icon: CameraIcon };
+    case 'voice':
+      return { kind: 'other', label: 'Voice', Icon: MicIcon };
     case 'return_card':
       return { kind: 'return', label: 'Return', Icon: ReturnIcon };
     case 'payment_card':
@@ -107,6 +110,9 @@ export function messagePreviewText(message: MessageView | null | undefined): str
       core = count > 1 ? `${count} photos` : 'Photo';
       break;
     }
+    case 'voice':
+      core = 'Voice';
+      break;
     case 'product_card':
     case 'collection_card':
       core = name ? `Shared: ${name}` : 'Shared a card';

@@ -7,6 +7,10 @@ export type BrowseShortlistEntry = {
   companyId: string;
   companyName: string;
   allowForward?: boolean;
+  /** Curated pack these lines were picked from (I handle → from-pack). */
+  sourceCollectionId?: string;
+  sourceHandlerName?: string;
+  sourcePath?: 'direct' | 'handle';
 };
 
 type Listener = () => void;

@@ -18,6 +18,7 @@ describe('orderChatEventLabel / inferOrderChatEvent', () => {
     expect(orderChatEventLabel(OrderChatEvent.OrderDispatched)).toBe('Dispatched');
     expect(orderChatEventLabel(OrderChatEvent.OrderDelivered)).toBe('Delivered');
     expect(orderChatEventLabel(OrderChatEvent.OrderDeclined)).toBe('Declined');
+    expect(orderChatEventLabel(OrderChatEvent.ReturnRaised)).toBe('Returned');
   });
 
   it('picks Confirmed / Declined / Updated from line counts', () => {
@@ -111,13 +112,29 @@ describe('nextOrderAction', () => {
     ).toBe('Waiting on Surat Silk House to dispatch');
   });
 
-  it('tells the buyer to mark delivered when dispatched', () => {
+  it('uses part_shipped as the main status for remaining dispatch', () => {
+    expect(
+      nextOrderAction({
+        status: 'part_shipped',
+        direction: 'selling',
+      }),
+    ).toBe('Your move: dispatch remaining');
+    expect(
+      nextOrderAction({
+        status: 'part_shipped',
+        direction: 'buying',
+        counterpartName: 'Surat Silk House',
+      }),
+    ).toBe('Part shipped — waiting on Surat Silk House for the rest');
+  });
+
+  it('tells the buyer dispatched is complete for returns', () => {
     expect(
       nextOrderAction({
         status: 'dispatched',
         direction: 'buying',
       }),
-    ).toBe('Your move: mark delivered');
+    ).toBe('Dispatched — raise a return if needed');
   });
 });
 

@@ -8,6 +8,7 @@ import {
 import {
   MessageType,
   OrderStatus,
+  OrderTrailType,
   PaymentRequestStatus,
   shortOrderLabel,
   type CreatePaymentRequestDto,
@@ -17,11 +18,15 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ThreadService } from '../conversation/thread.service';
 import { DomainEvents } from '../events/events.module';
+import { OrderTrailService } from './order-trail.service';
+import { resolveNoteVoiceFields } from './note-voice';
 
 const ASKABLE = new Set<string>([
   OrderStatus.Confirmed,
+  OrderStatus.PartShipped,
   OrderStatus.Dispatched,
   OrderStatus.Delivered,
+  OrderStatus.Settled,
 ]);
 
 @Injectable()
@@ -30,6 +35,7 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly threads: ThreadService,
     private readonly events: DomainEvents,
+    private readonly trail: OrderTrailService,
   ) {}
 
   toView(row: {
@@ -37,6 +43,8 @@ export class PaymentService {
     orderId: string;
     amount: Prisma.Decimal | number;
     note: string | null;
+    noteVoiceUrl?: string | null;
+    noteVoiceDurationMs?: number | null;
     instructions: string | null;
     status: string;
     seenAt: Date | null;
@@ -49,6 +57,8 @@ export class PaymentService {
       orderId: row.orderId,
       amount,
       note: row.note,
+      noteVoiceUrl: row.noteVoiceUrl ?? null,
+      noteVoiceDurationMs: row.noteVoiceDurationMs ?? null,
       instructions: row.instructions,
       status: row.status,
       seenAt: row.seenAt ? row.seenAt.toISOString() : null,
@@ -94,16 +104,31 @@ export class PaymentService {
       });
     }
 
+    const voice = await resolveNoteVoiceFields(this.prisma, actorCompanyId, dto);
     const created = await this.prisma.paymentRequest.create({
       data: {
         orderId,
         amount: dto.amount,
         note: dto.note ?? null,
+        noteVoiceMediaId: voice.noteVoiceMediaId,
+        noteVoiceUrl: voice.noteVoiceUrl,
+        noteVoiceDurationMs: voice.noteVoiceDurationMs,
         instructions: dto.instructions ?? null,
         status: PaymentRequestStatus.Open,
       },
     });
     await this.upsertCard(order, created.id, actorCompanyId, dto.amount, PaymentRequestStatus.Open);
+    await this.trail.append({
+      orderId,
+      type: OrderTrailType.PaymentAsked,
+      actorCompanyId,
+      actorUserId: _userId,
+      note: dto.note?.trim() || null,
+      noteVoiceMediaId: voice.noteVoiceMediaId,
+      noteVoiceUrl: voice.noteVoiceUrl,
+      noteVoiceDurationMs: voice.noteVoiceDurationMs,
+      detail: `₹${dto.amount.toLocaleString('en-IN')}`,
+    });
     this.events.paymentRequested({
       paymentRequestId: created.id,
       orderId,

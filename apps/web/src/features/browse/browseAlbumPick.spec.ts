@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearBrowseAlbumPick,
   readBrowseAlbumPick,
+  removeBrowseAlbumIds,
   toggleBrowseAlbumEntry,
   writeBrowseAlbumPick,
 } from './browseAlbumPick';
@@ -50,5 +51,11 @@ describe('browseAlbumPick', () => {
     writeBrowseAlbumPick([album, { ...album, collectionId: 'col2', name: 'Winter' }]);
     expect(readBrowseAlbumPick()).toHaveLength(2);
     expect(readBrowseShortlist()).toHaveLength(1);
+  });
+
+  it('removeBrowseAlbumIds drops only listed collections', () => {
+    writeBrowseAlbumPick([album, { ...album, collectionId: 'col2', name: 'Winter' }]);
+    removeBrowseAlbumIds(['col1']);
+    expect(readBrowseAlbumPick().map((e) => e.collectionId)).toEqual(['col2']);
   });
 });

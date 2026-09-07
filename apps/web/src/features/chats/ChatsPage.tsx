@@ -40,8 +40,9 @@ export function ChatsPage() {
         state: tab === 'requests' ? 'pending' : 'active',
         ...(deferredQuery ? { q: deferredQuery } : {}),
       }),
-    refetchInterval: deferredQuery ? false : 5_000,
+    refetchInterval: deferredQuery ? false : 12_000,
     placeholderData: (previous) => previous,
+    staleTime: 8_000,
   });
 
   const readAll = useMutation({

@@ -68,6 +68,15 @@ describe('isRichOrderChatMessage', () => {
     });
     expect(isRichOrderChatMessage(msg)).toBe(false);
   });
+
+  it('treats return_raised as compact', () => {
+    const msg = orderCardMessage({
+      id: 'c2',
+      metadata: { event: OrderChatEvent.ReturnRaised },
+      reference: orderRef({ id: 'ord-1', event: OrderChatEvent.ReturnRaised }),
+    });
+    expect(isRichOrderChatMessage(msg)).toBe(false);
+  });
 });
 
 describe('buildOrderCardCopy', () => {
@@ -90,5 +99,24 @@ describe('buildOrderCardCopy', () => {
     expect(copy.title).toBe('Order #ECNL Requested');
     expect(copy.headline).toBe('You requested');
     expect(copy.lines).toEqual([]);
+  });
+
+  it('names the parent ticket on a mill lot card', () => {
+    const msg = orderCardMessage({
+      id: 'm2',
+      mine: true,
+      metadata: {
+        event: OrderChatEvent.OrderRequested,
+        actorLabel: 'You',
+        parentOrderLabel: 'Order #A1B2',
+      },
+      reference: orderRef({
+        id: 'mill-1',
+        event: OrderChatEvent.OrderRequested,
+        actorLabel: 'You',
+      }),
+    });
+    const copy = buildOrderCardCopy(msg, msg.reference);
+    expect(copy.lines).toContain('Part of Order #A1B2');
   });
 });

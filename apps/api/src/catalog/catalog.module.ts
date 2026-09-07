@@ -1,11 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ProductController } from './product.controller';
 import { CollectionController } from './collection.controller';
 import { ShareLinkController } from './share-link.controller';
+import {
+  CollectionViewGrantController,
+  CollectionViewRequestController,
+} from './collection-view-request.controller';
 import { ProductService } from './product.service';
 import { CollectionService } from './collection.service';
 import { ShareLinkService } from './share-link.service';
 import { CatalogSerializer } from './catalog.serializer';
+import { CollectionViewRequestService } from './collection-view-request.service';
+import { ConversationModule } from '../conversation/conversation.module';
+import { AccessModule } from '../access/access.module';
 
 /**
  * Catalog. Owns Products, Collections, and their many-to-many join. Publish is a
@@ -13,8 +20,21 @@ import { CatalogSerializer } from './catalog.serializer';
  * Broadcast. Cross-company/discovery reads are gated by the Access domain (M4).
  */
 @Module({
-  controllers: [ProductController, CollectionController, ShareLinkController],
-  providers: [ProductService, CollectionService, ShareLinkService, CatalogSerializer],
-  exports: [CatalogSerializer],
+  imports: [forwardRef(() => ConversationModule), AccessModule],
+  controllers: [
+    ProductController,
+    CollectionController,
+    ShareLinkController,
+    CollectionViewRequestController,
+    CollectionViewGrantController,
+  ],
+  providers: [
+    ProductService,
+    CollectionService,
+    ShareLinkService,
+    CatalogSerializer,
+    CollectionViewRequestService,
+  ],
+  exports: [CatalogSerializer, CollectionViewRequestService],
 })
 export class CatalogModule {}

@@ -1,0 +1,4 @@
+# Keep shell entrypoints executable in Linux containers (LF only — CRLF breaks shebang)
+*.sh text eol=lf
+docker/**/*.sh text eol=lf
+docker/api-entrypoint.sh text eol=lf

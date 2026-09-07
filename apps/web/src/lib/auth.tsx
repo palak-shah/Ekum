@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import type { AuthSession, SessionUser } from '@ekum/domain-types';
 import { queryClient } from '@/app/queryClient';
-import { clearBrowseShortlist } from '@/features/browse/browseShortlist';
 import {
   ApiError,
   api,
@@ -117,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setStatus('anonymous');
     queryClient.clear();
-    clearBrowseShortlist();
+    setStatus('anonymous');
   }, []);
 
   const refreshSession = useCallback(async () => {

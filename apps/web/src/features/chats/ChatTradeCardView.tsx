@@ -5,7 +5,10 @@ import { kindToneClassesForMessageType } from '@/lib/kindTone';
 import { cx } from '@/ui/kit';
 import { KindIconBadge } from './KindIconBadge';
 import { PhotoAlbum } from './PhotoAlbum';
+import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import type { ChatTradeCardModel } from './chatTradeCard';
+import { MSG_BUBBLE_CLASS, messageChromeBubblePad } from './messageChrome';
+import { chatBubbleCorners } from './chatBubbleCorners';
 
 function typeKeyForKind(kind: ChatTradeCardModel['kind']): string {
   if (kind === 'order') return 'order_card';
@@ -61,6 +64,7 @@ function renderAction(
         <button
           type="button"
           data-card-action
+          data-testid={action.testId}
           onClick={(event) => {
             event.stopPropagation();
             action.onClick?.();
@@ -89,6 +93,7 @@ function renderAction(
       <button
         type="button"
         data-card-action
+        data-testid={action.testId}
         onClick={(event) => {
           event.stopPropagation();
           action.onClick?.();
@@ -145,48 +150,120 @@ function CardBody({
   const muted = model.mine ? 'text-white/75' : 'text-muted';
   const linkAction = model.mine ? 'text-white underline decoration-white/50' : 'text-accent';
   const hasThumbs = model.thumbs.length > 0;
+  const hasFooter = Boolean(model.actionRow && model.actionRow.length > 0);
+  const note = model.note?.trim() || '';
+  const divider = model.mine ? 'border-white/20' : 'border-line/70';
 
   return (
-    <div className={cx('flex gap-2 px-2 py-1.5', hasThumbs ? 'items-start' : 'items-stretch')}>
-      {hasThumbs ? (
-        <div className="shrink-0 pt-0.5">
-          <PhotoAlbum
-            urls={model.thumbs}
-            overflowCount={model.thumbOverflow ?? 0}
-            size="thumb"
-          />
+    <div className="flex flex-col">
+      <div className={cx('flex gap-2 px-2 py-1.5', hasThumbs ? 'items-start' : 'items-stretch')}>
+        {hasThumbs ? (
+          <div className="shrink-0 pt-0.5">
+            <PhotoAlbum
+              urls={model.thumbs}
+              overflowCount={model.thumbOverflow ?? 0}
+              size="thumb"
+              locked={Boolean(model.imagesLocked)}
+            />
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          {model.who ? (
+            <p className={cx('text-[10px] leading-tight', model.mine ? 'text-white/55' : 'text-muted')}>
+              {highlight(model.who)}
+            </p>
+          ) : null}
+          {model.details.map((line, index) => (
+            <p
+              key={index}
+              className={cx(
+                'whitespace-pre-wrap break-words text-[11px] font-medium leading-snug',
+                muted,
+              )}
+            >
+              {highlight(line)}
+            </p>
+          ))}
+          {note ? (
+            <p
+              className={cx(
+                'mt-0.5 whitespace-pre-wrap break-words text-[11px] font-medium leading-snug',
+                model.mine ? 'text-white' : 'text-ink',
+              )}
+            >
+              {highlight(note)}
+            </p>
+          ) : null}
+          {model.noteVoiceUrl ? (
+            <div className="mt-1">
+              <VoicePlayer
+                src={model.noteVoiceUrl}
+                durationMs={model.noteVoiceDurationMs}
+              />
+            </div>
+          ) : null}
+          {!hasFooter ? (
+            <>
+              {model.action ? renderAction(model.action, model.mine) : null}
+              {model.secondaryAction ? (
+                model.secondaryAction.onClick ? (
+                  <button
+                    type="button"
+                    data-card-action
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      model.secondaryAction?.onClick?.();
+                    }}
+                    className={cx('mt-0.5 self-start text-xs font-medium', linkAction)}
+                  >
+                    {model.secondaryAction.label}
+                  </button>
+                ) : (
+                  <p className={cx('mt-0.5 text-xs font-medium', muted)}>
+                    {model.secondaryAction.label}
+                  </p>
+                )
+              ) : null}
+            </>
+          ) : null}
+          <p className={cx('mt-0.5 text-right text-[10px]', muted)}>{timeAgo(model.createdAt)}</p>
+        </div>
+      </div>
+      {hasFooter ? (
+        <div
+          className={cx('grid border-t', divider)}
+          style={{ gridTemplateColumns: `repeat(${model.actionRow!.length}, minmax(0, 1fr))` }}
+        >
+          {model.actionRow!.map((action, index) => {
+            const accent = action.emphasis !== 'quiet';
+            return (
+              <button
+                key={`${action.label}-${index}`}
+                type="button"
+                data-card-action
+                data-testid={action.testId}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  action.onClick?.();
+                }}
+                className={cx(
+                  'px-2 py-1.5 text-center text-[11px] font-bold leading-tight',
+                  index > 0 && cx('border-l', divider),
+                  model.mine
+                    ? accent
+                      ? 'text-white'
+                      : 'text-white/65'
+                    : accent
+                      ? 'text-accent'
+                      : 'text-muted',
+                )}
+              >
+                {action.label}
+              </button>
+            );
+          })}
         </div>
       ) : null}
-      <div className="min-w-0 flex-1">
-        {model.who ? (
-          <p className={cx('text-[10px] leading-tight', model.mine ? 'text-white/55' : 'text-muted')}>
-            {highlight(model.who)}
-          </p>
-        ) : null}
-        {model.details.map((line, index) => (
-          <p key={index} className={cx('text-[11px] font-medium leading-snug', muted)}>
-            {highlight(line)}
-          </p>
-        ))}
-        {model.action ? renderAction(model.action, model.mine) : null}
-        {model.secondaryAction ? (
-          model.secondaryAction.onClick ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                model.secondaryAction?.onClick?.();
-              }}
-              className={cx('mt-0.5 self-start text-xs font-medium', linkAction)}
-            >
-              {model.secondaryAction.label}
-            </button>
-          ) : (
-            <p className={cx('mt-0.5 text-xs font-medium', muted)}>{model.secondaryAction.label}</p>
-          )
-        ) : null}
-        <p className={cx('mt-0.5 text-right text-[10px]', muted)}>{timeAgo(model.createdAt)}</p>
-      </div>
     </div>
   );
 }
@@ -207,6 +284,7 @@ export function ChatTradeCard({
 
   if (model.variant === 'pulse') {
     const pulseClass = cx(
+      MSG_BUBBLE_CLASS,
       'w-full rounded-lg border border-line border-l-[3px] px-2.5 py-2 text-left',
       model.mine ? 'bg-accent/15' : 'bg-surface/90',
       tone?.rail ?? 'border-l-accent',
@@ -235,6 +313,24 @@ export function ChatTradeCard({
             {highlight(line)}
           </p>
         ))}
+        {model.note?.trim() ? (
+          <p
+            className={cx(
+              'mt-0.5 whitespace-pre-wrap break-words text-sm',
+              model.mine ? 'text-slate' : 'text-ink',
+            )}
+          >
+            {highlight(model.note.trim())}
+          </p>
+        ) : null}
+        {model.noteVoiceUrl ? (
+          <div className="mt-1" data-card-action>
+            <VoicePlayer
+              src={model.noteVoiceUrl}
+              durationMs={model.noteVoiceDurationMs}
+            />
+          </div>
+        ) : null}
         {model.action ? (
           <div className="mt-1">{renderAction(model.action, model.mine)}</div>
         ) : null}
@@ -281,10 +377,12 @@ export function ChatTradeCard({
           : undefined
       }
       className={cx(
-        'w-full overflow-hidden rounded-2xl border border-l-[3px] text-sm shadow-sm',
+        MSG_BUBBLE_CLASS,
+        'w-full overflow-hidden border border-l-[3px] text-sm shadow-sm',
+        chatBubbleCorners(model.mine),
         model.mine
-          ? 'rounded-br-md border-y-accent/35 border-r-accent/35 bg-accent text-white'
-          : 'rounded-bl-md border-y-line border-r-line bg-foam text-ink',
+          ? 'border-y-accent/35 border-r-accent/35 bg-accent text-white'
+          : 'border-y-line border-r-line bg-foam text-ink',
         tone?.rail ?? 'border-l-accent',
         open && 'cursor-pointer',
       )}

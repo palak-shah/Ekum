@@ -107,4 +107,15 @@ describe('exploreFeedRank', () => {
     );
     expect(feed.map((row) => row.id)).toEqual(['c:new', 'c:seen']);
   });
+
+  it('prefers a pack over a design when activity times match', () => {
+    const at = '2026-09-03T10:00:00.000Z';
+    const feed = buildRankedPostFeed(
+      [collectionOpportunity('pack', 'In your network', at)],
+      [designOpportunity('design', 'In your network', at)],
+      [],
+      [],
+    );
+    expect(feed.map((row) => row.id)).toEqual(['c:pack', 'd:design']);
+  });
 });

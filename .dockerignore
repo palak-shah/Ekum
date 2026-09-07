@@ -1,0 +1,20 @@
+# Build context helpers — keep images lean
+.git
+.github
+.cursor
+.superpowers
+**/node_modules
+**/dist
+**/dev-dist
+**/.media
+**/coverage
+**/test-results
+**/playwright-report
+apps/e2e/**
+!apps/e2e/package.json
+docs
+agent-transcripts
+.env
+.env.*
+!.env.example
+!.env.docker.example

@@ -10,6 +10,22 @@ const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3000/api/v1';
 
 /**
+ * Join API base + path into an absolute URL. Relative bases (Docker same-origin
+ * `/api/v1`) need an origin — `new URL('/api/v1/…')` alone throws Invalid URL.
+ */
+export function joinApiUrl(
+  baseUrl: string,
+  path: string,
+  origin: string = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'http://localhost',
+): string {
+  const base = baseUrl.replace(/\/$/, '');
+  const suffix = path.startsWith('/') ? path : `/${path}`;
+  return new URL(`${base}${suffix}`, origin).toString();
+}
+
+/**
  * A typed error carrying the server's ErrorEnvelope. UI shows `message`; code is
  * used to branch on specific conditions (e.g. CONNECTION_REQUIRED gates a screen).
  */
@@ -88,7 +104,7 @@ interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: Query): string {
-  const url = new URL(`${BASE_URL}${path}`);
+  const url = new URL(joinApiUrl(BASE_URL, path));
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== '') {

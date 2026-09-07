@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConnectionStatus, ProductStatus } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
-import { canDiscoverCollection } from '../catalog/audience-visibility';
+import {
+  isProductOpenTradeDiscoverable,
+  loadTradeAudienceCtx,
+} from '../catalog/product-viewer-access';
 
 export type AssertCanTradeOptions = {
   /** When set, allow trade without Connection if every product is discoverable. */
@@ -90,33 +92,35 @@ export class TradeAccess {
       return false;
     }
 
-    const [connection, follow] = await Promise.all([
-      this.prisma.connection.findFirst({
+    const ctx = await loadTradeAudienceCtx(this.prisma, buyerCompanyId, sellerCompanyId);
+    const wasSharedInChat = async (
+      viewerCompanyId: string,
+      referenceId: string,
+      type: string,
+    ) => {
+      const hit = await this.prisma.message.findFirst({
         where: {
-          ownerCompanyId: sellerCompanyId,
-          viewerCompanyId: buyerCompanyId,
-          status: ConnectionStatus.Active,
+          type,
+          referenceId,
+          thread: {
+            participants: {
+              some: { companyId: viewerCompanyId, leftAt: null },
+            },
+          },
         },
         select: { id: true },
-      }),
-      this.prisma.follow.findFirst({
-        where: {
-          followerCompanyId: buyerCompanyId,
-          followedCompanyId: sellerCompanyId,
-        },
-        select: { id: true },
-      }),
-    ]);
-    const ctx = {
-      connected: Boolean(connection),
-      following: Boolean(follow),
+      });
+      return Boolean(hit);
     };
 
-    return products.every((product) => {
-      if (product.status !== ProductStatus.Published || !product.postedToMarketAt) {
-        return false;
-      }
-      return canDiscoverCollection(buyerCompanyId, product, ctx);
-    });
+    const flags = await Promise.all(
+      products.map((product) =>
+        isProductOpenTradeDiscoverable(this.prisma, this.visibility, buyerCompanyId, product, {
+          ...ctx,
+          wasSharedInChat,
+        }),
+      ),
+    );
+    return flags.every(Boolean);
   }
 }

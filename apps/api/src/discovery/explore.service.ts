@@ -45,6 +45,7 @@ import {
   type ResolvedInterest,
 } from './interest-match';
 import { audienceVisibilityOr, curatedSourceExcludeAnd } from '../catalog/audience-visibility';
+import { productAccessibleViaCollection } from '../catalog/product-viewer-access';
 import { compareByMarketRelevance } from './feed-rank';
 import {
   categoryHasSomeWhere,
@@ -912,6 +913,19 @@ export class ExploreService {
         },
       })) != null;
     const audienceCtx = { connected, following };
+    // Forward free: a chat share unlocks the album shell. Designs stay gated —
+    // if audience is not enough, products is null and the UI shows Ask (owner).
+    const sharedInChat =
+      !isOwner &&
+      (await this.wasSharedInChat(viewerCompanyId, id, MessageType.CollectionCard));
+    const hasViewGrant =
+      !isOwner &&
+      (await this.prisma.collectionViewGrant.findUnique({
+        where: {
+          collectionId_companyId: { collectionId: id, companyId: viewerCompanyId },
+        },
+        select: { id: true },
+      })) != null;
     if (!isOwner) {
       if (await this.visibility.isBlocked(viewerCompanyId, collection.companyId)) {
         throw notFound();
@@ -919,16 +933,18 @@ export class ExploreService {
       if (!isCollectionLiveForBuyers(collection)) {
         throw notFound();
       }
-      if (!canDiscoverCollection(viewerCompanyId, collection, audienceCtx)) {
+      if (
+        !sharedInChat &&
+        !hasViewGrant &&
+        !canDiscoverCollection(viewerCompanyId, collection, audienceCtx)
+      ) {
         throw notFound();
       }
     }
 
-    const showProducts = canViewCollectionProducts(
-      viewerCompanyId,
-      collection,
-      audienceCtx,
-    );
+    const showProducts =
+      isOwner ||
+      canViewCollectionProducts(viewerCompanyId, collection, audienceCtx, hasViewGrant);
 
     let products: ProductView[] | null = null;
     if (showProducts) {
@@ -983,8 +999,20 @@ export class ExploreService {
       });
     }
 
+    const card = this.discovery.toCollectionCard(collection);
+    // Locked pack: name + shop for Ask — no cover/design thumbs (or chat open is pointless).
+    if (!showProducts) {
+      return {
+        ...card,
+        coverImage: null,
+        previewImages: [],
+        imageCount: 0,
+        connected,
+        products: null,
+      };
+    }
     return {
-      ...this.discovery.toCollectionCard(collection),
+      ...card,
       connected,
       products,
     };
@@ -1044,6 +1072,7 @@ export class ExploreService {
       !isOwner &&
       (await this.wasSharedInChat(viewerCompanyId, id, MessageType.ProductCard));
 
+    let viaOpenCollection = false;
     if (!isOwner) {
       if (await this.visibility.isBlocked(viewerCompanyId, product.companyId)) {
         throw notFound();
@@ -1051,15 +1080,25 @@ export class ExploreService {
       if (product.status !== ProductStatus.Published) {
         throw notFound();
       }
-      // Market post, active connection, or an intentional chat share all unlock a view.
+      // Market post, connection, chat share, or still visible in an openable album.
       if (!connected && !onMarket && !sharedInChat) {
-        throw notFound();
+        viaOpenCollection = await productAccessibleViaCollection(
+          this.prisma,
+          this.visibility,
+          viewerCompanyId,
+          id,
+          { wasSharedInChat: (viewer, ref, type) => this.wasSharedInChat(viewer, ref, type) },
+        );
+        if (!viaOpenCollection) {
+          throw notFound();
+        }
       }
     }
 
     const showBody =
       isOwner ||
       sharedInChat ||
+      viaOpenCollection ||
       canViewCollectionProducts(viewerCompanyId, product, audienceCtx);
     const card = this.discovery.toExploreProductCard(product);
     const extras = {
@@ -1069,7 +1108,7 @@ export class ExploreService {
       categories: product.categories,
     };
     if (!showBody) {
-      return { ...card, ...extras, rate: null, visible: false };
+      return { ...card, ...extras, images: [], rate: null, visible: false };
     }
     if (!isOwner && !connected && product.rateVisibility === RateVisibility.OnRequest) {
       return { ...card, ...extras, rate: null, visible: true };

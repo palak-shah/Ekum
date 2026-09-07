@@ -1,6 +1,11 @@
-import type { OrderView, ReturnView, SampleView } from '@ekum/domain-types';
+import {
+  isOrderTerminalClosed,
+  type OrderView,
+  type ReturnView,
+  type SampleView,
+} from '@ekum/domain-types';
 
-const COMPLETED = new Set(['delivered', 'declined', 'cancelled']);
+const COMPLETED = new Set(['dispatched', 'settled', 'delivered', 'declined', 'cancelled']);
 const SAMPLE_PROGRESS = new Set(['requested', 'dispatched']);
 const SAMPLE_DONE = new Set(['received', 'declined', 'converted']);
 const RETURN_PROGRESS = new Set(['requested', 'approved', 'partially_approved']);
@@ -31,11 +36,16 @@ export function sellerCanConfirm(order: OrderView): boolean {
 }
 
 export function sellerNeedsDispatch(order: OrderView): boolean {
-  return order.direction === 'selling' && order.status === 'confirmed';
+  return (
+    order.direction === 'selling' &&
+    (order.status === 'confirmed' || order.status === 'part_shipped') &&
+    order.items.some((item) => item.remainingQuantity > 0)
+  );
 }
 
-export function buyerNeedsDelivery(order: OrderView): boolean {
-  return order.direction === 'buying' && order.status === 'dispatched';
+/** Mark delivered retired — full dispatch is complete. */
+export function buyerNeedsDelivery(_order: OrderView): boolean {
+  return false;
 }
 
 /** Seller must decide an open return request. */
@@ -52,18 +62,27 @@ export function buyerWaitingReturnReview(ret: ReturnView): boolean {
 export function matchesNeeds(order: OrderView): boolean {
   if (sellerNeedsRate(order) || sellerCanConfirm(order)) return true;
   if (buyerCanAcceptQuote(order)) return true;
-  if (sellerNeedsDispatch(order)) return true;
-  if (buyerNeedsDelivery(order)) return true;
+  if (sellerNeedsDispatch(order) || order.canSettle) return true;
+  if (order.needsQuotePass) return true;
   return false;
 }
 
 /** Open trade that is not finished — includes waiting on the other party. */
 export function matchesProgress(order: OrderView): boolean {
-  return order.status === 'requested' || order.status === 'confirmed' || order.status === 'dispatched';
+  return (
+    order.status === 'requested' ||
+    order.status === 'confirmed' ||
+    order.status === 'part_shipped'
+  );
 }
 
 export function matchesCompleted(order: OrderView): boolean {
-  return COMPLETED.has(order.status);
+  return (
+    order.status === 'settled' ||
+    order.status === 'dispatched' ||
+    COMPLETED.has(order.status) ||
+    isOrderTerminalClosed(order.status)
+  );
 }
 
 export function matchesSampleNeeds(sample: SampleView): boolean {

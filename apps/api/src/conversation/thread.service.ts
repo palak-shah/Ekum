@@ -28,6 +28,7 @@ import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
 import { findThreadSearchHits, threadSurfaceMatchesQ } from './message-search';
 import { messageVisibleToCompany } from './side-message';
+import { scrubOrderMessageView } from '../orders/i-handle-soft-hide';
 import {
   countedPeopleForCompany,
   lastOwnerMute,
@@ -748,11 +749,13 @@ export class ThreadService {
       return null;
     }
     const references = await this.references.resolve([message], viewerCompanyId);
-    return this.serializer.toMessageView(
-      message,
-      viewerCompanyId,
-      viewerUserId,
-      references.get(message.id) ?? null,
+    return scrubOrderMessageView(
+      this.serializer.toMessageView(
+        message,
+        viewerCompanyId,
+        viewerUserId,
+        references.get(message.id) ?? null,
+      ),
     );
   }
 

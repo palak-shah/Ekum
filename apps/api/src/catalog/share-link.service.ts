@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   CollectionStatus,
   ProductStatus,
@@ -28,7 +28,6 @@ export class ShareLinkService {
         actorCompanyId,
         collection.companyId,
         collection.status === CollectionStatus.Published,
-        collection.allowForward !== false,
       );
       const token = await this.insertToken('collection', collection.id, actorCompanyId);
       return this.get(token);
@@ -44,7 +43,6 @@ export class ShareLinkService {
       actorCompanyId,
       product.companyId,
       product.status === ProductStatus.Published || Boolean(product.postedToMarketAt),
-      product.allowForward !== false,
     );
     const token = await this.insertToken('product', product.id, actorCompanyId);
     return this.get(token);
@@ -141,17 +139,10 @@ export class ShareLinkService {
     actorCompanyId: string,
     ownerCompanyId: string,
     published: boolean,
-    allowForward: boolean,
   ) {
     if (actorCompanyId === ownerCompanyId) return;
     if (!published) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Not found.' });
-    }
-    if (!allowForward) {
-      throw new BadRequestException({
-        code: 'FORWARD_NOT_ALLOWED',
-        message: 'This can’t be shared.',
-      });
     }
   }
 

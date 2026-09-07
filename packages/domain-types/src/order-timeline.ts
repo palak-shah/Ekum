@@ -27,6 +27,7 @@ export interface OrderTimelineInput {
   /** Who locked agreement: buyer accepted quote vs seller confirmed supply. */
   confirmedByRole?: 'buyer' | 'seller' | null;
   deliveredAt: string | null;
+  settledAt?: string | null;
   closedAt: string | null;
   updatedAt: string;
   partiallyShipped: boolean;
@@ -209,8 +210,10 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
   const hadConfirm =
     Boolean(order.confirmedAt) ||
     order.status === 'confirmed' ||
+    order.status === 'part_shipped' ||
     order.status === 'dispatched' ||
-    order.status === 'delivered';
+    order.status === 'delivered' ||
+    order.status === 'settled';
 
   if (hadConfirm) {
     steps.push({
@@ -236,23 +239,40 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
 
   steps.push({
     key: 'dispatched',
-    label: order.partiallyShipped ? 'Part shipped' : 'Dispatched',
+    label:
+      order.status === 'part_shipped' || order.partiallyShipped ? 'Part shipped' : 'Dispatched',
     at: order.dispatch?.dispatchedAt ?? null,
     done:
       Boolean(order.dispatch?.dispatchedAt) ||
       order.status === 'dispatched' ||
-      order.status === 'delivered',
-    current: order.status === 'dispatched' || order.partiallyShipped,
+      order.status === 'delivered' ||
+      order.status === 'settled',
+    current:
+      order.status === 'dispatched' ||
+      ((order.status === 'part_shipped' || order.partiallyShipped) &&
+        order.status !== 'settled'),
     ...optionalStaffLine(staff.dispatched),
   });
-  steps.push({
-    key: 'delivered',
-    label: 'Delivered',
-    at: order.deliveredAt,
-    done: Boolean(order.deliveredAt),
-    current: order.status === 'delivered' && !hasReturns,
-    ...optionalStaffLine(staff.delivered),
-  });
+
+  if (order.status === 'settled' || order.settledAt) {
+    steps.push({
+      key: 'settled',
+      label: 'Settled',
+      at: order.settledAt ?? null,
+      done: true,
+      current: order.status === 'settled',
+      ...optionalStaffLine(staff.dispatched),
+    });
+  } else {
+    steps.push({
+      key: 'delivered',
+      label: 'Delivered',
+      at: order.deliveredAt,
+      done: Boolean(order.deliveredAt),
+      current: order.status === 'delivered' && !hasReturns,
+      ...optionalStaffLine(staff.delivered),
+    });
+  }
 
   if (hasReturns) {
     appendReturnSteps(steps, returns);

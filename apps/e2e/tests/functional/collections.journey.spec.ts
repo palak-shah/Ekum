@@ -6,7 +6,11 @@ test.describe('collections journey @functional @collections', () => {
     await loginAsMeena(page);
     await page.goto('/collections/seed-col-1');
 
-    await page.getByTestId('collection-select').click();
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 });
+
+    // Enter select via long-press (⋯ no longer has a Select pill).
+    const designTile = page.locator('button, a').filter({ has: page.locator('img') }).first();
+    await designTile.click({ button: 'right' });
     await page.getByRole('button', { name: 'Select all' }).first().click();
     await expect(page.getByText(/\d+ selected/)).toBeVisible();
 
@@ -16,7 +20,6 @@ test.describe('collections journey @functional @collections', () => {
 
     await expect(page).toHaveURL(/\/chats\//, { timeout: 20_000 });
     await page.goto('/collections/seed-col-1');
-    await expect(page.getByTestId('collection-select')).toHaveText(/Select/i, { timeout: 10_000 });
     await expect(page.getByText(/\d+ selected/)).toHaveCount(0);
   });
 });

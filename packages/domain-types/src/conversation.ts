@@ -18,14 +18,68 @@ import type { PublicCompanySummary } from './access';
  * object. A first message from an unconnected company opens as a request.
  */
 
-const cardTypes = [MessageType.ProductCard, MessageType.CollectionCard, MessageType.OrderCard] as const;
-const needsBodyTypes = [MessageType.Text, MessageType.Photo] as const;
+const cardTypes = [
+  MessageType.ProductCard,
+  MessageType.CollectionCard,
+  MessageType.OrderCard,
+  MessageType.Rate,
+] as const;
+const needsBodyTypes = [MessageType.Text, MessageType.Photo, MessageType.Voice] as const;
+
+export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+export const MESSAGE_DELETE_EVERYONE_WINDOW_MS = 60 * 60 * 1000;
+export const MAX_FORWARD_BATCH = 10;
+
+export function messageWithinWindow(
+  createdAt: Date | string,
+  windowMs: number,
+  now: Date = new Date(),
+): boolean {
+  const created = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+  return now.getTime() - created.getTime() <= windowMs;
+}
+
+export function canEditMessageMeta(input: {
+  mine: boolean;
+  type: string;
+  createdAt: Date | string;
+  deletedForEveryone?: boolean;
+  now?: Date;
+}): boolean {
+  return (
+    input.mine &&
+    input.type === MessageType.Text &&
+    !input.deletedForEveryone &&
+    messageWithinWindow(input.createdAt, MESSAGE_EDIT_WINDOW_MS, input.now)
+  );
+}
+
+export function canDeleteForEveryoneMeta(input: {
+  mine: boolean;
+  createdAt: Date | string;
+  deletedForEveryone?: boolean;
+  now?: Date;
+}): boolean {
+  return (
+    input.mine &&
+    !input.deletedForEveryone &&
+    messageWithinWindow(input.createdAt, MESSAGE_DELETE_EVERYONE_WINDOW_MS, input.now)
+  );
+}
 
 /** Photo album: ordered blob URL references (no image bytes in chat). */
 export const photoMessageMetadataSchema = z.object({
   urls: z.array(z.string().trim().min(1)).min(1),
 });
 export type PhotoMessageMetadata = z.infer<typeof photoMessageMetadataSchema>;
+
+/** Voice clip: duration + optional media id (body holds the playable URL). */
+export const VOICE_MAX_DURATION_MS = 120_000;
+export const voiceMessageMetadataSchema = z.object({
+  durationMs: z.number().int().positive().max(VOICE_MAX_DURATION_MS),
+  mediaId: z.string().min(1).optional(),
+});
+export type VoiceMessageMetadata = z.infer<typeof voiceMessageMetadataSchema>;
 
 /** Resolve album URLs from metadata, falling back to a legacy single-body photo. */
 export function photoUrlsFromMessage(message: {
@@ -38,6 +92,11 @@ export function photoUrlsFromMessage(message: {
   }
   const body = message.body?.trim();
   return body ? [body] : [];
+}
+
+export function voiceDurationMsFromMessage(metadata: unknown): number | null {
+  const parsed = voiceMessageMetadataSchema.safeParse(metadata);
+  return parsed.success ? parsed.data.durationMs : null;
 }
 
 export const startDirectThreadSchema = z.object({
@@ -72,7 +131,9 @@ export const sendMessageSchema = z
         message:
           value.type === MessageType.Photo
             ? 'A photo message needs an image URL.'
-            : 'A text message needs a body.',
+            : value.type === MessageType.Voice
+              ? 'A voice message needs an audio URL.'
+              : 'A text message needs a body.',
         path: ['body'],
       });
     }
@@ -103,8 +164,26 @@ export const sendMessageSchema = z
         });
       }
     }
+    if (value.type === MessageType.Voice) {
+      const parsed = voiceMessageMetadataSchema.safeParse(value.metadata ?? {});
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Voice messages need metadata.durationMs (max 2 minutes).',
+          path: ['metadata', 'durationMs'],
+        });
+      }
+    }
   });
 export type SendMessageDto = z.infer<typeof sendMessageSchema>;
+
+export const editMessageSchema = z.object({
+  body: z.string().trim().min(1).max(4000),
+});
+export type EditMessageDto = z.infer<typeof editMessageSchema>;
+
+export const listStarredMessagesQuerySchema = cursorPageQuerySchema;
+export type ListStarredMessagesQuery = z.infer<typeof listStarredMessagesQuerySchema>;
 
 export const listThreadsQuerySchema = cursorPageQuerySchema.extend({
   state: z.enum(threadParticipantStateValues).optional(),
@@ -120,6 +199,7 @@ export const threadMessageViewValues = [
   'collections',
   'designs',
   'orders',
+  'starred',
   /** @deprecated Use `photos` — kept for older clients. */
   'media',
 ] as const;
@@ -180,6 +260,11 @@ export interface MessageReference {
    * Collection: first design thumbs. Product: product photos.
    */
   images?: string[] | null;
+  /**
+   * When true, chat may show small blurred thumbs but must not open PhotoViewer.
+   * Viewer lacks design view rights; opening the pack still uses Ask / shell.
+   */
+  imagesLocked?: boolean;
   /** Catalog owner company (product/collection) — not the message forwarder. */
   ownerCompanyId?: string | null;
   ownerCompanyName?: string | null;
@@ -239,6 +324,19 @@ export interface MessageView {
   /** Teammate who sent when mine && not you. Never exposed to other companies. */
   actor: AuditActorView | null;
   replyTo: MessageReplyPreview | null;
+  editedAt?: string | null;
+  deletedForEveryone?: boolean;
+  starred?: boolean;
+  canEdit?: boolean;
+  canDeleteForEveryone?: boolean;
+}
+
+export interface StarredMessageView {
+  message: MessageView;
+  threadId: string;
+  threadTitle: string | null;
+  counterpartName: string | null;
+  starredAt: string;
 }
 
 export interface ParticipantView {

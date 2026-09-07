@@ -6,11 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  OrderChatEvent,
   OrderStatus,
+  OrderTrailType,
   ReturnStatus,
+  shortOrderLabel,
   type ApproveReturnDto,
   type CreateReturnDto,
   type CursorPage,
+  type DeclineReturnDto,
   type EscalateReturnDto,
   type ListReturnsQuery,
   type ReturnView,
@@ -20,6 +24,9 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { OrderSerializer } from './order.serializer';
+import { OrderService } from './order.service';
+import { OrderTrailService } from './order-trail.service';
+import { resolveNoteVoiceFields, resolveReasonVoiceFields } from './note-voice';
 import { DomainEvents } from '../events/events.module';
 
 const RETURN_RELATIONS = {
@@ -34,6 +41,8 @@ export class ReturnService {
     private readonly serializer: OrderSerializer,
     private readonly audit: AuditService,
     private readonly events: DomainEvents,
+    private readonly trail: OrderTrailService,
+    private readonly orders: OrderService,
   ) {}
 
   async list(actorCompanyId: string, query: ListReturnsQuery): Promise<CursorPage<ReturnView>> {
@@ -76,10 +85,10 @@ export class ReturnService {
         message: 'Only the buyer can raise a return.',
       });
     }
-    if (order.status !== OrderStatus.Delivered) {
+    if (order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Settled && order.status !== OrderStatus.Dispatched) {
       throw new ConflictException({
         code: 'INVALID_TRANSITION',
-        message: 'Only delivered orders can be returned.',
+        message: 'Only settled (or legacy delivered) orders can be returned.',
       });
     }
     if (order.returnWindowClosesAt && order.returnWindowClosesAt.getTime() < Date.now()) {
@@ -107,17 +116,55 @@ export class ReturnService {
       return { orderItemId: orderItem.id, name: orderItem.name, requestedQuantity: line.quantity };
     });
 
+    const reasonVoice = await resolveReasonVoiceFields(this.prisma, actorCompanyId, dto);
     const created = await this.prisma.return.create({
       data: {
         orderId: order.id,
         buyerCompanyId: order.buyerCompanyId,
         sellerCompanyId: order.sellerCompanyId,
         reason: dto.reason ?? null,
+        reasonVoiceMediaId: reasonVoice.reasonVoiceMediaId,
+        reasonVoiceUrl: reasonVoice.reasonVoiceUrl,
+        reasonVoiceDurationMs: reasonVoice.reasonVoiceDurationMs,
         status: ReturnStatus.Requested,
         items: { create: returnItems },
       },
       include: RETURN_RELATIONS,
     });
+    await this.trail.append({
+      orderId: order.id,
+      type: OrderTrailType.ReturnRaised,
+      actorCompanyId,
+      note: dto.reason?.trim() || null,
+      noteVoiceMediaId: reasonVoice.reasonVoiceMediaId,
+      noteVoiceUrl: reasonVoice.reasonVoiceUrl,
+      noteVoiceDurationMs: reasonVoice.reasonVoiceDurationMs,
+      detail: `Return ${created.id.slice(-4).toUpperCase()}`,
+    });
+    const actorLabel = created.order.buyer.name;
+    await this.orders.postLifecycleCard(
+      created.buyerCompanyId,
+      created.sellerCompanyId,
+      actorCompanyId,
+      dto.reason?.trim() || 'Returned',
+      order.id,
+      {
+        status: order.status,
+        event: OrderChatEvent.ReturnRaised,
+        orderLabel: shortOrderLabel(order.id),
+        actorLabel,
+        actorRole: 'buyer',
+        itemCount: returnItems.length,
+        returnId: created.id,
+        ...(reasonVoice.reasonVoiceUrl
+          ? {
+              noteVoiceMediaId: reasonVoice.reasonVoiceMediaId,
+              noteVoiceUrl: reasonVoice.reasonVoiceUrl,
+              noteVoiceDurationMs: reasonVoice.reasonVoiceDurationMs,
+            }
+          : {}),
+      },
+    );
     this.events.returnRequested({
       returnId: created.id,
       orderId: created.orderId,
@@ -177,11 +224,26 @@ export class ReturnService {
       actorCompanyId,
       status,
     });
+    const voice = await resolveNoteVoiceFields(this.prisma, actorCompanyId, dto);
+    await this.trail.append({
+      orderId: entity.orderId,
+      type: OrderTrailType.ReturnDecided,
+      actorCompanyId,
+      note: dto.note?.trim() || null,
+      noteVoiceMediaId: voice.noteVoiceMediaId,
+      noteVoiceUrl: voice.noteVoiceUrl,
+      noteVoiceDurationMs: voice.noteVoiceDurationMs,
+      detail: status,
+    });
 
     return this.view(id, actorCompanyId);
   }
 
-  async decline(actorCompanyId: string, id: string): Promise<ReturnView> {
+  async decline(
+    actorCompanyId: string,
+    id: string,
+    dto: DeclineReturnDto = {},
+  ): Promise<ReturnView> {
     const entity = await this.loadForParty(id, actorCompanyId);
     this.assertSeller(entity.sellerCompanyId, actorCompanyId);
     if (entity.status !== ReturnStatus.Requested) {
@@ -205,6 +267,17 @@ export class ReturnService {
       sellerCompanyId: entity.sellerCompanyId,
       actorCompanyId,
       status: ReturnStatus.Declined,
+    });
+    const voice = await resolveNoteVoiceFields(this.prisma, actorCompanyId, dto);
+    await this.trail.append({
+      orderId: entity.orderId,
+      type: OrderTrailType.ReturnDecided,
+      actorCompanyId,
+      note: dto.note?.trim() || null,
+      noteVoiceMediaId: voice.noteVoiceMediaId,
+      noteVoiceUrl: voice.noteVoiceUrl,
+      noteVoiceDurationMs: voice.noteVoiceDurationMs,
+      detail: ReturnStatus.Declined,
     });
     return this.view(id, actorCompanyId);
   }

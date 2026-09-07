@@ -22,11 +22,13 @@ import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
+import { orderListLinkedCue, orderListRoleBit } from '@/features/orders/tradeListRole';
 import {
   dateFacetFromNeedle,
   emptyFindState,
   effectiveDateFacet,
   findNeedsServer,
+  kindFacetFromNeedle,
   tradeMatchesFind,
   type TradeFindState,
   type TradeKindFacet,
@@ -45,7 +47,9 @@ type Direction = 'all' | 'buying' | 'selling';
 type StatusFilter = 'needs' | 'progress' | 'completed';
 
 function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
-  if (value === 'sample' || value === 'return' || value === 'order') return value;
+  if (value === 'sample' || value === 'return' || value === 'order' || value === 'trading') {
+    return value;
+  }
   return null;
 }
 
@@ -96,6 +100,10 @@ export function OrdersPage() {
     const needleIsDate = Boolean(dateFacetFromNeedle(deferredFind.needle));
     if (serverFind && deferredFind.needle.trim().length >= 2 && !needleIsDate) {
       params.q = deferredFind.needle.trim();
+    }
+    if (deferredFind.kindFacet === 'trading') {
+      params.tradeMode = 'manage';
+      params.direction = 'selling';
     }
     if (dateFacet) {
       params.createdFrom = dateFacet.from;
@@ -190,8 +198,8 @@ export function OrdersPage() {
   };
 
   const onFindNeedleChange = (raw: string) => {
-    const kindWord = raw.trim().toLowerCase();
-    if (kindWord === 'return' || kindWord === 'sample' || kindWord === 'order') {
+    const kindWord = kindFacetFromNeedle(raw);
+    if (kindWord) {
       setKindFacet(kindWord);
       return;
     }
@@ -408,13 +416,8 @@ function TradeRow({
     const isInquiry = order.intent === 'inquiry';
     const idLabel = shortOrderLabel(order.id, { inquiry: isInquiry });
     const shared = orderViewerIsFacilitator(order, companyId);
-    const roleBit = shared
-      ? 'Shared · '
-      : isInquiry
-        ? null
-        : order.direction === 'buying'
-          ? 'You buy · '
-          : 'You sell · ';
+    const roleBit = orderListRoleBit(order, shared);
+    const mills = orderListLinkedCue(order.linkedMills);
     return (
       <Link to={`/orders/${order.id}`}>
         <Card className="flex items-center justify-between">
@@ -422,8 +425,9 @@ function TradeRow({
             <p className="truncate text-sm font-semibold text-ink">{order.counterpart.name}</p>
             <p className="text-xs text-muted">
               {idLabel}
+              {roleBit ? ` · ${roleBit}` : ''}
+              {mills ? ` · ${mills}` : ''}
               {' · '}
-              {roleBit}
               {order.items.length} {order.items.length === 1 ? 'item' : 'items'} ·{' '}
               {timeAgo(order.createdAt)}
               {staff ? ` · ${staff}` : ''}

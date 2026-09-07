@@ -66,4 +66,48 @@ describe('MediaService.complete', () => {
     expect(enqueue).toHaveBeenCalledWith(JobType.MediaThumbnail, { mediaId: 'm1' });
     expect(view.id).toBe('m1');
   });
+
+  it('marks audio ready without thumbnail job', async () => {
+    const created: { data?: Record<string, unknown> } = {};
+    const update = vi.fn(async () => undefined);
+    const prisma = {
+      media: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          created.data = args.data;
+          return { id: 'a1' };
+        },
+        findUnique: async () => ({
+          id: 'a1',
+          companyId: 'c1',
+          status: MediaStatus.Pending,
+          kind: MediaKind.Audio,
+          contentType: 'audio/webm',
+          url: 'https://host/c1/a.webm',
+          thumbnailUrl: null,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const config = { get: () => '10m' } as unknown as ConfigService<Env, true>;
+    const enqueue = vi.fn(async () => 'job-1');
+    const jobs = { enqueue } as unknown as JobQueue;
+    const storage = {
+      createUploadTarget: () => ({
+        uploadUrl: 'https://host/c1/a.webm?sig=abc',
+        method: 'PUT' as const,
+        headers: { 'content-type': 'audio/webm' },
+      }),
+      publicUrl: () => 'https://host/c1/a.webm',
+    } as unknown as StorageDriver;
+    const service = new MediaService(prisma, config, jobs, storage);
+    await service.complete('c1', 'a1');
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: MediaStatus.Ready }),
+      }),
+    );
+    void created;
+  });
 });

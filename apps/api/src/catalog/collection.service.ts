@@ -37,6 +37,7 @@ import {
   parseScheduleInstant,
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
+import { shouldBumpExploreOnPublish } from './explore-activity-bump';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
@@ -47,8 +48,9 @@ const listInclude = {
   _count: { select: { products: true } },
   products: {
     orderBy: { position: 'asc' as const },
-    take: 12,
-    include: { product: true },
+    include: {
+      product: { include: { company: { select: { id: true, name: true } } } },
+    },
   },
 };
 
@@ -158,7 +160,14 @@ export class CollectionService {
         ...collectionActorInclude,
         products: {
           orderBy: { position: 'asc' },
-          include: { product: { include: productActorInclude } },
+          include: {
+            product: {
+              include: {
+                ...productActorInclude,
+                company: { select: { id: true, name: true } },
+              },
+            },
+          },
         },
       },
     });
@@ -314,9 +323,14 @@ export class CollectionService {
       },
     });
 
-    // Audience-only republish must not resurface the album; first publish (and
-    // republish after hide/ready) do.
-    const bumpExplore = existing.status !== CollectionStatus.Published;
+    // First publish / widen to Followers·Everyone·Connections resurfaces.
+    // Selected-list-only tweaks on an already-live pack do not.
+    const bumpExplore = shouldBumpExploreOnPublish({
+      priorStatus: existing.status,
+      priorAudience: existing.audience,
+      nextAudience: dto.audience,
+      exploreActivityAt: existing.exploreActivityAt,
+    });
 
     const collection = await this.prisma.collection.update({
       where: { id },

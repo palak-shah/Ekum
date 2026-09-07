@@ -1,8 +1,8 @@
 /**
  * Demo/dev seed mirroring the clickable prototype: two businesses (a Surat
  * supplier and a Jaipur retailer), a published collection, a permissionless
- * follow, an approved connection, two orders (one delivered, one requested), a
- * direct thread with a shared card, and a couple of notifications.
+ * follow, an approved connection, four orders (two bilateral, one I-handle
+ * pair), a direct thread with a shared card, and a couple of notifications.
  *
  * Idempotent: every row uses a stable `seed-*` id and is upserted, so running it
  * repeatedly converges to the same state without duplicating anything.
@@ -18,6 +18,7 @@ import {
   OrderKind,
   OrderLineStatus,
   OrderStatus,
+  OrderTradeMode,
   ProductStatus,
   PublishAudience,
   SuperCategory,
@@ -205,6 +206,18 @@ async function main(): Promise<void> {
     where: { userId_companyId: { userId: U_KAVITA, companyId: KAVITA } },
     create: { id: 'seed-mem-kavita', userId: U_KAVITA, companyId: KAVITA, role: 'owner' },
     update: {},
+  });
+
+  await prisma.companySettings.upsert({
+    where: { companyId: RAVI },
+    create: {
+      id: 'seed-settings-ravi',
+      companyId: RAVI,
+      tradeDefaults: { tradingEnabled: true },
+    },
+    update: {
+      tradeDefaults: { tradingEnabled: true },
+    },
   });
 
   // --- Catalogue ----------------------------------------------------------
@@ -607,6 +620,126 @@ async function main(): Promise<void> {
     },
   });
 
+  // I handle: Meena’s ticket is with Ravi; mill hop waits until Ravi Send.
+  await prisma.order.upsert({
+    where: { id: 'seed-order-handle-down' },
+    create: {
+      id: 'seed-order-handle-down',
+      kind: OrderKind.Standard,
+      status: OrderStatus.Requested,
+      tradeMode: OrderTradeMode.Manage,
+      buyerCompanyId: MEENA,
+      sellerCompanyId: RAVI,
+      createdByCompanyId: MEENA,
+      note: 'I handle — mill lot',
+      items: {
+        create: [
+          {
+            id: 'seed-oi-handle-down-1',
+            productId: 'seed-prod-fabric-1',
+            name: 'Cotton Grey Fabric',
+            sku: 'FAB-CO-01',
+            rate: 85,
+            unit: 'mtr',
+            image: img.greyfabric,
+            quantity: 50,
+            requestedQuantity: 50,
+            lineStatus: OrderLineStatus.Open,
+          },
+        ],
+      },
+    },
+    update: {
+      status: OrderStatus.Requested,
+      tradeMode: OrderTradeMode.Manage,
+      note: 'I handle — mill lot',
+    },
+  });
+  await prisma.orderItem.upsert({
+    where: { id: 'seed-oi-handle-down-1' },
+    create: {
+      id: 'seed-oi-handle-down-1',
+      orderId: 'seed-order-handle-down',
+      productId: 'seed-prod-fabric-1',
+      name: 'Cotton Grey Fabric',
+      sku: 'FAB-CO-01',
+      rate: 85,
+      unit: 'mtr',
+      image: img.greyfabric,
+      quantity: 50,
+      requestedQuantity: 50,
+      lineStatus: OrderLineStatus.Open,
+    },
+    update: {
+      quantity: 50,
+      requestedQuantity: 50,
+      lineStatus: OrderLineStatus.Open,
+      rate: 85,
+      image: img.greyfabric,
+    },
+  });
+  await prisma.order.upsert({
+    where: { id: 'seed-order-handle-up' },
+    create: {
+      id: 'seed-order-handle-up',
+      kind: OrderKind.Standard,
+      status: OrderStatus.Requested,
+      tradeMode: OrderTradeMode.Bilateral,
+      buyerCompanyId: RAVI,
+      sellerCompanyId: KAVITA,
+      createdByCompanyId: RAVI,
+      downstreamOrderId: 'seed-order-handle-down',
+      upstreamReleasedAt: null,
+      note: 'For order #HANDLE — mill lot',
+      items: {
+        create: [
+          {
+            id: 'seed-oi-handle-up-1',
+            productId: 'seed-prod-fabric-1',
+            name: 'Cotton Grey Fabric',
+            sku: 'FAB-CO-01',
+            rate: 85,
+            unit: 'mtr',
+            image: img.greyfabric,
+            quantity: 50,
+            requestedQuantity: 50,
+            lineStatus: OrderLineStatus.Open,
+          },
+        ],
+      },
+    },
+    update: {
+      status: OrderStatus.Requested,
+      tradeMode: OrderTradeMode.Bilateral,
+      downstreamOrderId: 'seed-order-handle-down',
+      upstreamReleasedAt: null,
+      note: 'For order #HANDLE — mill lot',
+    },
+  });
+  await prisma.orderItem.upsert({
+    where: { id: 'seed-oi-handle-up-1' },
+    create: {
+      id: 'seed-oi-handle-up-1',
+      orderId: 'seed-order-handle-up',
+      productId: 'seed-prod-fabric-1',
+      name: 'Cotton Grey Fabric',
+      sku: 'FAB-CO-01',
+      rate: 85,
+      unit: 'mtr',
+      image: img.greyfabric,
+      quantity: 50,
+      requestedQuantity: 50,
+      lineStatus: OrderLineStatus.Open,
+    },
+    update: {
+      quantity: 50,
+      requestedQuantity: 50,
+      lineStatus: OrderLineStatus.Open,
+      rate: 85,
+      image: img.greyfabric,
+    },
+  });
+
   // --- Conversation -------------------------------------------------------
   await prisma.thread.upsert({
     where: { id: 'seed-thread-1' },
@@ -662,6 +795,15 @@ async function main(): Promise<void> {
       body: 'Sending an order now.',
       referenceId: null,
     },
+    {
+      id: 'seed-msg-handle-order',
+      senderCompanyId: MEENA,
+      senderUserId: U_MEENA,
+      senderName: 'Meena',
+      type: MessageType.OrderCard,
+      body: null,
+      referenceId: 'seed-order-handle-down',
+    },
   ];
   for (const message of messages) {
     await prisma.message.upsert({
@@ -671,6 +813,8 @@ async function main(): Promise<void> {
         body: message.body,
         senderUserId: message.senderUserId,
         senderName: message.senderName,
+        type: message.type,
+        referenceId: message.referenceId,
       },
     });
   }
@@ -723,7 +867,7 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    'Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 2 orders, 1 thread.',
+    'Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 4 orders (I-handle pair held), 1 thread.',
   );
 }
 

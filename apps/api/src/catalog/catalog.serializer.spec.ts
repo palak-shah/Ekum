@@ -51,6 +51,7 @@ describe('CatalogSerializer', () => {
   it('reports product count from the _count aggregate', () => {
     const collection = {
       id: 'collection-1',
+      companyId: 'company-1',
       name: 'Summer Line',
       description: null,
       coverImage: null,
@@ -69,6 +70,8 @@ describe('CatalogSerializer', () => {
     } as unknown as Collection & { _count: { products: number } };
     const view = serializer.toCollectionView(collection);
     expect(view.productCount).toBe(3);
+    expect(view.companyId).toBe('company-1');
+    expect(view.memberShops).toEqual([]);
     expect(view.allowForward).toBe(true);
     expect(view.orderPathPreference).toBeNull();
     expect(view.audienceCompanyIds).toEqual([]);
@@ -84,6 +87,7 @@ describe('CatalogSerializer', () => {
   it('maps ordered products into a collection detail view', () => {
     const collection = {
       id: 'collection-1',
+      companyId: 'company-1',
       name: 'Summer Line',
       description: null,
       coverImage: null,
@@ -104,5 +108,38 @@ describe('CatalogSerializer', () => {
     expect(detail.productCount).toBe(1);
     expect(detail.orderPathPreference).toBe('handle');
     expect(detail.products[0]?.name).toBe('Banarasi Silk');
+  });
+
+  it('maps member companyName on collection detail products', () => {
+    const collection = {
+      id: 'collection-1',
+      companyId: 'ravi',
+      name: 'Curated',
+      description: null,
+      coverImage: null,
+      status: 'published',
+      audience: 'followers',
+      rateVisibility: 'visible',
+      audienceCompanyIds: [],
+      audienceGroupIds: [],
+      allowForward: true,
+      orderPathPreference: null,
+      startsAt: null,
+      endsAt: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      products: [
+        {
+          product: {
+            ...product(null),
+            companyId: 'kavita',
+            company: { id: 'kavita', name: 'Ahmedabad Loom Co' },
+          },
+        },
+      ],
+    } as unknown as Collection & { products: (CollectionProduct & { product: Product })[] };
+    const detail = serializer.toCollectionDetail(collection);
+    expect(detail.products[0]?.companyName).toBe('Ahmedabad Loom Co');
+    expect(detail.memberShops).toEqual([{ id: 'kavita', name: 'Ahmedabad Loom Co' }]);
   });
 });

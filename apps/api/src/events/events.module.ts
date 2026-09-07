@@ -9,6 +9,7 @@ import {
   type OrderStatusChangedEvent,
   type PaymentAskEvent,
   type ReturnEvent,
+  type CollectionViewGrantedEvent,
 } from './domain-events';
 
 /**
@@ -53,6 +54,10 @@ export class DomainEvents {
 
   paymentSettled(payload: PaymentAskEvent): void {
     this.emitter.emit(DomainEventName.PaymentSettled, payload);
+  }
+
+  collectionViewGranted(payload: CollectionViewGrantedEvent): void {
+    this.emitter.emit(DomainEventName.CollectionViewGranted, payload);
   }
 }
 

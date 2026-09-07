@@ -300,7 +300,7 @@ describe('CollectionService.setProducts', () => {
     await expect(
       service.setProducts('company-1', 'u1', 'col-1', ['foreign-1']),
     ).rejects.toSatisfy((error: unknown) => {
-      expectBadRequestCode(error, 'FORWARD_NOT_ALLOWED');
+      expectBadRequestCode(error, 'RELIST_NOT_ALLOWED');
       return true;
     });
     expect(transaction).not.toHaveBeenCalled();

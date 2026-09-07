@@ -17,18 +17,12 @@ import {
   DEFAULT_ACCESS_REQUEST_NOTE,
   resolveAccessRequestNote,
 } from '@/lib/accessRequestNote';
-import { useMyCompany } from '@/lib/queries';
-import { useTradePresence } from '@/lib/tradePresence';
-import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
-import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { applySelectingPill } from '@/features/browse/selectingPill';
+import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
-import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
-import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { CollectionTile, DesignTile } from '@/ui/cards';
 import {
@@ -62,16 +56,13 @@ export function CompanyProfilePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const me = useMyCompany();
-  const { selling, trading } = useTradePresence();
   const shortlist = useBrowseShortlist();
-  const orderFlow = useShortlistOrderFlow();
+  const albumPick = useBrowseAlbumPick();
   const [gateOpen, setGateOpen] = useState(false);
   const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<ShopTab>('designs');
-  const [curateOpen, setCurateOpen] = useState(false);
   const shopTabSeededFor = useRef<string | null>(null);
 
   const profile = useQuery({
@@ -120,24 +111,12 @@ export function CompanyProfilePage() {
   const collections = shopCollections.data?.results ?? [];
   const shopLoading = shopDesigns.isLoading || shopCollections.isLoading;
   const shopReady = shopDesigns.isSuccess && shopCollections.isSuccess;
-  const isOwner = Boolean(me.data?.id && id && me.data.id === id);
   const selecting = shortlist.selectMode || shortlist.count > 0;
   const visibleShopIds = designs.map((product) => product.id);
   const selectAll = selectAllState(visibleShopIds, shortlist.productIds);
-  const onSelectAllAction = () => {
-    if (selectAll.action === 'clear') {
-      shortlist.removeIds(visibleShopIds);
-      return;
-    }
-    shortlist.addMany(designs.map(toShopShortlistEntry));
-  };
   const shopSelectAllOpen = shortlist.selectMode && shopTab === 'designs' && designs.length > 0;
   const canSelectDesigns = designs.length > 0 && shopTab === 'designs';
-  const canOrder = shortlist.count > 0 && (!isOwner || selling || trading);
-  const canCurate =
-    !isOwner &&
-    shortlist.count > 0 &&
-    shortlist.entries.every((entry) => entry.allowForward !== false);
+  const floaterClearance = shortlist.count + albumPick.count > 0;
 
   const toggleDesign = (product: ExploreProductCard) => {
     shortlist.toggle(toShopShortlistEntry(product));
@@ -213,8 +192,9 @@ export function CompanyProfilePage() {
       <SelectAllFloat
         open={shopSelectAllOpen}
         count={shortlist.count}
-        action={selectAll.action}
-        onAction={onSelectAllAction}
+        allSelected={selectAll.allSelected}
+        onSelectAll={() => shortlist.addMany(designs.map(toShopShortlistEntry))}
+        onClear={() => shortlist.removeIds(visibleShopIds)}
       />
 
       <Card className="flex flex-col items-center gap-3 text-center">
@@ -299,10 +279,7 @@ export function CompanyProfilePage() {
         <LoadingBlock label="Loading shop…" />
       ) : (
         <section
-          className={cx(
-            'flex flex-col gap-2',
-            shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]',
-          )}
+          className={cx('flex flex-col gap-2', floaterClearance && 'pb-[calc(5rem+5.5rem)]')}
         >
           <SectionHeader
             title="Shop"
@@ -381,38 +358,6 @@ export function CompanyProfilePage() {
           )}
         </section>
       )}
-
-      <BrowseSelectBar
-        count={shortlist.count}
-        canCurate={canCurate}
-        onCurate={canCurate ? () => setCurateOpen(true) : undefined}
-        canOrder={canOrder}
-        onOrder={
-          canOrder
-            ? () => {
-                orderFlow.setError(null);
-                orderFlow.setQtyOpen(true);
-              }
-            : undefined
-        }
-      />
-      <HowManyEachSheet
-        open={orderFlow.qtyOpen}
-        onClose={() => orderFlow.setQtyOpen(false)}
-        sellerId={orderFlow.sellerIdForQty}
-        products={orderFlow.products}
-        submitting={orderFlow.submitting}
-        asking={orderFlow.asking}
-        error={orderFlow.error}
-        onSendOrder={orderFlow.sendOrder}
-        onAskRates={orderFlow.askRates}
-      />
-      <BatchOrderConfirmSheet
-        open={orderFlow.confirmOpen}
-        result={orderFlow.result}
-        onClose={() => orderFlow.setConfirmOpen(false)}
-      />
-      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
 
       <Sheet
         open={gateOpen}

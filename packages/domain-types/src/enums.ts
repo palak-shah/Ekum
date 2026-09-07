@@ -116,14 +116,18 @@ export const unitValues = values(Unit);
 
 /**
  * One Order object, viewed from two perspectives. Requested is the
- * pre-confirmation phase; Confirmed -> Dispatched -> Delivered is the confirmed
- * fulfillment progression. Declined/Cancelled are terminal.
+ * pre-confirmation phase; Confirmed → ship. Full ship → Dispatched (complete).
+ * Settle (qty mismatch) → Settled (complete). Declined/Cancelled terminal.
+ * Legacy `delivered` still read.
  */
 export const OrderStatus = {
   Requested: 'requested',
   Confirmed: 'confirmed',
+  /** Some qty shipped, some remains — main status (not a Confirmed cue). */
+  PartShipped: 'part_shipped',
   Dispatched: 'dispatched',
   Delivered: 'delivered',
+  Settled: 'settled',
   Declined: 'declined',
   Cancelled: 'cancelled',
 } as const;
@@ -315,6 +319,7 @@ export const broadcastStatusValues = values(BroadcastStatus);
 /** Media is uploaded direct-to-blob, then a worker derives a thumbnail. */
 export const MediaKind = {
   Image: 'image',
+  Audio: 'audio',
 } as const;
 export type MediaKind = (typeof MediaKind)[keyof typeof MediaKind];
 export const mediaKindValues = values(MediaKind);

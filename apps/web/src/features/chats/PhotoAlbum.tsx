@@ -15,6 +15,7 @@ function Cell({
   overlay,
   rounded,
   overlayClass,
+  locked,
 }: {
   src: string;
   className?: string;
@@ -22,14 +23,26 @@ function Cell({
   overlay?: string;
   rounded?: string;
   overlayClass?: string;
+  locked?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={cx('relative block h-full w-full overflow-hidden bg-foam', rounded, className)}
+      onClick={locked ? undefined : onClick}
+      disabled={locked}
+      aria-disabled={locked || undefined}
+      className={cx(
+        'relative block h-full w-full overflow-hidden bg-foam',
+        locked ? 'cursor-default' : null,
+        rounded,
+        className,
+      )}
     >
-      <img src={src} alt="" className="h-full w-full object-cover" />
+      <img
+        src={src}
+        alt=""
+        className={cx('h-full w-full object-cover', locked ? 'blur-[3px] scale-110' : null)}
+      />
       {overlay ? (
         <span
           data-testid="photo-album-overflow"
@@ -51,10 +64,13 @@ export function PhotoAlbum({
   /** Extra items beyond `urls` (e.g. more designs in a collection than preview thumbs). */
   overflowCount = 0,
   size = 'full',
+  /** Gated catalog: small blurred teaser; never open PhotoViewer. */
+  locked = false,
 }: {
   urls: string[];
   overflowCount?: number;
   size?: 'full' | 'compact' | 'thumb';
+  locked?: boolean;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Drop blanks so a bad reference never throws through the router error boundary.
@@ -66,11 +82,25 @@ export function PhotoAlbum({
 
   if (clean.length === 0) return null;
 
-  const open = (index: number) => setViewerIndex(index);
+  const open = (index: number) => {
+    if (locked) return;
+    setViewerIndex(index);
+  };
   /** Thumbs beyond the preview, plus designs with no image still counted on the card. */
   const extra = Math.max(0, clean.length - preview.length) + Math.max(0, overflowCount);
   const moreLabel = extra > 0 ? `+${extra}` : undefined;
   const count = preview.length;
+
+  const viewer =
+    locked || viewerIndex === null ? null : (
+      <PhotoViewer
+        open
+        urls={clean}
+        index={viewerIndex}
+        onIndex={setViewerIndex}
+        onClose={() => setViewerIndex(null)}
+      />
+    );
 
   if (thumb) {
     // Fixed ~40px cells — single design thumbs must not expand to bubble width.
@@ -83,6 +113,7 @@ export function PhotoAlbum({
             rounded="rounded-md"
             overlay={moreLabel}
             overlayClass={overlayClass}
+            locked={locked}
           />
         </div>
       ) : (
@@ -92,6 +123,7 @@ export function PhotoAlbum({
             onClick={() => open(0)}
             rounded="rounded-l-md"
             overlayClass={overlayClass}
+            locked={locked}
           />
           <Cell
             src={urlAt(preview, 1)}
@@ -99,21 +131,20 @@ export function PhotoAlbum({
             rounded="rounded-r-md"
             overlay={moreLabel}
             overlayClass={overlayClass}
+            locked={locked}
           />
         </div>
       );
     return (
       <>
-        <div className="h-10 w-fit shrink-0 overflow-hidden" data-testid="photo-album-thumb">
+        <div
+          className="h-10 w-fit shrink-0 overflow-hidden"
+          data-testid="photo-album-thumb"
+          data-locked={locked ? 'true' : undefined}
+        >
           {grid}
         </div>
-        <PhotoViewer
-          open={viewerIndex !== null}
-          urls={clean}
-          index={viewerIndex ?? 0}
-          onIndex={setViewerIndex}
-          onClose={() => setViewerIndex(null)}
-        />
+        {viewer}
       </>
     );
   }
@@ -124,12 +155,20 @@ export function PhotoAlbum({
       <button
         type="button"
         onClick={() => open(0)}
-        className="relative block w-full overflow-hidden rounded-2xl bg-foam"
+        disabled={locked}
+        className={cx(
+          'relative block w-full overflow-hidden rounded-2xl bg-foam',
+          locked ? 'cursor-default' : null,
+        )}
       >
         <img
           src={urlAt(preview, 0)}
           alt=""
-          className={cx('w-full object-cover', compact ? 'max-h-28' : 'max-h-72')}
+          className={cx(
+            'w-full object-cover',
+            compact ? 'max-h-28' : 'max-h-72',
+            locked ? 'blur-[3px] scale-105' : null,
+          )}
         />
         {moreLabel ? (
           <span
@@ -152,6 +191,7 @@ export function PhotoAlbum({
           onClick={() => open(0)}
           rounded="rounded-l-2xl"
           overlayClass={overlayClass}
+          locked={locked}
         />
         <Cell
           src={urlAt(preview, 1)}
@@ -159,6 +199,7 @@ export function PhotoAlbum({
           rounded="rounded-r-2xl"
           overlay={moreLabel}
           overlayClass={overlayClass}
+          locked={locked}
         />
       </div>
     );
@@ -171,6 +212,7 @@ export function PhotoAlbum({
           rounded="rounded-l-2xl"
           className="row-span-2"
           overlayClass={overlayClass}
+          locked={locked}
         />
         <div className="grid h-full grid-rows-2" style={{ gap: GUTTER }}>
           <Cell
@@ -178,6 +220,7 @@ export function PhotoAlbum({
             onClick={() => open(1)}
             rounded="rounded-tr-2xl"
             overlayClass={overlayClass}
+            locked={locked}
           />
           <Cell
             src={urlAt(preview, 2)}
@@ -185,6 +228,7 @@ export function PhotoAlbum({
             rounded="rounded-br-2xl"
             overlay={moreLabel}
             overlayClass={overlayClass}
+            locked={locked}
           />
         </div>
       </div>
@@ -200,18 +244,21 @@ export function PhotoAlbum({
           onClick={() => open(0)}
           rounded="rounded-tl-2xl"
           overlayClass={overlayClass}
+          locked={locked}
         />
         <Cell
           src={urlAt(preview, 1)}
           onClick={() => open(1)}
           rounded="rounded-tr-2xl"
           overlayClass={overlayClass}
+          locked={locked}
         />
         <Cell
           src={urlAt(preview, 2)}
           onClick={() => open(2)}
           rounded="rounded-bl-2xl"
           overlayClass={overlayClass}
+          locked={locked}
         />
         <Cell
           src={urlAt(preview, 3)}
@@ -219,6 +266,7 @@ export function PhotoAlbum({
           rounded="rounded-br-2xl"
           overlay={moreLabel}
           overlayClass={overlayClass}
+          locked={locked}
         />
       </div>
     );
@@ -226,16 +274,13 @@ export function PhotoAlbum({
 
   return (
     <>
-      <div className={cx('overflow-hidden', compact ? 'w-[120px]' : 'w-full max-w-[280px]')}>
+      <div
+        className={cx('overflow-hidden', compact ? 'w-[120px]' : 'w-full max-w-[280px]')}
+        data-locked={locked ? 'true' : undefined}
+      >
         {grid}
       </div>
-      <PhotoViewer
-        open={viewerIndex !== null}
-        urls={clean}
-        index={viewerIndex ?? 0}
-        onIndex={setViewerIndex}
-        onClose={() => setViewerIndex(null)}
-      />
+      {viewer}
     </>
   );
 }

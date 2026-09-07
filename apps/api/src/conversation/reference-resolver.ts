@@ -10,16 +10,26 @@ import {
   type MessageReference,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { VisibilityService } from '../access/visibility.service';
+import { canViewCollectionProducts } from '../catalog/audience-visibility';
+import { isHeldFromSupplier } from '../orders/orderHold';
 
 /**
  * Messages store a reference id, never a copy. Product/collection cards resolve
  * to live name/image (or unavailable if deleted). Order/quote cards keep
  * rate totals from message metadata so the chat timeline stays immutable when
  * a later quote updates the live order lines.
+ *
+ * Catalog thumbs: always resolve preview images for available cards. When the
+ * viewer lacks design view rights, set `imagesLocked` so the client can blur
+ * small thumbs without opening PhotoViewer (Ask / shell still gates open).
  */
 @Injectable()
 export class ReferenceResolver {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly visibility: VisibilityService,
+  ) {}
 
   async resolve(
     messages: Message[],
@@ -44,6 +54,8 @@ export class ReferenceResolver {
               images: true,
               companyId: true,
               allowForward: true,
+              audience: true,
+              audienceCompanyIds: true,
               company: { select: { id: true, name: true } },
             },
           })
@@ -57,6 +69,8 @@ export class ReferenceResolver {
               coverImage: true,
               companyId: true,
               allowForward: true,
+              audience: true,
+              audienceCompanyIds: true,
               company: { select: { id: true, name: true } },
               _count: { select: { products: true } },
               products: {
@@ -75,8 +89,11 @@ export class ReferenceResolver {
               status: true,
               buyerCompanyId: true,
               sellerCompanyId: true,
+              facilitatorCompanyId: true,
               createdByCompanyId: true,
               confirmedByCompanyId: true,
+              downstreamOrderId: true,
+              upstreamReleasedAt: true,
               buyer: { select: { name: true } },
               seller: { select: { name: true } },
               _count: { select: { items: true } },
@@ -108,6 +125,23 @@ export class ReferenceResolver {
     const orderById = new Map(orders.map((order) => [order.id, order]));
     const paymentById = new Map(payments.map((row) => [row.id, row]));
 
+    const audienceCtxByOwner = await this.audienceContextByOwner(viewerCompanyId, [
+      ...products.map((row) => row.companyId),
+      ...collections.map((row) => row.companyId),
+    ]);
+
+    const grantedCollectionIds = new Set<string>();
+    if (viewerCompanyId && collectionIds.length) {
+      const grants = await this.prisma.collectionViewGrant.findMany({
+        where: {
+          companyId: viewerCompanyId,
+          collectionId: { in: collectionIds },
+        },
+        select: { collectionId: true },
+      });
+      for (const row of grants) grantedCollectionIds.add(row.collectionId);
+    }
+
     const references = new Map<string, MessageReference>();
     for (const message of messages) {
       if (!message.referenceId) {
@@ -116,12 +150,16 @@ export class ReferenceResolver {
       if (message.type === MessageType.ProductCard) {
         const product = productById.get(message.referenceId);
         const images = (product?.images ?? []).filter(Boolean);
+        const imagesLocked =
+          Boolean(product) &&
+          !this.canShowCatalogImages(viewerCompanyId, product!, audienceCtxByOwner);
         references.set(message.id, {
           kind: 'product',
           id: message.referenceId,
           name: product?.name ?? null,
           image: images[0] ?? null,
           images: images.length > 0 ? images : null,
+          imagesLocked,
           ownerCompanyId: product?.company?.id ?? product?.companyId ?? null,
           ownerCompanyName: product?.company?.name ?? null,
           allowForward: product ? product.allowForward !== false : true,
@@ -136,12 +174,21 @@ export class ReferenceResolver {
         const fallback = designThumbs[0] ?? collection?.coverImage ?? null;
         const images =
           designThumbs.length > 0 ? designThumbs : fallback ? [fallback] : [];
+        const imagesLocked =
+          Boolean(collection) &&
+          !this.canShowCatalogImages(
+            viewerCompanyId,
+            collection!,
+            audienceCtxByOwner,
+            grantedCollectionIds.has(message.referenceId),
+          );
         references.set(message.id, {
           kind: 'collection',
           id: message.referenceId,
           name: collection?.name ?? null,
           image: fallback,
           images: images.length > 0 ? images : null,
+          imagesLocked,
           itemCount: collection?._count.products ?? null,
           ownerCompanyId: collection?.company?.id ?? collection?.companyId ?? null,
           ownerCompanyName: collection?.company?.name ?? null,
@@ -169,6 +216,37 @@ export class ReferenceResolver {
         const order = orderById.get(message.referenceId);
         const meta = (message.metadata ?? {}) as Record<string, unknown>;
         const isRateCard = message.type === MessageType.Rate;
+        const isParty =
+          Boolean(order && viewerCompanyId) &&
+          (order!.buyerCompanyId === viewerCompanyId ||
+            order!.sellerCompanyId === viewerCompanyId ||
+            order!.facilitatorCompanyId === viewerCompanyId);
+        const held =
+          Boolean(order && viewerCompanyId) && isHeldFromSupplier(order!, viewerCompanyId!);
+        const canViewOrder = Boolean(order) && isParty && !held;
+        if (!canViewOrder) {
+          references.set(message.id, {
+            kind: isRateCard ? 'rate' : 'order',
+            id: message.referenceId,
+            name: 'Unavailable',
+            image: null,
+            images: [],
+            available: false,
+            itemCount: null,
+            status: null,
+            totalLabel: null,
+            buyerName: null,
+            sellerName: null,
+            counterpartName: null,
+            direction: null,
+            orderLabel: null,
+            eventLabel: null,
+            actorLabel: null,
+            canAcceptQuote: false,
+            canAcceptLogged: false,
+          });
+          continue;
+        }
         let counterpartName: string | null = null;
         let direction: 'buying' | 'selling' | null = null;
         let confirmedByName: string | null = null;
@@ -248,6 +326,15 @@ export class ReferenceResolver {
             actorLabel = order.seller.name;
           }
         }
+        // Soft-hide: actor on this ticket must be a party — never an upstream mill.
+        if (
+          order &&
+          actorLabel &&
+          actorLabel !== order.buyer.name &&
+          actorLabel !== order.seller.name
+        ) {
+          actorLabel = order.seller.name;
+        }
         const frozenItemCount =
           typeof meta.itemCount === 'number' ? meta.itemCount : null;
 
@@ -294,6 +381,58 @@ export class ReferenceResolver {
       }
     }
     return references;
+  }
+
+  private canShowCatalogImages(
+    viewerCompanyId: string | undefined,
+    row: {
+      companyId: string;
+      audience: string;
+      audienceCompanyIds: string[];
+    },
+    audienceCtxByOwner: Map<string, { connected: boolean; following: boolean }>,
+    hasViewGrant = false,
+  ): boolean {
+    // No viewer context (unit fixtures / system): keep prior behaviour and show images.
+    if (!viewerCompanyId) return true;
+    if (row.companyId === viewerCompanyId) return true;
+    if (hasViewGrant) return true;
+    const ctx = audienceCtxByOwner.get(row.companyId) ?? {
+      connected: false,
+      following: false,
+    };
+    return canViewCollectionProducts(viewerCompanyId, row, ctx);
+  }
+
+  private async audienceContextByOwner(
+    viewerCompanyId: string | undefined,
+    ownerIds: string[],
+  ): Promise<Map<string, { connected: boolean; following: boolean }>> {
+    const map = new Map<string, { connected: boolean; following: boolean }>();
+    if (!viewerCompanyId) return map;
+    const unique = [...new Set(ownerIds.filter(Boolean))];
+    await Promise.all(
+      unique.map(async (ownerId) => {
+        if (ownerId === viewerCompanyId) {
+          map.set(ownerId, { connected: true, following: true });
+          return;
+        }
+        const [connected, following] = await Promise.all([
+          this.visibility.canViewCatalog(viewerCompanyId, ownerId),
+          this.prisma.follow.findUnique({
+            where: {
+              followerCompanyId_followedCompanyId: {
+                followerCompanyId: viewerCompanyId,
+                followedCompanyId: ownerId,
+              },
+            },
+            select: { id: true },
+          }),
+        ]);
+        map.set(ownerId, { connected, following: Boolean(following) });
+      }),
+    );
+    return map;
   }
 
   private idsFor(messages: Message[], type: string): string[] {

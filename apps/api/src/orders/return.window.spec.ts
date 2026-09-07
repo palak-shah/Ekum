@@ -25,7 +25,10 @@ function makeService(returnWindowClosesAt: Date | null) {
   const serializer = { toReturnView: (row: unknown) => row } as unknown as OrderSerializer;
   const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
   const events = { returnRequested: vi.fn() } as unknown as DomainEvents;
-  return { service: new ReturnService(prisma, serializer, audit, events), create };
+  const trail = {
+    append: async () => undefined,
+  } as unknown as import('./order-trail.service').OrderTrailService;
+  return { service: new ReturnService(prisma, serializer, audit, events, trail), create };
 }
 
 const dto = { orderId: 'o1', items: [{ orderItemId: 'oi1', quantity: 2 }] };

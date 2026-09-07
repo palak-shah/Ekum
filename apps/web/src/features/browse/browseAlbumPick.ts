@@ -8,6 +8,7 @@ export type BrowseAlbumEntry = {
   companyName: string;
   productCount?: number;
   allowForward?: boolean;
+  orderPathPreference?: string | null;
 };
 
 type Listener = () => void;
@@ -91,4 +92,11 @@ export function toggleBrowseAlbumEntry(entry: BrowseAlbumEntry): BrowseAlbumEntr
 
 export function clearBrowseAlbumPick(): void {
   writeBrowseAlbumPick([]);
+}
+
+export function removeBrowseAlbumIds(collectionIds: string[]): BrowseAlbumEntry[] {
+  const drop = new Set(collectionIds);
+  const next = readBrowseAlbumPick().filter((row) => !drop.has(row.collectionId));
+  writeBrowseAlbumPick(next);
+  return next;
 }

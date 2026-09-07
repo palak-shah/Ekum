@@ -6,6 +6,7 @@ import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries'
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
 import {
   BellIcon,
   ChatIcon,
@@ -35,6 +36,8 @@ function shellTitle(pathname: string): string | null {
   }
   if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
   if (pathname.startsWith('/following') || pathname.startsWith('/followers')) return 'Network';
+  // Hub like Chats — one top row with bell/avatar; create/edit hides this chrome.
+  if (pathname === '/catalog' || pathname === '/catalog/') return 'My designs';
   if (pathname.startsWith('/catalog')) return null;
   if (pathname.startsWith('/company')) return 'Business';
   if (pathname.startsWith('/collections')) return 'Collection';
@@ -42,6 +45,25 @@ function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/broadcast')) return 'Buyer groups';
   if (pathname.startsWith('/referrals')) return 'Invites';
   return null;
+}
+
+/**
+ * Detail / create flows use PageHeader (back + title). Hiding the shell band
+ * keeps that header flush to the top — same real estate rule as a chat thread.
+ */
+function pageOwnsTopChrome(pathname: string): boolean {
+  if (/^\/chats\/[^/]+/.test(pathname)) return true;
+  if (/^\/catalog\//.test(pathname)) return true;
+  if (pathname.startsWith('/broadcast')) return true;
+  if (pathname.startsWith('/referrals')) return true;
+  if (pathname.startsWith('/saved')) return true;
+  if (pathname.startsWith('/selection')) return true;
+  if (pathname === '/orders/new' || pathname.startsWith('/orders/new/')) return true;
+  if (/^\/orders\/[^/]+/.test(pathname)) return true;
+  if (/^\/collections\//.test(pathname)) return true;
+  if (/^\/products\//.test(pathname)) return true;
+  if (/^\/company\//.test(pathname)) return true;
+  return false;
 }
 
 /**
@@ -60,7 +82,7 @@ export function AppShell() {
   const { can } = useTeamCaps();
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
-  /** Thread detail: counterpart header owns the top chrome (WhatsApp-style). */
+  const ownsTopChrome = pageOwnsTopChrome(location.pathname);
   const isChatThread = /^\/chats\/[^/]+/.test(location.pathname);
 
   const go = (path: string) => {
@@ -72,10 +94,10 @@ export function AppShell() {
     <div
       className={cx(
         'mx-auto flex w-full max-w-md flex-col bg-canvas',
-        isChatThread ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
+        ownsTopChrome ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
       )}
     >
-      {!isChatThread ? (
+      {!ownsTopChrome ? (
         <header
           className={cx(
             'sticky top-0 z-20 flex items-center bg-canvas/95 px-4 py-2.5 backdrop-blur-md',
@@ -125,16 +147,24 @@ export function AppShell() {
           'flex-1',
           isChatThread
             ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
-            : 'px-4 pb-28 pt-3',
+            : ownsTopChrome
+              ? // Hide rail like chat — PageHeader pages scroll in main on a mobile shell.
+                'ekum-no-scrollbar min-h-0 overflow-y-auto px-4 pb-28 pt-0'
+              : 'px-4 pb-28 pt-3',
         )}
       >
         {/* Rise only on route change — not on every local state update (filters, etc.). */}
-        <div key={location.pathname} className={isChatThread ? 'flex min-h-0 flex-1 flex-col' : 'ekum-rise'}>
+        <div
+          key={location.pathname}
+          className={isChatThread ? 'flex min-h-0 flex-1 flex-col' : 'ekum-rise'}
+        >
           <Suspense fallback={<LoadingBlock />}>
             <Outlet />
           </Suspense>
         </div>
       </main>
+
+      <SelectionWorkspaceBar />
 
       <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-end justify-around border-t border-line/80 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
         {NAV.slice(0, 2).map((item) => (
@@ -167,6 +197,9 @@ export function AppShell() {
             <>
               {can('uploads') ? (
                 <>
+                  <Button variant="secondary" fullWidth onClick={() => go('/catalog')}>
+                    My designs
+                  </Button>
                   <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
                     Add designs
                   </Button>

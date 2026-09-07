@@ -15,14 +15,28 @@ Sellers building packs for shop / Explore. Buyers view published albums via Expl
 1. **＋ → New collection** — **Photos** and/or **Designs** (library opens as a sheet; album grid = what’s in the pack) → **name (required, empty by default)** → **Save Collection in Draft** or **Create & Publish**. First item is cover. New photos become draft designs; library picks join as-is. Designs-only is fine. After create, opens **My designs → Collections** with **Draft** or **Published** filter.
 2. On edit: one plain **status line** under the title (`Published · who` / schedule; tap → Visibility when published). Sticky **Update** · **Publish** / Visibility · **Share** (broadcast). **Open** (header) or tap album photos opens the buyer album (`/collections/:id`). Back returns to My Catalog **Collections** tab. Rare actions (**Archive**, Hide) live under header **⋯** only — no status chip pile.
 3. Lifecycle: **Draft → Published → Archived** (same mental model as designs). New collection CTAs: **Save Collection in Draft** / **Create & Publish**. Publish from draft.
-4. Publish sheet (progressive): **Who** → **Rules** (rates / forward / **When they order** Direct vs I handle when curating others’ designs). Schedule (**When** / starts / evergreen) deferred for later — packs go live on publish. Who = Everyone / Connections / **Followers** / **Selected** (multi-select **Buyer groups** with clear selected state + member preview, or **Pick companies**). Multiple groups = member union; rates/forward use company usual then group overrides with **strictest wins** if they disagree. **Create group** / **Add group** without leaving Publish. Published packs: **Visibility** restores chosen groups (`audienceGroupIds`) so you can add another group tomorrow without a new album.
-5. My Catalog → Collections: filters (Draft / Published / Archived). Each tile: name · photo count · design count · status; collage shows up to 4 previews with **`+N`** on the 4th cell when `productCount > 4` (same as Explore). Tap album → viewer; **Edit** on viewer returns to editor. **Select** (header or **long-press** a tile) → multi-publish / archive / restore.
+4. Publish sheet (progressive): **Who** → **Rules** (rates / **Buyers can put this in their pack**; pack-level **When they order** is fallback only once TradeLane ships — first pair is I handle + no group; see [orders Dual trade](./orders.md)). Schedule (**When** / starts / evergreen) deferred for later — packs go live on publish. Who = Everyone / **Followers** / **Selected** (multi-select **Buyer groups** with clear selected state + member preview, or **Pick companies**). **My connections** is not offered (connections include suppliers). Multiple groups = member union; rates/relist use company usual then group overrides with **strictest wins** if they disagree. **Create group** / **Add group** without leaving Publish. Published packs: **Visibility** restores chosen groups (`audienceGroupIds`) so you can add another group tomorrow without a new album.
+5. My Catalog → Collections: filters (Draft / Published / Archived). Each tile: name · photo count · design count · status; collage shows up to 4 previews with **`+N`** on the 4th cell when `productCount > 4` (same as Explore). Owner-only quiet line when members include others (*From {shop}* / *From 3 shops* / *Yours and {shop}*). No Curated chip. Tap album → viewer; **Edit** on viewer returns to editor. **Select** (header or **long-press** a tile) → multi-publish / **Hide · draft** (published) / archive / restore. On the **owner’s** curated viewer: same quiet pack line plus *From {shop}* on foreign design tiles; buyers still see only the pack owner.
+
+### Album viewer chrome (uniform action language)
+
+Header is one tight row — not five equal pills:
+
+| Control | Who | Where |
+|---------|-----|--------|
+| **Select** / **Selecting** | — | No header pill on album. **Long-press** a design to start; float shows **Select all** + **Clear** |
+| **Edit** | Owner | Header pill → editor |
+| **Bookmark** | Visitor | Header pill (album save) |
+| **⋯** | Everyone | Share; Feed/Grid; **Bookmark** when owner |
+| Sticky dock | Selecting | **Share** · Curate · Order (same verbs as Explore) |
+
+Default layout is **grid**. Library home stays **You → My designs** (`/catalog`); also **＋ → My designs** and Home **My designs** when selling — no Catalog bottom tab.
 
 ### View (buyer)
 
 1. Open album from Explore, company profile, or chat card → `/collections/:id` only when status is published **and** now is within `startsAt`/`endsAt`.
-2. Browse member designs; **Select** / long-press → traveling shortlist (survives opening another album) → **Bookmark** / **Curate** / **Order** (multi-supplier Order splits via batch). Once **Select** / long-press starts, sticky **Select all** / **Clear** stays under the header (this album’s designs only; other-album shortlist members stay). **Selecting** with picks → clears shortlist; with none → exits select mode. Tap a design → sheet; tap the **main photo** → shared **PhotoViewer** (pinch / swipe within that design).
-3. Respect connection / audience for full detail.
+2. Browse member designs; **long-press** → traveling shortlist → dock **Share** / **Bookmark** / **Curate** / **Order**. Once selecting starts, sticky **Select all** + **Clear** under the header (this album’s designs). Tap a design → sheet; tap the **main photo** → shared **PhotoViewer**.
+3. Respect connection / audience / **Granted on request** for full detail. Gated packs: **Ask to see this collection** (Allow/Deny in owner chat) — not Connect.
 
 ## Business rules
 
@@ -30,7 +44,8 @@ Sellers building packs for shop / Explore. Buyers view published albums via Expl
 |------|--------|
 | Membership | Many-to-many; any owned non-archived design may be added |
 | Publish album | Requires ≥1 design; **auto-publishes** draft members to Explore with the pack audience, then publishes the collection |
-| Forward lock | `allowForward` snapshot on publish; uncheck **Buyers can forward** → buyers cannot re-share the card (owner still can) |
+| Relist lock | `allowForward` snapshot (product: allowRelist). Uncheck **Buyers can put this in their pack** → they cannot **Curate** it. **Forward** the card is still free. View/audience checked when they open. |
+| Share to chat | Share sheet posts cards into a **chat** (not broadcast). Allowed when you own it, it was already in a chat you’re in, or it’s discoverable on Explore (e.g. Followers pack you follow). |
 | 48h share link | Share sheet: pinned then recent; quiet **Share a link · 48 hours**. Guest `/s/:token` is public. **Everyone** (live): look-only cover + name + designs; **Open on Ekum** → join → this pack. Closed: cover + name + **Request access**. Already on Ekum: skip to the real pack. Expires 48h. Not a guest shop. |
 | Selected groups | `audienceGroupIds` remembered for Visibility restore; visibility still gated by `audienceCompanyIds` (union of members) |
 | Multi-group rules | One pack = one rates/forward snapshot; if selected groups disagree → strictest (on_request / no-forward) |

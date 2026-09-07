@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "noteVoiceMediaId" TEXT;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "noteVoiceUrl" TEXT;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "noteVoiceDurationMs" INTEGER;

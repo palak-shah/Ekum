@@ -4,6 +4,7 @@ import {
   OrderKind,
   OrderLineStatus,
   OrderStatus,
+  OrderTradeMode,
   type CreateOrderDto,
 } from '@ekum/domain-types';
 import { OrderService } from './order.service';
@@ -19,6 +20,7 @@ import type { ThreadService } from '../conversation/thread.service';
 const events = {
   orderCreated: () => undefined,
   orderStatusChanged: () => undefined,
+  messageSent: () => undefined,
 } as unknown as DomainEvents;
 
 const config = {
@@ -30,7 +32,17 @@ const jobs = { enqueue: async () => 'job-1' } as unknown as JobQueue;
 const threads = {
   ensureTradeThread: async () => 'thread-1',
   findDirectThreadId: async () => 'thread-1',
+  notifyUserIdsForMessage: async () => ({
+    companyIds: ['buyer'],
+    userIds: ['buyer-user'],
+  }),
 } as unknown as ThreadService;
+
+const trail = {
+  append: async () => undefined,
+  listForViewer: async () => [],
+  backfillFromOrder: async () => undefined,
+} as unknown as import('./order-trail.service').OrderTrailService;
 
 interface Captured {
   createData: { items: { create: Record<string, unknown>[] } } | null;
@@ -50,6 +62,7 @@ interface Options {
     status: string;
     intent?: string;
     kind?: string;
+    tradeMode?: string;
     buyerCompanyId: string;
     sellerCompanyId: string;
     transporter?: string | null;
@@ -96,7 +109,24 @@ function makeService(options: Options) {
     : null;
 
   const prisma = {
-    product: { findMany: async () => options.products ?? [] },
+    product: {
+      findMany: async (args?: { where?: { id?: { in?: string[] }; companyId?: string } }) => {
+        const all = options.products ?? [];
+        const ids = args?.where?.id?.in;
+        const sellerId = args?.where?.companyId;
+        return all.filter((product) => {
+          if (ids && !ids.includes(product.id)) return false;
+          if (sellerId && (product as { companyId?: string }).companyId && (product as { companyId?: string }).companyId !== sellerId) {
+            return false;
+          }
+          // When companyId filter is set and product has no companyId, treat as seller-owned (legacy mocks).
+          if (sellerId && !(product as { companyId?: string }).companyId) {
+            return true;
+          }
+          return true;
+        });
+      },
+    },
     order: {
       create: async (args: { data: Captured['createData'] & Record<string, unknown> }) => {
         captured.createData = args.data;
@@ -285,6 +315,19 @@ function makeService(options: Options) {
     paymentRequest: {
       findMany: async () => [],
     },
+    media: {
+      findFirst: async (args?: { where?: { id?: string; companyId?: string; kind?: string } }) => {
+        if (args?.where?.id === 'media-voice' && args.where.kind === 'audio') {
+          return {
+            id: 'media-voice',
+            companyId: args.where.companyId,
+            kind: 'audio',
+            url: 'https://host/voice.webm',
+          };
+        }
+        return null;
+      },
+    },
     $transaction: async (ops: unknown) => {
       if (typeof ops === 'function') {
         return ops(prisma);
@@ -300,8 +343,18 @@ function makeService(options: Options) {
   } as unknown as OrderSerializer;
   const tradeAccess = { assertCanTrade: async () => undefined } as unknown as TradeAccess;
   return {
-    service: new OrderService(prisma, serializer, tradeAccess, events, config, jobs, threads),
+    service: new OrderService(
+      prisma,
+      serializer,
+      tradeAccess,
+      events,
+      config,
+      jobs,
+      threads,
+      trail,
+    ),
     captured,
+    prisma,
   };
 }
 
@@ -338,6 +391,30 @@ describe('OrderService.create snapshots', () => {
       quantity: 5,
       requestedQuantity: 5,
       lineStatus: OrderLineStatus.Open,
+    });
+  });
+
+  it('puts create-order mic note on the living chat card metadata', async () => {
+    const { service, captured } = makeService({
+      products: [
+        { id: 'p1', name: 'Silk Saree', sku: 'S1', rate: { toNumber: () => 100 }, unit: 'mtr', images: [] },
+      ],
+    });
+    await service.create('buyer', 'user-1', {
+      sellerCompanyId: 'seller',
+      kind: OrderKind.Standard,
+      note: 'Need by Friday',
+      noteVoiceMediaId: 'media-voice',
+      noteVoiceDurationMs: 1800,
+      items: [{ productId: 'p1', quantity: 1, images: [] }],
+    } as CreateOrderDto);
+    expect(captured.messageCreate).toMatchObject({
+      body: 'Need by Friday',
+      metadata: expect.objectContaining({
+        noteVoiceUrl: 'https://host/voice.webm',
+        noteVoiceMediaId: 'media-voice',
+        noteVoiceDurationMs: 1800,
+      }),
     });
   });
 
@@ -423,6 +500,46 @@ describe('OrderService.create snapshots', () => {
     });
   });
 
+  it('lets the buyer amend I-handle lines owned by the mill', async () => {
+    const { service, captured } = makeService({
+      products: [
+        {
+          id: 'fab-1',
+          name: 'Cotton Grey Fabric',
+          sku: 'FAB-CO-01',
+          rate: { toNumber: () => 85 },
+          unit: 'mtr',
+          images: [],
+          companyId: 'mill',
+        } as {
+          id: string;
+          name: string;
+          sku: string | null;
+          rate: unknown;
+          unit: string | null;
+          images: string[];
+          companyId?: string;
+        },
+      ],
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        intent: OrderIntent.Order,
+        kind: OrderKind.Standard,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'trader',
+        items: [openItem('oi1', 10)],
+      },
+    });
+    await service.amend('buyer', 'u1', 'o1', {
+      items: [{ productId: 'fab-1', quantity: 20, images: [] }],
+    });
+    expect(captured.updateData).toMatchObject({
+      amendCount: { increment: 1 },
+    });
+  });
+
   it('rejects a line referencing a product not sold by the seller', async () => {
     const { service } = makeService({ products: [] });
     const dto = {
@@ -467,6 +584,25 @@ describe('OrderService quote + accept (partial)', () => {
     expect(captured.itemUpdates.some((u) => u.quantity === 20 && u.rate === 150)).toBe(true);
   });
 
+  it('stores quote mic note on the living rate card metadata', async () => {
+    const { service, captured } = makeService({ order: requested });
+    await service.quote('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', rate: 150, quantity: 20 }],
+      note: 'Mic note',
+      noteVoiceMediaId: 'media-voice',
+      noteVoiceDurationMs: 1500,
+    });
+    expect(captured.messageCreate).toMatchObject({
+      type: 'rate',
+      body: 'Mic note',
+      metadata: expect.objectContaining({
+        noteVoiceUrl: 'https://host/voice.webm',
+        noteVoiceMediaId: 'media-voice',
+        noteVoiceDurationMs: 1500,
+      }),
+    });
+  });
+
   it('updates the same living message when quote follows an existing card', async () => {
     const { service, captured } = makeService({
       sellerQuoted: true,
@@ -490,7 +626,44 @@ describe('OrderService quote + accept (partial)', () => {
         quoted: true,
       }),
     });
+    expect(captured.messageUpdate?.createdAt).toBeInstanceOf(Date);
     expect(captured.messageCreate).toBeNull();
+  });
+
+  it('keeps quote voice on the living card when a later pulse omits it', async () => {
+    const { service, captured, prisma } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 10, 100)],
+      },
+    });
+    // Seed prior quote voice on the living message.
+    await prisma.message.update({
+      where: { id: 'quote-msg' },
+      data: {
+        type: 'rate',
+        metadata: {
+          quoted: true,
+          noteVoiceUrl: 'https://host/v.webm',
+          noteVoiceMediaId: 'media-1',
+          noteVoiceDurationMs: 1500,
+        },
+      },
+    });
+    // Accept path posts an order_card pulse without voice fields.
+    await service.acceptQuote('buyer', 'u1', 'o1');
+    expect(captured.messageUpdate).toMatchObject({
+      metadata: expect.objectContaining({
+        quoted: true,
+        noteVoiceUrl: 'https://host/v.webm',
+        noteVoiceMediaId: 'media-1',
+        noteVoiceDurationMs: 1500,
+      }),
+    });
   });
 
   it('firms inquiry intent to order when the seller quotes', async () => {
@@ -740,6 +913,105 @@ describe('OrderService state machine', () => {
       items: { create: [{ orderItemId: 'oi1', quantity: 4 }] },
     });
     expect(captured.updateData?.status).not.toBe(OrderStatus.Dispatched);
+    expect(captured.updateData?.status).not.toBe(OrderStatus.Settled);
+    expect(captured.updateData?.status).toBe(OrderStatus.PartShipped);
+  });
+
+  it('full dispatch completes as dispatched', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Confirmed,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [],
+      },
+    });
+    await service.dispatch('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', quantity: 10 }],
+      lrNumber: 'LR-FULL',
+    });
+    expect(captured.updateData?.status).toBe(OrderStatus.Dispatched);
+    expect(captured.messageCreate).toMatchObject({
+      type: 'order_card',
+      metadata: expect.objectContaining({
+        event: 'order_dispatched',
+        status: OrderStatus.Dispatched,
+      }),
+    });
+  });
+
+  it('settles from part_shipped to settled completed status', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.PartShipped,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          { items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 4 } }] },
+        ],
+      },
+    });
+    await service.settle('seller', 'u1', 'o1');
+    expect(captured.updateData?.status).toBe(OrderStatus.Settled);
+    expect(captured.messageCreate).toMatchObject({
+      metadata: expect.objectContaining({
+        event: 'order_settled',
+        status: OrderStatus.Settled,
+        partial: false,
+      }),
+      body: expect.stringMatching(/settled/i),
+    });
+  });
+
+  it('forbids buyer settle and rejects settle with nothing shipped', async () => {
+    const part = {
+      id: 'o1',
+      status: OrderStatus.Confirmed,
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'seller',
+      items: [
+        {
+          id: 'oi1',
+          name: 'A',
+          quantity: { toNumber: () => 10 },
+          requestedQuantity: { toNumber: () => 10 },
+          lineStatus: OrderLineStatus.Confirmed,
+          rate: { toNumber: () => 100 },
+        },
+      ],
+      shipments: [
+        { items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 4 } }] },
+      ],
+    };
+    const { service: sellerSvc } = makeService({ order: part });
+    await expect(sellerSvc.settle('buyer', 'u1', 'o1')).rejects.toThrow();
+
+    const { service: noneShipped } = makeService({
+      order: { ...part, shipments: [] },
+    });
+    await expect(noneShipped.settle('seller', 'u1', 'o1')).rejects.toThrow();
   });
 
   it('404s an order the caller is not a party to', async () => {

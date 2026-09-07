@@ -10,17 +10,66 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { PageHeader } from '@/ui/PageHeader';
-import { Button, EmptyState, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { useMyCompany } from '@/lib/queries';
+import { Button, Chip, EmptyState, FilterRail, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { CheckIcon } from '@/ui/icons';
+import { AlbumGrid } from '@/ui/cards';
 import { collectionStatusSummary } from './collectionStatusSummary';
+import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { auditLine, productTileSubtitle } from './productStatusSummary';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
 import { BulkProductPublishSheet } from './BulkProductPublishSheet';
+import {
+  readBrowseAlbumPick,
+  writeBrowseAlbumPick,
+  type BrowseAlbumEntry,
+} from '@/features/browse/browseAlbumPick';
+import {
+  addBrowseShortlistMany,
+  type BrowseShortlistEntry,
+} from '@/features/browse/browseShortlist';
+import { partitionForTravelingSelection } from '@/features/browse/partitionForTravelingSelection';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
-import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
+import { selectAllState } from '@/features/browse/selectAllState';
 import { useLongPress } from '@/ui/useLongPress';
+
+function toCatalogShortlistEntry(
+  product: ProductView,
+  company: { id: string; name: string },
+): BrowseShortlistEntry {
+  return {
+    productId: product.id,
+    name: product.name,
+    thumbUrl: product.images[0] ?? null,
+    companyId: company.id,
+    companyName: company.name,
+    allowForward: product.allowForward,
+  };
+}
+
+function toCatalogAlbumEntry(
+  collection: CollectionView,
+  company: { id: string; name: string },
+): BrowseAlbumEntry {
+  return {
+    collectionId: collection.id,
+    name: collection.name,
+    coverImage: collection.coverImage,
+    companyId: company.id,
+    companyName: company.name,
+    productCount: collection.productCount,
+    allowForward: collection.allowForward,
+  };
+}
+
+function addAlbumMany(entries: BrowseAlbumEntry[]) {
+  const byId = new Map(readBrowseAlbumPick().map((row) => [row.collectionId, row]));
+  for (const entry of entries) {
+    byId.set(entry.collectionId, entry);
+  }
+  writeBrowseAlbumPick([...byId.values()]);
+}
 
 type Tab = 'products' | 'collections';
 type CollectionFilter = 'all' | 'draft' | 'published' | 'archived';
@@ -111,6 +160,7 @@ export function MyCatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const me = useMyCompany();
   const tab = tabFromSearch(searchParams.get('tab'));
   const [postOpen, setPostOpen] = useState(false);
   const location = useLocation();
@@ -166,6 +216,9 @@ export function MyCatalogPage() {
   });
 
   const buyerGroups = broadcastLists.data ?? [];
+  const myCompany = me.data
+    ? { id: me.data.id, name: me.data.name }
+    : null;
 
   const filteredCollections = useMemo(() => {
     const rows = collections.data ?? [];
@@ -209,6 +262,12 @@ export function MyCatalogPage() {
           .filter((c) => c.status !== CollectionStatus.Archived)
           .map((c) => c.id)
       : selectedProducts.filter((p) => p.status !== ProductStatus.Archived).map((p) => p.id);
+  const hideableIds =
+    tab === 'collections'
+      ? selectedCollections
+          .filter((c) => c.status === CollectionStatus.Published)
+          .map((c) => c.id)
+      : selectedProducts.filter((p) => p.status === ProductStatus.Published).map((p) => p.id);
   const restorableIds =
     tab === 'collections'
       ? selectedCollections
@@ -249,8 +308,29 @@ export function MyCatalogPage() {
     setSelectedIds(new Set([id]));
   };
 
+  const sendToSelection = () => {
+    if (!myCompany || selectedIds.size < 1) return;
+    if (tab === 'products') {
+      const { published, toast } = partitionForTravelingSelection(selectedProducts);
+      if (toast) showToast(toast);
+      if (published.length < 1) return;
+      addBrowseShortlistMany(published.map((row) => toCatalogShortlistEntry(row, myCompany)));
+    } else {
+      const { published, toast } = partitionForTravelingSelection(selectedCollections);
+      if (toast) showToast(toast);
+      if (published.length < 1) return;
+      addAlbumMany(published.map((row) => toCatalogAlbumEntry(row, myCompany)));
+    }
+    exitSelect();
+    navigate('/selection');
+  };
+
   const archivePath =
     tab === 'collections' ? (id: string) => `/collections/${id}/archive` : (id: string) => `/products/${id}/archive`;
+  const hidePath =
+    tab === 'collections'
+      ? (id: string) => `/collections/${id}/unpublish`
+      : (id: string) => `/products/${id}/unpublish`;
   const restorePath =
     tab === 'collections'
       ? (id: string) => `/collections/${id}/unarchive`
@@ -278,6 +358,27 @@ export function MyCatalogPage() {
     },
   });
 
+  const bulkHide = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.post(hidePath(id), {})));
+      return {
+        ok: results.filter((r) => r.status === 'fulfilled').length,
+        failed: results.filter((r) => r.status === 'rejected').length,
+      };
+    },
+    onSuccess: ({ ok, failed }) => {
+      void queryClient.invalidateQueries({ queryKey: [listKey] });
+      showToast(
+        failed === 0 ? `Hidden ${ok}` : `Hidden ${ok}, ${failed} failed`,
+        failed === 0 ? undefined : 'danger',
+      );
+      exitSelect();
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not hide.', 'danger');
+    },
+  });
+
   const bulkRestore = useMutation({
     mutationFn: async (ids: string[]) => {
       const results = await Promise.allSettled(ids.map((id) => api.post(restorePath(id), {})));
@@ -299,92 +400,93 @@ export function MyCatalogPage() {
     },
   });
 
-  const busy = bulkArchive.isPending || bulkRestore.isPending;
-  const listCount = tab === 'collections' ? filteredCollections.length : filteredProducts.length;
+  const busy = bulkArchive.isPending || bulkHide.isPending || bulkRestore.isPending;
 
   return (
     <div
       className={cx(
-        'flex flex-col gap-4',
+        'flex flex-col gap-2.5',
         selecting && 'pb-28',
       )}
     >
-      <PageHeader
-        title="My designs & collections"
-        onBack={() => navigate('/more')}
-        action={
-          listCount > 0 ? (
-            selecting ? (
-              <button type="button" className="text-sm font-medium text-accent" onClick={exitSelect}>
-                Cancel
-              </button>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="text-sm font-medium text-muted"
-                  onClick={() => setSelecting(true)}
-                >
-                  Select
-                </button>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-accent"
-                  onClick={() => setPostOpen(true)}
-                >
-                  New post
-                </button>
-              </div>
-            )
-          ) : (
-            <button className="text-sm font-medium text-accent" onClick={() => setPostOpen(true)}>
-              New post
-            </button>
-          )
-        }
-      />
-
-      <SelectAllFloat
-        open={selecting && visibleIds.length > 0}
-        count={selectedIds.size}
-        action={selectAllState(visibleIds, selectedIds).action}
-        onAction={() => setSelectedIds(nextIdSet(visibleIds, selectedIds))}
-      />
-
-      <div className="flex gap-2">
+      {/* Mode like Chats; Add like “Mark all read” — not a second pill family. */}
+      <div className="flex items-center gap-2">
         {(['products', 'collections'] as const).map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => setTab(value)}
             className={cx(
-              'rounded-full px-4 py-1.5 text-sm font-medium capitalize',
+              'rounded-full px-4 py-1.5 text-sm font-medium',
               tab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
             )}
           >
             {value === 'products' ? 'Designs' : 'Collections'}
           </button>
         ))}
+        {selecting ? (
+          <button
+            type="button"
+            className="ml-auto text-sm font-semibold text-accent"
+            onClick={exitSelect}
+          >
+            Cancel
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="ml-auto text-sm font-semibold text-accent"
+            onClick={() => setPostOpen(true)}
+          >
+            Add
+          </button>
+        )}
       </div>
+
+      <SelectAllFloat
+        open={selecting && visibleIds.length > 0}
+        count={selectedIds.size}
+        allSelected={selectAllState(visibleIds, selectedIds).allSelected}
+        onSelectAll={() => {
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            for (const id of visibleIds) next.add(id);
+            return next;
+          });
+        }}
+        onClear={() => {
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            for (const id of visibleIds) next.delete(id);
+            return next;
+          });
+        }}
+      />
+
+      <FilterRail>
+        {(tab === 'collections' ? COLLECTION_FILTERS : PRODUCT_FILTERS).map((item) => {
+          const active =
+            tab === 'collections'
+              ? collectionFilter === item.id
+              : productFilter === item.id;
+          return (
+            <Chip
+              key={item.id}
+              active={active}
+              onClick={() =>
+                tab === 'collections'
+                  ? setCollectionFilter(item.id as CollectionFilter)
+                  : setProductFilter(item.id as ProductFilter)
+              }
+            >
+              {item.label}
+            </Chip>
+          );
+        })}
+      </FilterRail>
 
       {tab === 'products' ? (
         <>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {PRODUCT_FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setProductFilter(filter.id)}
-                className={cx(
-                  'shrink-0 rounded-full px-3 py-1 text-xs font-semibold',
-                  productFilter === filter.id ? 'bg-accent text-white' : 'bg-foam text-muted',
-                )}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-
           {products.isLoading ? (
             <LoadingBlock />
           ) : filteredProducts.length > 0 ? (
@@ -415,22 +517,6 @@ export function MyCatalogPage() {
         </>
       ) : (
         <>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {COLLECTION_FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setCollectionFilter(filter.id)}
-                className={cx(
-                  'shrink-0 rounded-full px-3 py-1 text-xs font-semibold',
-                  collectionFilter === filter.id ? 'bg-accent text-white' : 'bg-foam text-muted',
-                )}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-
           {collections.isLoading ? (
             <LoadingBlock />
           ) : filteredCollections.length > 0 ? (
@@ -465,7 +551,7 @@ export function MyCatalogPage() {
         ? createPortal(
             <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
               <div className="mx-auto flex max-w-md flex-col gap-2">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {restorableIds.length > 0 ? (
                     <Button
                       variant="secondary"
@@ -474,6 +560,16 @@ export function MyCatalogPage() {
                       onClick={() => bulkRestore.mutate(restorableIds)}
                     >
                       {bulkRestore.isPending ? 'Restoring…' : `Restore ${restorableIds.length}`}
+                    </Button>
+                  ) : null}
+                  {hideableIds.length > 0 ? (
+                    <Button
+                      variant="secondary"
+                      className="min-w-0 flex-1"
+                      disabled={busy}
+                      onClick={() => bulkHide.mutate(hideableIds)}
+                    >
+                      {bulkHide.isPending ? 'Hiding…' : `Hide · draft ${hideableIds.length}`}
                     </Button>
                   ) : null}
                   {archivableIds.length > 0 ? (
@@ -495,12 +591,26 @@ export function MyCatalogPage() {
                       Publish {publishableIds.length}
                     </Button>
                   ) : null}
+                  {selectedIds.size > 0 ? (
+                    <Button
+                      variant="secondary"
+                      className="min-w-0 flex-1"
+                      disabled={busy}
+                      data-testid="catalog-to-selection"
+                      onClick={sendToSelection}
+                    >
+                      To selection
+                    </Button>
+                  ) : null}
                 </div>
                 {selectedIds.size > 0 &&
                 publishableIds.length === 0 &&
+                hideableIds.length === 0 &&
                 archivableIds.length === 0 &&
                 restorableIds.length === 0 ? (
-                  <p className="text-center text-xs text-muted">No actions for this selection.</p>
+                  <p className="text-center text-xs text-muted">
+                    Use To selection for Order, Curate, Bookmark, or Share.
+                  </p>
                 ) : null}
               </div>
             </div>,
@@ -608,6 +718,7 @@ function SellerProductTile({
     return (
       <button
         type="button"
+        data-testid="catalog-product-tile"
         onClick={onToggle}
         className={cx(
           'overflow-hidden rounded-2xl border bg-surface text-left',
@@ -623,6 +734,7 @@ function SellerProductTile({
     <Link
       to={`/catalog/products/${product.id}`}
       className="overflow-hidden rounded-2xl border border-line bg-surface"
+      data-testid="catalog-product-tile"
       {...longPress}
     >
       {body}
@@ -663,43 +775,24 @@ function SellerCollectionTile({
   const density = `${photos === 1 ? '1 photo' : `${photos} photos`} · ${
     designs === 1 ? '1 design' : `${designs} designs`
   }`;
-  const subtitle = `${density} · ${summary.line}`;
+  const sourceLine = collectionOwnerSourceLine(
+    collection.companyId,
+    collection.memberShops ?? [],
+  );
+  const subtitle = sourceLine
+    ? `${density} · ${sourceLine} · ${summary.line}`
+    : `${density} · ${summary.line}`;
   const whoWhen = auditLine(collection);
   const showPlus = collection.productCount > 4;
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
+  const mosaicCount = showPlus
+    ? Math.max(collection.productCount, previews.length)
+    : previews.length;
 
   const body = (
     <>
-      <div className="relative grid h-36 grid-cols-2 grid-rows-2 gap-0.5 bg-foam">
-        {previews.length > 0 ? (
-          previews.slice(0, 4).map((url, index) => {
-            const isOverflow = index === 3 && showPlus;
-            return (
-              <div
-                key={`${collection.id}-${index}`}
-                className={cx(
-                  'relative h-full w-full overflow-hidden',
-                  previews.length === 1 ? 'col-span-2 row-span-2' : '',
-                  previews.length === 2 && index === 0 ? 'row-span-2' : '',
-                  previews.length === 3 && index === 0 ? 'row-span-2' : '',
-                )}
-              >
-                <img src={url} alt="" className="h-full w-full object-cover" />
-                {isOverflow ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-ink/55">
-                    <span className="text-2xl font-bold tracking-tight text-white">
-                      +{collection.productCount - 3}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })
-        ) : (
-          <div className="col-span-2 row-span-2 flex items-center justify-center text-3xl font-bold text-muted">
-            {collection.name.charAt(0)}
-          </div>
-        )}
+      <div className="relative">
+        <AlbumGrid images={previews} imageCount={mosaicCount} alt={collection.name} />
         {selecting ? (
           <span
             className={cx(

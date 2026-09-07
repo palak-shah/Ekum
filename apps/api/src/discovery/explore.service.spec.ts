@@ -13,10 +13,19 @@ interface VisibilityStub {
   connectedByCompany?: Record<string, boolean>;
 }
 
-function makeService(collectionRow: unknown, visibility: VisibilityStub) {
+function makeService(
+  collectionRow: unknown,
+  visibility: VisibilityStub,
+  opts?: { sharedInChat?: boolean; following?: boolean },
+) {
   const prisma = {
     collection: { findUnique: async () => collectionRow },
-    follow: { findUnique: async () => null },
+    follow: {
+      findUnique: async () => (opts?.following ? { id: 'f1' } : null),
+    },
+    message: {
+      findFirst: async () => (opts?.sharedInChat ? { id: 'm1' } : null),
+    },
     company: {
       findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
         (where.id.in ?? []).map((id) => ({ id, name: id })),
@@ -45,13 +54,19 @@ function makeService(collectionRow: unknown, visibility: VisibilityStub) {
     }),
   } as unknown as CatalogSerializer;
   const discovery = {
-    toCollectionCard: (row: { id: string; companyId: string; _count: { products: number } }) => ({
+    toCollectionCard: (row: {
+      id: string;
+      companyId: string;
+      _count: { products: number };
+      company?: { id: string };
+      coverImage?: string | null;
+    }) => ({
       id: row.id,
       name: 'Wedding Edit',
-      company: { id: row.companyId },
-      coverImage: null,
-      previewImages: [],
-      imageCount: 0,
+      company: { id: row.company?.id ?? row.companyId },
+      coverImage: row.coverImage ?? null,
+      previewImages: row.coverImage ? [row.coverImage] : [],
+      imageCount: row.coverImage ? 1 : 0,
       productCount: row._count.products,
       updatedAt: new Date().toISOString(),
     }),
@@ -66,6 +81,8 @@ const publishedCollection = {
   audience: 'connections',
   rateVisibility: 'on_request',
   audienceCompanyIds: [] as string[],
+  startsAt: null as Date | null,
+  endsAt: null as Date | null,
   company: { id: 'owner' },
   _count: { products: 2 },
   products: [
@@ -193,6 +210,36 @@ describe('ExploreService.collectionDetail trust rules', () => {
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.products).toHaveLength(2);
+  });
+
+  it('chat share opens a Followers pack shell without products so Ask can target the owner', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        audience: 'followers',
+        coverImage: 'https://img/cover',
+      },
+      { blocked: false, connected: false },
+      { sharedInChat: true, following: false },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toBeNull();
+    expect(view.productCount).toBe(2);
+    expect(view.company.id).toBe('owner');
+    expect(view.coverImage).toBeNull();
+    expect(view.previewImages).toEqual([]);
+    expect(view.imageCount).toBe(0);
+  });
+
+  it('still 404s a Followers pack with no follow and no chat share', async () => {
+    const service = makeService(
+      { ...publishedCollection, audience: 'followers' },
+      { blocked: false, connected: false },
+      { sharedInChat: false, following: false },
+    );
+    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('masks foreign member rates when source is on_request and viewer is not connected to source', async () => {

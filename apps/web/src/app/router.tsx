@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { RequireAuth } from './RequireAuth';
+import { AuthProvider } from '@/lib/auth';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
 import { LoadingBlock } from '@/ui/kit';
@@ -21,6 +22,10 @@ function page<T extends Record<string, ComponentType<unknown>>>(
 }
 
 const HomePage = page(() => import('@/features/home/HomePage'), 'HomePage');
+const CollectionGrantsPage = page(
+  () => import('@/features/home/CollectionGrantsPage'),
+  'CollectionGrantsPage',
+);
 const ExplorePage = page(() => import('@/features/explore/ExplorePage'), 'ExplorePage');
 const ExploreProductPage = page(
   () => import('@/features/explore/ExploreProductPage'),
@@ -95,6 +100,11 @@ const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'Set
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
 const SavedPage = page(() => import('@/features/saved/SavedPage'), 'SavedPage');
+const SelectionPage = page(() => import('@/features/browse/SelectionPage'), 'SelectionPage');
+const StarredMessagesPage = page(
+  () => import('@/features/chats/StarredMessagesPage'),
+  'StarredMessagesPage',
+);
 const ShareLinkLandingPage = page(
   () => import('@/features/catalog/ShareLinkLandingPage'),
   'ShareLinkLandingPage',
@@ -105,10 +115,19 @@ const TeamInviteLandingPage = page(
   'TeamInviteLandingPage',
 );
 
+/** Auth sits in the route tree so HMR cannot detach Home from AuthProvider. */
+function AppRoot() {
+  return (
+    <AuthProvider>
+      <ToastRoot />
+    </AuthProvider>
+  );
+}
+
 /** Routing mirrors the settled navigation and the ~40-screen prototype. */
 export const router = createBrowserRouter([
   {
-    element: <ToastRoot />,
+    element: <AppRoot />,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/onboarding', element: <OnboardingPage /> },
@@ -128,6 +147,7 @@ export const router = createBrowserRouter([
             element: <AppShell />,
             children: [
               { index: true, element: <HomePage /> },
+              { path: 'grants', element: <CollectionGrantsPage /> },
               { path: 'explore', element: <ExplorePage /> },
               { path: 'explore/products/:id', element: <ExploreProductPage /> },
               { path: 'search', element: <SearchPage /> },
@@ -164,6 +184,8 @@ export const router = createBrowserRouter([
               { path: 'settings/profile', element: <ProfilePage /> },
               { path: 'team', element: <TeamPage /> },
               { path: 'saved', element: <SavedPage /> },
+              { path: 'selection', element: <SelectionPage /> },
+              { path: 'starred', element: <StarredMessagesPage /> },
               { path: 'more', element: <MorePage /> },
             ],
           },

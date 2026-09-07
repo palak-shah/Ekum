@@ -15,7 +15,7 @@ import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/share
 import { useToast } from '@/ui/Toast';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from '@/features/chats/threadVisibilityLabel';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { Avatar, Button, InlineNotice, LoadingBlock, Sheet, cx } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
@@ -31,7 +31,7 @@ export type CatalogShareProductItem = {
 
 /**
  * Catalogue → chat: post collection_card / product_card into a chosen thread.
- * Same trust gate as Forward (allowForward enforced by API).
+ * Forward free — API allows live published cards unless blocked; view gated on open.
  * Stamps orderPathPreference on message metadata for buyer order routing.
  * Quiet text under the chat list: 48h link (any app) when exactly one album or design.
  */
@@ -56,6 +56,7 @@ export function CatalogShareSheet({
   const total = albumItems.length + designItems.length;
   const { showToast } = useToast();
   const [orderPath, setOrderPath] = useState<'direct' | 'handle'>(OrderPathPreference.Direct);
+  const [error, setError] = useState<string | null>(null);
 
   const settings = useQuery({
     queryKey: ['settings'],
@@ -64,7 +65,9 @@ export function CatalogShareSheet({
   });
 
   useEffect(() => {
-    if (!open || !settings.data) return;
+    if (!open) return;
+    setError(null);
+    if (!settings.data) return;
     setOrderPath(resolveOrderPathPreference(settings.data.tradeDefaults));
   }, [open, settings.data]);
 
@@ -83,6 +86,7 @@ export function CatalogShareSheet({
   const share = useMutation({
     mutationFn: async (threadId: string) => {
       if (total === 0) throw new Error('Nothing to share');
+      setError(null);
       const metadata = { orderPathPreference: orderPath };
       for (const item of albumItems) {
         await api.post<MessageView>(`/threads/${threadId}/messages`, {
@@ -112,7 +116,7 @@ export function CatalogShareSheet({
       onClose();
     },
     onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not share.', 'danger');
+      setError(err instanceof ApiError ? err.message : 'Could not share.');
     },
   });
 
@@ -120,13 +124,15 @@ export function CatalogShareSheet({
   const singleProduct = designItems.length === 1 && albumItems.length === 0;
   const canLink = singleCollection || singleProduct;
   const makeLink = useMutation({
-    mutationFn: () =>
-      api.post<ShareLinkView>(
+    mutationFn: () => {
+      setError(null);
+      return api.post<ShareLinkView>(
         '/share-links',
         singleCollection
           ? { collectionId: albumItems[0]!.collectionId }
           : { productId: designItems[0]!.productId },
-      ),
+      );
+    },
     onSuccess: async (link) => {
       const url = `${window.location.origin}${link.path}`;
       const copy = catalogShareCopy({ name: link.name, kind: link.kind });
@@ -139,11 +145,11 @@ export function CatalogShareSheet({
         if (result === 'copied') showToast('Link copied · 48 hours');
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        showToast('Could not share the link.', 'danger');
+        setError('Could not share the link.');
       }
     },
     onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not make a link.', 'danger');
+      setError(err instanceof ApiError ? err.message : 'Could not make a link.');
     },
   });
 
@@ -151,7 +157,7 @@ export function CatalogShareSheet({
     total > 1
       ? `Share ${total}…`
       : albumItems.length === 1
-        ? 'Share album…'
+        ? 'Share collection…'
         : designItems.length === 1
           ? 'Share design…'
           : 'Share to…';
@@ -164,6 +170,7 @@ export function CatalogShareSheet({
       }}
       title={sheetTitle}
     >
+      {error ? <InlineNotice message={error} className="mb-3" /> : null}
       <div className="mb-3 flex flex-col gap-2">
         <p className="text-sm font-semibold text-ink">When they order</p>
         {(

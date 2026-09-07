@@ -4,12 +4,14 @@ import {
   ForbiddenException,
   HttpException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import {
   JobType,
+  MediaKind,
   MessageType,
   OrderChatEvent,
   OrderIntent,
@@ -17,9 +19,11 @@ import {
   OrderLineStatus,
   OrderStatus,
   OrderTradeMode,
+  OrderTrailType,
   PaymentRequestStatus,
   shortOrderLabel,
   type AmendOrderDto,
+  type CancelOrderDto,
   type CreateOrderDto,
   type CreateOrdersBatchDto,
   type CreateOrdersBatchResult,
@@ -27,12 +31,18 @@ import {
   type CreateOrdersFromPackResult,
   type CursorPage,
   type DecideOrderLinesDto,
+  type DeclineOrderDto,
   type DispatchDto,
   type ListOrdersQuery,
   type OrderView,
   type QuoteOrderDto,
+  type MillPassHoldDto,
+  type OrderMillDeskView,
   type SendUpOrderDto,
+  type SettleOrderDto,
 } from '@ekum/domain-types';
+import { matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
+import { buyerSafePassThroughSummary } from './i-handle-soft-hide';
 import type { Env } from '../core/config/config.schema';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
@@ -41,6 +51,8 @@ import { JobQueue } from '../jobs/job-queue.service';
 import { ThreadService } from '../conversation/thread.service';
 import { resolveOrderPathPreference, resolveTradePresence } from '../identity/trade-presence';
 import { OrderSerializer } from './order.serializer';
+import { OrderTrailService } from './order-trail.service';
+import { resolveNoteVoiceFields } from './note-voice';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
 import { isHeldFromSupplier } from './orderHold';
@@ -54,6 +66,7 @@ const ORDER_RELATIONS = {
   quotedByUser: { select: { id: true, name: true } },
   confirmedByUser: { select: { id: true, name: true } },
   deliveredByUser: { select: { id: true, name: true } },
+  settledByUser: { select: { id: true, name: true } },
   shipments: {
     orderBy: { dispatchedAt: 'desc' as const },
     include: {
@@ -96,6 +109,8 @@ interface TransitionOptions {
 
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly serializer: OrderSerializer,
@@ -104,6 +119,7 @@ export class OrderService {
     private readonly config: ConfigService<Env, true>,
     private readonly jobs: JobQueue,
     private readonly threads: ThreadService,
+    private readonly trail: OrderTrailService,
   ) {}
 
   async create(
@@ -152,6 +168,7 @@ export class OrderService {
     const intent = dto.intent ?? OrderIntent.Order;
     const inquiry = intent === OrderIntent.Inquiry;
     const tradeMode = resolvedOpts.tradeMode ?? OrderTradeMode.Bilateral;
+    const noteVoice = await this.noteVoiceCreateFields(actorCompanyId, dto);
     const order = await this.prisma.order.create({
       data: {
         kind: dto.kind,
@@ -168,6 +185,7 @@ export class OrderService {
         createdByUserId: userId,
         updatedByUserId: userId,
         note: dto.note ?? null,
+        ...noteVoice,
         items: { create: items },
       },
       include: ORDER_RELATIONS,
@@ -195,6 +213,13 @@ export class OrderService {
           actorLabel,
           actorRole: 'buyer',
           intent,
+          ...(noteVoice.noteVoiceUrl
+            ? {
+                noteVoiceUrl: noteVoice.noteVoiceUrl,
+                noteVoiceMediaId: noteVoice.noteVoiceMediaId,
+                noteVoiceDurationMs: noteVoice.noteVoiceDurationMs,
+              }
+            : {}),
         },
         MessageType.OrderCard,
       );
@@ -210,6 +235,18 @@ export class OrderService {
     if (handlePath) {
       await this.spawnHandleUpstreams(dto.sellerCompanyId, userId, order.id, dto);
     }
+
+    await this.trail.append({
+      orderId: order.id,
+      type: OrderTrailType.Requested,
+      at: order.createdAt,
+      actorCompanyId,
+      actorUserId: userId,
+      note: dto.note?.trim() || null,
+      noteVoiceMediaId: noteVoice.noteVoiceMediaId,
+      noteVoiceUrl: noteVoice.noteVoiceUrl,
+      noteVoiceDurationMs: noteVoice.noteVoiceDurationMs,
+    });
 
     return this.serializer.toOrderView(order, actorCompanyId, threadId, livingMessageId);
   }
@@ -376,7 +413,8 @@ export class OrderService {
     if (!hasForeign) {
       throw new BadRequestException({
         code: 'NOT_CURATED',
-        message: 'Use Order for a curated pack.',
+        message:
+          'This album is only the seller’s own designs — not a curated pack. Place Order again as a normal order to them.',
       });
     }
 
@@ -507,20 +545,25 @@ export class OrderService {
     }
 
     const inquiry = order.intent === OrderIntent.Inquiry;
-    const snapshots = await this.snapshotItems({
-      sellerCompanyId: order.sellerCompanyId,
-      kind: OrderKind.Standard,
-      intent: order.intent as CreateOrderDto['intent'],
-      items: dto.items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        images: item.images ?? [],
-        note: item.note,
-        unit: item.unit,
-        name: item.name,
-      })),
-    });
-
+    const snapshots = await this.snapshotItems(
+      {
+        sellerCompanyId: order.sellerCompanyId,
+        kind: OrderKind.Standard,
+        intent: order.intent as CreateOrderDto['intent'],
+        items: dto.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          images: item.images ?? [],
+          note: item.note,
+          unit: item.unit,
+          name: item.name,
+        })),
+      },
+      {
+        // I-handle: lines are mill designs; seller is the trader.
+        allowForeignProducts: order.tradeMode === OrderTradeMode.Manage,
+      },
+    );
     await this.prisma.order.update({
       where: { id },
       data: {
@@ -555,10 +598,21 @@ export class OrderService {
       },
     );
 
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Updated,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: `${refreshed.items.length} design${refreshed.items.length === 1 ? '' : 's'}`,
+      note: dto.note?.trim() || null,
+      ...(await this.trailVoiceFields(actorCompanyId, dto)),
+    });
+
     const threadId = await this.threads.findDirectThreadId(
       order.buyerCompanyId,
       order.sellerCompanyId,
     );
+    await this.passBuyerAmendToMills(id);
     return {
       ...this.serializer.toOrderView(refreshed, actorCompanyId, threadId),
       canAmend: true,
@@ -581,6 +635,7 @@ export class OrderService {
             };
     const filters: Prisma.OrderWhereInput[] = [partyWhere];
     if (query.status) filters.push({ status: query.status });
+    if (query.tradeMode) filters.push({ tradeMode: query.tradeMode });
     if (createdAt) filters.push({ createdAt });
     if (query.q?.trim()) {
       const q = query.q.trim();
@@ -609,27 +664,75 @@ export class OrderService {
         upstreamReleasedAt: null,
       },
     });
+    filters.push({
+      NOT: traderListHidesSubset(actorCompanyId),
+    });
     const listWhere: Prisma.OrderWhereInput =
       filters.length === 1 ? filters[0]! : { AND: filters };
 
-    const rows = await this.prisma.order.findMany({
+    let rows = await this.prisma.order.findMany({
       where: listWhere,
       include: ORDER_RELATIONS,
       ...cursorArgs(query),
     });
+    const q = query.q?.trim();
+    if (q) {
+      const idNeedle = q.replace(/^#/, '');
+      const hops = await this.prisma.order.findMany({
+        where: {
+          buyerCompanyId: actorCompanyId,
+          downstreamOrderId: { not: null },
+          OR: [
+            { id: { contains: idNeedle, mode: 'insensitive' } },
+            { seller: { name: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+        select: { downstreamOrderId: true },
+      });
+      const extraIds = [
+        ...new Set(
+          hops
+            .map((hop) => hop.downstreamOrderId)
+            .filter((id): id is string => Boolean(id) && !rows.some((row) => row.id === id)),
+        ),
+      ];
+      if (extraIds.length > 0) {
+        const extra = await this.prisma.order.findMany({
+          where: { id: { in: extraIds } },
+          include: ORDER_RELATIONS,
+        });
+        rows = [...extra, ...rows];
+      }
+    }
     const quotedIds = await this.orderIdsWithSellerQuote(rows);
+    const needsQuotePassIds = await this.parentIdsNeedingQuotePass(rows, actorCompanyId, quotedIds);
+    const linkedByParent = await this.linkedMillsByParent(rows, actorCompanyId);
+    const healedIds = await this.healManageParentsInList(rows);
+    if (healedIds.size > 0) {
+      const refreshed = await this.prisma.order.findMany({
+        where: { id: { in: [...healedIds] } },
+        include: ORDER_RELATIONS,
+      });
+      const byId = new Map(refreshed.map((row) => [row.id, row]));
+      rows = rows.map((row) => byId.get(row.id) ?? row);
+    }
     return toCursorPage(rows, query.limit, (row) => {
       const sellerQuoted = quotedIds.has(row.id);
       return {
         ...this.serializer.toOrderView(row, actorCompanyId),
         hasSellerQuote: sellerQuoted,
         canAcceptQuote: this.buyerCanAcceptQuoteSync(row, actorCompanyId, sellerQuoted),
+        needsQuotePass: needsQuotePassIds.has(row.id),
+        linkedMills: linkedByParent.get(row.id) ?? [],
       };
     });
   }
 
   async get(actorCompanyId: string, id: string): Promise<OrderView> {
-    const order = await this.loadForParty(id, actorCompanyId, true);
+    let order = await this.loadForParty(id, actorCompanyId, true);
+    if (await this.healManageParentIfSubsetsComplete(order)) {
+      order = await this.loadForParty(id, actorCompanyId, true);
+    }
     const threadId = await this.threads.findDirectThreadId(
       order.buyerCompanyId,
       order.sellerCompanyId,
@@ -637,6 +740,7 @@ export class OrderService {
     const view = this.serializer.toOrderView(order, actorCompanyId, threadId);
     const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
     const relatedOrders = await this.buildRelatedOrders(order, actorCompanyId);
+    const millDesks = await this.buildMillDesks(order, actorCompanyId);
     const canSendUp =
       order.sellerCompanyId === actorCompanyId &&
       order.tradeMode === OrderTradeMode.Manage &&
@@ -657,15 +761,35 @@ export class OrderService {
       orderId: row.orderId,
       amount: row.amount.toNumber(),
       note: row.note,
+      noteVoiceUrl: row.noteVoiceUrl,
+      noteVoiceDurationMs: row.noteVoiceDurationMs,
       instructions: row.instructions,
       status: row.status,
       seenAt: row.seenAt ? row.seenAt.toISOString() : null,
       paidAt: row.paidAt ? row.paidAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
     }));
+    const quoteNoteFields = sellerQuoted
+      ? await this.loadQuoteNoteFields(order.id)
+      : {
+          quoteNote: null,
+          quoteNoteVoiceUrl: null,
+          quoteNoteVoiceDurationMs: null,
+        };
     return {
       ...view,
       relatedOrders,
+      millDesks,
+      deskOrderId:
+        order.buyerCompanyId === actorCompanyId && order.downstreamOrderId
+          ? order.downstreamOrderId
+          : null,
+      needsQuotePass:
+        millDesks.some((desk) => desk.millQuoted && !desk.held) && !sellerQuoted,
+      linkedMills: millDesks.map((desk) => ({
+        name: desk.sellerName,
+        orderId: desk.upstreamOrderId,
+      })),
       canSendUp,
       canTakeControl,
       canAmend: await this.buyerCanAmend(order, actorCompanyId),
@@ -680,9 +804,81 @@ export class OrderService {
       canAskPayment:
         order.sellerCompanyId === actorCompanyId &&
         (order.status === OrderStatus.Confirmed ||
+          order.status === OrderStatus.PartShipped ||
           order.status === OrderStatus.Dispatched ||
-          order.status === OrderStatus.Delivered) &&
+          order.status === OrderStatus.Delivered ||
+          order.status === OrderStatus.Settled) &&
         !paymentRequests.some((ask) => ask.status === PaymentRequestStatus.Open),
+      ...quoteNoteFields,
+      canSettle:
+        order.sellerCompanyId === actorCompanyId &&
+        millDesks.length === 0 &&
+        (order.status === OrderStatus.Confirmed ||
+          order.status === OrderStatus.PartShipped) &&
+        Boolean(view.partiallyShipped),
+      trail: await this.trail.listForViewer(order.id, actorCompanyId, {
+        buyerName: order.buyer.name,
+        sellerName: order.seller.name,
+        buyerCompanyId: order.buyerCompanyId,
+        sellerCompanyId: order.sellerCompanyId,
+        upstreamNamesToHide: await this.upstreamSellerNames(order),
+        staffByUserId: new Map(
+          [
+            order.createdByUser,
+            order.quotedByUser,
+            order.confirmedByUser,
+            order.deliveredByUser,
+            order.settledByUser,
+            order.updatedByUser,
+          ]
+            .filter(Boolean)
+            .map((u) => [u!.id, u!.name?.trim() || ''] as const)
+            .filter(([, name]) => Boolean(name)),
+        ),
+      }),
+    };
+  }
+
+  /** Quote text/voice live on the living rate card metadata — surface on order detail. */
+  private async loadQuoteNoteFields(orderId: string): Promise<{
+    quoteNote: string | null;
+    quoteNoteVoiceUrl: string | null;
+    quoteNoteVoiceDurationMs: number | null;
+  }> {
+    const row = await this.prisma.message.findFirst({
+      where: {
+        referenceId: orderId,
+        OR: [
+          { type: MessageType.Rate },
+          {
+            type: { in: [MessageType.Rate, MessageType.OrderCard] },
+            metadata: { path: ['quoted'], equals: true },
+          },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { body: true, metadata: true },
+    });
+    if (!row) {
+      return {
+        quoteNote: null,
+        quoteNoteVoiceUrl: null,
+        quoteNoteVoiceDurationMs: null,
+      };
+    }
+    const meta =
+      row.metadata && typeof row.metadata === 'object'
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    const body = row.body?.trim() || '';
+    const quoteNote =
+      body && !/^Quote\b/i.test(body) ? body : null;
+    return {
+      quoteNote,
+      quoteNoteVoiceUrl:
+        typeof meta?.noteVoiceUrl === 'string' ? meta.noteVoiceUrl : null,
+      quoteNoteVoiceDurationMs:
+        typeof meta?.noteVoiceDurationMs === 'number' ? meta.noteVoiceDurationMs : null,
     };
   }
 
@@ -749,6 +945,14 @@ export class OrderService {
         actorRole: 'seller',
       },
     );
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Confirmed,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: `${openIds.length} design${openIds.length === 1 ? '' : 's'}`,
+    });
+    await this.passMillLinesToParent(id, actorCompanyId, userId);
     return this.emitAndGet(actorCompanyId, id, OrderStatus.Confirmed);
   }
 
@@ -820,6 +1024,14 @@ export class OrderService {
         actorRole: 'buyer',
       },
     );
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Confirmed,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: 'Quote accepted',
+    });
+    await this.passBuyerAcceptToMills(id, userId);
     return this.emitAndGet(actorCompanyId, id, OrderStatus.Confirmed);
   }
 
@@ -911,6 +1123,7 @@ export class OrderService {
       return offered < (item?.requestedQuantity.toNumber() ?? offered);
     });
 
+    const voice = await this.noteVoiceMetadata(actorCompanyId, dto);
     await this.upsertOrderThreadMessage(
       order.buyerCompanyId,
       order.sellerCompanyId,
@@ -931,6 +1144,7 @@ export class OrderService {
         orderLabel: shortOrderLabel(order.id),
         actorLabel: order.seller.name,
         actorRole: 'seller',
+        ...voice,
       },
       MessageType.Rate,
     );
@@ -957,6 +1171,21 @@ export class OrderService {
         },
       });
     }
+
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Quoted,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: partial
+        ? `${supplyable.length} of ${order.items.length} designs`
+        : undefined,
+      note: dto.note?.trim() || null,
+      noteVoiceMediaId: typeof voice.noteVoiceMediaId === 'string' ? voice.noteVoiceMediaId : null,
+      noteVoiceUrl: typeof voice.noteVoiceUrl === 'string' ? voice.noteVoiceUrl : null,
+      noteVoiceDurationMs:
+        typeof voice.noteVoiceDurationMs === 'number' ? voice.noteVoiceDurationMs : null,
+    });
 
     return this.get(actorCompanyId, id);
   }
@@ -1087,16 +1316,54 @@ export class OrderService {
     );
 
     if (nextStatus !== order.status) {
+      if (nextStatus === OrderStatus.Confirmed) {
+        await this.trail.append({
+          orderId: id,
+          type: OrderTrailType.Confirmed,
+          actorCompanyId,
+          actorUserId: userId,
+          detail: linesDecidedNotice(actorLabel, confirmed, declined),
+          note: dto.note?.trim() || null,
+          ...(await this.trailVoiceFields(actorCompanyId, dto)),
+        });
+      } else if (nextStatus === OrderStatus.Declined) {
+        await this.trail.append({
+          orderId: id,
+          type: OrderTrailType.Declined,
+          actorCompanyId,
+          actorUserId: userId,
+          note: dto.note?.trim() || null,
+          ...(await this.trailVoiceFields(actorCompanyId, dto)),
+        });
+      }
+      await this.passMillLinesToParent(id, actorCompanyId, userId);
       return this.emitAndGet(actorCompanyId, id, nextStatus);
+    }
+    if (dto.note?.trim() || dto.noteVoiceMediaId) {
+      await this.trail.append({
+        orderId: id,
+        type: OrderTrailType.Updated,
+        actorCompanyId,
+        actorUserId: userId,
+        detail: linesDecidedNotice(actorLabel, confirmed, declined),
+        note: dto.note?.trim() || null,
+        ...(await this.trailVoiceFields(actorCompanyId, dto)),
+      });
     }
     await this.prisma.order.update({
       where: { id },
       data: this.withActor(userId),
     });
+    await this.passMillLinesToParent(id, actorCompanyId, userId);
     return this.get(actorCompanyId, id);
   }
 
-  async decline(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
+  async decline(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: DeclineOrderDto = {},
+  ): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     await this.transition(actorCompanyId, userId, id, {
       actor: 'seller',
@@ -1110,11 +1377,12 @@ export class OrderService {
     });
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
+    const note = dto.note?.trim() || null;
     await this.postOrderCard(
       order.buyerCompanyId,
       order.sellerCompanyId,
       actorCompanyId,
-      `${actorLabel} declined`,
+      note || `${actorLabel} declined`,
       id,
       {
         status: OrderStatus.Declined,
@@ -1125,6 +1393,14 @@ export class OrderService {
         actorRole: 'seller',
       },
     );
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Declined,
+      actorCompanyId,
+      actorUserId: userId,
+      note,
+      ...(await this.trailVoiceFields(actorCompanyId, dto)),
+    });
     return this.get(actorCompanyId, id);
   }
 
@@ -1136,10 +1412,13 @@ export class OrderService {
         message: 'Only the seller can do this.',
       });
     }
-    if (order.status !== OrderStatus.Confirmed) {
+    if (
+      order.status !== OrderStatus.Confirmed &&
+      order.status !== OrderStatus.PartShipped
+    ) {
       throw new ConflictException({
         code: 'INVALID_TRANSITION',
-        message: 'Only a confirmed order can be dispatched.',
+        message: 'Only a confirmed or part-shipped order can be dispatched.',
       });
     }
 
@@ -1241,24 +1520,40 @@ export class OrderService {
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
     const lrNote = dto.lrNumber ? ` · LR ${dto.lrNumber}` : '';
+    const dispatchNote = dto.note?.trim() || null;
+    const dispatchVoice = await this.trailVoiceFields(actorCompanyId, dto);
 
     if (allOut && !hasConfirmed) {
+      const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
+      const closesAt = days > 0 ? new Date(Date.now() + days * DAY_MS) : null;
       await this.prisma.order.update({
         where: { id },
         data: {
           status: OrderStatus.Dispatched,
           dispatchedAt: now,
+          returnWindowClosesAt: closesAt,
+          closedAt: now,
           transporter: dto.transporter ?? order.transporter,
           lrNumber: dto.lrNumber ?? order.lrNumber,
           parcelCount: dto.parcelCount ?? order.parcelCount,
           ...this.withActor(userId),
         },
       });
+      await this.trail.append({
+        orderId: id,
+        type: OrderTrailType.Dispatched,
+        at: now,
+        actorCompanyId,
+        actorUserId: userId,
+        detail: dto.lrNumber ? `LR ${dto.lrNumber}` : 'Dispatched · complete',
+        note: dispatchNote,
+        ...dispatchVoice,
+      });
       await this.postOrderCard(
         order.buyerCompanyId,
         order.sellerCompanyId,
         actorCompanyId,
-        `${actorLabel} dispatched${lrNote}`,
+        `${actorLabel} dispatched · complete${lrNote}`,
         id,
         {
           status: OrderStatus.Dispatched,
@@ -1271,18 +1566,33 @@ export class OrderService {
           lrNumber: dto.lrNumber ?? null,
         },
       );
+      if (closesAt) {
+        await this.jobs.enqueue(JobType.ReturnWindowExpire, { orderId: id }, closesAt);
+      }
+      await this.passMillDispatchToParent(id, actorCompanyId, userId, candidates);
       return this.emitAndGet(actorCompanyId, id, OrderStatus.Dispatched);
     }
 
-    // Partial ship — stay confirmed; keep legacy dispatch fields on latest LR for list UIs.
+    // Partial ship — main status Part shipped; keep latest LR on order for list UIs.
     await this.prisma.order.update({
       where: { id },
       data: {
+        status: OrderStatus.PartShipped,
         transporter: dto.transporter ?? order.transporter,
         lrNumber: dto.lrNumber ?? order.lrNumber,
         parcelCount: dto.parcelCount ?? order.parcelCount,
         ...this.withActor(userId),
       },
+    });
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.PartShipped,
+      at: now,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: dto.lrNumber ? `LR ${dto.lrNumber}` : null,
+      note: dispatchNote,
+      ...dispatchVoice,
     });
     await this.postOrderCard(
       order.buyerCompanyId,
@@ -1291,7 +1601,7 @@ export class OrderService {
       `${actorLabel} dispatched part${lrNote}`,
       id,
       {
-        status: OrderStatus.Confirmed,
+        status: OrderStatus.PartShipped,
         itemCount: candidates.length,
         event: OrderChatEvent.OrderDispatched,
         orderLabel,
@@ -1301,9 +1611,125 @@ export class OrderService {
         lrNumber: dto.lrNumber ?? null,
       },
     );
-    return this.get(actorCompanyId, id);
+    await this.passMillDispatchToParent(id, actorCompanyId, userId, candidates);
+    return this.emitAndGet(actorCompanyId, id, OrderStatus.PartShipped);
   }
 
+  /** Seller closes a part-shipped order: qty := shipped, status → settled. */
+  async settle(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: SettleOrderDto = {},
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can settle.',
+      });
+    }
+    if (
+      order.status !== OrderStatus.Confirmed &&
+      order.status !== OrderStatus.PartShipped
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Only a part-shipped order can be settled.',
+      });
+    }
+    const shippedByItem = this.shippedTotals(order);
+    const shippable = order.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const shippedTotal = shippable.reduce(
+      (sum, item) => sum + (shippedByItem.get(item.id) ?? 0),
+      0,
+    );
+    const remaining = shippable.reduce((sum, item) => {
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      return sum + Math.max(0, item.quantity.toNumber() - shipped);
+    }, 0);
+    if (shippedTotal <= 0 || remaining <= 0) {
+      throw new BadRequestException({
+        code: 'NOT_PART_SHIPPED',
+        message: 'Settle when some quantity has shipped and some remains.',
+      });
+    }
+
+    const voice = await this.noteVoiceMetadata(actorCompanyId, dto);
+    let asked = 0;
+    let shippedSum = 0;
+    for (const item of shippable) {
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      asked += item.requestedQuantity.toNumber();
+      shippedSum += shipped;
+      if (shipped <= 0) {
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
+        });
+      } else {
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: { quantity: shipped, lineStatus: OrderLineStatus.Dispatched },
+        });
+      }
+    }
+
+    const now = new Date();
+    const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
+    const closesAt = days > 0 ? new Date(Date.now() + days * DAY_MS) : null;
+    await this.prisma.order.update({
+      where: { id },
+      data: {
+        status: OrderStatus.Settled,
+        settledAt: now,
+        settledByUserId: userId,
+        returnWindowClosesAt: closesAt,
+        closedAt: now,
+        ...this.withActor(userId),
+      },
+    });
+
+    const detail = `Closed on ${shippedSum} of ${asked}`;
+    const orderLabel = shortOrderLabel(id);
+    const actorLabel = order.seller.name;
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Settled,
+      at: now,
+      actorCompanyId,
+      actorUserId: userId,
+      summary: `${actorLabel} settled`,
+      detail,
+      note: dto.note?.trim() || null,
+      noteVoiceMediaId: typeof voice.noteVoiceMediaId === 'string' ? voice.noteVoiceMediaId : null,
+      noteVoiceUrl: typeof voice.noteVoiceUrl === 'string' ? voice.noteVoiceUrl : null,
+      noteVoiceDurationMs:
+        typeof voice.noteVoiceDurationMs === 'number' ? voice.noteVoiceDurationMs : null,
+    });
+
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      dto.note?.trim() || `${actorLabel} settled · ${detail}`,
+      id,
+      {
+        status: OrderStatus.Settled,
+        event: OrderChatEvent.OrderSettled,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+        partial: false,
+        ...voice,
+      },
+    );
+    if (closesAt) {
+      await this.jobs.enqueue(JobType.ReturnWindowExpire, { orderId: id }, closesAt);
+    }
+    await this.passMillSettleToParent(id, actorCompanyId, userId);
+    return this.emitAndGet(actorCompanyId, id, OrderStatus.Settled);
+  }
   async deliver(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     if (order.buyerCompanyId !== actorCompanyId) {
@@ -1355,6 +1781,12 @@ export class OrderService {
         actorRole: 'buyer',
       },
     );
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Delivered,
+      actorCompanyId,
+      actorUserId: userId,
+    });
     if (closesAt) {
       await this.jobs.enqueue(JobType.ReturnWindowExpire, { orderId: id }, closesAt);
     }
@@ -1389,7 +1821,11 @@ export class OrderService {
     }
 
     const upstreams = await this.prisma.order.findMany({
-      where: { downstreamOrderId: id, upstreamReleasedAt: null },
+      where: {
+        downstreamOrderId: id,
+        upstreamReleasedAt: null,
+        ...(dto.upstreamOrderId ? { id: dto.upstreamOrderId } : {}),
+      },
       include: { items: true },
     });
     if (upstreams.length === 0) {
@@ -1429,6 +1865,43 @@ export class OrderService {
     return this.get(actorCompanyId, id);
   }
 
+  async millPassHold(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: MillPassHoldDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId || order.tradeMode !== OrderTradeMode.Manage) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only you can hold this.',
+      });
+    }
+    const up = await this.prisma.order.findFirst({
+      where: { id: dto.upstreamOrderId, downstreamOrderId: id },
+      include: { seller: true },
+    });
+    if (!up || !up.upstreamReleasedAt) {
+      throw new BadRequestException({
+        code: 'NOT_SENT',
+        message: 'Send to this mill first.',
+      });
+    }
+    await this.prisma.order.update({
+      where: { id: up.id },
+      data: { passHeldAt: dto.held ? new Date() : null, updatedByUserId: userId },
+    });
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Updated,
+      actorCompanyId,
+      actorUserId: userId,
+      summary: dto.held ? `You held ${up.seller.name}` : `You resumed ${up.seller.name}`,
+    });
+    return this.get(actorCompanyId, id);
+  }
+
   private async announceReleasedUpstream(orderId: string, actorCompanyId: string): Promise<void> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -1452,6 +1925,10 @@ export class OrderService {
         actorLabel,
         actorRole: 'buyer',
         intent: order.intent,
+        parentOrderId: order.downstreamOrderId,
+        parentOrderLabel: order.downstreamOrderId
+          ? shortOrderLabel(order.downstreamOrderId, { inquiry })
+          : undefined,
       },
       MessageType.OrderCard,
     );
@@ -1565,7 +2042,12 @@ export class OrderService {
     return { downstream, upstream, cancelledOrderId: id };
   }
 
-  async cancel(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
+  async cancel(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: CancelOrderDto = {},
+  ): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     const view = await this.transition(actorCompanyId, userId, id, {
       actor: 'buyer',
@@ -1575,11 +2057,12 @@ export class OrderService {
     });
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.buyer.name;
+    const note = dto.note?.trim() || null;
     await this.postOrderCard(
       order.buyerCompanyId,
       order.sellerCompanyId,
       actorCompanyId,
-      `${actorLabel} cancelled`,
+      note || `${actorLabel} cancelled`,
       id,
       {
         status: OrderStatus.Cancelled,
@@ -1590,6 +2073,14 @@ export class OrderService {
         actorRole: 'buyer',
       },
     );
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Cancelled,
+      actorCompanyId,
+      actorUserId: userId,
+      note,
+      ...(await this.trailVoiceFields(actorCompanyId, dto)),
+    });
     return view;
   }
 
@@ -1735,6 +2226,108 @@ export class OrderService {
     );
   }
 
+  /** Public entry for other order-domain services (returns, etc.). */
+  async postLifecycleCard(
+    buyerCompanyId: string,
+    sellerCompanyId: string,
+    senderCompanyId: string,
+    body: string,
+    orderId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<string> {
+    return this.postOrderCard(
+      buyerCompanyId,
+      sellerCompanyId,
+      senderCompanyId,
+      body,
+      orderId,
+      metadata,
+    );
+  }
+
+  private async trailVoiceFields(
+    companyId: string,
+    dto: { noteVoiceMediaId?: string; noteVoiceDurationMs?: number },
+  ): Promise<{
+    noteVoiceMediaId: string | null;
+    noteVoiceUrl: string | null;
+    noteVoiceDurationMs: number | null;
+  }> {
+    const resolved = await resolveNoteVoiceFields(this.prisma, companyId, dto);
+    return {
+      noteVoiceMediaId: resolved.noteVoiceMediaId,
+      noteVoiceUrl: resolved.noteVoiceUrl,
+      noteVoiceDurationMs: resolved.noteVoiceDurationMs,
+    };
+  }
+
+  private async noteVoiceCreateFields(
+    companyId: string,
+    dto: { noteVoiceMediaId?: string; noteVoiceDurationMs?: number },
+  ): Promise<{
+    noteVoiceMediaId: string | null;
+    noteVoiceUrl: string | null;
+    noteVoiceDurationMs: number | null;
+  }> {
+    const voice = await this.resolveOwnedNoteVoice(companyId, dto);
+    if (!voice) {
+      return {
+        noteVoiceMediaId: null,
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+      };
+    }
+    return {
+      noteVoiceMediaId: voice.mediaId,
+      noteVoiceUrl: voice.url,
+      noteVoiceDurationMs: voice.durationMs,
+    };
+  }
+
+  private async noteVoiceMetadata(
+    companyId: string,
+    dto: { noteVoiceMediaId?: string; noteVoiceDurationMs?: number },
+  ): Promise<Record<string, unknown>> {
+    const voice = await this.resolveOwnedNoteVoice(companyId, dto);
+    if (!voice) return {};
+    return {
+      noteVoiceMediaId: voice.mediaId,
+      noteVoiceUrl: voice.url,
+      noteVoiceDurationMs: voice.durationMs,
+    };
+  }
+
+  private async resolveOwnedNoteVoice(
+    companyId: string,
+    dto: { noteVoiceMediaId?: string; noteVoiceDurationMs?: number },
+  ): Promise<{ mediaId: string; url: string; durationMs: number } | null> {
+    if (!dto.noteVoiceMediaId) return null;
+    if (!dto.noteVoiceDurationMs) {
+      throw new BadRequestException({
+        code: 'VOICE_DURATION_REQUIRED',
+        message: 'Voice note needs a duration.',
+      });
+    }
+    const media = await this.prisma.media.findFirst({
+      where: {
+        id: dto.noteVoiceMediaId,
+        companyId,
+        kind: MediaKind.Audio,
+      },
+    });
+    if (!media) {
+      throw new BadRequestException({
+        code: 'VOICE_NOT_FOUND',
+        message: 'Voice note not found. Record again.',
+      });
+    }
+    return {
+      mediaId: media.id,
+      url: media.url,
+      durationMs: dto.noteVoiceDurationMs,
+    };
+  }
+
   private async upsertOrderThreadMessage(
     buyerCompanyId: string,
     sellerCompanyId: string,
@@ -1763,8 +2356,16 @@ export class OrderService {
     if (type === MessageType.Rate || metadata.quoted === true || prevMeta?.quoted === true) {
       nextMeta.quoted = true;
     }
+    // Keep quote voice on the living card when later lifecycle pulses omit it.
+    for (const key of ['noteVoiceUrl', 'noteVoiceMediaId', 'noteVoiceDurationMs'] as const) {
+      if (nextMeta[key] === undefined && prevMeta?.[key] != null) {
+        nextMeta[key] = prevMeta[key];
+      }
+    }
 
+    let messageId: string;
     if (existing) {
+      // Bump createdAt so unread (createdAt > lastReadAt) and inbox sort see the update.
       await this.prisma.message.update({
         where: { id: existing.id },
         data: {
@@ -1772,31 +2373,96 @@ export class OrderService {
           type,
           body,
           metadata: nextMeta as Prisma.InputJsonValue,
+          createdAt: new Date(),
         },
       });
-      await this.prisma.thread.update({
-        where: { id: threadId },
-        data: { lastMessageAt: new Date() },
+      messageId = existing.id;
+    } else {
+      const created = await this.prisma.message.create({
+        data: {
+          threadId,
+          senderCompanyId,
+          type,
+          body,
+          referenceId: orderId,
+          metadata: nextMeta as Prisma.InputJsonValue,
+        },
+        select: { id: true },
       });
-      return existing.id;
+      messageId = created.id;
     }
 
-    const created = await this.prisma.message.create({
-      data: {
-        threadId,
-        senderCompanyId,
-        type,
-        body,
-        referenceId: orderId,
-        metadata: nextMeta as Prisma.InputJsonValue,
-      },
-      select: { id: true },
-    });
     await this.prisma.thread.update({
       where: { id: threadId },
       data: { lastMessageAt: new Date() },
     });
-    return created.id;
+    await this.announceLivingOrderMessage(
+      threadId,
+      messageId,
+      senderCompanyId,
+      body,
+      type,
+      nextMeta,
+    );
+    return messageId;
+  }
+
+  /** Living card upserts skip MessageService.send — still notify the other party. */
+  private async announceLivingOrderMessage(
+    threadId: string,
+    messageId: string,
+    senderCompanyId: string,
+    body: string,
+    type: typeof MessageType.OrderCard | typeof MessageType.Rate,
+    meta: Record<string, unknown>,
+  ): Promise<void> {
+    const { companyIds, userIds } = await this.threads.notifyUserIdsForMessage(
+      threadId,
+      senderCompanyId,
+    );
+    if (companyIds.length === 0 && userIds.length === 0) {
+      return;
+    }
+    const trimmed = body.trim();
+    const customNote = trimmed && !/^Quote\b/i.test(trimmed) ? trimmed : null;
+    const total =
+      typeof meta.totalLabel === 'string' && meta.totalLabel.trim()
+        ? meta.totalLabel.trim()
+        : null;
+    const event = typeof meta.event === 'string' ? meta.event : null;
+    const actor =
+      typeof meta.actorLabel === 'string' && meta.actorLabel.trim()
+        ? meta.actorLabel.trim()
+        : null;
+    const eventPreview =
+      event === OrderChatEvent.OrderSettled
+        ? actor
+          ? `${actor} settled`
+          : 'Settled'
+        : event === OrderChatEvent.OrderDispatched
+          ? meta.partial === true
+            ? actor
+              ? `${actor} dispatched part`
+              : 'Part dispatched'
+            : actor
+              ? `${actor} dispatched`
+              : 'Dispatched'
+          : null;
+    const preview =
+      eventPreview ||
+      customNote ||
+      (type === MessageType.Rate && total
+        ? `Quote · ${total}`
+        : null) ||
+      (type === MessageType.Rate ? 'Quote' : 'Order update');
+    this.events.messageSent({
+      threadId,
+      messageId,
+      senderCompanyId,
+      recipientCompanyIds: companyIds,
+      recipientUserIds: userIds,
+      preview: preview.slice(0, 140),
+    });
   }
 
   private async emitAndGet(
@@ -1922,6 +2588,412 @@ export class OrderService {
     return order;
   }
 
+  private async linkedMillsByParent(
+    rows: Array<{ id: string; sellerCompanyId: string; tradeMode: string }>,
+    actorCompanyId: string,
+  ): Promise<Map<string, Array<{ name: string; orderId: string | null }>>> {
+    const manageIds = rows
+      .filter(
+        (row) =>
+          row.sellerCompanyId === actorCompanyId && row.tradeMode === OrderTradeMode.Manage,
+      )
+      .map((row) => row.id);
+    const byParent = new Map<string, Array<{ name: string; orderId: string | null }>>();
+    if (manageIds.length === 0) return byParent;
+    const ups = await this.prisma.order.findMany({
+      where: { downstreamOrderId: { in: manageIds } },
+      include: { seller: true },
+    });
+    for (const up of ups) {
+      if (!up.downstreamOrderId) continue;
+      const list = byParent.get(up.downstreamOrderId) ?? [];
+      list.push({
+        name: up.seller.name,
+        orderId: up.upstreamReleasedAt ? up.id : null,
+      });
+      byParent.set(up.downstreamOrderId, list);
+    }
+    return byParent;
+  }
+
+  private async parentIdsNeedingQuotePass(
+    rows: Array<{ id: string; sellerCompanyId: string; tradeMode: string }>,
+    actorCompanyId: string,
+    parentQuotedIds: Set<string>,
+  ): Promise<Set<string>> {
+    const manageIds = rows
+      .filter(
+        (row) =>
+          row.sellerCompanyId === actorCompanyId &&
+          row.tradeMode === OrderTradeMode.Manage &&
+          !parentQuotedIds.has(row.id),
+      )
+      .map((row) => row.id);
+    if (manageIds.length === 0) return new Set();
+    const ups = await this.prisma.order.findMany({
+      where: {
+        downstreamOrderId: { in: manageIds },
+        upstreamReleasedAt: { not: null },
+      },
+      select: { id: true, downstreamOrderId: true, sellerCompanyId: true },
+    });
+    const millQuoted = await this.orderIdsWithSellerQuote(ups);
+    const parents = new Set<string>();
+    for (const up of ups) {
+      if (millQuoted.has(up.id) && up.downstreamOrderId) parents.add(up.downstreamOrderId);
+    }
+    return parents;
+  }
+
+  private async buildMillDesks(
+    order: {
+      id: string;
+      tradeMode: string;
+      sellerCompanyId: string;
+      items: Array<{ id: string; productId: string | null }>;
+    },
+    actorCompanyId: string,
+  ): Promise<OrderMillDeskView[]> {
+    if (order.tradeMode !== OrderTradeMode.Manage || order.sellerCompanyId !== actorCompanyId) {
+      return [];
+    }
+    const ups = await this.prisma.order.findMany({
+      where: { downstreamOrderId: order.id },
+      include: { seller: true, items: true },
+    });
+    const quoted = await this.orderIdsWithSellerQuote(ups);
+    return ups.map((up) => {
+      const byProduct = new Map(
+        up.items
+          .filter((item) => item.productId)
+          .map((item) => [item.productId as string, item]),
+      );
+      const lines: OrderMillDeskView['lines'] = [];
+      const itemIds: string[] = [];
+      for (const parentItem of order.items) {
+        if (!parentItem.productId) continue;
+        const millItem = byProduct.get(parentItem.productId);
+        if (!millItem) continue;
+        itemIds.push(parentItem.id);
+        lines.push({
+          parentItemId: parentItem.id,
+          millRate: millItem.rate != null ? Number(millItem.rate) : null,
+          millQuantity: millItem.quantity != null ? Number(millItem.quantity) : null,
+          millDeclined: millItem.lineStatus === OrderLineStatus.Declined,
+        });
+      }
+      return {
+        upstreamOrderId: up.id,
+        sellerCompanyId: up.sellerCompanyId,
+        sellerName: up.seller.name,
+        held: up.upstreamReleasedAt == null,
+        passHeld: up.passHeldAt != null,
+        status: up.status,
+        itemIds,
+        confirmedCount: up.items.filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
+          .length,
+        declinedCount: up.items.filter((item) => item.lineStatus === OrderLineStatus.Declined)
+          .length,
+        millQuoted: quoted.has(up.id),
+        lines,
+      };
+    });
+  }
+
+  /**
+   * When Meena accepts the trader quote, released mill hops with rated open lines
+   * become confirmed so the mill can dispatch (fulfillment lives on the mill ticket).
+   */
+  private async passBuyerAcceptToMills(parentId: string, userId: string): Promise<void> {
+    const ups = await this.prisma.order.findMany({
+      where: {
+        downstreamOrderId: parentId,
+        upstreamReleasedAt: { not: null },
+        passHeldAt: null,
+        status: OrderStatus.Requested,
+      },
+      include: { items: true, seller: true },
+    });
+    for (const up of ups) {
+      const openWithRate = up.items.filter(
+        (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
+      );
+      if (openWithRate.length === 0) continue;
+      await this.prisma.$transaction([
+        this.prisma.orderItem.updateMany({
+          where: { id: { in: openWithRate.map((item) => item.id) } },
+          data: { lineStatus: OrderLineStatus.Confirmed },
+        }),
+        this.prisma.order.update({
+          where: { id: up.id },
+          data: {
+            status: OrderStatus.Confirmed,
+            confirmedAt: new Date(),
+            confirmedByCompanyId: up.buyerCompanyId,
+            confirmedByUserId: userId,
+            ...this.withActor(userId),
+          },
+        }),
+      ]);
+      await this.trail.append({
+        orderId: up.id,
+        type: OrderTrailType.Confirmed,
+        actorCompanyId: up.buyerCompanyId,
+        actorUserId: userId,
+        summary: 'Buyer accepted quote',
+        detail: `${openWithRate.length} design${openWithRate.length === 1 ? '' : 's'}`,
+      });
+      await this.postOrderCard(
+        up.buyerCompanyId,
+        up.sellerCompanyId,
+        up.buyerCompanyId,
+        `Quote accepted`,
+        up.id,
+        {
+          status: OrderStatus.Confirmed,
+          itemCount: openWithRate.length,
+          event: OrderChatEvent.QuoteAccepted,
+          orderLabel: shortOrderLabel(up.id),
+          actorRole: 'buyer',
+        },
+      );
+    }
+  }
+
+  private async passMillLinesToParent(
+    millOrderId: string,
+    _actorCompanyId: string,
+    userId: string,
+  ): Promise<void> {
+    const mill = await this.prisma.order.findUnique({
+      where: { id: millOrderId },
+      include: { items: true, seller: true },
+    });
+    if (!mill || !shouldPassThrough(mill)) return;
+    const parent = await this.prisma.order.findUnique({
+      where: { id: mill.downstreamOrderId! },
+      include: { items: true, seller: true },
+    });
+    if (!parent) return;
+    let confirmed = 0;
+    for (const millItem of mill.items) {
+      if (millItem.lineStatus !== OrderLineStatus.Confirmed) continue;
+      const parentItemId = matchParentItemId(parent.items, millItem);
+      if (!parentItemId) continue;
+      await this.prisma.orderItem.update({
+        where: { id: parentItemId },
+        data: {
+          quantity: millItem.quantity,
+          lineStatus: OrderLineStatus.Confirmed,
+        },
+      });
+      confirmed += 1;
+    }
+    if (confirmed === 0) return;
+    const refreshed = await this.prisma.order.findUnique({
+      where: { id: parent.id },
+      include: { items: true },
+    });
+    if (!refreshed) return;
+    const stillOpen = refreshed.items.some((item) => item.lineStatus === OrderLineStatus.Open);
+    const anyConfirmed = refreshed.items.some(
+      (item) => item.lineStatus === OrderLineStatus.Confirmed,
+    );
+    if (!stillOpen && anyConfirmed && refreshed.status === OrderStatus.Requested) {
+      await this.prisma.order.update({
+        where: { id: parent.id },
+        data: {
+          status: OrderStatus.Confirmed,
+          confirmedAt: new Date(),
+          confirmedByCompanyId: parent.sellerCompanyId,
+          confirmedByUserId: userId,
+        },
+      });
+    }
+    // Soft-hide: never put mill shop names on the buyer↔trader ticket.
+    const summary = buyerSafePassThroughSummary('confirmed', parent.seller.name);
+    await this.trail.append({
+      orderId: parent.id,
+      type: OrderTrailType.Confirmed,
+      actorCompanyId: parent.sellerCompanyId,
+      actorUserId: userId,
+      summary,
+      detail: `${confirmed} design${confirmed === 1 ? '' : 's'}`,
+    });
+    await this.postOrderCard(
+      parent.buyerCompanyId,
+      parent.sellerCompanyId,
+      parent.sellerCompanyId,
+      summary,
+      parent.id,
+      {
+        status: stillOpen ? parent.status : OrderStatus.Confirmed,
+        itemCount: confirmed,
+        event: OrderChatEvent.LinesDecided,
+        orderLabel: shortOrderLabel(parent.id),
+        actorLabel: parent.seller.name,
+        actorRole: 'seller',
+      },
+    );
+  }
+
+  private async passMillDispatchToParent(
+    millOrderId: string,
+    actorCompanyId: string,
+    userId: string,
+    candidates: Array<{ orderItemId: string; quantity: number }>,
+  ): Promise<void> {
+    const mill = await this.prisma.order.findUnique({
+      where: { id: millOrderId },
+      include: { items: true, seller: true },
+    });
+    if (!mill || !shouldPassThrough(mill)) return;
+    await this.passMillLinesToParent(millOrderId, actorCompanyId, userId);
+    const parent = await this.prisma.order.findUnique({
+      where: { id: mill.downstreamOrderId! },
+      include: { items: true, seller: true },
+    });
+    if (!parent) return;
+    const mapped: Array<{ orderItemId: string; quantity: number }> = [];
+    for (const line of candidates) {
+      const millItem = mill.items.find((item) => item.id === line.orderItemId);
+      if (!millItem) continue;
+      const parentItemId = matchParentItemId(parent.items, millItem);
+      if (!parentItemId) continue;
+      mapped.push({ orderItemId: parentItemId, quantity: line.quantity });
+    }
+    if (mapped.length === 0) return;
+    await this.prisma.orderShipment.create({
+      data: {
+        orderId: parent.id,
+        dispatchedAt: new Date(),
+        dispatchedByUserId: userId,
+        items: {
+          create: mapped.map((line) => ({
+            orderItemId: line.orderItemId,
+            quantity: line.quantity,
+          })),
+        },
+      },
+    });
+    const parentAfter = await this.prisma.order.findUnique({
+      where: { id: parent.id },
+      include: { items: true, shipments: { include: { items: true } } },
+    });
+    let parentStatus = parent.status;
+    let trailKind: 'dispatched' | 'part_shipped' = 'dispatched';
+    if (parentAfter) {
+      const shippedByItem = this.shippedTotals(parentAfter);
+      const shippable = parentAfter.items.filter(
+        (item) => item.lineStatus !== OrderLineStatus.Declined,
+      );
+      const allOut = shippable.every((item) => {
+        const shipped = shippedByItem.get(item.id) ?? 0;
+        return shipped + 1e-9 >= item.quantity.toNumber();
+      });
+      const remaining = shippable.reduce((sum, item) => {
+        const shipped = shippedByItem.get(item.id) ?? 0;
+        return sum + Math.max(0, item.quantity.toNumber() - shipped);
+      }, 0);
+      const shippedTotal = shippable.reduce(
+        (sum, item) => sum + (shippedByItem.get(item.id) ?? 0),
+        0,
+      );
+      if (allOut && remaining <= 0) {
+        parentStatus = OrderStatus.Dispatched;
+        trailKind = 'dispatched';
+        const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
+        const closesAt = days > 0 ? new Date(Date.now() + days * DAY_MS) : null;
+        await this.prisma.order.update({
+          where: { id: parent.id },
+          data: {
+            status: OrderStatus.Dispatched,
+            dispatchedAt: new Date(),
+            returnWindowClosesAt: closesAt,
+            closedAt: new Date(),
+            ...this.withActor(userId),
+          },
+        });
+      } else if (shippedTotal > 0 && remaining > 0) {
+        parentStatus = OrderStatus.PartShipped;
+        trailKind = 'part_shipped';
+        await this.prisma.order.update({
+          where: { id: parent.id },
+          data: {
+            status: OrderStatus.PartShipped,
+            ...this.withActor(userId),
+          },
+        });
+      }
+    }
+    // Soft-hide: never put mill shop names on the buyer↔trader ticket.
+    const summary = buyerSafePassThroughSummary(trailKind, parent.seller.name);
+    await this.trail.append({
+      orderId: parent.id,
+      type:
+        trailKind === 'part_shipped'
+          ? OrderTrailType.PartShipped
+          : OrderTrailType.Dispatched,
+      actorCompanyId: parent.sellerCompanyId,
+      actorUserId: userId,
+      summary,
+    });
+    await this.postOrderCard(
+      parent.buyerCompanyId,
+      parent.sellerCompanyId,
+      parent.sellerCompanyId,
+      summary,
+      parent.id,
+      {
+        status: parentStatus,
+        itemCount: mapped.length,
+        event: OrderChatEvent.OrderDispatched,
+        orderLabel: shortOrderLabel(parent.id),
+        actorLabel: parent.seller.name,
+        actorRole: 'seller',
+        partial: trailKind === 'part_shipped',
+      },
+    );
+  }
+
+  private async upstreamSellerNames(order: {
+    id: string;
+    tradeMode: string;
+  }): Promise<string[]> {
+    if (order.tradeMode !== OrderTradeMode.Manage) return [];
+    const ups = await this.prisma.order.findMany({
+      where: { downstreamOrderId: order.id },
+      select: { seller: { select: { name: true } } },
+    });
+    return ups.map((up) => up.seller.name).filter((name) => Boolean(name?.trim()));
+  }
+
+  private async passBuyerAmendToMills(parentId: string): Promise<void> {
+    const parent = await this.prisma.order.findUnique({
+      where: { id: parentId },
+      include: { items: true },
+    });
+    if (!parent || parent.tradeMode !== OrderTradeMode.Manage) return;
+    const ups = await this.prisma.order.findMany({
+      where: {
+        downstreamOrderId: parentId,
+        upstreamReleasedAt: { not: null },
+        passHeldAt: null,
+      },
+      include: { items: true },
+    });
+    for (const up of ups) {
+      for (const millItem of up.items) {
+        const parentItem = parent.items.find((item) => item.productId === millItem.productId);
+        if (!parentItem) continue;
+        await this.prisma.orderItem.update({
+          where: { id: millItem.id },
+          data: { quantity: parentItem.quantity, requestedQuantity: parentItem.quantity },
+        });
+      }
+    }
+  }
+
   private async buildRelatedOrders(
     order: {
       id: string;
@@ -1951,40 +3023,280 @@ export class OrderService {
     }> = [];
 
     if (order.downstreamOrderId) {
-      const down = await this.prisma.order.findUnique({
-        where: { id: order.downstreamOrderId },
-        include: { buyer: true, seller: true },
-      });
-      if (down) {
-        const isSupplierEnd = order.sellerCompanyId === actorCompanyId;
-        related.push({
-          id: down.id,
-          role: 'downstream',
-          status: down.status,
-          sellerName: isSupplierEnd ? null : down.seller.name,
-          buyerName: isSupplierEnd ? null : down.buyer.name,
+      const isSupplierEnd = order.sellerCompanyId === actorCompanyId;
+      // Mill hop: no Related portal to the buyer ticket — they only see their lot.
+      if (!isSupplierEnd) {
+        const down = await this.prisma.order.findUnique({
+          where: { id: order.downstreamOrderId },
+          include: { buyer: true, seller: true },
         });
+        if (down) {
+          related.push({
+            id: down.id,
+            role: 'downstream',
+            status: down.status,
+            sellerName: down.seller.name,
+            buyerName: down.buyer.name,
+          });
+        }
       }
+    }
+
+    // End buyer on Manage parent: no Related / Linked chrome — only the trader hop.
+    if (
+      order.buyerCompanyId === actorCompanyId &&
+      order.tradeMode === OrderTradeMode.Manage
+    ) {
+      return related;
     }
 
     const upstreams = await this.prisma.order.findMany({
       where: { downstreamOrderId: order.id },
       include: { buyer: true, seller: true },
     });
-    const isEndBuyer =
-      order.buyerCompanyId === actorCompanyId && order.tradeMode === OrderTradeMode.Manage;
     for (const up of upstreams) {
       related.push({
         id: up.id,
         role: 'upstream',
         status: up.status,
         held: up.upstreamReleasedAt == null,
-        sellerName: isEndBuyer ? null : up.seller.name,
-        buyerName: isEndBuyer ? null : up.buyer.name,
+        sellerName: up.seller.name,
+        buyerName: up.buyer.name,
       });
     }
 
     return related;
+  }
+
+  /**
+   * Mill Settle (qty := shipped) → rewrite matching parent lines.
+   * Parent Settled only when **every released** mill subset is complete
+   * (one supplier → settle parent; two+ and only one settled → stay part shipped).
+   */
+  private async passMillSettleToParent(
+    millOrderId: string,
+    _actorCompanyId: string,
+    userId: string,
+  ): Promise<void> {
+    const mill = await this.prisma.order.findUnique({
+      where: { id: millOrderId },
+      include: { items: true, seller: true },
+    });
+    // Settle is terminal — pass even if Hold was on (Hold should not strand the parent).
+    if (!mill?.downstreamOrderId || !mill.upstreamReleasedAt) return;
+    await this.syncManageParentFromMillSettle(mill.downstreamOrderId, millOrderId, userId);
+  }
+
+  /**
+   * If every released mill subset is complete but parent still open (stuck Part shipped),
+   * close parent as Settled. Fixes tickets settled on the mill before pass-through shipped.
+   */
+  private async healManageParentIfSubsetsComplete(order: {
+    id: string;
+    tradeMode: string;
+    status: string;
+  }): Promise<boolean> {
+    if (order.tradeMode !== OrderTradeMode.Manage) return false;
+    if (
+      order.status === OrderStatus.Settled ||
+      order.status === OrderStatus.Dispatched ||
+      order.status === OrderStatus.Delivered ||
+      order.status === OrderStatus.Cancelled ||
+      order.status === OrderStatus.Declined
+    ) {
+      return false;
+    }
+    const ups = await this.prisma.order.findMany({
+      where: { downstreamOrderId: order.id },
+      select: { id: true, status: true, upstreamReleasedAt: true },
+    });
+    if (ups.length === 0) return false;
+    if (!allReleasedSubsetsComplete(ups)) return false;
+    try {
+      await this.syncManageParentFromMillSettle(order.id, null, null);
+    } catch (err) {
+      this.logger.warn(
+        { err, orderId: order.id },
+        'healManageParentIfSubsetsComplete failed',
+      );
+      return false;
+    }
+    const after = await this.prisma.order.findUnique({
+      where: { id: order.id },
+      select: { status: true },
+    });
+    return after?.status === OrderStatus.Settled;
+  }
+
+  private async healManageParentsInList(
+    rows: Array<{ id: string; tradeMode: string; status: string }>,
+  ): Promise<Set<string>> {
+    const candidates = rows.filter(
+      (row) =>
+        row.tradeMode === OrderTradeMode.Manage &&
+        (row.status === OrderStatus.PartShipped || row.status === OrderStatus.Confirmed),
+    );
+    const healed = new Set<string>();
+    for (const row of candidates) {
+      if (await this.healManageParentIfSubsetsComplete(row)) healed.add(row.id);
+    }
+    return healed;
+  }
+
+  /** Rewrite parent lines from mill qtys; settle parent when all released subsets are done. */
+  private async syncManageParentFromMillSettle(
+    parentId: string,
+    settledMillOrderId: string | null,
+    userId: string | null,
+  ): Promise<void> {
+    const parent = await this.prisma.order.findUnique({
+      where: { id: parentId },
+      include: { items: true, seller: true, shipments: { include: { items: true } } },
+    });
+    if (!parent || parent.tradeMode !== OrderTradeMode.Manage) return;
+    if (
+      parent.status === OrderStatus.Settled ||
+      parent.status === OrderStatus.Dispatched ||
+      parent.status === OrderStatus.Delivered ||
+      parent.status === OrderStatus.Cancelled ||
+      parent.status === OrderStatus.Declined
+    ) {
+      return;
+    }
+
+    const mills = await this.prisma.order.findMany({
+      where: { downstreamOrderId: parent.id, upstreamReleasedAt: { not: null } },
+      include: { items: true },
+    });
+    for (const mill of mills) {
+      const millDone =
+        mill.id === settledMillOrderId ||
+        mill.status === OrderStatus.Settled ||
+        mill.status === OrderStatus.Dispatched ||
+        mill.status === OrderStatus.Delivered;
+      if (!millDone) continue;
+      for (const millItem of mill.items) {
+        const parentItemId = matchParentItemId(parent.items, millItem);
+        if (!parentItemId) continue;
+        const qty = millItem.quantity.toNumber();
+        if (qty <= 0) {
+          await this.prisma.orderItem.update({
+            where: { id: parentItemId },
+            data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
+          });
+        } else {
+          await this.prisma.orderItem.update({
+            where: { id: parentItemId },
+            data: { quantity: qty, lineStatus: OrderLineStatus.Dispatched },
+          });
+        }
+      }
+    }
+
+    const upsWithId = await this.prisma.order.findMany({
+      where: { downstreamOrderId: parent.id },
+      select: { id: true, status: true, upstreamReleasedAt: true },
+    });
+    const subsetStates = upsWithId.map((up) => ({
+      upstreamReleasedAt: up.upstreamReleasedAt,
+      status:
+        settledMillOrderId && up.id === settledMillOrderId
+          ? OrderStatus.Settled
+          : up.status,
+    }));
+
+    if (!allReleasedSubsetsComplete(subsetStates)) {
+      const parentAfter = await this.prisma.order.findUnique({
+        where: { id: parent.id },
+        include: { items: true, shipments: { include: { items: true } } },
+      });
+      if (!parentAfter) return;
+      const shippedByItem = this.shippedTotals(parentAfter);
+      const shippable = parentAfter.items.filter(
+        (item) => item.lineStatus !== OrderLineStatus.Declined,
+      );
+      const remaining = shippable.reduce((sum, item) => {
+        const shipped = shippedByItem.get(item.id) ?? 0;
+        return sum + Math.max(0, item.quantity.toNumber() - shipped);
+      }, 0);
+      const shippedTotal = shippable.reduce(
+        (sum, item) => sum + (shippedByItem.get(item.id) ?? 0),
+        0,
+      );
+      if (
+        shippedTotal > 0 &&
+        remaining > 0 &&
+        (parentAfter.status === OrderStatus.Confirmed ||
+          parentAfter.status === OrderStatus.PartShipped)
+      ) {
+        await this.prisma.order.update({
+          where: { id: parent.id },
+          data: {
+            status: OrderStatus.PartShipped,
+            ...(userId ? this.withActor(userId) : {}),
+          },
+        });
+      }
+      return;
+    }
+
+    const now = new Date();
+    const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
+    const closesAt = days > 0 ? new Date(Date.now() + days * DAY_MS) : null;
+    await this.prisma.order.update({
+      where: { id: parent.id },
+      data: {
+        status: OrderStatus.Settled,
+        settledAt: now,
+        settledByUserId: userId,
+        returnWindowClosesAt: closesAt,
+        closedAt: now,
+        ...(userId ? this.withActor(userId) : {}),
+      },
+    });
+    // Side effects must not undo / block the Settled write (heal + mill pass-through).
+    try {
+      await this.trail.append({
+        orderId: parent.id,
+        type: OrderTrailType.Settled,
+        at: now,
+        actorCompanyId: parent.sellerCompanyId,
+        actorUserId: userId,
+        summary: `${parent.seller.name} settled`,
+        detail: 'Closed on shipped qty',
+      });
+      await this.postOrderCard(
+        parent.buyerCompanyId,
+        parent.sellerCompanyId,
+        parent.sellerCompanyId,
+        `${parent.seller.name} settled`,
+        parent.id,
+        {
+          status: OrderStatus.Settled,
+          event: OrderChatEvent.OrderSettled,
+          orderLabel: shortOrderLabel(parent.id),
+          actorLabel: parent.seller.name,
+          actorRole: 'seller',
+          partial: false,
+        },
+      );
+      if (closesAt) {
+        await this.jobs.enqueue(JobType.ReturnWindowExpire, { orderId: parent.id }, closesAt);
+      }
+      this.events.orderStatusChanged({
+        orderId: parent.id,
+        buyerCompanyId: parent.buyerCompanyId,
+        sellerCompanyId: parent.sellerCompanyId,
+        actorCompanyId: parent.sellerCompanyId,
+        status: OrderStatus.Settled,
+        facilitatorCompanyId: parent.facilitatorCompanyId,
+      });
+    } catch (err) {
+      this.logger.warn(
+        { err, orderId: parent.id },
+        'syncManageParentFromMillSettle side effects failed after Settled write',
+      );
+    }
   }
 
   private async spawnHandleUpstreams(

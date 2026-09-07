@@ -6,7 +6,7 @@ The **design library** is first-class: create, edit, publish (live on Explore fo
 
 ## Who uses it
 
-Sellers (selling enabled). First publish requires consent; then `canPublish` stays on. Entry via **You → My designs** (`/catalog`) or **＋ → Add designs**.
+Sellers (selling enabled). First publish requires consent; then `canPublish` stays on. Entry via **You → My designs & collections** (`/catalog`), **＋ → My designs**, Home **My designs** (when selling), or **＋ → Add designs** / **New collection**.
 
 ## User flows
 
@@ -14,18 +14,18 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 
 1. Open `/catalog` → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
 2. Filters: All / Draft / Published / Archived. Tiles show rate · SKU · photo count · `Published · who` (or Draft/Archived), plus a short staff audit line when known.
-3. **Select** / long-press → floating **Select all** / **Clear** (this filter) → Publish / Archive / Restore on the dock.
-4. Open a design → editor. Back returns to Designs tab. After **Publish** or **Save in Draft** from Add Design batch, app opens **My designs** (Designs tab with **Published** or **Draft** filter). Add Design photo grid shows a top-right camera button to add more (same as photo order).
+3. **Long-press** a tile → floating **Select all** + **Clear** (this filter) → dock: **Publish** (drafts) / **Hide · draft** (published) / **Archive** / **Restore** (archived), plus quiet **To selection**. **To selection** sends **published** picks into traveling Selection and opens **Your selection** (`/selection`) for **Order** (for buyer) · **Curate** · **Bookmark** · **Share**. Drafts and archived cannot go to Selection (toast). Selecting on My designs does **not** auto-fill Selection. Shell title **My designs** (like Chats). Content chrome: **Designs / Collections** mode pills + quiet **Add** (opens New post sheet); status **All / Draft / Published / Archived** on a `FilterRail` of kit `Chip`s — not a second pill row. Create/edit screens hide the shell band so **PageHeader** sits at the top.
+4. Open a design → editor. Back returns to Designs tab. After **Publish** or **Save in Draft** from Add designs batch, app opens **My designs** (Designs tab with **Published** or **Draft** filter). Add designs photo grid shows a top-right camera button to add more (same as photo order).
 
 ### Batch add designs
 
-**＋ → Add designs** — opens **Add Design** (`/catalog/products/new`): phone continuous camera or gallery multi-select; desktop file multi-select. Photo grid (auto name under each thumb — focus selects default text for easy replace; tap photo → **Update this design** sheet with **More photos for this design** and chips **Details for this design** / **Same details for all**) → page **Same for all designs** (category, rate, unit, MOQ, notes — category/unit pre-filled from last save) → **Save N designs in Draft** or **Publish** (audience sheet). One photo ≈ one design; each becomes a single catalog row (`draft` or `published`, never two copies). Single-design editor: `/catalog/products/:id`.
+**＋ → Add designs** — opens **Add designs** (`/catalog/products/new`): phone continuous camera or gallery multi-select; desktop file multi-select. Empty dashed CTA: **One photo per design** (why-line: each photo is its own design, not more shots of the same one). Grid heading is **N design(s)** (not “photos”), with a quiet tip: **Tap a design to edit details or add more photos.** Each thumb gets a session-unique **SKU** (`EK-` + 8 hex — same as Edit design **Reference / SKU**), not the file name; that value is saved as both `sku` and `name`. Tap photo → **Update this design** sheet: more photos plus category/rate/unit/MOQ/notes always open. **Done** keeps this design’s details when they differ from shared. With two or more designs, a ghost **Use same as all designs** resets this one to the shared card. Page details: one design → **This design**; two or more → **Same for all designs** (category, rate, unit, MOQ, notes — category/unit pre-filled from last save). **Save N designs in Draft** or **Publish** (audience sheet). One photo ≈ one design; each becomes a single catalog row (`draft` or `published`, never two copies). Single-design editor: `/catalog/products/:id`.
 
 ### Edit & publish a design
 
 1. Open design → photos first; **Name**, rate, unit, MOQ; **More details** for SKU / categories / notes.
 2. Status line under title (tap → Visibility when published). Sticky dock: **Update** · **Publish** / **Visibility**.
-3. Publish sheet: Who (Everyone / Connections / Followers / Selected) / rates / forward. First time: consent. Publish = Explore for that audience.
+3. Publish sheet: Who (Everyone / Followers / Selected) / rates / forward. First time: consent. Publish = Explore for that audience.
 4. **⋯**: Hide → draft, Archive. Restore from archived.
 
 ## Business rules
@@ -36,7 +36,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 | Publish = Explore | Publish sets audience + `postedToMarketAt`. See [concepts](./00-concepts.md). |
 | First publish | `consentToSell` grants `canPublish` |
 | Rates | Nullable / on request by default; units from domain `Unit` enum |
-| SKU | Optional; server assigns a stable company-unique code if omitted |
+| SKU | Optional on API; batch add assigns a session-unique `EK-` code and sends it so Edit design **Reference / SKU** matches. Server still assigns if omitted elsewhere |
 | Selling presence | Creating products calls `ensureSellingEnabled` |
 | Unpublish | Clears Explore post when design leaves published |
 | Unarchive | Archived → draft (`POST /products/:id/unarchive`) |
@@ -52,7 +52,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 ## Seed walkthrough
 
 1. As Ravi: **＋ → Add designs** → save drafts → open one → **Publish** → Connections.
-2. Confirm My Catalog tile shows `Published · My connections` and Explore shows the design for a connected buyer.
+2. Confirm My Catalog tile shows `Published · My followers` (or the audience chosen) and Explore shows the design for an allowed viewer.
 3. Hide → draft; tile shows Draft (not “not on Explore”).
 
 ## Where it lives

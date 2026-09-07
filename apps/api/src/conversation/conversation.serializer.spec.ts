@@ -17,6 +17,8 @@ describe('ConversationSerializer.toMessageView actor', () => {
     metadata: null,
     replyToMessageId: null,
     createdAt: new Date('2026-01-01'),
+    editedAt: null,
+    deletedForEveryoneAt: null,
   };
 
   it('hides actor from the other company', () => {
@@ -50,5 +52,27 @@ describe('ConversationSerializer.toMessageView actor', () => {
     );
     expect(view.mine).toBe(true);
     expect(view.actor).toBeNull();
+  });
+
+  it('tombstones deleted-for-everyone messages', () => {
+    const view = serializer().toMessageView(
+      {
+        ...base,
+        body: 'secret',
+        deletedForEveryoneAt: new Date(),
+        editedAt: null,
+        senderUserId: 'u-ravi',
+        senderName: 'Ravi',
+      },
+      'co-a',
+      'u-amit',
+      { kind: 'order', id: 'o1', name: 'Order', image: null, available: true },
+    );
+    expect(view.deletedForEveryone).toBe(true);
+    expect(view.body).toBeNull();
+    expect(view.reference).toBeNull();
+    expect(view.actor).toBeNull();
+    expect(view.canEdit).toBe(false);
+    expect(view.canDeleteForEveryone).toBe(false);
   });
 });

@@ -108,7 +108,7 @@ export interface CollectionCard {
   productCount: number;
   status: string;
   updatedAt: string;
-  /** Buyers can forward/share this album card (publish snapshot). */
+  /** Relist/curate lock snapshot (`allowForward` column). Forward is free. */
   allowForward: boolean;
   /**
    * Pack Direct | I handle override. null = use owner Profile default.
@@ -134,7 +134,7 @@ export interface ExploreProductCard {
   rate: number | null;
   unit: string | null;
   postedAt: string;
-  /** Buyers can forward/share / curate this design (publish snapshot). */
+  /** Relist/curate lock snapshot. Forward is free. */
   allowForward: boolean;
   company: PublicCompanySummary;
 }

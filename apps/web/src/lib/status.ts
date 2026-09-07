@@ -18,7 +18,9 @@ const STATUS_TONE: Record<string, StatusTone> = {
   // Orders
   requested: 'info',
   confirmed: 'progress',
+  part_shipped: 'progress',
   dispatched: 'progress',
+  settled: 'success',
   delivered: 'success',
   declined: 'danger',
   cancelled: 'muted',
@@ -42,6 +44,7 @@ const STATUS_TONE: Record<string, StatusTone> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  part_shipped: 'Part shipped',
   partially_approved: 'Partially approved',
   not_verified: 'Unverified',
   gst_verified: 'GST verified',

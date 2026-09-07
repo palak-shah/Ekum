@@ -137,7 +137,7 @@ export function ProductEditorPage() {
       );
       setPublishAudience(
         restorePublishAudienceState({
-          audience: existing.data.audience || PublishAudience.Connections,
+          audience: existing.data.audience || PublishAudience.Followers,
           audienceCompanyIds: existing.data.audienceCompanyIds ?? [],
           audienceGroupIds: existing.data.audienceGroupIds ?? [],
           rateVisibility: existing.data.rateVisibility,
@@ -713,6 +713,19 @@ export function ProductEditorPage() {
         open={marketOpen}
         onClose={() => setMarketOpen(false)}
         title={isPublished ? 'Visibility & rates' : 'Publish'}
+        footer={
+          <Button
+            fullWidth
+            disabled={!canSubmitMarket || postToMarket.isPending}
+            onClick={() => postToMarket.mutate()}
+          >
+            {postToMarket.isPending
+              ? 'Publishing…'
+              : onMarket
+                ? 'Update visibility'
+                : 'Publish'}
+          </Button>
+        }
       >
         <div className="flex flex-col gap-4">
           {!isPublished ? (
@@ -737,18 +750,6 @@ export function ProductEditorPage() {
           />
 
           {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
-
-          <Button
-            fullWidth
-            disabled={!canSubmitMarket || postToMarket.isPending}
-            onClick={() => postToMarket.mutate()}
-          >
-            {postToMarket.isPending
-              ? 'Publishing…'
-              : onMarket
-                ? 'Update visibility'
-                : 'Publish'}
-          </Button>
         </div>
       </Sheet>
 

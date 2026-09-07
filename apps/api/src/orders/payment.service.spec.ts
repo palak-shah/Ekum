@@ -5,6 +5,11 @@ import { PaymentService } from './payment.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { ThreadService } from '../conversation/thread.service';
 import type { DomainEvents } from '../events/events.module';
+import type { OrderTrailService } from './order-trail.service';
+
+const stubTrail = {
+  append: async () => undefined,
+} as unknown as OrderTrailService;
 
 describe('suggestedPaymentAmount', () => {
   it('sums rate × qty when every line has a rate', () => {
@@ -37,6 +42,7 @@ describe('PaymentService', () => {
       prisma,
       {} as ThreadService,
       { paymentRequested: vi.fn() } as unknown as DomainEvents,
+      stubTrail,
     );
     await expect(
       svc.create('buyer', 'u1', 'o1', { amount: 100 }),
@@ -58,6 +64,7 @@ describe('PaymentService', () => {
       prisma,
       {} as ThreadService,
       { paymentRequested: vi.fn() } as unknown as DomainEvents,
+      stubTrail,
     );
     await expect(
       svc.create('seller', 'u1', 'o1', { amount: 100 }),
@@ -82,6 +89,8 @@ describe('PaymentService', () => {
           orderId: 'o1',
           amount: args.data.amount,
           note: null,
+          noteVoiceUrl: null,
+          noteVoiceDurationMs: null,
           instructions: null,
           status: PaymentRequestStatus.Open,
           seenAt: null,
@@ -95,7 +104,7 @@ describe('PaymentService', () => {
     const threads = {
       ensureTradeThread: vi.fn(async () => 'th-1'),
     } as unknown as ThreadService;
-    const svc = new PaymentService(prisma, threads, events as unknown as DomainEvents);
+    const svc = new PaymentService(prisma, threads, events as unknown as DomainEvents, stubTrail);
     const view = await svc.create('seller', 'u1', 'o1', { amount: 2500 });
     expect(view.id).toBe('pay-1');
     expect(view.amount).toBe(2500);

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { Company, Message, Thread, ThreadParticipant } from '@prisma/client';
 import {
   ThreadType,
+  canDeleteForEveryoneMeta,
+  canEditMessageMeta,
   type AuditActorView,
   type MessageReference,
   type MessageReplyPreview,
@@ -40,11 +42,14 @@ export class ConversationSerializer {
     viewerUserId: string | null,
     reference: MessageReference | null,
     replyTo: MessageReplyPreview | null = null,
+    extras: { starred?: boolean } = {},
   ): MessageView {
     const mine = message.senderCompanyId === viewerCompanyId;
+    const deletedForEveryone = Boolean(message.deletedForEveryoneAt);
     let actor: AuditActorView | null = null;
     if (
       mine &&
+      !deletedForEveryone &&
       message.senderUserId &&
       viewerUserId &&
       message.senderUserId !== viewerUserId &&
@@ -57,13 +62,27 @@ export class ConversationSerializer {
       threadId: message.threadId,
       senderCompanyId: message.senderCompanyId,
       type: message.type,
-      body: message.body,
-      reference,
-      metadata: message.metadata ?? null,
+      body: deletedForEveryone ? null : message.body,
+      reference: deletedForEveryone ? null : reference,
+      metadata: deletedForEveryone ? null : (message.metadata ?? null),
       createdAt: message.createdAt.toISOString(),
       mine,
       actor,
-      replyTo,
+      replyTo: deletedForEveryone ? null : replyTo,
+      editedAt: message.editedAt ? message.editedAt.toISOString() : null,
+      deletedForEveryone,
+      starred: Boolean(extras.starred),
+      canEdit: canEditMessageMeta({
+        mine,
+        type: message.type,
+        createdAt: message.createdAt,
+        deletedForEveryone,
+      }),
+      canDeleteForEveryone: canDeleteForEveryoneMeta({
+        mine,
+        createdAt: message.createdAt,
+        deletedForEveryone,
+      }),
     };
   }
 

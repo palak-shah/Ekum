@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CollectionStatus, PublishAudience } from '@ekum/domain-types';
 import { ShareLinkService } from './share-link.service';
@@ -44,16 +44,23 @@ describe('ShareLinkService', () => {
     expect(view.designs).toEqual([]);
   });
 
-  it('blocks a locked pack for non-owners', async () => {
+  it('lets a non-owner create a 48h link when relist is locked', async () => {
+    const collection = liveCollection({ allowForward: false });
     const prisma = {
-      collection: {
-        findUnique: vi.fn(async () => liveCollection({ allowForward: false })),
+      collection: { findUnique: vi.fn(async () => collection) },
+      catalogShareLink: {
+        create: vi.fn(async () => ({})),
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: 'c1',
+          productId: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
       },
     } as unknown as PrismaService;
     const svc = new ShareLinkService(prisma);
-    await expect(svc.create('buyer', { collectionId: 'c1' })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const view = await svc.create('buyer', { collectionId: 'c1' });
+    expect(view.path.startsWith('/s/')).toBe(true);
   });
 
   it('404s an expired token', async () => {

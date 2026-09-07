@@ -2,10 +2,12 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/com
 import {
   approveReturnSchema,
   createReturnSchema,
+  declineReturnSchema,
   escalateReturnSchema,
   listReturnsQuerySchema,
   type ApproveReturnDto,
   type CreateReturnDto,
+  type DeclineReturnDto,
   type EscalateReturnDto,
   type ListReturnsQuery,
 } from '@ekum/domain-types';
@@ -50,8 +52,12 @@ export class ReturnController {
 
   @Post(':id/decline')
   @HttpCode(200)
-  decline(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.returns.decline(companyId, id);
+  decline(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(declineReturnSchema)) dto: DeclineReturnDto,
+  ) {
+    return this.returns.decline(companyId, id, dto);
   }
 
   @Post(':id/resolve')

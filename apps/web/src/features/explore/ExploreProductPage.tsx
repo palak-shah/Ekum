@@ -4,12 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
   OrderKind,
+  type AccessRequestView,
   type ExploreProductPreviewView,
   type OrderView,
   type ProductView,
 } from '@ekum/domain-types';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
-import { FORWARD_LOCKED_TOAST } from '@/features/browse/forwardGate';
+import { RELIST_LOCKED_TOAST } from '@/features/browse/forwardGate';
+import { DEFAULT_ACCESS_REQUEST_NOTE } from '@/lib/accessRequestNote';
 import {
   readCatalogHandlerName,
   resolveFacilitatorForCatalog,
@@ -62,6 +64,19 @@ export function ExploreProductPage() {
     enabled: Boolean(id),
   });
   const save = useSaveToggle({ productId: id });
+  const requestAccess = useMutation({
+    mutationFn: (targetCompanyId: string) =>
+      api.post<AccessRequestView>('/access-requests', {
+        targetCompanyId,
+        note: DEFAULT_ACCESS_REQUEST_NOTE,
+      }),
+    onSuccess: () => {
+      showToast('Request sent — they will see it in chat.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
+    },
+    onError: (error) =>
+      showToast(error instanceof ApiError ? error.message : 'Could not send request.', 'danger'),
+  });
 
   const createOrder = useMutation({
     mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
@@ -146,7 +161,7 @@ export function ExploreProductPage() {
 
   const openCurate = () => {
     if (data.allowForward === false) {
-      showToast(FORWARD_LOCKED_TOAST, 'danger');
+      showToast(RELIST_LOCKED_TOAST, 'danger');
       return;
     }
     if (!shortlist.productIds.has(data.id)) {
@@ -238,9 +253,19 @@ export function ExploreProductPage() {
             ) : null}
           </>
         ) : (
-          <p className="text-sm text-muted">
-            Connect with {data.company.name} to see full details and order.
-          </p>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">
+              Ask {data.company.name} to see full details and order.
+            </p>
+            {!isOwner ? (
+              <Button
+                onClick={() => requestAccess.mutate(data.company.id)}
+                disabled={requestAccess.isPending}
+              >
+                {requestAccess.isPending ? 'Sending…' : 'Request access'}
+              </Button>
+            ) : null}
+          </div>
         )}
         <Link to={`/company/${data.company.id}`} className="text-sm font-bold text-accent">
           View business →

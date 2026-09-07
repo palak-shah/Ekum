@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
   SuperCategory,
@@ -11,22 +11,12 @@ import {
   type ExploreBuyerOpportunity,
   type ExploreSupplierCard,
   type ExploreStory,
-  type SavedItemView,
   type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
-import { api, ApiError } from '@/lib/apiClient';
+import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { AlbumSelectBar } from '@/features/browse/AlbumSelectBar';
-import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
-import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
-import { SAVED_QUERY_KEY } from '@/features/saved/useSaveToggle';
-import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
-import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
-import { FORWARD_LOCKED_TOAST, canForwardFlag } from '@/features/browse/forwardGate';
-import { useToast } from '@/ui/Toast';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -37,6 +27,7 @@ import { Avatar, Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/ki
 import {
   BackIcon,
   BookmarkIcon,
+  CheckIcon,
   ExploreIcon,
   FilterIcon,
 } from '@/ui/icons';
@@ -90,7 +81,14 @@ function mergeRanked(
       at: Date.parse(opportunity.product.postedAt) || 0,
     })),
   ];
-  return rows.sort((a, b) => b.score - a.score || b.at - a.at);
+  // Prefer packs over designs when times tie so a just-published album is not
+  // buried under seed designs with the same network score.
+  return rows.sort(
+    (a, b) =>
+      b.score - a.score ||
+      b.at - a.at ||
+      (a.kind === 'collection' ? 0 : 1) - (b.kind === 'collection' ? 0 : 1),
+  );
 }
 
 function optionLabel(value: string): string {
@@ -137,11 +135,9 @@ function CollectionSection({
 }) {
   const albumPick = useBrowseAlbumPick();
   const shortlist = useBrowseShortlist();
-  const { showToast } = useToast();
   if (items.length === 0) return null;
   const selecting =
     albumPick.count > 0 || shortlist.count > 0 || albumPick.selectMode || shortlist.selectMode;
-  const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
     <Section title={title}>
@@ -152,9 +148,9 @@ function CollectionSection({
             opportunity={opportunity}
             selectMode={selecting}
             selected={albumPick.collectionIds.has(opportunity.collection.id)}
-            onLongSelect={() => toggleExploreAlbum(albumPick, opportunity, onLocked)}
+            onLongSelect={() => toggleExploreAlbum(albumPick, opportunity)}
             onToggleSelect={
-              selecting ? () => toggleExploreAlbum(albumPick, opportunity, onLocked) : undefined
+              selecting ? () => toggleExploreAlbum(albumPick, opportunity) : undefined
             }
             headerTrailing={exploreFeedFollowTrailing(
               opportunity.collection.company.id,
@@ -172,10 +168,8 @@ function CollectionSection({
 function toggleExploreDesign(
   shortlist: ReturnType<typeof useBrowseShortlist>,
   opportunity: ExploreDesignOpportunity,
-  notifyLocked?: () => void,
 ) {
   const { product } = opportunity;
-  const wasSelected = shortlist.productIds.has(product.id);
   shortlist.toggle({
     productId: product.id,
     name: product.name,
@@ -184,18 +178,13 @@ function toggleExploreDesign(
     companyName: product.company.name,
     allowForward: product.allowForward,
   });
-  if (!wasSelected && !canForwardFlag(product.allowForward)) {
-    notifyLocked?.();
-  }
 }
 
 function toggleExploreAlbum(
   albumPick: ReturnType<typeof useBrowseAlbumPick>,
   opportunity: ExploreOpportunity,
-  notifyLocked?: () => void,
 ) {
   const { collection } = opportunity;
-  const wasSelected = albumPick.collectionIds.has(collection.id);
   albumPick.toggle({
     collectionId: collection.id,
     name: collection.name,
@@ -204,10 +193,8 @@ function toggleExploreAlbum(
     companyName: collection.company.name,
     productCount: collection.productCount,
     allowForward: collection.allowForward,
+    orderPathPreference: collection.orderPathPreference,
   });
-  if (!wasSelected && !canForwardFlag(collection.allowForward)) {
-    notifyLocked?.();
-  }
 }
 
 function DesignSection({
@@ -221,11 +208,9 @@ function DesignSection({
 }) {
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
-  const { showToast } = useToast();
   if (items.length === 0) return null;
   const selecting =
     shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
-  const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
     <Section title={title}>
@@ -236,9 +221,9 @@ function DesignSection({
             opportunity={opportunity}
             selectMode={selecting}
             selected={shortlist.productIds.has(opportunity.product.id)}
-            onLongSelect={() => toggleExploreDesign(shortlist, opportunity, onLocked)}
+            onLongSelect={() => toggleExploreDesign(shortlist, opportunity)}
             onToggleSelect={
-              selecting ? () => toggleExploreDesign(shortlist, opportunity, onLocked) : undefined
+              selecting ? () => toggleExploreDesign(shortlist, opportunity) : undefined
             }
             headerTrailing={exploreFeedFollowTrailing(
               opportunity.product.company.id,
@@ -264,11 +249,9 @@ function MixedSection({
 }) {
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
-  const { showToast } = useToast();
   if (items.length === 0) return null;
   const selecting =
     shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
-  const onLocked = () => showToast(FORWARD_LOCKED_TOAST);
 
   return (
     <Section title={title}>
@@ -280,11 +263,9 @@ function MixedSection({
               opportunity={item.opportunity}
               selectMode={selecting}
               selected={albumPick.collectionIds.has(item.opportunity.collection.id)}
-              onLongSelect={() => toggleExploreAlbum(albumPick, item.opportunity, onLocked)}
+              onLongSelect={() => toggleExploreAlbum(albumPick, item.opportunity)}
               onToggleSelect={
-                selecting
-                  ? () => toggleExploreAlbum(albumPick, item.opportunity, onLocked)
-                  : undefined
+                selecting ? () => toggleExploreAlbum(albumPick, item.opportunity) : undefined
               }
               headerTrailing={exploreFeedFollowTrailing(
                 item.opportunity.collection.company.id,
@@ -299,11 +280,9 @@ function MixedSection({
               opportunity={item.opportunity}
               selectMode={selecting}
               selected={shortlist.productIds.has(item.opportunity.product.id)}
-              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity, onLocked)}
+              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
               onToggleSelect={
-                selecting
-                  ? () => toggleExploreDesign(shortlist, item.opportunity, onLocked)
-                  : undefined
+                selecting ? () => toggleExploreDesign(shortlist, item.opportunity) : undefined
               }
               headerTrailing={exploreFeedFollowTrailing(
                 item.opportunity.product.company.id,
@@ -502,13 +481,7 @@ export function ExplorePage() {
   const company = useMyCompany();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
-  const orderFlow = useShortlistOrderFlow();
-  const queryClient = useQueryClient();
-  const { showToast } = useToast();
   const feedRelationships = useExploreCompanyRelationships();
-  const [curateOpen, setCurateOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [savingPick, setSavingPick] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const contentMode = parseContentMode(searchParams.get('show'));
@@ -814,6 +787,22 @@ export function ExplorePage() {
               <BookmarkIcon width={20} height={20} />
             </button>
             <button
+              type="button"
+              aria-label="Your selection"
+              data-testid="explore-selection"
+              onClick={() => navigate('/selection')}
+              className="relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate hover:bg-foam"
+            >
+              <CheckIcon width={20} height={20} />
+              {shortlist.count + albumPick.count > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
+                  {shortlist.count + albumPick.count > 99
+                    ? '99+'
+                    : shortlist.count + albumPick.count}
+                </span>
+              ) : null}
+            </button>
+            <button
               ref={filterAnchorRef}
               type="button"
               data-testid="explore-filter"
@@ -960,130 +949,6 @@ export function ExplorePage() {
           ) : null}
         </div>
       )}
-
-      <AlbumSelectBar
-        albumCount={albumPick.count}
-        designCount={shortlist.count}
-        onClear={() => {
-          albumPick.clear();
-          shortlist.clear();
-        }}
-        saving={savingPick}
-        onSave={async () => {
-          setSavingPick(true);
-          try {
-            let saved = 0;
-            for (const entry of albumPick.entries) {
-              await api.post<SavedItemView>('/saved', { collectionId: entry.collectionId });
-              saved += 1;
-            }
-            for (const entry of shortlist.entries) {
-              await api.post<SavedItemView>('/saved', { productId: entry.productId });
-              saved += 1;
-            }
-            void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
-            albumPick.clear();
-            shortlist.clear();
-            showToast(saved === 1 ? 'Bookmarked' : `${saved} bookmarked`, 'success', {
-              action: { label: 'Open', to: '/saved' },
-            });
-          } catch (err) {
-            showToast(
-              err instanceof ApiError ? err.message : 'Could not bookmark.',
-              'danger',
-            );
-          } finally {
-            setSavingPick(false);
-          }
-        }}
-        canShare={
-          albumPick.entries.some((entry) => canForwardFlag(entry.allowForward)) ||
-          shortlist.entries.some((entry) => canForwardFlag(entry.allowForward))
-        }
-        onShare={() => {
-          const collections = albumPick.entries.filter((entry) =>
-            canForwardFlag(entry.allowForward),
-          );
-          const products = shortlist.entries.filter((entry) => canForwardFlag(entry.allowForward));
-          if (collections.length + products.length === 0) {
-            showToast(FORWARD_LOCKED_TOAST, 'danger');
-            return;
-          }
-          const skipped =
-            albumPick.count +
-            shortlist.count -
-            collections.length -
-            products.length;
-          if (skipped > 0) {
-            showToast(
-              skipped === 1
-                ? 'Skipped 1 that can’t be shared.'
-                : `Skipped ${skipped} that can’t be shared.`,
-            );
-          }
-          setShareOpen(true);
-        }}
-        canCurate={shortlist.entries.some((entry) => canForwardFlag(entry.allowForward))}
-        onCurate={() => {
-          const locked = shortlist.entries.filter((entry) => !canForwardFlag(entry.allowForward));
-          const allowed = shortlist.entries.filter((entry) => canForwardFlag(entry.allowForward));
-          if (allowed.length === 0) {
-            showToast(FORWARD_LOCKED_TOAST, 'danger');
-            return;
-          }
-          if (locked.length > 0) {
-            shortlist.removeIds(locked.map((entry) => entry.productId));
-            showToast(
-              locked.length === 1
-                ? 'Skipped 1 that can’t be shared.'
-                : `Skipped ${locked.length} that can’t be shared.`,
-            );
-          }
-          setCurateOpen(true);
-        }}
-        canOrder={shortlist.count > 0}
-        onOrder={() => {
-          orderFlow.setError(null);
-          orderFlow.setQtyOpen(true);
-        }}
-      />
-      <CatalogShareSheet
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        collections={albumPick.entries
-          .filter((entry) => canForwardFlag(entry.allowForward))
-          .map((entry) => ({
-            collectionId: entry.collectionId,
-            name: entry.name,
-          }))}
-        products={shortlist.entries
-          .filter((entry) => canForwardFlag(entry.allowForward))
-          .map((entry) => ({
-            productId: entry.productId,
-            name: entry.name,
-          }))}
-        onShared={() => {
-          albumPick.clear();
-          shortlist.clear();
-        }}
-      />
-      <HowManyEachSheet
-        open={orderFlow.qtyOpen}
-        onClose={() => orderFlow.setQtyOpen(false)}
-        sellerId={orderFlow.sellerIdForQty}
-        products={orderFlow.products}
-        submitting={orderFlow.submitting}
-        asking={orderFlow.asking}
-        error={orderFlow.error}
-        onSendOrder={orderFlow.sendOrder}
-        onAskRates={orderFlow.askRates}
-      />
-      <BatchOrderConfirmSheet
-        open={orderFlow.confirmOpen}
-        result={orderFlow.result}
-        onClose={() => orderFlow.setConfirmOpen(false)}
-      />
-      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
     </div>
   );
 }

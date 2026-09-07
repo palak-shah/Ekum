@@ -28,6 +28,8 @@ ekum/
   packages/
     domain-types/        Shared TS types, enums, and zod schemas
     config/              Shared eslint and tsconfig presets
+  docker/                Dockerfiles + Nginx configs for Compose
+  docker-compose.yml     Postgres + API + web + Nginx gateway
   .github/workflows/     CI
 ```
 
@@ -35,9 +37,22 @@ ekum/
 
 - Node.js >= 20 (repo developed on Node 24)
 - pnpm 11 (`npm i -g pnpm` or `corepack enable`)
-- PostgreSQL 14+ (local or Docker)
+- PostgreSQL 14+ (local or Docker) — **or** Docker Desktop / Compose for the full stack below
 
-## Getting started
+## Docker (full stack)
+
+Runs Postgres, API, web, and Nginx behind **http://localhost:8080**.
+
+```bash
+cp .env.docker.example .env.docker
+pnpm docker:up          # or: npm run docker:up
+# optional: pnpm docker:seed
+```
+
+See [`docs/docker.md`](docs/docker.md) for architecture, scripts, env, and troubleshooting.
+
+
+## Getting started (local without Compose)
 
 ```bash
 pnpm install
@@ -59,10 +74,12 @@ pnpm --filter @ekum/web dev        # http://localhost:5173
 - `pnpm typecheck` — type-check everything
 - `pnpm test` — run tests
 - `pnpm format` — format with Prettier
+- `pnpm docker:up` / `docker:down` / `docker:build` — full Compose stack (see above)
 
 ## Documentation
 
-Product-functional docs (user actions, business rules, seed walkthroughs) live under
+- **Docker (Compose + Nginx + Postgres):** [`docs/docker.md`](docs/docker.md)
+- Product-functional docs (user actions, business rules, seed walkthroughs) live under
 [`docs/features/`](docs/features/README.md). Start with
 [shared concepts](docs/features/00-concepts.md).
 

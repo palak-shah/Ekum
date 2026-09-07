@@ -1,9 +1,12 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, type Message } from '@prisma/client';
 import {
   MessageType,
   OrderChatEvent,
+  ProductStatus,
   ThreadParticipantState,
+  canDeleteForEveryoneMeta,
+  canEditMessageMeta,
   photoUrlsFromMessage,
   type CursorPage,
   type ListThreadMessagesQuery,
@@ -11,8 +14,11 @@ import {
   type MessageReplyPreview,
   type MessageView,
   type SendMessageDto,
+  type StarredMessageView,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { VisibilityService } from '../access/visibility.service';
+import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
 import { ThreadService } from './thread.service';
 import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
@@ -21,6 +27,8 @@ import type { AuthPrincipal } from '../auth/auth.types';
 import { assertActiveCompany } from '../auth/require-permission';
 import { messageSearchOrClause } from './message-search';
 import { messageVisibleToCompany } from './side-message';
+import { isHeldFromSupplier } from '../orders/orderHold';
+import { scrubOrderMessageView } from '../orders/i-handle-soft-hide';
 
 @Injectable()
 export class MessageService {
@@ -30,6 +38,7 @@ export class MessageService {
     private readonly serializer: ConversationSerializer,
     private readonly references: ReferenceResolver,
     private readonly events: DomainEvents,
+    private readonly visibility: VisibilityService,
   ) {}
 
   async send(
@@ -87,12 +96,14 @@ export class MessageService {
 
     const references = await this.references.resolve([message], actorCompanyId);
     const replyMap = await this.replyPreviews([message], actorCompanyId);
-    return this.serializer.toMessageView(
-      message,
-      actorCompanyId,
-      actor.userId,
-      references.get(message.id) ?? null,
-      replyMap.get(message.id) ?? null,
+    return scrubOrderMessageView(
+      this.serializer.toMessageView(
+        message,
+        actorCompanyId,
+        actor.userId,
+        references.get(message.id) ?? null,
+        replyMap.get(message.id) ?? null,
+      ),
     );
   }
 
@@ -104,7 +115,10 @@ export class MessageService {
     const actorCompanyId = assertActiveCompany(actor);
     await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
 
-    const where = await this.listWhere(threadId, query);
+    const where = await this.listWhere(threadId, query, {
+      companyId: actorCompanyId,
+      userId: actor.userId,
+    });
     const rows = await this.prisma.message.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -118,13 +132,21 @@ export class MessageService {
     );
     const references = await this.references.resolve(page, actorCompanyId);
     const replyMap = await this.replyPreviews(page, actorCompanyId);
+    const starredIds = await this.starredIdsFor(
+      actor.userId,
+      actorCompanyId,
+      page.map((row) => row.id),
+    );
     const results = page.map((message) =>
-      this.serializer.toMessageView(
-        message,
-        actorCompanyId,
-        actor.userId,
-        references.get(message.id) ?? null,
-        replyMap.get(message.id) ?? null,
+      scrubOrderMessageView(
+        this.serializer.toMessageView(
+          message,
+          actorCompanyId,
+          actor.userId,
+          references.get(message.id) ?? null,
+          replyMap.get(message.id) ?? null,
+          { starred: starredIds.has(message.id) },
+        ),
       ),
     );
     const last = page[page.length - 1];
@@ -134,12 +156,20 @@ export class MessageService {
   private async listWhere(
     threadId: string,
     query: ListThreadMessagesQuery,
+    actor: { companyId: string; userId: string },
   ): Promise<Prisma.MessageWhereInput> {
     const view = query.view ?? 'all';
     const q = query.q?.trim();
-    const clauses: Prisma.MessageWhereInput[] = [{ threadId }];
+    const clauses: Prisma.MessageWhereInput[] = [
+      { threadId },
+      { NOT: { hides: { some: { companyId: actor.companyId } } } },
+    ];
 
-    if (view === 'photos') {
+    if (view === 'starred') {
+      clauses.push({
+        stars: { some: { userId: actor.userId, companyId: actor.companyId } },
+      });
+    } else if (view === 'photos') {
       clauses.push({ type: MessageType.Photo });
     } else if (view === 'media') {
       // Deprecated alias — older clients asked for photo+voice.
@@ -229,7 +259,20 @@ export class MessageService {
       }
     }
 
-    return clauses.length === 1 ? clauses[0]! : { AND: clauses };
+    return { AND: clauses };
+  }
+
+  private async starredIdsFor(
+    userId: string,
+    companyId: string,
+    messageIds: string[],
+  ): Promise<Set<string>> {
+    if (messageIds.length === 0) return new Set();
+    const rows = await this.prisma.messageStar.findMany({
+      where: { userId, companyId, messageId: { in: messageIds } },
+      select: { messageId: true },
+    });
+    return new Set(rows.map((row) => row.messageId));
   }
 
   /**
@@ -346,6 +389,9 @@ export class MessageService {
       const count = photoUrlsFromMessage(message).length;
       return count > 1 ? `${count} photos` : 'Photo';
     }
+    if (message.type === MessageType.Voice) {
+      return 'Voice';
+    }
     const body = message.body?.trim();
     if (body) {
       return body.length > 80 ? `${body.slice(0, 80)}…` : body;
@@ -354,14 +400,20 @@ export class MessageService {
   }
 
   /**
-   * Cards may reference objects the sender owns, or objects already shared into
-   * a chat they belong to (forward). Finer access rights come later.
+   * Forward free: pass a live catalog card as-is. View/audience is checked when
+   * the recipient opens (chat share unlocks the album shell + Ask). Blocked
+   * senders still cannot share. Curate stays gated elsewhere.
    */
   private async validateReference(actorCompanyId: string, dto: SendMessageDto): Promise<void> {
     if (dto.type === MessageType.ProductCard) {
       const product = await this.prisma.product.findFirst({
         where: { id: dto.referenceId },
-        select: { id: true, companyId: true, allowForward: true },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+          postedToMarketAt: true,
+        },
       });
       if (!product) {
         throw this.invalidReference();
@@ -369,17 +421,26 @@ export class MessageService {
       if (product.companyId === actorCompanyId) {
         return;
       }
-      if (!(await this.wasSharedInChat(actorCompanyId, product.id, MessageType.ProductCard))) {
+      if (await this.visibility.isBlocked(actorCompanyId, product.companyId)) {
         throw this.invalidReference();
       }
-      if (product.allowForward === false) {
-        throw this.forwardNotAllowed();
+      if (await this.wasSharedInChat(actorCompanyId, product.id, MessageType.ProductCard)) {
+        return;
       }
-      return;
+      if (product.status === ProductStatus.Published && product.postedToMarketAt) {
+        return;
+      }
+      throw this.invalidReference();
     } else if (dto.type === MessageType.CollectionCard) {
       const collection = await this.prisma.collection.findFirst({
         where: { id: dto.referenceId },
-        select: { id: true, companyId: true, allowForward: true },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+          startsAt: true,
+          endsAt: true,
+        },
       });
       if (!collection) {
         throw this.invalidReference();
@@ -387,24 +448,39 @@ export class MessageService {
       if (collection.companyId === actorCompanyId) {
         return;
       }
-      if (
-        !(await this.wasSharedInChat(actorCompanyId, collection.id, MessageType.CollectionCard))
-      ) {
+      if (await this.visibility.isBlocked(actorCompanyId, collection.companyId)) {
         throw this.invalidReference();
       }
-      if (collection.allowForward === false) {
-        throw this.forwardNotAllowed();
+      if (
+        await this.wasSharedInChat(actorCompanyId, collection.id, MessageType.CollectionCard)
+      ) {
+        return;
       }
-      return;
+      if (isCollectionLiveForBuyers(collection)) {
+        return;
+      }
+      throw this.invalidReference();
     } else if (dto.type === MessageType.OrderCard || dto.type === MessageType.Rate) {
       const order = await this.prisma.order.findFirst({
         where: {
           id: dto.referenceId,
-          OR: [{ buyerCompanyId: actorCompanyId }, { sellerCompanyId: actorCompanyId }],
+          OR: [
+            { buyerCompanyId: actorCompanyId },
+            { sellerCompanyId: actorCompanyId },
+            { facilitatorCompanyId: actorCompanyId },
+          ],
         },
-        select: { id: true },
+        select: {
+          id: true,
+          sellerCompanyId: true,
+          downstreamOrderId: true,
+          upstreamReleasedAt: true,
+        },
       });
       if (!order) {
+        throw this.invalidReference();
+      }
+      if (isHeldFromSupplier(order, actorCompanyId)) {
         throw this.invalidReference();
       }
     }
@@ -437,10 +513,212 @@ export class MessageService {
     });
   }
 
-  private forwardNotAllowed(): ForbiddenException {
-    return new ForbiddenException({
-      code: 'FORWARD_NOT_ALLOWED',
-      message: 'The supplier does not allow buyers to forward this.',
+  async edit(
+    actor: AuthPrincipal,
+    threadId: string,
+    messageId: string,
+    body: string,
+  ): Promise<MessageView> {
+    const actorCompanyId = assertActiveCompany(actor);
+    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
+    const message = await this.loadMessageInThread(threadId, messageId);
+    if (message.senderCompanyId !== actorCompanyId) {
+      throw new BadRequestException({ code: 'FORBIDDEN', message: 'You can only edit your messages.' });
+    }
+    if (message.type !== MessageType.Text || message.deletedForEveryoneAt) {
+      throw new BadRequestException({ code: 'CANNOT_EDIT', message: 'This message cannot be edited.' });
+    }
+    if (
+      !canEditMessageMeta({
+        mine: true,
+        type: message.type,
+        createdAt: message.createdAt,
+        deletedForEveryone: false,
+      })
+    ) {
+      throw new BadRequestException({
+        code: 'EDIT_WINDOW',
+        message: 'Edit window has ended.',
+      });
+    }
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: { body: body.trim(), editedAt: new Date() },
     });
+    return this.viewOne(actor, updated);
+  }
+
+  async hide(
+    actor: AuthPrincipal,
+    threadId: string,
+    messageId: string,
+  ): Promise<{ ok: true }> {
+    const actorCompanyId = assertActiveCompany(actor);
+    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
+    await this.loadMessageInThread(threadId, messageId);
+    await this.prisma.messageHide.upsert({
+      where: {
+        companyId_messageId: { companyId: actorCompanyId, messageId },
+      },
+      create: { companyId: actorCompanyId, messageId },
+      update: {},
+    });
+    return { ok: true };
+  }
+
+  async deleteForEveryone(
+    actor: AuthPrincipal,
+    threadId: string,
+    messageId: string,
+  ): Promise<MessageView> {
+    const actorCompanyId = assertActiveCompany(actor);
+    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
+    const message = await this.loadMessageInThread(threadId, messageId);
+    if (message.senderCompanyId !== actorCompanyId) {
+      throw new BadRequestException({
+        code: 'FORBIDDEN',
+        message: 'You can only delete your messages for everyone.',
+      });
+    }
+    if (
+      !canDeleteForEveryoneMeta({
+        mine: true,
+        createdAt: message.createdAt,
+        deletedForEveryone: Boolean(message.deletedForEveryoneAt),
+      })
+    ) {
+      throw new BadRequestException({
+        code: 'DELETE_WINDOW',
+        message: 'Delete for everyone window has ended.',
+      });
+    }
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: {
+        deletedForEveryoneAt: new Date(),
+        body: null,
+        referenceId: null,
+        metadata: Prisma.JsonNull,
+      },
+    });
+    return this.viewOne(actor, updated);
+  }
+
+  async star(actor: AuthPrincipal, messageId: string): Promise<{ ok: true }> {
+    const actorCompanyId = assertActiveCompany(actor);
+    const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+    if (!message) {
+      throw new BadRequestException({ code: 'NOT_FOUND', message: 'Message not found.' });
+    }
+    await this.threads.membershipOrThrow(
+      message.threadId,
+      actorCompanyId,
+      actor.role,
+      actor.userId,
+    );
+    await this.prisma.messageStar.upsert({
+      where: { userId_messageId: { userId: actor.userId, messageId } },
+      create: { userId: actor.userId, companyId: actorCompanyId, messageId },
+      update: {},
+    });
+    return { ok: true };
+  }
+
+  async unstar(actor: AuthPrincipal, messageId: string): Promise<{ ok: true }> {
+    const actorCompanyId = assertActiveCompany(actor);
+    await this.prisma.messageStar.deleteMany({
+      where: { userId: actor.userId, companyId: actorCompanyId, messageId },
+    });
+    return { ok: true };
+  }
+
+  async listStarred(
+    actor: AuthPrincipal,
+    query: { limit: number; cursor?: string },
+  ): Promise<CursorPage<StarredMessageView>> {
+    const actorCompanyId = assertActiveCompany(actor);
+    const rows = await this.prisma.messageStar.findMany({
+      where: {
+        userId: actor.userId,
+        companyId: actorCompanyId,
+        message: {
+          deletedForEveryoneAt: null,
+          NOT: { hides: { some: { companyId: actorCompanyId } } },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: query.limit + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+      include: {
+        message: true,
+      },
+    });
+    const hasMore = rows.length > query.limit;
+    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const messages = page.map((row) => row.message);
+    const references = await this.references.resolve(messages, actorCompanyId);
+    const threadIds = [...new Set(messages.map((m) => m.threadId))];
+    const threads = await this.prisma.thread.findMany({
+      where: { id: { in: threadIds } },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        participants: {
+          where: { leftAt: null, NOT: { companyId: actorCompanyId } },
+          take: 1,
+          include: { company: true },
+        },
+      },
+    });
+    const threadById = new Map(threads.map((t) => [t.id, t]));
+    const results = page.map((row) => {
+      const thread = threadById.get(row.message.threadId);
+      const counterpart = thread?.participants[0]?.company?.name ?? null;
+      return {
+        message: scrubOrderMessageView(
+          this.serializer.toMessageView(
+            row.message,
+            actorCompanyId,
+            actor.userId,
+            references.get(row.message.id) ?? null,
+            null,
+            { starred: true },
+          ),
+        ),
+        threadId: row.message.threadId,
+        threadTitle: thread?.title ?? null,
+        counterpartName: counterpart,
+        starredAt: row.createdAt.toISOString(),
+      };
+    });
+    const last = page[page.length - 1];
+    return { results, nextCursor: hasMore && last ? last.id : null };
+  }
+
+  private async loadMessageInThread(threadId: string, messageId: string): Promise<Message> {
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, threadId },
+    });
+    if (!message) {
+      throw new BadRequestException({ code: 'NOT_FOUND', message: 'Message not found.' });
+    }
+    return message;
+  }
+
+  private async viewOne(actor: AuthPrincipal, message: Message): Promise<MessageView> {
+    const actorCompanyId = assertActiveCompany(actor);
+    const references = await this.references.resolve([message], actorCompanyId);
+    const starred = await this.starredIdsFor(actor.userId, actorCompanyId, [message.id]);
+    return scrubOrderMessageView(
+      this.serializer.toMessageView(
+        message,
+        actorCompanyId,
+        actor.userId,
+        references.get(message.id) ?? null,
+        null,
+        { starred: starred.has(message.id) },
+      ),
+    );
   }
 }

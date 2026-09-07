@@ -13,6 +13,7 @@ export const DomainEventName = {
   BroadcastSent: 'broadcast.sent',
   PaymentRequested: 'payment.requested',
   PaymentSettled: 'payment.settled',
+  CollectionViewGranted: 'collection.view_granted',
 } as const;
 
 export interface AccessApprovedEvent {
@@ -68,4 +69,12 @@ export interface PaymentAskEvent {
   buyerCompanyId: string;
   sellerCompanyId: string;
   actorCompanyId?: string;
+}
+
+export interface CollectionViewGrantedEvent {
+  requestId: string;
+  collectionId: string;
+  collectionName: string;
+  requesterCompanyId: string;
+  targetCompanyId: string;
 }

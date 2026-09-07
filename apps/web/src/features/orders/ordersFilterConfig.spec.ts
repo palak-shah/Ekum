@@ -40,5 +40,18 @@ describe('tradeKindLabel', () => {
 
   it('returns label for known kind', () => {
     expect(tradeKindLabel('sample')).toBe('Sample');
+    expect(tradeKindLabel('trading')).toBe('Trading');
+  });
+});
+
+describe('tradeMenuFilterSummary Trading', () => {
+  it('shows Trading as the type', () => {
+    expect(
+      tradeMenuFilterSummary({
+        statusFacet: null,
+        kindFacet: 'trading',
+        dateFacet: null,
+      }),
+    ).toBe('Trading');
   });
 });

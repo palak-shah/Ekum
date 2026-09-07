@@ -150,6 +150,12 @@ export interface ProductView {
 
 export interface CollectionView {
   id: string;
+  companyId: string;
+  /**
+   * Distinct member shops (owner list/detail). Used for the owner-only
+   * “From {shop}” line. Empty when members were not loaded.
+   */
+  memberShops: { id: string; name: string }[];
   name: string;
   description: string | null;
   coverImage: string | null;

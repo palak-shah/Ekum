@@ -1,7 +1,8 @@
 import { shortOrderLabel } from '@ekum/domain-types';
+import { isTradingDeskOrder, linkedMillHaystack } from './tradeListRole';
 import type { TradeListItem } from './tradeList';
 
-export type TradeKindFacet = 'order' | 'sample' | 'return';
+export type TradeKindFacet = 'order' | 'sample' | 'return' | 'trading';
 
 export type DateFacet = {
   from: string;
@@ -53,7 +54,18 @@ const KIND_LABELS: { label: string; kind: TradeKindFacet }[] = [
   { label: 'Sample', kind: 'sample' },
   { label: 'Return', kind: 'return' },
   { label: 'Order', kind: 'order' },
+  { label: 'Trading', kind: 'trading' },
 ];
+
+/** Type words in Find (Trading also accepts linked). */
+export function kindFacetFromNeedle(raw: string): TradeKindFacet | null {
+  const word = raw.trim().toLowerCase();
+  if (word === 'sample' || word === 'return' || word === 'order' || word === 'trading') {
+    return word;
+  }
+  if (word === 'linked' || word === 'linked order' || word === 'i handle') return 'trading';
+  return null;
+}
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -200,7 +212,8 @@ function itemTextHaystack(item: TradeListItem): string {
   if (item.kind === 'order') {
     const o = item.order;
     const lines = o.items.map((i) => `${i.name} ${i.sku ?? ''}`).join(' ');
-    return `${o.counterpart.name} ${o.id} ${shortOrderLabel(o.id, { inquiry: o.intent === 'inquiry' })} ${lines} ${o.intent} ${o.status}`.toLowerCase();
+    const trading = isTradingDeskOrder(o) ? 'trading linked' : '';
+    return `${o.counterpart.name} ${o.id} ${shortOrderLabel(o.id, { inquiry: o.intent === 'inquiry' })} ${linkedMillHaystack(o)} ${lines} ${o.intent} ${o.status} ${trading}`.toLowerCase();
   }
   if (item.kind === 'sample') {
     const s = item.sample;
@@ -215,7 +228,11 @@ function statusKeyFromLabel(label: string): string {
 }
 
 export function tradeMatchesFind(item: TradeListItem, find: TradeFindState): boolean {
-  if (find.kindFacet && item.kind !== find.kindFacet) return false;
+  if (find.kindFacet === 'trading') {
+    if (item.kind !== 'order' || !isTradingDeskOrder(item.order)) return false;
+  } else if (find.kindFacet && item.kind !== find.kindFacet) {
+    return false;
+  }
   if (find.statusFacet && itemStatus(item) !== find.statusFacet) return false;
 
   const dateFromNeedle = dateFacetFromNeedle(find.needle);
@@ -306,6 +323,16 @@ export function buildTradeSuggestions(
         });
       }
     }
+  }
+
+  if (lower.length >= 3 && 'linked'.startsWith(lower)) {
+    push('kind:trading', {
+      type: 'kind',
+      group: 'type',
+      hint: 'Type',
+      label: 'Trading',
+      kind: 'trading',
+    });
   }
 
   for (const k of KIND_LABELS) {

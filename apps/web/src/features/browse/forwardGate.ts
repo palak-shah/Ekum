@@ -1,6 +1,6 @@
-/** Plain copy when allowForward is locked (Share / Curate / Forward). */
-export const FORWARD_LOCKED_TOAST = "This seller doesn't allow sharing.";
+/** Curate / relist locked (Forward is free). */
+export const RELIST_LOCKED_TOAST = "This seller doesn't allow putting this in a pack.";
 
-export function canForwardFlag(allowForward: boolean | undefined): boolean {
-  return allowForward !== false;
+export function canRelistFlag(allowRelist: boolean | undefined): boolean {
+  return allowRelist !== false;
 }

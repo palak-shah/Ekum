@@ -14,6 +14,7 @@ import type {
 import {
   OrderDirection,
   OrderLineStatus,
+  OrderStatus,
   type ComplaintView,
   type OrderItemView,
   type OrderShipmentView,
@@ -107,13 +108,36 @@ export class OrderSerializer {
     );
     const remaining = shippable.reduce((sum, item) => sum + item.remainingQuantity, 0);
     const shippedTotal = shippable.reduce((sum, item) => sum + item.shippedQuantity, 0);
-    const partiallyShipped = shippedTotal > 0 && remaining > 0;
+    // After Settle, qty := shipped so remaining is 0 — never call that Part shipped.
+    let status = order.status;
+    if (order.settledAt || order.status === OrderStatus.Settled) {
+      status = OrderStatus.Settled;
+    } else if (
+      order.status === OrderStatus.PartShipped &&
+      shippedTotal > 0 &&
+      remaining <= 0
+    ) {
+      // Last qty out (or qty already matches shipped) — complete, not Part shipped.
+      status = OrderStatus.Dispatched;
+    } else if (
+      order.status === OrderStatus.Confirmed &&
+      shippedTotal > 0 &&
+      remaining > 0
+    ) {
+      status = OrderStatus.PartShipped;
+    }
+    const fulfillmentDone =
+      status === OrderStatus.Settled ||
+      status === OrderStatus.Dispatched ||
+      status === OrderStatus.Delivered;
+    const partiallyShipped =
+      !fulfillmentDone && shippedTotal > 0 && remaining > 0;
 
     return {
       id: order.id,
       kind: order.kind,
       intent: order.intent ?? 'order',
-      status: order.status,
+      status,
       tradeMode: order.tradeMode ?? 'bilateral',
       facilitatorCompanyId: order.facilitatorCompanyId ?? null,
       downstreamOrderId: order.downstreamOrderId ?? null,
@@ -121,6 +145,9 @@ export class OrderSerializer {
       amendCount: order.amendCount ?? 0,
       direction: buying ? OrderDirection.Buying : OrderDirection.Selling,
       note: order.note,
+      noteVoiceUrl: order.noteVoiceUrl ?? null,
+      noteVoiceDurationMs: order.noteVoiceDurationMs ?? null,
+      noteVoiceMediaId: order.noteVoiceMediaId ?? null,
       buyerCompanyId: order.buyerCompanyId,
       sellerCompanyId: order.sellerCompanyId,
       buyerName: order.buyer.name,
@@ -149,6 +176,7 @@ export class OrderSerializer {
       confirmedByName,
       confirmedByRole,
       deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
+      settledAt: order.settledAt ? order.settledAt.toISOString() : null,
       closedAt: order.closedAt ? order.closedAt.toISOString() : null,
       partiallyShipped,
       returns: (order.returns ?? []).map((row) =>
@@ -226,6 +254,8 @@ export class OrderSerializer {
       orderId: entity.orderId,
       status: entity.status,
       reason: entity.reason,
+      reasonVoiceUrl: entity.reasonVoiceUrl ?? null,
+      reasonVoiceDurationMs: entity.reasonVoiceDurationMs ?? null,
       direction: buying ? OrderDirection.Buying : OrderDirection.Selling,
       counterpart: this.companySerializer.toPublicSummary(
         buying ? entity.order.seller : entity.order.buyer,

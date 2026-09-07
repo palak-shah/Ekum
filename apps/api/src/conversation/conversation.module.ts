@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { ConversationController } from './conversation.controller';
+import { MessagesController } from './messages.controller';
 import { ThreadService } from './thread.service';
 import { MessageService } from './message.service';
 import { ConversationSerializer } from './conversation.serializer';
@@ -14,7 +15,7 @@ import { ReferenceResolver } from './reference-resolver';
  */
 @Module({
   imports: [forwardRef(() => AccessModule)],
-  controllers: [ConversationController],
+  controllers: [ConversationController, MessagesController],
   providers: [ThreadService, MessageService, ConversationSerializer, ReferenceResolver],
   exports: [ThreadService],
 })

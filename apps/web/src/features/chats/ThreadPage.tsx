@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -21,27 +21,35 @@ import type {
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
-import { OrderPathPreference, photoUrlsFromMessage } from '@ekum/domain-types';
+import { OrderPathPreference, photoUrlsFromMessage, voiceDurationMsFromMessage } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useToast } from '@/ui/Toast';
 import { timeAgo } from '@/lib/format';
-import { uploadImage } from '@/lib/mediaUpload';
+import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
+import { useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
-import { Avatar, Button, Chip, ErrorState, FilterRail, InlineNotice, LoadingBlock, Sheet, TextInput, cx } from '@/ui/kit';
-import { kindToneClassesForMessageType } from '@/lib/kindTone';
+import { VoicePlayer } from '@/features/voice/VoicePlayer';
+import { formatVoiceDuration, isUsableVoiceClip } from '@/features/voice/voiceCaps';
+import { useVoiceRecorder } from '@/features/voice/useVoiceRecorder';
+import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
+import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
+import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import {
   CameraIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   CollectionIcon,
+  FilterIcon,
+  MicIcon,
   OrdersIcon,
   MoreHorizontalIcon,
   PlusIcon,
@@ -50,8 +58,13 @@ import {
   SendIcon,
 } from '@/ui/icons';
 import {
+  MAX_FORWARD_BATCH,
+  canCopyMessage,
+  canDeleteForEveryone,
+  canEditMessage,
   canForwardMessage,
   canReplyToMessage,
+  copyTextForMessage,
   forwardPayload,
   replyComposerLabel,
 } from './chatMessageActions';
@@ -63,8 +76,9 @@ import {
   catalogOrderGoesToLine,
   rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
+import { ThreadForwardDock } from '@/features/chats/ThreadForwardDock';
+import { ThreadSearchFilterMenu } from '@/features/chats/ThreadSearchFilterMenu';
 import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import {
   dedupeOrderThreadMessages,
@@ -74,14 +88,20 @@ import {
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
-import { buildChatTradeCard } from './chatTradeCard';
+import { buildChatTradeCard, buildCollectionTradeCard } from './chatTradeCard';
+import { MSG_BUBBLE_CLASS, messageChromeBubblePad } from './messageChrome';
+import { chatBubbleCorners } from './chatBubbleCorners';
 import { ChatTradeCard } from './ChatTradeCardView';
 import {
   highlightSearchText,
   searchHitIdsNewestFirst,
+  threadSearchScopeLabel,
   type ThreadMessageViewScope,
 } from './threadMessageSearch';
 import { filterByAttachSearch } from './attachShareSearch';
+import { firstUnreadMessageId, unreadDividerLabel } from './threadOpenScroll';
+import { createStickLatch, isNearBottom, scrollListToBottom } from './threadStickScroll';
+import { chatComposerHeightPx } from './chatComposerHeight';
 
 type AttachStep =
   | 'menu'
@@ -89,19 +109,6 @@ type AttachStep =
   | 'collection'
   | 'order'
   | 'photo';
-
-function scrollListToBottom(list: HTMLDivElement) {
-  requestAnimationFrame(() => {
-    list.scrollTop = list.scrollHeight;
-    requestAnimationFrame(() => {
-      list.scrollTop = list.scrollHeight;
-    });
-  });
-}
-
-function isNearBottom(list: HTMLDivElement, threshold = 96): boolean {
-  return list.scrollHeight - list.scrollTop - list.clientHeight < threshold;
-}
 
 export function ThreadPage() {
   const { id = '' } = useParams();
@@ -112,7 +119,7 @@ export function ThreadPage() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const canForward = (message: MessageView) => canForwardMessage(message, companyId);
+  const canForward = (message: MessageView) => canForwardMessage(message);
   const [draft, setDraft] = useState('');
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachStep, setAttachStep] = useState<AttachStep>('menu');
@@ -123,12 +130,61 @@ export function ThreadPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<Set<string>>(() => new Set());
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const pendingVoiceUrlRef = useRef<string | null>(null);
+  const [pendingVoice, setPendingVoice] = useState<{
+    blob: Blob;
+    durationMs: number;
+    previewUrl: string;
+  } | null>(null);
+  const stageVoiceClip = (clip: VoiceRecording | null) => {
+    if (
+      !clip ||
+      !isUsableVoiceClip({ durationMs: clip.durationMs, sizeBytes: clip.blob.size })
+    ) {
+      showToast('Hold longer to record.', 'danger');
+      return;
+    }
+    setPendingVoice((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      const previewUrl = URL.createObjectURL(clip.blob);
+      pendingVoiceUrlRef.current = previewUrl;
+      return {
+        blob: clip.blob,
+        durationMs: clip.durationMs,
+        previewUrl,
+      };
+    });
+  };
+  const discardPendingVoice = () => {
+    stopAllVoicePlayback();
+    setPendingVoice((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      pendingVoiceUrlRef.current = null;
+      return null;
+    });
+  };
+  const voiceRecorder = useVoiceRecorder({
+    onMaxDuration: (clip) => stageVoiceClip(clip),
+  });
+  const voicePointerRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    return () => {
+      if (pendingVoiceUrlRef.current) {
+        URL.revokeObjectURL(pendingVoiceUrlRef.current);
+        pendingVoiceUrlRef.current = null;
+      }
+    };
+  }, []);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [forwardQueue, setForwardQueue] = useState<MessageView[]>([]);
   const [forwardPath, setForwardPath] = useState<'direct' | 'handle'>(
     OrderPathPreference.Direct,
   );
   const [forwardDoneTo, setForwardDoneTo] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<MessageView | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
   const [replyTo, setReplyTo] = useState<MessageView | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -144,6 +200,8 @@ export function ThreadPage() {
   const [morePos, setMorePos] = useState({ top: 0, right: 0 });
   const moreAnchorRef = useRef<HTMLButtonElement>(null);
   const morePanelRef = useRef<HTMLDivElement>(null);
+  const searchFilterAnchorRef = useRef<HTMLButtonElement>(null);
+  const [searchFilterOpen, setSearchFilterOpen] = useState(false);
   const [searchView, setSearchView] = useState<ThreadMessageViewScope>('all');
   const [searchDraft, setSearchDraft] = useState('');
   const [searchQ, setSearchQ] = useState('');
@@ -152,9 +210,17 @@ export function ThreadPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
-  const draftInputRef = useRef<HTMLInputElement>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const stickToBottom = useRef(true);
+  const stickLatch = useRef(createStickLatch(true)).current;
+  const pendingBottomScroll = useRef<{ cancel: () => void } | null>(null);
+  const openScrollDone = useRef(false);
+  /** First paint of this thread visit — before mark-read clears unread. */
+  const [openVisit, setOpenVisit] = useState<{
+    threadId: string;
+    lastReadAt: string | null;
+    unreadCount: number;
+  } | null>(null);
 
   const listView: ThreadMessageViewScope = searchOpen ? searchView : 'all';
   const listQ = searchOpen ? searchQ : '';
@@ -180,9 +246,11 @@ export function ThreadPage() {
       }),
     getNextPageParam: (last) => last.nextCursor,
     enabled: messagesEnabled,
-    staleTime: 0,
-    refetchInterval: searchOpen || listView !== 'all' || listQ ? false : 3_000,
+    // Background poll for new messages — not a hard reload every few seconds.
+    staleTime: 10_000,
+    refetchInterval: searchOpen || listView !== 'all' || listQ ? false : 10_000,
     refetchOnWindowFocus: !searchOpen,
+    placeholderData: (previous) => previous,
   });
 
   useEffect(() => {
@@ -261,6 +329,19 @@ export function ThreadPage() {
   });
 
   useEffect(() => {
+    if (!thread.data || thread.data.id !== id || !companyId) return;
+    setOpenVisit((prev) => {
+      if (prev?.threadId === id) return prev;
+      const mine = thread.data.participants.find((row) => row.companyId === companyId);
+      return {
+        threadId: id,
+        lastReadAt: mine?.lastReadAt ?? null,
+        unreadCount: thread.data.unreadCount,
+      };
+    });
+  }, [thread.data, id, companyId]);
+
+  useEffect(() => {
     if (thread.data && thread.data.state === 'active') {
       void api.post(`/threads/${id}/read`, {}).then(() => {
         void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
@@ -285,6 +366,16 @@ export function ThreadPage() {
 
   const lastMessageId = ordered[ordered.length - 1]?.id ?? null;
 
+  const firstUnreadId = useMemo(() => {
+    if (!openVisit || openVisit.threadId !== id || !companyId || openVisit.unreadCount <= 0) {
+      return null;
+    }
+    return firstUnreadMessageId(ordered, {
+      lastReadAt: openVisit.lastReadAt,
+      viewerCompanyId: companyId,
+    });
+  }, [openVisit, ordered, companyId, id]);
+
   const searchHits = useMemo(
     () => (searchOpen && searchQ ? searchHitIdsNewestFirst(ordered, searchQ) : []),
     [searchOpen, searchQ, ordered],
@@ -295,35 +386,96 @@ export function ThreadPage() {
   }, [searchQ, searchView, id]);
 
   useEffect(() => {
-    stickToBottom.current = !refMessageId;
+    openScrollDone.current = false;
+    stickLatch.pin();
+  }, [id, stickLatch]);
+
+  useEffect(() => {
+    if (refMessageId) stickLatch.unpin();
+    else stickLatch.pin();
     setHighlightId(null);
     setSearchOpen(false);
     setSearchDraft('');
     setSearchQ('');
     setSearchView('all');
     setHitIndex(0);
-  }, [id, refMessageId]);
+  }, [id, refMessageId, stickLatch]);
 
+  const pinToBottom = () => {
+    const list = listRef.current;
+    if (!list || !stickLatch.isStuck()) return;
+    pendingBottomScroll.current?.cancel();
+    stickLatch.beginProgrammatic();
+    pendingBottomScroll.current = scrollListToBottom(list, {
+      shouldStick: () => stickLatch.isStuck(),
+    });
+    // Release programmatic guard after both rAFs would have run.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        stickLatch.endProgrammatic();
+      });
+    });
+  };
+
+  // One-shot open position (unread divider or newest). Independent of poll ticks.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !messages.isSuccess || refMessageId || openScrollDone.current) return;
+    if (searchOpen) return;
+    if (!openVisit || openVisit.threadId !== id) return;
+
+    if (openVisit.unreadCount > 0 && firstUnreadId) {
+      const divider = list.querySelector<HTMLElement>('[data-testid="unread-divider"]');
+      const target =
+        divider ??
+        list.querySelector<HTMLElement>(`[data-message-id="${firstUnreadId}"]`);
+      if (target) {
+        stickLatch.unpin();
+        pendingBottomScroll.current?.cancel();
+        stickLatch.beginProgrammatic();
+        target.scrollIntoView({ block: 'start' });
+        requestAnimationFrame(() => stickLatch.endProgrammatic());
+        openScrollDone.current = true;
+        return;
+      }
+      if (messages.isFetching) return;
+    }
+
+    stickLatch.pin();
+    pinToBottom();
+    openScrollDone.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    id,
+    refMessageId,
+    searchOpen,
+    openVisit,
+    firstUnreadId,
+    messages.isSuccess,
+    messages.isFetching,
+    ordered.length,
+  ]);
+
+  // Stick to newest while the trader is at the bottom; never on background poll alone.
   useEffect(() => {
     const list = listRef.current;
     if (!list || !messages.isSuccess || refMessageId) return;
 
-    // Normal chat: stick to bottom when near end.
-    if (!searchOpen) {
-      if (!stickToBottom.current) return;
-      scrollListToBottom(list);
+    if (searchOpen) {
+      if (searchQ) return;
+      if (searchView !== 'all' && stickLatch.isStuck()) {
+        pinToBottom();
+      }
       return;
     }
 
-    // Search open + typing: jumpToSearchHit(0) lands on newest match.
-    if (searchQ) return;
-
-    // Chip browse (Photos / Orders / …): start at newest (bottom), WhatsApp-style.
-    if (searchView !== 'all' && stickToBottom.current) {
-      scrollListToBottom(list);
-    }
+    if (!openScrollDone.current) return;
+    if (!stickLatch.isStuck()) return;
+    pinToBottom();
+    // Only re-pin when the newest message changes (or search scope), not on every
+    // page-length tweak from "load earlier" / background merge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    ordered.length,
     lastMessageId,
     id,
     searchOpen,
@@ -336,12 +488,54 @@ export function ThreadPage() {
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const onScroll = () => {
-      stickToBottom.current = isNearBottom(list);
+
+    let lastScrollTop = list.scrollTop;
+    let wheelArmed = false;
+
+    const onWheel = () => {
+      wheelArmed = true;
+      stickLatch.setUserDriven(true);
     };
+    const onTouchStart = () => stickLatch.setUserDriven(true);
+    const onTouchEnd = () => stickLatch.setUserDriven(false);
+
+    const onScroll = () => {
+      const top = list.scrollTop;
+      const goingUp = top < lastScrollTop - 1;
+      lastScrollTop = top;
+
+      // Any user scroll upward unpins immediately — don't wait for a large gap.
+      if (goingUp && stickLatch.isStuck() && !stickLatch.isProgrammatic()) {
+        stickLatch.unpin();
+        pendingBottomScroll.current?.cancel();
+        pendingBottomScroll.current = null;
+      }
+
+      const result = stickLatch.onScroll(isNearBottom(list));
+      if (result === 'unpinned') {
+        pendingBottomScroll.current?.cancel();
+        pendingBottomScroll.current = null;
+      }
+
+      if (wheelArmed) {
+        wheelArmed = false;
+        stickLatch.setUserDriven(false);
+      }
+    };
+
     list.addEventListener('scroll', onScroll, { passive: true });
-    return () => list.removeEventListener('scroll', onScroll);
-  }, [id]);
+    list.addEventListener('wheel', onWheel, { passive: true });
+    list.addEventListener('touchstart', onTouchStart, { passive: true });
+    list.addEventListener('touchend', onTouchEnd, { passive: true });
+    list.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      list.removeEventListener('scroll', onScroll);
+      list.removeEventListener('wheel', onWheel);
+      list.removeEventListener('touchstart', onTouchStart);
+      list.removeEventListener('touchend', onTouchEnd);
+      list.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [id, stickLatch]);
 
   const refreshMessages = () => {
     void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
@@ -387,7 +581,7 @@ export function ThreadPage() {
       replyToMessageId?: string;
     }) => api.post<MessageView>(`/threads/${id}/messages`, payload),
     onSuccess: (message) => {
-      stickToBottom.current = true;
+      stickLatch.pin();
       insertMessage(message);
       setDraft('');
       setReplyTo(null);
@@ -395,8 +589,7 @@ export function ThreadPage() {
       setAttachStep('menu');
       setError(null);
       refreshMessages();
-      const list = listRef.current;
-      if (list) scrollListToBottom(list);
+      pinToBottom();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not send.'),
   });
@@ -439,6 +632,77 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not update payment.'),
+  });
+
+  const viewRequestAllow = useMutation({
+    mutationFn: (requestId: string) =>
+      api.post(`/collection-view-requests/${requestId}/allow`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['collection-view-requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['collection-view-grants'] });
+      setError(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not allow.'),
+  });
+
+  const viewRequestDeny = useMutation({
+    mutationFn: (requestId: string) =>
+      api.post(`/collection-view-requests/${requestId}/deny`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['collection-view-requests'] });
+      setError(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not deny.'),
+  });
+
+  const starMessage = useMutation({
+    mutationFn: ({ messageId, starred }: { messageId: string; starred: boolean }) =>
+      starred
+        ? api.post(`/messages/${messageId}/star`, {})
+        : api.del(`/messages/${messageId}/star`),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['messages', 'starred'] });
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not update star.'),
+  });
+
+  const hideMessage = useMutation({
+    mutationFn: (messageId: string) => api.post(`/threads/${id}/messages/${messageId}/hide`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      setDeleteTarget(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not delete.'),
+  });
+
+  const deleteEveryone = useMutation({
+    mutationFn: (messageId: string) =>
+      api.post(`/threads/${id}/messages/${messageId}/delete`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      setDeleteTarget(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not delete.'),
+  });
+
+  const editMessage = useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: string }) =>
+      api.patch(`/threads/${id}/messages/${messageId}`, { body }),
+    onSuccess: () => {
+      refreshMessages();
+      setEditTarget(null);
+      setEditDraft('');
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not edit.'),
   });
 
   const pinThread = useMutation({
@@ -700,14 +964,13 @@ export function ThreadPage() {
 
     setAttachSending(false);
     if (failed.size === 0) {
-      stickToBottom.current = true;
+      stickLatch.pin();
       setReplyTo(null);
       setDraft('');
       closeAttachSheet();
       setError(null);
       refreshMessages();
-      const list = listRef.current;
-      if (list) scrollListToBottom(list);
+      pinToBottom();
       return;
     }
 
@@ -729,7 +992,7 @@ export function ThreadPage() {
     if (!root) return false;
     const target = root.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
     if (!target) return false;
-    stickToBottom.current = false;
+    stickLatch.unpin();
     setError(null);
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (highlightTimer.current != null) {
@@ -756,14 +1019,14 @@ export function ThreadPage() {
         continue;
       }
       if (!messages.hasNextPage || messages.isFetchingNextPage) break;
-      stickToBottom.current = false;
+      stickLatch.unpin();
       await messages.fetchNextPage();
     }
     return highlightMessage(messageId, persist);
   };
 
   const jumpToMessage = async (messageId: string) => {
-    stickToBottom.current = false;
+    stickLatch.unpin();
     const ok = await ensureMessageHighlighted(messageId);
     if (!ok) setError('That message is not loaded in this chat view.');
   };
@@ -775,7 +1038,7 @@ export function ThreadPage() {
     const messageId = searchHits[next];
     if (!messageId) return;
 
-    stickToBottom.current = false;
+    stickLatch.unpin();
     const ok = await ensureMessageHighlighted(messageId, true);
     if (!ok) setError('That message is not loaded in this chat view.');
   };
@@ -783,7 +1046,7 @@ export function ThreadPage() {
   useEffect(() => {
     if (!refMessageId || !id) return;
     let cancelled = false;
-    stickToBottom.current = false;
+    stickLatch.unpin();
 
     void (async () => {
       await queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
@@ -815,13 +1078,14 @@ export function ThreadPage() {
   }, [searchOpen, searchQ, searchView, messages.isSuccess, messagesQueryKey.join('\0')]);
 
   const closeSearch = () => {
+    setSearchFilterOpen(false);
     setSearchOpen(false);
     setSearchDraft('');
     setSearchQ('');
     setSearchView('all');
     setHitIndex(0);
     setHighlightId(null);
-    stickToBottom.current = true;
+    stickLatch.pin();
   };
 
   const startForwardOne = (message: MessageView) => {
@@ -836,16 +1100,35 @@ export function ThreadPage() {
   const toggleSelected = (messageId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(messageId)) next.delete(messageId);
-      else next.add(messageId);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+        if (next.size === 0) {
+          setSelecting(false);
+        }
+        return next;
+      }
+      if (next.size >= MAX_FORWARD_BATCH) {
+        showToast(`You can forward up to ${MAX_FORWARD_BATCH} at a time.`, 'danger');
+        return prev;
+      }
+      next.add(messageId);
       return next;
     });
   };
 
+  const cancelForwardSelect = () => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  };
+
   const openMultiForward = () => {
-    const queue = ordered.filter((message) => selectedIds.has(message.id) && canForward(message));
+    const queue = ordered
+      .filter((message) => selectedIds.has(message.id) && canForward(message))
+      .slice(0, MAX_FORWARD_BATCH);
     if (queue.length === 0) return;
     setForwardQueue(queue);
+    setSelecting(false);
+    setSelectedIds(new Set());
   };
 
   const onPhotoPicked = async (fileList: FileList | null) => {
@@ -877,6 +1160,54 @@ export function ThreadPage() {
       setUploadProgress(null);
       if (photoRef.current) photoRef.current.value = '';
     }
+  };
+
+  const sendPendingVoice = async () => {
+    if (!pendingVoice) return;
+    const clip = pendingVoice;
+    stopAllVoicePlayback();
+    setUploadingVoice(true);
+    setUploadProgress('Sending voice…');
+    try {
+      const uploaded = await uploadAudio(clip.blob);
+      await send.mutateAsync({
+        type: 'voice',
+        body: uploaded.url,
+        metadata: { durationMs: clip.durationMs, mediaId: uploaded.mediaId },
+        replyToMessageId: replyTo?.id,
+      });
+      discardPendingVoice();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not send voice.');
+    } finally {
+      setUploadingVoice(false);
+      setUploadProgress(null);
+    }
+  };
+
+  const onVoicePointerDown = async (event: PointerEvent) => {
+    event.preventDefault();
+    if (pendingVoice || uploadingVoice || send.isPending) return;
+    voicePointerRef.current = { x: event.clientX, y: event.clientY };
+    const err = await voiceRecorder.start();
+    if (err) showToast(err, 'danger');
+  };
+
+  const onVoicePointerUp = async (event: PointerEvent) => {
+    const start = voicePointerRef.current;
+    voicePointerRef.current = null;
+    if (!voiceRecorder.recording) return;
+    if (start && start.x - event.clientX > 72) {
+      await voiceRecorder.cancel();
+      return;
+    }
+    const clip = await voiceRecorder.stopAndGet();
+    stageVoiceClip(clip);
+  };
+
+  const onVoicePointerCancel = async () => {
+    voicePointerRef.current = null;
+    if (voiceRecorder.recording) await voiceRecorder.cancel();
   };
 
   const filteredAttachProducts = useMemo(
@@ -917,6 +1248,7 @@ export function ThreadPage() {
           attachSelectedIds.size > 0 ||
           attachSending ||
           uploadingPhoto ||
+          uploadingVoice ||
           uploadProgress ||
           forwardQueue.length > 0 ||
           (selecting && selectedIds.size > 0),
@@ -934,6 +1266,17 @@ export function ThreadPage() {
     ],
   );
   const discard = useDiscardGuard(threadWipActive);
+
+  useLayoutEffect(() => {
+    const el = draftInputRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const measured = el.scrollHeight;
+    const next = chatComposerHeightPx(measured);
+    el.style.height = `${next}px`;
+    // Keep scrollable when capped; chrome hidden via ekum-no-scrollbar.
+    el.style.overflowY = measured > next ? 'auto' : 'hidden';
+  }, [draft]);
 
   if (thread.isLoading) {
     return <LoadingBlock label="Opening chat…" />;
@@ -970,9 +1313,6 @@ export function ThreadPage() {
             ? 'Share an order'
             : 'Share a photo';
 
-  const forwardableIds = ordered.filter((message) => canForward(message)).map((message) => message.id);
-  const selectAll = selectAllState(forwardableIds, selectedIds);
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
       <DiscardChangesSheet
@@ -1000,6 +1340,60 @@ export function ThreadPage() {
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => archiveGroup.mutate()}
       />
+      <Sheet
+        open={Boolean(editTarget)}
+        onClose={() => setEditTarget(null)}
+        title="Edit message"
+        footer={
+          <Button
+            fullWidth
+            disabled={!editDraft.trim() || editMessage.isPending}
+            onClick={() => {
+              if (!editTarget) return;
+              editMessage.mutate({ messageId: editTarget.id, body: editDraft.trim() });
+            }}
+          >
+            {editMessage.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        }
+      >
+        <TextArea
+          value={editDraft}
+          onChange={(event) => setEditDraft(event.target.value)}
+          rows={4}
+        />
+      </Sheet>
+      <Sheet
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete message?"
+        footer={
+          <div className="flex flex-col gap-2">
+            {deleteTarget && canDeleteForEveryone(deleteTarget) ? (
+              <Button
+                fullWidth
+                disabled={deleteEveryone.isPending || hideMessage.isPending}
+                onClick={() => deleteTarget && deleteEveryone.mutate(deleteTarget.id)}
+              >
+                Delete for everyone
+              </Button>
+            ) : null}
+            <Button
+              fullWidth
+              variant="secondary"
+              disabled={deleteEveryone.isPending || hideMessage.isPending}
+              onClick={() => deleteTarget && hideMessage.mutate(deleteTarget.id)}
+            >
+              Delete for me
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted">
+          Delete for me hides it only on your side. Delete for everyone removes it for all
+          (your messages, within 1 hour).
+        </p>
+      </Sheet>
       <PageHeader
         title={title}
         subtitle={headerSubtitle || undefined}
@@ -1016,7 +1410,7 @@ export function ThreadPage() {
                   closeSearch();
                   return;
                 }
-                stickToBottom.current = true;
+                stickLatch.pin();
                 setSearchOpen(true);
               }}
               className={cx(
@@ -1137,118 +1531,119 @@ export function ThreadPage() {
           )
         : null}
 
-      <SelectAllFloat
-        open={selecting && forwardableIds.length > 0}
-        count={selectedIds.size}
-        action={selectAll.action}
-        onAction={() => setSelectedIds(nextIdSet(forwardableIds, selectedIds))}
-      />
-
       {searchOpen ? (
-        <div
-          data-testid="thread-search-band"
-          className="mb-2 flex shrink-0 flex-col gap-1.5 rounded-xl border border-line bg-surface px-2 py-1.5"
-        >
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={searchInputRef}
-              data-testid="thread-search-input"
-              value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  closeSearch();
-                  return;
-                }
-                if (event.key === 'Enter' && searchHits.length > 0) {
-                  event.preventDefault();
-                  void jumpToSearchHit(event.shiftKey ? hitIndex + 1 : hitIndex - 1);
-                }
-              }}
-              placeholder="Search in chat"
-              className="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent"
-            />
-            {searchQ ? (
-              <>
-                <button
-                  type="button"
-                  className="shrink-0 px-1 text-sm font-semibold text-muted"
-                  onClick={() => {
-                    setSearchDraft('');
-                    setSearchQ('');
-                    stickToBottom.current = true;
-                  }}
-                >
-                  Clear
-                </button>
-                <span
-                  data-testid="thread-search-hit-count"
-                  className="shrink-0 text-xs font-semibold tabular-nums text-muted"
-                >
-                  {searchHits.length === 0 ? '0 of 0' : `${hitIndex + 1} of ${searchHits.length}`}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Older match"
-                  disabled={searchHits.length === 0}
-                  className="shrink-0 rounded-full p-1 text-slate disabled:opacity-35"
-                  onClick={() => void jumpToSearchHit(hitIndex + 1)}
-                >
-                  <ChevronUpIcon width={18} height={18} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Newer match"
-                  disabled={searchHits.length === 0}
-                  className="shrink-0 rounded-full p-1 text-slate disabled:opacity-35"
-                  onClick={() => void jumpToSearchHit(hitIndex - 1)}
-                >
-                  <ChevronDownIcon width={18} height={18} />
-                </button>
-              </>
-            ) : (
+        <div data-testid="thread-search-band" className="mb-2 flex shrink-0 flex-col gap-1.5">
+          <ListSearchRow
+            search={
+              <TextInput
+                ref={searchInputRef}
+                data-testid="thread-search-input"
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeSearch();
+                    return;
+                  }
+                  if (event.key === 'Enter' && searchHits.length > 0) {
+                    event.preventDefault();
+                    void jumpToSearchHit(event.shiftKey ? hitIndex + 1 : hitIndex - 1);
+                  }
+                }}
+                placeholder="Search in chat"
+                aria-label="Search in chat"
+                autoComplete="off"
+                className="w-full"
+              />
+            }
+            action={
+              <ListSquareButton
+                ref={searchFilterAnchorRef}
+                data-testid="thread-search-filter"
+                data-filter-active={searchView !== 'all' ? 'true' : 'false'}
+                aria-label="Filter"
+                aria-expanded={searchFilterOpen}
+                aria-haspopup="menu"
+                aria-pressed={searchView !== 'all'}
+                active={searchView !== 'all' || searchFilterOpen}
+                onClick={() => setSearchFilterOpen((open) => !open)}
+              >
+                <FilterIcon
+                  width={20}
+                  height={20}
+                  className={searchView !== 'all' || searchFilterOpen ? 'text-white' : undefined}
+                />
+              </ListSquareButton>
+            }
+          />
+          <ThreadSearchFilterMenu
+            open={searchFilterOpen}
+            onClose={() => setSearchFilterOpen(false)}
+            anchorRef={searchFilterAnchorRef}
+            value={searchView}
+            onChange={(scope) => {
+              setSearchView(scope);
+              stickLatch.pin();
+            }}
+          />
+          {searchQ ? (
+            <div className="flex items-center gap-2 px-0.5">
               <button
                 type="button"
-                className="shrink-0 px-1 text-sm font-semibold text-accent"
-                onClick={closeSearch}
+                className="text-xs font-bold tracking-tight text-accent"
+                onClick={() => {
+                  setSearchDraft('');
+                  setSearchQ('');
+                  stickLatch.pin();
+                }}
               >
-                Done
+                Clear
               </button>
-            )}
-          </div>
-          <FilterRail>
-            {(
-              [
-                ['all', 'All'],
-                ['photos', 'Photos'],
-                ['collections', 'Collections'],
-                ['designs', 'Designs'],
-                ['orders', 'Orders'],
-              ] as const
-            ).map(([value, label]) => {
-              const kindTone = kindToneClassesForMessageType(value);
-              const active = searchView === value;
-              return (
-                <Chip
-                  key={value}
-                  active={active && !kindTone}
-                  className={
-                    active && kindTone
-                      ? cx(kindTone.soft, kindTone.ink, 'border-transparent')
-                      : undefined
-                  }
-                  onClick={() => {
-                    setSearchView(value);
-                    // Chip browse / search: start at newest (bottom), WhatsApp-style.
-                    stickToBottom.current = true;
-                  }}
-                >
-                  {label}
-                </Chip>
-              );
-            })}
-          </FilterRail>
+              <span
+                data-testid="thread-search-hit-count"
+                className="text-xs font-semibold tabular-nums text-muted"
+              >
+                {searchHits.length === 0 ? '0 of 0' : `${hitIndex + 1} of ${searchHits.length}`}
+              </span>
+              <span className="flex-1" />
+              <button
+                type="button"
+                aria-label="Older match"
+                disabled={searchHits.length === 0}
+                className="rounded-full p-1.5 text-slate disabled:opacity-35"
+                onClick={() => void jumpToSearchHit(hitIndex + 1)}
+              >
+                <ChevronUpIcon width={18} height={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Newer match"
+                disabled={searchHits.length === 0}
+                className="rounded-full p-1.5 text-slate disabled:opacity-35"
+                onClick={() => void jumpToSearchHit(hitIndex - 1)}
+              >
+                <ChevronDownIcon width={18} height={18} />
+              </button>
+            </div>
+          ) : null}
+          {searchView !== 'all' ? (
+            <div className="flex flex-wrap items-center gap-x-3 px-0.5">
+              <p className="text-xs font-medium text-muted">
+                Showing <span className="text-ink">{threadSearchScopeLabel(searchView)}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchView('all');
+                  stickLatch.pin();
+                }}
+                className="inline-flex min-h-11 items-center text-xs font-bold tracking-tight text-accent"
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -1302,7 +1697,7 @@ export function ThreadPage() {
                   disabled={messages.isFetchingNextPage}
                   className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-foam disabled:opacity-50"
                   onClick={() => {
-                    stickToBottom.current = false;
+                    stickLatch.unpin();
                     void messages.fetchNextPage();
                   }}
                 >
@@ -1311,58 +1706,104 @@ export function ThreadPage() {
               </div>
             ) : null}
             {ordered.map((message) => (
-              <TimelineItem
-                key={message.id}
-                message={message}
-                primaryAcceptQuoteId={primaryAcceptQuoteId}
-                viewerCompanyId={companyId}
-                searchHighlight={searchOpen ? searchQ : ''}
-                senderLabel={
-                  message.mine
-                    ? outboundMessageLabel(message)
-                    : (detail.participants.find((row) => row.companyId === message.senderCompanyId)
-                        ?.company.name ??
-                      detail.counterpart?.name ??
-                      'Business')
-                }
-                onAcceptQuote={(orderId) => acceptQuote.mutate(orderId)}
-                onAcceptLogged={(orderId) => acceptLogged.mutate(orderId)}
-                accepting={acceptQuote.isPending || acceptLogged.isPending}
-                onPaymentAction={(askId, action) => payAct.mutate({ askId, action })}
-                paymentActing={payAct.isPending}
+              <div key={message.id}>
+                {firstUnreadId === message.id && openVisit && openVisit.unreadCount > 0 ? (
+                  <div
+                    className="mb-2.5 flex items-center gap-2 py-1"
+                    data-testid="unread-divider"
+                    role="separator"
+                    aria-label={unreadDividerLabel(openVisit.unreadCount)}
+                  >
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="shrink-0 text-[11px] font-medium text-muted">
+                      {unreadDividerLabel(openVisit.unreadCount)}
+                    </span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+                ) : null}
+                <TimelineItem
+                  message={message}
+                  primaryAcceptQuoteId={primaryAcceptQuoteId}
+                  viewerCompanyId={companyId}
+                  searchHighlight={searchOpen ? searchQ : ''}
+                  senderLabel={
+                    message.mine
+                      ? outboundMessageLabel(message)
+                      : (detail.participants.find((row) => row.companyId === message.senderCompanyId)
+                          ?.company.name ??
+                        detail.counterpart?.name ??
+                        'Business')
+                  }
+                  onAcceptQuote={(orderId) => acceptQuote.mutate(orderId)}
+                  onAcceptLogged={(orderId) => acceptLogged.mutate(orderId)}
+                  accepting={acceptQuote.isPending || acceptLogged.isPending}
+                  onPaymentAction={(askId, action) => payAct.mutate({ askId, action })}
+                  paymentActing={payAct.isPending}
                 onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)}
+                onOpenCollection={(collectionId) => navigate(`/collections/${collectionId}`)}
+                onViewRequestAllow={(requestId) => viewRequestAllow.mutate(requestId)}
+                onViewRequestDeny={(requestId) => viewRequestDeny.mutate(requestId)}
+                viewRequestActing={viewRequestAllow.isPending || viewRequestDeny.isPending}
                 onCurate={(reference) => curate.mutate(reference)}
-                curating={curate.isPending}
-                curated={Boolean(message.reference && savedRefs.has(message.reference.id))}
-                selecting={selecting}
-                selected={selectedIds.has(message.id)}
-                highlighted={highlightId === message.id}
-                onJumpToReply={
-                  message.replyTo?.available !== false && message.replyTo?.id
-                    ? () => jumpToMessage(message.replyTo!.id)
-                    : undefined
-                }
-                onToggleSelect={
-                  selecting && canForward(message)
-                    ? () => toggleSelected(message.id)
-                    : undefined
-                }
-                actions={
-                  canCompose && !selecting
-                    ? {
-                        onReply: canReplyToMessage(message)
-                          ? () => startReply(message)
-                          : undefined,
-                        onForward: canForward(message)
-                          ? () => startForwardOne(message)
-                          : undefined,
-                        onSelect: canForward(message)
-                          ? () => startSelect(message)
-                          : undefined,
-                      }
-                    : undefined
-                }
-              />
+                  curating={curate.isPending}
+                  curated={Boolean(message.reference && savedRefs.has(message.reference.id))}
+                  selecting={selecting}
+                  selected={selectedIds.has(message.id)}
+                  highlighted={highlightId === message.id}
+                  onJumpToReply={
+                    message.replyTo?.available !== false && message.replyTo?.id
+                      ? () => jumpToMessage(message.replyTo!.id)
+                      : undefined
+                  }
+                  onToggleSelect={
+                    selecting && canForward(message)
+                      ? () => toggleSelected(message.id)
+                      : undefined
+                  }
+                  actions={
+                    canCompose && !selecting
+                      ? {
+                          onReply: canReplyToMessage(message)
+                            ? () => startReply(message)
+                            : undefined,
+                          onForward: canForward(message)
+                            ? () => startForwardOne(message)
+                            : undefined,
+                          onCopy: canCopyMessage(message)
+                            ? () => {
+                                const text = copyTextForMessage(message);
+                                if (!text) return;
+                                void navigator.clipboard.writeText(text).then(
+                                  () => showToast('Copied', 'success'),
+                                  () => showToast('Could not copy', 'danger'),
+                                );
+                              }
+                            : undefined,
+                          onStar: message.deletedForEveryone
+                            ? undefined
+                            : () =>
+                                starMessage.mutate({
+                                  messageId: message.id,
+                                  starred: !message.starred,
+                                }),
+                          starred: Boolean(message.starred),
+                          onEdit: canEditMessage(message)
+                            ? () => {
+                                setEditTarget(message);
+                                setEditDraft(message.body ?? '');
+                              }
+                            : undefined,
+                          onSelect: canForward(message)
+                            ? () => startSelect(message)
+                            : undefined,
+                          onDelete: message.deletedForEveryone
+                            ? undefined
+                            : () => setDeleteTarget(message),
+                        }
+                      : undefined
+                  }
+                />
+              </div>
             ))}
             <div ref={bottomRef} />
           </>
@@ -1378,6 +1819,8 @@ export function ThreadPage() {
                     ? 'No designs in this chat'
                     : searchOpen && searchView === 'orders'
                       ? 'No orders in this chat'
+                      : searchOpen && searchView === 'starred'
+                        ? 'No starred messages'
                       : searchOpen && searchView === 'all'
                         ? 'Type to search this chat'
                         : detail.counterpart?.name
@@ -1402,27 +1845,13 @@ export function ThreadPage() {
         <p className="shrink-0 px-1 pb-1 text-center text-xs text-muted">{forwardProgress}</p>
       ) : null}
 
-      {selecting ? (
-        <div className="mb-[calc(4.25rem+env(safe-area-inset-bottom))] flex shrink-0 items-center gap-3 border-t border-line bg-surface px-1 py-2.5">
-          <button
-            type="button"
-            className="text-sm font-semibold text-muted"
-            onClick={() => {
-              setSelecting(false);
-              setSelectedIds(new Set());
-            }}
-          >
-            Cancel
-          </button>
-          <span className="flex-1" />
-          <Button
-            disabled={selectedIds.size === 0 || forward.isPending}
-            onClick={openMultiForward}
-          >
-            Forward
-          </Button>
-        </div>
-      ) : null}
+      <ThreadForwardDock
+        open={selecting && selectedIds.size > 0}
+        count={selectedIds.size}
+        pending={forward.isPending}
+        onCancel={cancelForwardSelect}
+        onForward={openMultiForward}
+      />
 
       {canCompose && !selecting ? (
         <form
@@ -1453,7 +1882,41 @@ export function ThreadPage() {
               </button>
             </div>
           ) : null}
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
+          {voiceRecorder.recording ? (
+            <p className="px-1 text-center text-xs text-danger">
+              Recording {formatVoiceDuration(voiceRecorder.elapsedMs)} · slide left to cancel
+            </p>
+          ) : null}
+          {pendingVoice ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
+              <VoicePlayer
+                src={pendingVoice.previewUrl}
+                durationMs={pendingVoice.durationMs}
+                className="min-w-0 flex-1 border-0 bg-transparent px-0 py-0"
+              />
+              <button
+                type="button"
+                aria-label="Delete recording"
+                data-testid="chat-voice-discard"
+                disabled={uploadingVoice}
+                onClick={discardPendingVoice}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-foam hover:text-ink disabled:opacity-40"
+              >
+                ×
+              </button>
+              <button
+                type="button"
+                aria-label="Send voice"
+                data-testid="chat-voice-send"
+                disabled={uploadingVoice || send.isPending}
+                onClick={() => void sendPendingVoice()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
+              >
+                <SendIcon width={18} height={18} />
+              </button>
+            </div>
+          ) : (
+          <div className="flex min-w-0 flex-1 items-end gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
             <button
               type="button"
               aria-label="Attach"
@@ -1463,24 +1926,58 @@ export function ThreadPage() {
             >
               <PlusIcon width={20} height={20} />
             </button>
-            <input
+            <textarea
               data-testid="chat-composer"
               ref={draftInputRef}
-              className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
+              rows={1}
+              enterKeyHint="send"
+              className="ekum-no-scrollbar max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-sm leading-5 text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
               placeholder="Message…"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+                  return;
+                }
+                event.preventDefault();
+                if (!draft.trim() || send.isPending) return;
+                send.mutate({
+                  type: 'text',
+                  body: draft.trim(),
+                  replyToMessageId: replyTo?.id,
+                });
+              }}
             />
-            <button
-              type="submit"
-              aria-label="Send"
-              data-testid="chat-send"
-              disabled={!draft.trim() || send.isPending}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
-            >
-              <SendIcon width={18} height={18} />
-            </button>
+            {draft.trim() ? (
+              <button
+                type="submit"
+                aria-label="Send"
+                data-testid="chat-send"
+                disabled={send.isPending}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
+              >
+                <SendIcon width={18} height={18} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Hold to record voice"
+                data-testid="chat-voice"
+                disabled={uploadingVoice || send.isPending}
+                className={cx(
+                  'flex h-9 w-9 shrink-0 touch-none items-center justify-center rounded-xl text-white disabled:opacity-40',
+                  voiceRecorder.recording ? 'bg-danger' : 'bg-accent',
+                )}
+                onPointerDown={(e) => void onVoicePointerDown(e)}
+                onPointerUp={(e) => void onVoicePointerUp(e)}
+                onPointerCancel={() => void onVoicePointerCancel()}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <MicIcon width={18} height={18} />
+              </button>
+            )}
           </div>
+          )}
         </form>
       ) : null}
 
@@ -1945,34 +2442,6 @@ function AttachList({
   );
 }
 
-function useLongPress(onLongPress?: () => void, ms = 420) {
-  const timer = useRef<number | null>(null);
-  const clear = () => {
-    if (timer.current != null) {
-      window.clearTimeout(timer.current);
-      timer.current = null;
-    }
-  };
-  return {
-    onPointerDown: () => {
-      if (!onLongPress) return;
-      clear();
-      timer.current = window.setTimeout(() => {
-        timer.current = null;
-        onLongPress();
-      }, ms);
-    },
-    onPointerUp: clear,
-    onPointerLeave: clear,
-    onPointerCancel: clear,
-    onContextMenu: (event: MouseEvent) => {
-      if (!onLongPress) return;
-      event.preventDefault();
-      onLongPress();
-    },
-  };
-}
-
 function InCardActor({ message, label }: { message: MessageView; label: string }) {
   const line = inCardSenderLine(message, label);
   if (!line) return null;
@@ -2024,6 +2493,11 @@ type MessageActions = {
   onReply?: () => void;
   onForward?: () => void;
   onSelect?: () => void;
+  onCopy?: () => void;
+  onStar?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  starred?: boolean;
 };
 
 function MessageChrome({
@@ -2036,6 +2510,8 @@ function MessageChrome({
   actions,
   children,
   className,
+  /** Chevron on accent fill (white) vs light/surface fill (muted). */
+  actionsOnAccent,
 }: {
   messageId: string;
   mine: boolean;
@@ -2046,10 +2522,20 @@ function MessageChrome({
   actions?: MessageActions;
   children: ReactNode;
   className?: string;
+  actionsOnAccent?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const hasActions = Boolean(actions?.onReply || actions?.onForward || actions?.onSelect);
+  const hasActions = Boolean(
+    actions?.onReply ||
+      actions?.onForward ||
+      actions?.onSelect ||
+      actions?.onCopy ||
+      actions?.onStar ||
+      actions?.onEdit ||
+      actions?.onDelete,
+  );
+  const chevronOnAccent = actionsOnAccent ?? mine;
   // WhatsApp-style: long-press selects; chevron opens Reply/Forward/Select menu.
   const longPress = useLongPress(
     selecting
@@ -2104,33 +2590,41 @@ function MessageChrome({
       <div
         ref={rootRef}
         data-message-id={messageId}
-        className={cx('relative', className)}
+        className={cx(
+          'relative',
+          messageChromeBubblePad(hasActions && !selecting),
+          className,
+        )}
         {...longPress}
         onClick={selecting && onToggleSelect ? () => onToggleSelect() : undefined}
       >
+        {children}
         {hasActions && !selecting ? (
           <button
             type="button"
             aria-label="Message actions"
             aria-expanded={menuOpen}
+            data-testid="message-actions"
             data-card-action
             onClick={(event) => {
               event.stopPropagation();
               setMenuOpen((open) => !open);
             }}
             className={cx(
-              'absolute right-1.5 top-1 z-10 flex h-6 w-6 items-center justify-center bg-transparent',
-              mine ? 'text-white/55 hover:text-white/80' : 'text-muted/60 hover:text-muted',
+              'absolute right-1 top-1 z-20 flex h-7 w-7 items-center justify-center rounded-full',
+              chevronOnAccent
+                ? 'text-white/90 hover:bg-white/20'
+                : 'text-muted hover:bg-black/[0.06]',
             )}
           >
             <ChevronDownIcon width={16} height={16} />
           </button>
         ) : null}
-        {children}
         {hasActions && !selecting && menuOpen ? (
           <div
             role="menu"
-            className="absolute right-1 top-8 z-20 min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft"
+            data-testid="message-actions-menu"
+            className="absolute right-1 top-8 z-30 min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft"
           >
             {actions?.onReply ? (
               <button
@@ -2158,6 +2652,45 @@ function MessageChrome({
                 Forward
               </button>
             ) : null}
+            {actions?.onCopy ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onCopy);
+                }}
+              >
+                Copy
+              </button>
+            ) : null}
+            {actions?.onStar ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onStar);
+                }}
+              >
+                {actions.starred ? 'Unstar' : 'Star'}
+              </button>
+            ) : null}
+            {actions?.onEdit ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onEdit);
+                }}
+              >
+                Edit
+              </button>
+            ) : null}
             {actions?.onSelect ? (
               <button
                 type="button"
@@ -2169,6 +2702,19 @@ function MessageChrome({
                 }}
               >
                 Select
+              </button>
+            ) : null}
+            {actions?.onDelete ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full border-t border-line/70 px-3 py-2.5 text-left text-sm font-semibold text-danger hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onDelete);
+                }}
+              >
+                Delete
               </button>
             ) : null}
           </div>
@@ -2190,6 +2736,10 @@ function TimelineItem({
   onPaymentAction,
   paymentActing,
   onOpenOrder,
+  onOpenCollection,
+  onViewRequestAllow,
+  onViewRequestDeny,
+  viewRequestActing = false,
   onCurate,
   curating,
   curated,
@@ -2211,6 +2761,10 @@ function TimelineItem({
   onPaymentAction: (askId: string, action: 'paid' | 'received') => void;
   paymentActing: boolean;
   onOpenOrder: (orderId: string) => void;
+  onOpenCollection?: (collectionId: string) => void;
+  onViewRequestAllow?: (requestId: string) => void;
+  onViewRequestDeny?: (requestId: string) => void;
+  viewRequestActing?: boolean;
   onCurate: (reference: MessageReference) => void;
   curating: boolean;
   curated: boolean;
@@ -2291,13 +2845,15 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
+        actionsOnAccent={false}
         className="max-w-[85%]"
       >
         <div className="flex flex-col gap-0.5">
           <div
             className={cx(
-              'overflow-hidden rounded-2xl border border-line bg-surface',
-              message.mine ? 'rounded-br-md' : 'rounded-bl-md',
+              MSG_BUBBLE_CLASS,
+              'overflow-hidden border border-line bg-surface',
+              chatBubbleCorners(message.mine),
             )}
           >
             {inCardSenderLine(message, senderLabel) ? (
@@ -2320,6 +2876,133 @@ function TimelineItem({
     );
   }
 
+  if (message.type === 'voice' && message.body?.trim()) {
+    const durationMs = voiceDurationMsFromMessage(message.metadata);
+    return (
+      <MessageChrome
+        messageId={message.id}
+        mine={message.mine}
+        selecting={selecting}
+        selected={selected}
+        highlighted={highlighted}
+        onToggleSelect={onToggleSelect}
+        actions={actions}
+        actionsOnAccent={false}
+        className="max-w-[85%]"
+      >
+        <div
+          className={cx(
+            MSG_BUBBLE_CLASS,
+            'flex flex-col gap-1 border border-line bg-surface px-3 py-2',
+            chatBubbleCorners(message.mine),
+          )}
+        >
+          {inCardSenderLine(message, senderLabel) ? (
+            <InCardActor message={message} label={senderLabel} />
+          ) : null}
+          {reply ? <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} /> : null}
+          <VoicePlayer src={message.body} durationMs={durationMs} />
+          <p className="text-right text-xs text-muted">{timeAgo(message.createdAt)}</p>
+        </div>
+      </MessageChrome>
+    );
+  }
+
+  if (
+    (message.type === 'system' || message.type === 'collection_card') &&
+    meta?.kind === 'collection_view_request' &&
+    typeof meta.requestId === 'string'
+  ) {
+    const status = typeof meta.status === 'string' ? meta.status : 'pending';
+    const isTarget =
+      Boolean(viewerCompanyId) &&
+      (viewerCompanyId === meta.targetCompanyId ||
+        viewerCompanyId === ref?.ownerCompanyId);
+    const pending = status === 'pending';
+    const allowed = status === 'allowed';
+    const rawBody = message.body?.trim() || '';
+    // Default ask bodies repeat the pack name — show short line; keep a real typed note.
+    const isDefaultAskBody = /^asked to see\b/i.test(rawBody);
+    const askLine = pending
+      ? isDefaultAskBody || !rawBody
+        ? isTarget
+          ? 'Asked to see this collection'
+          : 'Waiting for Allow'
+        : rawBody
+      : allowed
+        ? isDefaultAskBody || /^allowed\b/i.test(rawBody) || !rawBody
+          ? 'You can view this collection'
+          : rawBody
+        : null;
+    const model = buildCollectionTradeCard(message, ref, senderLabel, null, {
+      collectionPath:
+        allowed && typeof meta.collectionId === 'string'
+          ? `/collections/${meta.collectionId}`
+          : undefined,
+    });
+    // Ask is not a forward — same density as View collection cards.
+    if (typeof meta.collectionName === 'string' && meta.collectionName.trim()) {
+      model.primary = meta.collectionName.trim();
+    }
+    model.who = senderLabel.trim() || null;
+    model.details = [
+      ...(askLine ? [askLine] : []),
+      ...model.details.filter((line) => line !== askLine),
+    ];
+    model.note = undefined;
+    if (pending && isTarget && !selecting) {
+      model.action = undefined;
+      model.actionRow = [
+        {
+          label: viewRequestActing ? '…' : 'Deny',
+          onClick: () => {
+            if (viewRequestActing) return;
+            onViewRequestDeny?.(meta.requestId as string);
+          },
+          style: 'link',
+          emphasis: 'quiet',
+          testId: 'collection-view-deny',
+        },
+        {
+          label: viewRequestActing ? '…' : 'Allow',
+          onClick: () => {
+            if (viewRequestActing) return;
+            onViewRequestAllow?.(meta.requestId as string);
+          },
+          style: 'link',
+          emphasis: 'accent',
+          testId: 'collection-view-allow',
+        },
+      ];
+    } else if (!allowed) {
+      model.action = undefined;
+    }
+
+    return (
+      <MessageChrome
+        messageId={message.id}
+        mine={message.mine}
+        selecting={selecting}
+        selected={selected}
+        highlighted={highlighted}
+        onToggleSelect={onToggleSelect}
+        actions={undefined}
+        className="max-w-[85%]"
+      >
+        <ChatTradeCard
+          model={model}
+          highlight={hl}
+          onOpen={
+            allowed && typeof meta.collectionId === 'string' && !selecting
+              ? () => onOpenCollection?.(meta.collectionId as string)
+              : undefined
+          }
+          selecting={selecting}
+        />
+      </MessageChrome>
+    );
+  }
+
   if (message.type === 'payment_card') {
     const payMeta = (message.metadata ?? {}) as { orderId?: string; amount?: number; status?: string };
     const orderId = payMeta.orderId;
@@ -2334,12 +3017,14 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
+        actionsOnAccent={false}
         className="max-w-[85%]"
       >
         <div
           className={cx(
-            'w-full rounded-2xl border border-line bg-surface px-3 py-2.5 text-left',
-            message.mine ? 'rounded-br-md' : 'rounded-bl-md',
+            MSG_BUBBLE_CLASS,
+            'w-full border border-line bg-surface px-3 py-2.5 text-left',
+            chatBubbleCorners(message.mine),
           )}
         >
           <button
@@ -2385,19 +3070,39 @@ function TimelineItem({
       >
         <div
           className={cx(
-            'rounded-2xl px-3.5 py-2 text-sm',
+            MSG_BUBBLE_CLASS,
+            'px-3.5 py-2 text-sm',
+            chatBubbleCorners(message.mine),
             message.mine
-              ? 'rounded-br-md bg-accent text-white'
-              : 'rounded-bl-md border border-line bg-foam text-ink',
+              ? 'bg-accent text-white'
+              : 'border border-line bg-foam text-ink',
           )}
         >
-          <InCardActor message={message} label={senderLabel} />
-          {reply ? (
-            <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
-          ) : null}
-            <p className="whitespace-pre-wrap break-words">
-              {message.body?.trim() ? hl(message.body) : 'Message'}
+          {message.deletedForEveryone ? (
+            <p className={cx('italic', message.mine ? 'text-white/75' : 'text-muted')}>
+              This message was deleted
             </p>
+          ) : (
+            <>
+              <InCardActor message={message} label={senderLabel} />
+              {reply ? (
+                <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+              ) : null}
+              <p className="whitespace-pre-wrap break-words">
+                {message.body?.trim() ? hl(message.body) : 'Message'}
+              </p>
+              {message.editedAt ? (
+                <p
+                  className={cx(
+                    'mt-0.5 text-[10px]',
+                    message.mine ? 'text-white/55' : 'text-muted',
+                  )}
+                >
+                  Edited
+                </p>
+              ) : null}
+            </>
+          )}
             <p
               className={cx(
                 'mt-0.5 text-right text-xs',
@@ -2455,7 +3160,8 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
-        className="max-w-[92%]"
+        actionsOnAccent={message.mine && tradeCard.variant !== 'pulse'}
+        className="max-w-[85%]"
       >
         <div className="flex flex-col gap-0.5">
           {reply ? (
@@ -2481,7 +3187,7 @@ function TimelineItem({
       highlighted={highlighted}
       onToggleSelect={onToggleSelect}
       actions={actions}
-      className="max-w-[92%]"
+      className="max-w-[85%]"
     >
       <div className="flex flex-col gap-0.5">
         {reply ? (
@@ -2489,10 +3195,12 @@ function TimelineItem({
         ) : null}
         <div
           className={cx(
-            'overflow-hidden rounded-2xl border text-sm shadow-sm',
+            MSG_BUBBLE_CLASS,
+            'overflow-hidden border text-sm shadow-sm',
+            chatBubbleCorners(message.mine),
             message.mine
-              ? 'rounded-br-md border-accent/35 bg-accent text-white'
-              : 'rounded-bl-md border-line bg-foam text-ink',
+              ? 'border-accent/35 bg-accent text-white'
+              : 'border-line bg-foam text-ink',
           )}
         >
           <div

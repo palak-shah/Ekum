@@ -1,0 +1,75 @@
+# TradeLane — path, reveal, desk
+
+**Date:** 2026-09-02  
+**Status:** Approved for documentation (not shipped)  
+**Client lock:** first pair order = I handle, no group; four outcomes via two wholesaler switches  
+**Supersedes for new pairs (when built):** Profile-only Direct default and “always hide the other end” in [2026-08-21-direct-vs-handle-settings-design.md](./2026-08-21-direct-vs-handle-settings-design.md)  
+**Anchors:** [orders.md](../../features/orders.md), [settings.md](../../features/settings.md), [2026-09-02-trader-path-client-review.md](../reviews/2026-09-02-trader-path-client-review.md)
+
+## Problem
+
+Traders need a quiet first order and a place to change “who the ticket is with” and “can mill and retail see each other” **per supplier × buyer**, at the moment they feel it (More / order page), not on every share.
+
+## Record
+
+`TradeLane` (one per trader company × seller company × buyer company):
+
+| Field | Values | Default on first create |
+|-------|--------|-------------------------|
+| `ticket` | `me` (I handle) · `mill` (Direct) | `me` |
+| `reveal` | `false` · `true` | `false` |
+
+Four outcomes = those two fields. UI is **two switches**, never four radios.
+
+| ticket | reveal | Chat | Order counterpart (buyer) |
+|--------|--------|------|---------------------------|
+| `me` | false | Two 1:1s: buyer–trader, trader–seller | Trader |
+| `me` | true | One group: seller + trader + buyer | Trader |
+| `mill` | false | Buyer–seller 1:1; trader sees order on list | Seller |
+| `mill` | true | Same group of three | Seller |
+
+Reveal on ⇒ group exists (create once, reuse). Reveal off ⇒ no trio group. Group title = three **business** names; any of the three companies’ owners may rename (system line: who changed it). Team: each shop’s owners add staff to **this** group; roster change does not spawn a second group.
+
+## When the lane is read
+
+1. **New pair** (no row): behave as `me` + `reveal=false`. Do not stamp Profile Direct onto the first ticket.
+2. **Existing pair:** next share/order/publish/curate through this trader for that seller+buyer uses the lane.
+3. **Writes:** More on the order/share sheet, **order detail**, **Your paths**. Same copy both places.
+
+### Copy (wholesaler)
+
+- **This order is with** → **Me** / **{seller shop name}**
+- **{Seller} and {buyer} can see each other** → Off / On  
+  - On: *One group chat. Order updates go there.*  
+  - Off: *They only talk to you, not to each other.*
+
+Everyday Place / Send: **no** these controls.
+
+## Your paths
+
+Route under **You** (Settings): `/settings/paths` (name in UI: **Your paths**).
+
+- Search shop name.
+- List/table: supplier · buyer · order with · see each other.
+- Empty: no pairs until a first middle-hop order exists.
+- Tap row → same two switches; save updates `TradeLane` for **future** orders. Changing ticket/reveal on a **live** order (order page / More at place) applies to that order and updates the lane.
+
+Needs **I trade on Ekum**. Buy-only / sell-only without trading: no desk.
+
+## Profile
+
+**When buyers order from what I share** stays as optional **fallback for pairs that are not yet a lane** only after this ships — product default for a **new** lane is still I handle + no reveal, not Profile Direct.
+
+## Out of scope here
+
+- Agent capability (no rules).
+- Forward vs view vs relist (separate spec).
+- Send-hold / hide-the-hop as the *only* legal I-handle shape — hide is **reveal=false**; group is **reveal=true**.
+- Collection-as-order qty (separate).
+
+## Tests (when built)
+
+- First middle-hop order creates lane `me`/`false`; no group.
+- More / order page persist both switches; next order for same pair follows.
+- Your paths search + edit.
+- Reveal on creates or reuses one trio group; ticket `me` vs `mill` does not fork a second group.

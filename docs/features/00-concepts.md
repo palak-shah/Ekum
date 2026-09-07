@@ -40,8 +40,8 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Stories | Viewer sees a company when they **follow or are connected** and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light **New packs** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
-| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** presence (`I trade on Ekum`) gates Curate + Manage/Direct; product default off (QA may treat unset as on). Linking/split in Slice B |
-| Orders | Curated pack → **Manage** (buyer↔trader + linked upstream by `product.companyId`); forward → **Direct** (facilitator informed, Take control). Soft-hide ends on Manage |
+| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** (`I trade on Ekum`) gates Curate + TradeLane. Product default off (QA may treat unset as on). Linking/split in Slice B |
+| Orders | First middle-hop pair: **I handle**, no group. Lane = ticket **Me** / **mill** × **reveal**. Tweak on More / order page / Your paths — not on everyday Place. Soft-hide when reveal off; group when on. Take over while requested, no seller quote |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
 
@@ -61,7 +61,8 @@ flowchart LR
 | Mechanism | What it is |
 |-----------|------------|
 | **Follow** | Permissionless. See followed posts on Home / Explore “following”. Does **not** unlock full catalog or trade. |
-| **Access request** | Named gate: note + optional referral. Approve / decline. |
+| **Access request** | Named gate to **Connect** (Network): note + optional referral. Approve / decline → Connection. |
+| **Collection view Ask** | Ask to see **one pack**. Owner Allow → **Granted on request** (not Connection). Deny is silent to the asker. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
 | **Connection** | After approve: `active` → catalog visibility & trade. Owner can **pause** or **block** (silent to the other party). |
 | **Block / pause** | Viewer is not told. API returns **404** (not 403). Approve never reactivates a block — must **unblock** first. |
@@ -98,14 +99,14 @@ When publishing (or updating visibility), the sheet sets:
 
 | Field | Values | Default practice |
 |-------|--------|------------------|
-| **Audience** | `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**) | Connections |
+| **Audience** | API: `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**). **Publish / Visibility UI:** Everyone · My followers · Selected (not My connections — connections mix suppliers). | Followers |
 | **Rate visibility** | `visible` · `on_request` | On request (or company usual) |
-| **Buyers can forward** | checkbox (on by default) | Uncheck = lock this pack/design |
+| **Buyers can put this in their pack** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
 
 | Audience | Who sees on Explore |
 |----------|---------------------|
 | Everyone | Any signed-in company (existing block/trust rules) |
-| Connections | Active connections with the seller |
+| Connections | Active connections with the seller (API / legacy posts; not offered on new Publish) |
 | Followers | Companies that follow the seller (not necessarily connected) |
 | Selected | Listed companies / buyer groups |
 
@@ -113,7 +114,7 @@ When publishing (or updating visibility), the sheet sets:
 
 **Staff audit:** Product, Collection, and Order store `createdByUserId` / `updatedByUserId` (names on list/detail). Full AuditLog history UI is later.
 
-**Trust:** When locked (`allowForward === false`), only the **owner** may **Forward** that card into chat / Explore / broadcast. Non-owners get `FORWARD_NOT_ALLOWED` — even if the post is open to Everyone. **Order / Ask rates** follow **discoverability** (audience): open posts trade without Connection; Forward still needs `allowForward`. **Curate / relist** is a separate verb: assemble into your own collection then publish, still within the source permission ceiling — not the same as Forward. Never claim “exclusive” without the forward gate.
+**Trust:** **Forward / Share** (pass the card as-is) is **free**. **View** is checked when they **open** the pack or design — ask the **catalog owner**, not the last forwarder. **Bookmark** (Saved) is a private shortlist and stays free. **Curate** puts designs in **your** album (My designs); that needs `allowForward` (product: **allowRelist**). Locked → `RELIST_NOT_ALLOWED`. Snapshot still stored as `allowForward` on Product / Collection. Never claim “exclusive” without the relist gate.
 
 ## Designs vs collections
 

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ekum — trader Linked (Coming home)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #33271b;
+      --muted: #828282;
+      --canvas: #f7f3ea;
+      --surface: #fff;
+      --foam: #e8f2f1;
+      --line: #e7e8e6;
+      --accent: #2b7379;
+      --accent-dark: #1f5559;
+      --warning-soft: #fff3d1;
+      --warning-ink: #9b5c00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: #ddd8cc;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      justify-content: center;
+      padding: 32px 16px 48px;
+    }
+    h1 {
+      width: 100%;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+    .note {
+      width: 100%;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 8px;
+    }
+    .phone {
+      width: 360px;
+      background: var(--canvas);
+      border-radius: 20px;
+      border: 1px solid #d4cfc3;
+      overflow: hidden;
+      height: 780px;
+      display: flex;
+      flex-direction: column;
+    }
+    .stack { overflow: auto; }
+    .label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 10px 16px 0;
+    }
+    .search {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px 8px;
+    }
+    .search input {
+      flex: 1;
+      height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 0 14px;
+      font: inherit;
+      background: var(--surface);
+    }
+    .sq {
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+      color: var(--accent);
+      font-size: 18px;
+      display: grid;
+      place-items: center;
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      padding: 0 16px 12px;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: #3d3a37;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .chip.on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .body { flex: 1; padding: 0 16px 12px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .title { font-size: 14px; font-weight: 700; }
+    .meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .pill {
+      flex-shrink: 0;
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .pill.req { background: var(--warning-soft); color: var(--warning-ink); }
+    .hdr {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e7e8e6cc;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .back { font-size: 20px; line-height: 1; padding: 4px 8px 4px 0; }
+    .stack { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; flex: 1; }
+    .card h2 { font-size: 14px; font-weight: 700; margin: 0 0 8px; }
+    .party { font-size: 13px; color: var(--muted); line-height: 1.55; }
+    .party b { color: var(--ink); font-weight: 600; }
+    .hint { font-size: 12px; color: var(--muted); margin: -4px 0 8px; }
+    .leg {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      align-items: stretch;
+    }
+    .leg-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .send-side {
+      flex-shrink: 0;
+      height: 36px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .rail { display: flex; flex-direction: column; align-items: center; width: 12px; }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      margin-top: 4px;
+    }
+    .line { flex: 1; width: 1px; background: rgb(43 115 121 / 0.4); min-height: 18px; }
+    .kind { font-size: 11px; font-weight: 700; color: var(--muted); }
+    .leg-title { font-size: 14px; font-weight: 600; }
+    .leg-meta { font-size: 12px; color: var(--muted); }
+    .leg-body.here {
+      margin: 0 -8px;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1.5px solid var(--accent);
+      background: var(--foam);
+    }
+    .leg-body.go { padding: 4px 0; }
+    .chev { color: var(--muted); font-size: 18px; line-height: 1; flex-shrink: 0; }
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      height: 46px;
+      border: 0;
+      border-radius: 13px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+    }
+    .btn.ghost {
+      background: var(--surface);
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+    }
+    .line-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+    }
+    .line-row + .line-row { border-top: 1px solid var(--line); }
+    .thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      background: #eeeae0;
+      flex-shrink: 0;
+    }
+    .line-name { font-size: 13px; font-weight: 600; }
+    .line-meta { font-size: 11px; color: var(--muted); }
+    .grow { flex: 1; min-width: 0; }
+    .edits { display: flex; gap: 6px; flex-shrink: 0; }
+    .qty, .rate {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      text-align: center;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .qty { width: 48px; }
+    .rate { width: 64px; }
+    .shop-head { font-size: 13px; font-weight: 700; margin: 0 0 4px; }
+    .nav {
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-end;
+      padding: 8px 8px 14px;
+      border-top: 1px solid var(--line);
+      background: var(--canvas);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .nav span.on { color: var(--accent); }
+    .tl { display: flex; gap: 12px; }
+    .tl + .tl { margin-top: 10px; }
+    .tl-rail { display: flex; flex-direction: column; align-items: center; width: 12px; }
+    .tl-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      margin-top: 4px;
+    }
+    .tl-line { flex: 1; width: 1px; background: rgb(43 115 121 / 0.4); min-height: 16px; }
+    .tl-sum { font-size: 14px; font-weight: 600; }
+    .tl-meta { font-size: 12px; color: var(--muted); }
+    .fab {
+      width: 48px;
+      height: 48px;
+      margin-top: -18px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Trader · I handle · Coming is the only list row</h1>
+    <p class="note">Static mock using Ekum tokens. Not the running app.</p>
+
+    <div>
+      <div class="label">Orders list</div>
+      <div class="phone">
+        <div class="search">
+          <input placeholder="Name, status, today…" readonly />
+          <div class="sq">☰</div>
+          <div class="sq">+</div>
+        </div>
+        <div class="chips">
+          <span class="chip">Needs you</span>
+          <span class="chip on">In progress</span>
+          <span class="chip">Completed</span>
+        </div>
+        <div class="body">
+          <div class="card">
+            <div class="row">
+              <div>
+                <div class="title">Meena Textiles</div>
+                <div class="meta">#A1B2C3 · Coming · Surat + Jaipur not sent</div>
+              </div>
+              <span class="pill req">Requested</span>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <span>Home</span>
+          <span>Chats</span>
+          <span class="fab">+</span>
+          <span>Explore</span>
+          <span class="on">Orders</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">Coming #A1B2C3 · Meena’s request · Send per mill</div>
+      <div class="phone">
+        <div class="hdr"><span class="back">‹</span> Order #A1B2C3</div>
+        <div class="stack">
+          <div class="card">
+            <h2>Parties</h2>
+            <div class="party">Buyer · <b>Meena Textiles</b></div>
+            <div class="party">Seller · <b>Ahmedabad Loom Co</b> (you)</div>
+          </div>
+          <div class="card">
+            <h2>Linked</h2>
+            <p class="hint">Tap a # to open that hop. No # until Send.</p>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body here">
+                <div>
+                  <div class="kind">Coming · #A1B2C3</div>
+                  <div class="leg-title">Meena Textiles</div>
+                  <div class="leg-meta">Requested · 5 designs · you are here</div>
+                </div>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body">
+                <div>
+                  <div class="kind">Going</div>
+                  <div class="leg-title">Surat Silk House</div>
+                  <div class="leg-meta">Not sent · stay on this page to Send</div>
+                </div>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span></div>
+              <div class="leg-body">
+                <div>
+                  <div class="kind">Going</div>
+                  <div class="leg-title">Jaipur Emporium</div>
+                  <div class="leg-meta">Not sent · stay on this page to Send</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <p class="shop-head">Surat Silk House</p>
+            <p class="hint">Change qty / rate, then Send. Creates mill order.</p>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Banarasi Silk Saree</div>
+                <div class="line-meta">qty · rate</div>
+              </div>
+              <div class="edits">
+                <input class="qty" value="20" readonly />
+                <input class="rate" value="2450" readonly />
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Georgette Party Saree</div>
+                <div class="line-meta">qty · rate</div>
+              </div>
+              <div class="edits">
+                <input class="qty" value="20" readonly />
+                <input class="rate" value="1290" readonly />
+              </div>
+            </div>
+            <button class="btn" type="button">Send to Surat</button>
+          </div>
+          <div class="card">
+            <p class="shop-head">Jaipur Emporium</p>
+            <p class="hint">Same · mill order appears after Send.</p>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Cotton Dress Material</div>
+                <div class="line-meta">qty · rate</div>
+              </div>
+              <div class="edits">
+                <input class="qty" value="20" readonly />
+                <input class="rate" value="640" readonly />
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Kanjeevaram Classic</div>
+                <div class="line-meta">qty · rate</div>
+              </div>
+              <div class="edits">
+                <input class="qty" value="10" readonly />
+                <input class="rate" value="5200" readonly />
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Chiffon Evening Saree</div>
+                <div class="line-meta">qty · rate</div>
+              </div>
+              <div class="edits">
+                <input class="qty" value="15" readonly />
+                <input class="rate" value="980" readonly />
+              </div>
+            </div>
+            <button class="btn" type="button">Send to Jaipur</button>
+          </div>
+          <div class="card">
+            <h2>Timeline</h2>
+            <p class="hint">Whole trip · tagged by hop</p>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span></div>
+              <div>
+                <div class="tl-sum">Requested</div>
+                <div class="tl-meta">Coming · Meena · 5 designs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <span>Home</span>
+          <span>Chats</span>
+          <span class="fab">+</span>
+          <span>Explore</span>
+          <span class="on">Orders</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">After Send to Surat · mill ticket #D4E5F6 (no Send)</div>
+      <div class="phone">
+        <div class="hdr"><span class="back">‹</span> Order #D4E5F6</div>
+        <div class="stack">
+          <div class="card">
+            <h2>Parties</h2>
+            <div class="party">Buyer · <b>Ahmedabad Loom Co</b> (you)</div>
+            <div class="party">Seller · <b>Surat Silk House</b></div>
+          </div>
+          <div class="card">
+            <h2>Linked</h2>
+            <p class="hint">Tap Coming or a sent # · same card on every hop</p>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body go">
+                <div>
+                  <div class="kind">Coming · #A1B2C3</div>
+                  <div class="leg-title">Meena Textiles</div>
+                  <div class="leg-meta">Requested · 5 designs</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body here">
+                <div>
+                  <div class="kind">Going · #D4E5F6</div>
+                  <div class="leg-title">Surat Silk House</div>
+                  <div class="leg-meta">Sent · 2 designs · you are here</div>
+                </div>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span></div>
+              <div class="leg-body">
+                <div>
+                  <div class="kind">Going</div>
+                  <div class="leg-title">Jaipur Emporium</div>
+                  <div class="leg-meta">Not sent · open Coming to Send</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Designs</h2>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div>
+                <div class="line-name">Banarasi Silk Saree</div>
+                <div class="line-meta">20 pc</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div>
+                <div class="line-name">Georgette Party Saree</div>
+                <div class="line-meta">20 pc</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Timeline</h2>
+            <p class="hint">This mill ticket · pass-through after Send</p>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span></div>
+              <div>
+                <div class="tl-sum">Sent</div>
+                <div class="tl-meta">Going · Surat can see this now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <span>Home</span>
+          <span>Chats</span>
+          <span class="fab">+</span>
+          <span>Explore</span>
+          <span class="on">Orders</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">Coming again · Surat sent · Jaipur still here</div>
+      <div class="phone">
+        <div class="hdr"><span class="back">‹</span> Order #A1B2C3</div>
+        <div class="stack">
+          <div class="card">
+            <h2>Linked</h2>
+            <p class="hint">Tap #D4E5F6 to open Surat. Jaipur has no # yet.</p>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body here">
+                <div>
+                  <div class="kind">Coming · #A1B2C3</div>
+                  <div class="leg-title">Meena Textiles</div>
+                  <div class="leg-meta">Requested · 5 designs · you are here</div>
+                </div>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body go">
+                <div>
+                  <div class="kind">Going · #D4E5F6</div>
+                  <div class="leg-title">Surat Silk House</div>
+                  <div class="leg-meta">Sent · 2 designs</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span></div>
+              <div class="leg-body">
+                <div>
+                  <div class="kind">Going</div>
+                  <div class="leg-title">Jaipur Emporium</div>
+                  <div class="leg-meta">Not sent · 3 designs</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <p class="shop-head">Surat Silk House</p>
+            <p class="hint">Already sent · #D4E5F6 · pass-through after this</p>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Banarasi Silk Saree</div>
+                <div class="line-meta">20 · ₹2,450</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Georgette Party Saree</div>
+                <div class="line-meta">20 · ₹1,290</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <p class="shop-head">Jaipur Emporium</p>
+            <p class="hint">Still your gate · Send creates #G7H8I9</p>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Cotton Dress Material</div>
+                <div class="line-meta">qty · rate</div>
+              </div>
+              <div class="edits">
+                <input class="qty" value="20" readonly />
+                <input class="rate" value="640" readonly />
+              </div>
+            </div>
+            <button class="btn" type="button">Send to Jaipur</button>
+          </div>
+          <div class="card">
+            <h2>Timeline</h2>
+            <p class="hint">Whole trip</p>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></div>
+              <div>
+                <div class="tl-sum">Requested</div>
+                <div class="tl-meta">Coming · Meena</div>
+              </div>
+            </div>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span></div>
+              <div>
+                <div class="tl-sum">Sent</div>
+                <div class="tl-meta">Going · Surat · #D4E5F6</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <span>Home</span>
+          <span>Chats</span>
+          <span class="fab">+</span>
+          <span>Explore</span>
+          <span class="on">Orders</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">Coming · both mills sent · still one list row</div>
+      <div class="phone">
+        <div class="hdr"><span class="back">‹</span> Order #A1B2C3</div>
+        <div class="stack">
+          <div class="card">
+            <h2>Linked</h2>
+            <p class="hint">Your next tap lives on that party · not their whole toolbar</p>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div style="flex:1;min-width:0">
+                <div class="leg-body here">
+                  <div>
+                    <div class="kind">Coming · #A1B2C3</div>
+                    <div class="leg-title">Meena Textiles</div>
+                    <div class="leg-meta">Surat quoted · she has not seen rates</div>
+                  </div>
+                </div>
+                <button class="btn" type="button" style="margin-top:8px;height:40px">Send quote to Meena</button>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body go">
+                <div>
+                  <div class="kind">Going · #D4E5F6</div>
+                  <div class="leg-title">Surat Silk House</div>
+                  <div class="leg-meta">Quoted · waiting on you for Meena</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span></div>
+              <div class="leg-body go">
+                <div>
+                  <div class="kind">Going · #G7H8I9</div>
+                  <div class="leg-title">Jaipur Emporium</div>
+                  <div class="leg-meta">Sent · pass-through · no tap needed</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <p class="shop-head">Surat Silk House</p>
+            <p class="hint">#D4E5F6 · pass-through</p>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Banarasi Silk Saree</div>
+                <div class="line-meta">20 · ₹2,450</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Georgette Party Saree</div>
+                <div class="line-meta">20 · ₹1,290</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <p class="shop-head">Jaipur Emporium</p>
+            <p class="hint">#G7H8I9 · same as Surat · no Send</p>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Cotton Dress Material</div>
+                <div class="line-meta">20 · ₹640</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Kanjeevaram Classic</div>
+                <div class="line-meta">10 · ₹5,200</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div class="grow">
+                <div class="line-name">Chiffon Evening Saree</div>
+                <div class="line-meta">15 · ₹980</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Timeline</h2>
+            <p class="hint">Whole trip</p>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></div>
+              <div>
+                <div class="tl-sum">Requested</div>
+                <div class="tl-meta">Coming · Meena</div>
+              </div>
+            </div>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></div>
+              <div>
+                <div class="tl-sum">Sent</div>
+                <div class="tl-meta">Going · Surat · #D4E5F6</div>
+              </div>
+            </div>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span></div>
+              <div>
+                <div class="tl-sum">Sent</div>
+                <div class="tl-meta">Going · Jaipur · #G7H8I9</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <span>Home</span>
+          <span>Chats</span>
+          <span class="fab">+</span>
+          <span>Explore</span>
+          <span class="on">Orders</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">Going · Jaipur · #G7H8I9 after Send (no Send)</div>
+      <div class="phone">
+        <div class="hdr"><span class="back">‹</span> Order #G7H8I9</div>
+        <div class="stack">
+          <div class="card">
+            <h2>Parties</h2>
+            <div class="party">Buyer · <b>Ahmedabad Loom Co</b> (you)</div>
+            <div class="party">Seller · <b>Jaipur Emporium</b></div>
+          </div>
+          <div class="card">
+            <h2>Linked</h2>
+            <p class="hint">Tap Coming or Surat · same map everywhere</p>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body go">
+                <div>
+                  <div class="kind">Coming · #A1B2C3</div>
+                  <div class="leg-title">Meena Textiles</div>
+                  <div class="leg-meta">Requested · 5 designs</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span><span class="line"></span></div>
+              <div class="leg-body go">
+                <div>
+                  <div class="kind">Going · #D4E5F6</div>
+                  <div class="leg-title">Surat Silk House</div>
+                  <div class="leg-meta">Quoted · Needs you</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+            <div class="leg">
+              <div class="rail"><span class="dot"></span></div>
+              <div class="leg-body here">
+                <div>
+                  <div class="kind">Going · #G7H8I9</div>
+                  <div class="leg-title">Jaipur Emporium</div>
+                  <div class="leg-meta">Sent · 3 designs · you are here</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Designs</h2>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div>
+                <div class="line-name">Cotton Dress Material</div>
+                <div class="line-meta">20 · ₹640</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div>
+                <div class="line-name">Kanjeevaram Classic</div>
+                <div class="line-meta">10 · ₹5,200</div>
+              </div>
+            </div>
+            <div class="line-row">
+              <div class="thumb"></div>
+              <div>
+                <div class="line-name">Chiffon Evening Saree</div>
+                <div class="line-meta">15 · ₹980</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Timeline</h2>
+            <p class="hint">This mill ticket · pass-through after Send</p>
+            <div class="tl">
+              <div class="tl-rail"><span class="tl-dot"></span></div>
+              <div>
+                <div class="tl-sum">Sent</div>
+                <div class="tl-meta">Going · Jaipur can see this now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <span>Home</span>
+          <span>Chats</span>
+          <span class="fab">+</span>
+          <span>Explore</span>
+          <span class="on">Orders</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -67,7 +67,7 @@ export function BulkCollectionPublishSheet({ open, onClose, collectionIds, onDon
     const orderPath = resolveOrderPathPreference(settings.data.tradeDefaults);
     setPublishAudience((prev) => ({
       ...emptyPublishAudienceState(usual, orderPath),
-      audience: prev.audience || PublishAudience.Connections,
+      audience: prev.audience || PublishAudience.Followers,
     }));
     setConsent(false);
     setError(null);

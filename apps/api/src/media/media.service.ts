@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Media } from '@prisma/client';
 import {
   JobType,
+  MediaKind,
   MediaStatus,
   type CreateUploadUrlDto,
   type MediaView,
@@ -18,6 +19,9 @@ const EXTENSION: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+  'audio/webm': 'webm',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
 };
 
 @Injectable()
@@ -73,9 +77,18 @@ export class MediaService {
     };
   }
 
-  /** Confirms the client finished uploading and enqueues thumbnail derivation. */
+  /** Confirms the client finished uploading. Images enqueue thumbnail; audio is ready. */
   async complete(companyId: string, mediaId: string): Promise<MediaView> {
     const media = await this.owned(companyId, mediaId);
+    if (media.kind === MediaKind.Audio) {
+      if (media.status !== MediaStatus.Ready) {
+        await this.prisma.media.update({
+          where: { id: mediaId },
+          data: { status: MediaStatus.Ready, thumbnailUrl: null },
+        });
+      }
+      return this.get(companyId, mediaId);
+    }
     if (media.status === MediaStatus.Pending) {
       await this.prisma.media.update({
         where: { id: mediaId },

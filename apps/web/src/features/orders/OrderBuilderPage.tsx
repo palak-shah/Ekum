@@ -20,6 +20,7 @@ import { Button, Card, Field, InlineNotice, LoadingBlock, Sheet, TextArea, TextI
 import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
+import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
 import { navigateToOrderChat } from './navigateToOrderChat';
 
@@ -70,6 +71,7 @@ export function OrderBuilderPage() {
 
   const [sellerId, setSellerId] = useState(sellerFromUrl);
   const [note, setNote] = useState('');
+  const [noteVoice, setNoteVoice] = useState<NoteVoiceValue>(null);
   const [photos, setPhotos] = useState<PhotoLine[]>([]);
   const [standardLines, setStandardLines] = useState<StandardLine[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +159,8 @@ export function OrderBuilderPage() {
             sellerCompanyId: sellerId,
             kind: OrderKind.Standard,
             note: note || undefined,
+            noteVoiceMediaId: noteVoice?.mediaId,
+            noteVoiceDurationMs: noteVoice?.durationMs,
             items: standardLines.map((line) => ({
               productId: line.productId,
               quantity: Number(line.quantity) || 1,
@@ -167,6 +171,8 @@ export function OrderBuilderPage() {
             sellerCompanyId: sellerId,
             kind: OrderKind.Photo,
             note: note || undefined,
+            noteVoiceMediaId: noteVoice?.mediaId,
+            noteVoiceDurationMs: noteVoice?.durationMs,
             items: photos.map((line, index) => ({
               name: `Photo ${index + 1}`,
               quantity: Number(line.quantity) || 1,
@@ -587,17 +593,13 @@ export function OrderBuilderPage() {
         </div>
       )}
 
-      <Field label="Note">
-        <TextArea
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder={
-            isStandard
-              ? 'Delivery timeline, packing…'
-              : 'Closest matching designs and rate…'
-          }
-        />
-      </Field>
+      <NoteVoiceField
+        label="Note"
+        note={note}
+        onNoteChange={setNote}
+        voice={noteVoice}
+        onVoiceChange={setNoteVoice}
+      />
 
       {error ? <InlineNotice message={error} /> : null}
 

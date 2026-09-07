@@ -4,16 +4,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavedItemView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
-import { BrowseSelectBar } from '@/features/browse/BrowseSelectBar';
-import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
+import { readBrowseAlbumPick, writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { applySelectingPill } from '@/features/browse/selectingPill';
+import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
-import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
-import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { AlbumGrid } from '@/ui/cards';
@@ -50,34 +48,51 @@ function savedToEntry(item: SavedItemView): BrowseShortlistEntry | null {
   };
 }
 
+function savedToAlbumEntry(item: SavedItemView): BrowseAlbumEntry | null {
+  if (item.kind !== 'collection' || !item.collectionId) return null;
+  return {
+    collectionId: item.collectionId,
+    name: item.name,
+    coverImage: item.thumbUrl ?? item.images?.[0] ?? null,
+    companyId: item.company.id,
+    companyName: item.company.name,
+    productCount: item.productCount,
+  };
+}
+
+function addAlbumMany(entries: BrowseAlbumEntry[]) {
+  const byId = new Map(readBrowseAlbumPick().map((row) => [row.collectionId, row]));
+  for (const entry of entries) {
+    byId.set(entry.collectionId, entry);
+  }
+  writeBrowseAlbumPick([...byId.values()]);
+}
+
 export function SavedPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
-  const orderFlow = useShortlistOrderFlow();
+  const albumPick = useBrowseAlbumPick();
   const saved = useSavedList();
   const tab = tabFromSearch(searchParams.get('tab'));
   const [layout, setLayout] = useState<Layout>('grid');
   const [viewer, setViewer] = useState<SavedItemView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const [curateOpen, setCurateOpen] = useState(false);
 
   const setTab = (next: Tab) => {
-    if (next === 'collections' && shortlist.selectMode) {
-      shortlist.setSelectMode(false);
-    }
     setSearchParams(next === 'collections' ? { tab: 'collections' } : {}, { replace: true });
   };
 
   useEffect(() => {
     if (searchParams.get('select') !== '1') return;
     if (tab === 'collections') {
-      setSearchParams({ select: '1' }, { replace: true });
+      albumPick.setSelectMode(true);
+    } else {
+      shortlist.setSelectMode(true);
     }
-    shortlist.setSelectMode(true);
-    // Intentional: only react to URL; shortlist setter is stable enough for this entry path.
+    // Intentional: only react to URL; setters are stable enough for this entry path.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mirror prior select=1 effect
   }, [searchParams, tab, setSearchParams]);
 
@@ -98,26 +113,26 @@ export function SavedPage() {
   const visibleSavedIds = productItems
     .map((item) => item.productId)
     .filter((id): id is string => Boolean(id));
-  const selectAll = selectAllState(visibleSavedIds, shortlist.productIds);
-  const onSelectAllAction = () => {
-    if (selectAll.action === 'clear') {
-      shortlist.removeIds(visibleSavedIds);
-      return;
-    }
-    shortlist.addMany(
-      productItems.map(savedToEntry).filter((entry): entry is BrowseShortlistEntry => Boolean(entry)),
-    );
-  };
-  const canCurate =
-    shortlist.count > 0 &&
-    shortlist.entries.every((entry) => entry.allowForward !== false);
+  const visibleCollectionIds = collectionItems
+    .map((item) => item.collectionId)
+    .filter((id): id is string => Boolean(id));
+  const designSelectAll = selectAllState(visibleSavedIds, shortlist.productIds);
+  const albumSelectAll = selectAllState(visibleCollectionIds, albumPick.collectionIds);
+  const activeSelect = tab === 'collections' ? albumPick : shortlist;
+  const selectMode =
+    tab === 'collections' ? albumPick.selectMode : shortlist.selectMode;
 
   const onActivateItem = (item: SavedItemView) => {
+    if (selectMode && item.kind === 'collection') {
+      const entry = savedToAlbumEntry(item);
+      if (entry) albumPick.toggle(entry);
+      return;
+    }
     if (item.kind === 'collection' && item.collectionId) {
       navigate(`/collections/${item.collectionId}`);
       return;
     }
-    if (shortlist.selectMode && item.kind === 'product') {
+    if (selectMode && item.kind === 'product') {
       const entry = savedToEntry(item);
       if (entry) shortlist.toggle(entry);
       return;
@@ -129,24 +144,36 @@ export function SavedPage() {
   };
 
   const onLongSelectItem = (item: SavedItemView) => {
-    if (tab !== 'designs') return;
-    const entry = savedToEntry(item);
-    if (!entry) return;
-    shortlist.toggle(entry);
+    if (item.kind === 'product') {
+      const entry = savedToEntry(item);
+      if (entry) shortlist.toggle(entry);
+      return;
+    }
+    const entry = savedToAlbumEntry(item);
+    if (entry) albumPick.toggle(entry);
   };
 
-  const showSelectChrome = tab === 'designs' && productItems.length > 0;
+  const showSelectChrome =
+    (tab === 'designs' && productItems.length > 0) ||
+    (tab === 'collections' && collectionItems.length > 0);
   const showLayoutToggle = tabItems.length > 0;
+  const floaterClearance = shortlist.count + albumPick.count > 0;
+  const headerSubtitle =
+    saved.isLoading || saved.isError
+      ? undefined
+      : tab === 'designs'
+        ? productItems.length === 1
+          ? '1 design'
+          : `${productItems.length} designs`
+        : collectionItems.length === 1
+          ? '1 collection'
+          : `${collectionItems.length} collections`;
 
   return (
-    <div
-      className={cx(
-        'flex flex-col gap-4',
-        shortlist.count > 0 && 'pb-[calc(5rem+5.5rem)]',
-      )}
-    >
+    <div className={cx('flex flex-col gap-4', floaterClearance && 'pb-[calc(5rem+5.5rem)]')}>
       <PageHeader
         title="Saved"
+        subtitle={headerSubtitle}
         action={
           showSelectChrome || showLayoutToggle ? (
             <div className="flex items-center gap-1">
@@ -155,13 +182,15 @@ export function SavedPage() {
                   type="button"
                   className={cx(
                     'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
-                    shortlist.selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                    activeSelect.selectMode
+                      ? 'bg-accent text-white'
+                      : 'text-accent hover:bg-accent/5',
                   )}
                   onClick={() =>
-                    applySelectingPill(shortlist.selectMode, shortlist.count, shortlist)
+                    applySelectingPill(activeSelect.selectMode, activeSelect.count, activeSelect)
                   }
                 >
-                  {shortlist.selectMode ? 'Selecting' : 'Select'}
+                  {activeSelect.selectMode ? 'Selecting' : 'Select'}
                 </button>
               ) : null}
               {showLayoutToggle ? (
@@ -182,8 +211,29 @@ export function SavedPage() {
       <SelectAllFloat
         open={tab === 'designs' && shortlist.selectMode && visibleSavedIds.length > 0}
         count={shortlist.count}
-        action={selectAll.action}
-        onAction={onSelectAllAction}
+        allSelected={designSelectAll.allSelected}
+        onSelectAll={() =>
+          shortlist.addMany(
+            productItems
+              .map(savedToEntry)
+              .filter((entry): entry is BrowseShortlistEntry => Boolean(entry)),
+          )
+        }
+        onClear={() => shortlist.removeIds(visibleSavedIds)}
+      />
+
+      <SelectAllFloat
+        open={tab === 'collections' && albumPick.selectMode && visibleCollectionIds.length > 0}
+        count={albumPick.count}
+        allSelected={albumSelectAll.allSelected}
+        onSelectAll={() =>
+          addAlbumMany(
+            collectionItems
+              .map(savedToAlbumEntry)
+              .filter((entry): entry is BrowseAlbumEntry => Boolean(entry)),
+          )
+        }
+        onClear={() => albumPick.removeIds(visibleCollectionIds)}
       />
 
       {saved.isLoading ? (
@@ -218,15 +268,17 @@ export function SavedPage() {
                   <SavedGridTile
                     key={item.id}
                     item={item}
-                    selected={Boolean(
-                      item.productId && shortlist.productIds.has(item.productId),
-                    )}
-                    selectMode={tab === 'designs' && shortlist.selectMode}
+                    selected={
+                      item.kind === 'product'
+                        ? Boolean(item.productId && shortlist.productIds.has(item.productId))
+                        : Boolean(
+                            item.collectionId && albumPick.collectionIds.has(item.collectionId),
+                          )
+                    }
+                    selectMode={selectMode}
                     removing={unsave.isPending}
                     onOpen={() => onActivateItem(item)}
-                    onLongSelect={
-                      item.kind === 'product' ? () => onLongSelectItem(item) : undefined
-                    }
+                    onLongSelect={() => onLongSelectItem(item)}
                     onUnsave={() => unsave.mutate(item.id)}
                   />
                 ))}
@@ -237,15 +289,17 @@ export function SavedPage() {
                   <SavedFeedRow
                     key={item.id}
                     item={item}
-                    selected={Boolean(
-                      item.productId && shortlist.productIds.has(item.productId),
-                    )}
-                    selectMode={tab === 'designs' && shortlist.selectMode}
+                    selected={
+                      item.kind === 'product'
+                        ? Boolean(item.productId && shortlist.productIds.has(item.productId))
+                        : Boolean(
+                            item.collectionId && albumPick.collectionIds.has(item.collectionId),
+                          )
+                    }
+                    selectMode={selectMode}
                     removing={unsave.isPending}
                     onOpen={() => onActivateItem(item)}
-                    onLongSelect={
-                      item.kind === 'product' ? () => onLongSelectItem(item) : undefined
-                    }
+                    onLongSelect={() => onLongSelectItem(item)}
                     onUnsave={() => unsave.mutate(item.id)}
                   />
                 ))}
@@ -268,37 +322,6 @@ export function SavedPage() {
           )}
         </>
       )}
-
-      <BrowseSelectBar
-        count={shortlist.count}
-        canCurate={canCurate}
-        onCurate={() => setCurateOpen(true)}
-        canOrder={shortlist.count > 0}
-        onOrder={() => {
-          orderFlow.setError(null);
-          orderFlow.setQtyOpen(true);
-        }}
-      />
-
-      <HowManyEachSheet
-        open={orderFlow.qtyOpen}
-        onClose={() => orderFlow.setQtyOpen(false)}
-        sellerId={orderFlow.sellerIdForQty}
-        products={orderFlow.products}
-        submitting={orderFlow.submitting}
-        asking={orderFlow.asking}
-        error={orderFlow.error}
-        onSendOrder={orderFlow.sendOrder}
-        onAskRates={orderFlow.askRates}
-      />
-
-      <BatchOrderConfirmSheet
-        open={orderFlow.confirmOpen}
-        result={orderFlow.result}
-        onClose={() => orderFlow.setConfirmOpen(false)}
-      />
-
-      <CurateFromSelectionSheet open={curateOpen} onClose={() => setCurateOpen(false)} />
 
       <SavedPhotosSheet
         item={viewer}
@@ -362,15 +385,13 @@ function SavedGridTile({
       )}
     >
       <button type="button" className="block w-full text-left" onClick={onOpen} {...longPress}>
-        <div className="p-1.5">
-          <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
-        </div>
-        <div className="px-2.5 pb-2.5">
+        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
+        <div className="px-2.5 py-2.5">
           <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
           <p className="truncate text-xs text-muted">{itemMeta(item)}</p>
         </div>
       </button>
-      {selectMode && item.kind === 'product' ? (
+      {selectMode ? (
         <span
           className={cx(
             'pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
@@ -452,7 +473,7 @@ function SavedFeedRow({
         {...longPress}
       >
         <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
-        {selectMode && item.kind === 'product' ? (
+        {selectMode ? (
           <span
             className={cx(
               'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',

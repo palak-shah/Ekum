@@ -38,12 +38,13 @@ import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import { nameFromFilename } from './collectionCreateHelpers';
+import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { auditLine } from './productStatusSummary';
 import {
-  clampAudienceToCeiling,
   maxPublishAudienceForCuratedPack,
 } from './curationAudienceCeiling';
+import { audienceForPublishSheet } from './publishAudienceOptions';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import {
   emptyPublishAudienceState,
@@ -156,6 +157,18 @@ export function CollectionEditorPage() {
   const statusSummary = existing.data
     ? collectionStatusSummary(existing.data, broadcastLists.data ?? [])
     : null;
+  const ownerSourceLine =
+    existing.data && company.data?.id
+      ? collectionOwnerSourceLine(
+          company.data.id,
+          existing.data.memberShops?.length
+            ? existing.data.memberShops
+            : (existing.data.products ?? []).map((product) => ({
+                id: product.companyId,
+                name: product.companyName ?? '',
+              })),
+        )
+      : null;
 
   const selectableDesigns = (myProducts.data ?? []).filter(
     (product) => product.status !== ProductStatus.Archived,
@@ -210,7 +223,7 @@ export function CollectionEditorPage() {
       setSelected(new Set(existing.data.products.map((product) => product.id)));
       setPublishAudience(
         restorePublishAudienceState({
-          audience: existing.data.audience || PublishAudience.Connections,
+          audience: existing.data.audience || PublishAudience.Followers,
           audienceCompanyIds: existing.data.audienceCompanyIds ?? [],
           audienceGroupIds: existing.data.audienceGroupIds ?? [],
           rateVisibility: existing.data.rateVisibility,
@@ -253,7 +266,7 @@ export function CollectionEditorPage() {
   useEffect(() => {
     if (!publishOpen || !maxCuratedAudience) return;
     setPublishAudience((prev) => {
-      const nextAudience = clampAudienceToCeiling(prev.audience, maxCuratedAudience);
+      const nextAudience = audienceForPublishSheet(prev.audience, maxCuratedAudience);
       if (nextAudience === prev.audience) return prev;
       return {
         ...prev,
@@ -763,6 +776,7 @@ export function CollectionEditorPage() {
               {auditLine(existing.data) ? ` · ${auditLine(existing.data)}` : ''}
             </p>
           )}
+          {ownerSourceLine ? <p className="text-xs text-muted">{ownerSourceLine}</p> : null}
           {isPublished && existing.data.rateVisibility === RateVisibility.OnRequest ? (
             <p className="text-xs text-muted">Buyers may need to ask for rates</p>
           ) : null}
@@ -1271,6 +1285,33 @@ export function CollectionEditorPage() {
               ? 'Visibility & rates'
               : 'Publish collection'
         }
+        footer={
+          <Button
+            fullWidth
+            disabled={
+              editing
+                ? !canSubmitPublish || publish.isPending
+                : creating ||
+                  !form.name.trim() ||
+                  !((canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience))
+            }
+            onClick={() => {
+              if (!editing) {
+                void onCreate({ publish: true });
+                return;
+              }
+              publish.mutate();
+            }}
+          >
+            {creating || publish.isPending
+              ? 'Publishing…'
+              : !editing
+                ? 'Create & Publish'
+                : isPublished
+                  ? 'Update visibility'
+                  : 'Publish'}
+          </Button>
+        }
       >
         <div className="flex flex-col gap-4">
           {editing && !isPublished ? (
@@ -1305,32 +1346,6 @@ export function CollectionEditorPage() {
           />
 
           {sheetError ? <p className="text-center text-xs text-danger">{sheetError}</p> : null}
-
-          <Button
-            fullWidth
-            disabled={
-              editing
-                ? !canSubmitPublish || publish.isPending
-                : creating ||
-                  !form.name.trim() ||
-                  !((canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience))
-            }
-            onClick={() => {
-              if (!editing) {
-                void onCreate({ publish: true });
-                return;
-              }
-              publish.mutate();
-            }}
-          >
-            {creating || publish.isPending
-              ? 'Publishing…'
-              : !editing
-                ? 'Create & Publish'
-                : isPublished
-                  ? 'Update visibility'
-                  : 'Publish'}
-          </Button>
         </div>
       </Sheet>
 

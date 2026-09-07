@@ -80,6 +80,32 @@ describe('buildOrderTradeCard slots', () => {
     expect(model.variant).toBe('pulse');
     expect(model.thumbs).toHaveLength(0);
   });
+
+  it('maps quote mic note from living-card metadata (bubble and pulse)', () => {
+    const message = orderMessage({
+      id: 'r1',
+      type: 'rate',
+      body: 'Hold for tomorrow',
+      metadata: {
+        event: OrderChatEvent.QuoteSent,
+        quoted: true,
+        noteVoiceUrl: 'https://example.com/q.webm',
+        noteVoiceDurationMs: 2100,
+      },
+    });
+    const rich = buildOrderTradeCard(message, message.reference, 'Surat Silk House', false);
+    expect(rich.note).toBe('Hold for tomorrow');
+    expect(rich.noteVoiceUrl).toBe('https://example.com/q.webm');
+    expect(rich.noteVoiceDurationMs).toBe(2100);
+    expect(rich.details).not.toContain('Hold for tomorrow');
+
+    const pulse = buildOrderTradeCard(message, message.reference, 'Surat Silk House', true);
+    expect(pulse.variant).toBe('pulse');
+    expect(pulse.note).toBe('Hold for tomorrow');
+    expect(pulse.noteVoiceUrl).toBe('https://example.com/q.webm');
+    expect(pulse.noteVoiceDurationMs).toBe(2100);
+    expect(pulse.details).not.toContain('Hold for tomorrow');
+  });
 });
 
 describe('buildCollectionTradeCard / buildDesignTradeCard', () => {

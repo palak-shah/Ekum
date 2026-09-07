@@ -7,7 +7,24 @@ export type ThreadMessageViewScope =
   | 'collections'
   | 'designs'
   | 'orders'
+  | 'starred'
   | 'media';
+
+export const THREAD_SEARCH_SCOPE_OPTIONS: Array<{
+  id: Exclude<ThreadMessageViewScope, 'media'>;
+  label: string;
+}> = [
+  { id: 'all', label: 'All' },
+  { id: 'photos', label: 'Photos' },
+  { id: 'collections', label: 'Collections' },
+  { id: 'designs', label: 'Designs' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'starred', label: 'Starred' },
+];
+
+export function threadSearchScopeLabel(scope: ThreadMessageViewScope): string {
+  return THREAD_SEARCH_SCOPE_OPTIONS.find((row) => row.id === scope)?.label ?? 'All';
+}
 
 function metaOf(message: MessageView): Record<string, unknown> | null {
   return message.metadata && typeof message.metadata === 'object'

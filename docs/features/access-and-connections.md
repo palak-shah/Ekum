@@ -16,11 +16,18 @@ Buyers request / follow; sellers approve and manage connections. Both roles use 
 2. Manage lists: **You → Network → Following** / **Followers**.
 3. Followed posts appear on Home Followed and Explore network shelves.
 
-### Request access
+### Request access (Connect)
 
-1. On company profile, collection, or **Find on Ekum** (most connection pickers: name, mobile, or GST field; **Chats ＋** uses a Find on Ekum **link** after the business search — see [chat](./chat.md)) → Request access. Note is prefilled with a default (“Hi, we would like to see rates…”). Tap the field to clear and write your own; send with empty field still uses the default. Profile still lets you edit the note; picker send uses the default.
-2. Seller sees incoming on **Network → Requests** and Home Needs → Approve or Decline.
-3. Outgoing pending: same Requests page.
+1. On company profile or **Find on Ekum** → Request access. Note is prefilled…  
+2. Seller sees incoming on **Network → Requests** and Home Needs → Approve or Decline → **Connection**.
+
+### Ask to see a collection (not Connect)
+
+1. On a gated pack → **Ask to see** (not Request access).  
+2. Owner chat: same-size pack card as other shares, ask line in meta, compact WhatsApp-style **Deny | Allow** footer.  
+3. **Allow** → **Granted on request** for that pack only (chat + notification + one Home aggregate for the asker).  
+4. **Deny** → silent to the asker (no deny message).  
+5. Owner can list/remove **Granted on request** on the pack.
 
 ### Connections (both roles)
 

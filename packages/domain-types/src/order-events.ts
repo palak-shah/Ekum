@@ -14,6 +14,9 @@ export const OrderChatEvent = {
   OrderCancelled: 'order_cancelled',
   OrderDispatched: 'order_dispatched',
   OrderDelivered: 'order_delivered',
+  OrderSettled: 'order_settled',
+  /** Buyer raised a return — living order pulse: Order #… Returned + note + View order. */
+  ReturnRaised: 'return_raised',
 } as const;
 export type OrderChatEvent = (typeof OrderChatEvent)[keyof typeof OrderChatEvent];
 
@@ -28,6 +31,8 @@ const EVENT_LABELS: Record<string, string> = {
   [OrderChatEvent.OrderCancelled]: 'Cancelled',
   [OrderChatEvent.OrderDispatched]: 'Dispatched',
   [OrderChatEvent.OrderDelivered]: 'Delivered',
+  [OrderChatEvent.OrderSettled]: 'Settled',
+  [OrderChatEvent.ReturnRaised]: 'Returned',
 };
 
 function labelFor(event: string): string {
@@ -150,10 +155,15 @@ export function nextOrderAction(order: NextOrderActionInput): string | null {
       return order.partiallyShipped
         ? 'Your move: dispatch remaining'
         : 'Your move: dispatch shipment';
+    case 'part_shipped':
+      if (buying) {
+        return `Part shipped — waiting on ${other?.trim() || 'them'} for the rest`;
+      }
+      return 'Your move: dispatch remaining';
     case 'dispatched':
-      return buying
-        ? 'Your move: mark delivered'
-        : waitingOn(other, 'to mark delivered');
+      return buying ? 'Dispatched — raise a return if needed' : 'Dispatched · complete';
+    case 'settled':
+      return buying ? 'Settled — raise a return if needed' : 'Settled · complete';
     case 'delivered':
       return buying ? 'Delivered — raise a return if needed' : 'Delivered';
     case 'cancelled':
@@ -227,8 +237,12 @@ export function orderChatEventHeadline(actor: string, event: string): string {
       return `${actor} dispatched`;
     case OrderChatEvent.OrderDelivered:
       return `${actor} marked delivered`;
+    case OrderChatEvent.OrderSettled:
+      return `${actor} settled`;
     case OrderChatEvent.LinesDecided:
       return `${actor} updated`;
+    case OrderChatEvent.ReturnRaised:
+      return `${actor} returned`;
     default:
       return `${actor} · order update`;
   }

@@ -39,6 +39,24 @@ export class NotificationListeners {
     );
   }
 
+  @OnEvent(DomainEventName.CollectionViewGranted)
+  async onCollectionViewGranted(event: {
+    requesterCompanyId: string;
+    collectionId: string;
+    collectionName: string;
+  }): Promise<void> {
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId: event.requesterCompanyId,
+        type: NotificationType.Collection,
+        title: 'You can view a collection',
+        body: event.collectionName,
+        refType: 'collection',
+        refId: event.collectionId,
+      }),
+    );
+  }
+
   @OnEvent(DomainEventName.OrderCreated)
   async onOrderCreated(event: OrderCreatedEvent): Promise<void> {
     await this.guard(() =>
@@ -57,12 +75,13 @@ export class NotificationListeners {
   async onOrderStatusChanged(event: OrderStatusChangedEvent): Promise<void> {
     const recipientCompanyId =
       event.actorCompanyId === event.buyerCompanyId ? event.sellerCompanyId : event.buyerCompanyId;
+    const statusLabel = humanOrderStatus(event.status);
     await this.guard(() =>
       this.notifications.create({
         recipientCompanyId,
         type: NotificationType.Order,
-        title: `Order ${event.status}`,
-        body: `An order was marked ${event.status}.`,
+        title: `Order · ${statusLabel}`,
+        body: `Order marked ${statusLabel}.`,
         refType: 'order',
         refId: event.orderId,
       }),
@@ -163,4 +182,10 @@ export class NotificationListeners {
       );
     }
   }
+}
+
+function humanOrderStatus(status: string): string {
+  if (status === 'part_shipped') return 'Part shipped';
+  if (!status) return 'updated';
+  return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
 }

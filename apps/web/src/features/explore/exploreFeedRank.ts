@@ -114,6 +114,10 @@ export function buildRankedPostFeed(
     const bUnseen = isExplorePostUnseen(viewerCompanyId, b.id, b.activityAt, seenMap);
     if (aUnseen !== bUnseen) return aUnseen ? -1 : 1;
 
-    return b.at - a.at;
+    const timeDelta = b.at - a.at;
+    if (timeDelta !== 0) return timeDelta;
+
+    // Prefer packs over designs on equal activity so a fresh album wins ties.
+    return (a.kind === 'collection' ? 0 : 1) - (b.kind === 'collection' ? 0 : 1);
   });
 }

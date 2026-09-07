@@ -612,7 +612,8 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
 
 /**
  * WhatsApp-style album mosaic: thin gutters, no blank cells.
- * 1 → square; 2 → side-by-side; 3 → tall left + two stacked right;
+ * 1 → square; 2 → two equal halves filling the square (no empty cell);
+ * 3 → tall left + two stacked right;
  * 4+ → 2×2 with dark +N on the fourth cell when more than 4.
  */
 export function AlbumGrid({
@@ -624,7 +625,8 @@ export function AlbumGrid({
   imageCount: number;
   alt: string;
 }) {
-  const count = Math.max(images.length, imageCount);
+  // Layout from available thumbs only — never invent empty cells from productCount.
+  const count = images.length;
   if (count <= 0) {
     return (
       <div className="aspect-square overflow-hidden rounded-xl bg-foam">
@@ -642,13 +644,15 @@ export function AlbumGrid({
   }
 
   if (count === 2) {
+    // Equal halves, edge-to-edge — no gutter / foam gap (Saved, Explore, My designs).
     return (
-      <div className="grid grid-cols-2 gap-0.5 overflow-hidden rounded-xl bg-line">
-        {images.slice(0, 2).map((src, index) => (
-          <div key={index} className="aspect-square overflow-hidden bg-foam">
-            <CoverImage src={src} alt="" />
-          </div>
-        ))}
+      <div className="grid aspect-square grid-cols-2 grid-rows-1 gap-0 overflow-hidden rounded-xl">
+        <div className="relative h-full min-h-0 overflow-hidden">
+          <CoverImage src={images[0] ?? null} alt="" />
+        </div>
+        <div className="relative h-full min-h-0 overflow-hidden">
+          <CoverImage src={images[1] ?? null} alt="" />
+        </div>
       </div>
     );
   }
@@ -656,13 +660,13 @@ export function AlbumGrid({
   if (count === 3) {
     return (
       <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-xl bg-line">
-        <div className="relative row-span-2 overflow-hidden bg-foam">
+        <div className="relative row-span-2 min-h-0 overflow-hidden bg-foam">
           <CoverImage src={images[0] ?? null} alt="" />
         </div>
-        <div className="relative overflow-hidden bg-foam">
+        <div className="relative min-h-0 overflow-hidden bg-foam">
           <CoverImage src={images[1] ?? null} alt="" />
         </div>
-        <div className="relative overflow-hidden bg-foam">
+        <div className="relative min-h-0 overflow-hidden bg-foam">
           <CoverImage src={images[2] ?? null} alt="" />
         </div>
       </div>
@@ -674,11 +678,11 @@ export function AlbumGrid({
   const cells = [images[0], images[1], images[2], images[3] ?? images[2]];
 
   return (
-    <div className="grid grid-cols-2 gap-0.5 overflow-hidden rounded-xl bg-line">
+    <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-xl bg-line">
       {cells.map((src, index) => {
         const isOverflow = index === 3 && showPlus;
         return (
-          <div key={index} className="relative aspect-square overflow-hidden bg-foam">
+          <div key={index} className="relative min-h-0 overflow-hidden bg-foam">
             {src ? <CoverImage src={src} alt="" /> : null}
             {isOverflow ? (
               <div className="absolute inset-0 flex items-center justify-center bg-ink/55">

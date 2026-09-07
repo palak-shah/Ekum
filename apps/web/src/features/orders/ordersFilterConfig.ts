@@ -1,10 +1,12 @@
 import type { TradeKindFacet } from './tradeFind';
 
-/** Nine statuses in the Orders filter menu (single-select). */
+/** Statuses in the Orders filter menu (single-select). */
 export const TRADE_FILTER_STATUSES: ReadonlyArray<{ label: string; status: string }> = [
   { label: 'Requested', status: 'requested' },
   { label: 'Confirmed', status: 'confirmed' },
+  { label: 'Part shipped', status: 'part_shipped' },
   { label: 'Dispatched', status: 'dispatched' },
+  { label: 'Settled', status: 'settled' },
   { label: 'Delivered', status: 'delivered' },
   { label: 'Received', status: 'received' },
   { label: 'Approved', status: 'approved' },
@@ -15,6 +17,7 @@ export const TRADE_FILTER_STATUSES: ReadonlyArray<{ label: string; status: strin
 
 export const TRADE_FILTER_TYPES: ReadonlyArray<{ label: string; kind: TradeKindFacet }> = [
   { label: 'Order', kind: 'order' },
+  { label: 'Trading', kind: 'trading' },
   { label: 'Sample', kind: 'sample' },
   { label: 'Return', kind: 'return' },
 ];
@@ -32,6 +35,7 @@ export function tradeMenuFilterSummary(input: {
   const parts: string[] = [];
   if (input.kindFacet === 'sample') parts.push('Sample');
   else if (input.kindFacet === 'return') parts.push('Return');
+  else if (input.kindFacet === 'trading') parts.push('Trading');
   else if (input.kindFacet === 'order') parts.push('Order');
   if (input.statusFacet) {
     parts.push(tradeStatusLabel(input.statusFacet));

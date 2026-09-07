@@ -20,6 +20,17 @@ function makeTradeAccess(options: {
     postedToMarketAt?: Date | null;
   }>;
   following?: boolean;
+  collectionMemberships?: Array<{
+    collection: {
+      id: string;
+      companyId: string;
+      status: string;
+      audience: string;
+      audienceCompanyIds: string[];
+      startsAt: Date | null;
+      endsAt: Date | null;
+    };
+  }>;
 }): TradeAccess {
   const visibilityPrisma = {
     connection: {
@@ -41,6 +52,16 @@ function makeTradeAccess(options: {
     },
     follow: {
       findFirst: async () => (options.following ? { id: 'f1' } : null),
+      findUnique: async () => null,
+    },
+    collectionProduct: {
+      findMany: async () => options.collectionMemberships ?? [],
+    },
+    collectionViewGrant: {
+      findUnique: async () => null,
+    },
+    message: {
+      findFirst: async () => null,
     },
   } as unknown as PrismaService;
   return new TradeAccess(prisma, visibility);
@@ -116,6 +137,29 @@ describe('TradeAccess.assertCanTrade', () => {
       connectionStatus: null,
       following: true,
       products: [{ ...openProduct, audience: 'followers' }],
+    });
+    await expect(
+      trade.assertCanTrade('buyer', 'seller', { productIds: ['p1'] }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('allows album-only published design (no market post) via open collection', async () => {
+    const trade = makeTradeAccess({
+      connectionStatus: null,
+      products: [{ ...openProduct, postedToMarketAt: null }],
+      collectionMemberships: [
+        {
+          collection: {
+            id: 'col1',
+            companyId: 'seller',
+            status: 'published',
+            audience: 'everyone',
+            audienceCompanyIds: [],
+            startsAt: null,
+            endsAt: null,
+          },
+        },
+      ],
     });
     await expect(
       trade.assertCanTrade('buyer', 'seller', { productIds: ['p1'] }),

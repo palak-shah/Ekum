@@ -13,8 +13,17 @@ export function MorePage() {
   const { buying, selling, canPublish } = useTradePresence();
 
   const menu = [
-    ...(selling ? [{ to: '/catalog', label: 'My designs & collections' }] : []),
+    ...(selling
+      ? [
+          {
+            to: '/catalog',
+            label: 'My designs & collections',
+            hint: 'Drafts, packs, publish',
+          },
+        ]
+      : []),
     { to: '/saved', label: 'Saved' },
+    { to: '/starred', label: 'Starred' },
     { to: '/network', label: 'Network' },
     { to: '/team', label: 'Team' },
     { to: '/settings', label: 'Settings' },
@@ -60,8 +69,13 @@ export function MorePage() {
             to={item.to}
             className="flex items-center justify-between border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-foam"
           >
-            <span className="text-sm text-ink">{item.label}</span>
-            <ChevronRightIcon className="text-muted" />
+            <span className="min-w-0">
+              <span className="block text-sm text-ink">{item.label}</span>
+              {'hint' in item && item.hint ? (
+                <span className="mt-0.5 block text-xs text-muted">{item.hint}</span>
+              ) : null}
+            </span>
+            <ChevronRightIcon className="shrink-0 text-muted" />
           </Link>
         ))}
       </div>

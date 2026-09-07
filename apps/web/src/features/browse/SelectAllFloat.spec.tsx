@@ -1,44 +1,80 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SelectAllFloat } from './SelectAllFloat';
 
-afterEach(() => cleanup());
-
 describe('SelectAllFloat', () => {
-  it('renders nothing when closed', () => {
-    render(
-      <SelectAllFloat open={false} count={0} action="select-all" onAction={() => {}} />,
+  it('hides when closed', () => {
+    const { container } = render(
+      <SelectAllFloat
+        open={false}
+        count={0}
+        allSelected={false}
+        onSelectAll={() => {}}
+        onClear={() => {}}
+      />,
     );
+    expect(container).toBeEmptyDOMElement();
     expect(screen.queryByTestId('select-all-float')).toBeNull();
   });
 
-  it('shows Select all at 0 selected', () => {
+  it('shows Select all and Clear while selecting', () => {
     render(
-      <SelectAllFloat open count={0} action="select-all" onAction={() => {}} />,
+      <SelectAllFloat
+        open
+        count={1}
+        allSelected={false}
+        onSelectAll={() => {}}
+        onClear={() => {}}
+      />,
     );
-    expect(screen.getByTestId('select-all-float')).toHaveTextContent('0 selected');
-    expect(screen.getByTestId('select-all-float-action')).toHaveTextContent('Select all');
+    expect(screen.getByTestId('select-all-float')).toHaveTextContent('1 selected');
+    expect(screen.getByTestId('select-all-float-select-all')).toHaveTextContent('Select all');
+    expect(screen.getByTestId('select-all-float-clear')).toHaveTextContent('Clear');
   });
 
-  it('shows Clear when action is clear', async () => {
-    const onAction = vi.fn();
-    render(<SelectAllFloat open count={3} action="clear" onAction={onAction} />);
-    expect(screen.getByTestId('select-all-float-action')).toHaveTextContent('Clear');
-    await userEvent.click(screen.getByTestId('select-all-float-action'));
-    expect(onAction).toHaveBeenCalledOnce();
-  });
-
-  it('renders in-flow under the host, not as a document.body portal', () => {
+  it('disables Select all when everything visible is picked', () => {
     render(
-      <div data-testid="host">
-        <SelectAllFloat open count={0} action="select-all" onAction={() => {}} />
+      <SelectAllFloat
+        open
+        count={3}
+        allSelected
+        onSelectAll={() => {}}
+        onClear={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('select-all-float-select-all')).toBeDisabled();
+  });
+
+  it('fires Clear', async () => {
+    const onClear = vi.fn();
+    render(
+      <SelectAllFloat
+        open
+        count={3}
+        allSelected
+        onSelectAll={() => {}}
+        onClear={onClear}
+      />,
+    );
+    await userEvent.click(screen.getByTestId('select-all-float-clear'));
+    expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('sits under the page header band', () => {
+    render(
+      <div className="relative">
+        <SelectAllFloat
+          open
+          count={0}
+          allSelected={false}
+          onSelectAll={() => {}}
+          onClear={() => {}}
+        />
       </div>,
     );
-    const host = screen.getByTestId('host');
     const bar = screen.getByTestId('select-all-float');
-    expect(host.contains(bar)).toBe(true);
     expect(bar.className).toMatch(/sticky/);
-    expect(bar.className).not.toMatch(/\bfixed\b/);
+    expect(bar.className).toMatch(/top-\[3\.25rem\]/);
   });
 });

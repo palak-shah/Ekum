@@ -36,7 +36,9 @@ const COMPACT_ORDER_EVENTS = new Set<string>([
   OrderChatEvent.OrderDeclined,
   OrderChatEvent.OrderCancelled,
   OrderChatEvent.OrderDispatched,
+  OrderChatEvent.OrderSettled,
   OrderChatEvent.OrderDelivered,
+  OrderChatEvent.ReturnRaised,
 ]);
 
 const RICH_ORDER_EVENTS = new Set<string>([
@@ -219,6 +221,11 @@ export function buildOrderCardCopy(
   }
 
   const lines: string[] = [];
+  const parentLabel =
+    typeof meta?.parentOrderLabel === 'string' ? meta.parentOrderLabel.trim() : '';
+  if (parentLabel) {
+    lines.push(`Part of ${parentLabel}`);
+  }
   if (ref?.itemCount != null) {
     lines.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
   }
@@ -226,7 +233,7 @@ export function buildOrderCardCopy(
     const note = stripOrderChatBodyNoise(body, frozenActor);
     const looksLikeDefault =
       !note ||
-      /^(confirmed|declined|dispatched|requested|cancelled|accepted quote|marked delivered|sent quote|updated lines|updated|asked for rates)\b/i.test(
+      /^(confirmed|declined|dispatched|requested|cancelled|accepted quote|marked delivered|sent quote|updated lines|updated|asked for rates|settled|returned|raised a return)\b/i.test(
         note,
       ) ||
       headline.toLowerCase().includes(note.toLowerCase());

@@ -1,5 +1,6 @@
 import type {
   AccessRequestView,
+  CollectionViewGrantView,
   ExplorePost,
   OrderView,
   ReturnView,
@@ -24,7 +25,8 @@ export type HomeNeedKind =
   | 'mark_delivered'
   | 'review_return'
   | 'access_request'
-  | 'chat_request';
+  | 'chat_request'
+  | 'collection_view_granted';
 
 export interface HomeNeedItem {
   id: string;
@@ -45,6 +47,7 @@ const KIND_URGENCY: Record<HomeNeedKind, number> = {
   dispatch: 60,
   mark_delivered: 55,
   access_request: 50,
+  collection_view_granted: 48,
   chat_request: 45,
 };
 
@@ -156,6 +159,7 @@ export function buildHomeNeeds(input: {
   returns: ReturnView[];
   accessRequests: AccessRequestView[];
   chatRequests: ThreadSummary[];
+  collectionViewGrants?: CollectionViewGrantView[];
 }): HomeNeedItem[] {
   const items: HomeNeedItem[] = [];
 
@@ -239,6 +243,28 @@ export function buildHomeNeeds(input: {
       subtitle: thread.lastMessage?.body?.trim() || null,
       to: `/chats/${thread.id}`,
       sortAt: thread.lastMessageAt,
+    });
+  }
+
+  const grants = input.collectionViewGrants ?? [];
+  if (grants.length > 0) {
+    const newest = [...grants].sort(
+      (a, b) => Date.parse(b.grantedAt) - Date.parse(a.grantedAt),
+    )[0]!;
+    const n = grants.length;
+    items.push({
+      id: 'collection-view-grants',
+      kind: 'collection_view_granted',
+      title:
+        n === 1
+          ? `You can view · ${newest.collectionName}`
+          : `You can view ${n} collections`,
+      subtitle:
+        n === 1
+          ? newest.company.name
+          : `${newest.collectionName} · ${newest.company.name}`,
+      to: n === 1 ? `/collections/${newest.collectionId}` : '/grants',
+      sortAt: newest.grantedAt,
     });
   }
 

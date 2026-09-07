@@ -21,8 +21,12 @@ export function canDiscoverCollection(
   collection: AudienceRow,
   ctx: AudienceViewerContext = { connected: false, following: false },
   sourceCompanyIds: string[] = [],
+  hasViewGrant = false,
 ): boolean {
   if (collection.companyId === viewerCompanyId) {
+    return true;
+  }
+  if (hasViewGrant) {
     return true;
   }
   // Curated pack: hide redistribution surface from upstream source companies.
@@ -49,7 +53,9 @@ export function canViewCollectionProducts(
   viewerCompanyId: string,
   collection: AudienceRow,
   ctx: AudienceViewerContext | boolean,
+  hasViewGrant = false,
 ): boolean {
+  if (hasViewGrant) return true;
   const normalized: AudienceViewerContext =
     typeof ctx === 'boolean' ? { connected: ctx, following: false } : ctx;
   return canDiscoverCollection(viewerCompanyId, collection, normalized);

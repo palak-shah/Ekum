@@ -182,7 +182,7 @@ export function BuyerGroupFormSheet({
                   setDraft((d) => ({ ...d, allowForward: event.target.checked }))
                 }
               />
-              <span>Buyers can forward</span>
+              <span>Buyers can put this in their pack</span>
             </label>
           </>
         ) : (

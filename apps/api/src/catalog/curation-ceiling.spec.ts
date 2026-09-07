@@ -58,7 +58,7 @@ describe('assertProductsCuratable', () => {
           curatorCompanyId: 'me',
           products: [{ ...base, allowForward: false }],
         }),
-      'FORWARD_NOT_ALLOWED',
+      'RELIST_NOT_ALLOWED',
     );
   });
 

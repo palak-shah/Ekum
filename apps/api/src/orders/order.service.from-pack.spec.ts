@@ -10,6 +10,13 @@ import type { JobQueue } from '../jobs/job-queue.service';
 import type { Env } from '../core/config/config.schema';
 import type { ConfigService } from '@nestjs/config';
 import type { ThreadService } from '../conversation/thread.service';
+import type { OrderTrailService } from './order-trail.service';
+
+const stubTrail = {
+  append: async () => undefined,
+  listForViewer: async () => [],
+  backfillFromOrder: async () => undefined,
+} as unknown as OrderTrailService;
 
 describe('OrderService.createFromPack', () => {
   it('creates manage downstream and upstream per supplier', async () => {
@@ -38,6 +45,7 @@ describe('OrderService.createFromPack', () => {
       {} as ConfigService<Env, true>,
       {} as JobQueue,
       {} as ThreadService,
+      stubTrail,
     );
 
     const create = vi.spyOn(service, 'create').mockImplementation(async (actor, _user, dto, opts) => {
@@ -102,6 +110,7 @@ describe('OrderService.createFromPack', () => {
       {} as ConfigService<Env, true>,
       {} as JobQueue,
       {} as ThreadService,
+      stubTrail,
     );
 
     await expect(
@@ -138,6 +147,7 @@ describe('OrderService.createFromPack', () => {
       {} as ConfigService<Env, true>,
       {} as JobQueue,
       {} as ThreadService,
+      stubTrail,
     );
 
     await expect(

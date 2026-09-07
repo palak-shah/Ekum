@@ -44,9 +44,11 @@ model User {
   ordersQuoted       Order[]         @relation("OrderQuotedByUser")
   ordersConfirmed    Order[]         @relation("OrderConfirmedByUser")
   ordersDelivered    Order[]         @relation("OrderDeliveredByUser")
+  ordersSettled      Order[]         @relation("OrderSettledByUser")
   shipmentsDispatched OrderShipment[] @relation("ShipmentDispatchedByUser")
   savedItems         SavedItem[]
   threadMembers      ThreadMember[]
+  messageStars       MessageStar[]
 }
 
 /// The tenant root. A company may buy, sell, or both — capabilities are data.
@@ -78,6 +80,9 @@ model Company {
   accessRequestsReceived AccessRequest[] @relation("AccessTarget")
   connectionsAsOwner     Connection[]    @relation("ConnectionOwner")
   connectionsAsViewer    Connection[]    @relation("ConnectionViewer")
+  collectionViewGrants   CollectionViewGrant[] @relation("CollectionViewGrantee")
+  collectionViewRequestsSent     CollectionViewRequest[] @relation("CollectionViewRequester")
+  collectionViewRequestsReceived CollectionViewRequest[] @relation("CollectionViewTarget")
 
   products     Product[]
   collections  Collection[]
@@ -107,6 +112,8 @@ model Company {
   savedItems        SavedItem[]
   teamInvites       TeamInvite[]
   catalogShareLinks CatalogShareLink[]
+  messageHides      MessageHide[]
+  messageStars      MessageStar[]
 }
 
 /// The join between a User and a Company. Modelled many-to-many from day one so
@@ -309,6 +316,8 @@ model Collection {
   updatedByUser User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   products      CollectionProduct[]
   savedItems    SavedItem[]
+  viewGrants    CollectionViewGrant[]
+  viewRequests  CollectionViewRequest[]
 
   @@index([companyId, status])
   @@index([exploreActivityAt])
@@ -316,6 +325,43 @@ model Collection {
   @@index([status, startsAt])
   @@index([createdByUserId])
   @@index([updatedByUserId])
+}
+
+/// Reactive allow for one pack (Ask → Allow). Not Connection; not publish Selected.
+model CollectionViewGrant {
+  id           String   @id @default(cuid())
+  collectionId String
+  companyId    String
+  grantedAt    DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  company    Company    @relation("CollectionViewGrantee", fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, companyId])
+  @@index([companyId, grantedAt])
+}
+
+/// Pending Ask to see a collection. Allow → grant; Deny is silent to requester.
+model CollectionViewRequest {
+  id                  String    @id @default(cuid())
+  collectionId        String
+  requesterCompanyId  String
+  targetCompanyId     String
+  status              String    @default("pending") // pending | allowed | denied
+  threadId            String?
+  messageId           String?
+  decidedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  requester  Company    @relation("CollectionViewRequester", fields: [requesterCompanyId], references: [id], onDelete: Cascade)
+  target     Company    @relation("CollectionViewTarget", fields: [targetCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([requesterCompanyId, status])
+  @@index([targetCompanyId, status])
+  @@index([collectionId, status])
 }
 
 /// The ordered many-to-many join between Collection and Product.
@@ -451,16 +497,50 @@ model Message {
   metadata         Json?
   /** Same-thread message this is a reply to (optional). */
   replyToMessageId String?
+  editedAt               DateTime?
+  deletedForEveryoneAt   DateTime?
   createdAt        DateTime @default(now())
 
   thread  Thread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
   sender  Company @relation("MessageSender", fields: [senderCompanyId], references: [id], onDelete: Cascade)
   replyTo Message?  @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies Message[] @relation("MessageReplies")
+  hides   MessageHide[]
+  stars   MessageStar[]
 
   @@index([threadId, createdAt])
   @@index([threadId, type, createdAt])
   @@index([replyToMessageId])
+}
+
+/** Company-scoped delete-for-me (hide from our thread view). */
+model MessageHide {
+  id        String   @id @default(cuid())
+  companyId String
+  messageId String
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, messageId])
+  @@index([companyId, createdAt])
+}
+
+/** Per-user starred messages. */
+model MessageStar {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  messageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([companyId, userId, createdAt])
 }
 
 // --- Orders & Fulfillment ---------------------------------------------------
@@ -487,7 +567,13 @@ model Order {
   downstreamOrderId    String?
   /// Null + downstreamOrderId set = held from the mill until Send.
   upstreamReleasedAt   DateTime?
+  /// Trader froze confirm/qty/dispatch pass on this mill hop.
+  passHeldAt           DateTime?
   note               String?
+  /// Optional voice clip for Order.note (Media id owned by creating company).
+  noteVoiceMediaId   String?
+  noteVoiceUrl       String?
+  noteVoiceDurationMs Int?
   transporter        String?
   lrNumber           String?
   parcelCount        Int?
@@ -500,8 +586,10 @@ model Order {
   dispatchedAt         DateTime?
   deliveredAt          DateTime?
   deliveredByUserId    String?
+  settledAt            DateTime?
+  settledByUserId      String?
   // The buyer may raise returns until this instant; a background job closes the
-  // window when it passes. Null until the order is delivered.
+  // window when it passes. Null until the order is settled (or legacy delivered).
   returnWindowClosesAt DateTime?
   closedAt           DateTime?
   createdByUserId    String?
@@ -519,8 +607,10 @@ model Order {
   quotedByUser    User?       @relation("OrderQuotedByUser", fields: [quotedByUserId], references: [id], onDelete: SetNull)
   confirmedByUser User?       @relation("OrderConfirmedByUser", fields: [confirmedByUserId], references: [id], onDelete: SetNull)
   deliveredByUser User?       @relation("OrderDeliveredByUser", fields: [deliveredByUserId], references: [id], onDelete: SetNull)
+  settledByUser   User?       @relation("OrderSettledByUser", fields: [settledByUserId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   shipments     OrderShipment[]
+  trailEvents      OrderTrailEvent[]
   returns          Return[]
   complaints       Complaint[]
   paymentRequests  PaymentRequest[]
@@ -535,6 +625,30 @@ model Order {
   @@index([confirmedByUserId])
   @@index([quotedByUserId])
   @@index([deliveredByUserId])
+  @@index([settledByUserId])
+}
+
+/// Append-only fulfillment / lifecycle audit for Order detail Timeline.
+model OrderTrailEvent {
+  id                   String   @id @default(cuid())
+  orderId              String
+  type                 String
+  at                   DateTime @default(now())
+  actorCompanyId       String?
+  actorUserId          String?
+  summary              String?
+  detail               String?
+  note                 String?
+  noteVoiceMediaId     String?
+  noteVoiceUrl         String?
+  noteVoiceDurationMs  Int?
+  payload              Json?
+  createdAt            DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, at])
+  @@index([actorCompanyId])
 }
 
 /// Line snapshot. requestedQuantity is the buyer ask; quantity is the current
@@ -626,6 +740,9 @@ model Return {
   buyerCompanyId        String
   sellerCompanyId       String
   reason                String?
+  reasonVoiceMediaId    String?
+  reasonVoiceUrl        String?
+  reasonVoiceDurationMs Int?
   status                String    @default("requested") // ReturnStatus
   escalatedFromReturnId String?
   decidedAt             DateTime?
@@ -681,16 +798,19 @@ model Complaint {
 
 /// Honour-system pay ask on an order. Ekum does not move money.
 model PaymentRequest {
-  id           String    @id @default(cuid())
-  orderId      String
-  amount       Decimal
-  note         String?
-  instructions String?
-  status       String    @default("open") // PaymentRequestStatus
-  seenAt       DateTime?
-  paidAt       DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  orderId             String
+  amount              Decimal
+  note                String?
+  noteVoiceMediaId    String?
+  noteVoiceUrl        String?
+  noteVoiceDurationMs Int?
+  instructions        String?
+  status              String    @default("open") // PaymentRequestStatus
+  seenAt              DateTime?
+  paidAt              DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 

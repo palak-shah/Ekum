@@ -149,11 +149,11 @@ export function HowManyEachSheet({
     <>
       <Sheet open={open} onClose={onClose} title={sheetTitle}>
         <div className="flex flex-col gap-4 pb-1">
-          {showPlaceOrderAsk && orderGoesToNames && orderGoesToNames.length > 0 ? (
+          {orderGoesToNames && orderGoesToNames.length > 0 ? (
             <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">
               Order goes to {orderGoesToNames.join(', ')}
             </p>
-          ) : showPlaceOrderAsk && orderGoesToName ? (
+          ) : orderGoesToName ? (
             <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">
               Order goes to {orderGoesToName}
             </p>

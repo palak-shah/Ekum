@@ -1,4 +1,10 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
@@ -112,17 +118,20 @@ export function Field({ label, hint, error, children }: FieldProps) {
   );
 }
 
-export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={cx(
-        'min-h-[46px] rounded-[13px] border border-line bg-surface px-3.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
+export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function TextInput({ className, ...props }, ref) {
+    return (
+      <input
+        ref={ref}
+        className={cx(
+          'min-h-[46px] rounded-[13px] border border-line bg-surface px-3.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+);
 
 export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (

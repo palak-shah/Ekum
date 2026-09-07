@@ -3,12 +3,20 @@ import type { Message } from '@prisma/client';
 import { MessageType } from '@ekum/domain-types';
 import { ReferenceResolver } from './reference-resolver';
 import type { PrismaService } from '../core/prisma/prisma.service';
+import type { VisibilityService } from '../access/visibility.service';
 
 /**
  * Product/collection cards resolve live name/image plus catalog owner company
  * (so forwards still show whose design it is). Deleted targets resolve unavailable.
  */
-function makeResolver() {
+function makeVisibility(connected = true): VisibilityService {
+  return {
+    canViewCatalog: async () => connected,
+  } as unknown as VisibilityService;
+}
+
+function makeResolver(opts?: { connected?: boolean; following?: boolean }) {
+  const following = opts?.following ?? true;
   const prisma = {
     product: {
       findMany: async () => [
@@ -18,6 +26,8 @@ function makeResolver() {
           images: ['img1'],
           companyId: 'co1',
           allowForward: true,
+          audience: 'everyone',
+          audienceCompanyIds: [],
           company: { id: 'co1', name: 'Surat Silk House' },
         },
       ],
@@ -30,6 +40,8 @@ function makeResolver() {
           coverImage: 'cover1',
           companyId: 'co1',
           allowForward: false,
+          audience: 'followers',
+          audienceCompanyIds: [],
           company: { id: 'co1', name: 'Surat Silk House' },
           _count: { products: 2 },
           products: [
@@ -46,7 +58,10 @@ function makeResolver() {
           status: 'requested',
           buyerCompanyId: 'buyer',
           sellerCompanyId: 'seller',
+          facilitatorCompanyId: null,
           confirmedByCompanyId: null,
+          downstreamOrderId: null,
+          upstreamReleasedAt: null,
           buyer: { name: 'Jaipur Emporium' },
           seller: { name: 'Surat Silk House' },
           _count: { items: 3 },
@@ -76,8 +91,14 @@ function makeResolver() {
         },
       ],
     },
+    follow: {
+      findUnique: async () => (following ? { id: 'f1' } : null),
+    },
+    collectionViewGrant: {
+      findMany: async () => [],
+    },
   } as unknown as PrismaService;
-  return new ReferenceResolver(prisma);
+  return new ReferenceResolver(prisma, makeVisibility(opts?.connected ?? true));
 }
 
 const message = (over: Partial<Message>): Message =>
@@ -119,6 +140,33 @@ describe('ReferenceResolver catalog cards', () => {
     expect(reference?.name).toBeNull();
   });
 
+  it('keeps collection thumbs locked when the viewer lacks audience rights', async () => {
+    const resolver = makeResolver({ following: false, connected: false });
+    const references = await resolver.resolve(
+      [message({ id: 'm-col', type: MessageType.CollectionCard, referenceId: 'c1' })],
+      'meena',
+    );
+    const reference = references.get('m-col');
+    expect(reference?.available).toBe(true);
+    expect(reference?.name).toBe('Wedding Edit');
+    expect(reference?.images).toEqual(['d1', 'd2']);
+    expect(reference?.image).toBe('d1');
+    expect(reference?.imagesLocked).toBe(true);
+    expect(reference?.ownerCompanyName).toBe('Surat Silk House');
+  });
+
+  it('unlocks collection thumbs when the viewer is in audience', async () => {
+    const resolver = makeResolver({ following: true, connected: false });
+    const references = await resolver.resolve(
+      [message({ id: 'm-col', type: MessageType.CollectionCard, referenceId: 'c1' })],
+      'ravi',
+    );
+    const reference = references.get('m-col');
+    expect(reference?.images).toEqual(['d1', 'd2']);
+    expect(reference?.image).toBe('d1');
+    expect(reference?.imagesLocked).toBe(false);
+  });
+
   it('resolves order cards with all line photos for the viewer', async () => {
     const resolver = makeResolver();
     const references = await resolver.resolve(
@@ -130,6 +178,26 @@ describe('ReferenceResolver catalog cards', () => {
     expect(reference?.images).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'c2.jpg']);
     expect(reference?.image).toBe('a.jpg');
     expect(reference?.itemCount).toBe(3);
+  });
+
+  it('strips order teasers for non-party viewers (no names / thumbs / amounts)', async () => {
+    const resolver = makeResolver();
+    const references = await resolver.resolve(
+      [message({ id: 'm-fwd', type: MessageType.OrderCard, referenceId: 'ord1' })],
+      'stranger',
+    );
+    const reference = references.get('m-fwd');
+    expect(reference?.available).toBe(false);
+    expect(reference?.name).toBe('Unavailable');
+    expect(reference?.images).toEqual([]);
+    expect(reference?.image).toBeNull();
+    expect(reference?.buyerName).toBeNull();
+    expect(reference?.sellerName).toBeNull();
+    expect(reference?.counterpartName).toBeNull();
+    expect(reference?.totalLabel).toBeNull();
+    expect(reference?.orderLabel).toBeNull();
+    expect(reference?.itemCount).toBeNull();
+    expect(reference?.status).toBeNull();
   });
 
   it('resolves legacy system line-decision notices as order refs', async () => {
@@ -175,7 +243,7 @@ describe('ReferenceResolver catalog cards', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
     const references = await resolver.resolve(
       [
         message({
@@ -240,7 +308,7 @@ describe('ReferenceResolver order / quote timeline totals', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
 
     const references = await resolver.resolve(
       [
@@ -296,22 +364,25 @@ describe('ReferenceResolver order / quote timeline totals', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
 
-    const references = await resolver.resolve([
-      message({
-        id: 'm-old',
-        type: MessageType.Rate,
-        referenceId: 'ord1',
-        metadata: { totalLabel: '₹500', quoted: true },
-      }),
-      message({
-        id: 'm-new',
-        type: MessageType.Rate,
-        referenceId: 'ord1',
-        metadata: { totalLabel: '₹999', quoted: true },
-      }),
-    ]);
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-old',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          metadata: { totalLabel: '₹500', quoted: true },
+        }),
+        message({
+          id: 'm-new',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          metadata: { totalLabel: '₹999', quoted: true },
+        }),
+      ],
+      'buyer',
+    );
 
     expect(references.get('m-old')?.totalLabel).toBe('₹500');
     expect(references.get('m-new')?.totalLabel).toBe('₹999');
@@ -346,7 +417,7 @@ describe('ReferenceResolver canAcceptQuote live affordance', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
     const references = await resolver.resolve(
       [
         message({
@@ -396,7 +467,7 @@ describe('ReferenceResolver canAcceptQuote live affordance', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
     const references = await resolver.resolve(
       [
         message({
@@ -440,7 +511,7 @@ describe('ReferenceResolver canAcceptQuote live affordance', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
     const references = await resolver.resolve(
       [
         message({
@@ -474,7 +545,7 @@ describe('ReferenceResolver payment cards', () => {
         ],
       },
     } as unknown as PrismaService;
-    const resolver = new ReferenceResolver(prisma);
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
     const references = await resolver.resolve([
       message({
         id: 'm-pay',

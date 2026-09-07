@@ -16,6 +16,8 @@ export interface ChatTradeCardAction {
   to?: string;
   style: ChatTradeCardActionStyle;
   testId?: string;
+  /** Footer row: accent vs quiet (equal size). Default accent. */
+  emphasis?: 'accent' | 'quiet';
 }
 
 export interface ChatTradeCardModel {
@@ -28,8 +30,16 @@ export interface ChatTradeCardModel {
   details: string[];
   thumbs: string[];
   thumbOverflow?: number;
+  /** Gated catalog teaser — blur thumbs; no PhotoViewer. */
+  imagesLocked?: boolean;
   action?: ChatTradeCardAction;
   secondaryAction?: { label: string; onClick?: () => void };
+  /** Equal-weight side-by-side CTAs (e.g. Allow | Deny). Prefer over action + secondaryAction. */
+  actionRow?: ChatTradeCardAction[];
+  /** Caption / ask text under card meta (e.g. Meena’s “Asked to see…”). */
+  note?: string;
+  noteVoiceUrl?: string | null;
+  noteVoiceDurationMs?: number | null;
   createdAt: string;
   mine: boolean;
   /** Compact order pulse — left accent, no thumbs. */
@@ -80,6 +90,8 @@ export function isRedundantActionDetail(detail: string, primary: string): boolea
     cancelled: ['cancelled'],
     dispatched: ['dispatched', 'dispatched part'],
     delivered: ['marked delivered'],
+    settled: ['settled'],
+    returned: ['returned', 'raised a return'],
     quote: ['sent quote'],
     inquiry: ['asked for rates'],
     updated: ['updated', 'updated lines'],
@@ -146,7 +158,7 @@ function compactOrderDetails(
 }
 
 function messagePartyFromHeadline(headline: string, fallback: string): string | null {
-  const match = headline.match(/^(.+?)\s+(?:requested|accepted|declined|cancelled|dispatched|marked|sent|asked|updated|confirmed)/i);
+  const match = headline.match(/^(.+?)\s+(?:requested|accepted|declined|cancelled|dispatched|marked|sent|asked|updated|confirmed|settled|returned)/i);
   if (match?.[1]?.trim()) return match[1].trim();
   return fallback.trim() || null;
 }
@@ -199,6 +211,22 @@ export function buildOrderTradeCard(
       details = [total, ...details];
     }
   }
+  const meta =
+    message.metadata && typeof message.metadata === 'object'
+      ? (message.metadata as Record<string, unknown>)
+      : null;
+  const noteVoiceUrl =
+    typeof meta?.noteVoiceUrl === 'string' ? meta.noteVoiceUrl : null;
+  const noteVoiceDurationMs =
+    typeof meta?.noteVoiceDurationMs === 'number' ? meta.noteVoiceDurationMs : null;
+  const quoteNote =
+    message.type === 'rate' && message.body?.trim() && !/^Quote\b/i.test(message.body.trim())
+      ? message.body.trim()
+      : undefined;
+  // Body note is also pushed into copy.lines — keep it only in `note` (once).
+  if (quoteNote) {
+    details = details.filter((line) => line.trim() !== quoteNote);
+  }
   return {
     kind,
     primary,
@@ -207,6 +235,9 @@ export function buildOrderTradeCard(
     thumbs,
     thumbOverflow: overflow,
     action: buildOrderActions({ ...actions, ref }),
+    note: quoteNote,
+    noteVoiceUrl,
+    noteVoiceDurationMs,
     createdAt: message.createdAt,
     mine: message.mine,
     variant: compact ? 'pulse' : 'bubble',
@@ -239,6 +270,7 @@ export function buildCollectionTradeCard(
     details,
     thumbs,
     thumbOverflow: overflow,
+    imagesLocked: Boolean(ref?.imagesLocked),
     action: ref?.available
       ? { label: 'View collection →', to: actions.collectionPath, style: 'link' }
       : undefined,
@@ -279,6 +311,7 @@ export function buildDesignTradeCard(
     details,
     thumbs,
     thumbOverflow: overflow,
+    imagesLocked: Boolean(ref?.imagesLocked),
     action: ref?.available
       ? { label: 'View design →', to: actions.productPath, style: 'link' }
       : undefined,

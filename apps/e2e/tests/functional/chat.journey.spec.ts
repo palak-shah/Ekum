@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { loginAsMeena } from '../../helpers/persona';
 
+async function pickThreadSearchScope(page: import('@playwright/test').Page, scope: string) {
+  await page.getByTestId('thread-search-filter').click();
+  await page.getByTestId(`thread-search-filter-${scope}`).click();
+}
+
 test.describe('chat journey @functional @chat', () => {
   test('send text and use in-thread search scopes + stepper', async ({ page }) => {
     await loginAsMeena(page);
@@ -14,16 +19,16 @@ test.describe('chat journey @functional @chat', () => {
     await page.getByTestId('thread-search-toggle').click();
     await expect(page.getByTestId('thread-search-band')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Orders', exact: true }).click();
+    await pickThreadSearchScope(page, 'orders');
     await expect(page.getByTestId('thread-search-band')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Photos', exact: true }).click();
+    await pickThreadSearchScope(page, 'photos');
     await expect(page.getByTestId('thread-search-band')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Designs', exact: true }).click();
+    await pickThreadSearchScope(page, 'designs');
     await expect(page.getByTestId('thread-search-band')).toBeVisible();
 
-    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await pickThreadSearchScope(page, 'all');
     await page.getByTestId('thread-search-input').fill(marker);
     await expect(page.getByTestId('thread-search-hit-count')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('thread-search-hit-count')).toHaveText(/1 of 1|of \d+/);

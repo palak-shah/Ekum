@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import {
   clearBrowseAlbumPick,
   readBrowseAlbumPick,
+  removeBrowseAlbumIds,
   subscribeBrowseAlbumPick,
   toggleBrowseAlbumEntry,
   type BrowseAlbumEntry,
@@ -31,6 +32,12 @@ export function useBrowseAlbumPick() {
     return next;
   }, []);
 
+  const removeIds = useCallback((ids: string[]) => {
+    const next = removeBrowseAlbumIds(ids);
+    setSelectMode(next.length > 0);
+    return next;
+  }, []);
+
   const clear = useCallback(() => {
     clearBrowseAlbumPick();
     setSelectMode(false);
@@ -41,6 +48,7 @@ export function useBrowseAlbumPick() {
     collectionIds,
     count: entries.length,
     toggle,
+    removeIds,
     clear,
     selectMode,
     setSelectMode,

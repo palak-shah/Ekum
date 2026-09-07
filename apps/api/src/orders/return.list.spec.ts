@@ -38,6 +38,9 @@ describe('ReturnService.list', () => {
         returnRequested: () => undefined,
         returnDecided: () => undefined,
       } as unknown as DomainEvents,
+      {
+        append: async () => undefined,
+      } as unknown as import('./order-trail.service').OrderTrailService,
     );
 
     const page = await service.list('seller', { limit: 20 });

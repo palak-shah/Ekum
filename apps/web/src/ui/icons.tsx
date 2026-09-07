@@ -225,3 +225,12 @@ export const BookmarkIcon = (props: IconProps) => (
     <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.5L6 20V5a1 1 0 0 1 1-1Z" />
   </Icon>
 );
+
+/** Voice / microphone. */
+export const MicIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+    <path d="M5 11a7 7 0 0 0 14 0" />
+    <path d="M12 18v3" />
+  </Icon>
+);

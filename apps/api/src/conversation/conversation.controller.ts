@@ -11,6 +11,7 @@ import {
 import {
   addParticipantsSchema,
   createGroupThreadSchema,
+  editMessageSchema,
   listThreadMessagesQuerySchema,
   listThreadsQuerySchema,
   sendMessageSchema,
@@ -20,6 +21,7 @@ import {
   startDirectThreadSchema,
   type AddParticipantsDto,
   type CreateGroupThreadDto,
+  type EditMessageDto,
   type ListThreadMessagesQuery,
   type ListThreadsQuery,
   type SendMessageDto,
@@ -112,6 +114,36 @@ export class ConversationController {
     @Body(new ZodValidationPipe(sendMessageSchema)) dto: SendMessageDto,
   ) {
     return this.messages.send(user, id, dto);
+  }
+
+  @Patch(':id/messages/:messageId')
+  editMessage(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Body(new ZodValidationPipe(editMessageSchema)) dto: EditMessageDto,
+  ) {
+    return this.messages.edit(user, id, messageId, dto.body);
+  }
+
+  @Post(':id/messages/:messageId/hide')
+  @HttpCode(200)
+  hideMessage(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.messages.hide(user, id, messageId);
+  }
+
+  @Post(':id/messages/:messageId/delete')
+  @HttpCode(200)
+  deleteMessage(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.messages.deleteForEveryone(user, id, messageId);
   }
 
   @Post(':id/read')

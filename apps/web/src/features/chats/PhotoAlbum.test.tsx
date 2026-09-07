@@ -56,4 +56,17 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(wrap.className).toMatch(/w-fit/);
     expect(wrap.querySelector('img')).toBeTruthy();
   });
+
+  it('locked thumbs stay blurred and do not open a viewer', async () => {
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <PhotoAlbum urls={['https://example.com/a.jpg']} size="thumb" locked />,
+    );
+    const wrap = screen.getByTestId('photo-album-thumb');
+    expect(wrap).toHaveAttribute('data-locked', 'true');
+    expect(wrap.querySelector('img')?.className).toMatch(/blur/);
+    await user.click(wrap.querySelector('button')!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 });
