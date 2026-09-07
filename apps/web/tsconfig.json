@@ -9,9 +9,8 @@
     "noEmit": true,
     "useDefineForClassFields": true,
     "types": ["vite/client", "vite-plugin-pwa/client"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"]
