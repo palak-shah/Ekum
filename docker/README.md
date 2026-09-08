@@ -2,6 +2,8 @@
 
 Full runbook: **[`docs/docker.md`](../docs/docker.md)**
 
+**Server (git pull + tunnel):** [`docs/docker.md` § Server](../docs/docker.md#server-git-pull--tunnel) · optional Cloudflare example: [`docker/tunnel/README.md`](./tunnel/README.md)
+
 ## Quick start
 
 ```bash

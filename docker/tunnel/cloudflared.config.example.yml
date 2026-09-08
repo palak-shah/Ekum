@@ -1,0 +1,14 @@
+# Optional operator tooling — not started by docker compose.
+# Copy to a private path on the server (e.g. /etc/cloudflared/config.yml).
+# Replace TUNNEL_UUID and credentials-file with values from `cloudflared tunnel create`.
+#
+# DNS: route live.ekum.app → this tunnel (Cloudflare Zero Trust / dashboard),
+# then set server .env.docker origins to https://live.ekum.app and rebuild web.
+
+tunnel: TUNNEL_UUID
+credentials-file: /etc/cloudflared/TUNNEL_UUID.json
+
+ingress:
+  - hostname: live.ekum.app
+    service: http://127.0.0.1:8080
+  - service: http_status:404

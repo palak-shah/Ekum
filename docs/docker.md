@@ -137,6 +137,7 @@ pnpm docker:up
 | [`docker/api-entrypoint.sh`](../docker/api-entrypoint.sh) | `prisma migrate deploy` then `node dist/main.js` |
 | [`docker/nginx/gateway.conf`](../docker/nginx/gateway.conf) | Public reverse proxy |
 | [`docker/nginx/web.conf`](../docker/nginx/web.conf) | SPA `try_files` for the web image |
+| [`docker/tunnel/`](../docker/tunnel/) | Optional Cloudflare Tunnel example (not started by Compose) |
 
 ---
 
@@ -191,6 +192,9 @@ pnpm docker:build && pnpm docker:up
 | Stale frontend | `pnpm docker:build` then `pnpm docker:up` (Vite env is build-time) |
 | Need empty database | `pnpm docker:down:volumes` then `pnpm docker:up` |
 | Docker CLI not found | Install/start Docker Desktop; ensure `docker compose version` works in the same shell |
+| Login / CORS fails via tunnel | Browser origin must be in `CORS_ORIGINS`; rebuild web after changing `VITE_PUBLIC_ORIGIN` |
+| Tunnel works but media broken | `PUBLIC_MEDIA_BASE_URL` must be `{public origin}/media` |
+| Stale SPA after server env change | `docker compose up -d --build` (or `pnpm docker:build` then up) on the **server** |
 
 ---
 
@@ -208,9 +212,55 @@ Do not run host API on :3000 and Compose Nginx expecting the Compose `api` servi
 
 ---
 
+## Server (git pull + tunnel)
+
+Day-to-day work stays on **local Docker** (`http://localhost:8080`). The Linux box is updated by git and Compose rebuild. A **tunnel** (optional) exposes that stack for remote browser tests. **No Caddy** — the tunnel provider terminates HTTPS.
+
+Spec: [`docs/superpowers/specs/2026-09-08-live-server-docker-deploy-design.md`](./superpowers/specs/2026-09-08-live-server-docker-deploy-design.md). Tunnel example: [`docker/tunnel/README.md`](../docker/tunnel/README.md).
+
+### Local vs server
+
+| | Local laptop | Server |
+|--|--------------|--------|
+| URL | `http://localhost:8080` | Tunnel HTTPS (prefer `https://live.ekum.app`) |
+| `.env.docker` | Localhost origins | Public tunnel origin + distinct JWT secrets |
+| Workflow | Edit → rebuild/up → test | `git pull` → rebuild/up → tunnel test |
+
+### Ship to server
+
+1. Commit and push from your machine.  
+2. SSH to the server → `git pull`.  
+3. Ensure server `.env.docker` uses the **tunnel public origin** (see commented block in [`.env.docker.example`](../.env.docker.example)):
+
+   - `VITE_PUBLIC_ORIGIN=https://live.ekum.app`  
+   - `CORS_ORIGINS=https://live.ekum.app`  
+   - `PUBLIC_MEDIA_BASE_URL=https://live.ekum.app/media`  
+   - `VITE_API_BASE_URL=/api/v1`  
+   - `OTP_EXPOSE_DEV_CODE=true`, `NODE_ENV=development`  
+   - New `JWT_*_SECRET` values (≥32 chars)
+
+4. Rebuild and start: `docker compose up -d --build` (or `pnpm docker:up` if pnpm is available).  
+5. Optional: `pnpm docker:seed` / Compose exec seed.  
+6. Point the tunnel at `http://127.0.0.1:8080` and open the public HTTPS URL.
+
+**Vite bake:** any change to `VITE_*` requires a **web image rebuild** on that machine before the browser sees it.
+
+### Firewall
+
+Prefer the tunnel targeting **loopback** (`127.0.0.1:8080`). If Compose publishes `0.0.0.0:8080`, restrict public access to that port on the host firewall.
+
+### Verification checklist
+
+- [ ] Local: `http://localhost:8080/api/v1/health` → ok; login shows Dev code  
+- [ ] Server (SSH): `curl -s http://127.0.0.1:8080/api/v1/health` → ok after pull/rebuild  
+- [ ] Tunnel: open public HTTPS URL; SPA loads; login shows Dev code  
+- [ ] Media: image URLs use `{public origin}/media/...`
+
+---
+
 ## Security notes (demo stack)
 
 - Default JWT secrets in `.env.docker.example` are **dev-only**.
 - `OTP_EXPOSE_DEV_CODE=true` returns OTP codes in API responses for easy login demos.
 - Postgres credentials `ekum`/`ekum` are for local Compose only; not exposed on the host by default.
-- This stack does **not** include TLS. Put a real reverse proxy / load balancer in front for anything beyond localhost.
+- This Compose stack does **not** terminate TLS. For a shared demo on a Linux box, use **git pull + Compose** and an optional **tunnel** (see § Server above) — not a required host Caddy install.
