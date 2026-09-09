@@ -120,30 +120,42 @@ export class TeamService {
       });
     }
 
-    const existing = await this.prisma.companyMembership.findFirst({
-      where: { userId: actor.userId },
+    const sameCompany = await this.prisma.companyMembership.findUnique({
+      where: {
+        userId_companyId: { userId: actor.userId, companyId: invite.companyId },
+      },
     });
-    if (existing) {
-      if (existing.companyId === invite.companyId) {
-        if (existing.archivedAt) {
-          await this.prisma.companyMembership.update({
-            where: { id: existing.id },
+    if (sameCompany) {
+      if (sameCompany.archivedAt) {
+        await this.prisma.$transaction(async (tx) => {
+          await tx.companyMembership.update({
+            where: { id: sameCompany.id },
             data: { archivedAt: null },
           });
-          const tokens = await this.tokens.issue(
-            { id: actor.userId, phone: actor.phone },
-            invite.companyId,
-          );
-          return { tokens, companyId: invite.companyId };
-        }
-        throw new ConflictException({
-          code: 'ALREADY_MEMBER',
-          message: 'You are already on this team.',
+          await tx.teamInvite.update({
+            where: { id: invite.id },
+            data: { usedAt: new Date() },
+          });
         });
+        const tokens = await this.tokens.issue(
+          { id: actor.userId, phone: actor.phone },
+          invite.companyId,
+        );
+        return { tokens, companyId: invite.companyId };
       }
       throw new ConflictException({
+        code: 'ALREADY_MEMBER',
+        message: 'You are already on this team.',
+      });
+    }
+
+    const liveElsewhere = await this.prisma.companyMembership.findFirst({
+      where: { userId: actor.userId, archivedAt: null },
+    });
+    if (liveElsewhere) {
+      throw new ConflictException({
         code: 'ALREADY_HAS_BUSINESS',
-        message: 'This phone already has a business on Ekum.',
+        message: 'This phone already has a business on Ekum. Ask that shop to remove you from Team first.',
       });
     }
 
@@ -280,7 +292,7 @@ export class TeamService {
 
   private async assertNotLastOwner(companyId: string, userId: string) {
     const owners = await this.prisma.companyMembership.count({
-      where: { companyId, role: MembershipRole.Owner },
+      where: { companyId, role: MembershipRole.Owner, archivedAt: null },
     });
     const target = await this.prisma.companyMembership.findUnique({
       where: { userId_companyId: { userId, companyId } },

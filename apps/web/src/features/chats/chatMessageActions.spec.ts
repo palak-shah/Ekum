@@ -79,6 +79,27 @@ describe('forwardPayload', () => {
       body: 'hello',
     });
   });
+
+  it('forwards collection cards without path metadata', () => {
+    expect(
+      forwardPayload(
+        base({
+          type: 'collection_card',
+          reference: {
+            id: 'col-1',
+            kind: 'collection',
+            name: 'Pack',
+            available: true,
+          } as MessageView['reference'],
+          metadata: { orderPathPreference: 'direct' },
+        }),
+      ),
+    ).toEqual({
+      type: 'collection_card',
+      referenceId: 'col-1',
+      body: 'Pack',
+    });
+  });
 });
 
 describe('copy', () => {

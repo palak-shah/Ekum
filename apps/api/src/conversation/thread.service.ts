@@ -852,6 +852,8 @@ export class ThreadService {
           });
         }
       }
+      await seedOwnersAndStaff(this.prisma, existing.id, buyerCompanyId, []);
+      await seedOwnersAndStaff(this.prisma, existing.id, sellerCompanyId, []);
       return existing.id;
     }
     const thread = await this.prisma.thread.create({
@@ -870,6 +872,104 @@ export class ThreadService {
     await seedOwnersAndStaff(this.prisma, thread.id, buyerCompanyId, []);
     await seedOwnersAndStaff(this.prisma, thread.id, sellerCompanyId, []);
     return thread.id;
+  }
+
+  /**
+   * Find-or-create the TradeLane trio (trader + mill + end buyer).
+   * Reuses an existing group with the same three companies; does not throw SAME_CHAT.
+   */
+  async ensureTradeLaneGroup(
+    traderCompanyId: string,
+    sellerCompanyId: string,
+    buyerCompanyId: string,
+    existingThreadId?: string | null,
+  ): Promise<string> {
+    if (existingThreadId) {
+      const existing = await this.prisma.thread.findUnique({
+        where: { id: existingThreadId },
+        include: { participants: true },
+      });
+      if (existing?.type === ThreadType.Group) {
+        for (const participant of existing.participants) {
+          if (
+            participant.leftAt ||
+            participant.state === ThreadParticipantState.Archived ||
+            participant.state === ThreadParticipantState.Pending
+          ) {
+            await this.prisma.threadParticipant.update({
+              where: { id: participant.id },
+              data: { state: ThreadParticipantState.Active, leftAt: null },
+            });
+          }
+        }
+        return existing.id;
+      }
+    }
+
+    const wanted = [traderCompanyId, sellerCompanyId, buyerCompanyId];
+    const byCompanies = await this.findGroupByExactCompanies(wanted);
+    if (byCompanies) {
+      for (const participant of byCompanies.participants) {
+        if (
+          participant.leftAt ||
+          participant.state === ThreadParticipantState.Archived ||
+          participant.state === ThreadParticipantState.Pending
+        ) {
+          await this.prisma.threadParticipant.update({
+            where: { id: participant.id },
+            data: { state: ThreadParticipantState.Active, leftAt: null },
+          });
+        }
+      }
+      return byCompanies.id;
+    }
+
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: wanted } },
+      select: { id: true, name: true },
+    });
+    const nameById = new Map(companies.map((row) => [row.id, row.name]));
+    const title = wanted.map((id) => nameById.get(id) ?? 'Shop').join(' · ');
+
+    const thread = await this.prisma.thread.create({
+      data: {
+        type: ThreadType.Group,
+        visibility: ThreadVisibility.Shared,
+        title,
+        createdByCompanyId: traderCompanyId,
+        participants: {
+          create: wanted.map((companyId) => ({
+            companyId,
+            state: ThreadParticipantState.Active,
+            invitedBy: companyId === traderCompanyId ? null : traderCompanyId,
+          })),
+        },
+      },
+    });
+    for (const companyId of wanted) {
+      await seedOwnersAndStaff(this.prisma, thread.id, companyId, []);
+    }
+    return thread.id;
+  }
+
+  private async findGroupByExactCompanies(companyIds: string[]) {
+    const wanted = new Set(companyIds);
+    const candidates = await this.prisma.thread.findMany({
+      where: {
+        type: ThreadType.Group,
+        AND: [...wanted].map((companyId) => ({
+          participants: { some: { companyId } },
+        })),
+      },
+      include: { participants: true },
+    });
+    for (const candidate of candidates) {
+      const ids = new Set(candidate.participants.map((p) => p.companyId));
+      if (ids.size === wanted.size && [...wanted].every((id) => ids.has(id))) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   findDirectThreadId(a: string, b: string): Promise<string | null> {

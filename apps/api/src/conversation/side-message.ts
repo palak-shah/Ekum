@@ -16,7 +16,10 @@ export function messageVisibleToCompany(
     requesterCompanyId?: string;
     targetCompanyId?: string;
   };
-  if (record.kind === 'collection_view_request' && record.status === 'denied') {
+  if (
+    (record.kind === 'collection_view_request' || record.kind === 'relist_request') &&
+    record.status === 'denied'
+  ) {
     return record.targetCompanyId === companyId;
   }
   if (message.type !== 'system') return true;

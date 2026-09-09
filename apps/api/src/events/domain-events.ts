@@ -14,6 +14,7 @@ export const DomainEventName = {
   PaymentRequested: 'payment.requested',
   PaymentSettled: 'payment.settled',
   CollectionViewGranted: 'collection.view_granted',
+  RelistGranted: 'product.relist_granted',
 } as const;
 
 export interface AccessApprovedEvent {
@@ -75,6 +76,14 @@ export interface CollectionViewGrantedEvent {
   requestId: string;
   collectionId: string;
   collectionName: string;
+  requesterCompanyId: string;
+  targetCompanyId: string;
+}
+
+export interface RelistGrantedEvent {
+  requestId: string;
+  productIds: string[];
+  productNames: string[];
   requesterCompanyId: string;
   targetCompanyId: string;
 }

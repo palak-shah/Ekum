@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
@@ -39,7 +39,6 @@ import {
   rememberCatalogHandlerName,
   rememberForwardFacilitator,
   rememberOrderPath,
-  resolveOrderPathForCatalog,
 } from '@/features/browse/forwardAttribution';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
@@ -67,7 +66,12 @@ type Layout = 'feed' | 'grid';
 function toShortlistEntry(
   product: ProductView,
   companyName: string,
-  pack?: { collectionId: string; handlerName: string; path: string | null },
+  pack?: {
+    collectionId: string;
+    handlerName: string;
+    path: string | null;
+    allowForward: boolean;
+  },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
   return {
@@ -82,6 +86,7 @@ function toShortlistEntry(
           sourceCollectionId: pack.collectionId,
           sourceHandlerName: pack.handlerName,
           sourcePath: path,
+          sourcePackAllowForward: pack.allowForward !== false,
         }
       : {}),
   };
@@ -89,7 +94,6 @@ function toShortlistEntry(
 
 export function CollectionViewerPage() {
   const { id = '' } = useParams();
-  const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -203,24 +207,15 @@ export function CollectionViewerPage() {
     if (!ownerId || products.length === 0) return false;
     return products.some((product) => product.companyId !== ownerId);
   }, [collection.data?.company.id, products]);
-  const packPath =
-    collection.data?.orderPathPreference === 'handle' ||
-    collection.data?.orderPathPreference === 'direct'
-      ? collection.data.orderPathPreference
-      : resolveOrderPathForCatalog({
-          catalogKind: 'collection',
-          catalogId: id,
-          queryPath: searchParams.get('path'),
-        }) ?? null;
-  const handlePack =
-    isCuratedPack &&
-    (packPath === 'handle' || collection.data?.orderPathPreference === 'handle');
+  /** Curated packs always order with the pack owner (from-pack); path is TradeLane. */
+  const handlePack = isCuratedPack;
   const packStamp =
     id && collection.data
       ? {
           collectionId: id,
           handlerName: collection.data.company.name,
-          path: packPath,
+          path: handlePack ? ('handle' as const) : null,
+          allowForward: collection.data.allowForward !== false,
         }
       : undefined;
 
@@ -604,14 +599,14 @@ export function CollectionViewerPage() {
             <LockIcon />
           </span>
           <div>
-            <p className="text-sm font-semibold text-ink">Ask to see this collection</p>
+            <p className="text-sm font-semibold text-ink">Ask to see this pack</p>
             <p className="text-xs text-muted">
-              Ask {data.company.name} to open all {data.productCount} designs. This is not a
-              connect request.
+              Ask {data.company.name} to open these {data.productCount} designs so you can look
+              through them. Not connect, and not putting designs in your pack.
             </p>
           </div>
           <Button onClick={() => askToSee.mutate()} disabled={askToSee.isPending}>
-            {askToSee.isPending ? 'Asking…' : 'Ask to see'}
+            {askToSee.isPending ? 'Asking…' : 'Ask to see this pack'}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-medium text-accent">
             Follow or Request access on their profile

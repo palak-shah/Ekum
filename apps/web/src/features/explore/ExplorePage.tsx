@@ -922,7 +922,7 @@ export function ExplorePage() {
             ) : (
               <EmptyState
                 title="No posts from other businesses yet"
-                message="Follow suppliers or wait for new drops — buyers who may want what you sell still show below."
+                message="Follow suppliers you buy from — new packs and designs show up here."
               />
             )
           ) : null}

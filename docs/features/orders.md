@@ -8,7 +8,7 @@ Sellers can fulfill **partially**: quote fewer qty / skip designs, confirm or de
 
 ## Who uses it
 
-Buyers place / accept quotes; sellers quote, confirm, dispatch, deliver. Samples and returns are managed from the **Orders** tab (unified feed + type filter).
+Buyers place / accept quotes; sellers quote, confirm, and dispatch (full ship closes as **Dispatched**). Samples and returns are managed from the **Orders** tab (unified feed + type filter).
 
 ## User flows
 
@@ -16,11 +16,11 @@ Buyers place / accept quotes; sellers quote, confirm, dispatch, deliver. Samples
 
 | Kind | How |
 |------|-----|
-| **Standard** | Pick published designs / lines → quantities → place request. **I-handle curated pack:** ticket and chat are with the pack owner (trader), not the mill — `POST /orders/from-pack`. **Multi-supplier** (own / Direct): `POST /orders/batch` creates **one order per `product.companyId`**, then a confirmation with a **link per chat** (partial failures listed). |
+| **Standard** | Pick published designs / lines → quantities → place request. **Curated pack (multi-supplier):** always `POST /orders/from-pack` → **one** buyer↔trader main + linked mill lots (not batch). **Transparent** (Your paths / ticket mill): buyer sees mill cards on that main. **Private** (default Me): soft-hide mills for buyer. **Multi-supplier without one pack stamp:** `POST /orders/batch` still creates one order per `product.companyId`. |
 | **Photo** | **＋ → Photo order** — phone: **Add photos** opens continuous in-app camera (multi-shot; torch/zoom when supported); **Gallery** in camera chrome for file pick. Desktop: Add opens gallery multi-select directly. Then per-photo pieces (presets set all), supplier (unless `?seller=`), **note** (text and/or **voice**), send. Leaving mid-flow prompts **Leave the page?** — Cancel stays; Leave discards. |
 | **Inquiry** | From a collection: **Ask for rates** creates a `requested` trade with `intent: inquiry` (same lines/quote path). UI says **Inquiry** (not Order); chat card `Inquiry #… · Inquiry`. Soft until firmed. |
 
-Lifecycle actions (role-dependent): confirm, add rates / accept quote, decline, dispatch (LR/transporter), deliver, cancel. Buyer may **Edit inquiry/order** (qty / remove lines) until the seller quotes or confirms/declines — each edit **updates** the living chat card (**Updated**). Action failures show **in the open sheet** or as a **toast** on page CTAs — never as a buried line behind the sheet.
+Lifecycle actions (role-dependent): confirm, add rates / accept quote, decline, dispatch (LR/transporter), settle when qty mismatches, cancel. Buyer may **Edit inquiry/order** (qty / remove lines) until the seller quotes or confirms/declines — each edit **updates** the living chat card (**Updated**). Action failures show **in the open sheet** or as a **toast** on page CTAs — never as a buried line behind the sheet.
 
 **Inquiry firm-up:** `intent` flips to `order` when the seller sends a **quote**, confirms any lines, or the buyer **accepts quote**. Decline/cancel stay terminal. Later chat cards use `Order #`.
 
@@ -28,18 +28,39 @@ Lifecycle actions (role-dependent): confirm, add rates / accept quote, decline, 
 
 Needs **I trade on Ekum**. Path is a **TradeLane** per trader × supplier × buyer — two fields, four outcomes. UI is **two switches**, never four radios. See [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md) and [client one-pager](../superpowers/reviews/2026-09-02-trader-path-client-review.md).
 
+**Target redesign (shipping slice):** curated / multi-supplier **Place** always creates **one main order + linked mill lots** (`from-pack`). **Private** (TradeLane ticket Me, default): buyer soft-hides mills. See [unified main + linked lots](../superpowers/specs/2026-09-08-unified-main-linked-lots-design.md). Batch remains for non-pack multi-seller without one pack stamp.
+
 | This order is with | They see each other | What happens |
 |--------------------|---------------------|--------------|
-| **Me** (I handle) | Off *(first pair order)* | Buyer’s ticket is the trader. Two private chats. Mill tickets stay **Waiting** until **Send** (or **Change** qty/rate, then Send). Seller cannot list them before Send. **Trader desk:** one list row (the buyer ticket) marked **Trading**, with mill shop names on that row. Find by mill name or mill `#` still hits this row — never a mill subset row. Mills are **subsets** on that page (qty/rate, Send per shop). Desk face **Send quote** only after a mill has quoted; quoting Meena without asking the mill sits under **Take over** with Open chat / Decline / payment / dispatch / settle / View (else nothing). **Confirm** stays off so the trader does not lock the buyer before **Send**. After a mill quotes, each design on that mill card shows **From {shop}** vs **To {buyer}** (or Not sent yet); Send quote prefills from mill rates. After Send, mill `#` sits beside the shop; mill chat uses that `#` and opens the buyer ticket. After Send, mill confirm / qty / dispatch **pass through**; mill **quote** waits until the trader sends rates to the buyer. When the buyer **accepts quote**, released mills become confirmed so they can Dispatch / Ask for payment. Rare **Hold** / **Resume** live last in that mill’s **⋯** (not on the card). See [I-handle desk](../superpowers/specs/2026-09-07-trader-i-handle-desk-design.md). |
-| **Me** | On | Same ticket (trader). **One** group: supplier + trader + buyer. Order updates go there after Send-hold rules allow. |
+| **Me** (I handle) | Off *(first pair order)* | Buyer’s ticket is the trader. Two private chats. Mill tickets stay **Waiting** until **Send** (or **Change** qty/rate, then Send). Seller cannot list them before Send. **Trader desk:** one list row (the buyer ticket) marked **Trading**, with mill shop names on that row. Find by mill name or mill `#` still hits this row — never a mill subset row. Mills are **subsets** on that page (qty/rate, Send per shop). Desk face **Send quote** only after a mill has quoted; quoting Meena without asking the mill sits under **Desk tools** with Open chat / Decline / payment / dispatch / settle / View (else nothing). **Confirm** stays off so the trader does not lock the buyer before **Send**. After a mill quotes, each design on that mill card shows **From {shop}** vs **To {buyer}** (or Not sent yet); Send quote prefills from mill rates. After Send, mill `#` sits beside the shop; mill chat uses that `#` and opens the buyer ticket. After Send, mill confirm / qty / dispatch **pass through**; mill **quote** waits until the trader sends rates to the buyer. When the buyer **accepts quote**, released mills become confirmed so they can Dispatch / Ask for payment. Rare **Hold** / **Resume** live last in that mill’s **⋯** (not on the card). See [I-handle desk](../superpowers/specs/2026-09-07-trader-i-handle-desk-design.md). |
+| **Me** | On | Same ticket (trader). **One group per mill.** Reveal On ⇒ mill **shown on the main order** and in the trio (not soft-hidden). Living card = mill subset. **Open chat** on the Trading / main ticket = buyer↔trader 1:1; each mill card has **Open group chat** for that mill’s trio. |
 | **{Supplier shop}** (Direct) | Off | Buyer’s ticket is the design owner. Sharer sees **Shared**. Confirm lists each owner name when several. Buyer–seller private chat. |
 | **{Supplier shop}** | On | Same Direct ticket. Same trio group (not a second group). |
 
+**Uniform desk (locked 2026-09-09):** Curated / multi-supplier Place is always **one main** (what the buyer placed) + **linked mill lots** on that order — whether 2 or **10** mills. Trader learns one screen. List = one Trading row.
+
+**Find / search (sub-order → main):** Searching a mill lot `#`, mill shop name, or other sub-order hit **opens the main order** for the **trader** (lots live inside that card — never a separate mill list row). **Buyer** with reveal **Off** does not see mill names or mill `#`s on the main — soft-hide — so those sub-order searches are not a buyer surface for private mills. Reveal **On** for a mill may name that mill on the main / group; Find still lands on the main.
+
+**This order is with**
+
+| Choice | Involvement | What the trader sees |
+|--------|-------------|----------------------|
+| **Me** (default with see-each-other **Off**) | You run Send / quote on the desk | Main + mill cards (operate) |
+| **Mills** | You **observe** by default — buyer sees mill cards. **Send** / **Send quote** live under **Desk tools** (not on the face). Expand Desk tools when you want to operate. | **Same main card** + mill cards; cue: Desk tools to Send / quote |
+
+UI for **Mills** (2+): title **Mills**, shop names listed quietly under (no picker). **Do not** explode into N separate Direct list rows — unmappable at many mills.
+
+**Live flip** (Requested + no quote): toggle Me ↔ Mills on this main only. Your paths sets the same choice for **future** orders (few pairs or many). System default for new pairs: **Me + Off**. A trader may set many lanes to Mills (unlikely).
+
+**1 mill** can still show that shop’s name as the Mills option; structure stays main + one lot (same desk language).
+
+**Interim code (superseded):** ~~flip cancelled the main and created N Directs~~ — **retired 2026-09-09**; Mills stamps lanes and stays on main.
+
+Reveal **Off** still only *hides* the other end on tickets — we do **not** block Connection or chat if they find each other. Escape back toward operating the desk → flip to **Me** while still requested with no seller quote.
+
 **First order** for a new pair: **Me**, see-each-other **Off**. Everyday Place / Send has **no** path controls. Change on **More** (that sheet), the **order page**, or **Your paths** (You). We remember the pair until they change; the next order follows the lane.
 
-Reveal **Off** still only *hides* the other end on tickets — we do **not** block Connection or chat if they find each other. Escape Direct → **Take over** while still requested with no seller quote (same moment as flipping **This order is with** to Me).
-
-Shipped code may still stamp Profile / pack `path=` until TradeLane is built; product default for a **new** pair is I handle + no group even if Profile says Direct. Older per-share override: [2026-08-21](../superpowers/specs/2026-08-21-direct-vs-handle-settings-design.md).
+**Shipped:** TradeLane + Your paths + live reveal; Place = from-pack main+lots; **Mills** flip = observe on same main (buyer mill desks); UI list under Mills. Publish / share sheets no longer offer Direct / I handle. Profile has no path switch (removed).
 
 **Clarity:** Chat cards: **Forwarded by {name}** when sharer ≠ owner. Open-path list for forwarder: **Shared** (not You sell); counterpart = seller. **Toll / soft-hide (chain-safe):** On every I-handle **Manage** parent ticket and its trade chat, **never** show upstream mill/shop names — only the two parties on that hop. No **Related orders** box on detail (desk = mill cards for the trader; end buyer sees only the trader hop). Mill identity stays on subset tickets and trader mill desks. Applies when Meena is herself a trader to the next hop. Lists otherwise **You buy** / **You sell**. Orders tab is a **unified feed** (orders + samples + returns), newest-first. Top chrome matches Chats/Explore: **search + filter icon + trailing ＋** (new order). Filter menu lists statuses (Requested through Cancelled, including **Settled**) plus type (Order / **Trading** / Sample / Return). **Trading** is I-handle tickets you sell (linked mill lots on that row). Find words `trading` or `linked` apply the same type. When a menu filter is on, **Showing … · Clear** appears under the search row. **Find** (any query, kind, status, or date) shows **all** matching rows — attention chips Needs you / In progress / **Completed** apply only when Find is empty. `/samples` and `/returns` redirect here with `?kind=`; status deep links use `?status=`. Tiles may show a short staff name when known. Order detail **Timeline** reads the append-only order trail (who / when / note); falls back to derived steps when trail is empty. Your team sees staff names on your actions; counterparties see business names only. Parties card may still show last-touch staff · date. Buyers never see “confirm” verbs: when they accepted a quote, timeline and Parties say **Quote accepted by …**; when the seller locked supply, **Confirmed by …**. CTAs stay role-owned (buyer: Accept quote / Cancel / Raise return; seller: Quote / Confirm lines / Dispatch more / Settle order). Chat keeps **one living reference** per order: rich card for ask-rates / place-order / quote; later statuses update that same message (including `order_settled`). **View order →** / tap opens the order; **Accept quote** only while `canAcceptQuote`.
 
@@ -51,7 +72,7 @@ Samples and returns appear in the same `/orders` list (meta line says Sample / R
 
 | Need | How |
 |------|-----|
-| **Quote partial** | Send quote sheet: lower offer qty, toggle **Can’t supply** per line, set rates (**Same rate for all** or each design; qty + rate on one line), optional **note** (text and/or **voice**) → chat **Quote** card (totals frozen on that message) |
+| **Quote partial** | Send quote sheet: lower offer qty, toggle **Can’t supply** per line, set rates (optional top **Rate all** fills open lines; each design keeps its own rate; qty + rate on one line), optional **note** (text and/or **voice**) → chat **Quote** card (totals frozen on that message) |
 | **Line outcomes** | **Confirm / decline lines** without rates; posts `Order #… · Confirmed|Declined|Updated` in chat; body only names counts that happened (no “declined 0”); rollup when no open lines remain |
 | **Confirm all open** | One tap confirms every remaining open line |
 | **Split dispatch** | On confirmed order: compact qty list (scroll) + sticky **LR** (required), transporter/parcels optional → shipment history; status → **`part_shipped`** until everything shippable is out, then **`dispatched`** |
@@ -74,7 +95,7 @@ Redirects to `/orders?kind=return`. Within return window after **settled** (or l
 | `confirmed` | At least one line confirmed; ready to ship |
 | `part_shipped` | Mid-fulfillment only: some qty out, some still open — StatusPill while you can still Dispatch more or Settle |
 | `dispatched` | Full ship done — **order complete**; return window starts |
-| `settled` | Seller **Settle order** after qty mismatch — **completed**; line qty := shipped so the ticket is whole for the new qty (not “partly” anything). StatusPill **Settled**. Timeline may still list earlier Part shipped events |
+| `settled` | Seller **Settle order** after qty mismatch — **completed** (StatusPill **Settled · complete**); line qty := shipped so the ticket is whole for the new qty |
 | `delivered` | Legacy buyer Mark delivered; lists treat as completed |
 | `declined` / `cancelled` | Terminal — timeline ends on this step (no dispatch/settle tail) |
 
@@ -105,7 +126,7 @@ Redirects to `/orders?kind=return`. Within return window after **settled** (or l
 | Chat events | `order_requested` · `rate_requested` · `order_updated` · `quote_sent` · `lines_decided` · `quote_accepted` · `order_declined` · `order_cancelled` · `order_dispatched` · `order_settled` · `order_delivered` (legacy) |
 | Dispatchable qty | Only `confirmed` / `dispatched` lines have remaining qty — `open` lines cannot be shipped |
 | Settle | Seller-only while **part shipped** (qty mismatch); `POST /orders/:id/settle`; line `quantity` := shipped; status → `settled` (**Completed**). Timeline **Settled**. **I-handle:** mill Settle rewrites matching parent (Meena) lines; parent → `settled` when **all released** mill subsets are complete (one supplier Settled → parent Settled; two+ with one open → those lines done, rest pending, stay part shipped). **Trader does not Settle** the Manage parent while mill desks exist — mills close it. Stuck parents heal on open/list. |
-| Full dispatch | Remaining 0 → status `dispatched` (complete; no Settled timeline row; no buyer Mark delivered) |
+| Full dispatch | Remaining 0 → status `dispatched` (**Dispatched · complete**; no Settled timeline row; no buyer Mark delivered) |
 | Own album vs curated pack | Own-design albums place via `/orders/batch`. Curated I-handle packs use `/orders/from-pack`. If from-pack rejects `NOT_CURATED` / `DIRECT_PACK`, Place Order falls back to batch so the buyer is not stuck. |
 | Order trail | Append-only `OrderTrailEvent` rows drive Order detail **Timeline**. Pass-through from mills uses **trader** name only on the parent ticket; mill names never stored or returned on that surface. |
 | Soft-hide | Manage parent trail/chat: no upstream shop names (write + read scrub). Mill desks / subset tickets keep mill identity for the trader at that hop. |

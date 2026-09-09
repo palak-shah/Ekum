@@ -57,6 +57,7 @@ describe('TeamService', () => {
         findUnique: vi.fn(async () => invite),
       },
       companyMembership: {
+        findUnique: vi.fn(async () => null),
         findFirst: vi.fn(async () => null),
         create: vi.fn(async () => ({})),
       },
@@ -103,7 +104,7 @@ describe('TeamService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('rejects join when user already has a business', async () => {
+  it('rejects join when user still has a live business elsewhere', async () => {
     const prisma = {
       teamInvite: {
         findUnique: vi.fn(async () => ({
@@ -117,7 +118,8 @@ describe('TeamService', () => {
         })),
       },
       companyMembership: {
-        findFirst: vi.fn(async () => ({ companyId: 'other' })),
+        findUnique: vi.fn(async () => null),
+        findFirst: vi.fn(async () => ({ companyId: 'other', archivedAt: null })),
       },
     } as unknown as PrismaService;
     const svc = new TeamService(prisma, {} as TokenService, serializer());
@@ -129,6 +131,90 @@ describe('TeamService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('joins a new company after prior membership was archived', async () => {
+    const invite = {
+      id: 'inv1',
+      companyId: 'c-b',
+      phone: '9876543210',
+      name: 'Ramesh',
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+      company: { id: 'c-b', name: 'Shop B' },
+    };
+    const create = vi.fn(async () => ({}));
+    const prisma = {
+      teamInvite: {
+        findUnique: vi.fn(async () => invite),
+      },
+      companyMembership: {
+        findUnique: vi.fn(async () => null),
+        findFirst: vi.fn(async () => null),
+      },
+      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) =>
+        fn({
+          companyMembership: { create },
+          teamInvite: { update: vi.fn(async () => ({})) },
+          user: { update: vi.fn(async () => ({})) },
+        }),
+      ),
+    } as unknown as PrismaService;
+    const tokens = {
+      issue: vi.fn(async () => ({ accessToken: 'a', refreshToken: 'r' })),
+    } as unknown as TokenService;
+    const svc = new TeamService(prisma, tokens, serializer());
+    const result = await svc.joinInvite(
+      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null },
+      'tok',
+    );
+    expect(result.companyId).toBe('c-b');
+    expect(create).toHaveBeenCalled();
+  });
+
+  it('unarchives when rejoining the same company', async () => {
+    const invite = {
+      id: 'inv1',
+      companyId: 'c-a',
+      phone: '9876543210',
+      name: 'Ramesh',
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+      company: { id: 'c-a', name: 'Shop A' },
+    };
+    const updateMembership = vi.fn(async () => ({}));
+    const prisma = {
+      teamInvite: {
+        findUnique: vi.fn(async () => invite),
+      },
+      companyMembership: {
+        findUnique: vi.fn(async () => ({
+          id: 'mem-a',
+          companyId: 'c-a',
+          archivedAt: new Date(),
+        })),
+      },
+      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) =>
+        fn({
+          companyMembership: { update: updateMembership },
+          teamInvite: { update: vi.fn(async () => ({})) },
+        }),
+      ),
+    } as unknown as PrismaService;
+    const tokens = {
+      issue: vi.fn(async () => ({ accessToken: 'a', refreshToken: 'r' })),
+    } as unknown as TokenService;
+    const svc = new TeamService(prisma, tokens, serializer());
+    const result = await svc.joinInvite(
+      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null },
+      'tok',
+    );
+    expect(result.companyId).toBe('c-a');
+    expect(updateMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'mem-a' },
+        data: { archivedAt: null },
+      }),
+    );
+  });
   it('cannot remove the last owner', async () => {
     const prisma = {
       companyMembership: {

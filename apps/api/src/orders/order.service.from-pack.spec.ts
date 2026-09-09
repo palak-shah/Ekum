@@ -35,6 +35,9 @@ describe('OrderService.createFromPack', () => {
           { id: 'p2', companyId: 's2', company: { name: 'Supplier Two' } },
         ]),
       },
+      tradeLane: {
+        upsert: vi.fn(async () => ({})),
+      },
     } as unknown as PrismaService;
 
     const service = new OrderService(
@@ -71,12 +74,16 @@ describe('OrderService.createFromPack', () => {
     expect(result.downstream.id).toBe('down-1');
     expect(result.upstreams).toHaveLength(2);
     expect(result.failures).toHaveLength(0);
+    // One parent + one hop per mill — never spawnHandleUpstreams on top of this loop.
+    expect(create).toHaveBeenCalledTimes(3);
     expect(create).toHaveBeenCalledWith(
       'buyer',
       'user-1',
       expect.objectContaining({ sellerCompanyId: 'trader' }),
       expect.objectContaining({ tradeMode: OrderTradeMode.Manage, allowForeignProducts: true }),
     );
+    const downDto = create.mock.calls[0]?.[2] as { orderPathPreference?: string };
+    expect(downDto.orderPathPreference).toBeUndefined();
     expect(create).toHaveBeenCalledWith(
       'trader',
       'user-1',
@@ -121,7 +128,8 @@ describe('OrderService.createFromPack', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects Direct packs', async () => {
+  it('accepts curated packs even when pack stamp was Direct (lane owns path)', async () => {
+    const create = vi.fn(async () => ({ id: 'down-1' }));
     const prisma = {
       collection: {
         findUnique: vi.fn(async () => ({
@@ -137,6 +145,12 @@ describe('OrderService.createFromPack', () => {
           { id: 'p1', companyId: 's1', company: { name: 'Supplier' } },
         ]),
       },
+      tradeLane: {
+        upsert: vi.fn(async () => ({})),
+      },
+      order: {
+        findUnique: vi.fn(async () => ({ buyerCompanyId: 'buyer' })),
+      },
     } as unknown as PrismaService;
 
     const service = new OrderService(
@@ -149,12 +163,13 @@ describe('OrderService.createFromPack', () => {
       {} as ThreadService,
       stubTrail,
     );
+    (service as unknown as { create: typeof create }).create = create;
 
-    await expect(
-      service.createFromPack('buyer', 'user-1', {
-        collectionId: 'pack-d',
-        items: [{ productId: 'p1', quantity: 1, images: [] }],
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    const result = await service.createFromPack('buyer', 'user-1', {
+      collectionId: 'pack-d',
+      items: [{ productId: 'p1', quantity: 1, images: [] }],
+    });
+    expect(create).toHaveBeenCalled();
+    expect(result.downstream.id).toBe('down-1');
   });
 });

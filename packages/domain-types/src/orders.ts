@@ -215,6 +215,48 @@ export const millPassHoldSchema = z.object({
 });
 export type MillPassHoldDto = z.infer<typeof millPassHoldSchema>;
 
+/** Trader flips TradeLane reveal for one mill × buyer on a Manage desk. */
+export const millRevealSchema = z.object({
+  upstreamOrderId: z.string().min(1),
+  reveal: z.boolean(),
+});
+export type MillRevealDto = z.infer<typeof millRevealSchema>;
+
+/** Live order: flip who the ticket is with (Requested + no seller quote). */
+export const orderTicketSchema = z.object({
+  ticket: z.enum(['me', 'mill']),
+  /** Required when Manage parent has more than one mill hop — unused; 2+ mills split to all Directs. */
+  upstreamOrderId: z.string().min(1).optional(),
+});
+export type OrderTicketDto = z.infer<typeof orderTicketSchema>;
+
+export const updateTradeLaneSchema = z
+  .object({
+    ticket: z.enum(['me', 'mill']).optional(),
+    reveal: z.boolean().optional(),
+  })
+  .refine((row) => row.ticket !== undefined || row.reveal !== undefined, {
+    message: 'Set order-with or see-each-other.',
+  });
+export type UpdateTradeLaneDto = z.infer<typeof updateTradeLaneSchema>;
+
+export const listTradeLanesQuerySchema = z.object({
+  q: z.string().trim().max(100).optional(),
+});
+export type ListTradeLanesQuery = z.infer<typeof listTradeLanesQuerySchema>;
+
+export interface TradeLaneView {
+  id: string;
+  traderCompanyId: string;
+  sellerCompanyId: string;
+  buyerCompanyId: string;
+  sellerName: string;
+  buyerName: string;
+  ticket: 'me' | 'mill';
+  reveal: boolean;
+  updatedAt: string;
+}
+
 export interface OrderMillDeskView {
   upstreamOrderId: string;
   sellerCompanyId: string;
@@ -223,11 +265,17 @@ export interface OrderMillDeskView {
   held: boolean;
   /** Trader froze pass-through (⋯). */
   passHeld: boolean;
+  /** TradeLane: mill and end buyer can see each other (trio group). */
+  reveal: boolean;
+  /** Trio chat when reveal On and mill released; else null. */
+  revealThreadId: string | null;
   status: string;
   itemIds: string[];
   confirmedCount: number;
   declinedCount: number;
   millQuoted: boolean;
+  /** TradeLane ticket for this mill × buyer. */
+  ticket?: 'me' | 'mill';
   /** Mill hop rates keyed to parent line ids (trader From/To desk). */
   lines: Array<{
     parentItemId: string;
@@ -511,6 +559,10 @@ export interface OrderView {
   relatedOrders: OrderRelatedOrderView[];
   /** Facilitator may Take control (direct, requested, no seller quote). */
   canTakeControl?: boolean;
+  /** Trader may flip This order is with (Requested + no seller quote). */
+  canFlipTicket?: boolean;
+  /** Current TradeLane ticket for this hop (me | mill), when known. */
+  laneTicket?: 'me' | 'mill' | null;
   /** Handler may Send / Change held mill tickets from this downstream. */
   canSendUp?: boolean;
   /** Trader mill hop: open this id (buyer ticket) instead of the subset. */

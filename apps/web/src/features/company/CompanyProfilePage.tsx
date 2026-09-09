@@ -250,9 +250,10 @@ export function CompanyProfilePage() {
       ) : (
         <Card className="flex flex-col gap-3">
           <div>
-            <p className="text-sm font-semibold text-ink">Ask to see rates and order</p>
+            <p className="text-sm font-semibold text-ink">Request access to trade</p>
             <p className="text-xs text-muted">
-              Send a short request. They approve once — then you can message and place orders.
+              Send a short note. They approve once — then you can message, see rates, and place
+              orders.
             </p>
           </div>
           <Button fullWidth onClick={() => {

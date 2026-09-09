@@ -106,7 +106,7 @@ describe('CatalogSerializer', () => {
     } as unknown as Collection & { products: (CollectionProduct & { product: Product })[] };
     const detail = serializer.toCollectionDetail(collection);
     expect(detail.productCount).toBe(1);
-    expect(detail.orderPathPreference).toBe('handle');
+    expect(detail.orderPathPreference).toBeNull();
     expect(detail.products[0]?.name).toBe('Banarasi Silk');
   });
 

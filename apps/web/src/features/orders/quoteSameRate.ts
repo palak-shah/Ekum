@@ -1,13 +1,13 @@
-/** Apply one wholesale rate string to every line id (skips empty when clearing). */
+/** Apply one wholesale rate to every line; blank shared rate restores defaults. */
 export function ratesWithSharedValue(
   lineIds: string[],
   sharedRate: string,
+  defaults: Record<string, string> = {},
 ): Record<string, string> {
   const next: Record<string, string> = {};
+  const useDefault = !sharedRate.trim();
   for (const id of lineIds) {
-    next[id] = sharedRate;
+    next[id] = useDefault ? (defaults[id] ?? '') : sharedRate;
   }
   return next;
 }
-
-export type QuoteRateMode = 'same' | 'each';

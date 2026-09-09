@@ -26,6 +26,9 @@ function makeService(
     message: {
       findFirst: async () => (opts?.sharedInChat ? { id: 'm1' } : null),
     },
+    collectionViewGrant: {
+      findUnique: async () => null,
+    },
     company: {
       findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
         (where.id.in ?? []).map((id) => ({ id, name: id })),

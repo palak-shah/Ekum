@@ -1,16 +1,41 @@
 import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import type { ProductView } from '@ekum/domain-types';
-import { api } from '@/lib/apiClient';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ProductRelistGrantView, ProductView } from '@ekum/domain-types';
+import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
+import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
+import { useToast } from '@/ui/Toast';
 import { Card, ErrorState, LoadingBlock, StatusPill, Tag } from '@/ui/kit';
 
 export function ProductDetailPage() {
   const { id = '' } = useParams();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const me = useMyCompany();
   const product = useQuery({
     queryKey: ['product', id],
     queryFn: () => api.get<ProductView>(`/products/${id}`),
+  });
+
+  const isOwner = Boolean(
+    me.data?.id && product.data?.companyId && me.data.id === product.data.companyId,
+  );
+
+  const relistGrants = useQuery({
+    queryKey: ['relist-grants', id],
+    queryFn: () => api.get<ProductRelistGrantView[]>(`/products/${id}/relist-grants`),
+    enabled: Boolean(id) && isOwner,
+  });
+
+  const revokeGrant = useMutation({
+    mutationFn: (granteeId: string) => api.del(`/products/${id}/relist-grants/${granteeId}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['relist-grants', id] });
+      showToast('Removed pack permission');
+    },
+    onError: (err) =>
+      showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger'),
   });
 
   if (product.isLoading) {
@@ -33,9 +58,11 @@ export function ProductDetailPage() {
       <PageHeader
         title={data.name}
         action={
-          <Link to={`/catalog/products/${data.id}`} className="text-sm font-medium text-accent">
-            Edit
-          </Link>
+          isOwner ? (
+            <Link to={`/catalog/products/${data.id}`} className="text-sm font-medium text-accent">
+              Edit
+            </Link>
+          ) : undefined
         }
       />
 
@@ -74,6 +101,38 @@ export function ProductDetailPage() {
           </div>
         ) : null}
       </Card>
+
+      {isOwner && (relistGrants.data?.length ?? 0) > 0 ? (
+        <div data-testid="product-relist-grants">
+          <Card className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">Who can put in pack</p>
+            <p className="text-xs text-muted">
+              Businesses you Allowed for this design only — not Connections.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {relistGrants.data!.map((grant) => (
+                <li
+                  key={grant.companyId}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="min-w-0 truncate font-medium text-ink">
+                    {grant.company.name}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs font-semibold text-danger"
+                    disabled={revokeGrant.isPending}
+                    onClick={() => revokeGrant.mutate(grant.companyId)}
+                    data-testid="product-relist-revoke"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -24,7 +24,15 @@ function order(
       logoUrl: null,
       verification: 'gst',
     },
-    items: overrides.items ?? [{ id: 'i1', quantity: 100, rate: 120, lineStatus: 'open' }],
+    items: overrides.items ?? [
+      {
+        id: 'i1',
+        quantity: 100,
+        remainingQuantity: 100,
+        rate: 120,
+        lineStatus: 'open',
+      },
+    ],
     createdAt: '2026-08-20T08:00:00.000Z',
     updatedAt: overrides.updatedAt ?? '2026-08-22T08:00:00.000Z',
     ...overrides,
@@ -53,7 +61,7 @@ describe('buildHomeNeeds', () => {
       order('confirm-1', {
         status: 'requested',
         direction: 'selling',
-        items: [{ id: 'i1', quantity: 50, rate: 100, lineStatus: 'open' }],
+        items: [{ id: 'i1', quantity: 50, remainingQuantity: 50, rate: 100, lineStatus: 'open' }],
       }),
       order('dispatch-1', { status: 'confirmed', direction: 'selling' }),
       order('dispatch-2', { status: 'confirmed', direction: 'selling' }),

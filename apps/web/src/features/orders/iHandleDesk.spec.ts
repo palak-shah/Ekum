@@ -11,6 +11,10 @@ import {
   traderActionsBehindTakeOver,
   traderDeskNextAction,
   traderDeskOrderId,
+  orderTicketMillLabel,
+  orderTicketMillNames,
+  millsObserveMode,
+  showMillSendOnCard,
 } from './iHandleDesk';
 import type { OrderMillDeskView, OrderView } from '@ekum/domain-types';
 
@@ -18,6 +22,25 @@ describe('iHandleDesk', () => {
   it('opens the parent ticket from a mill chat card', () => {
     expect(traderDeskOrderId({ id: 'mill-1', deskOrderId: 'meena-1' })).toBe('meena-1');
     expect(traderDeskOrderId({ id: 'meena-1' })).toBe('meena-1');
+  });
+
+  it('labels mill ticket as Mills when two+ shops and lists names quietly', () => {
+    expect(orderTicketMillLabel([{ sellerName: 'Ahmedabad Loom Co' }], 'Mills')).toBe(
+      'Ahmedabad Loom Co',
+    );
+    expect(
+      orderTicketMillLabel(
+        [{ sellerName: 'Ahmedabad Loom Co' }, { sellerName: 'Surat Mill' }],
+        'Mills',
+      ),
+    ).toBe('Mills');
+    expect(
+      orderTicketMillNames([
+        { sellerName: 'Ahmedabad Loom Co' },
+        { sellerName: 'Surat Mill' },
+      ]),
+    ).toEqual(['Ahmedabad Loom Co', 'Surat Mill']);
+    expect(orderTicketMillNames([{ sellerName: 'Ahmedabad Loom Co' }])).toEqual([]);
   });
 
   it('treats a buying hop with a parent as a mill subset', () => {
@@ -57,7 +80,7 @@ describe('iHandleDesk', () => {
     expect(showSellerConfirmOnDesk(undefined)).toBe(true);
   });
 
-  it('puts trader actions under Take over whenever the desk has mills', () => {
+  it('puts trader actions under Desk tools whenever the desk has mills', () => {
     expect(
       traderActionsBehindTakeOver([{ sellerName: 'Ahmedabad Loom' }] as OrderView['millDesks']),
     ).toBe(true);
@@ -65,7 +88,7 @@ describe('iHandleDesk', () => {
     expect(traderActionsBehindTakeOver(undefined)).toBe(false);
   });
 
-  it('keeps Send quote on the face only after a mill has quoted', () => {
+  it('keeps Send quote on the face only after a mill has quoted (Me desk)', () => {
     expect(
       showSendQuoteOnDeskFace([
         { held: true, millQuoted: false, sellerName: 'AL' },
@@ -82,6 +105,19 @@ describe('iHandleDesk', () => {
       ] as OrderView['millDesks']),
     ).toBe(true);
     expect(showSendQuoteOnDeskFace(undefined)).toBe(false);
+  });
+
+  it('Mills observe: Send quote never on face; mill Send only after Desk tools open', () => {
+    const desks = [
+      { held: false, millQuoted: true, sellerName: 'AL' },
+      { held: true, millQuoted: false, sellerName: 'Surat' },
+    ] as OrderView['millDesks'];
+    expect(millsObserveMode('mill', desks)).toBe(true);
+    expect(millsObserveMode('me', desks)).toBe(false);
+    expect(showSendQuoteOnDeskFace(desks, 'mill')).toBe(false);
+    expect(showMillSendOnCard('mill', desks, false)).toBe(false);
+    expect(showMillSendOnCard('mill', desks, true)).toBe(true);
+    expect(showMillSendOnCard('me', desks, false)).toBe(true);
   });
 
   it('cues the trader desk by mill Send / quote pass, not bilateral confirm', () => {
@@ -126,6 +162,30 @@ describe('iHandleDesk', () => {
     expect(traderDeskNextAction({ status: 'requested', counterpartName: 'X', millDesks: undefined })).toBe(
       null,
     );
+  });
+
+  it('Mills observe cues point at Desk tools, not Handle myself', () => {
+    expect(
+      traderDeskNextAction({
+        status: 'requested',
+        counterpartName: 'Jaipur Emporium',
+        laneTicket: 'mill',
+        millDesks: [
+          { held: true, millQuoted: false, sellerName: 'Ahmedabad Loom Co' },
+        ] as OrderView['millDesks'],
+      }),
+    ).toBe('Desk tools to Send mill lots');
+    expect(
+      traderDeskNextAction({
+        status: 'requested',
+        counterpartName: 'Jaipur Emporium',
+        laneTicket: 'mill',
+        hasSellerQuote: false,
+        millDesks: [
+          { held: false, millQuoted: true, sellerName: 'Ahmedabad Loom Co' },
+        ] as OrderView['millDesks'],
+      }),
+    ).toBe('Desk tools to Send quote to Jaipur Emporium');
   });
 
   it('does not wait on a mill that already settled', () => {

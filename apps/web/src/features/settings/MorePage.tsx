@@ -10,7 +10,7 @@ export function MorePage() {
   const navigate = useNavigate();
   const { logout, session } = useAuth();
   const company = useMyCompany();
-  const { buying, selling, canPublish } = useTradePresence();
+  const { buying, selling, canPublish, trading } = useTradePresence();
 
   const menu = [
     ...(selling
@@ -26,6 +26,15 @@ export function MorePage() {
     { to: '/starred', label: 'Starred' },
     { to: '/network', label: 'Network' },
     { to: '/team', label: 'Team' },
+    ...(trading
+      ? [
+          {
+            to: '/settings/paths',
+            label: 'Your paths',
+            hint: 'Who orders are with · see each other',
+          },
+        ]
+      : []),
     { to: '/settings', label: 'Settings' },
     { to: '/settings/profile', label: 'Business profile' },
   ];

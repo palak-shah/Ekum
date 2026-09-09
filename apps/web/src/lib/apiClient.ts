@@ -182,10 +182,15 @@ async function parseError(response: Response): Promise<ApiError> {
   } catch {
     // Non-JSON error body; fall back to the status text.
   }
+  const raw = (envelope.message ?? response.statusText ?? '').trim();
+  // Never toast SCREAMING_SNAKE codes — traders need a sentence.
+  const looksLikeCode = /^[A-Z][A-Z0-9_]{2,}$/.test(raw);
+  const message =
+    !raw || looksLikeCode ? 'Something went wrong. Please try again.' : raw;
   return new ApiError({
     statusCode: envelope.statusCode ?? response.status,
     code: envelope.code ?? 'UNKNOWN',
-    message: envelope.message ?? response.statusText ?? 'Something went wrong.',
+    message,
     details: envelope.details,
   });
 }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { OrderController } from './order.controller';
+import { TradeLaneController } from './trade-lane.controller';
 import { OrderInviteController } from './order-invite.controller';
 import { BuyForBuyerService } from './buy-for-buyer.service';
 import { SampleController } from './sample.controller';
@@ -10,6 +11,7 @@ import { ComplaintController } from './complaint.controller';
 import { OrderPaymentController, PaymentRequestController } from './payment.controller';
 import { PaymentService } from './payment.service';
 import { OrderService } from './order.service';
+import { TradeLaneService } from './trade-lane.service';
 import { SampleService } from './sample.service';
 import { ReturnService } from './return.service';
 import { ComplaintService } from './complaint.service';
@@ -26,6 +28,7 @@ import { TradeAccess } from './trade-access';
   imports: [AccessModule, ConversationModule],
   controllers: [
     OrderController,
+    TradeLaneController,
     OrderInviteController,
     SampleController,
     ReturnController,
@@ -35,6 +38,7 @@ import { TradeAccess } from './trade-access';
   ],
   providers: [
     OrderService,
+    TradeLaneService,
     BuyForBuyerService,
     SampleService,
     ReturnService,

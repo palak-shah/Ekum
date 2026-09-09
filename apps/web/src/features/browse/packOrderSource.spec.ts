@@ -25,13 +25,13 @@ describe('singleSourceCollectionId', () => {
 });
 
 describe('collectionIdForPackOrder', () => {
-  it('skips explicitly Direct packs', () => {
+  it('uses from-pack for curated packs even when stamped Direct', () => {
     expect(
       collectionIdForPackOrder([
         { sourceCollectionId: 'pack-1', sourcePath: 'direct' },
         { sourceCollectionId: 'pack-1', sourcePath: 'direct' },
       ]),
-    ).toBeUndefined();
+    ).toBe('pack-1');
     expect(
       collectionIdForPackOrder([
         { sourceCollectionId: 'pack-1', sourcePath: 'handle' },
@@ -42,9 +42,9 @@ describe('collectionIdForPackOrder', () => {
 });
 
 describe('shouldFallbackPackOrderToBatch', () => {
-  it('falls back for own albums and Direct packs', () => {
+  it('falls back for own albums only', () => {
     expect(shouldFallbackPackOrderToBatch('NOT_CURATED')).toBe(true);
-    expect(shouldFallbackPackOrderToBatch('DIRECT_PACK')).toBe(true);
+    expect(shouldFallbackPackOrderToBatch('DIRECT_PACK')).toBe(false);
     expect(shouldFallbackPackOrderToBatch('TRADING_REQUIRED')).toBe(false);
   });
 });

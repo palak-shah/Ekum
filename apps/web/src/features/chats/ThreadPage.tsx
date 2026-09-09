@@ -10,7 +10,6 @@ import {
 } from '@tanstack/react-query';
 import type {
   CollectionView,
-  CompanySettingsView,
   CreateProductDto,
   CursorPage,
   MessageReference,
@@ -21,7 +20,7 @@ import type {
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
-import { OrderPathPreference, photoUrlsFromMessage, voiceDurationMsFromMessage } from '@ekum/domain-types';
+import { photoUrlsFromMessage, voiceDurationMsFromMessage } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
@@ -72,14 +71,12 @@ import {
   resolveForwardFacilitator,
   withFacilitatorQuery,
   withOrderPathQuery,
-  parseOrderPath,
   catalogOrderGoesToLine,
   rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { ThreadForwardDock } from '@/features/chats/ThreadForwardDock';
 import { ThreadSearchFilterMenu } from '@/features/chats/ThreadSearchFilterMenu';
-import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import {
   dedupeOrderThreadMessages,
   isRichOrderChatMessage,
@@ -88,7 +85,7 @@ import {
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
-import { buildChatTradeCard, buildCollectionTradeCard } from './chatTradeCard';
+import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
 import { MSG_BUBBLE_CLASS, messageChromeBubblePad } from './messageChrome';
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { ChatTradeCard } from './ChatTradeCardView';
@@ -178,9 +175,6 @@ export function ThreadPage() {
   }, []);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [forwardQueue, setForwardQueue] = useState<MessageView[]>([]);
-  const [forwardPath, setForwardPath] = useState<'direct' | 'handle'>(
-    OrderPathPreference.Direct,
-  );
   const [forwardDoneTo, setForwardDoneTo] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<MessageView | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -659,6 +653,29 @@ export function ThreadPage() {
       setError(err instanceof ApiError ? err.message : 'Could not deny.'),
   });
 
+  const relistRequestAllow = useMutation({
+    mutationFn: (requestId: string) => api.post(`/relist-requests/${requestId}/allow`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['relist-access'] });
+      void queryClient.invalidateQueries({ queryKey: ['relist-grants'] });
+      setError(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not allow.'),
+  });
+
+  const relistRequestDeny = useMutation({
+    mutationFn: (requestId: string) => api.post(`/relist-requests/${requestId}/deny`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['relist-access'] });
+      setError(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not deny.'),
+  });
+
   const starMessage = useMutation({
     mutationFn: ({ messageId, starred }: { messageId: string; starred: boolean }) =>
       starred
@@ -806,19 +823,6 @@ export function ThreadPage() {
       setError(err instanceof ApiError ? err.message : 'Could not save to your catalogue.'),
   });
 
-  const catalogForward = forwardQueue.some(
-    (message) => message.type === 'product_card' || message.type === 'collection_card',
-  );
-  const forwardSettings = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.get<CompanySettingsView>('/settings'),
-    enabled: catalogForward,
-  });
-  useEffect(() => {
-    if (!catalogForward || !forwardSettings.data) return;
-    setForwardPath(resolveOrderPathPreference(forwardSettings.data.tradeDefaults));
-  }, [catalogForward, forwardSettings.data]);
-
   const forward = useMutation({
     mutationFn: async (threadId: string) => {
       if (forwardQueue.length === 0) {
@@ -828,14 +832,7 @@ export function ThreadPage() {
         const message = forwardQueue[i];
         if (!message) continue;
         setForwardProgress(`Forwarding ${i + 1}/${forwardQueue.length}…`);
-        const stampPath =
-          message.type === 'product_card' || message.type === 'collection_card'
-            ? forwardPath
-            : undefined;
-        await api.post<MessageView>(
-          `/threads/${threadId}/messages`,
-          forwardPayload(message, stampPath),
-        );
+        await api.post<MessageView>(`/threads/${threadId}/messages`, forwardPayload(message));
       }
       return { threadId };
     },
@@ -1744,6 +1741,11 @@ export function ThreadPage() {
                 onViewRequestAllow={(requestId) => viewRequestAllow.mutate(requestId)}
                 onViewRequestDeny={(requestId) => viewRequestDeny.mutate(requestId)}
                 viewRequestActing={viewRequestAllow.isPending || viewRequestDeny.isPending}
+                onRelistRequestAllow={(requestId) => relistRequestAllow.mutate(requestId)}
+                onRelistRequestDeny={(requestId) => relistRequestDeny.mutate(requestId)}
+                relistRequestActing={
+                  relistRequestAllow.isPending || relistRequestDeny.isPending
+                }
                 onCurate={(reference) => curate.mutate(reference)}
                   curating={curate.isPending}
                   curated={Boolean(message.reference && savedRefs.has(message.reference.id))}
@@ -2256,42 +2258,6 @@ export function ThreadPage() {
         }}
         title={forwardQueue.length > 1 ? `Forward ${forwardQueue.length}…` : 'Forward to…'}
       >
-        {catalogForward ? (
-          <div className="mb-3 flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">When they order</p>
-            {(
-              [
-                {
-                  value: OrderPathPreference.Direct,
-                  label: 'Direct',
-                  hint: 'Buyers order from the design owners',
-                },
-                {
-                  value: OrderPathPreference.Handle,
-                  label: 'I handle',
-                  hint: 'Buyers order from me',
-                },
-              ] as const
-            ).map((option) => {
-              const selected = forwardPath === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  disabled={forward.isPending}
-                  onClick={() => setForwardPath(option.value)}
-                  className={cx(
-                    'rounded-xl px-3 py-2.5 text-left',
-                    selected ? 'bg-accent/10 ring-1 ring-accent' : 'border border-line',
-                  )}
-                >
-                  <p className="text-sm font-semibold text-ink">{option.label}</p>
-                  <p className="text-xs text-muted">{option.hint}</p>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
         {forwardThreads.isLoading ? (
           <LoadingBlock />
         ) : (
@@ -2740,6 +2706,9 @@ function TimelineItem({
   onViewRequestAllow,
   onViewRequestDeny,
   viewRequestActing = false,
+  onRelistRequestAllow,
+  onRelistRequestDeny,
+  relistRequestActing = false,
   onCurate,
   curating,
   curated,
@@ -2765,6 +2734,9 @@ function TimelineItem({
   onViewRequestAllow?: (requestId: string) => void;
   onViewRequestDeny?: (requestId: string) => void;
   viewRequestActing?: boolean;
+  onRelistRequestAllow?: (requestId: string) => void;
+  onRelistRequestDeny?: (requestId: string) => void;
+  relistRequestActing?: boolean;
   onCurate: (reference: MessageReference) => void;
   curating: boolean;
   curated: boolean;
@@ -2786,15 +2758,11 @@ function TimelineItem({
     message.metadata && typeof message.metadata === 'object'
       ? (message.metadata as Record<string, unknown>)
       : null;
-  const sharePath = parseOrderPath(
-    typeof meta?.orderPathPreference === 'string' ? meta.orderPathPreference : undefined,
-  );
-  if (ref?.available && ref.id && sharePath === 'handle') {
-    rememberCatalogHandlerName(
-      message.type === 'collection_card' ? 'collection' : 'product',
-      ref.id,
-      senderLabel,
-    );
+  /** Pack shares always go through the sharer; legacy meta.orderPathPreference ignored. */
+  const sharePath =
+    message.type === 'collection_card' ? ('handle' as const) : undefined;
+  if (ref?.available && ref.id && message.type === 'collection_card') {
+    rememberCatalogHandlerName('collection', ref.id, senderLabel);
   }
   const collectionPath =
     ref?.available && ref.id
@@ -2909,6 +2877,93 @@ function TimelineItem({
   }
 
   if (
+    (message.type === 'system' || message.type === 'product_card') &&
+    meta?.kind === 'relist_request' &&
+    typeof meta.requestId === 'string'
+  ) {
+    const status = typeof meta.status === 'string' ? meta.status : 'pending';
+    const isTarget =
+      Boolean(viewerCompanyId) && viewerCompanyId === meta.targetCompanyId;
+    const pending = status === 'pending';
+    const allowed = status === 'allowed';
+    const names = Array.isArray(meta.productNames)
+      ? (meta.productNames as unknown[]).filter((n): n is string => typeof n === 'string')
+      : [];
+    const designLabel =
+      names.length === 1
+        ? names[0]!
+        : names.length > 1
+          ? `${names.length} designs`
+          : ref?.name?.trim() || 'design';
+    const askLine = pending
+      ? isTarget
+        ? `Wants to put ${designLabel} in their pack`
+        : 'Waiting for Allow'
+      : allowed
+        ? 'You can put this in your pack'
+        : null;
+    const model = buildDesignTradeCard(message, ref, senderLabel, null, {
+      productPath: undefined,
+    });
+    if (names.length === 1) {
+      model.primary = names[0]!.trim();
+    } else if (names.length > 1) {
+      model.primary = `${names.length} designs`;
+    }
+    model.who = senderLabel.trim() || null;
+    model.details = [
+      ...(askLine ? [askLine] : []),
+      ...model.details.filter((line) => line !== askLine),
+    ];
+    model.note = undefined;
+    model.secondaryAction = undefined;
+    model.action = undefined;
+    if (pending && isTarget && !selecting) {
+      model.actionRow = [
+        {
+          label: relistRequestActing ? '…' : 'Deny',
+          onClick: () => {
+            if (relistRequestActing) return;
+            onRelistRequestDeny?.(meta.requestId as string);
+          },
+          style: 'link',
+          emphasis: 'quiet',
+          testId: 'relist-request-deny',
+        },
+        {
+          label: relistRequestActing ? '…' : 'Allow',
+          onClick: () => {
+            if (relistRequestActing) return;
+            onRelistRequestAllow?.(meta.requestId as string);
+          },
+          style: 'link',
+          emphasis: 'accent',
+          testId: 'relist-request-allow',
+        },
+      ];
+    }
+
+    return (
+      <MessageChrome
+        messageId={message.id}
+        mine={message.mine}
+        selecting={selecting}
+        selected={selected}
+        highlighted={highlighted}
+        onToggleSelect={onToggleSelect}
+        actions={undefined}
+        className="max-w-[85%]"
+      >
+        <ChatTradeCard
+          model={model}
+          highlight={hl}
+          onOpen={undefined}
+        />
+      </MessageChrome>
+    );
+  }
+
+  if (
     (message.type === 'system' || message.type === 'collection_card') &&
     meta?.kind === 'collection_view_request' &&
     typeof meta.requestId === 'string'
@@ -2926,12 +2981,12 @@ function TimelineItem({
     const askLine = pending
       ? isDefaultAskBody || !rawBody
         ? isTarget
-          ? 'Asked to see this collection'
+          ? 'Asked to see this pack'
           : 'Waiting for Allow'
         : rawBody
       : allowed
         ? isDefaultAskBody || /^allowed\b/i.test(rawBody) || !rawBody
-          ? 'You can view this collection'
+          ? 'You can look through this pack'
           : rawBody
         : null;
     const model = buildCollectionTradeCard(message, ref, senderLabel, null, {

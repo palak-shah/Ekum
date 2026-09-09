@@ -45,12 +45,8 @@ export class DiscoverySerializer {
       // Explore “when” = last publish / new-design activity when set.
       updatedAt: (collection.exploreActivityAt ?? collection.updatedAt).toISOString(),
       allowForward: collection.allowForward,
-      orderPathPreference:
-        collection.orderPathPreference === 'handle'
-          ? 'handle'
-          : collection.orderPathPreference === 'direct'
-            ? 'direct'
-            : null,
+      /** Legacy column ignored — path is TradeLane / Your paths. */
+      orderPathPreference: null,
       company: this.companySerializer.toPublicSummary(collection.company),
     };
   }

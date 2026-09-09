@@ -98,6 +98,7 @@ const NotificationsPage = page(
 );
 const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
+const YourPathsPage = page(() => import('@/features/settings/YourPathsPage'), 'YourPathsPage');
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
 const SavedPage = page(() => import('@/features/saved/SavedPage'), 'SavedPage');
 const SelectionPage = page(() => import('@/features/browse/SelectionPage'), 'SelectionPage');
@@ -182,6 +183,7 @@ export const router = createBrowserRouter([
               { path: 'notifications', element: <NotificationsPage /> },
               { path: 'settings', element: <SettingsPage /> },
               { path: 'settings/profile', element: <ProfilePage /> },
+              { path: 'settings/paths', element: <YourPathsPage /> },
               { path: 'team', element: <TeamPage /> },
               { path: 'saved', element: <SavedPage /> },
               { path: 'selection', element: <SelectionPage /> },

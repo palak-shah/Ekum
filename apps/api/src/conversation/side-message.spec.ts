@@ -16,6 +16,20 @@ describe('messageVisibleToCompany', () => {
     expect(messageVisibleToCompany(message, 'kavita')).toBe(true);
   });
 
+  it('hides denied relist asks from the requester', () => {
+    const message = {
+      type: 'product_card',
+      metadata: {
+        kind: 'relist_request',
+        status: 'denied',
+        requesterCompanyId: 'meena',
+        targetCompanyId: 'kavita',
+      },
+    };
+    expect(messageVisibleToCompany(message, 'meena')).toBe(false);
+    expect(messageVisibleToCompany(message, 'kavita')).toBe(true);
+  });
+
   it('keeps pending asks visible to both', () => {
     const message = {
       type: 'collection_card',

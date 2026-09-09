@@ -11,9 +11,9 @@ Meena opens a gated pack (e.g. Kavita’s followers sarees). Today **Ask** uses 
 
 ## Product promise
 
-1. **Ask to see this collection** ≠ **Request access / Connect**.  
+1. **Ask to see this pack** ≠ **Request access / Connect** ≠ **Ask to put in my pack** (Curate unlock — Slice B).  
 2. Kavita **Allow / Deny** in the chat thread.  
-3. **Allow** unlocks **only that collection** via **Granted on request** (not Followers, not buyer group, not publish-time Selected).  
+3. **Allow** unlocks **only that pack to look through** via **Granted on request** (not Followers, not buyer group, not publish-time Selected, not Curate).  
 4. **Deny** is silent to Meena — no “denied” chat, notification, or Home line.  
 5. Meena learns of Allow via **chat + notification + one aggregated Home row**.  
 6. Kavita can later see **who** can see the pack, including **Granted on request**.
@@ -38,7 +38,7 @@ Meena opens a gated pack (e.g. Kavita’s followers sarees). Today **Ask** uses 
 
 ### Ask → Allow
 
-1. Meena on gated collection → **Ask to see this collection**.  
+1. Meena on gated collection → **Ask to see this pack**.  
 2. Chat to catalog owner gets a **view-request** card (pack name, requester).  
 3. Kavita **Allow** → Meena added to **Granted on request** for that pack.  
 4. Meena: chat “You can view {pack}”; notification; Home Needs count +1 (or new single aggregate row).  

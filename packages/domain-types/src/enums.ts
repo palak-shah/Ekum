@@ -163,6 +163,14 @@ export type OrderPathPreference =
   (typeof OrderPathPreference)[keyof typeof OrderPathPreference];
 export const orderPathPreferenceValues = values(OrderPathPreference);
 
+/** TradeLane ticket: who the end-buyer’s hop is with (Me = I handle). */
+export const TradeLaneTicket = {
+  Me: 'me',
+  Mill: 'mill',
+} as const;
+export type TradeLaneTicket = (typeof TradeLaneTicket)[keyof typeof TradeLaneTicket];
+export const tradeLaneTicketValues = values(TradeLaneTicket);
+
 /**
  * Commitment level. Inquiry = rate ask (soft); becomes order when the seller
  * quotes / confirms lines or the buyer accepts a quote.

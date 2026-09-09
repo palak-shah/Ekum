@@ -27,8 +27,8 @@ Anyone browsing a business; owners edit via **You → profile / settings**. Memb
 
 1. **You → Team** — every member sees the list (name + Owner / Staff).
 2. With **Team** cap: **Invite** (name + 10-digit) → share `/t/:token`. Edit caps on a row. Remove staff.
-3. Recipient OTP on that phone → Join. Becomes staff if they have no business yet. Last owner cannot be removed.
-4. **Remove** archives the person (they cannot open chats). Work and their name on your side stay. Internal: “Priya left the team.” Dedup of group chats still counts them. Not a hard delete.
+3. Recipient OTP on that phone → Join. Becomes staff if they have **no live** business. After **Remove** (archive) at a prior shop, the same phone may join another shop or create a company. Still live elsewhere → blocked until that shop removes them. Last owner cannot be removed.
+4. **Remove** archives the person (they cannot open chats). Work and their name on your side stay. Internal: “Priya left the team.” Dedup of group chats still counts them. Not a hard delete. Re-invite to **this** shop unarchives the same seat.
 
 ## Business rules
 
@@ -39,8 +39,8 @@ Anyone browsing a business; owners edit via **You → profile / settings**. Memb
 | Capabilities | Shown as data (`publish`, `relist`, `refer`) on own company |
 | Verification | `not_verified` · `gst_verified` |
 | Own vs other | Editing only for the acting company’s profile |
-| Team | People under this company (`owner` / `staff` + five caps). Invite is phone-bound; a phone that already has a business cannot join. No company switcher. |
-| Leave Team | **Archive**, do not delete. Archived people cannot sign in as this company. Group-chat uniqueness still includes them. |
+| Team | People under this company (`owner` / `staff` + five caps). Invite is phone-bound; a phone with a **live** business elsewhere cannot join. After archive, same phone may join another shop. No company switcher (one live at a time). |
+| Leave Team | **Archive**, do not delete. Archived people cannot sign in as this company. Group-chat uniqueness still includes them. Rejoin this shop = unarchive via invite. |
 
 ## Edge cases / empty states
 

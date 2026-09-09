@@ -32,7 +32,8 @@ function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/notifications')) return 'Notifications';
   if (pathname.startsWith('/team')) return 'Team';
   if (pathname.startsWith('/more') || pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
-    return 'More';
+    // PageHeader owns “You” / nested titles — no conflicting shell “More”.
+    return null;
   }
   if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
   if (pathname.startsWith('/following') || pathname.startsWith('/followers')) return 'Network';

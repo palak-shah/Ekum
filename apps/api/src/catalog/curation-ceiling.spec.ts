@@ -45,6 +45,16 @@ describe('assertProductsCuratable', () => {
     postedToMarketAt: new Date('2026-08-01'),
   };
 
+  it('allows foreign locked product when RelistGrant is present', () => {
+    expect(() =>
+      assertProductsCuratable({
+        curatorCompanyId: 'me',
+        products: [{ ...base, allowForward: false }],
+        relistGrantedIds: new Set(['p1']),
+      }),
+    ).not.toThrow();
+  });
+
   it('rejects locked forward on foreign product', () => {
     expect(() =>
       assertProductsCuratable({

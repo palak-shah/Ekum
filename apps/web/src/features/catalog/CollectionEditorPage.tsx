@@ -36,7 +36,6 @@ import { createPortal } from 'react-dom';
 import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import { nameFromFilename } from './collectionCreateHelpers';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { collectionStatusSummary } from './collectionStatusSummary';
@@ -228,7 +227,6 @@ export function CollectionEditorPage() {
           audienceGroupIds: existing.data.audienceGroupIds ?? [],
           rateVisibility: existing.data.rateVisibility,
           allowForward: existing.data.allowForward !== false,
-          orderPathPreference: existing.data.orderPathPreference,
         }),
       );
       setStartsAt(toDateInput(existing.data.startsAt));
@@ -248,7 +246,6 @@ export function CollectionEditorPage() {
     if (!publishOpen || !settings.data) return;
     if (existing.data?.status === CollectionStatus.Published) return;
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
-    const orderPath = resolveOrderPathPreference(settings.data.tradeDefaults);
     setPublishAudience((prev) => ({
       ...prev,
       // Curated packs default rates to on request (source ceiling).
@@ -256,7 +253,6 @@ export function CollectionEditorPage() {
         ? RateVisibility.OnRequest
         : usual.rateVisibility,
       allowForward: usual.allowForward,
-      orderPathPreference: prev.orderPathPreference || orderPath,
       policyHint: hasForeignMembers
         ? 'Rates stay on request when this pack includes others’ designs.'
         : null,
@@ -395,7 +391,6 @@ export function CollectionEditorPage() {
         audience: publishAudience.audience as PublishCollectionDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
-        orderPathPreference: publishAudience.orderPathPreference,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
         ...schedulePayload(),

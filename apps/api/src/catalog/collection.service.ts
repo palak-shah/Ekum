@@ -117,16 +117,6 @@ export class CollectionService {
         coverImage: dto.coverImage ?? null,
         startsAt: startsAt === undefined ? null : startsAt,
         endsAt: endsAt === undefined ? null : endsAt,
-        ...(dto.orderPathPreference !== undefined
-          ? {
-              orderPathPreference:
-                dto.orderPathPreference === null
-                  ? null
-                  : dto.orderPathPreference === 'handle'
-                    ? 'handle'
-                    : 'direct',
-            }
-          : {}),
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -201,16 +191,6 @@ export class CollectionService {
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),
-        ...(dto.orderPathPreference !== undefined
-          ? {
-              orderPathPreference:
-                dto.orderPathPreference === null
-                  ? null
-                  : dto.orderPathPreference === 'handle'
-                    ? 'handle'
-                    : 'direct',
-            }
-          : {}),
       },
       include: listInclude,
     });
@@ -273,11 +253,13 @@ export class CollectionService {
 
     const products = members.map((row) => row.product);
     const discoverableIds = await this.discoverableProductIds(companyId, products);
+    const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
     assertProductsCuratable({
       curatorCompanyId: companyId,
       products,
       publishAudience: dto.audience,
       discoverableIds,
+      relistGrantedIds,
     });
 
     const rateVisibility = curatedPublishRateVisibility({
@@ -296,14 +278,6 @@ export class CollectionService {
     // Only the curator's own drafts are auto-published; foreign members stay as-is.
     const memberIds = members.map((row) => row.productId);
     const allowForward = dto.allowForward !== false;
-    const orderPathPreference =
-      dto.orderPathPreference === undefined
-        ? undefined
-        : dto.orderPathPreference === null
-          ? null
-          : dto.orderPathPreference === 'handle'
-            ? 'handle'
-            : 'direct';
     const now = new Date();
     await this.prisma.product.updateMany({
       where: {
@@ -341,7 +315,6 @@ export class CollectionService {
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
-        ...(orderPathPreference !== undefined ? { orderPathPreference } : {}),
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),
@@ -477,10 +450,12 @@ export class CollectionService {
         });
       }
       const discoverableIds = await this.discoverableProductIds(companyId, products);
+      const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
       assertProductsCuratable({
         curatorCompanyId: companyId,
         products,
         discoverableIds,
+        relistGrantedIds,
       });
     }
 
@@ -591,6 +566,44 @@ export class CollectionService {
     }
 
     return discoverable;
+  }
+
+  /** Product ids with a ProductRelistGrant OR open via another company's pack allow. */
+  private async relistGrantedProductIds(
+    curatorCompanyId: string,
+    products: ProductCeilingRow[],
+  ): Promise<Set<string>> {
+    const foreignLocked = products.filter(
+      (product) => product.companyId !== curatorCompanyId && !product.allowForward,
+    );
+    if (foreignLocked.length === 0) {
+      return new Set();
+    }
+    const lockedIds = foreignLocked.map((p) => p.id);
+    const [grants, packOpen] = await Promise.all([
+      this.prisma.productRelistGrant.findMany({
+        where: {
+          companyId: curatorCompanyId,
+          productId: { in: lockedIds },
+        },
+        select: { productId: true },
+      }),
+      this.prisma.collectionProduct.findMany({
+        where: {
+          productId: { in: lockedIds },
+          collection: {
+            status: CollectionStatus.Published,
+            allowForward: true,
+            companyId: { not: curatorCompanyId },
+          },
+        },
+        select: { productId: true },
+      }),
+    ]);
+    return new Set([
+      ...grants.map((g) => g.productId),
+      ...packOpen.map((row) => row.productId),
+    ]);
   }
 
   private async scheduleExpire(collectionId: string, endsAt: Date | null): Promise<void> {

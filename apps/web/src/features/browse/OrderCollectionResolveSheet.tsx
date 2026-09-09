@@ -38,7 +38,7 @@ const RESOLVE_COPY = {
 function productToShortlistEntry(
   product: ProductView,
   fallbackCompany: { id: string; name: string },
-  pack?: { collectionId: string; path: string | null },
+  pack?: { collectionId: string; path: string | null; allowForward?: boolean },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
   return {
@@ -53,6 +53,7 @@ function productToShortlistEntry(
           sourceCollectionId: pack.collectionId,
           sourceHandlerName: fallbackCompany.name,
           sourcePath: path,
+          sourcePackAllowForward: pack.allowForward !== false,
         }
       : {}),
   };
@@ -151,7 +152,8 @@ export function OrderCollectionResolveSheet({
             },
             {
               collectionId: album.collectionId,
-              path: preview.orderPathPreference ?? album.orderPathPreference ?? null,
+              path: 'handle',
+              allowForward: album.allowForward,
             },
           ),
         );

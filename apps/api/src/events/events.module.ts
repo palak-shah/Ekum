@@ -10,6 +10,7 @@ import {
   type PaymentAskEvent,
   type ReturnEvent,
   type CollectionViewGrantedEvent,
+  type RelistGrantedEvent,
 } from './domain-events';
 
 /**
@@ -58,6 +59,10 @@ export class DomainEvents {
 
   collectionViewGranted(payload: CollectionViewGrantedEvent): void {
     this.emitter.emit(DomainEventName.CollectionViewGranted, payload);
+  }
+
+  relistGranted(payload: RelistGrantedEvent): void {
+    this.emitter.emit(DomainEventName.RelistGranted, payload);
   }
 }
 

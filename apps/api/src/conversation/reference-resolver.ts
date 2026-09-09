@@ -87,6 +87,7 @@ export class ReferenceResolver {
             select: {
               id: true,
               status: true,
+              intent: true,
               buyerCompanyId: true,
               sellerCompanyId: true,
               facilitatorCompanyId: true,
@@ -244,6 +245,7 @@ export class ReferenceResolver {
             actorLabel: null,
             canAcceptQuote: false,
             canAcceptLogged: false,
+            intent: null,
           });
           continue;
         }
@@ -377,6 +379,8 @@ export class ReferenceResolver {
           actorLabel,
           canAcceptQuote,
           canAcceptLogged,
+          intent:
+            order?.intent === 'inquiry' || order?.intent === 'order' ? order.intent : null,
         });
       }
     }

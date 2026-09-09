@@ -118,4 +118,16 @@ describe('packLockReason', () => {
     expect(packLockReason(true)).toBeUndefined();
     expect(packLockReason(undefined)).toBeUndefined();
   });
+
+  it('clears lock when grant is present', () => {
+    expect(packLockReason(false, { hasGrant: true })).toBeUndefined();
+  });
+
+  it('shows Waiting for Allow while pending', () => {
+    expect(packLockReason(false, { waiting: true })).toBe('Waiting for Allow');
+  });
+
+  it('clears lock when source pack allows relist', () => {
+    expect(packLockReason(false, { sourcePackAllowForward: true })).toBeUndefined();
+  });
 });

@@ -292,6 +292,7 @@ describe('CollectionService.setProducts', () => {
       },
       connection: { findMany: async () => [] },
       follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
       collectionProduct: { findMany: async () => [] },
       $transaction: transaction,
     } as unknown as PrismaService;

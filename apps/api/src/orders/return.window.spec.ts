@@ -4,11 +4,20 @@ import { OrderStatus } from '@ekum/domain-types';
 import { ReturnService } from './return.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { OrderSerializer } from './order.serializer';
+import type { OrderService } from './order.service';
 import type { AuditService } from '../audit/audit.service';
 import type { DomainEvents } from '../events/events.module';
 
 function makeService(returnWindowClosesAt: Date | null) {
-  const create = vi.fn(async () => ({ id: 'r1', items: [] }));
+  const create = vi.fn(async () => ({
+    id: 'r1',
+    orderId: 'o1',
+    buyerCompanyId: 'buyer',
+    sellerCompanyId: 'seller',
+    status: 'requested',
+    items: [],
+    order: { buyer: { name: 'Meena' }, seller: { name: 'Ravi' } },
+  }));
   const prisma = {
     order: {
       findUnique: async () => ({
@@ -28,7 +37,13 @@ function makeService(returnWindowClosesAt: Date | null) {
   const trail = {
     append: async () => undefined,
   } as unknown as import('./order-trail.service').OrderTrailService;
-  return { service: new ReturnService(prisma, serializer, audit, events, trail), create };
+  const orders = {
+    postLifecycleCard: vi.fn(async () => undefined),
+  } as unknown as OrderService;
+  return {
+    service: new ReturnService(prisma, serializer, audit, events, trail, orders),
+    create,
+  };
 }
 
 const dto = { orderId: 'o1', items: [{ orderItemId: 'oi1', quantity: 2 }] };

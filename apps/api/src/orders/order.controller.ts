@@ -12,6 +12,8 @@ import {
   listOrdersQuerySchema,
   quoteOrderSchema,
   millPassHoldSchema,
+  millRevealSchema,
+  orderTicketSchema,
   sendUpOrderSchema,
   settleOrderSchema,
   type AmendOrderDto,
@@ -26,6 +28,8 @@ import {
   type ListOrdersQuery,
   type QuoteOrderDto,
   type MillPassHoldDto,
+  type MillRevealDto,
+  type OrderTicketDto,
   type SendUpOrderDto,
   type SettleOrderDto,
 } from '@ekum/domain-types';
@@ -237,6 +241,30 @@ export class OrderController {
     @Body(new ZodValidationPipe(millPassHoldSchema)) dto: MillPassHoldDto,
   ) {
     return this.orders.millPassHold(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/mill-reveal')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  millReveal(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(millRevealSchema)) dto: MillRevealDto,
+  ) {
+    return this.orders.millReveal(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/ticket')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  flipTicket(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(orderTicketSchema)) dto: OrderTicketDto,
+  ) {
+    return this.orders.flipTicket(companyId, user.userId, id, dto);
   }
 
   @Post(':id/take-control')

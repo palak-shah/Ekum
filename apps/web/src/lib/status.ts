@@ -19,7 +19,7 @@ const STATUS_TONE: Record<string, StatusTone> = {
   requested: 'info',
   confirmed: 'progress',
   part_shipped: 'progress',
-  dispatched: 'progress',
+  dispatched: 'success',
   settled: 'success',
   delivered: 'success',
   declined: 'danger',
@@ -49,6 +49,9 @@ const STATUS_LABEL: Record<string, string> = {
   not_verified: 'Unverified',
   gst_verified: 'GST verified',
   ready: 'Ready',
+  /** Both terminal success: full ship vs qty closed after short ship. */
+  dispatched: 'Dispatched · complete',
+  settled: 'Settled · complete',
 };
 
 /** Return pills — `requested` must not read like an order inquiry. */

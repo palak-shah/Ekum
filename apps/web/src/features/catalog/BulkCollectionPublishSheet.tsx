@@ -12,7 +12,6 @@ import { useMyCompany } from '@/lib/queries';
 import { Button, Sheet } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import {
   emptyPublishAudienceState,
@@ -64,9 +63,8 @@ export function BulkCollectionPublishSheet({ open, onClose, collectionIds, onDon
   useEffect(() => {
     if (!open || !settings.data) return;
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
-    const orderPath = resolveOrderPathPreference(settings.data.tradeDefaults);
     setPublishAudience((prev) => ({
-      ...emptyPublishAudienceState(usual, orderPath),
+      ...emptyPublishAudienceState(usual),
       audience: prev.audience || PublishAudience.Followers,
     }));
     setConsent(false);
@@ -84,7 +82,6 @@ export function BulkCollectionPublishSheet({ open, onClose, collectionIds, onDon
         audience: publishAudience.audience as PublishCollectionDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
-        orderPathPreference: publishAudience.orderPathPreference,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
       };

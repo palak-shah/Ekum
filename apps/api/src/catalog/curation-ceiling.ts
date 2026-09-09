@@ -22,6 +22,8 @@ export type AssertProductsCuratableInput = {
   publishAudience?: string;
   /** When provided, each foreign product id must be in this set (caller runs discoverability). */
   discoverableIds?: Set<string>;
+  /** Product ids with a ProductRelistGrant for the curator (Slice B). */
+  relistGrantedIds?: Set<string>;
 };
 
 export function audienceRank(audience: string): number {
@@ -40,14 +42,16 @@ function isForeign(curatorCompanyId: string, product: CuratableProduct): boolean
 }
 
 export function assertProductsCuratable(input: AssertProductsCuratableInput): void {
-  const { curatorCompanyId, products, publishAudience, discoverableIds } = input;
+  const { curatorCompanyId, products, publishAudience, discoverableIds, relistGrantedIds } =
+    input;
 
   for (const product of products) {
     if (!isForeign(curatorCompanyId, product)) {
       continue;
     }
 
-    if (!product.allowForward) {
+    const granted = relistGrantedIds?.has(product.id) === true;
+    if (!product.allowForward && !granted) {
       throw new BadRequestException({
         code: 'RELIST_NOT_ALLOWED',
         message: "This seller doesn't allow putting this in a pack.",

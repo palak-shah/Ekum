@@ -64,7 +64,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Buying: Following-first posts + received by day/business | Works | Unit | Required | Slice C; not mixed into market ranking |
 | Explore | Selling: Buyers for you (not My Catalog) | Works | Unit | Required | Buyers shelf on Selling / All when you sell |
 | Explore | Vanity likes ranking | Rejected | — | Reject | |
-| Team | Invite staff + five caps + owner-only chat | Partial | Unit-only | Required | You → Team; `/t/:token` join; staff seed +919800000004 |
+| Team | Invite staff + five caps + owner-only chat | Works | Unit | Required | You → Team; `/t/:token` join; staff seed +919800000004 |
+| Team | Join after archive (same phone → new shop / create company) | Works | Unit | Required | Completeness 2026-09-09-team-join-after-archive; live seat still blocks |
 | Network | Following / Followers lists | Works | Unit-only | Required | You → Network hub pages restored 2026-08-20 |
 | Network | Connections hub (both roles) + Requests | Works | Functional | Required | `network.referrals.journey.spec.ts` |
 | Referrals | Connect-with-me invite create + Share/Copy | Works | Functional | Required | `network.referrals.journey.spec.ts` |
@@ -73,7 +74,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Referrals | Targeted vouch (optional target company) | Works | Untested | Recommended | Seller still approves |
 | Referrals | Auto-connect / auto-follow on redeem | Rejected | — | Reject | Trust ladder |
 | Trader curation | Dual network (suppliers + buyers) via Connections/Follow | Partial | Untested | Required | Platform 1-hop; long chain possible |
-| Trader curation | Multi-supplier pick → curated collection for buyers | Works | Unit-only | Required | Slice A; `＋` Curate pack; `canRelist` on first curated publish; see `docs/features/saved.md` |
+| Trader curation | Multi-supplier pick → curated collection for buyers | Works | Functional | Required | Slice A; C1 e2e `curate.multi-supplier.journey`; see `docs/features/saved.md` |
 | Trader curation | Saved hub (design + collection **references**) | Works | Functional | Required | `saved.journey.spec.ts`; API `saved.service.spec` |
 | Browse | Voice: WhatsApp chat hold-to-send + order create/quote notes (text and/or voice); media Audio | Partial | Unit | Required | Wave 1 shipped; payment/return notes = wave 2. Spec 2026-09-05-voice |
 | Trader curation | Curate within original seller permission (forward/audience) | Works | Unit-only | Required | Slice A; `curation-ceiling` + collection membership specs |
@@ -83,11 +84,14 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |
 | Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Works | Unit | Required | Shipped: Direct vs I handle + Send-hold. Product Redesign 2026-09-02: TradeLane ticket × reveal |
 | Trader curation | I-handle desk: one buyer row; mill subsets + # after Send; quote gate; Hold; list/Find Trading filter; From/To rates; fulfillment under Take over after accept | Works | Unit + Functional | Required | Completeness 2026-09-07-trader-i-handle-desk + from-to-rates + take-over-fulfillment |
-| Orders quote | Same rate for all on Send quote + mill Send qty/rate one line | Works | Unit | Required | Completeness 2026-09-07-same-rate-for-all-quote |
+| Orders quote | Rate all on Send quote + mill Send (per-line rates always) | Works | Unit | Required | Completeness 2026-09-08-rate-all-quote; supersedes same-rate chips |
 | Orders close | Full dispatch → `dispatched` complete; Settle only on qty mismatch → `settled` | Works | Unit | Required | Completeness 2026-09-07-dispatch-complete-vs-settle |
 | Orders part ship | Partial dispatch → main status `part_shipped` (not Confirmed cue) | Works | Unit | Required | Completeness 2026-09-07-part-shipped-main-status |
 | I-handle soft-hide | Parent ticket/chat never shows upstream mill names (chain-safe) | Works | Unit | Required | Completeness 2026-09-07-i-handle-no-upstream-names |
-| Trader curation | TradeLane: first pair I handle + no group; two switches; Your paths | Redesign | — | Required | Completeness 2026-09-02-tradelane-path; spec + client one-pager; **not built** |
+| Trader curation | TradeLane: first pair I handle + no group; two switches; Your paths | Works | Unit + Functional | Required | Completeness your-paths + remove-profile-order-path + purge-collection-order-path; pack path stamp ignored |
+| Trader curation | Reveal trio: subset card only (not main); one group per mill | Works | Unit | Required | Completeness 2026-09-08-trio-subset-card |
+| Trader curation | Multi-supplier journey matrix (publish→curate→I-handle/Direct) | Review | Manual + Functional (C1·D1·D3 Pass) | Required | `docs/superpowers/reviews/2026-09-08-multi-supplier-journey-matrix.md`; C1 `curate.multi-supplier`; D1·D3 `orders.from-pack-multi` |
+| Trader curation | Unified main + linked lots (Direct = same desk, not N batch) | Works | Unit + Functional | Required | Place always from-pack. **D12 Pass:** Mills = observe on main |
 | Trader curation | Middleman in-loop + optional anonymity (multi-hop) | Later | — | Future | Reveal off = hide tickets only; no hard Connection/chat block. Multi-hop later |
 | Trader curation | Trader attention UX (buy / curate / share / follow-up) | Missing | — | Required | WhatsApp-simple |
 | Trader curation | Trader insights (vendor↔trader analytics) | Later | — | Future | |
@@ -101,7 +105,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Browse | Selection workspace `/selection` + floater; multi-surface; survive logout; unavailable fade; My designs **To selection** (no auto-mirror); published-only traveling Selection | Works | Unit + Functional | Required | Completeness 2026-09-03-selection-workspace + 2026-09-04-own-catalog-handoff; verbs on Your selection |
 | Browse | Selection availability = access only (album members without market post stay orderable) | Works | Unit | Required | Completeness 2026-09-07-selection-access-availability; explore productDetail + TradeAccess |
 | Trader curation | Curate albums like Order (whole pack / pick); designs as-is; gray locked (Slice A) | Works | Unit + Functional | Required | Completeness 2026-09-04-curate-album-as-is; Save draft primary; no Ask in A |
-| Trader curation | Ask supplier pack permission (Allow/Deny + product relist grant) (Slice B) | Spec | Untested | Recommended | After A; distinct from view Ask; revoke in B |
+| Trader curation | Ask supplier pack permission (Allow/Deny + product relist grant) (Slice B) | Works | Unit + Functional | Required | Completeness 2026-09-08-relist-ask-slice-b; distinct from view Ask |
+| Trader curation | Desk-chain Ask (via pack → desk; mill listing → mill; publish allow gates buyers) | Works | Unit + Functional | Required | Completeness 2026-09-09-relist-desk-chain; agent role Later |
 | Media | Catalog design upload | Works | Untested | Future | |
 | Media | Top-level Media tab | Rejected | — | Reject | |
 | Media | Upload failure UX | Partial | Untested | Recommended | |

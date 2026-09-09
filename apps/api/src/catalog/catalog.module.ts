@@ -6,11 +6,16 @@ import {
   CollectionViewGrantController,
   CollectionViewRequestController,
 } from './collection-view-request.controller';
+import {
+  ProductRelistGrantController,
+  RelistRequestController,
+} from './relist-request.controller';
 import { ProductService } from './product.service';
 import { CollectionService } from './collection.service';
 import { ShareLinkService } from './share-link.service';
 import { CatalogSerializer } from './catalog.serializer';
 import { CollectionViewRequestService } from './collection-view-request.service';
+import { RelistRequestService } from './relist-request.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { AccessModule } from '../access/access.module';
 
@@ -27,6 +32,8 @@ import { AccessModule } from '../access/access.module';
     ShareLinkController,
     CollectionViewRequestController,
     CollectionViewGrantController,
+    RelistRequestController,
+    ProductRelistGrantController,
   ],
   providers: [
     ProductService,
@@ -34,7 +41,8 @@ import { AccessModule } from '../access/access.module';
     ShareLinkService,
     CatalogSerializer,
     CollectionViewRequestService,
+    RelistRequestService,
   ],
-  exports: [CatalogSerializer, CollectionViewRequestService],
+  exports: [CatalogSerializer, CollectionViewRequestService, RelistRequestService],
 })
 export class CatalogModule {}

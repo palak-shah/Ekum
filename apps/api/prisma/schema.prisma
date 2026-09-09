@@ -83,6 +83,9 @@ model Company {
   collectionViewGrants   CollectionViewGrant[] @relation("CollectionViewGrantee")
   collectionViewRequestsSent     CollectionViewRequest[] @relation("CollectionViewRequester")
   collectionViewRequestsReceived CollectionViewRequest[] @relation("CollectionViewTarget")
+  productRelistGrants            ProductRelistGrant[] @relation("ProductRelistGrantee")
+  relistRequestsSent             RelistRequest[] @relation("RelistRequester")
+  relistRequestsReceived         RelistRequest[] @relation("RelistTarget")
 
   products     Product[]
   collections  Collection[]
@@ -100,6 +103,9 @@ model Company {
   ordersAsBuyer   Order[]  @relation("OrderBuyer")
   ordersAsSeller  Order[]  @relation("OrderSeller")
   ordersFacilitated Order[] @relation("OrderFacilitator")
+  tradeLanesAsTrader TradeLane[] @relation("TradeLaneTrader")
+  tradeLanesAsSeller TradeLane[] @relation("TradeLaneSeller")
+  tradeLanesAsBuyer  TradeLane[] @relation("TradeLaneBuyer")
   samplesAsBuyer  Sample[] @relation("SampleBuyer")
   samplesAsSeller Sample[] @relation("SampleSeller")
 
@@ -233,6 +239,29 @@ model Connection {
   @@index([ownerCompanyId, status])
 }
 
+/// Trader × mill × end-buyer path: who the ticket is with + whether ends see each other.
+model TradeLane {
+  id               String   @id @default(cuid())
+  traderCompanyId  String
+  sellerCompanyId  String
+  buyerCompanyId   String
+  /// me | mill — this slice only writes me
+  ticket           String   @default("me")
+  reveal           Boolean  @default(false)
+  /// Reused trio group when reveal is on (null until first ensure).
+  groupThreadId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  trader Company @relation("TradeLaneTrader", fields: [traderCompanyId], references: [id], onDelete: Cascade)
+  seller Company @relation("TradeLaneSeller", fields: [sellerCompanyId], references: [id], onDelete: Cascade)
+  buyer  Company @relation("TradeLaneBuyer", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([traderCompanyId, sellerCompanyId, buyerCompanyId])
+  @@index([traderCompanyId, buyerCompanyId])
+  @@index([groupThreadId])
+}
+
 // --- Catalog ----------------------------------------------------------------
 
 /// The live product (design) entity. Name required; SKU assigned on create
@@ -270,6 +299,7 @@ model Product {
   updatedByUser   User?               @relation("ProductUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   collections     CollectionProduct[]
   savedItems      SavedItem[]
+  relistGrants    ProductRelistGrant[]
 
   @@index([companyId, status])
   @@index([postedToMarketAt])
@@ -295,7 +325,7 @@ model Collection {
   audienceGroupIds    String[] @default([])
   /** When false, only the owner may share this pack into chat; buyers cannot forward. */
   allowForward        Boolean  @default(true)
-  /** direct | handle; null = use company Profile orderPathPreference. */
+  /** Legacy: unused. Path is TradeLane / Your paths. Kept for DB compatibility. */
   orderPathPreference String?
   /**
    * Explore sort key. Set on publish and when newly added published designs join
@@ -362,6 +392,46 @@ model CollectionViewRequest {
   @@index([requesterCompanyId, status])
   @@index([targetCompanyId, status])
   @@index([collectionId, status])
+}
+
+/// Per-company permission to put a design in a pack (Curate). Not allowForward flip.
+model ProductRelistGrant {
+  id                  String   @id @default(cuid())
+  productId           String
+  companyId           String
+  /** Who Allowed this grant (desk or mill). Cascade revoke uses this. */
+  grantedByCompanyId  String?
+  grantedAt           DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  company Company @relation("ProductRelistGrantee", fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, companyId])
+  @@index([companyId, grantedAt])
+  @@index([grantedByCompanyId, productId])
+}
+
+/// Ask to put designs in my pack. Allow → ProductRelistGrant per productId; Deny silent.
+model RelistRequest {
+  id                  String    @id @default(cuid())
+  productIds          String[]
+  requesterCompanyId  String
+  targetCompanyId     String
+  /** When set, Ask went to the pack owner (desk chain), not only product owner. */
+  sourceCollectionId  String?
+  status              String    @default("pending") // pending | allowed | denied
+  threadId            String?
+  messageId           String?
+  decidedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  requester Company @relation("RelistRequester", fields: [requesterCompanyId], references: [id], onDelete: Cascade)
+  target    Company @relation("RelistTarget", fields: [targetCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([requesterCompanyId, status])
+  @@index([targetCompanyId, status])
 }
 
 /// The ordered many-to-many join between Collection and Product.

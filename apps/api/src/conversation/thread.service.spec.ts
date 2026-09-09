@@ -190,3 +190,118 @@ describe('ThreadService.findDirectThread one 1:1', () => {
     expect(created.id).toBeUndefined();
   });
 });
+
+describe('ThreadService.ensureTradeLaneGroup', () => {
+  it('reuses an existing trio by company set and does not create another', async () => {
+    let created = 0;
+    const prisma = {
+      thread: {
+        findUnique: async () => null,
+        findMany: async () => [
+          {
+            id: 'trio-1',
+            type: 'group',
+            participants: [
+              { id: 'p1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'p2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'p3', companyId: 'buyer', leftAt: null, state: 'active' },
+            ],
+          },
+        ],
+        create: async () => {
+          created += 1;
+          return { id: 'new' };
+        },
+      },
+      threadParticipant: { update: async () => ({}) },
+      company: { findMany: async () => [] },
+      threadMember: { createMany: async () => ({}), findMany: async () => [] },
+      companyMembership: { findMany: async () => [] },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+    );
+
+    const id = await service.ensureTradeLaneGroup('trader', 'mill', 'buyer', null);
+    expect(id).toBe('trio-1');
+    expect(created).toBe(0);
+  });
+
+  it('returns stored groupThreadId when still a group', async () => {
+    const prisma = {
+      thread: {
+        findUnique: async () => ({
+          id: 'stored',
+          type: 'group',
+          participants: [
+            { id: 'p1', companyId: 'trader', leftAt: null, state: 'active' },
+            { id: 'p2', companyId: 'mill', leftAt: null, state: 'active' },
+            { id: 'p3', companyId: 'buyer', leftAt: null, state: 'active' },
+          ],
+        }),
+        findMany: async () => [],
+        create: async () => ({ id: 'should-not' }),
+      },
+      threadParticipant: { update: async () => ({}) },
+      company: { findMany: async () => [] },
+      threadMember: { createMany: async () => ({}), findMany: async () => [] },
+      companyMembership: { findMany: async () => [] },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+    );
+
+    await expect(service.ensureTradeLaneGroup('trader', 'mill', 'buyer', 'stored')).resolves.toBe(
+      'stored',
+    );
+  });
+});
+
+describe('ThreadService.ensureTradeThread', () => {
+  it('heals ThreadMember rows when reusing a participant-only thread', async () => {
+    let createManyCalls = 0;
+    const prisma = {
+      thread: {
+        findFirst: async () => ({
+          id: 'legacy-1',
+          participants: [
+            { id: 'p1', companyId: 'buyer', leftAt: null, state: 'active' },
+            { id: 'p2', companyId: 'seller', leftAt: null, state: 'active' },
+          ],
+        }),
+        create: async () => ({ id: 'should-not' }),
+      },
+      threadParticipant: { update: async () => ({}) },
+      threadMember: {
+        createMany: async () => {
+          createManyCalls += 1;
+        },
+        updateMany: async () => ({}),
+      },
+      companyMembership: {
+        findMany: async ({ where }: { where: { companyId: string } }) =>
+          where.companyId === 'buyer'
+            ? [{ userId: 'u-buyer' }]
+            : [{ userId: 'u-seller' }],
+      },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+    );
+
+    await expect(service.ensureTradeThread('buyer', 'seller')).resolves.toBe('legacy-1');
+    expect(createManyCalls).toBe(2);
+  });
+});

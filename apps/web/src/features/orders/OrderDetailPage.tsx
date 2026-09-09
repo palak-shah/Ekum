@@ -37,7 +37,11 @@ import {
   millCue,
   millFromToCells,
   millLineForParent,
+  millsObserveMode,
+  orderTicketMillLabel,
+  orderTicketMillNames,
   quotePrefillFromMills,
+  showMillSendOnCard,
   showSellerConfirmOnDesk,
   showSendQuoteOnDeskFace,
   traderActionsBehindTakeOver,
@@ -48,14 +52,12 @@ import {
   clearReturnSelection,
   selectAllReturnLines,
 } from '@/features/orders/returnRaiseSelect';
-import { ratesWithSharedValue, type QuoteRateMode } from '@/features/orders/quoteSameRate';
+import { ratesWithSharedValue } from '@/features/orders/quoteSameRate';
 import {
   Button,
   Card,
-  Chip,
   ErrorState,
   Field,
-  FilterRail,
   InlineNotice,
   LoadingBlock,
   Sheet,
@@ -311,10 +313,10 @@ export function OrderDetailPage() {
   const [rates, setRates] = useState<Record<string, string>>({});
   const [offerQty, setOfferQty] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState<Record<string, boolean>>({});
-  const [quoteRateMode, setQuoteRateMode] = useState<QuoteRateMode>('same');
   const [sharedQuoteRate, setSharedQuoteRate] = useState('');
-  const [millRateMode, setMillRateMode] = useState<QuoteRateMode>('same');
   const [sharedMillRate, setSharedMillRate] = useState('');
+  const [quoteRateDefaults, setQuoteRateDefaults] = useState<Record<string, string>>({});
+  const [millRateDefaults, setMillRateDefaults] = useState<Record<string, string>>({});
   const [lineActions, setLineActions] = useState<Record<string, 'confirm' | 'decline'>>({});
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
@@ -398,6 +400,27 @@ export function OrderDetailPage() {
     onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
   });
 
+  const millReveal = useMutation({
+    mutationFn: (body: { upstreamOrderId: string; reveal: boolean }) =>
+      api.post<OrderView>(`/orders/${id}/mill-reveal`, body),
+    onSuccess: refresh,
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
+  });
+
+  const flipTicket = useMutation({
+    mutationFn: (body: { ticket: 'me' | 'mill'; upstreamOrderId?: string }) =>
+      api.post<OrderView>(`/orders/${id}/ticket`, body),
+    onSuccess: (view) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      if (view.id !== id) {
+        navigate(`/orders/${view.id}`, { replace: true });
+        return;
+      }
+      refresh();
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
+  });
+
   const [millQty, setMillQty] = useState<Record<string, string>>({});
   const [millRate, setMillRate] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -410,6 +433,8 @@ export function OrderDetailPage() {
     }
     setMillQty(qty);
     setMillRate(rate);
+    setMillRateDefaults(rate);
+    setSharedMillRate('');
   }, [order.data]);
 
   const takeControl = useMutation({
@@ -420,10 +445,10 @@ export function OrderDetailPage() {
       ),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      showToast('You took control of this order.');
+      showToast('You’re handling this order yourself.');
       navigate(`/orders/${result.downstream.id}`, { replace: true });
     },
-    onError: (err) => showToast(actionErrorMessage(err, 'Could not take control.'), 'danger'),
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not switch to handle yourself.'), 'danger'),
   });
 
   const askPay = useMutation({
@@ -749,9 +774,9 @@ export function OrderDetailPage() {
     const allSame =
       prefills.length > 0 && prefills.length === openIds.length && prefills.every((v) => v === prefills[0]);
     setRates(prefill.rates);
+    setQuoteRateDefaults(prefill.rates);
     setOfferQty(prefill.qty);
     setUnavailable(initialUnavail);
-    setQuoteRateMode(allSame || prefills.length === 0 ? 'same' : 'each');
     setSharedQuoteRate(allSame ? prefills[0]! : '');
     setQuoteNote('');
     setQuoteNoteVoice(null);
@@ -904,25 +929,28 @@ export function OrderDetailPage() {
   const openForDispatch =
     data.status === 'confirmed' || data.status === 'part_shipped';
   const behindTakeOver = traderActionsBehindTakeOver(data.millDesks);
-  const quoteOnFace =
-    !behindTakeOver || showSendQuoteOnDeskFace(data.millDesks);
+  const millsObserve = millsObserveMode(data.laneTicket, data.millDesks);
+  const quoteOnFace = millsObserve
+    ? false
+    : !behindTakeOver || showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
+  const millSendOnCard = showMillSendOnCard(data.laneTicket, data.millDesks, takeOverOpen);
   const takeOverHasWork =
     behindTakeOver &&
     Boolean(
       data.threadId ||
         data.canAskPayment ||
         (isSeller && data.status === 'requested') ||
+        (millsObserve && data.millDesks?.some((desk) => desk.held)) ||
         (isSeller && openForDispatch && hasRemaining) ||
         (isSeller && data.canSettle),
     );
-  // I-handle desks own the cue — don't fall through to bilateral “dispatch remaining”
-  // when all mills are done and the parent is about to / just healed to Settled.
   const nextCue = data.millDesks?.length
     ? traderDeskNextAction({
         status: data.status,
         counterpartName: data.counterpart.name,
         hasSellerQuote: data.hasSellerQuote === true,
         millDesks: data.millDesks,
+        laneTicket: data.laneTicket,
       })
     : nextOrderAction({
         status: data.status,
@@ -979,6 +1007,53 @@ export function OrderDetailPage() {
         <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">{nextCue}</p>
       ) : null}
 
+      {data.canFlipTicket ? (
+        <div data-testid="order-ticket-flip">
+        <Card className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-ink">This order is with</p>
+          <p className="text-xs text-muted">Only before the mill responds. Updates this order and next ones.</p>
+          {(
+            [
+              { value: 'me' as const, label: 'With me', names: [] as string[] },
+              {
+                value: 'mill' as const,
+                label: orderTicketMillLabel(
+                  data.millDesks,
+                  data.tradeMode === 'direct' ? data.sellerName : 'Mills',
+                ),
+                names: orderTicketMillNames(data.millDesks),
+              },
+            ] as const
+          ).map((option) => {
+            const selected = (data.laneTicket ?? 'me') === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                data-testid={`order-ticket-${option.value}`}
+                disabled={flipTicket.isPending || selected}
+                onClick={() => flipTicket.mutate({ ticket: option.value })}
+                className={`w-full rounded-xl border px-3 py-2.5 text-left ${
+                  selected ? 'border-accent bg-accent/5' : 'border-line bg-surface'
+                }`}
+              >
+                <p className="text-sm font-semibold text-ink">{option.label}</p>
+                {option.names.length > 0 ? (
+                  <ul className="mt-1 flex flex-col gap-0.5" data-testid="order-ticket-mill-names">
+                    {option.names.map((name) => (
+                      <li key={name} className="text-xs text-muted">
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </button>
+            );
+          })}
+        </Card>
+        </div>
+      ) : null}
+
       <Card className="flex flex-col gap-1 text-sm">
         <p className="font-semibold text-ink">Parties</p>
         <p className="text-muted">
@@ -986,7 +1061,8 @@ export function OrderDetailPage() {
           {data.direction === 'buying' ? ' (you)' : ''}
         </p>
         <p className="text-muted">
-          Seller · <span className="font-medium text-ink">{data.sellerName}</span>
+          {data.tradeMode === 'manage' ? 'Trader' : 'Seller'} ·{' '}
+          <span className="font-medium text-ink">{data.sellerName}</span>
           {data.direction === 'selling' ? ' (you)' : ''}
         </p>
         {data.tradeMode === 'direct' &&
@@ -1015,6 +1091,56 @@ export function OrderDetailPage() {
         ? data.millDesks.map((desk) => {
             const rows = itemsForMill(data.items, desk);
             const cue = millCue(desk);
+            if (isBuyer) {
+              return (
+                <Card
+                  key={desk.upstreamOrderId}
+                  className="flex flex-col gap-3"
+                  data-testid={`order-buyer-mill-${desk.upstreamOrderId}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">
+                        {desk.sellerName}
+                        {!desk.held ? (
+                          <span className="ml-1.5 text-xs font-semibold text-accent">
+                            {shortOrderLabel(desk.upstreamOrderId)}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-muted">
+                        {desk.held
+                          ? 'With your trader — not sent to the mill yet'
+                          : cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`}
+                      </p>
+                    </div>
+                    {!desk.held ? (
+                      <StatusPill status={desk.status === 'requested' ? 'requested' : desk.status} />
+                    ) : null}
+                  </div>
+                  {rows.map((item) => {
+                    const millLine = millLineForParent(desk, item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 border-t border-line pt-3"
+                      >
+                        <OrderLinePhoto item={item} items={data.items} onOpen={openPhotoViewer} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                          <p className="text-xs text-muted">
+                            {item.quantity} × {formatRate(item.rate, item.unit)}
+                            {millLine?.millRate != null && desk.millQuoted
+                              ? ` · mill ₹${millLine.millRate.toLocaleString('en-IN')}`
+                              : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Card>
+              );
+            }
             return (
               <Card key={desk.upstreamOrderId} className="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-2">
@@ -1063,6 +1189,39 @@ export function OrderDetailPage() {
                     ) : null}
                   </div>
                 </div>
+                <button
+                  type="button"
+                  data-testid={`order-mill-reveal-${desk.upstreamOrderId}`}
+                  disabled={millReveal.isPending}
+                  onClick={() =>
+                    millReveal.mutate({
+                      upstreamOrderId: desk.upstreamOrderId,
+                      reveal: !desk.reveal,
+                    })
+                  }
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm ${
+                    desk.reveal
+                      ? 'border-accent bg-accent/5 text-ink'
+                      : 'border-line bg-surface text-ink'
+                  }`}
+                >
+                  <span>
+                    <span className="font-medium">
+                      {desk.sellerName} and {data.counterpart.name} can see each other
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {desk.reveal
+                        ? 'One group chat. Order updates go there.'
+                        : 'They only talk to you, not to each other.'}
+                      {desk.reveal && desk.held
+                        ? ' Group opens after you Send.'
+                        : ''}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-accent">
+                    {desk.reveal ? 'On' : 'Off'}
+                  </span>
+                </button>
                 {!desk.held && desk.millQuoted ? (
                   <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-end gap-2 border-t border-line pt-2">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
@@ -1085,54 +1244,27 @@ export function OrderDetailPage() {
                 {desk.held ? (
                   <div className="flex flex-col gap-2 border-t border-line pt-2">
                     {rows.length > 1 ? (
-                      <>
-                        <FilterRail>
-                          <Chip
-                            active={millRateMode === 'same'}
-                            onClick={() => {
-                              setMillRateMode('same');
-                              if (sharedMillRate.trim()) {
-                                setMillRate((prev) => ({
-                                  ...prev,
-                                  ...ratesWithSharedValue(
-                                    rows.map((item) => item.id),
-                                    sharedMillRate,
-                                  ),
-                                }));
-                              }
-                            }}
-                          >
-                            Same rate for all
-                          </Chip>
-                          <Chip
-                            active={millRateMode === 'each'}
-                            onClick={() => setMillRateMode('each')}
-                          >
-                            Each design
-                          </Chip>
-                        </FilterRail>
-                        {millRateMode === 'same' ? (
-                          <Field label="Rate for every design">
-                            <TextInput
-                              type="number"
-                              min={0}
-                              placeholder="Rate"
-                              value={sharedMillRate}
-                              onChange={(event) => {
-                                const value = event.target.value;
-                                setSharedMillRate(value);
-                                setMillRate((prev) => ({
-                                  ...prev,
-                                  ...ratesWithSharedValue(
-                                    rows.map((item) => item.id),
-                                    value,
-                                  ),
-                                }));
-                              }}
-                            />
-                          </Field>
-                        ) : null}
-                      </>
+                      <Field label="Rate all">
+                        <TextInput
+                          type="number"
+                          min={0}
+                          placeholder="Rate all"
+                          value={sharedMillRate}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSharedMillRate(value);
+                            setMillRate((prev) => ({
+                              ...prev,
+                              ...ratesWithSharedValue(
+                                rows.map((item) => item.id),
+                                value,
+                                millRateDefaults,
+                              ),
+                            }));
+                          }}
+                          aria-label="Rate all"
+                        />
+                      </Field>
                     ) : null}
                     <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5rem] gap-x-2 gap-y-0">
                       <p className="pb-2 text-[10px] font-bold uppercase tracking-wide text-muted">
@@ -1142,7 +1274,7 @@ export function OrderDetailPage() {
                         Qty
                       </p>
                       <p className="pb-2 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
-                        {millRateMode === 'same' && rows.length > 1 ? '' : 'Rate'}
+                        Rate
                       </p>
                       {rows.map((item) => (
                         <div
@@ -1167,23 +1299,16 @@ export function OrderDetailPage() {
                             }
                             aria-label={`Quantity for ${item.name}`}
                           />
-                          {millRateMode === 'each' || rows.length <= 1 ? (
-                            <TextInput
-                              className="w-full min-w-0 px-1.5 text-center tabular-nums"
-                              value={
-                                millRate[item.id] ?? (item.rate != null ? String(item.rate) : '')
-                              }
-                              onChange={(e) =>
-                                setMillRate((prev) => ({ ...prev, [item.id]: e.target.value }))
-                              }
-                              aria-label={`Rate for ${item.name}`}
-                            />
-                          ) : (
-                            <p className="text-center text-xs tabular-nums text-muted">
-                              {millRate[item.id] ||
-                                (item.rate != null ? String(item.rate) : '—')}
-                            </p>
-                          )}
+                          <TextInput
+                            className="w-full min-w-0 px-1.5 text-center tabular-nums"
+                            value={
+                              millRate[item.id] ?? (item.rate != null ? String(item.rate) : '')
+                            }
+                            onChange={(e) =>
+                              setMillRate((prev) => ({ ...prev, [item.id]: e.target.value }))
+                            }
+                            aria-label={`Rate for ${item.name}`}
+                          />
                         </div>
                       ))}
                     </div>
@@ -1248,7 +1373,7 @@ export function OrderDetailPage() {
                     );
                   })
                 )}
-                {desk.held ? (
+                {desk.held && millSendOnCard ? (
                   <Button
                     onClick={() => {
                       const items = rows
@@ -1264,13 +1389,23 @@ export function OrderDetailPage() {
                   >
                     {sendUp.isPending ? 'Sending…' : `Send to ${desk.sellerName}`}
                   </Button>
+                ) : desk.held && millsObserve ? (
+                  <p className="text-xs text-muted">Desk tools to Send this mill</p>
+                ) : desk.revealThreadId ? (
+                  <Button
+                    variant="secondary"
+                    data-testid={`order-mill-open-chat-${desk.upstreamOrderId}`}
+                    onClick={() => navigate(`/chats/${desk.revealThreadId}`)}
+                  >
+                    Open group chat
+                  </Button>
                 ) : null}
               </Card>
             );
           })
         : null}
 
-      {!(data.millDesks && data.millDesks.length > 0) ? (
+      {!(data.millDesks && data.millDesks.length > 0) || isBuyer ? (
       <Card className="flex flex-col gap-3">
         {data.items.map((item) => (
           <div key={item.id} className="flex items-center gap-3">
@@ -1542,10 +1677,11 @@ export function OrderDetailPage() {
         {data.canTakeControl ? (
           <Button
             variant="secondary"
+            data-testid="order-handle-myself"
             onClick={() => takeControl.mutate()}
             disabled={takeControl.isPending}
           >
-            Take over
+            Handle myself
           </Button>
         ) : null}
         {isBuyer && data.canAcceptLogged ? (
@@ -1589,7 +1725,7 @@ export function OrderDetailPage() {
               data-testid="order-take-over-toggle"
               onClick={() => setTakeOverOpen((open) => !open)}
             >
-              Take over
+              {takeOverOpen ? 'Hide desk tools' : 'Desk tools'}
             </Button>
             {takeOverOpen ? (
               <>
@@ -1682,61 +1818,34 @@ export function OrderDetailPage() {
             {quoteSummary.total.toLocaleString('en-IN')}
           </p>
           {openItems.filter((item) => !unavailable[item.id]).length > 1 ? (
-            <>
-              <FilterRail>
-                <Chip
-                  active={quoteRateMode === 'same'}
-                  onClick={() => {
-                    setQuoteRateMode('same');
-                    const ids = openItems
-                      .filter((item) => !unavailable[item.id])
-                      .map((item) => item.id);
-                    if (sharedQuoteRate.trim()) {
-                      setRates((prev) => ({ ...prev, ...ratesWithSharedValue(ids, sharedQuoteRate) }));
-                    }
-                  }}
-                >
-                  Same rate for all
-                </Chip>
-                <Chip
-                  active={quoteRateMode === 'each'}
-                  onClick={() => setQuoteRateMode('each')}
-                >
-                  Each design
-                </Chip>
-              </FilterRail>
-              {quoteRateMode === 'same' ? (
-                <TextInput
-                  type="number"
-                  min={0}
-                  placeholder="Rate for every design"
-                  className="min-h-10"
-                  value={sharedQuoteRate}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSharedQuoteRate(value);
-                    const ids = openItems
-                      .filter((item) => !unavailable[item.id])
-                      .map((item) => item.id);
-                    setRates((prev) => ({ ...prev, ...ratesWithSharedValue(ids, value) }));
-                  }}
-                />
-              ) : null}
-            </>
+            <Field label="Rate all">
+              <TextInput
+                type="number"
+                min={0}
+                placeholder="Rate all"
+                className="min-h-10"
+                value={sharedQuoteRate}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSharedQuoteRate(value);
+                  const ids = openItems
+                    .filter((item) => !unavailable[item.id])
+                    .map((item) => item.id);
+                  setRates((prev) => ({
+                    ...prev,
+                    ...ratesWithSharedValue(ids, value, quoteRateDefaults),
+                  }));
+                }}
+                aria-label="Rate all"
+              />
+            </Field>
           ) : null}
           {(() => {
             const showFrom = (data.millDesks ?? []).some((desk) => desk.millQuoted && !desk.held);
-            const showPerRateCol =
-              quoteRateMode === 'each' ||
-              openItems.filter((row) => !unavailable[row.id]).length <= 1;
             const cols = showFrom
-              ? showPerRateCol
-                ? 'grid-cols-[minmax(0,1fr)_3.75rem_3.5rem_4rem]'
-                : 'grid-cols-[minmax(0,1fr)_3.75rem_3.5rem]'
-              : showPerRateCol
-                ? 'grid-cols-[minmax(0,1fr)_3.5rem_4rem]'
-                : 'grid-cols-[minmax(0,1fr)_3.5rem]';
-            const span = showFrom ? (showPerRateCol ? 4 : 3) : showPerRateCol ? 3 : 2;
+              ? 'grid-cols-[minmax(0,1fr)_3.75rem_3.5rem_4rem]'
+              : 'grid-cols-[minmax(0,1fr)_3.5rem_4rem]';
+            const span = showFrom ? 4 : 3;
             return (
               <div className={cx('grid gap-x-2 gap-y-0', cols)}>
                 <p className="pb-1 text-[10px] font-bold uppercase tracking-wide text-muted">
@@ -1750,11 +1859,9 @@ export function OrderDetailPage() {
                 <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
                   Qty
                 </p>
-                {showPerRateCol ? (
-                  <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
-                    Rate
-                  </p>
-                ) : null}
+                <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                  Rate
+                </p>
                 {openItems.map((item) => {
                   const millLine = (data.millDesks ?? [])
                     .filter((desk) => desk.millQuoted && !desk.held)
@@ -1816,23 +1923,21 @@ export function OrderDetailPage() {
                       ) : (
                         <p className="text-center text-[11px] text-muted">—</p>
                       )}
-                      {showPerRateCol ? (
-                        unavailable[item.id] ? (
-                          <p className="text-center text-[11px] text-muted">Skip</p>
-                        ) : (
-                          <TextInput
-                            type="number"
-                            min={0}
-                            placeholder="Rate"
-                            className="min-h-10 w-full min-w-0 px-1 text-center text-sm tabular-nums"
-                            value={rates[item.id] ?? ''}
-                            onChange={(event) =>
-                              setRates((prev) => ({ ...prev, [item.id]: event.target.value }))
-                            }
-                            aria-label={`Rate for ${item.name}`}
-                          />
-                        )
-                      ) : null}
+                      {unavailable[item.id] ? (
+                        <p className="text-center text-[11px] text-muted">Skip</p>
+                      ) : (
+                        <TextInput
+                          type="number"
+                          min={0}
+                          placeholder="Rate"
+                          className="min-h-10 w-full min-w-0 px-1 text-center text-sm tabular-nums"
+                          value={rates[item.id] ?? ''}
+                          onChange={(event) =>
+                            setRates((prev) => ({ ...prev, [item.id]: event.target.value }))
+                          }
+                          aria-label={`Rate for ${item.name}`}
+                        />
+                      )}
                     </div>
                   );
                 })}

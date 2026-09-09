@@ -51,7 +51,7 @@ export class CompanyService {
       company = await this.prisma.$transaction(
         async (tx) => {
           const existing = await tx.companyMembership.findFirst({
-            where: { userId: principal.userId },
+            where: { userId: principal.userId, archivedAt: null },
           });
           if (existing) {
             throw new ConflictException({

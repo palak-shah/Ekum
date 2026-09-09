@@ -5,6 +5,7 @@ export * from './company';
 export * from './access';
 export * from './catalog';
 export * from './collection-view-request';
+export * from './relist-request';
 export * from './settings';
 export * from './discovery';
 export * from './conversation';

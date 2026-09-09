@@ -82,6 +82,7 @@ export function useShortlistOrderFlow() {
   const [qtyOpen, setQtyOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [result, setResult] = useState<CreateOrdersBatchResult | null>(null);
+  const [linkedMillCount, setLinkedMillCount] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   const batch = useMutation({
@@ -103,6 +104,16 @@ export function useShortlistOrderFlow() {
           (entry) => successSellers.has(entry.companyId) && !failedIds.has(entry.productId),
         )
         .map((entry) => entry.productId);
+      const millsOnPack = new Set(
+        shortlist.entries
+          .filter((entry) => !failedIds.has(entry.productId))
+          .map((entry) => entry.companyId),
+      ).size;
+      if (variables.collectionId && payload.orders.length === 1 && millsOnPack > 1) {
+        setLinkedMillCount(millsOnPack);
+      } else {
+        setLinkedMillCount(undefined);
+      }
       if (payload.orders.length > 0) {
         // Empty Selection after a successful order action (designs + collections).
         clearBrowseShortlist();
@@ -156,6 +167,7 @@ export function useShortlistOrderFlow() {
     confirmOpen,
     setConfirmOpen,
     result,
+    linkedMillCount,
     error,
     setError,
     sellerIdForQty,

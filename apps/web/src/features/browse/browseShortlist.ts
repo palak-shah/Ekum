@@ -9,6 +9,8 @@ export type BrowseShortlistEntry = {
   allowForward?: boolean;
   /** Curated pack these lines were picked from (I handle → from-pack). */
   sourceCollectionId?: string;
+  /** Desk publish allow-to-relist on that pack (Slice B desk chain). */
+  sourcePackAllowForward?: boolean;
   sourceHandlerName?: string;
   sourcePath?: 'direct' | 'handle';
 };

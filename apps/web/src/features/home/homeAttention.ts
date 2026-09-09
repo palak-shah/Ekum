@@ -8,7 +8,6 @@ import type {
 } from '@ekum/domain-types';
 import {
   buyerCanAcceptQuote,
-  buyerNeedsDelivery,
   formatOrderQty,
   matchesNeeds,
   sellerCanConfirm,
@@ -22,7 +21,6 @@ export type HomeNeedKind =
   | 'send_rate'
   | 'accept_quote'
   | 'dispatch'
-  | 'mark_delivered'
   | 'review_return'
   | 'access_request'
   | 'chat_request'
@@ -45,7 +43,6 @@ const KIND_URGENCY: Record<HomeNeedKind, number> = {
   accept_quote: 70,
   review_return: 65,
   dispatch: 60,
-  mark_delivered: 55,
   access_request: 50,
   collection_view_granted: 48,
   chat_request: 45,
@@ -103,16 +100,6 @@ function orderNeedDraft(order: OrderView): OrderNeedDraft | null {
       sortAt,
     };
   }
-  if (buyerNeedsDelivery(order)) {
-    return {
-      kind: 'mark_delivered',
-      counterpartId: order.counterpart.id,
-      counterpartName: name,
-      orderId: order.id,
-      subtitle: formatOrderQty(order),
-      sortAt,
-    };
-  }
   return null;
 }
 
@@ -128,8 +115,6 @@ export function needTitle(kind: HomeNeedKind, count: number, name: string): stri
         return `Accept quote · ${name}`;
       case 'dispatch':
         return `Dispatch to ${name}`;
-      case 'mark_delivered':
-        return `Mark delivered · ${name}`;
       default:
         return name;
     }
@@ -143,8 +128,6 @@ export function needTitle(kind: HomeNeedKind, count: number, name: string): stri
       return `${count} quotes · ${name}`;
     case 'dispatch':
       return `${count} to dispatch · ${name}`;
-    case 'mark_delivered':
-      return `${count} to mark delivered · ${name}`;
     default:
       return `${count} · ${name}`;
   }

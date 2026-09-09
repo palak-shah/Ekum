@@ -3,9 +3,15 @@ import { OrderPathPreference } from '@ekum/domain-types';
 import { effectiveOrderPath, resolveOrderPathPreference } from './orderPathPreference';
 
 describe('resolveOrderPathPreference', () => {
-  it('defaults to direct', () => {
-    expect(resolveOrderPathPreference(null)).toBe(OrderPathPreference.Direct);
-    expect(resolveOrderPathPreference({})).toBe(OrderPathPreference.Direct);
+  it('defaults to handle', () => {
+    expect(resolveOrderPathPreference(null)).toBe(OrderPathPreference.Handle);
+    expect(resolveOrderPathPreference({})).toBe(OrderPathPreference.Handle);
+  });
+
+  it('reads direct when set', () => {
+    expect(resolveOrderPathPreference({ orderPathPreference: 'direct' })).toBe(
+      OrderPathPreference.Direct,
+    );
   });
 
   it('reads handle', () => {

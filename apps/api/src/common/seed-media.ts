@@ -132,7 +132,7 @@ export function resolveSeedAssetsDir(fromDir = __dirname): string {
 }
 
 export function seedMediaBaseUrl(
-  publicMediaBase = process.env.PUBLIC_MEDIA_BASE_URL ?? 'http://localhost:3000/media',
+  publicMediaBase = process.env.PUBLIC_MEDIA_BASE_URL ?? 'http://127.0.0.1:3000/media',
 ): string {
   return publicMediaBase.replace(/\/$/, '');
 }

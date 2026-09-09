@@ -36,14 +36,14 @@ describe('resolveTradePresence', () => {
 });
 
 describe('resolveOrderPathPreference', () => {
-  it('defaults to direct when missing', () => {
-    expect(resolveOrderPathPreference(null)).toBe('direct');
-    expect(resolveOrderPathPreference({})).toBe('direct');
-    expect(resolveOrderPathPreference({ orderPathPreference: 'direct' })).toBe('direct');
+  it('defaults to handle when missing', () => {
+    expect(resolveOrderPathPreference(null)).toBe('handle');
+    expect(resolveOrderPathPreference({})).toBe('handle');
+    expect(resolveOrderPathPreference({ orderPathPreference: 'handle' })).toBe('handle');
   });
 
-  it('returns handle when set', () => {
-    expect(resolveOrderPathPreference({ orderPathPreference: 'handle' })).toBe('handle');
+  it('returns direct when set', () => {
+    expect(resolveOrderPathPreference({ orderPathPreference: 'direct' })).toBe('direct');
   });
 });
 

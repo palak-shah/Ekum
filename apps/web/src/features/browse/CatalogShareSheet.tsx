@@ -1,21 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
-  CompanySettingsView,
   CursorPage,
   MessageView,
   ShareLinkView,
   ThreadSummary,
 } from '@ekum/domain-types';
-import { MessageType, OrderPathPreference } from '@ekum/domain-types';
-import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
+import { MessageType } from '@ekum/domain-types';
 import { rankShareChats } from '@/features/browse/rankShareChats';
 import { api, ApiError } from '@/lib/apiClient';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from '@/features/chats/threadVisibilityLabel';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Avatar, Button, InlineNotice, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { Avatar, Button, InlineNotice, LoadingBlock, Sheet } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
@@ -32,7 +30,7 @@ export type CatalogShareProductItem = {
 /**
  * Catalogue → chat: post collection_card / product_card into a chosen thread.
  * Forward free — API allows live published cards unless blocked; view gated on open.
- * Stamps orderPathPreference on message metadata for buyer order routing.
+ * Path is Your paths / TradeLane — not chosen on each share.
  * Quiet text under the chat list: 48h link (any app) when exactly one album or design.
  */
 export function CatalogShareSheet({
@@ -55,21 +53,12 @@ export function CatalogShareSheet({
   const designItems = products;
   const total = albumItems.length + designItems.length;
   const { showToast } = useToast();
-  const [orderPath, setOrderPath] = useState<'direct' | 'handle'>(OrderPathPreference.Direct);
   const [error, setError] = useState<string | null>(null);
-
-  const settings = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.get<CompanySettingsView>('/settings'),
-    enabled: open && total > 0,
-  });
 
   useEffect(() => {
     if (!open) return;
     setError(null);
-    if (!settings.data) return;
-    setOrderPath(resolveOrderPathPreference(settings.data.tradeDefaults));
-  }, [open, settings.data]);
+  }, [open]);
 
   const threads = useQuery({
     queryKey: ['threads', { catalogShare: true }],
@@ -87,13 +76,11 @@ export function CatalogShareSheet({
     mutationFn: async (threadId: string) => {
       if (total === 0) throw new Error('Nothing to share');
       setError(null);
-      const metadata = { orderPathPreference: orderPath };
       for (const item of albumItems) {
         await api.post<MessageView>(`/threads/${threadId}/messages`, {
           type: MessageType.CollectionCard,
           referenceId: item.collectionId,
           body: item.name,
-          metadata,
         });
       }
       for (const item of designItems) {
@@ -101,7 +88,6 @@ export function CatalogShareSheet({
           type: MessageType.ProductCard,
           referenceId: item.productId,
           body: item.name,
-          metadata,
         });
       }
       const title =
@@ -171,40 +157,6 @@ export function CatalogShareSheet({
       title={sheetTitle}
     >
       {error ? <InlineNotice message={error} className="mb-3" /> : null}
-      <div className="mb-3 flex flex-col gap-2">
-        <p className="text-sm font-semibold text-ink">When they order</p>
-        {(
-          [
-            {
-              value: OrderPathPreference.Direct,
-              label: 'Direct',
-              hint: 'Buyers order from the design owners',
-            },
-            {
-              value: OrderPathPreference.Handle,
-              label: 'I handle',
-              hint: 'Buyers order from me',
-            },
-          ] as const
-        ).map((option) => {
-          const selected = orderPath === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              disabled={share.isPending}
-              onClick={() => setOrderPath(option.value)}
-              className={cx(
-                'w-full rounded-xl border px-3 py-2.5 text-left',
-                selected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
-              )}
-            >
-              <p className="text-sm font-semibold text-ink">{option.label}</p>
-              <p className="text-xs text-muted">{option.hint}</p>
-            </button>
-          );
-        })}
-      </div>
       {threads.isLoading ? (
         <LoadingBlock />
       ) : (

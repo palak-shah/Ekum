@@ -11,15 +11,19 @@ test.describe('collections journey @functional @collections', () => {
     // Enter select via long-press (⋯ no longer has a Select pill).
     const designTile = page.locator('button, a').filter({ has: page.locator('img') }).first();
     await designTile.click({ button: 'right' });
-    await page.getByRole('button', { name: 'Select all' }).first().click();
-    await expect(page.getByText(/\d+ selected/)).toBeVisible();
+    await page.getByTestId('select-all-float-select-all').click();
+    await expect(page.getByTestId('select-all-float')).toContainText(/\d+ selected/);
 
-    await page.getByRole('button', { name: 'Order', exact: true }).click();
+    // Order lives on Selection workspace, not the album chrome.
+    await page.getByTestId('selection-workspace-bar').click();
+    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await page.getByTestId('selection-order').click();
     await expect(page.getByRole('button', { name: 'Ask rates' })).toBeVisible();
     await page.getByRole('button', { name: 'Ask rates' }).click();
 
     await expect(page).toHaveURL(/\/chats\//, { timeout: 20_000 });
     await page.goto('/collections/seed-col-1');
-    await expect(page.getByText(/\d+ selected/)).toHaveCount(0);
+    await expect(page.getByTestId('select-all-float')).toHaveCount(0);
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
   });
 });

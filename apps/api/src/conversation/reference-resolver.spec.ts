@@ -272,6 +272,103 @@ describe('ReferenceResolver catalog cards', () => {
     // Legacy "Buyer" actorLabel must resolve to the real business name.
     expect(reference?.actorLabel).toBe('Jaipur Emporium');
   });
+
+  it('exposes live inquiry intent on order references', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            intent: 'inquiry',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            createdByCompanyId: 'buyer',
+            facilitatorCompanyId: null,
+            downstreamOrderId: null,
+            upstreamReleasedAt: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [{ image: null, images: ['a.jpg'], rate: null, lineStatus: 'open' }],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-ask',
+          type: MessageType.OrderCard,
+          referenceId: 'ord1',
+          senderCompanyId: 'buyer',
+          metadata: {
+            event: 'rate_requested',
+            status: 'requested',
+            orderLabel: 'Inquiry #ORD1',
+          },
+        }),
+      ],
+      'seller',
+    );
+    expect(references.get('m-ask')?.intent).toBe('inquiry');
+  });
+
+  it('exposes live order intent after inquiry is firmed', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            intent: 'order',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            createdByCompanyId: 'buyer',
+            facilitatorCompanyId: null,
+            downstreamOrderId: null,
+            upstreamReleasedAt: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [
+              {
+                image: null,
+                images: ['a.jpg'],
+                rate: { toNumber: () => 100 },
+                lineStatus: 'open',
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-quote',
+          type: MessageType.Rate,
+          referenceId: 'ord1',
+          senderCompanyId: 'seller',
+          metadata: {
+            event: 'quote_sent',
+            status: 'requested',
+            orderLabel: 'Inquiry #ORD1',
+          },
+        }),
+      ],
+      'buyer',
+    );
+    expect(references.get('m-quote')?.intent).toBe('order');
+  });
 });
 
 describe('ReferenceResolver order / quote timeline totals', () => {

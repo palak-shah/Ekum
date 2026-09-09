@@ -91,12 +91,8 @@ export class CatalogSerializer {
       audienceCompanyIds: collection.audienceCompanyIds ?? [],
       audienceGroupIds: collection.audienceGroupIds ?? [],
       allowForward: collection.allowForward !== false,
-      orderPathPreference:
-        collection.orderPathPreference === 'handle'
-          ? 'handle'
-          : collection.orderPathPreference === 'direct'
-            ? 'direct'
-            : null,
+      /** Legacy column ignored — path is TradeLane / Your paths. */
+      orderPathPreference: null,
       productCount: productCount ?? collection._count?.products ?? collection.products?.length ?? 0,
       photoCount: preview.imageCount,
       previewImages: preview.previewImages,

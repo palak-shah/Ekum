@@ -36,7 +36,7 @@ export const updateCompanySettingsSchema = z.object({
   buyingEnabled: z.boolean().optional(),
   sellingEnabled: z.boolean().optional(),
   tradingEnabled: z.boolean().optional(),
-  /** Direct vs I handle — merged into tradeDefaults.orderPathPreference (default Direct). */
+  /** Legacy API: merged into tradeDefaults.orderPathPreference. UI removed — Prefer handle when unset. */
   orderPathPreference: z.enum(orderPathPreferenceValues).optional(),
 });
 export type UpdateCompanySettingsDto = z.infer<typeof updateCompanySettingsSchema>;

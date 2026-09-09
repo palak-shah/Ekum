@@ -26,7 +26,7 @@
 
 ### Slice B (follow-up)
 
-7. On gray locked design/album → **Ask supplier** → chat Allow/Deny → **per-company relist grant** (≠ Connection, ≠ view Ask). Distinct chat card from view Ask.
+7. On gray locked design/album → **Ask to put in my pack** → chat Allow/Deny → **per-company relist grant** (≠ Connection, ≠ view Ask). Distinct chat card from view Ask. Never bare **Ask**.
 
 ## Split
 
@@ -48,7 +48,7 @@
 | Locked lines | Gray + reason in Selection / resolve; **not** silent drop |
 | Mixed / partial | After expand: **Continue with allowed**; show count of skipped locked (e.g. muted “3 locked — seller doesn’t allow pack”); if **zero** allowed → block Continue, stay on resolve/Selection with reason |
 | Albums + designs already in Selection | Union into Curate set after album expand; de-dupe by product id |
-| Ask supplier | **Slice B only** — Slice A: gray + reason, no Ask CTA |
+| Ask to put in my pack | **Slice B only** — Slice A: gray + reason, no Ask CTA |
 | Feed icons | **No** |
 | Forward / Share | Unchanged |
 
@@ -56,10 +56,13 @@
 
 | Topic | Decision |
 |-------|----------|
+| Ask CTA | **Ask to put in my pack** (Selection / resolve gray row). Never bare **Ask**; never **Ask to see**. |
 | Ask supplier | Chat **Allow / Deny** for pack permission |
 | Allow effect | Per-company **relist grant** OR’d with `allowForward` in Curate ceiling — does **not** flip global allowForward |
 | Grant grain | **Product-level** grants (expand album → ask/grant per design, or batch Allow that creates one grant per current member). Collection-scoped “future members too” is **out** unless revisited |
-| Card copy | Distinct from view Ask (“wants to put … in their pack” vs “wants to see this collection”) |
+| Card copy (owner pending) | **Wants to put … in their pack** |
+| Card copy (allowed) | **You can put this in your pack** |
+| Card copy | Distinct from view Ask (**Ask to see this pack** / “Asked to see this pack” vs pack Ask above) |
 | Deny | Silent to asker |
 | Revoke | Required in Slice B: quiet owner list (or Who can put in pack) — not deferred forever |
 
@@ -79,10 +82,10 @@
 2. Tap **Curate** → Curate sheet if ≥1 allowed; locked remain gray in Selection.  
 3. One design as-is: name can default to design name.
 
-### Slice B — Ask supplier (later)
+### Slice B — Ask to put in my pack (later)
 
-1. Gray locked row → **Ask supplier**.  
-2. Chat card → Allow → product relist grant(s); Deny silent.  
+1. Gray locked row → **Ask to put in my pack**.  
+2. Chat card (**Wants to put … in their pack**) → Allow → product relist grant(s); Deny silent.  
 3. Owner can revoke.
 
 ## Trust ladder
@@ -91,8 +94,9 @@
 Forward / Share     → free (card as-is)
 Bookmark            → free (private)
 Curate / Publish    → needs allowForward (Slice A); OR per-company grant (Slice B)
-Pack permission Ask → Slice B only
-View Ask            → see gated pack only (existing)
+Ask to put in pack  → Slice B only (≠ Ask to see this pack)
+Ask to see this pack → look through gated pack only (existing)
+Request access      → Connect (profile / Network)
 ```
 
 ## Technical sketch

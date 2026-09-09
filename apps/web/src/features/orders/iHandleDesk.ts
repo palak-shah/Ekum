@@ -18,6 +18,24 @@ export function itemsForMill(
   return items.filter((item) => ids.has(item.id));
 }
 
+/** Me vs one shop name, or Mills when two+ (names listed quietly under the option). */
+export function orderTicketMillLabel(
+  desks: Array<{ sellerName: string }> | undefined,
+  fallback: string,
+): string {
+  if (!desks?.length) return fallback;
+  if (desks.length === 1) return desks[0]!.sellerName;
+  return 'Mills';
+}
+
+/** Quiet under-lines for the mill flip option (2+ shops). Empty when one or none. */
+export function orderTicketMillNames(
+  desks: Array<{ sellerName: string }> | undefined,
+): string[] {
+  if (!desks || desks.length < 2) return [];
+  return desks.map((desk) => desk.sellerName).filter(Boolean);
+}
+
 export function millCue(group: OrderMillDeskView): string | null {
   if (group.declinedCount && group.confirmedCount) {
     return `${group.confirmedCount} confirmed · ${group.declinedCount} can’t supply`;
@@ -45,9 +63,9 @@ export function showSellerConfirmOnDesk(
 }
 
 /**
- * I-handle desk: Open chat / Decline / payment / dispatch / settle / View under Take over.
- * Send quote stays on the face only after a mill has quoted (rates pass).
- * Quoting Meena without asking the mill → Take over only.
+ * I-handle desk: Open chat / Decline / payment / dispatch / settle / View under Desk tools.
+ * Send quote stays on the face only after a mill has quoted (rates pass) — **unless Mills observe**.
+ * Quoting Meena without asking the mill → Desk tools only.
  */
 export function traderActionsBehindTakeOver(
   millDesks: OrderView['millDesks'] | undefined,
@@ -55,11 +73,34 @@ export function traderActionsBehindTakeOver(
   return Boolean(millDesks?.length);
 }
 
-/** True when at least one released mill has quoted — face Send quote is the rates pass. */
-export function showSendQuoteOnDeskFace(
+/** Lane ticket Mills = observe; trader ops behind Desk tools. */
+export function millsObserveMode(
+  laneTicket: string | null | undefined,
   millDesks: OrderView['millDesks'] | undefined,
 ): boolean {
+  return laneTicket === 'mill' && Boolean(millDesks?.length);
+}
+
+/**
+ * Face Send quote: mill has quoted (Me desk rates pass).
+ * Mills observe → never on the face (under Desk tools only).
+ */
+export function showSendQuoteOnDeskFace(
+  millDesks: OrderView['millDesks'] | undefined,
+  laneTicket?: string | null,
+): boolean {
+  if (millsObserveMode(laneTicket, millDesks)) return false;
   return Boolean(millDesks?.some((desk) => !desk.held && desk.millQuoted));
+}
+
+/** Mill-card Send: on the card for Me; under Desk tools when Mills observe. */
+export function showMillSendOnCard(
+  laneTicket: string | null | undefined,
+  millDesks: OrderView['millDesks'] | undefined,
+  takeOverOpen: boolean,
+): boolean {
+  if (!millsObserveMode(laneTicket, millDesks)) return true;
+  return takeOverOpen;
 }
 
 /**
@@ -71,15 +112,20 @@ export function traderDeskNextAction(input: {
   counterpartName: string;
   hasSellerQuote?: boolean;
   millDesks: OrderView['millDesks'] | undefined;
+  laneTicket?: string | null;
 }): string | null {
   const desks = input.millDesks;
   if (!desks?.length) return null;
   const buyer = input.counterpartName.trim() || 'them';
+  const observe = millsObserveMode(input.laneTicket, desks);
 
   if (input.status === 'requested') {
     const unsent = desks.filter((desk) => desk.held);
-    if (unsent.length === 1) return `Your move: Send to ${unsent[0]!.sellerName}`;
-    if (unsent.length > 1) return 'Your move: Send mill lots';
+    if (unsent.length > 0) {
+      if (observe) return 'Desk tools to Send mill lots';
+      if (unsent.length === 1) return `Your move: Send to ${unsent[0]!.sellerName}`;
+      return 'Your move: Send mill lots';
+    }
 
     const awaitingRates = desks.filter((desk) => !desk.held && !desk.millQuoted);
     if (awaitingRates.length === 1) {
@@ -87,8 +133,15 @@ export function traderDeskNextAction(input: {
     }
     if (awaitingRates.length > 1) return 'Waiting on mills for rates';
 
-    if (showSendQuoteOnDeskFace(desks) && !input.hasSellerQuote) {
+    if (showSendQuoteOnDeskFace(desks, input.laneTicket) && !input.hasSellerQuote) {
       return `Your move: Send quote to ${buyer}`;
+    }
+    if (
+      observe &&
+      desks.some((desk) => !desk.held && desk.millQuoted) &&
+      !input.hasSellerQuote
+    ) {
+      return `Desk tools to Send quote to ${buyer}`;
     }
     if (input.hasSellerQuote) return `Waiting on ${buyer} to accept quote`;
   }

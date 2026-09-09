@@ -18,6 +18,23 @@ const stubTrail = {
   backfillFromOrder: async () => undefined,
 } as unknown as OrderTrailService;
 
+/** TradeLane mocks for sendUp / get mill desks (product added after Manage desk). */
+function tradeLaneMocks() {
+  return {
+    upsert: vi.fn(async () => ({
+      id: 'lane-1',
+      reveal: false,
+      ticket: 'me',
+      groupThreadId: null,
+      traderCompanyId: 'trader',
+      sellerCompanyId: 'mill',
+      buyerCompanyId: 'buyer',
+    })),
+    findMany: vi.fn(async () => []),
+    update: vi.fn(async () => ({})),
+  };
+}
+
 function service(
   prisma: PrismaService,
   extras: { events?: DomainEvents; threads?: ThreadService; serializer?: OrderSerializer } = {},
@@ -135,6 +152,7 @@ describe('OrderService.sendUp', () => {
         create: vi.fn(async () => ({ id: 'm1' })),
       },
       thread: { update: vi.fn(async () => ({})) },
+      tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const svc = service(prisma, { events, threads });
     vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1', canSendUp: false } as never);
@@ -222,6 +240,7 @@ describe('OrderService.sendUp', () => {
       },
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
+      tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
       toOrderView: vi.fn(() => ({ id: down.id })),
@@ -295,6 +314,7 @@ describe('OrderService.sendUp', () => {
       },
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
+      tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
       toOrderView: vi.fn((order: { id: string }) => ({ id: order.id, direction: 'selling' })),
@@ -335,6 +355,7 @@ describe('OrderService.sendUp', () => {
       },
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
+      tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
       toOrderView: vi.fn((order: { id: string }) => ({

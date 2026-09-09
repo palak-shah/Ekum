@@ -21,13 +21,19 @@ Buyers request / follow; sellers approve and manage connections. Both roles use 
 1. On company profile or **Find on Ekum** → Request access. Note is prefilled…  
 2. Seller sees incoming on **Network → Requests** and Home Needs → Approve or Decline → **Connection**.
 
-### Ask to see a collection (not Connect)
+### Ask to see a pack (not Connect, not put in pack)
 
-1. On a gated pack → **Ask to see** (not Request access).  
+1. On a gated pack → **Ask to see this pack** (not Request access, not Ask to put in my pack).  
 2. Owner chat: same-size pack card as other shares, ask line in meta, compact WhatsApp-style **Deny | Allow** footer.  
-3. **Allow** → **Granted on request** for that pack only (chat + notification + one Home aggregate for the asker).  
+3. **Allow** → **Granted on request** for that pack only (chat + notification + one Home aggregate for the asker) — look through designs; does **not** unlock Curate/relist.  
 4. **Deny** → silent to the asker (no deny message).  
 5. Owner can list/remove **Granted on request** on the pack.
+
+### Ask to put in my pack
+
+When a design/album is locked for Curate, **Ask to put in my pack** → chat Allow/Deny → per-company product relist grant. Non-blocking for the asker; Allow unlocks that Selection row.
+
+**Desk chain:** If they only saw the design in **your** pack, Ask goes to **you** and follows **your** publish allow / Don’t-allow-to-relist. If they open the **mill’s own** listing, Ask goes to the mill — you are not handling that hop. Mill Allow to you does not auto-free your buyers. Agent role for mixed discovery — later. Distinct from view Ask (see [relist-ask Slice B](../superpowers/specs/2026-09-08-relist-ask-slice-b-design.md) + [desk chain](../superpowers/specs/2026-09-09-relist-desk-chain-design.md)).
 
 ### Connections (both roles)
 

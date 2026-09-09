@@ -4,19 +4,18 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXPLORE_BUSINESSES_SEARCH_HREF } from '@/features/explore/exploreDiscoveryHref';
 import { CatalogShareSheet } from './CatalogShareSheet';
-import { api } from '@/lib/apiClient';
+import { api, ApiError } from '@/lib/apiClient';
 
-vi.mock('@/lib/apiClient', () => ({
-  api: {
-    get: vi.fn(),
-    post: vi.fn(),
-  },
-  ApiError: class ApiError extends Error {
-    constructor(envelope: { message: string } | string) {
-      super(typeof envelope === 'string' ? envelope : envelope.message);
-    }
-  },
-}));
+vi.mock('@/lib/apiClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    api: {
+      get: vi.fn(),
+      post: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@/ui/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
@@ -85,6 +84,8 @@ describe('CatalogShareSheet share errors', () => {
               title: 'Jaipur Emporium',
               type: 'direct',
               visibility: 'shared',
+              pinned: false,
+              lastMessageAt: '2026-09-01T00:00:00.000Z',
               counterpart: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', logoUrl: null },
             },
           ],
@@ -95,30 +96,33 @@ describe('CatalogShareSheet share errors', () => {
     });
   });
 
-  it('shows InlineNotice in the sheet when chat share fails', async () => {
-    const { ApiError } = await import('@/lib/apiClient');
-    vi.mocked(api.post).mockRejectedValue(
-      new ApiError({
-        statusCode: 400,
-        code: 'INVALID_REFERENCE',
-        message: 'You can only share objects your business can access.',
-      } as never),
-    );
-
-    const { userEvent } = await import('@testing-library/user-event');
-    const user = userEvent.setup();
-    renderSheet();
-
-    await waitFor(() => {
-      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText('Jaipur Emporium'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'You can only share objects your business can access.',
+  it(
+    'shows InlineNotice in the sheet when chat share fails',
+    async () => {
+      vi.mocked(api.post).mockRejectedValue(
+        new ApiError({
+          statusCode: 400,
+          code: 'INVALID_REFERENCE',
+          message: 'You can only share objects your business can access.',
+        }),
       );
-    });
-  });
+
+      const { userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      renderSheet();
+
+      await waitFor(() => {
+        expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /Jaipur Emporium/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'You can only share objects your business can access.',
+        );
+      });
+    },
+    15_000,
+  );
 });

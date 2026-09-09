@@ -301,6 +301,11 @@ export interface MessageReference {
   canAcceptQuote?: boolean;
   /** Seller-logged ticket: buyer may Accept (not Accept quote). */
   canAcceptLogged?: boolean;
+  /**
+   * Live order intent (inquiry | order). Like canAcceptQuote — not frozen history.
+   * Chat CTAs use this so Ask-rates tickets say View inquiry until firmed.
+   */
+  intent?: 'order' | 'inquiry' | null;
 }
 
 export interface MessageReplyPreview {

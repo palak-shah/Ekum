@@ -2,9 +2,13 @@ import { test, expect } from '@playwright/test';
 import { accessTokenFromPage, createOrder } from '../../helpers/orders';
 import { API_URL } from '../../helpers/env';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { resetTradeLanesToMe } from '../../helpers/tradeLanes';
 
 test.describe('I-handle desk @functional @orders', () => {
   test('trader list is the buyer ticket; Send lives on that page', async ({ page }) => {
+    await loginAsRavi(page);
+    await resetTradeLanesToMe(page.request, await accessTokenFromPage(page));
+
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);
     const created = await createOrder(page.request, meenaToken, {

@@ -7,13 +7,22 @@ test.describe('trader curate publish @functional @trader @collections', () => {
 
     await loginAsKavita(page);
     await page.goto('/collections/seed-col-1');
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByTestId('collection-select').click();
-    await page.getByRole('button', { name: 'Select all' }).first().click();
-    await expect(page.getByText(/\d+ selected/)).toBeVisible();
+    // Enter select via long-press (⋯ no longer has a Select pill / collection-select).
+    const designTile = page.locator('button').filter({ has: page.locator('img') }).first();
+    await designTile.click({ button: 'right' });
+    await page.getByTestId('select-all-float-select-all').click();
+    await expect(page.getByTestId('select-all-float')).toContainText(/\d+ selected/);
 
-    await page.getByRole('button', { name: 'Curate', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible();
+    await page.getByTestId('selection-workspace-bar').click();
+    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByTestId('selection-curate').click();
+    await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.getByLabel('Name').fill(packName);
     await page.getByRole('button', { name: 'Publish to Collection' }).click();

@@ -22,6 +22,7 @@ import {
   ProductStatus,
   PublishAudience,
   SuperCategory,
+  ThreadMemberState,
   ThreadParticipantState,
   ThreadType,
   VerificationStatus,
@@ -765,6 +766,24 @@ async function main(): Promise<void> {
         state: ThreadParticipantState.Active,
       },
       update: { state: ThreadParticipantState.Active },
+    });
+  }
+  // Chat access is ThreadMember (not only company participant).
+  const seedMembers = [
+    { id: 'seed-tm-meena', userId: U_MEENA, companyId: MEENA },
+    { id: 'seed-tm-ravi', userId: U_RAVI, companyId: RAVI },
+  ];
+  for (const member of seedMembers) {
+    await prisma.threadMember.upsert({
+      where: { threadId_userId: { threadId: 'seed-thread-1', userId: member.userId } },
+      create: {
+        id: member.id,
+        threadId: 'seed-thread-1',
+        userId: member.userId,
+        companyId: member.companyId,
+        state: ThreadMemberState.Active,
+      },
+      update: { state: ThreadMemberState.Active, leftAt: null, companyId: member.companyId },
     });
   }
   const messages = [

@@ -17,7 +17,7 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
 | **Trade presence** | `buyingEnabled` / `sellingEnabled` toggles what ＋ and Home emphasize. Creating catalog content turns selling back on. |
 
-Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person. The **company** still trades. **You → Team** invites staff by phone. Counterparties see the business name. New chats start with **owners**; staff see a thread only after an owner adds them. Do not label chats Private or Team.
+Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person × company seat. The **company** still trades. **You → Team** invites staff by phone. One **live** membership at a time; after archive, the same phone may join another shop (or create a company). Counterparties see the business name. New chats start with **owners**; staff see a thread only after an owner adds them. Do not label chats Private or Team.
 
 ## Platform & dual-network companies
 
@@ -41,7 +41,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light **New packs** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** (`I trade on Ekum`) gates Curate + TradeLane. Product default off (QA may treat unset as on). Linking/split in Slice B |
-| Orders | First middle-hop pair: **I handle**, no group. Lane = ticket **Me** / **mill** × **reveal**. Tweak on More / order page / Your paths — not on everyday Place. Soft-hide when reveal off; group when on. Take over while requested, no seller quote |
+| Orders | First middle-hop pair: **I handle**, no group. Lane = ticket **Me** / **mill** × **reveal**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when reveal off; group when on. **Desk tools** for mill ops while requested; **Handle myself** when flipping Direct to your desk |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
 
@@ -62,7 +62,8 @@ flowchart LR
 |-----------|------------|
 | **Follow** | Permissionless. See followed posts on Home / Explore “following”. Does **not** unlock full catalog or trade. |
 | **Access request** | Named gate to **Connect** (Network): note + optional referral. Approve / decline → Connection. |
-| **Collection view Ask** | Ask to see **one pack**. Owner Allow → **Granted on request** (not Connection). Deny is silent to the asker. |
+| **Collection view Ask** | **Ask to see this pack** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not pack/relist). Deny silent. |
+| **Pack / relist Ask** | **Ask to put in my pack** — unlock Curate when pack permission is off. Distinct chat card (“wants to put … in their pack”). Never bare **Ask**. Via **your** pack → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
 | **Connection** | After approve: `active` → catalog visibility & trade. Owner can **pause** or **block** (silent to the other party). |
 | **Block / pause** | Viewer is not told. API returns **404** (not 403). Approve never reactivates a block — must **unblock** first. |
@@ -101,7 +102,7 @@ When publishing (or updating visibility), the sheet sets:
 |-------|--------|------------------|
 | **Audience** | API: `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**). **Publish / Visibility UI:** Everyone · My followers · Selected (not My connections — connections mix suppliers). | Followers |
 | **Rate visibility** | `visible` · `on_request` | On request (or company usual) |
-| **Buyers can put this in their pack** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
+| **Buyers can add these designs to their collections** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
 
 | Audience | Who sees on Explore |
 |----------|---------------------|

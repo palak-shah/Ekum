@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { tradeKindLabel, tradeMenuFilterSummary, tradeStatusLabel } from './ordersFilterConfig';
+import {
+  TRADE_FILTER_STATUSES,
+  tradeKindLabel,
+  tradeMenuFilterSummary,
+  tradeStatusLabel,
+} from './ordersFilterConfig';
 
 describe('tradeMenuFilterSummary', () => {
   it('combines type and status labels', () => {
@@ -30,6 +35,15 @@ describe('tradeStatusLabel', () => {
 
   it('returns label for known status', () => {
     expect(tradeStatusLabel('requested')).toBe('Requested');
+  });
+
+  it('still labels legacy delivered when filtered', () => {
+    expect(tradeStatusLabel('delivered')).toBe('Delivered');
+  });
+
+  it('does not offer Delivered in the primary menu list', () => {
+    expect(TRADE_FILTER_STATUSES.some((row) => row.status === 'delivered')).toBe(false);
+    expect(TRADE_FILTER_STATUSES.some((row) => row.status === 'dispatched')).toBe(true);
   });
 });
 

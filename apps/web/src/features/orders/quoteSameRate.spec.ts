@@ -9,4 +9,14 @@ describe('ratesWithSharedValue', () => {
       c: '120',
     });
   });
+
+  it('restores defaults when Rate all is cleared', () => {
+    expect(
+      ratesWithSharedValue(['a', 'b'], '', { a: '90', b: '110' }),
+    ).toEqual({ a: '90', b: '110' });
+  });
+
+  it('uses empty string when cleared and no default', () => {
+    expect(ratesWithSharedValue(['a'], '  ', {})).toEqual({ a: '' });
+  });
 });

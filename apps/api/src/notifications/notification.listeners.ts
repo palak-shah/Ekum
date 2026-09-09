@@ -57,6 +57,28 @@ export class NotificationListeners {
     );
   }
 
+  @OnEvent(DomainEventName.RelistGranted)
+  async onRelistGranted(event: {
+    requesterCompanyId: string;
+    productIds: string[];
+    productNames: string[];
+  }): Promise<void> {
+    const body =
+      event.productNames.length === 1
+        ? event.productNames[0]!
+        : `${event.productNames.length} designs`;
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId: event.requesterCompanyId,
+        type: NotificationType.Collection,
+        title: 'You can put this in your pack',
+        body,
+        refType: 'product',
+        refId: event.productIds[0] ?? undefined,
+      }),
+    );
+  }
+
   @OnEvent(DomainEventName.OrderCreated)
   async onOrderCreated(event: OrderCreatedEvent): Promise<void> {
     await this.guard(() =>

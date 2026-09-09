@@ -22,8 +22,8 @@ Every signed-in company owner/operator in Phase 1.
 2. Manage **addresses** and **billing GST firms**.
 3. Return policy / trade defaults / my-tools as exposed by the API.
 4. Profile edit → `/settings/profile` (see [company](./company.md)).
-5. Trade presence on Profile: buying / selling / trading, plus **When buyers order from what I share** (**Direct** / **I handle**). After TradeLane ships, this is only a **fallback** when no pair lane exists — a **new** pair still starts **I handle**, they do **not** see each other (see [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md)). Until then, shipped Profile default may still be Direct; do not treat that as the first-order product default.
-6. **Your paths** (`/settings/paths`, You): search + list of supplier × buyer — order with (Me / shop) and see each other (Off / On). Same two switches as More / order page. Needs **I trade on Ekum**. Empty until a first middle-hop pair exists.
+5. Trade presence on Profile: buying / selling / trading only. Path (Me / mill · see each other) is **Your paths** — not on Profile. New middle-hop pair always starts **I handle**, they do **not** see each other (see [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md)).  
+6. **Your paths** (`/settings/paths`, You): search + list. One why-line at top; each card is mill · buyer, then Me/{mill} and See each other On/Off (tap saves; next orders only). Needs **I trade on Ekum**. Empty until a first middle-hop pair exists.
 
 ## Business rules
 
@@ -48,6 +48,6 @@ Every signed-in company owner/operator in Phase 1.
 
 ## Where it lives
 
-- Web: `apps/web/src/features/settings/` (`MorePage`, `SettingsPage`, `ProfilePage`), `apps/web/src/lib/tradePresence.ts`. **Your paths** (`/settings/paths`) is specified, not built.
-- API: `apps/api/src/settings/`, company patch in identity
-- Contracts: `packages/domain-types/src/settings.ts`, `company.ts`
+- Web: `apps/web/src/features/settings/` (`MorePage`, `SettingsPage`, `ProfilePage`, `YourPathsPage`), `apps/web/src/lib/tradePresence.ts`. **Your paths** at `/settings/paths` (You → Your paths when Trading is on).
+- API: `GET/PATCH /trade-lanes`, company patch in identity
+- Contracts: `packages/domain-types` TradeLaneView + update schema

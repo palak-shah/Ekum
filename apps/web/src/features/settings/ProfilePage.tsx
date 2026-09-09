@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  OrderPathPreference,
   SUPER_CATEGORY_LABEL,
   SuperCategory,
   type CompanySettingsView,
@@ -9,7 +8,6 @@ import {
   type SuperCategory as SuperCategoryType,
   type UpdateCompanyDto,
 } from '@ekum/domain-types';
-import { resolveOrderPathPreference } from '@/features/browse/orderPathPreference';
 import { api, ApiError } from '@/lib/apiClient';
 import { uploadImage } from '@/lib/mediaUpload';
 import { useMyCompany } from '@/lib/queries';
@@ -69,12 +67,6 @@ export function ProfilePage() {
 
   const presence = resolveTradePresence(company.data);
 
-  const settings = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.get<CompanySettingsView>('/settings'),
-  });
-  const orderPath = resolveOrderPathPreference(settings.data?.tradeDefaults);
-
   const save = useMutation({
     mutationFn: () => {
       const dto: UpdateCompanyDto = {
@@ -98,7 +90,6 @@ export function ProfilePage() {
       buyingEnabled?: boolean;
       sellingEnabled?: boolean;
       tradingEnabled?: boolean;
-      orderPathPreference?: 'direct' | 'handle';
     }) => api.put<CompanySettingsView>('/settings', patch),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
@@ -229,48 +220,8 @@ export function ProfilePage() {
         />
         <p className="text-xs text-muted">
           Curate packs and stay on shared orders. Leave off if you only buy or sell your own
-          catalog.
+          catalog. Paths (Me / mill · see each other) live under You → Your paths.
         </p>
-        <div className="mt-2 flex flex-col gap-2 border-t border-line pt-3">
-          <p className="text-sm font-semibold text-ink">When buyers order from what I share</p>
-          <div className="flex flex-col gap-2">
-            {(
-              [
-                {
-                  value: OrderPathPreference.Direct,
-                  label: 'Direct',
-                  hint: 'Buyers order from the design owners',
-                },
-                {
-                  value: OrderPathPreference.Handle,
-                  label: 'I handle',
-                  hint: 'Buyers order from me',
-                },
-              ] as const
-            ).map((option) => {
-              const selected = orderPath === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  disabled={setTradeSide.isPending || !presence.trading}
-                  onClick={() => setTradeSide.mutate({ orderPathPreference: option.value })}
-                  className={cx(
-                    'rounded-xl px-3 py-2.5 text-left',
-                    selected ? 'bg-accent/10 ring-1 ring-accent' : 'bg-foam',
-                    (!presence.trading || setTradeSide.isPending) && 'opacity-50',
-                  )}
-                >
-                  <p className="text-sm font-semibold text-ink">{option.label}</p>
-                  <p className="text-xs text-muted">{option.hint}</p>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs text-muted">
-            Default for every forward, publish, and curate. You can change it on each share.
-          </p>
-        </div>
       </Card>
 
       <Field label="Business name">

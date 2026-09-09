@@ -184,7 +184,7 @@ function buildOrderActions(
   }
   if (openOrder && ref?.available) {
     return {
-      label: 'View order →',
+      label: ref.intent === 'inquiry' ? 'View inquiry →' : 'View order →',
       onClick: openOrder,
       style: 'link',
     };

@@ -34,7 +34,7 @@ export function SelectionWorkspaceBar() {
     })),
   ].slice(0, 2);
 
-  const countLabel = total === 1 ? '1 selected' : `${total} selected`;
+  const countLabel = total === 1 ? '1 in selection' : `${total} in selection`;
 
   return createPortal(
     <div
@@ -45,7 +45,7 @@ export function SelectionWorkspaceBar() {
         type="button"
         className="pointer-events-auto flex max-w-[min(100%,16rem)] items-center gap-1.5 rounded-full border border-line bg-canvas/95 py-1 pl-1 pr-2.5 shadow-[var(--shadow-soft)] backdrop-blur-md"
         onClick={() => navigate('/selection')}
-        aria-label={`${countLabel}. View selection`}
+        aria-label={`${countLabel}. Open Your selection`}
       >
         <div className="flex shrink-0 -space-x-1.5">
           {thumbs.map((thumb) =>

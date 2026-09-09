@@ -5,6 +5,7 @@
 **Anchors:** `docs/features/orders.md`, TradeLane I handle + reveal Off  
 **Mock:** [2026-09-07-trader-desk-simple-mock.html](./2026-09-07-trader-desk-simple-mock.html)  
 **Completeness:** [2026-09-07-trader-i-handle-desk-completeness.md](../reviews/completeness/2026-09-07-trader-i-handle-desk-completeness.md)  
+**TradeLane:** This desk **is** reveal Off (two 1:1s). Reveal On (trio) is [TradeLane](./2026-09-02-tradelane-design.md) + Completeness 2026-09-07-tradelane-reveal-on — same Me ticket, different chat.  
 **Supersedes (trader chrome):** Linked portal mock [2026-09-07-trader-linked-order-mock.html](./2026-09-07-trader-linked-order-mock.html) — not the desk
 
 ## Problem
@@ -33,7 +34,9 @@ When a mill has quoted, the desk shows a **header once** — **From {mill}** | *
 
 ## Chat
 
-I handle + reveal Off: 1:1 Meena, 1:1 each mill after Send.
+**Desk default = reveal Off:** 1:1 Meena, 1:1 each mill after Send.
+
+**Reveal On** (per mill × buyer lane): same desk / ticket with Me; after Send, living cards in the **trio** are the **mill subset** only (`Part of #{main}`), not the Manage parent ticket. One group per mill (never mill A + mill B together). Switch on each mill card: **{Mill} and {Buyer} can see each other**. Flip Off stops new cards to the group; group stays. Mill joins the trio only after **Send**.
 
 Trader mill order card: `{shop} lot · #{subset} · part of #{main}`. Tap → `#A1B2C3` (scroll to that mill). Mill viewer still opens the subset ticket.
 
@@ -76,8 +79,8 @@ Trader **Settle order** on the Manage parent is only for bilateral-style fulfill
 
 - Linked / Coming / Going chrome  
 - Mill page as trader home  
-- TradeLane group (reveal On)  
+- Your paths / ticket=`mill` (Direct counterpart)  
 - Whole-order Hold  
 - Inventory  
-- Buyer or mill seeing the pair
-- Upstream mill names on the **parent** Timeline or trade chat (chain soft-hide — Approach A)  
+- Soft-hide: end buyer must not see *other* hop mill names as Related chrome (trio parties use business names in the group)  
+- Upstream mill names on the **parent** Timeline or trade chat when reveal Off (chain soft-hide — Approach A)  

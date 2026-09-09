@@ -488,7 +488,6 @@ function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) 
 function needIcon(kind: HomeNeedItem['kind']): ComponentType<SVGProps<SVGSVGElement>> {
   switch (kind) {
     case 'dispatch':
-    case 'mark_delivered':
       return CheckIcon;
     case 'chat_request':
     case 'send_rate':

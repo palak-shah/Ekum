@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SavedItemView } from '@ekum/domain-types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  CollectionPreviewView,
+  RelistAccessView,
+  RelistRequestView,
+  SavedItemView,
+} from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTradePresence } from '@/lib/tradePresence';
 import { pickSelectionLabel, shouldShowAlbumSelectActions } from '@/features/browse/albumSelectModel';
@@ -68,6 +73,8 @@ export function SelectionPage() {
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
   const [savingPick, setSavingPick] = useState(false);
+  const [askingKey, setAskingKey] = useState<string | null>(null);
+  const [waitingAlbumIds, setWaitingAlbumIds] = useState<Set<string>>(() => new Set());
 
   const total = shortlist.count + albumPick.count;
   const availabilityKey = useMemo(
@@ -88,6 +95,107 @@ export function SelectionPage() {
       }),
     enabled: total > 0,
   });
+
+  const designProductIds = useMemo(
+    () => shortlist.entries.map((e) => e.productId),
+    [shortlist.entries],
+  );
+
+  const relistAccess = useQuery({
+    queryKey: [
+      'relist-access',
+      designProductIds.join('|'),
+      shortlist.entries
+        .map((e) => `${e.productId}:${e.sourceCollectionId ?? ''}`)
+        .join(','),
+    ],
+    queryFn: () => {
+      const packByProductId: Record<string, string> = {};
+      for (const entry of shortlist.entries) {
+        if (entry.sourceCollectionId) {
+          packByProductId[entry.productId] = entry.sourceCollectionId;
+        }
+      }
+      return api.post<RelistAccessView>('/relist-requests/access', {
+        productIds: designProductIds,
+        packByProductId,
+      });
+    },
+    enabled: designProductIds.length > 0,
+    refetchOnWindowFocus: true,
+  });
+
+  const grantedIds = useMemo(
+    () => new Set(relistAccess.data?.grantedProductIds ?? []),
+    [relistAccess.data?.grantedProductIds],
+  );
+  const packOpenIds = useMemo(
+    () => new Set(relistAccess.data?.packOpenProductIds ?? []),
+    [relistAccess.data?.packOpenProductIds],
+  );
+  const pendingByProductId = relistAccess.data?.pendingByProductId ?? {};
+
+  const askRelist = useMutation({
+    mutationFn: (input: {
+      productIds: string[];
+      sourceCollectionId?: string;
+      albumId?: string;
+    }) =>
+      api
+        .post<RelistRequestView>('/relist-requests', {
+          productIds: input.productIds,
+          sourceCollectionId: input.sourceCollectionId,
+        })
+        .then((view) => ({ view, albumId: input.albumId })),
+    onSuccess: ({ albumId }) => {
+      if (albumId) {
+        setWaitingAlbumIds((prev) => new Set(prev).add(albumId));
+      }
+      void queryClient.invalidateQueries({ queryKey: ['relist-access'] });
+      setAskingKey(null);
+    },
+    onError: (err) => {
+      setAskingKey(null);
+      showToast(err instanceof ApiError ? err.message : 'Could not ask.', 'danger');
+    },
+  });
+
+  const onAskDesign = (productId: string, sourceCollectionId?: string) => {
+    setAskingKey(`p-${productId}`);
+    askRelist.mutate({
+      productIds: [productId],
+      sourceCollectionId,
+    });
+  };
+
+  const onAskAlbum = async (collectionId: string) => {
+    setAskingKey(`c-${collectionId}`);
+    try {
+      const preview = await api.get<CollectionPreviewView>(
+        `/explore/collections/${collectionId}`,
+      );
+      const lockedIds = (preview.products ?? [])
+        .filter((p) => {
+          if (grantedIds.has(p.id) || packOpenIds.has(p.id)) return false;
+          if (preview.allowForward !== false) return false;
+          return p.allowForward === false;
+        })
+        .map((p) => p.id);
+      if (lockedIds.length < 1) {
+        showToast('Nothing to ask for in this pack.');
+        setAskingKey(null);
+        return;
+      }
+      askRelist.mutate({
+        productIds: lockedIds,
+        sourceCollectionId: collectionId,
+        albumId: collectionId,
+      });
+    } catch (err) {
+      setAskingKey(null);
+      showToast(err instanceof ApiError ? err.message : 'Could not ask.', 'danger');
+    }
+  };
 
   const designRows: DesignRow[] = shortlist.entries.map((entry) => ({
     ...entry,
@@ -149,7 +257,7 @@ export function SelectionPage() {
     source: BrowseShortlistEntry[],
     expandedAlbumNames: string[] = [],
   ) => {
-    const { allowed, locked } = partitionRelistableDesigns(source);
+    const { allowed, locked } = partitionRelistableDesigns(source, grantedIds);
     if (allowed.length === 0) {
       showToast(
         source.length === 0 ? 'Pick at least one design.' : RELIST_LOCKED_TOAST,
@@ -244,7 +352,7 @@ export function SelectionPage() {
       {total < 1 ? (
         <EmptyState
           title="Nothing selected"
-          message="Long-press on Explore, Saved, or a company shop — or on My designs use To selection (published only) — then Order, Curate, Bookmark, or Share here."
+          message="Long-press designs or packs on Explore, then come back here."
           action={
             <Button variant="secondary" onClick={() => navigate('/explore')}>
               Open Explore
@@ -262,7 +370,9 @@ export function SelectionPage() {
           <ul className="flex flex-col gap-2" data-testid="selection-list">
             {albumRows.map((row) => {
               const discoveryUnavailable = row.availability?.available === false;
-              const packReason = packLockReason(row.allowForward);
+              const waiting = waitingAlbumIds.has(row.collectionId);
+              const packReason = packLockReason(row.allowForward, { waiting });
+              const packLocked = Boolean(packReason) && !discoveryUnavailable;
               return (
                 <SelectionRow
                   key={`c-${row.collectionId}`}
@@ -271,15 +381,32 @@ export function SelectionPage() {
                   companyName={row.companyName}
                   thumbUrl={row.coverImage}
                   unavailable={discoveryUnavailable}
-                  packLocked={Boolean(packReason) && !discoveryUnavailable}
+                  packLocked={packLocked}
                   reason={row.availability?.reason ?? packReason}
+                  askState={
+                    packLocked && !waiting
+                      ? askingKey === `c-${row.collectionId}`
+                        ? 'asking'
+                        : 'ask'
+                      : undefined
+                  }
+                  onAsk={() => void onAskAlbum(row.collectionId)}
                   onRemove={() => albumPick.removeIds([row.collectionId])}
                 />
               );
             })}
             {designRows.map((row) => {
               const discoveryUnavailable = row.availability?.available === false;
-              const packReason = packLockReason(row.allowForward);
+              const hasGrant = grantedIds.has(row.productId);
+              const packOpen =
+                packOpenIds.has(row.productId) || row.sourcePackAllowForward === true;
+              const waiting = Boolean(pendingByProductId[row.productId]);
+              const packReason = packLockReason(row.allowForward, {
+                hasGrant,
+                waiting,
+                sourcePackAllowForward: packOpen,
+              });
+              const packLocked = Boolean(packReason) && !discoveryUnavailable;
               return (
                 <SelectionRow
                   key={`p-${row.productId}`}
@@ -288,8 +415,20 @@ export function SelectionPage() {
                   companyName={row.companyName}
                   thumbUrl={row.thumbUrl}
                   unavailable={discoveryUnavailable}
-                  packLocked={Boolean(packReason) && !discoveryUnavailable}
+                  packLocked={packLocked}
                   reason={row.availability?.reason ?? packReason}
+                  askState={
+                    packLocked && !waiting
+                      ? askingKey === `p-${row.productId}`
+                        ? 'asking'
+                        : 'ask'
+                      : undefined
+                  }
+                  onAsk={
+                    packLocked && !waiting
+                      ? () => onAskDesign(row.productId, row.sourceCollectionId)
+                      : undefined
+                  }
                   onRemove={() => shortlist.removeIds([row.productId])}
                 />
               );
@@ -472,6 +611,7 @@ export function SelectionPage() {
       <BatchOrderConfirmSheet
         open={orderFlow.confirmOpen}
         result={orderFlow.result}
+        linkedMillCount={orderFlow.linkedMillCount}
         onClose={() => orderFlow.setConfirmOpen(false)}
       />
       <CurateFromSelectionSheet
@@ -497,6 +637,8 @@ function SelectionRow({
   unavailable,
   packLocked,
   reason,
+  askState,
+  onAsk,
   onRemove,
 }: {
   kind: string;
@@ -506,6 +648,8 @@ function SelectionRow({
   unavailable?: boolean;
   packLocked?: boolean;
   reason?: string;
+  askState?: 'ask' | 'asking';
+  onAsk?: () => void;
   onRemove: () => void;
 }) {
   const faded = Boolean(unavailable || packLocked);
@@ -540,6 +684,17 @@ function SelectionRow({
           >
             {reason}
           </p>
+        ) : null}
+        {askState ? (
+          <button
+            type="button"
+            className="mt-1 text-xs font-bold text-accent disabled:opacity-50"
+            disabled={askState === 'asking'}
+            onClick={onAsk}
+            data-testid="selection-ask-relist"
+          >
+            {askState === 'asking' ? 'Asking…' : 'Ask to put in my pack'}
+          </button>
         ) : null}
       </div>
       <button

@@ -1,6 +1,6 @@
 import type { BrowseShortlistEntry } from './browseShortlist';
 
-/** One curated pack on every line — I handle from-pack, not mill batch. */
+/** One curated pack on every line — always from-pack (main + linked lots). */
 export function singleSourceCollectionId(
   entries: Array<Pick<BrowseShortlistEntry, 'sourceCollectionId'>>,
 ): string | null {
@@ -21,17 +21,18 @@ export function isHandlePackPath(path: string | null | undefined): boolean {
   return path === 'handle';
 }
 
-/** Skip from-pack when the pack is explicitly Direct. */
+/**
+ * Curated pack Place → from-pack (one main + linked mill lots).
+ * Direct/transparent is visibility on that desk, not batch Place.
+ */
 export function collectionIdForPackOrder(
   entries: Array<Pick<BrowseShortlistEntry, 'sourceCollectionId' | 'sourcePath'>>,
 ): string | undefined {
-  const id = singleSourceCollectionId(entries);
-  if (!id) return undefined;
-  if (entries.every((row) => row.sourcePath === 'direct')) return undefined;
-  return id;
+  return singleSourceCollectionId(entries) ?? undefined;
 }
 
-/** Own albums and Direct packs are normal batch orders — not Manage from-pack. */
+/** Own albums are normal batch — not Manage from-pack. */
 export function shouldFallbackPackOrderToBatch(code: string | undefined): boolean {
-  return code === 'DIRECT_PACK' || code === 'NOT_CURATED';
+  // DIRECT_PACK retired — API no longer throws it; do not treat unknown codes as batch.
+  return code === 'NOT_CURATED';
 }

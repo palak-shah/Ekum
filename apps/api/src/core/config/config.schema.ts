@@ -35,7 +35,7 @@ export const envSchema = z
     AZURE_STORAGE_CONTAINER: z.string().default('media'),
     // Where uploaded bytes are readable. Azure derives this from the account; the
     // dev adapter serves from here. Also used to build thumbnail URLs.
-    PUBLIC_MEDIA_BASE_URL: z.string().default('http://localhost:3000/media'),
+    PUBLIC_MEDIA_BASE_URL: z.string().default('http://127.0.0.1:3000/media'),
     // How long an upload ticket (SAS) stays valid.
     MEDIA_UPLOAD_TTL: z.string().default('10m'),
     // The buyer's window to raise a return after delivery.

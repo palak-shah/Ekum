@@ -36,7 +36,7 @@ const PRIMARY_STATUS_LABELS = [
   'Requested',
   'Confirmed',
   'Dispatched',
-  'Delivered',
+  'Settled',
 ] as const;
 
 const MORE_STATUS_LABELS = [
@@ -46,6 +46,7 @@ const MORE_STATUS_LABELS = [
   'Declined',
   'Cancelled',
   'Converted',
+  'Delivered',
 ] as const;
 
 const ALL_STATUS_LABELS = [...PRIMARY_STATUS_LABELS, ...MORE_STATUS_LABELS];

@@ -103,10 +103,7 @@ export function canDeleteForEveryone(message: MessageView, now = new Date()): bo
   );
 }
 
-export function forwardPayload(
-  message: MessageView,
-  orderPathPreference?: 'direct' | 'handle',
-): {
+export function forwardPayload(message: MessageView): {
   type: string;
   body?: string;
   referenceId?: string;
@@ -149,21 +146,10 @@ export function forwardPayload(
     if (!referenceId) {
       throw new Error('Nothing to forward');
     }
-    const meta =
-      message.metadata && typeof message.metadata === 'object'
-        ? (message.metadata as Record<string, unknown>)
-        : null;
-    const stamped =
-      orderPathPreference === 'handle' || orderPathPreference === 'direct'
-        ? orderPathPreference
-        : meta?.orderPathPreference === 'handle' || meta?.orderPathPreference === 'direct'
-          ? meta.orderPathPreference
-          : undefined;
     return {
       type: message.type,
       referenceId,
       body: message.reference?.name ?? message.body ?? undefined,
-      ...(stamped ? { metadata: { orderPathPreference: stamped } } : {}),
     };
   }
   if (message.type === 'order_card' || message.type === 'rate') {

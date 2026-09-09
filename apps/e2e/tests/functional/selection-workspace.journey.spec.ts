@@ -140,6 +140,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a pack", {
       timeout: 15_000,
     });
+    await expect(page.getByTestId('selection-ask-relist')).toBeVisible();
   });
 
   test('Clear selection empties the pile', async ({ page }) => {

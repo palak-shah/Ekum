@@ -106,6 +106,60 @@ describe('buildOrderTradeCard slots', () => {
     expect(pulse.noteVoiceDurationMs).toBe(2100);
     expect(pulse.details).not.toContain('Hold for tomorrow');
   });
+
+  it('uses View inquiry → while live intent is inquiry', () => {
+    const message = orderMessage({
+      reference: {
+        id: 'ord-1',
+        kind: 'order',
+        name: 'Inquiry #J5NS',
+        image: null,
+        orderLabel: 'Inquiry #J5NS',
+        available: true,
+        itemCount: 2,
+        event: OrderChatEvent.RateRequested,
+        intent: 'inquiry',
+        counterpartName: 'Jaipur Emporium',
+      },
+    });
+    let opened = false;
+    const model = buildOrderTradeCard(message, message.reference, 'Jaipur Emporium', false, {
+      openOrder: () => {
+        opened = true;
+      },
+    });
+    expect(model.action?.label).toBe('View inquiry →');
+    model.action?.onClick?.();
+    expect(opened).toBe(true);
+  });
+
+  it('uses View order → when intent is order or omitted', () => {
+    const asOrder = orderMessage({
+      reference: {
+        id: 'ord-1',
+        kind: 'order',
+        name: 'Order #J5NS',
+        image: null,
+        orderLabel: 'Order #J5NS',
+        available: true,
+        event: OrderChatEvent.OrderRequested,
+        intent: 'order',
+        counterpartName: 'Jaipur Emporium',
+      },
+    });
+    expect(
+      buildOrderTradeCard(asOrder, asOrder.reference, 'Jaipur Emporium', false, {
+        openOrder: () => undefined,
+      }).action?.label,
+    ).toBe('View order →');
+
+    const omitted = orderMessage();
+    expect(
+      buildOrderTradeCard(omitted, omitted.reference, 'Jaipur Emporium', false, {
+        openOrder: () => undefined,
+      }).action?.label,
+    ).toBe('View order →');
+  });
 });
 
 describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
