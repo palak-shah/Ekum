@@ -38,12 +38,12 @@ export function SelectionWorkspaceBar() {
 
   return createPortal(
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-[5.25rem] z-30 flex justify-center px-4"
       data-testid="selection-workspace-bar"
     >
       <button
         type="button"
-        className="pointer-events-auto flex max-w-[min(100%,16rem)] items-center gap-1.5 rounded-full border border-line bg-canvas/95 py-1 pl-1 pr-2.5 shadow-[var(--shadow-soft)] backdrop-blur-md"
+        className="pointer-events-auto flex max-w-[min(100%,16rem)] items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-1 pr-2.5 shadow-[var(--shadow-soft)]"
         onClick={() => navigate('/selection')}
         aria-label={`${countLabel}. Open Your selection`}
       >

@@ -215,15 +215,17 @@ export function HomePage() {
   const isColdStart = !hasNeeds && !hasNetwork;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col">
       <header className="flex flex-col gap-1.5">
-        <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
+        <h1 className="text-[1.55rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </h1>
         {hasNeeds ? (
-          <p className="text-[15px] text-slate">
+          <p className="text-[15px] leading-snug text-slate">
             <span className="font-semibold text-accent">{needs.length}</span>
-            {needs.length === 1 ? ' item needs attention.' : ' items need attention.'}
+            <span className="text-slate">
+              {needs.length === 1 ? ' item needs attention.' : ' items need attention.'}
+            </span>
           </p>
         ) : isColdStart ? (
           <div className="mt-1 flex flex-col gap-2.5">
@@ -246,7 +248,7 @@ export function HomePage() {
 
       {hasNeeds && hasChips ? (
         <div
-          className={`grid gap-2 ${chipEntries.length === 1 ? 'grid-cols-2' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
+          className={`mt-5 grid gap-2.5 ${chipEntries.length === 1 ? 'grid-cols-2' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
         >
           {chipEntries.map((chip) => (
             <MetricCard key={chip.label} label={chip.label} value={chip.value} to={chip.to} />
@@ -255,7 +257,7 @@ export function HomePage() {
       ) : null}
 
       {packRows.length > 0 ? (
-        <section className="flex flex-col gap-2.5">
+        <section className="mt-7 flex flex-col gap-2.5">
           <SectionHeader
             title="New packs"
             action={
@@ -281,11 +283,11 @@ export function HomePage() {
       ) : null}
 
       {hasNeeds ? (
-        <section className="flex flex-col gap-2.5">
-          <h2 className="px-0.5 text-[13px] font-semibold tracking-tight text-ink">
+        <section className={`${hasChips || packRows.length > 0 ? 'mt-7' : 'mt-5'} flex flex-col gap-3`}>
+          <h2 className="px-0.5 text-[15px] font-semibold tracking-tight text-ink">
             Needs your attention
           </h2>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {visibleNeeds.map((item) => (
               <NeedCard
                 key={item.id}
@@ -302,7 +304,7 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => setShowAllNeeds(true)}
-              className="self-start px-0.5 text-[15px] font-semibold text-accent"
+              className="self-start px-0.5 pt-0.5 text-[15px] font-semibold text-accent"
             >
               See all {needs.length} →
             </button>
@@ -312,48 +314,52 @@ export function HomePage() {
 
       {/* Busy day: Followed only when there is news */}
       {hasNeeds && hasFollowedUpdates ? (
-        <PostListSection
-          title="Followed"
-          subtitle={`${newToday.length} new post${newToday.length === 1 ? '' : 's'} today`}
-          posts={followedPreview}
-          actionLabel="View more →"
-        />
+        <div className="mt-8">
+          <PostListSection
+            title="Followed"
+            subtitle={`${newToday.length} new post${newToday.length === 1 ? '' : 's'} today`}
+            posts={followedPreview}
+            actionLabel="View more →"
+          />
+        </div>
       ) : null}
 
       {isOpportunity ? (
-        isEmptyPlatform ? (
-          <EmptyPlatformSection selling={selling} buying={buying} />
-        ) : (
-          <>
-            {hasNetwork && hasFollowedUpdates ? (
-              <PostListSection
-                title="Followed"
-                subtitle={`${newToday.length} new post${newToday.length === 1 ? '' : 's'} today`}
-                posts={followedPreview}
-                actionLabel="View more →"
-              />
-            ) : null}
+        <div className="mt-6">
+          {isEmptyPlatform ? (
+            <EmptyPlatformSection selling={selling} buying={buying} />
+          ) : (
+            <div className="flex flex-col gap-7">
+              {hasNetwork && hasFollowedUpdates ? (
+                <PostListSection
+                  title="Followed"
+                  subtitle={`${newToday.length} new post${newToday.length === 1 ? '' : 's'} today`}
+                  posts={followedPreview}
+                  actionLabel="View more →"
+                />
+              ) : null}
 
-            {recentPosts.length > 0 ? (
-              <PostListSection
-                title="From the market"
-                posts={recentPosts}
-                actionLabel="View more →"
-              />
-            ) : null}
+              {recentPosts.length > 0 ? (
+                <PostListSection
+                  title="From the market"
+                  posts={recentPosts}
+                  actionLabel="View more →"
+                />
+              ) : null}
 
-            {suggestedBusinesses.length > 0 ? (
-              <section className="flex flex-col gap-2.5">
-                <SectionHeader title="Recommended companies" />
-                <div className="flex flex-col gap-2">
-                  {suggestedBusinesses.map((row) => (
-                    <CompanyRow key={row.id} company={row} to={`/company/${row.id}`} />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </>
-        )
+              {suggestedBusinesses.length > 0 ? (
+                <section className="flex flex-col gap-2.5">
+                  <SectionHeader title="Recommended companies" />
+                  <div className="flex flex-col gap-2">
+                    {suggestedBusinesses.map((row) => (
+                      <CompanyRow key={row.id} company={row} to={`/company/${row.id}`} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          )}
+        </div>
       ) : null}
     </div>
   );
@@ -431,14 +437,28 @@ function metricLabel(label: string, value: number): string {
   return label.toLowerCase();
 }
 
+function metricIcon(label: string): ComponentType<SVGProps<SVGSVGElement>> {
+  if (label === 'Requests') return ChatIcon;
+  if (label === 'Returns') return ReturnIcon;
+  return OrdersIcon;
+}
+
 function MetricCard({ label, value, to }: { label: string; value: number; to: string }) {
+  const Icon = metricIcon(label);
   return (
     <Link
       to={to}
-      className="flex min-h-[4.25rem] flex-col justify-center gap-0.5 rounded-xl border border-line bg-surface px-3.5 py-3 transition-colors hover:bg-foam active:bg-foam"
+      className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 transition-colors hover:bg-foam active:bg-foam"
     >
-      <p className="text-[1.35rem] font-semibold tabular-nums tracking-[-0.03em] text-ink">{value}</p>
-      <p className="text-[12px] font-medium capitalize text-muted">{metricLabel(label, value)}</p>
+      <Icon width={16} height={16} className="text-accent" aria-hidden />
+      <div className="flex flex-col gap-0.5">
+        <p className="text-[1.25rem] font-semibold tabular-nums leading-none tracking-[-0.03em] text-ink">
+          {value}
+        </p>
+        <p className="text-[12px] font-medium capitalize leading-tight text-muted">
+          {metricLabel(label, value)}
+        </p>
+      </div>
     </Link>
   );
 }
@@ -450,16 +470,20 @@ function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) 
       to={item.to}
       onClick={onOpen}
       data-testid={`home-need-${item.id}`}
-      className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
+      className="flex items-center gap-3.5 rounded-xl border border-line bg-surface px-4 py-3.5 hover:bg-foam active:bg-foam"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foam text-accent">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-foam text-accent">
         <Icon width={18} height={18} />
       </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold tracking-tight text-ink">{item.title}</p>
-        {item.subtitle ? <p className="truncate text-[13px] text-muted">{item.subtitle}</p> : null}
+      <div className="min-w-0 flex-1 py-0.5">
+        <p className="truncate text-[15px] font-semibold leading-snug tracking-tight text-ink">
+          {item.title}
+        </p>
+        {item.subtitle ? (
+          <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">{item.subtitle}</p>
+        ) : null}
       </div>
-      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+      <ChevronRightIcon width={18} height={18} className="shrink-0 self-center text-muted" />
     </Link>
   );
 }
