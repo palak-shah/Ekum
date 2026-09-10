@@ -217,7 +217,7 @@ export function HomePage() {
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </h1>
         {hasNeeds ? (
-          <p className="text-sm text-muted">
+          <p className="text-sm text-slate">
             <span className="font-semibold text-accent">
               {needs.length} item{needs.length === 1 ? '' : 's'}
             </span>{' '}
@@ -265,7 +265,7 @@ export function HomePage() {
             <Link
               key={item.id}
               to={item.to}
-              className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
+              className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
@@ -373,7 +373,7 @@ function PostListSection({
         }
       />
       {subtitle ? <p className="px-0.5 text-sm font-medium text-muted">{subtitle}</p> : null}
-      <div className="overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-soft)]">
         {posts.map((group) => (
           <MarketPostRow key={group.id} group={group} />
         ))}
@@ -387,8 +387,8 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
   return (
     <section className="flex flex-col gap-2.5">
       <SectionHeader title="Explore businesses" />
-      <div className="rounded-2xl bg-surface px-4 py-4 shadow-[var(--shadow-soft)]">
-        <p className="text-sm leading-relaxed text-muted">
+      <div className="rounded-2xl border border-line bg-surface px-4 py-4 shadow-[var(--shadow-soft)]">
+        <p className="text-sm leading-relaxed text-slate">
           Be the first to build your network.
         </p>
         <Link to="/explore" className="mt-3 block">
@@ -426,10 +426,10 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
   return (
     <Link
       to={to}
-      className="flex min-h-[5.75rem] flex-col items-center justify-center gap-1 rounded-2xl bg-surface px-4 py-4 text-center shadow-[var(--shadow-soft)] transition-colors hover:bg-foam"
+      className="flex min-h-[5.75rem] flex-col items-center justify-center gap-1 rounded-2xl border border-line bg-surface px-4 py-4 text-center shadow-[var(--shadow-soft)] transition-colors hover:bg-foam"
     >
       <p className="text-3xl font-bold tracking-tight text-accent">{value}</p>
-      <p className="text-sm font-semibold text-muted">{metricLabel(label, value)}</p>
+      <p className="text-sm font-semibold text-slate">{metricLabel(label, value)}</p>
     </Link>
   );
 }

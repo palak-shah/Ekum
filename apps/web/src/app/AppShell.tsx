@@ -103,7 +103,7 @@ export function AppShell() {
       {!ownsTopChrome ? (
         <header
           className={cx(
-            'sticky top-0 z-20 flex items-center bg-canvas/95 px-4 py-2.5 backdrop-blur-md',
+            'sticky top-0 z-20 flex items-center border-b border-line bg-canvas px-4 py-2.5',
             isHome || title ? 'justify-between' : 'justify-end',
           )}
         >
@@ -170,7 +170,7 @@ export function AppShell() {
 
       <SelectionWorkspaceBar />
 
-      <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-end justify-around border-t border-line/80 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
+      <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-end justify-around border-t border-line px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
         {NAV.slice(0, 2).map((item) => (
           <NavItem
             key={item.to}
@@ -180,7 +180,7 @@ export function AppShell() {
         ))}
         <button
           aria-label="Create"
-          className="-mt-5 mb-1 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-soft)]"
+          className="-mt-5 mb-1 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-accent text-white shadow-[0_2px_8px_rgb(26_106_111_/_0.35)]"
           onClick={() => setSheetOpen(true)}
         >
           <PlusIcon width={26} height={26} />
@@ -254,7 +254,7 @@ function NavItem({
       className={({ isActive }) =>
         cx(
           'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-bold tracking-tight',
-          isActive ? 'text-accent' : 'text-muted',
+          isActive ? 'text-accent' : 'text-slate',
         )
       }
     >

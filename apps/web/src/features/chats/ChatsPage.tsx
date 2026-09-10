@@ -90,8 +90,10 @@ export function ChatsPage() {
             type="button"
             onClick={() => setTab(value)}
             className={cx(
-              'rounded-full px-4 py-1.5 text-sm font-medium',
-              tab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
+              'rounded-full border px-4 py-1.5 text-sm font-bold tracking-tight',
+              tab === value
+                ? 'border-accent bg-accent text-white'
+                : 'border-line bg-surface text-slate',
             )}
           >
             {TAB_LABEL[value]}
@@ -176,26 +178,26 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
       <Avatar name={title} imageUrl={thread.counterpart?.logoUrl} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-ink">
+          <p className="flex min-w-0 items-center gap-1.5 text-[15px] font-bold tracking-tight text-ink">
             {thread.pinned ? (
-              <PinIcon width={12} height={12} className="shrink-0 text-muted" aria-hidden />
+              <PinIcon width={12} height={12} className="shrink-0 text-slate" aria-hidden />
             ) : null}
             <span className="truncate">{title}</span>
             {visibility ? (
-              <span className="shrink-0 text-xs font-medium text-muted">· {visibility}</span>
+              <span className="shrink-0 text-xs font-medium text-slate">· {visibility}</span>
             ) : null}
           </p>
           <span
             className={cx(
-              'shrink-0 text-xs',
-              thread.unreadCount > 0 ? 'font-semibold text-accent' : 'text-muted',
+              'shrink-0 text-xs tabular-nums',
+              thread.unreadCount > 0 ? 'font-bold text-accent' : 'font-medium text-slate',
             )}
           >
             {timeAgo(thread.lastMessageAt)}
           </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1 truncate text-sm text-muted">
+          <p className="flex min-w-0 items-center gap-1 truncate text-sm text-slate">
             {previewType ? (
               <KindIconBadge messageType={previewType} size={18} iconSize={14} />
             ) : null}

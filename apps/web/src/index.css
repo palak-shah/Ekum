@@ -7,34 +7,36 @@
  * Kind colors (Order / Collection / Design) are platform object hues — not status.
  */
 @theme {
-  --color-ink: #33271b;
-  --color-muted: #828282;
-  --color-slate: #3d3a37;
+  /* Crisp / high-contrast tokens — ivory canvas stays; ink & teal gain definition. */
+  --color-ink: #1a1714;
+  --color-muted: #5a554c;
+  --color-slate: #2c2824;
   --color-surface: #ffffff;
   --color-canvas: #f7f3ea;
-  --color-foam: #e8f2f1;
-  --color-linen: #e8e7d5;
-  --color-line: #e7e8e6;
-  --color-brand: #2b7379;
-  --color-accent: #2b7379;
-  --color-accent-dark: #1f5559;
-  --color-tangerine: #ff9700;
-  --color-success: #22c55e;
-  --color-success-soft: #e9f8ef;
-  --color-success-ink: #1b7f43;
-  --color-warning: #f7c54f;
-  --color-warning-soft: #fff3d1;
-  --color-warning-ink: #9b5c00;
-  --color-danger: #e5484d;
-  --color-danger-soft: #fdecec;
-  --color-kind-order: #2b7379;
-  --color-kind-order-soft: #e8f2f1;
-  --color-kind-collection: #4a6572;
-  --color-kind-collection-soft: #e6eef1;
-  --color-kind-design: #8a5a3b;
-  --color-kind-design-soft: #f3e8df;
+  --color-foam: #dce9e8;
+  --color-linen: #e4e1d4;
+  --color-line: #cfc9bd;
+  --color-brand: #1a6a6f;
+  --color-accent: #1a6a6f;
+  --color-accent-dark: #124e52;
+  --color-tangerine: #e88900;
+  --color-success: #16a34a;
+  --color-success-soft: #e7f7ed;
+  --color-success-ink: #166534;
+  --color-warning: #eab308;
+  --color-warning-soft: #fef6d8;
+  --color-warning-ink: #854d0e;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-kind-order: #1a6a6f;
+  --color-kind-order-soft: #dce9e8;
+  --color-kind-collection: #3d5560;
+  --color-kind-collection-soft: #dde7eb;
+  --color-kind-design: #7a4e32;
+  --color-kind-design-soft: #f0e4da;
   --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --shadow-soft: 0 12px 28px rgb(51 39 27 / 0.1);
+  /* Tight edge shadow — not a soft glow. */
+  --shadow-soft: 0 1px 0 rgb(26 23 20 / 0.05), 0 2px 8px rgb(26 23 20 / 0.07);
 }
 
 html,
@@ -58,20 +60,22 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.4;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-synthesis: none;
 }
 
 :focus-visible {
-  outline: 2px solid rgb(43 115 121 / 0.45);
+  outline: 2px solid rgb(26 106 111 / 0.55);
   outline-offset: 2px;
 }
 
 @keyframes ekum-rise {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+    opacity: 0.92;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -95,17 +99,17 @@ body {
   }
   15%,
   70% {
-    box-shadow: 0 0 0 3px rgb(43 115 121 / 0.5);
+    box-shadow: 0 0 0 3px rgb(26 106 111 / 0.45);
   }
 }
 
 .ekum-rise {
-  animation: ekum-rise 280ms ease-out both;
+  animation: ekum-rise 180ms ease-out both;
 }
 
 /* Class, not inline style — re-setting animation on each React render restarts the slide. */
 .ekum-sheet {
-  animation: ekum-sheet 280ms ease-out;
+  animation: ekum-sheet 220ms ease-out;
 }
 
 .ekum-msg-flash {
@@ -121,10 +125,10 @@ body {
   display: none;
 }
 
+/* Bottom nav / chrome — solid edge, not frosted haze. */
 .ekum-glass {
-  background: rgb(255 255 255 / 0.92);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  background: #ffffff;
+  border-color: var(--color-line);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -29,7 +29,7 @@ export function PageHeader({
   );
 
   return (
-    <header className="sticky top-0 z-30 -mx-4 mb-3 flex shrink-0 items-center gap-2 border-b border-line/80 bg-canvas/95 px-4 py-2.5 backdrop-blur-md">
+    <header className="sticky top-0 z-30 -mx-4 mb-3 flex shrink-0 items-center gap-2 border-b border-line bg-canvas px-4 py-2.5">
       <button
         aria-label="Back"
         className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"

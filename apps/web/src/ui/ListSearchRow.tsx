@@ -24,7 +24,7 @@ const listSquareButtonBase =
 
 export const listSquareButtonClass = cx(
   listSquareButtonBase,
-  'border-line bg-surface text-slate hover:bg-foam',
+  'border-line bg-surface text-ink hover:bg-foam',
 );
 
 export const ListSquareButton = forwardRef<
@@ -39,7 +39,7 @@ export const ListSquareButton = forwardRef<
         listSquareButtonBase,
         active
           ? 'border-accent bg-accent text-white hover:bg-accent'
-          : 'border-line bg-surface text-slate hover:bg-foam',
+          : 'border-line bg-surface text-ink hover:bg-foam',
         className,
       )}
       {...props}
