@@ -141,6 +141,7 @@ Each new production UI bug **adds a case here** and a failing test before the fi
 | BM-06 | Search empty All | Empty All + search open shows hint; does not re-list whole thread as “results” |
 | BM-07 | Fixed chrome clips content | With sticky/fixed bars active (select, composer, CTAs), last visible card/title is fully readable; padding clears nav + bar stack |
 | BM-08 | Trading Open chat → wrong trio | Manage parent `threadId` stays buyer↔trader 1:1; mill trio only via `millDesks.revealThreadId` / mill **Open group chat** |
+| BM-09 | Reveal ON leaks trader ops | Buyer with mill desks (Reveal On) must not see trader “Your move: Send to …” or **Desk tools**; identity ≠ permissions |
 
 ---
 

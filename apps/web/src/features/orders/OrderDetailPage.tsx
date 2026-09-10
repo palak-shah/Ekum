@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   agreementStepLabel,
   buildOrderTimelineSteps,
-  nextOrderAction,
   shortOrderLabel,
   suggestedPaymentAmount,
   type CreatePaymentRequestDto,
@@ -38,14 +37,15 @@ import {
   millFromToCells,
   millLineForParent,
   millsObserveMode,
+  orderDetailBehindTakeOver,
+  orderDetailNextCue,
+  orderDetailTakeOverHasWork,
   orderTicketMillLabel,
   orderTicketMillNames,
   quotePrefillFromMills,
   showMillSendOnCard,
   showSellerConfirmOnDesk,
   showSendQuoteOnDeskFace,
-  traderActionsBehindTakeOver,
-  traderDeskNextAction,
 } from '@/features/orders/iHandleDesk';
 import {
   allReturnLinesSelected,
@@ -928,38 +928,34 @@ export function OrderDetailPage() {
   const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
   const openForDispatch =
     data.status === 'confirmed' || data.status === 'part_shipped';
-  const behindTakeOver = traderActionsBehindTakeOver(data.millDesks);
+  // BM-09: millDesks on a buyer (Reveal ON) are identity only — not trader Desk chrome.
+  const behindTakeOver = orderDetailBehindTakeOver(data.direction, data.millDesks);
   const millsObserve = millsObserveMode(data.laneTicket, data.millDesks);
   const quoteOnFace = millsObserve
     ? false
     : !behindTakeOver || showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
   const millSendOnCard = showMillSendOnCard(data.laneTicket, data.millDesks, takeOverOpen);
-  const takeOverHasWork =
-    behindTakeOver &&
-    Boolean(
-      data.threadId ||
-        data.canAskPayment ||
-        (isSeller && data.status === 'requested') ||
-        (millsObserve && data.millDesks?.some((desk) => desk.held)) ||
-        (isSeller && openForDispatch && hasRemaining) ||
-        (isSeller && data.canSettle),
-    );
-  const nextCue = data.millDesks?.length
-    ? traderDeskNextAction({
-        status: data.status,
-        counterpartName: data.counterpart.name,
-        hasSellerQuote: data.hasSellerQuote === true,
-        millDesks: data.millDesks,
-        laneTicket: data.laneTicket,
-      })
-    : nextOrderAction({
-        status: data.status,
-        direction: data.direction === 'selling' ? 'selling' : 'buying',
-        hasOpenQuotedLine: data.hasSellerQuote === true,
-        partiallyShipped: data.partiallyShipped,
-        intent: data.intent,
-        counterpartName: data.counterpart.name,
-      });
+  const takeOverHasWork = orderDetailTakeOverHasWork({
+    direction: data.direction,
+    millDesks: data.millDesks,
+    laneTicket: data.laneTicket,
+    threadId: data.threadId,
+    canAskPayment: data.canAskPayment,
+    status: data.status,
+    openForDispatch,
+    hasRemaining,
+    canSettle: data.canSettle,
+  });
+  const nextCue = orderDetailNextCue({
+    direction: data.direction,
+    status: data.status,
+    counterpartName: data.counterpart.name,
+    hasSellerQuote: data.hasSellerQuote === true,
+    millDesks: data.millDesks,
+    laneTicket: data.laneTicket,
+    partiallyShipped: data.partiallyShipped,
+    intent: data.intent,
+  });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
   const sharedByYou =

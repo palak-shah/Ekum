@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isTraderDeskOperator,
   isTraderMillHop,
   itemsForMill,
   millCue,
   millFromToCells,
   millLineForParent,
+  orderDetailBehindTakeOver,
+  orderDetailNextCue,
+  orderDetailTakeOverHasWork,
   quotePrefillFromMills,
   showSellerConfirmOnDesk,
   showSendQuoteOnDeskFace,
@@ -17,6 +21,15 @@ import {
   showMillSendOnCard,
 } from './iHandleDesk';
 import type { OrderMillDeskView, OrderView } from '@ekum/domain-types';
+
+/** Seed-like #DOWN mill card — reveal may be on or off; identity ≠ ops. */
+const downMill = {
+  upstreamOrderId: 'seed-order-handle-up',
+  sellerName: 'Ahmedabad Loom Co',
+  held: true,
+  millQuoted: false,
+  reveal: true,
+} as NonNullable<OrderView['millDesks']>[number];
 
 describe('iHandleDesk', () => {
   it('opens the parent ticket from a mill chat card', () => {
@@ -86,6 +99,62 @@ describe('iHandleDesk', () => {
     ).toBe(true);
     expect(traderActionsBehindTakeOver([])).toBe(false);
     expect(traderActionsBehindTakeOver(undefined)).toBe(false);
+  });
+
+  /**
+   * BM-09 — Reveal ON/OFF is identity only. Trader Desk cue / Desk tools require
+   * selling the Manage parent; buyers with millDesks (reveal On) must not inherit them.
+   */
+  it('BM-09: Reveal does not grant trader desk ops to the buyer', () => {
+    const millDesks = [downMill] as OrderView['millDesks'];
+
+    // CASE 1–2: Ravi selling — trader chrome with or without reveal flag on the desk
+    expect(isTraderDeskOperator('selling', millDesks)).toBe(true);
+    expect(orderDetailBehindTakeOver('selling', millDesks)).toBe(true);
+    expect(
+      orderDetailNextCue({
+        direction: 'selling',
+        status: 'requested',
+        counterpartName: 'Jaipur Emporium',
+        millDesks,
+      }),
+    ).toBe('Your move: Send to Ahmedabad Loom Co');
+    expect(
+      orderDetailTakeOverHasWork({
+        direction: 'selling',
+        millDesks,
+        threadId: 'thread-1',
+        status: 'requested',
+        openForDispatch: false,
+        hasRemaining: true,
+      }),
+    ).toBe(true);
+
+    // CASE 3–4: Meena buying — even with mill desks (Reveal ON), no trader cue / Desk tools
+    expect(isTraderDeskOperator('buying', millDesks)).toBe(false);
+    expect(orderDetailBehindTakeOver('buying', millDesks)).toBe(false);
+    expect(
+      orderDetailNextCue({
+        direction: 'buying',
+        status: 'requested',
+        counterpartName: 'Surat Silk House',
+        millDesks,
+      }),
+    ).not.toMatch(/Send to Ahmedabad|Desk tools/i);
+    expect(
+      orderDetailTakeOverHasWork({
+        direction: 'buying',
+        millDesks,
+        threadId: 'thread-1',
+        status: 'requested',
+        openForDispatch: false,
+        hasRemaining: true,
+      }),
+    ).toBe(false);
+
+    // No mills → not a trader desk (bilateral)
+    expect(isTraderDeskOperator('selling', [])).toBe(false);
+    expect(isTraderDeskOperator('selling', undefined)).toBe(false);
   });
 
   it('keeps Send quote on the face only after a mill has quoted (Me desk)', () => {

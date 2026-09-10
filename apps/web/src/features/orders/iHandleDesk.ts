@@ -1,4 +1,4 @@
-import type { OrderMillDeskView, OrderView } from '@ekum/domain-types';
+import { nextOrderAction, type OrderMillDeskView, type OrderView } from '@ekum/domain-types';
 
 export function traderDeskOrderId(order: Pick<OrderView, 'deskOrderId' | 'id'>): string {
   return order.deskOrderId ?? order.id;
@@ -71,6 +71,81 @@ export function traderActionsBehindTakeOver(
   millDesks: OrderView['millDesks'] | undefined,
 ): boolean {
   return Boolean(millDesks?.length);
+}
+
+/**
+ * Trader Desk cue / Desk tools / mill Send — only when **selling** the Manage parent
+ * that has mill desks. Reveal ON may attach millDesks for the **buyer** (identity);
+ * that must not flip them into trader ops (BM-09).
+ */
+export function isTraderDeskOperator(
+  direction: string | null | undefined,
+  millDesks: OrderView['millDesks'] | undefined,
+): boolean {
+  return direction === 'selling' && Boolean(millDesks?.length);
+}
+
+/** Fold face CTAs under Desk tools — seller desk only. */
+export function orderDetailBehindTakeOver(
+  direction: string | null | undefined,
+  millDesks: OrderView['millDesks'] | undefined,
+): boolean {
+  return isTraderDeskOperator(direction, millDesks) && traderActionsBehindTakeOver(millDesks);
+}
+
+/** Attention banner: trader mill cue vs bilateral buyer/seller cue. */
+export function orderDetailNextCue(input: {
+  direction: string;
+  status: string;
+  counterpartName: string;
+  hasSellerQuote?: boolean;
+  millDesks: OrderView['millDesks'] | undefined;
+  laneTicket?: string | null;
+  partiallyShipped?: boolean;
+  intent?: string | null;
+}): string | null {
+  if (isTraderDeskOperator(input.direction, input.millDesks)) {
+    return traderDeskNextAction({
+      status: input.status,
+      counterpartName: input.counterpartName,
+      hasSellerQuote: input.hasSellerQuote,
+      millDesks: input.millDesks,
+      laneTicket: input.laneTicket,
+    });
+  }
+  return nextOrderAction({
+    status: input.status,
+    direction: input.direction === 'selling' ? 'selling' : 'buying',
+    hasOpenQuotedLine: input.hasSellerQuote === true,
+    partiallyShipped: input.partiallyShipped,
+    intent: input.intent,
+    counterpartName: input.counterpartName,
+  });
+}
+
+/** Whether the Desk tools control should render — never for buyers. */
+export function orderDetailTakeOverHasWork(input: {
+  direction: string;
+  millDesks: OrderView['millDesks'] | undefined;
+  laneTicket?: string | null;
+  threadId?: string | null;
+  canAskPayment?: boolean;
+  status: string;
+  openForDispatch: boolean;
+  hasRemaining: boolean;
+  canSettle?: boolean;
+}): boolean {
+  if (!orderDetailBehindTakeOver(input.direction, input.millDesks)) return false;
+  const isSeller = input.direction === 'selling';
+  const observe = millsObserveMode(input.laneTicket, input.millDesks);
+  return Boolean(
+    input.threadId ||
+      input.canAskPayment ||
+      (isSeller && input.status === 'requested') ||
+      (observe && input.millDesks?.some((desk) => desk.held)) ||
+      (isSeller && input.openForDispatch && input.hasRemaining) ||
+      (isSeller && input.canSettle),
+  );
 }
 
 /** Lane ticket Mills = observe; trader ops behind Desk tools. */
