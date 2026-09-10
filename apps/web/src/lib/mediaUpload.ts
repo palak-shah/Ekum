@@ -48,7 +48,10 @@ export async function uploadImage(file: File): Promise<string> {
     sizeBytes: file.size,
   } satisfies CreateUploadUrlDto);
 
-  const put = await fetch(ticket.uploadUrl, {
+  // Local driver often mints http://LAN:8081/media/… — PUT that from https://beta
+  // is blocked as mixed content. Rewrite same-path media onto the page origin.
+  const uploadUrl = toAbsoluteMediaUrl(ticket.uploadUrl);
+  const put = await fetch(uploadUrl, {
     method: ticket.method,
     headers: ticket.headers,
     body: file,
@@ -88,7 +91,8 @@ export async function uploadAudio(blob: Blob): Promise<UploadedAudio> {
     sizeBytes: blob.size,
   } satisfies CreateUploadUrlDto);
 
-  const put = await fetch(ticket.uploadUrl, {
+  const uploadUrl = toAbsoluteMediaUrl(ticket.uploadUrl);
+  const put = await fetch(uploadUrl, {
     method: ticket.method,
     headers: ticket.headers,
     body: blob,
