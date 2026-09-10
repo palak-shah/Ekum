@@ -9,6 +9,7 @@ import type {
 import { Unit, unitValues } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { ListSquareButton } from '@/ui/ListSearchRow';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -163,6 +164,7 @@ export function DesignBatchPage() {
   const memory = readBatchMemory();
   const phone = isPhoneLike();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSession, setCameraSession] = useState(0);
   const [cameraGalleryDraftId, setCameraGalleryDraftId] = useState<string | null>(null);
   const [targetDraftId, setTargetDraftId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -235,6 +237,7 @@ export function DesignBatchPage() {
     }
     setError(null);
     setCameraGalleryDraftId(draftId);
+    setCameraSession((n) => n + 1);
     setCameraOpen(true);
   };
 
@@ -550,7 +553,10 @@ export function DesignBatchPage() {
         SAVE_CONCURRENCY,
         async (draft) => {
           const e = effectiveFor(draft);
-          const images = draft.images.map((i) => i.imageUrl).filter(Boolean);
+          const images = draft.images
+            .map((i) => i.imageUrl)
+            .filter(Boolean)
+            .map((url) => toAbsoluteMediaUrl(url));
           const identity = createProductIdentity(draft.name);
           const dto: CreateProductDto = {
             name: identity.name,
@@ -912,6 +918,7 @@ export function DesignBatchPage() {
       />
 
       <ContinuousCamera
+        key={cameraSession}
         open={cameraOpen}
         maxShots={Math.max(0, MAX_DESIGNS - drafts.length)}
         onCancel={() => {

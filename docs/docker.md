@@ -77,6 +77,8 @@ Nginx :8080  (published)
 
 **Same-origin API:** the web image is built with `VITE_API_BASE_URL=/api/v1`, so the browser talks to Nginx only. CORS is set to `http://localhost:8080`. Media URLs use `PUBLIC_MEDIA_BASE_URL=http://localhost:8080/media`.
 
+**Beta / public host:** `PUBLIC_MEDIA_BASE_URL` must be an absolute `https://…/media` URL (e.g. `https://beta.ekum.app/media`). Relative `/media` breaks Photo Order with `Invalid url`.
+
 Volumes:
 
 - `ekum_pg` — Postgres data

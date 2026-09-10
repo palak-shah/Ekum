@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, cx } from '@/ui/kit';
+import {
+  continuousCameraCanShoot,
+  continuousCameraDoneEnabled,
+} from './continuousCameraModel';
 
 export interface ContinuousCameraProps {
   open: boolean;
@@ -57,8 +61,28 @@ async function applyTrackConstraint(
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function waitForVideoEl(
+  getEl: () => HTMLVideoElement | null,
+  frames = 12,
+): Promise<HTMLVideoElement | null> {
+  for (let i = 0; i < frames; i++) {
+    const el = getEl();
+    if (el) return el;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  }
+  return getEl();
+}
+
 /**
- * Full-screen continuous capture for Photo order (phone).
+ * Full-screen continuous capture for Photo order / Add designs (phone).
  * Rear camera, shutter stack, Done / Cancel; torch + zoom when the device supports them.
  */
 export function ContinuousCamera({
@@ -108,12 +132,19 @@ export function ContinuousCamera({
 
   useEffect(() => {
     if (!open) {
+      stopStream();
+      setShots((prev) => {
+        revokeShots(prev);
+        return [];
+      });
+      setBusy(false);
+      setError(null);
       return;
     }
 
     let cancelled = false;
     setShots((prev) => {
-      for (const shot of prev) URL.revokeObjectURL(shot.previewUrl);
+      revokeShots(prev);
       return [];
     });
     setError(null);
@@ -124,12 +155,17 @@ export function ContinuousCamera({
     setZoomRange(null);
     setZoom(1);
 
-    const start = async () => {
+    const start = async (attempt: number) => {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
         onUnavailable();
         return;
       }
       try {
+        // iOS often needs a beat after the previous session's tracks stop.
+        if (attempt > 0) {
+          await delay(350);
+          if (cancelled) return;
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
@@ -143,10 +179,23 @@ export function ContinuousCamera({
           return;
         }
         streamRef.current = stream;
-        const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          await video.play();
+        const video = await waitForVideoEl(() => videoRef.current);
+        if (!video) {
+          for (const track of stream.getTracks()) track.stop();
+          streamRef.current = null;
+          if (!cancelled && attempt < 1) {
+            void start(attempt + 1);
+            return;
+          }
+          if (!cancelled) onUnavailable();
+          return;
+        }
+        video.srcObject = stream;
+        await video.play();
+        if (cancelled) {
+          for (const track of stream.getTracks()) track.stop();
+          streamRef.current = null;
+          return;
         }
 
         const track = videoTrack(stream);
@@ -162,26 +211,34 @@ export function ContinuousCamera({
 
         setReady(true);
       } catch {
-        if (!cancelled) {
-          onUnavailable();
+        if (cancelled) return;
+        if (attempt < 1) {
+          void start(attempt + 1);
+          return;
         }
+        onUnavailable();
       }
     };
 
-    void start();
+    void start(0);
 
     return () => {
       cancelled = true;
       stopStream();
     };
-  }, [open, onUnavailable, stopStream]);
+  }, [open, onUnavailable, stopStream, revokeShots]);
 
   if (!open) {
     return null;
   }
 
-  const remaining = Math.max(0, maxShots - shots.length);
-  const canShoot = ready && !busy && remaining > 0;
+  const canShoot = continuousCameraCanShoot({
+    ready,
+    busy,
+    maxShots,
+    shotsTaken: shots.length,
+  });
+  const doneEnabled = continuousCameraDoneEnabled(shots.length);
 
   const toggleTorch = async () => {
     const track = videoTrack(streamRef.current);
@@ -252,6 +309,7 @@ export function ContinuousCamera({
   };
 
   const handleDone = () => {
+    if (!doneEnabled) return;
     const files = shots.map((s) => s.file);
     revokeShots(shots);
     setShots([]);
@@ -308,7 +366,7 @@ export function ContinuousCamera({
           <Button
             type="button"
             className="min-h-11 min-w-[4.5rem] px-3"
-            disabled={shots.length === 0}
+            disabled={!doneEnabled}
             onClick={handleDone}
           >
             Done
@@ -371,6 +429,9 @@ export function ContinuousCamera({
         ) : null}
 
         {error ? <p className="text-center text-xs text-red-300">{error}</p> : null}
+        {ready && maxShots < 1 ? (
+          <p className="text-center text-xs text-white/70">No more slots in this batch.</p>
+        ) : null}
 
         <div className="flex items-center justify-center py-1">
           <button

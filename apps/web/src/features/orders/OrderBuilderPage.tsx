@@ -11,6 +11,7 @@ import { OrderKind } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -79,6 +80,7 @@ export function OrderBuilderPage() {
   const [bulkQty, setBulkQty] = useState(DEFAULT_QTY);
   const [bulkDraft, setBulkDraft] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSession, setCameraSession] = useState(0);
   const [editPhotoId, setEditPhotoId] = useState<string | null>(null);
   const [sheetQty, setSheetQty] = useState('');
   const [initialQuantities, setInitialQuantities] = useState<Record<string, string>>({});
@@ -176,7 +178,7 @@ export function OrderBuilderPage() {
             items: photos.map((line, index) => ({
               name: `Photo ${index + 1}`,
               quantity: Number(line.quantity) || 1,
-              images: [line.imageUrl],
+              images: [toAbsoluteMediaUrl(line.imageUrl)],
             })),
           };
       return api.post<OrderView & { threadId?: string | null }>('/orders', dto);
@@ -210,6 +212,7 @@ export function OrderBuilderPage() {
     }
     setError(null);
     if (phone) {
+      setCameraSession((n) => n + 1);
       setCameraOpen(true);
       return;
     }
@@ -361,7 +364,7 @@ export function OrderBuilderPage() {
   const cameraSlots = Math.min(CAMERA_BATCH, Math.max(0, MAX_PHOTO_LINES - photos.length));
 
   return (
-    <div className="flex flex-col gap-4 pb-4">
+    <div className="flex min-w-0 max-w-full flex-col gap-4 pb-4">
       <DiscardChangesSheet
         open={discard.confirmOpen}
         onCancel={discard.cancelLeave}
@@ -461,7 +464,7 @@ export function OrderBuilderPage() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 max-w-full flex-col gap-3">
           {photos.length === 0 ? (
             <button
               type="button"
@@ -533,7 +536,7 @@ export function OrderBuilderPage() {
 
               <div className="flex flex-col gap-2">
                 <p className="text-sm font-bold tracking-tight text-ink">Pieces for all</p>
-                <div className="ekum-no-scrollbar flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+                <div className="ekum-no-scrollbar flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain">
                   {QTY_PRESETS.map((preset) => (
                     <button
                       key={preset}
@@ -552,7 +555,7 @@ export function OrderBuilderPage() {
                     type="text"
                     inputMode="numeric"
                     placeholder="Custom"
-                    className="min-h-11 w-[7rem] min-w-[7rem] shrink-0 px-2 text-sm placeholder:text-xs"
+                    className="min-h-11 !w-[7rem] min-w-[7rem] max-w-[7rem] shrink-0 grow-0 px-2 text-sm placeholder:text-xs"
                     value={bulkDraft}
                     onChange={(event) =>
                       setBulkDraft(event.target.value.replace(/[^\d]/g, ''))
@@ -614,6 +617,7 @@ export function OrderBuilderPage() {
       </div>
 
       <ContinuousCamera
+        key={cameraSession}
         open={cameraOpen}
         maxShots={cameraSlots}
         onCancel={() => setCameraOpen(false)}

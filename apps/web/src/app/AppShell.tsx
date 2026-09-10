@@ -6,6 +6,7 @@ import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries'
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
 import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
 import {
   BellIcon,
@@ -95,6 +96,7 @@ export function AppShell() {
     <div
       className={cx(
         'mx-auto flex w-full max-w-md flex-col bg-canvas',
+        SHELL_X_CONTAIN_CLASS,
         ownsTopChrome ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
       )}
     >
@@ -146,11 +148,12 @@ export function AppShell() {
       <main
         className={cx(
           'flex-1',
+          SHELL_X_CONTAIN_CLASS,
           isChatThread
             ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
             : ownsTopChrome
               ? // Hide rail like chat — PageHeader pages scroll in main on a mobile shell.
-                'ekum-no-scrollbar min-h-0 overflow-y-auto px-4 pb-28 pt-0'
+                'ekum-no-scrollbar min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-0'
               : 'px-4 pb-28 pt-3',
         )}
       >
@@ -167,7 +170,7 @@ export function AppShell() {
 
       <SelectionWorkspaceBar />
 
-      <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-end justify-around border-t border-line/80 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
+      <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-end justify-around border-t border-line/80 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
         {NAV.slice(0, 2).map((item) => (
           <NavItem
             key={item.to}
@@ -250,7 +253,7 @@ function NavItem({
       end={end}
       className={({ isActive }) =>
         cx(
-          'flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-bold tracking-tight',
+          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-bold tracking-tight',
           isActive ? 'text-accent' : 'text-muted',
         )
       }

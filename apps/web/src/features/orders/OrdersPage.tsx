@@ -23,6 +23,7 @@ import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
 import { orderListLinkedCue, orderListRoleBit } from '@/features/orders/tradeListRole';
+import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   dateFacetFromNeedle,
   emptyFindState,
@@ -314,8 +315,8 @@ export function OrdersPage() {
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <FilterRail className={cx('min-w-0 flex-1', findOverridesAttention && 'opacity-50')}>
+      <div className="flex flex-col gap-2">
+        <FilterRail className={cx('min-w-0 w-full', findOverridesAttention && 'opacity-50')}>
           {(
             [
               ['needs', 'Needs you'],
@@ -337,9 +338,9 @@ export function OrdersPage() {
             </Chip>
           ))}
         </FilterRail>
-        {showDirection ? (
+        {showDirection && ordersListFilterChrome().attentionDirectionLayout === 'stacked' ? (
           <div
-            className="flex shrink-0 rounded-full border border-line bg-surface p-0.5"
+            className="flex w-full rounded-full border border-line bg-surface p-0.5"
             role="group"
             aria-label="Buying or selling"
           >
@@ -355,7 +356,7 @@ export function OrdersPage() {
                 type="button"
                 onClick={() => setDirection(value)}
                 className={cx(
-                  'rounded-full px-2.5 py-1 text-[11px] font-bold tracking-tight',
+                  'min-w-0 flex-1 rounded-full px-2.5 py-1 text-[11px] font-bold tracking-tight',
                   direction === value ? 'bg-ink text-white' : 'text-muted',
                 )}
               >

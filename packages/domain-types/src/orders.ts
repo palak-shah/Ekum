@@ -31,7 +31,14 @@ const quantity = z.number().positive().max(1_000_000);
 export const orderItemInputSchema = z.object({
   productId: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(200).optional(),
-  images: z.array(z.string().url()).max(12).default([]),
+  images: z
+    .array(
+      z.string().url({
+        message: 'Photo isn’t ready yet. Remove it and add it again.',
+      }),
+    )
+    .max(12)
+    .default([]),
   unit: z.enum(unitValues).optional(),
   quantity,
   note: z.string().trim().max(500).optional(),
@@ -59,14 +66,14 @@ export const createOrderSchema = z
       if (value.kind === OrderKind.Standard && !item.productId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Each standard order line needs a productId.',
+          message: 'Each line needs a design.',
           path: ['items', index, 'productId'],
         });
       }
       if (value.kind === OrderKind.Photo && item.images.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Each photo order line needs at least one image.',
+          message: 'Wait for each photo to finish uploading, then try again.',
           path: ['items', index, 'images'],
         });
       }

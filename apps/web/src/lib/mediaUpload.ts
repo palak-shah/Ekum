@@ -1,6 +1,7 @@
 import type { CreateUploadUrlDto, UploadTicket } from '@ekum/domain-types';
 import { MediaKind } from '@ekum/domain-types';
 import { api, ApiError } from './apiClient';
+import { toAbsoluteMediaUrl } from './mediaUrl';
 import { normalizeAudioContentType, VOICE_MAX_BYTES } from '@/features/voice/voiceCaps';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -62,7 +63,7 @@ export async function uploadImage(file: File): Promise<string> {
   }
 
   await api.post(`/media/${ticket.mediaId}/complete`, {});
-  return ticket.blobUrl;
+  return toAbsoluteMediaUrl(ticket.blobUrl);
 }
 
 export type UploadedAudio = {
@@ -102,7 +103,7 @@ export async function uploadAudio(blob: Blob): Promise<UploadedAudio> {
   }
 
   await api.post(`/media/${ticket.mediaId}/complete`, {});
-  return { mediaId: ticket.mediaId, url: ticket.blobUrl };
+  return { mediaId: ticket.mediaId, url: toAbsoluteMediaUrl(ticket.blobUrl) };
 }
 
 /** Phone / coarse-pointer device — prefer camera capture. */

@@ -20,6 +20,7 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
@@ -559,8 +560,9 @@ export function CollectionEditorPage() {
     setSheetError(null);
     try {
       const name = form.name.trim();
+      const coverRaw = createCoverUrl ? toAbsoluteMediaUrl(createCoverUrl) : '';
       const cover =
-        createCoverUrl && /^https?:\/\//i.test(createCoverUrl) ? createCoverUrl : undefined;
+        coverRaw && /^https?:\/\//i.test(coverRaw) ? coverRaw : undefined;
       const created = await api.post<CollectionDetailView>('/collections', {
         name,
         ...(cover ? { coverImage: cover } : {}),
@@ -569,7 +571,7 @@ export function CollectionEditorPage() {
       for (const photo of readyCreatePhotos) {
         const product = await api.post<ProductView>('/products', {
           name: photo.name,
-          images: [photo.imageUrl!],
+          images: [toAbsoluteMediaUrl(photo.imageUrl!)],
           categories: [],
         } satisfies CreateProductDto);
         createdIds.push(product.id);

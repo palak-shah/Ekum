@@ -11,6 +11,7 @@ import { initials } from '@/lib/format';
 import { BackIcon, CloseIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
+import { FORM_CONTROL_WIDTH_CLASS } from '@/ui/mobileOverflow';
 
 export { cx } from '@/lib/cx';
 
@@ -124,7 +125,9 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
       <input
         ref={ref}
         className={cx(
-          'min-h-[46px] rounded-[13px] border border-line bg-surface px-3.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+          // text-base (16px) avoids iOS focus-zoom; width bound stops WebKit intrinsic min-width blowout (BM-07).
+          FORM_CONTROL_WIDTH_CLASS,
+          'min-h-[46px] rounded-[13px] border border-line bg-surface px-3.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
           className,
         )}
         {...props}
@@ -137,7 +140,8 @@ export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return (
     <textarea
       className={cx(
-        'min-h-24 rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+        FORM_CONTROL_WIDTH_CLASS,
+        'min-h-24 rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
         className,
       )}
       {...props}

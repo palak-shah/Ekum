@@ -5,6 +5,7 @@ import {
   readStoredTokens,
   refreshAuthTokens,
 } from './tokenRefresh';
+import { buildApiErrorLog, logApiError, shouldLogApiError } from './apiErrorLog';
 
 const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3000/api/v1';
@@ -175,7 +176,10 @@ async function refreshTokens(): Promise<AuthTokens | null> {
   return session?.tokens ?? null;
 }
 
-async function parseError(response: Response): Promise<ApiError> {
+async function parseError(
+  response: Response,
+  ctx: { method: string; path: string; log: boolean },
+): Promise<ApiError> {
   let envelope: Partial<ErrorEnvelope> = {};
   try {
     envelope = (await response.json()) as Partial<ErrorEnvelope>;
@@ -183,16 +187,33 @@ async function parseError(response: Response): Promise<ApiError> {
     // Non-JSON error body; fall back to the status text.
   }
   const raw = (envelope.message ?? response.statusText ?? '').trim();
-  // Never toast SCREAMING_SNAKE codes — traders need a sentence.
+  // Never toast SCREAMING_SNAKE codes or old opaque validation copy — traders need a sentence.
   const looksLikeCode = /^[A-Z][A-Z0-9_]{2,}$/.test(raw);
+  const opaqueValidation = /^the request could not be processed\.?$/i.test(raw);
   const message =
-    !raw || looksLikeCode ? 'Something went wrong. Please try again.' : raw;
-  return new ApiError({
+    !raw || looksLikeCode || opaqueValidation
+      ? 'Something doesn’t look right. Check what you entered and try again.'
+      : raw;
+  const error = new ApiError({
     statusCode: envelope.statusCode ?? response.status,
     code: envelope.code ?? 'UNKNOWN',
     message,
     details: envelope.details,
   });
+  if (ctx.log) {
+    logApiError(
+      buildApiErrorLog({
+        method: ctx.method,
+        path: ctx.path,
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        envelopePath: typeof envelope.path === 'string' ? envelope.path : undefined,
+      }),
+    );
+  }
+  return error;
 }
 
 async function execute<T>(
@@ -209,30 +230,68 @@ async function execute<T>(
     headers.authorization = `Bearer ${tokens.accessToken}`;
   }
 
-  const response = await fetch(buildUrl(path, options.query), {
-    method,
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method,
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      cache: 'no-store',
+    });
+  } catch {
+    const error = new ApiError({
+      statusCode: 0,
+      code: 'NETWORK',
+      message: 'Could not reach Ekum. Check your connection and try again.',
+      details: null,
+    });
+    logApiError(
+      buildApiErrorLog({
+        method,
+        path,
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      }),
+    );
+    throw error;
+  }
 
-  if (response.status === 401 && retryOn401 && options.auth !== false) {
+  const willRetryAuth = response.status === 401 && retryOn401 && options.auth !== false;
+  if (willRetryAuth) {
     const refreshed = await refreshTokens();
     if (refreshed) {
       return execute<T>(method, path, options, false);
     }
     if (!getTokens()?.refreshToken) {
-      throw await parseError(response);
+      throw await parseError(response, { method, path, log: true });
     }
-    throw new ApiError({
+    const pending = new ApiError({
       statusCode: 503,
       code: 'SESSION_REFRESH_PENDING',
       message: 'Could not reach Ekum to refresh your session. Try again.',
+      details: null,
     });
+    logApiError(
+      buildApiErrorLog({
+        method,
+        path,
+        statusCode: pending.statusCode,
+        code: pending.code,
+        message: pending.message,
+        details: pending.details,
+      }),
+    );
+    throw pending;
   }
 
   if (!response.ok) {
-    throw await parseError(response);
+    throw await parseError(response, {
+      method,
+      path,
+      log: shouldLogApiError({ statusCode: response.status, willRetryAuth: false }),
+    });
   }
 
   if (response.status === 204) {

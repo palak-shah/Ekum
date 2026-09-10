@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useBlocker } from 'react-router-dom';
+import { armDiscardLeaveBypass } from './discardLeaveBypass';
 
 /**
  * Blocks route changes while `isActive` and offers Leave / Cancel confirm.
@@ -42,13 +43,16 @@ export function useDiscardGuard(
     const pending = pendingActionRef.current;
     pendingActionRef.current = null;
     if (pending) {
+      // Back/header Leave path: pending calls navigate(). Without bypass the
+      // route blocker would show this sheet a second time.
+      armDiscardLeaveBypass(bypassRef);
       pending();
       return;
     }
     if (blocker.state === 'blocked') {
       blocker.proceed();
     }
-  }, [blocker]);
+  }, [blocker, bypassRef]);
 
   const tryLeave = useCallback(
     (action: () => void) => {
@@ -63,7 +67,7 @@ export function useDiscardGuard(
   );
 
   const allowLeave = useCallback(() => {
-    bypassRef.current = true;
+    armDiscardLeaveBypass(bypassRef);
   }, [bypassRef]);
 
   return {

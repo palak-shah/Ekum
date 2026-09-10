@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../core/config/config.schema';
 import { AzureBlobDriver } from './azure-blob.driver';
 import { LocalStorageDriver } from './local-storage.driver';
+import { assertPublicMediaBaseUrl } from './public-media-base';
 import { STORAGE_DRIVER, type StorageDriver } from './storage.types';
 
 /**
@@ -20,7 +21,9 @@ export const storageProvider: Provider = {
     if (account && accountKey) {
       return new AzureBlobDriver({ account, accountKey, container });
     }
-    const baseUrl = config.get('PUBLIC_MEDIA_BASE_URL', { infer: true });
+    const baseUrl = assertPublicMediaBaseUrl(
+      config.get('PUBLIC_MEDIA_BASE_URL', { infer: true }),
+    );
     new Logger('Storage').warn('Azure storage not configured; using local dev media driver.');
     return new LocalStorageDriver(baseUrl);
   },

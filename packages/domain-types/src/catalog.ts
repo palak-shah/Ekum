@@ -42,7 +42,13 @@ export const createProductSchema = z.object({
   rate: z.number().nonnegative().nullable().optional(),
   unit: z.enum(unitValues).optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
-  images: z.array(z.string().url()).default([]),
+  images: z
+    .array(
+      z.string().url({
+        message: 'Photo isn’t ready yet. Remove it and add it again.',
+      }),
+    )
+    .default([]),
 });
 export type CreateProductDto = z.infer<typeof createProductSchema>;
 
@@ -55,7 +61,10 @@ const optionalScheduleInstant = z.union([z.string().min(1).max(40), z.null()]).o
 export const createCollectionSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
   description: z.string().trim().max(1000).optional(),
-  coverImage: z.string().url().optional(),
+  coverImage: z
+    .string()
+    .url({ message: 'Photo isn’t ready yet. Remove it and add it again.' })
+    .optional(),
   /** Live window start. null clears. */
   startsAt: optionalScheduleInstant,
   /** Live window end. null = evergreen. */

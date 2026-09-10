@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { cx } from '@/ui/kit';
+import { DebugApiErrorPanel } from '@/ui/DebugApiErrorPanel';
 
 type ToastTone = 'success' | 'danger';
 
@@ -81,6 +82,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
+      <DebugApiErrorPanel />
       {toast ? (
         <div
           role="status"
