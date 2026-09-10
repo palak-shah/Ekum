@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-03  
+**Updated:** 2026-09-10  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -80,6 +80,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Curate within original seller permission (forward/audience) | Works | Unit-only | Required | Slice A; `curation-ceiling` + collection membership specs |
 | Trader curation | Deliver curated pack (broadcast / chat) | Partial | Untested | Required | Broadcast exists |
 | Trader curation | Home: received curated packs (attention) | Works | Unit | Required | Slice C; New packs 7 days / cap 5 |
+| UI | Home attention-center composition (count + compact metrics + need rows) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-home-attention-center; presentation only |
+| UI | Home / Chats / Orders hierarchy (action / object / order facts) | Works | Unit | Recommended | Completeness 2026-09-10-home-chats-orders-hierarchy; presentation only |
 | Trader curation | Explore Buying: received by day/business | Works | Unit | Required | Slice C; directed audience or broadcast |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |
 | Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Works | Unit | Required | Shipped: Direct vs I handle + Send-hold. Product Redesign 2026-09-02: TradeLane ticket × reveal |

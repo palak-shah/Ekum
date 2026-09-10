@@ -22,7 +22,10 @@ import {
   ChatIcon,
   CheckIcon,
   ChevronRightIcon,
+  CollectionIcon,
   OrdersIcon,
+  ReturnIcon,
+  UserIcon,
 } from '@/ui/icons';
 import {
   buildHomeNeeds,
@@ -212,17 +215,15 @@ export function HomePage() {
   const isColdStart = !hasNeeds && !hasNetwork;
 
   return (
-    <div className="ekum-rise flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1.5">
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
+        <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </h1>
         {hasNeeds ? (
-          <p className="text-sm text-slate">
-            <span className="font-semibold text-accent">
-              {needs.length} item{needs.length === 1 ? '' : 's'}
-            </span>{' '}
-            {needs.length === 1 ? 'needs' : 'need'} attention.
+          <p className="text-[15px] text-slate">
+            <span className="font-semibold text-accent">{needs.length}</span>
+            {needs.length === 1 ? ' item needs attention.' : ' items need attention.'}
           </p>
         ) : isColdStart ? (
           <div className="mt-1 flex flex-col gap-2.5">
@@ -234,7 +235,8 @@ export function HomePage() {
             </Link>
           </div>
         ) : (
-          <div className="mt-1 flex flex-col gap-2.5">
+          <div className="mt-1 flex flex-col gap-1">
+            <p className="text-[15px] font-semibold text-ink">Nothing needs you</p>
             <p className="text-sm leading-relaxed text-muted">
               Explore what&apos;s new in the market.
             </p>
@@ -244,7 +246,7 @@ export function HomePage() {
 
       {hasNeeds && hasChips ? (
         <div
-          className={`grid gap-2 ${chipEntries.length === 1 ? 'grid-cols-1' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
+          className={`grid gap-2 ${chipEntries.length === 1 ? 'grid-cols-2' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
         >
           {chipEntries.map((chip) => (
             <MetricCard key={chip.label} label={chip.label} value={chip.value} to={chip.to} />
@@ -280,17 +282,22 @@ export function HomePage() {
 
       {hasNeeds ? (
         <section className="flex flex-col gap-2.5">
-          {visibleNeeds.map((item) => (
-            <NeedCard
-              key={item.id}
-              item={item}
-              onOpen={() => {
-                if (!companyId) return;
-                markHomeNeedSeen(companyId, item.id, item.sortAt);
-                setSeenVersion((value) => value + 1);
-              }}
-            />
-          ))}
+          <h2 className="px-0.5 text-[13px] font-semibold tracking-tight text-ink">
+            Needs your attention
+          </h2>
+          <div className="flex flex-col gap-2">
+            {visibleNeeds.map((item) => (
+              <NeedCard
+                key={item.id}
+                item={item}
+                onOpen={() => {
+                  if (!companyId) return;
+                  markHomeNeedSeen(companyId, item.id, item.sortAt);
+                  setSeenVersion((value) => value + 1);
+                }}
+              />
+            ))}
+          </div>
           {needsOverflow && !showAllNeeds ? (
             <button
               type="button"
@@ -428,12 +435,52 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
   return (
     <Link
       to={to}
-      className="flex min-h-[5.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface px-4 py-4 text-center transition-colors hover:bg-foam"
+      className="flex min-h-[4.25rem] flex-col justify-center gap-0.5 rounded-xl border border-line bg-surface px-3.5 py-3 transition-colors hover:bg-foam active:bg-foam"
     >
-      <p className="text-[1.75rem] font-semibold tabular-nums tracking-[-0.03em] text-ink">{value}</p>
-      <p className="text-[13px] font-medium text-muted">{metricLabel(label, value)}</p>
+      <p className="text-[1.35rem] font-semibold tabular-nums tracking-[-0.03em] text-ink">{value}</p>
+      <p className="text-[12px] font-medium capitalize text-muted">{metricLabel(label, value)}</p>
     </Link>
   );
+}
+
+function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) {
+  const Icon = needIcon(item.kind);
+  return (
+    <Link
+      to={item.to}
+      onClick={onOpen}
+      data-testid={`home-need-${item.id}`}
+      className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foam text-accent">
+        <Icon width={18} height={18} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-semibold tracking-tight text-ink">{item.title}</p>
+        {item.subtitle ? <p className="truncate text-[13px] text-muted">{item.subtitle}</p> : null}
+      </div>
+      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+    </Link>
+  );
+}
+
+function needIcon(kind: HomeNeedItem['kind']): ComponentType<SVGProps<SVGSVGElement>> {
+  switch (kind) {
+    case 'dispatch':
+      return CheckIcon;
+    case 'review_return':
+      return ReturnIcon;
+    case 'access_request':
+      return UserIcon;
+    case 'collection_view_granted':
+      return CollectionIcon;
+    case 'chat_request':
+    case 'send_rate':
+    case 'accept_quote':
+      return ChatIcon;
+    default:
+      return OrdersIcon;
+  }
 }
 
 function HomeLookRail({ posts }: { posts: HomePostGroup[] }) {
@@ -504,36 +551,3 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
   );
 }
 
-function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) {
-  const Icon = needIcon(item.kind);
-  return (
-    <Link
-      to={item.to}
-      onClick={onOpen}
-      data-testid={`home-need-${item.id}`}
-      className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foam text-accent">
-        <Icon width={18} height={18} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
-        {item.subtitle ? <p className="truncate text-xs text-muted">{item.subtitle}</p> : null}
-      </div>
-      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
-    </Link>
-  );
-}
-
-function needIcon(kind: HomeNeedItem['kind']): ComponentType<SVGProps<SVGSVGElement>> {
-  switch (kind) {
-    case 'dispatch':
-      return CheckIcon;
-    case 'chat_request':
-    case 'send_rate':
-    case 'accept_quote':
-      return ChatIcon;
-    default:
-      return OrdersIcon;
-  }
-}

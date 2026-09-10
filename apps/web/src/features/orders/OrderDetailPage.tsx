@@ -66,6 +66,7 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
+import { COMPACT_QTY_INPUT_CLASS } from '@/ui/mobileOverflow';
 
 function RateFigure({
   amount,
@@ -2082,17 +2083,23 @@ export function OrderDetailPage() {
             shippableItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-2 border-b border-line py-2 last:border-0"
+                className="flex items-center gap-3 border-b border-line py-2 last:border-0"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                  <p
+                    data-testid="order-dispatch-line-name"
+                    className="truncate text-sm font-semibold text-ink"
+                  >
+                    {item.name}
+                  </p>
                   <p className="text-[11px] text-muted">left {item.remainingQuantity}</p>
                 </div>
                 <TextInput
                   type="number"
                   min={0}
                   max={item.remainingQuantity}
-                  className="w-20 shrink-0 min-h-10 px-2 text-center"
+                  data-testid="order-dispatch-line-qty"
+                  className={COMPACT_QTY_INPUT_CLASS}
                   value={shipQty[item.id] ?? ''}
                   onChange={(event) =>
                     setShipQty((prev) => ({ ...prev, [item.id]: event.target.value }))
@@ -2190,7 +2197,7 @@ export function OrderDetailPage() {
                     <TextInput
                       type="number"
                       min={1}
-                      className="w-20 shrink-0 min-h-10 px-2 text-center"
+                      className={COMPACT_QTY_INPUT_CLASS}
                       value={amendQty[pid] ?? String(item.quantity)}
                       onChange={(event) =>
                         setAmendQty((prev) => ({ ...prev, [pid]: event.target.value }))
@@ -2308,7 +2315,7 @@ export function OrderDetailPage() {
                     min={1}
                     max={item.quantity}
                     disabled={!on}
-                    className="w-20 shrink-0 min-h-10 px-2 text-center"
+                    className={COMPACT_QTY_INPUT_CLASS}
                     value={returnQty[item.id] ?? ''}
                     onClick={(event) => event.stopPropagation()}
                     onChange={(event) => {

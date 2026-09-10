@@ -1,7 +1,7 @@
 import { useDeferredValue, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { photoUrlsFromMessage, type CursorPage, type ThreadSummary } from '@ekum/domain-types';
+import { type CursorPage, type ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { timeAgo } from '@/lib/format';
@@ -11,8 +11,7 @@ import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { PinIcon, PlusIcon } from '@/ui/icons';
 import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
-import { inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
-import { KindIconBadge } from './KindIconBadge';
+import { inboxObjectLabel, inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
 import { StartChatSheet } from './StartChatSheet';
 
 type Tab = 'active' | 'requests';
@@ -169,12 +168,10 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
   const visibility = threadVisibilityLabel(thread);
   const whyLine = thread.searchHitPreview?.trim() || null;
   const preview = whyLine ?? messagePreviewText(thread.lastMessage);
-  const lastPhoto =
+  const objectLabel =
     !whyLine && thread.lastMessage
-      ? photoUrlsFromMessage(thread.lastMessage)[0] ?? null
+      ? inboxObjectLabel(inboxPreviewTypeKey(thread.lastMessage))
       : null;
-  const previewType =
-    !whyLine && thread.lastMessage ? inboxPreviewTypeKey(thread.lastMessage) : null;
   const to =
     whyLine && thread.searchHitMessageId
       ? `/chats/${thread.id}?message=${encodeURIComponent(thread.searchHitMessageId)}`
@@ -183,50 +180,39 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-3.5 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
+      className="flex items-start gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
     >
-      <Avatar name={title} imageUrl={thread.counterpart?.logoUrl} size={52} />
+      <Avatar name={title} imageUrl={thread.counterpart?.logoUrl} size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold tracking-tight text-ink">
+          <p className="flex min-w-0 items-center gap-1.5 text-[16px] font-semibold tracking-[-0.02em] text-ink">
             {thread.pinned ? (
               <PinIcon width={12} height={12} className="shrink-0 text-slate" aria-hidden />
             ) : null}
             <span className="truncate">{title}</span>
             {visibility ? (
-              <span className="shrink-0 text-xs font-medium text-slate">· {visibility}</span>
+              <span className="shrink-0 text-[11px] font-medium text-muted">· {visibility}</span>
             ) : null}
           </p>
           <span
             className={cx(
-              'shrink-0 text-xs tabular-nums',
-              thread.unreadCount > 0 ? 'font-bold text-accent' : 'font-medium text-slate',
+              'shrink-0 text-[11px] tabular-nums',
+              thread.unreadCount > 0 ? 'font-bold text-accent' : 'font-medium text-muted',
             )}
           >
             {timeAgo(thread.lastMessageAt)}
           </span>
         </div>
+        {objectLabel ? (
+          <p className="mt-0.5 text-[13px] font-semibold tracking-tight text-accent">{objectLabel}</p>
+        ) : null}
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1 truncate text-sm text-slate">
-            {previewType ? (
-              <KindIconBadge messageType={previewType} size={18} iconSize={14} />
-            ) : null}
-            <span className="truncate">{preview}</span>
-          </p>
-          <span className="flex shrink-0 flex-col items-end gap-1">
-            {lastPhoto ? (
-              <img
-                src={lastPhoto}
-                alt=""
-                className="h-11 w-11 rounded-lg object-cover"
-              />
-            ) : null}
-            {thread.unreadCount > 0 ? (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-white">
-                {thread.unreadCount}
-              </span>
-            ) : null}
-          </span>
+          <p className="min-w-0 truncate text-[13px] text-muted">{preview}</p>
+          {thread.unreadCount > 0 ? (
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-white">
+              {thread.unreadCount}
+            </span>
+          ) : null}
         </div>
       </div>
     </Link>

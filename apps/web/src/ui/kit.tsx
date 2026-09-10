@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -11,7 +12,8 @@ import { initials } from '@/lib/format';
 import { BackIcon, CloseIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
-import { FORM_CONTROL_WIDTH_CLASS } from '@/ui/mobileOverflow';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { formControlWidthClass } from '@/ui/mobileOverflow';
 
 export { cx } from '@/lib/cx';
 
@@ -126,7 +128,7 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
         ref={ref}
         className={cx(
           // text-base (16px) avoids iOS focus-zoom; width bound stops WebKit intrinsic min-width blowout (BM-07).
-          FORM_CONTROL_WIDTH_CLASS,
+          formControlWidthClass(className),
           'min-h-12 rounded-xl border border-line bg-surface px-3.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
           className,
         )}
@@ -140,7 +142,7 @@ export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return (
     <textarea
       className={cx(
-        FORM_CONTROL_WIDTH_CLASS,
+        formControlWidthClass(className),
         'min-h-24 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
         className,
       )}
@@ -191,14 +193,17 @@ export function Avatar({
   imageUrl?: string | null;
   size?: number;
 }) {
-  if (imageUrl) {
+  const src = imageUrl?.trim() ? toAbsoluteMediaUrl(imageUrl) : '';
+  const [broken, setBroken] = useState(false);
+  if (src && !broken) {
     return (
       <img
-        src={imageUrl}
+        src={src}
         alt={name}
         className="shrink-0 rounded-full object-cover"
         style={{ width: size, height: size }}
         draggable={false}
+        onError={() => setBroken(true)}
       />
     );
   }

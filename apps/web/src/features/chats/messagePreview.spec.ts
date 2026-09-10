@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { MessageType } from '@ekum/domain-types';
-import { inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
+import {
+  inboxLastPhotoUrl,
+  inboxObjectLabel,
+  inboxPreviewTypeKey,
+  messagePreviewText,
+} from './messagePreview';
 
 function msg(
   partial: Partial<{
@@ -57,5 +62,39 @@ describe('inboxPreviewTypeKey', () => {
         msg({ type: MessageType.Voice, body: 'https://host/media/c1/clip.webm' }),
       ),
     ).toBe('voice');
+  });
+});
+
+describe('inboxLastPhotoUrl', () => {
+  it('does not use text or order bodies as image src', () => {
+    expect(
+      inboxLastPhotoUrl(
+        msg({ type: MessageType.Text, body: "Hi — I'd like to connect to see…" }),
+      ),
+    ).toBeNull();
+    expect(
+      inboxLastPhotoUrl(msg({ type: MessageType.OrderCard, body: 'Order #FS3C Accepted' })),
+    ).toBeNull();
+  });
+
+  it('rewrites a real photo URL onto the page origin', () => {
+    expect(
+      inboxLastPhotoUrl(
+        msg({
+          type: MessageType.Photo,
+          body: 'http://localhost:8080/media/c1/a.jpg',
+          metadata: { urls: ['http://localhost:8080/media/c1/a.jpg'] },
+        }),
+      ),
+    ).toMatch(/^https?:\/\/.+\/media\/c1\/a\.jpg$/);
+  });
+});
+
+describe('inboxObjectLabel', () => {
+  it('names order and photo threads, not plain text', () => {
+    expect(inboxObjectLabel('order_card')).toBe('Order');
+    expect(inboxObjectLabel('photo')).toBe('Photo');
+    expect(inboxObjectLabel('text')).toBeNull();
+    expect(inboxObjectLabel(null)).toBeNull();
   });
 });

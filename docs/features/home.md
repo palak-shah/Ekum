@@ -26,7 +26,8 @@ Actions: open the related order, chat, buyer request, collection, or company; ex
 
 - **Notifications are not on Home** — use the bell (`/notifications`). Home is action-oriented, not a duplicate alert feed.
 - Needs rows use attention verbs derived from order/return/access/chat state (`homeAttention.ts`).
-- **Order needs group by opposite company + action** (e.g. `38 to dispatch · Jaipur Emporium`), not one row per order. Metric chips still show total counts.
+- **Order needs group by opposite company + action** (e.g. `38 to dispatch · Jaipur Emporium`), not one row per order.
+- **Attention center (Home composition):** greeting → live “N item(s) need attention” → compact existing metric cards (orders / requests / returns that need you, nonzero only) → the **need list is the hero**. Metrics stay subordinate. Do not use a single oversized KPI tile.
 - **Viewed needs stay hidden** (device-local per company) until that bucket has newer activity. Rows also clear when the underlying work is done.
 - Blocked / invisible companies never appear in followed or market previews (server visibility).
 - Buying vs selling toggles influence which empty prompts and metrics feel relevant, but Needs still surfaces anything that requires the company.
@@ -35,7 +36,7 @@ Actions: open the related order, chat, buyer request, collection, or company; ex
 ## Edge cases / empty states
 
 - **Cold start** (no Needs, no follows): do **not** say “Everything’s up to date.” Guide the user to Explore (find businesses / browse the market).
-- **Quiet with signal** (no Needs, but market / followed / recommended content): soft “Explore what’s new…” — still not a false “caught up” claim.
+- **Quiet with signal** (no Needs, but market / followed / recommended content): “Nothing needs you” plus soft “Explore what’s new…” — still not a false “caught up” claim on a cold start.
 - No needs, no follows, thin market → Explore businesses CTA.
 - Loading: skeleton / loading block until queries settle.
 - Own company identity is **not** a hero “control centre” on Home — avatar is only the You entry.

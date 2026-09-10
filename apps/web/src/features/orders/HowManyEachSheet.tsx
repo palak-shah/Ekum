@@ -7,6 +7,7 @@ import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { Button, Chip, FilterRail, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
+import { COMPACT_QTY_INPUT_CLASS } from '@/ui/mobileOverflow';
 import { OrderForBuyerSheet } from './OrderForBuyerSheet';
 
 export const WHOLESALE_QTY_PRESETS = [10, 15, 20, 25, 50] as const;
@@ -214,7 +215,7 @@ export function HowManyEachSheet({
                   placeholder="Custom"
                   value={custom}
                   disabled={busy}
-                  className="w-20"
+                  className={COMPACT_QTY_INPUT_CLASS}
                   onChange={(event) => {
                     const value = event.target.value;
                     setCustom(value);
@@ -255,7 +256,7 @@ export function HowManyEachSheet({
                     <TextInput
                       type="number"
                       min={1}
-                      className="w-20"
+                      className={COMPACT_QTY_INPUT_CLASS}
                       value={String(quantity)}
                       disabled={busy}
                       onChange={(event) => {

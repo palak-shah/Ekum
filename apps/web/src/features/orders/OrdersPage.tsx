@@ -17,7 +17,7 @@ import { shortOrderLabel } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
-import { Card, Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, TextInput, cx } from '@/ui/kit';
+import { Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
@@ -372,7 +372,7 @@ export function OrdersPage() {
       ) : (
         <div className="min-h-[12rem]">
           {filtered.length > 0 ? (
-            <div className="flex flex-col gap-2">
+            <div className="-mx-4 overflow-hidden bg-surface">
               {filtered.map((item) => (
                 <TradeRow
                   key={`${item.kind}-${item.id}`}
@@ -420,22 +420,25 @@ function TradeRow({
     const roleBit = orderListRoleBit(order, shared);
     const mills = orderListLinkedCue(order.linkedMills);
     return (
-      <Link to={`/orders/${order.id}`}>
-        <Card className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">{order.counterpart.name}</p>
-            <p className="text-xs text-muted">
-              {idLabel}
-              {roleBit ? ` · ${roleBit}` : ''}
-              {mills ? ` · ${mills}` : ''}
-              {' · '}
-              {order.items.length} {order.items.length === 1 ? 'item' : 'items'} ·{' '}
-              {timeAgo(order.createdAt)}
-              {staff ? ` · ${staff}` : ''}
-            </p>
-          </div>
-          <StatusPill status={order.status} />
-        </Card>
+      <Link
+        to={`/orders/${order.id}`}
+        className="flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">
+            {order.counterpart.name}
+          </p>
+          <p className="mt-0.5 text-[13px] font-semibold tabular-nums tracking-tight text-slate">
+            {idLabel}
+            {roleBit ? <span className="font-medium text-muted"> · {roleBit}</span> : null}
+            {mills ? <span className="font-medium text-muted"> · {mills}</span> : null}
+          </p>
+          <p className="mt-0.5 text-[12px] text-muted">
+            {order.items.length} {order.items.length === 1 ? 'item' : 'items'} · {timeAgo(order.createdAt)}
+            {staff ? ` · ${staff}` : ''}
+          </p>
+        </div>
+        <StatusPill status={order.status} />
       </Link>
     );
   }
@@ -443,15 +446,16 @@ function TradeRow({
   if (item.kind === 'sample') {
     const sample = item.sample;
     return (
-      <Card className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-ink">{sample.name}</p>
-          <p className="text-xs text-muted">
-            Sample · {sample.counterpart.name} · {timeAgo(sample.createdAt)}
+          <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{sample.name}</p>
+          <p className="mt-0.5 text-[13px] font-semibold text-slate">Sample</p>
+          <p className="mt-0.5 text-[12px] text-muted">
+            {sample.counterpart.name} · {timeAgo(sample.createdAt)}
           </p>
         </div>
         <StatusPill status={sample.status} />
-      </Card>
+      </div>
     );
   }
 
@@ -460,16 +464,18 @@ function TradeRow({
     .map((line) => `${line.name} × ${line.requestedQuantity}`)
     .join(' · ');
   return (
-    <Link to={`/orders/${ret.orderId}?return=${ret.id}`}>
-      <Card className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-ink">{ret.counterpart.name}</p>
-          <p className="truncate text-xs text-muted">
-            Return · {linePreview || `${ret.items.length} designs`} · {timeAgo(ret.createdAt)}
-          </p>
-        </div>
-        <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
-      </Card>
+    <Link
+      to={`/orders/${ret.orderId}?return=${ret.id}`}
+      className="flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{ret.counterpart.name}</p>
+        <p className="mt-0.5 text-[13px] font-semibold text-slate">Return</p>
+        <p className="mt-0.5 truncate text-[12px] text-muted">
+          {linePreview || `${ret.items.length} designs`} · {timeAgo(ret.createdAt)}
+        </p>
+      </div>
+      <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
     </Link>
   );
 }

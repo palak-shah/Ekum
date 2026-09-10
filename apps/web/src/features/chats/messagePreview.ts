@@ -1,5 +1,6 @@
 import type { ComponentType, SVGProps } from 'react';
 import { photoUrlsFromMessage, type MessageView } from '@ekum/domain-types';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import {
   CameraIcon,
   ChatIcon,
@@ -58,6 +59,29 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
     default:
       return { kind: 'other', label: 'Attachment', Icon: DocumentIcon };
   }
+}
+
+/**
+ * Inbox must not treat text / order bodies as image URLs.
+ * `photoUrlsFromMessage` falls back to `body` — that produced the broken
+ * `?` squares on beta for “Hi I'd like to connect” and order cards.
+ */
+export function inboxLastPhotoUrl(message: MessageView | null | undefined): string | null {
+  if (!message || message.type !== 'photo') return null;
+  const raw = photoUrlsFromMessage(message)[0]?.trim();
+  if (!raw) return null;
+  const url = toAbsoluteMediaUrl(raw);
+  if (!/^https?:\/\//i.test(url)) return null;
+  return url;
+}
+
+/** Business-object label for the inbox. Hide plain message threads. */
+export function inboxObjectLabel(typeKey: string | null | undefined): string | null {
+  if (!typeKey) return null;
+  const meta = chatTypeMeta(typeKey);
+  if (meta.kind === 'text') return null;
+  if (meta.kind === 'other' && meta.label === 'Attachment') return null;
+  return meta.label;
 }
 
 /** Resolve message type for inbox preview icon (legacy system order notices → order_card). */

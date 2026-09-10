@@ -22,6 +22,13 @@ test.describe('order fulfillment @functional @orders', () => {
 
     const dispatchSheet = page.getByRole('dialog');
     await expect(dispatchSheet.getByRole('heading', { name: 'Dispatch' })).toBeVisible();
+    const lineName = dispatchSheet.getByTestId('order-dispatch-line-name').first();
+    const lineQty = dispatchSheet.getByTestId('order-dispatch-line-qty').first();
+    await expect(lineName).toBeVisible();
+    const nameBox = await lineName.boundingBox();
+    const qtyBox = await lineQty.boundingBox();
+    expect(nameBox?.width ?? 0).toBeGreaterThan(80);
+    expect(qtyBox?.width ?? 999).toBeLessThan(100);
     await dispatchSheet.getByLabel('LR number').fill('LR-E2E-001');
     await dispatchSheet.getByTestId('order-dispatch-confirm').click();
 
