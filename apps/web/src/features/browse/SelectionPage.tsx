@@ -346,7 +346,7 @@ export function SelectionPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-3', total > 0 && 'pb-[calc(5rem+7.5rem)]')}>
+    <div className={cx('flex flex-col gap-4', total > 0 && 'pb-[calc(5rem+11.5rem)]')}>
       <PageHeader title="Your selection" />
 
       {total < 1 ? (
@@ -361,13 +361,16 @@ export function SelectionPage() {
         />
       ) : (
         <>
-          <p className="text-sm font-semibold text-ink" data-testid="selection-count-label">
+          <p
+            className="px-0.5 text-[15px] font-semibold tracking-tight text-ink"
+            data-testid="selection-count-label"
+          >
             {pickSelectionLabel(albumPick.count, shortlist.count)}
           </p>
 
           {availability.isLoading ? <LoadingBlock label="Checking availability…" /> : null}
 
-          <ul className="flex flex-col gap-2" data-testid="selection-list">
+          <ul className="flex flex-col gap-2.5" data-testid="selection-list">
             {albumRows.map((row) => {
               const discoveryUnavailable = row.availability?.available === false;
               const waiting = waitingAlbumIds.has(row.collectionId);
@@ -436,27 +439,15 @@ export function SelectionPage() {
           </ul>
 
           {typeof document !== 'undefined' ? (
-            <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
-              <div className="mx-auto flex max-w-md flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-muted">
-                    {availableTotal < 1 && !resolving
-                      ? 'Nothing available to act on'
-                      : 'Order · Curate · Bookmark · Share'}
-                  </p>
-                  <button
-                    type="button"
-                    className="text-xs font-bold text-accent"
-                    onClick={onClear}
-                    data-testid="selection-clear"
-                  >
-                    Clear selection
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
+            <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-surface px-4 py-3">
+              <div className="mx-auto flex max-w-md flex-col gap-2.5">
+                {availableTotal < 1 && !resolving ? (
+                  <p className="text-[13px] text-muted">Nothing available to act on</p>
+                ) : null}
+                <div className="flex flex-col gap-2">
                   {shown.order ? (
                     <Button
-                      className="min-w-0 flex-1"
+                      fullWidth
                       disabled={availableTotal < 1 || savingPick}
                       onClick={onOrder}
                       data-testid="selection-order"
@@ -464,43 +455,65 @@ export function SelectionPage() {
                       Order
                     </Button>
                   ) : null}
-                  {shown.curate ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={availableTotal < 1 || savingPick}
-                      onClick={onCurate}
-                      data-testid="selection-curate"
-                    >
-                      Curate
-                    </Button>
-                  ) : null}
-                  {shown.bookmark ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={availableTotal < 1 || savingPick}
-                      onClick={() => void onBookmark()}
-                      data-testid="selection-bookmark"
-                    >
-                      {savingPick ? 'Bookmarking…' : 'Bookmark'}
-                    </Button>
-                  ) : null}
-                  {shown.share ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={availableTotal < 1 || savingPick}
-                      onClick={() => {
-                        toastSkippedUnavailable();
-                        setShareOpen(true);
-                      }}
-                      data-testid="selection-share"
-                    >
-                      Share
-                    </Button>
-                  ) : null}
+                  {(() => {
+                    const secondary = [shown.curate, shown.bookmark, shown.share].filter(Boolean)
+                      .length;
+                    if (secondary < 1) return null;
+                    return (
+                      <div
+                        className={cx(
+                          'grid gap-2',
+                          secondary === 3 ? 'grid-cols-3' : secondary === 2 ? 'grid-cols-2' : 'grid-cols-1',
+                        )}
+                      >
+                        {shown.curate ? (
+                          <Button
+                            variant="secondary"
+                            className="min-w-0 px-2"
+                            disabled={availableTotal < 1 || savingPick}
+                            onClick={onCurate}
+                            data-testid="selection-curate"
+                          >
+                            Curate
+                          </Button>
+                        ) : null}
+                        {shown.bookmark ? (
+                          <Button
+                            variant="secondary"
+                            className="min-w-0 px-2"
+                            disabled={availableTotal < 1 || savingPick}
+                            onClick={() => void onBookmark()}
+                            data-testid="selection-bookmark"
+                          >
+                            {savingPick ? 'Saving…' : 'Bookmark'}
+                          </Button>
+                        ) : null}
+                        {shown.share ? (
+                          <Button
+                            variant="secondary"
+                            className="min-w-0 px-2"
+                            disabled={availableTotal < 1 || savingPick}
+                            onClick={() => {
+                              toastSkippedUnavailable();
+                              setShareOpen(true);
+                            }}
+                            data-testid="selection-share"
+                          >
+                            Share
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </div>
+                <button
+                  type="button"
+                  className="self-center py-1 text-[13px] font-medium text-muted hover:text-ink"
+                  onClick={onClear}
+                  data-testid="selection-clear"
+                >
+                  Clear selection
+                </button>
               </div>
             </div>
           ) : null}
@@ -656,30 +669,38 @@ function SelectionRow({
   return (
     <li
       className={cx(
-        'flex items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5',
+        'flex items-center gap-3.5 rounded-xl border border-line bg-surface p-2.5 pr-2',
         faded && 'opacity-45',
       )}
       data-unavailable={unavailable ? 'true' : undefined}
       data-pack-locked={packLocked ? 'true' : undefined}
     >
       {thumbUrl ? (
-        <img src={thumbUrl} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+        <img
+          src={thumbUrl}
+          alt=""
+          className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg object-cover"
+        />
       ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-foam text-xs font-bold text-muted">
+        <div className="flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
           {name.slice(0, 1).toUpperCase()}
         </div>
       )}
-      <div className="min-w-0 flex-1">
-        <p className={cx('truncate text-sm font-semibold', faded ? 'text-muted' : 'text-ink')}>
+      <div className="min-w-0 flex-1 py-0.5">
+        <p
+          className={cx(
+            'truncate text-[15px] font-semibold leading-snug tracking-tight',
+            faded ? 'text-muted' : 'text-ink',
+          )}
+        >
           {name}
         </p>
-        <p className="truncate text-xs text-muted">
+        <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">
           {kind} · {companyName}
-          {faded && reason ? ` · ${reason}` : null}
         </p>
         {faded && reason ? (
           <p
-            className="mt-0.5 text-xs font-medium text-danger"
+            className="mt-1 text-[12px] font-medium text-danger"
             data-testid={unavailable ? 'selection-unavailable-reason' : 'selection-pack-lock-reason'}
           >
             {reason}
@@ -688,7 +709,7 @@ function SelectionRow({
         {askState ? (
           <button
             type="button"
-            className="mt-1 text-xs font-bold text-accent disabled:opacity-50"
+            className="mt-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
             disabled={askState === 'asking'}
             onClick={onAsk}
             data-testid="selection-ask-relist"
@@ -700,7 +721,7 @@ function SelectionRow({
       <button
         type="button"
         aria-label={`Remove ${name}`}
-        className="shrink-0 rounded-full px-2 py-1 text-lg leading-none text-muted hover:bg-foam hover:text-ink"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[1.25rem] leading-none text-muted hover:bg-foam hover:text-ink"
         onClick={onRemove}
       >
         ×

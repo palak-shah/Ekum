@@ -7,10 +7,10 @@ export function pickSelectionLabel(albumCount: number, designCount: number): str
     return `${designCount} design${designCount === 1 ? '' : 's'} · ${albumCount} collection${albumCount === 1 ? '' : 's'}`;
   }
   if (albumCount > 0) {
-    return albumCount === 1 ? '1 collection selected' : `${albumCount} collections selected`;
+    return albumCount === 1 ? '1 collection' : `${albumCount} collections`;
   }
-  if (designCount === 1) return '1 selected';
-  return `${designCount} selected`;
+  if (designCount === 1) return '1 design';
+  return `${designCount} designs`;
 }
 
 /** Dock verbs stay stable; Curate still needs Trading on. */

@@ -17,7 +17,7 @@ import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { CompanyRow } from '@/ui/cards';
-import { Avatar, Button, LoadingBlock, SectionHeader } from '@/ui/kit';
+import { Avatar, Button, LoadingBlock, SectionHeader, cx } from '@/ui/kit';
 import {
   ChatIcon,
   CheckIcon,
@@ -216,16 +216,15 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col">
-      <header className="flex flex-col gap-1.5">
+      <header className="flex flex-col gap-2">
         <h1 className="text-[1.55rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </h1>
         {hasNeeds ? (
-          <p className="text-[15px] leading-snug text-slate">
-            <span className="font-semibold text-accent">{needs.length}</span>
-            <span className="text-slate">
-              {needs.length === 1 ? ' item needs attention.' : ' items need attention.'}
-            </span>
+          <p className="text-[15px] font-medium leading-snug text-accent">
+            {needs.length === 1
+              ? '1 item needs attention.'
+              : `${needs.length} items need attention.`}
           </p>
         ) : isColdStart ? (
           <div className="mt-1 flex flex-col gap-2.5">
@@ -248,7 +247,7 @@ export function HomePage() {
 
       {hasNeeds && hasChips ? (
         <div
-          className={`mt-5 grid gap-2.5 ${chipEntries.length === 1 ? 'grid-cols-2' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
+          className={`mt-6 grid gap-2.5 ${chipEntries.length === 1 ? 'grid-cols-2' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
         >
           {chipEntries.map((chip) => (
             <MetricCard key={chip.label} label={chip.label} value={chip.value} to={chip.to} />
@@ -283,15 +282,16 @@ export function HomePage() {
       ) : null}
 
       {hasNeeds ? (
-        <section className={`${hasChips || packRows.length > 0 ? 'mt-7' : 'mt-5'} flex flex-col gap-3`}>
+        <section className={`${hasChips || packRows.length > 0 ? 'mt-8' : 'mt-6'} flex flex-col gap-3`}>
           <h2 className="px-0.5 text-[15px] font-semibold tracking-tight text-ink">
             Needs your attention
           </h2>
           <div className="flex flex-col gap-2.5">
-            {visibleNeeds.map((item) => (
+            {visibleNeeds.map((item, index) => (
               <NeedCard
                 key={item.id}
                 item={item}
+                lead={index === 0}
                 onOpen={() => {
                   if (!companyId) return;
                   markHomeNeedSeen(companyId, item.id, item.sortAt);
@@ -448,11 +448,11 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
   return (
     <Link
       to={to}
-      className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 transition-colors hover:bg-foam active:bg-foam"
+      className="flex flex-col gap-2 rounded-xl border border-line bg-surface px-3.5 py-3 transition-colors hover:bg-foam/70 active:bg-foam/70"
     >
       <Icon width={16} height={16} className="text-accent" aria-hidden />
       <div className="flex flex-col gap-0.5">
-        <p className="text-[1.25rem] font-semibold tabular-nums leading-none tracking-[-0.03em] text-ink">
+        <p className="text-[1.4rem] font-semibold tabular-nums leading-none tracking-[-0.03em] text-ink">
           {value}
         </p>
         <p className="text-[12px] font-medium capitalize leading-tight text-muted">
@@ -463,16 +463,34 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
   );
 }
 
-function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) {
+function NeedCard({
+  item,
+  lead,
+  onOpen,
+}: {
+  item: HomeNeedItem;
+  lead?: boolean;
+  onOpen: () => void;
+}) {
   const Icon = needIcon(item.kind);
   return (
     <Link
       to={item.to}
       onClick={onOpen}
       data-testid={`home-need-${item.id}`}
-      className="flex items-center gap-3.5 rounded-xl border border-line bg-surface px-4 py-3.5 hover:bg-foam active:bg-foam"
+      className={cx(
+        'flex items-center gap-3.5 rounded-xl border px-4 py-3.5 active:opacity-90',
+        lead
+          ? 'border-accent/20 bg-foam hover:bg-foam'
+          : 'border-line bg-surface hover:bg-foam/50',
+      )}
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-foam text-accent">
+      <span
+        className={cx(
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-accent',
+          lead ? 'bg-surface' : 'bg-foam',
+        )}
+      >
         <Icon width={18} height={18} />
       </span>
       <div className="min-w-0 flex-1 py-0.5">

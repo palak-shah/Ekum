@@ -15,8 +15,8 @@ describe('pickSelectionLabel', () => {
   });
 
   it('handles one type only', () => {
-    expect(pickSelectionLabel(1, 0)).toBe('1 collection selected');
-    expect(pickSelectionLabel(0, 3)).toBe('3 selected');
+    expect(pickSelectionLabel(1, 0)).toBe('1 collection');
+    expect(pickSelectionLabel(0, 3)).toBe('3 designs');
   });
 });
 

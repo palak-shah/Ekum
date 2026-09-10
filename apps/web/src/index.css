@@ -74,8 +74,8 @@ body {
 
 @keyframes ekum-rise {
   from {
-    opacity: 0.92;
-    transform: translateY(4px);
+    opacity: 0.98;
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -104,7 +104,7 @@ body {
 }
 
 .ekum-rise {
-  animation: ekum-rise 180ms ease-out both;
+  animation: ekum-rise 140ms ease-out both;
 }
 
 /* Class, not inline style — re-setting animation on each React render restarts the slide. */

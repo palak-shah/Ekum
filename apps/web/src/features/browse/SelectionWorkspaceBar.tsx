@@ -1,6 +1,8 @@
 import { createPortal } from 'react-dom';
+import { useEffect, useTransition } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { shouldShowSelectionWorkspaceBar } from '@/features/browse/selectionWorkspaceBarVisibility';
+import { prefetchSelectionPage } from '@/features/browse/prefetchSelectionPage';
 import { readResumeAfterAlbumPick } from '@/features/browse/resumeAfterAlbumPick';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
@@ -13,9 +15,14 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 export function SelectionWorkspaceBar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [, startTransition] = useTransition();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const total = shortlist.count + albumPick.count;
+
+  useEffect(() => {
+    if (total > 0) prefetchSelectionPage();
+  }, [total]);
 
   if (typeof document === 'undefined') return null;
   if (readResumeAfterAlbumPick()) return null;
@@ -44,7 +51,7 @@ export function SelectionWorkspaceBar() {
       <button
         type="button"
         className="pointer-events-auto flex max-w-[min(100%,16rem)] items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-1 pr-2.5 shadow-[var(--shadow-soft)]"
-        onClick={() => navigate('/selection')}
+        onClick={() => startTransition(() => navigate('/selection'))}
         aria-label={`${countLabel}. Open Your selection`}
       >
         <div className="flex shrink-0 -space-x-1.5">

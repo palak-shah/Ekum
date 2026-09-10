@@ -22,7 +22,7 @@ Any signed-in company. **Bookmark** is available when the design/collection is d
 
 ### Traveling Selection (Your selection)
 
-Selection is a client pile of designs + collections (not the same as Saved). Fed from Explore, Saved, company, albums, and My designs via **To selection** (published only). Survives logout; empties on **Clear selection** or after a successful Order / Curate / Bookmark / Share. **Bookmark** from Selection opens **Saved** (Collections tab when only albums were bookmarked) so traders never land on **Nothing selected** next to a success toast. Unavailable rows stay visible (faded + reason). Open via Explore header Selection, floater **View** (Chats list / Explore / etc.), or `/selection`.
+Selection is a client pile of designs + collections (not the same as Saved). Fed from Explore, Saved, company, albums, and My designs via **To selection** (published only). Survives logout; empties on **Clear selection** or after a successful Order / Curate / Bookmark / Share. **Your selection** UI: image-led rows (Design / Collection · company); dock is **Order** (primary) then **Curate** · **Bookmark** · **Share** (secondary) — no repeated label line above the buttons. **Bookmark** from Selection opens **Saved** (Collections tab when only albums were bookmarked) so traders never land on **Nothing selected** next to a success toast. Unavailable rows stay visible (faded + reason). Open via Explore header Selection, floater **View** (Chats list / Explore / etc.), or `/selection`.
 
 ### Curate pack / To collection
 

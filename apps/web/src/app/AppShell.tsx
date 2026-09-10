@@ -1,11 +1,11 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useTransition, type ReactNode } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
-import { Avatar, Button, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { Avatar, Button, Sheet, cx } from '@/ui/kit';
 import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
 import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
 import {
@@ -75,6 +75,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [, startTransition] = useTransition();
   const { session } = useAuth();
   const company = useMyCompany();
   const unread = useUnreadCount();
@@ -89,7 +90,7 @@ export function AppShell() {
 
   const go = (path: string) => {
     setSheetOpen(false);
-    navigate(path);
+    startTransition(() => navigate(path));
   };
 
   return (
@@ -120,7 +121,7 @@ export function AppShell() {
               data-testid="notifications-bell"
               aria-label="Notifications"
               className="relative rounded-full p-2 text-slate hover:bg-foam"
-              onClick={() => navigate('/notifications')}
+              onClick={() => startTransition(() => navigate('/notifications'))}
             >
               <BellIcon />
               {unread.data && unread.data.count > 0 ? (
@@ -133,7 +134,7 @@ export function AppShell() {
               type="button"
               aria-label="Profile and settings"
               className="rounded-full p-0.5"
-              onClick={() => navigate('/more')}
+              onClick={() => startTransition(() => navigate('/more'))}
             >
               <Avatar
                 name={company.data?.name ?? session?.user.name ?? 'E'}
@@ -157,15 +158,16 @@ export function AppShell() {
               : 'px-4 pb-28 pt-3',
         )}
       >
-        {/* Rise only on route change — not on every local state update (filters, etc.). */}
-        <div
-          key={location.pathname}
-          className={isChatThread ? 'flex min-h-0 flex-1 flex-col' : 'ekum-rise'}
-        >
-          <Suspense fallback={<LoadingBlock />}>
+        {/*
+          Keep Suspense stable across routes. Keying the Suspense parent remounted it
+          and flashed LoadingBlock on every lazy navigate (Explore → Selection, etc.).
+          Rise only remounts the page body after the chunk is ready.
+        */}
+        <Suspense fallback={null}>
+          <RouteBody isChatThread={isChatThread} pathname={location.pathname}>
             <Outlet />
-          </Suspense>
-        </div>
+          </RouteBody>
+        </Suspense>
       </main>
 
       <SelectionWorkspaceBar />
@@ -233,6 +235,25 @@ export function AppShell() {
   );
 }
 
+function RouteBody({
+  pathname,
+  isChatThread,
+  children,
+}: {
+  pathname: string;
+  isChatThread: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      key={pathname}
+      className={isChatThread ? 'flex min-h-0 flex-1 flex-col' : 'ekum-rise'}
+    >
+      {children}
+    </div>
+  );
+}
+
 function NavItem({
   to,
   label,
@@ -247,10 +268,20 @@ function NavItem({
   /** Teal count pill (chat unread) — not the orange notification style. */
   badge?: number;
 }) {
+  const navigate = useNavigate();
+  const [, startTransition] = useTransition();
   return (
     <NavLink
       to={to}
       end={end}
+      onClick={(event) => {
+        // Keep prior screen painted while the next lazy chunk loads (no Suspense flash).
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+          return;
+        }
+        event.preventDefault();
+        startTransition(() => navigate(to));
+      }}
       className={({ isActive }) =>
         cx(
           'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium tracking-tight',
