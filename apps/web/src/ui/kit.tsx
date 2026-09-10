@@ -345,7 +345,7 @@ export function Sheet({
       <button aria-label="Close" className="absolute inset-0 bg-ink/35" onClick={onClose} />
       <div
         className={cx(
-          'ekum-sheet relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-[22px] bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
+          'ekum-sheet relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-2xl bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
           panelClassName,
         )}
       >
@@ -364,7 +364,9 @@ export function Sheet({
               </button>
             ) : null}
             {title ? (
-              <h3 className="min-w-0 flex-1 text-base font-bold tracking-tight text-ink">{title}</h3>
+              <h3 className="min-w-0 flex-1 text-[1.05rem] font-semibold tracking-tight text-ink">
+                {title}
+              </h3>
             ) : (
               <span className="min-w-0 flex-1" />
             )}
@@ -379,7 +381,7 @@ export function Sheet({
           </div>
         ) : null}
         <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer ? <div className="shrink-0 border-t border-line pt-3 mt-2">{footer}</div> : null}
+        {footer ? <div className="mt-3 shrink-0 border-t border-line pt-3.5">{footer}</div> : null}
       </div>
     </div>,
     document.body,

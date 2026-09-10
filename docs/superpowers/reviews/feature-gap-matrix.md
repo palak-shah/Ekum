@@ -82,6 +82,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Home: received curated packs (attention) | Works | Unit | Required | Slice C; New packs 7 days / cap 5 |
 | UI | Home attention-center composition (count + compact metrics + need rows) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-home-attention-center; presentation only |
 | UI | Your selection visual polish (image-led rows; Order primary) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-selection-visual-polish; no model change |
+| UI | Order flow sheets visual polish (resolve + quantity) | Works | Functional + Visual | Recommended | Completeness 2026-09-10-order-flow-visual-polish; presentation only |
 | UI | Home / Chats / Orders hierarchy (action / object / order facts) | Works | Unit | Recommended | Completeness 2026-09-10-home-chats-orders-hierarchy; presentation only |
 | Trader curation | Explore Buying: received by day/business | Works | Unit | Required | Slice C; directed audience or broadcast |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |

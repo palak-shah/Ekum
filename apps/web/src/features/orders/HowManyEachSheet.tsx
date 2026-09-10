@@ -146,17 +146,58 @@ export function HowManyEachSheet({
     );
   }
 
+  const decideFooter = (
+    <div className="flex flex-col gap-2">
+      {showPlaceOrderAsk ? (
+        <>
+          <Button
+            fullWidth
+            disabled={busy || products.length === 0}
+            onClick={() => {
+              rememberQty(qtyKey, sharedQty);
+              onSendOrder(payload());
+            }}
+          >
+            {submitting ? 'Sending…' : 'Place Order'}
+          </Button>
+          <Button
+            variant="secondary"
+            fullWidth
+            disabled={busy || products.length === 0}
+            onClick={() => {
+              rememberQty(qtyKey, sharedQty);
+              onAskRates(payload());
+            }}
+          >
+            {asking ? 'Opening…' : 'Ask rates'}
+          </Button>
+        </>
+      ) : null}
+      {canOrderForBuyer ? (
+        <Button
+          variant="secondary"
+          fullWidth
+          disabled={busy || products.length === 0}
+          onClick={() => setBuyerOpen(true)}
+        >
+          Order for buyer
+        </Button>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
-      <Sheet open={open} onClose={onClose} title={sheetTitle}>
-        <div className="flex flex-col gap-4 pb-1">
+      <Sheet open={open} onClose={onClose} title={sheetTitle} footer={decideFooter}>
+        <div className="flex flex-col gap-5 pb-1">
           {orderGoesToNames && orderGoesToNames.length > 0 ? (
-            <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">
-              Order goes to {orderGoesToNames.join(', ')}
+            <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink">
+              Order goes to{' '}
+              <span className="font-semibold">{orderGoesToNames.join(', ')}</span>
             </p>
           ) : orderGoesToName ? (
-            <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">
-              Order goes to {orderGoesToName}
+            <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink">
+              Order goes to <span className="font-semibold">{orderGoesToName}</span>
             </p>
           ) : null}
 
@@ -184,14 +225,14 @@ export function HowManyEachSheet({
                 </Chip>
               </FilterRail>
               {qtyMode === 'same' ? (
-                <p className="text-xs text-muted">Same pieces for every design</p>
+                <p className="-mt-2 text-[13px] text-muted">Same pieces for every design</p>
               ) : null}
             </>
           ) : null}
 
           {products.length === 1 || qtyMode === 'same' ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-ink">How many pieces?</p>
+            <div className="flex flex-col gap-2.5">
+              <p className="text-[15px] font-semibold tracking-tight text-ink">How many pieces?</p>
               <div className="flex flex-wrap items-center gap-2">
                 {WHOLESALE_QTY_PRESETS.map((preset) => (
                   <button
@@ -200,10 +241,10 @@ export function HowManyEachSheet({
                     disabled={busy}
                     onClick={() => applyShared(preset)}
                     className={cx(
-                      'rounded-full px-3.5 py-2 text-sm font-bold tracking-tight',
+                      'min-h-10 rounded-xl px-3.5 text-sm font-semibold tracking-tight',
                       sharedQty === preset && Object.keys(overrides).length === 0
                         ? 'bg-accent text-white'
-                        : 'bg-foam text-slate',
+                        : 'border border-line bg-surface text-slate',
                     )}
                   >
                     {preset}
@@ -228,29 +269,31 @@ export function HowManyEachSheet({
               </div>
             </div>
           ) : (
-            <ul className="flex max-h-56 flex-col gap-2 overflow-y-auto">
+            <ul className="flex max-h-56 flex-col gap-2.5 overflow-y-auto">
               {lines.map(({ product, quantity }) => {
                 const thumb = product.images[0] ?? null;
                 return (
                   <li
                     key={product.id}
-                    className="flex items-center gap-3 rounded-[14px] border border-line bg-foam/40 px-2.5 py-2"
+                    className="flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5"
                   >
                     {thumb ? (
                       <img
                         src={thumb}
                         alt=""
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
                         {product.name.charAt(0)}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+                      <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
+                        {product.name}
+                      </p>
                       {product.sku ? (
-                        <p className="truncate text-xs text-muted">{product.sku}</p>
+                        <p className="truncate text-[13px] text-muted">{product.sku}</p>
                       ) : null}
                     </div>
                     <TextInput
@@ -272,42 +315,6 @@ export function HowManyEachSheet({
           )}
 
           {error ? <InlineNotice message={error} /> : null}
-
-          {showPlaceOrderAsk ? (
-            <>
-              <Button
-                fullWidth
-                disabled={busy || products.length === 0}
-                onClick={() => {
-                  rememberQty(qtyKey, sharedQty);
-                  onSendOrder(payload());
-                }}
-              >
-                {submitting ? 'Sending…' : 'Place Order'}
-              </Button>
-              <Button
-                variant="secondary"
-                fullWidth
-                disabled={busy || products.length === 0}
-                onClick={() => {
-                  rememberQty(qtyKey, sharedQty);
-                  onAskRates(payload());
-                }}
-              >
-                {asking ? 'Opening…' : 'Ask rates'}
-              </Button>
-            </>
-          ) : null}
-          {canOrderForBuyer ? (
-            <Button
-              variant="secondary"
-              fullWidth
-              disabled={busy || products.length === 0}
-              onClick={() => setBuyerOpen(true)}
-            >
-              Order for buyer
-            </Button>
-          ) : null}
         </div>
       </Sheet>
 

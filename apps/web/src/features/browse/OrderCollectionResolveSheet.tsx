@@ -198,42 +198,55 @@ export function OrderCollectionResolveSheet({
         </Button>
       }
     >
-      <div className="flex flex-col gap-4" data-testid="collection-resolve-sheet">
-        <p className="text-sm text-muted">{summary}</p>
+      <div className="flex flex-col gap-4 pb-1" data-testid="collection-resolve-sheet">
+        <p className="text-[15px] leading-relaxed text-muted">{summary}</p>
         {resolveAlbums.map((album) => {
           const choice = choices[album.collectionId] ?? 'all';
           return (
-            <div key={album.collectionId} className="rounded-2xl border border-line p-3">
-              <p className="mb-2 text-sm font-semibold text-ink">{album.name}</p>
-              <p className="mb-3 text-xs text-muted">{copy.prompt}</p>
+            <div
+              key={album.collectionId}
+              className="flex flex-col gap-2.5 rounded-xl border border-line bg-canvas/60 p-3"
+            >
+              <div className="flex flex-col gap-0.5">
+                <p className="text-[15px] font-semibold tracking-tight text-ink">{album.name}</p>
+                <p className="text-[13px] leading-snug text-muted">{copy.prompt}</p>
+              </div>
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => setChoice(album.collectionId, 'all')}
                   data-testid="resolve-use-whole-pack"
                   className={cx(
-                    'rounded-xl border px-3 py-2.5 text-left text-sm font-medium',
+                    'rounded-xl border px-3.5 py-2.5 text-left transition-colors',
                     choice === 'all'
-                      ? 'border-accent bg-accent/5 text-ink'
-                      : 'border-line bg-surface text-ink',
+                      ? 'border-accent bg-foam text-ink'
+                      : 'border-line bg-surface text-ink hover:bg-canvas',
                   )}
                 >
-                  <span className="font-semibold">{copy.allTitle}</span>
-                  <span className="mt-0.5 block text-xs font-normal text-muted">{copy.allHint}</span>
+                  <span className="block text-[15px] font-semibold tracking-tight">
+                    {copy.allTitle}
+                  </span>
+                  <span className="mt-0.5 block text-[13px] font-normal leading-snug text-muted">
+                    {copy.allHint}
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setChoice(album.collectionId, 'choose')}
                   data-testid="resolve-pick-designs"
                   className={cx(
-                    'rounded-xl border px-3 py-2.5 text-left text-sm font-medium',
+                    'rounded-xl border px-3.5 py-2.5 text-left transition-colors',
                     choice === 'choose'
-                      ? 'border-accent bg-accent/5 text-ink'
-                      : 'border-line bg-surface text-ink',
+                      ? 'border-accent bg-foam text-ink'
+                      : 'border-line bg-surface text-ink hover:bg-canvas',
                   )}
                 >
-                  <span className="font-semibold">{copy.chooseTitle}</span>
-                  <span className="mt-0.5 block text-xs font-normal text-muted">{copy.chooseHint}</span>
+                  <span className="block text-[15px] font-semibold tracking-tight">
+                    {copy.chooseTitle}
+                  </span>
+                  <span className="mt-0.5 block text-[13px] font-normal leading-snug text-muted">
+                    {copy.chooseHint}
+                  </span>
                 </button>
               </div>
             </div>
