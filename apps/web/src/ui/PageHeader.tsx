@@ -23,7 +23,7 @@ export function PageHeader({
   const navigate = useNavigate();
   const identity = (
     <>
-      <h1 className="truncate text-base font-bold tracking-tight text-ink">{title}</h1>
+      <h1 className="truncate text-[17px] font-semibold tracking-tight text-ink">{title}</h1>
       {subtitle ? <p className="truncate text-xs font-medium text-muted">{subtitle}</p> : null}
     </>
   );

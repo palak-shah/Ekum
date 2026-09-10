@@ -17,7 +17,7 @@ import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { CompanyRow } from '@/ui/cards';
-import { Button, LoadingBlock, SectionHeader } from '@/ui/kit';
+import { Avatar, Button, LoadingBlock, SectionHeader } from '@/ui/kit';
 import {
   ChatIcon,
   CheckIcon,
@@ -35,6 +35,7 @@ import { filterSeenHomeNeeds, markHomeNeedSeen } from './homeNeedSeen';
 import {
   groupPostsByCompany,
   homePostGroupLink,
+  homePostImage,
   homePostTitle,
   type HomePostGroup,
 } from './homeMarket';
@@ -211,9 +212,9 @@ export function HomePage() {
   const isColdStart = !hasNeeds && !hasNetwork;
 
   return (
-    <div className="ekum-rise flex flex-col gap-5">
+    <div className="ekum-rise flex flex-col gap-6">
       <header className="flex flex-col gap-1.5">
-        <h1 className="text-xl font-bold tracking-tight text-ink">
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </h1>
         {hasNeeds ? (
@@ -228,7 +229,7 @@ export function HomePage() {
             <p className="text-sm leading-relaxed text-muted">
               Start by browsing the market - find businesses on Explore.
             </p>
-            <Link to="/explore" className="self-start text-sm font-bold text-accent">
+            <Link to="/explore" className="self-start text-[15px] font-semibold text-accent">
               Open Explore →
             </Link>
           </div>
@@ -256,7 +257,7 @@ export function HomePage() {
           <SectionHeader
             title="New packs"
             action={
-              <Link to="/explore?side=buying" className="text-xs font-bold text-accent">
+              <Link to="/explore?side=buying" className="text-[13px] font-semibold text-accent">
                 See all →
               </Link>
             }
@@ -265,7 +266,7 @@ export function HomePage() {
             <Link
               key={item.id}
               to={item.to}
-              className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
+              className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
@@ -294,7 +295,7 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => setShowAllNeeds(true)}
-              className="self-start px-0.5 text-sm font-bold text-accent"
+              className="self-start px-0.5 text-[15px] font-semibold text-accent"
             >
               See all {needs.length} →
             </button>
@@ -367,13 +368,14 @@ function PostListSection({
       <SectionHeader
         title={title}
         action={
-          <Link to="/explore" className="text-xs font-bold text-accent">
+          <Link to="/explore" className="text-[13px] font-semibold text-accent">
             {actionLabel}
           </Link>
         }
       />
       {subtitle ? <p className="px-0.5 text-sm font-medium text-muted">{subtitle}</p> : null}
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-soft)]">
+      <HomeLookRail posts={posts} />
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
         {posts.map((group) => (
           <MarketPostRow key={group.id} group={group} />
         ))}
@@ -387,7 +389,7 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
   return (
     <section className="flex flex-col gap-2.5">
       <SectionHeader title="Explore businesses" />
-      <div className="rounded-2xl border border-line bg-surface px-4 py-4 shadow-[var(--shadow-soft)]">
+      <div className="rounded-xl border border-line bg-surface px-4 py-4">
         <p className="text-sm leading-relaxed text-slate">
           Be the first to build your network.
         </p>
@@ -396,7 +398,7 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
         </Link>
         {selling ? (
           <div className="mt-3 flex flex-col gap-2">
-            <Link to="/catalog" className="block text-center text-sm font-bold text-accent">
+            <Link to="/catalog" className="block text-center text-[15px] font-semibold text-accent">
               My designs
             </Link>
             <Link
@@ -426,11 +428,40 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
   return (
     <Link
       to={to}
-      className="flex min-h-[5.75rem] flex-col items-center justify-center gap-1 rounded-2xl border border-line bg-surface px-4 py-4 text-center shadow-[var(--shadow-soft)] transition-colors hover:bg-foam"
+      className="flex min-h-[5.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface px-4 py-4 text-center transition-colors hover:bg-foam"
     >
-      <p className="text-3xl font-bold tracking-tight text-accent">{value}</p>
-      <p className="text-sm font-semibold text-slate">{metricLabel(label, value)}</p>
+      <p className="text-[1.75rem] font-semibold tabular-nums tracking-[-0.03em] text-ink">{value}</p>
+      <p className="text-[13px] font-medium text-muted">{metricLabel(label, value)}</p>
     </Link>
+  );
+}
+
+function HomeLookRail({ posts }: { posts: HomePostGroup[] }) {
+  const looks = posts
+    .map((group) => {
+      const src = homePostImage(group.latest);
+      if (!src) return null;
+      return { group, src };
+    })
+    .filter((row): row is { group: HomePostGroup; src: string } => Boolean(row));
+  if (looks.length === 0) return null;
+  return (
+    <div className="-mx-1 overflow-x-auto px-1">
+      <div className="flex gap-2 pb-1">
+        {looks.map(({ group, src }) => (
+          <Link
+            key={group.id}
+            to={homePostGroupLink(group)}
+            className="relative h-[7.25rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-linen"
+          >
+            <img src={src} alt="" className="h-full w-full object-cover" />
+            <span className="absolute inset-x-0 bottom-0 truncate bg-ink/55 px-1.5 py-1 text-[10px] font-semibold text-white">
+              {group.companyName}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -443,23 +474,32 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
       ? '1 design'
       : `${post.collection.productCount} design${post.collection.productCount === 1 ? '' : 's'}`;
   const place = group.city;
+  const thumb = homePostImage(post);
 
   return (
     <Link
       to={homePostGroupLink(group)}
-      className="flex items-center gap-3 border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-foam active:bg-foam"
+      className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-foam active:bg-foam"
     >
+      {thumb ? (
+        <img
+          src={thumb}
+          alt=""
+          className="h-14 w-14 shrink-0 rounded-lg object-cover"
+        />
+      ) : (
+        <Avatar name={group.companyName} size={56} />
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="truncate text-sm font-semibold text-ink">{title}</p>
-        {place ? <p className="truncate text-xs text-muted">{place}</p> : null}
+        <p className="truncate text-[15px] font-semibold text-ink">{title}</p>
+        {place ? <p className="truncate text-[13px] text-muted">{place}</p> : null}
         {group.count === 1 ? (
           <>
-            <p className="truncate text-sm text-ink">{itemName}</p>
-            <p className="truncate text-xs text-muted">{meta}</p>
+            <p className="truncate text-[13px] text-ink">{itemName}</p>
+            <p className="truncate text-[12px] text-muted">{meta}</p>
           </>
         ) : null}
       </div>
-      <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
     </Link>
   );
 }
@@ -471,7 +511,7 @@ function NeedCard({ item, onOpen }: { item: HomeNeedItem; onOpen: () => void }) 
       to={item.to}
       onClick={onOpen}
       data-testid={`home-need-${item.id}`}
-      className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-3 shadow-[var(--shadow-soft)] hover:bg-foam active:bg-foam"
+      className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foam text-accent">
         <Icon width={18} height={18} />

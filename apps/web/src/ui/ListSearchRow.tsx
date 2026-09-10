@@ -20,7 +20,7 @@ export function ListSearchRow({
 }
 
 const listSquareButtonBase =
-  'flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border transition-colors';
+  'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition-colors';
 
 export const listSquareButtonClass = cx(
   listSquareButtonBase,

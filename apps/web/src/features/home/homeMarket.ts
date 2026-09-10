@@ -49,6 +49,14 @@ export function groupPostsByCompany(posts: ExplorePost[]): HomePostGroup[] {
   return rows.sort((a, b) => Date.parse(b.sortAt) - Date.parse(a.sortAt));
 }
 
+/** First usable photo on a post — Home/Chats should open on cloth, not empty ivory. */
+export function homePostImage(post: ExplorePost): string | null {
+  if (post.kind === 'product') {
+    return post.product.images[0] ?? null;
+  }
+  return post.collection.coverImage ?? post.collection.previewImages[0] ?? null;
+}
+
 export function homePostTitle(count: number, companyName: string): string {
   if (count <= 1) return `New post · ${companyName}`;
   return `${count} new posts · ${companyName}`;

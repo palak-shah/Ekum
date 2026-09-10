@@ -108,7 +108,7 @@ export function AppShell() {
           )}
         >
           {title ? (
-            <h1 className="text-lg font-bold tracking-tight text-ink">{title}</h1>
+            <h1 className="text-[1.375rem] font-semibold tracking-[-0.03em] text-ink">{title}</h1>
           ) : isHome ? (
             <span className="min-w-0 flex-1" aria-hidden />
           ) : (
@@ -180,7 +180,7 @@ export function AppShell() {
         ))}
         <button
           aria-label="Create"
-          className="-mt-5 mb-1 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-accent text-white shadow-[0_2px_8px_rgb(26_106_111_/_0.35)]"
+          className="mb-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white"
           onClick={() => setSheetOpen(true)}
         >
           <PlusIcon width={26} height={26} />
@@ -253,7 +253,7 @@ function NavItem({
       end={end}
       className={({ isActive }) =>
         cx(
-          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-bold tracking-tight',
+          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium tracking-tight',
           isActive ? 'text-accent' : 'text-slate',
         )
       }
@@ -262,7 +262,7 @@ function NavItem({
         <>
           <span
             className={cx(
-              'relative flex h-8 w-8 items-center justify-center rounded-full',
+              'relative flex h-8 w-8 items-center justify-center rounded-lg',
               isActive && 'bg-foam',
             )}
           >

@@ -3,6 +3,7 @@ import type { ExplorePost } from '@ekum/domain-types';
 import {
   groupPostsByCompany,
   homePostGroupLink,
+  homePostImage,
   homePostLink,
   homePostTitle,
 } from './homeMarket';
@@ -114,5 +115,21 @@ describe('homePostGroupLink', () => {
       collectionPost('c', 'co-1', '2026-08-21T10:00:00.000Z'),
     ]);
     expect(homePostGroupLink(group!)).toBe('/explore?story=co-1');
+  });
+});
+
+describe('homePostImage', () => {
+  it('uses the first design photo', () => {
+    const post = productPost('p1', 'co-1', '2026-08-22T10:00:00.000Z');
+    if (post.kind === 'product') post.product.images = ['https://cdn.example/a.jpg'];
+    expect(homePostImage(post)).toBe('https://cdn.example/a.jpg');
+  });
+
+  it('uses collection cover then preview', () => {
+    const post = collectionPost('a', 'co-1', '2026-08-20T10:00:00.000Z');
+    if (post.kind === 'collection') {
+      post.collection.coverImage = 'https://cdn.example/cover.jpg';
+    }
+    expect(homePostImage(post)).toBe('https://cdn.example/cover.jpg');
   });
 });

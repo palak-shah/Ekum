@@ -34,7 +34,7 @@ export function Button({ variant = 'primary', fullWidth, className, ...props }: 
   return (
     <button
       className={cx(
-        'inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[13px] px-4 text-sm font-bold tracking-tight transition-colors disabled:cursor-not-allowed',
+        'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold tracking-tight transition-colors disabled:cursor-not-allowed',
         BUTTON_VARIANT[variant],
         fullWidth && 'w-full',
         className,
@@ -59,7 +59,7 @@ export function Chip({
   type?: 'button' | 'submit';
 }) {
   const classes = cx(
-    'inline-flex h-8 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-bold tracking-tight transition-colors',
+    'inline-flex h-8 shrink-0 items-center justify-center rounded-lg border px-3 text-[13px] font-semibold tracking-tight transition-colors',
     active
       ? 'border-accent bg-accent text-white'
       : 'border-line bg-surface text-slate hover:border-accent',
@@ -92,7 +92,7 @@ export function FilterRail({ children, className }: { children: ReactNode; class
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-soft)]', className)}>
+    <div className={cx('rounded-xl border border-line bg-surface p-4', className)}>
       {children}
     </div>
   );
@@ -127,7 +127,7 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
         className={cx(
           // text-base (16px) avoids iOS focus-zoom; width bound stops WebKit intrinsic min-width blowout (BM-07).
           FORM_CONTROL_WIDTH_CLASS,
-          'min-h-[46px] rounded-[13px] border border-line bg-surface px-3.5 text-base font-semibold text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent/25',
+          'min-h-12 rounded-xl border border-line bg-surface px-3.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
           className,
         )}
         {...props}
@@ -141,7 +141,7 @@ export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
     <textarea
       className={cx(
         FORM_CONTROL_WIDTH_CLASS,
-        'min-h-24 rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-base font-semibold text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent/25',
+        'min-h-24 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
         className,
       )}
       {...props}
@@ -215,7 +215,7 @@ export function Avatar({
 export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 px-0.5">
-      <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate">{title}</h2>
+      <h2 className="text-[13px] font-semibold tracking-tight text-ink">{title}</h2>
       {action}
     </div>
   );
