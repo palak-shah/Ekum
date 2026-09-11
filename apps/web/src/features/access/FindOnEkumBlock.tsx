@@ -9,6 +9,7 @@ import type {
 } from '@ekum/domain-types';
 import { DEFAULT_ACCESS_REQUEST_NOTE, resolveAccessRequestNote } from '@/lib/accessRequestNote';
 import { api, ApiError } from '@/lib/apiClient';
+import { useMyCompany } from '@/lib/queries';
 import { inviteShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
@@ -45,6 +46,7 @@ export function FindOnEkumBlock({
 }: Props) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const myCompany = useMyCompany();
   const [raw, setRaw] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
   const localQ = useDeferredValue(raw.trim());
@@ -92,7 +94,10 @@ export function FindOnEkumBlock({
     mutationFn: () => api.post<ReferralView>('/referrals', {}),
     onSuccess: async (referral) => {
       const url = `${window.location.origin}/r/${referral.token}`;
-      const copy = inviteShareCopy({ url, kind: 'connect' });
+      const copy = inviteShareCopy({
+        kind: 'connect',
+        companyName: myCompany.data?.name ?? referral.referrer.name,
+      });
       try {
         const result = await shareOrCopyInvite({ url, ...copy });
         if (result === 'copied') showToast('Link copied');

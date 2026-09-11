@@ -90,7 +90,7 @@ Seller My Catalog badges: **Draft** · **Starts…** · **Live** (+ **Evergreen*
 
 | Action | Effect |
 |--------|--------|
-| **Publish** | Design or collection goes live for the chosen **audience** on Explore (and shop). Designs set `postedToMarketAt`. First-ever publish requires **consent to sell** → sets `canPublish`. |
+| **Publish** | Design or collection goes live for the chosen **audience**. **Design** Publish sets `postedToMarketAt` (standalone Explore tile). **Collection** Publish puts the **pack** on Explore and marks own draft members **Published** for trade inside the pack **without** setting `postedToMarketAt` (no design-tile flood). First-ever publish requires **consent to sell** → sets `canPublish`. |
 | **Visibility** | Same sheet as publish — change who can see it / rates / forward without a separate “post” step. |
 | **Hide / unpublish** | Returns to draft; design Explore post is cleared (`postedToMarketAt` null). Collection hide clears `exploreActivityAt`. |
 

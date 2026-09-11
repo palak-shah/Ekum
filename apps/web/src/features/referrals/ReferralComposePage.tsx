@@ -43,8 +43,8 @@ export function ReferralComposePage() {
 
     const share = async () => {
       const copy = inviteShareCopy({
-        url,
         kind: isOpen ? 'connect' : 'vouch',
+        companyName: created.referrer.name,
         targetName: created.target?.name,
       });
       try {

@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/apiClient';
 import { Button, TextArea, cx } from '@/ui/kit';
 import { MicIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
+import { voiceStageFromClip } from './chatVoiceHold';
 import { VoicePlayer } from './VoicePlayer';
 import { noteVoiceSheetBusy } from './noteVoiceBusy';
 import { formatVoiceDuration, isUsableVoiceClip } from './voiceCaps';
@@ -47,6 +48,7 @@ export function NoteVoiceField({
   const recorder = useVoiceRecorder();
   const voiceUrlRef = useRef(voice?.url);
   voiceUrlRef.current = voice?.url;
+  const micBusyRef = useRef(false);
 
   useEffect(() => {
     onBusyChange?.(noteVoiceSheetBusy({ uploading, recording: recorder.recording }));
@@ -65,42 +67,55 @@ export function NoteVoiceField({
   };
 
   const onMic = async () => {
-    if (recorder.recording) {
-      const clip = await recorder.stopAndGet();
-      if (
-        !clip ||
-        !isUsableVoiceClip({ durationMs: clip.durationMs, sizeBytes: clip.blob.size })
-      ) {
-        showToast('Recording too short.', 'danger');
+    if (micBusyRef.current || uploading) return;
+    micBusyRef.current = true;
+    try {
+      if (recorder.recording) {
+        const clip = await recorder.stopAndGet();
+        const decision = voiceStageFromClip({
+          clip: clip
+            ? { durationMs: clip.durationMs, sizeBytes: clip.blob.size }
+            : null,
+          didRecord: true,
+          isUsable: isUsableVoiceClip,
+        });
+        if (decision.kind === 'too_short') {
+          showToast('Recording too short.', 'danger');
+          return;
+        }
+        if (decision.kind === 'failed' || decision.kind === 'silent' || !clip) {
+          showToast('Could not save voice. Try again.', 'danger');
+          return;
+        }
+        // Preview from the local blob first (same as chat) so traders hear clear
+        // speech even before / while the remote upload finishes.
+        const previewUrl = URL.createObjectURL(clip.blob);
+        revokeIfBlob(voice?.url);
+        setUploading(true);
+        try {
+          const uploaded = await uploadAudio(clip.blob);
+          onVoiceChange({
+            mediaId: uploaded.mediaId,
+            url: previewUrl,
+            durationMs: clip.durationMs,
+          });
+        } catch (err) {
+          revokeIfBlob(previewUrl);
+          showToast(
+            err instanceof ApiError ? err.message : 'Could not save voice.',
+            'danger',
+          );
+        } finally {
+          setUploading(false);
+        }
         return;
       }
-      // Preview from the local blob first (same as chat) so traders hear clear
-      // speech even before / while the remote upload finishes.
-      const previewUrl = URL.createObjectURL(clip.blob);
-      revokeIfBlob(voice?.url);
-      setUploading(true);
-      try {
-        const uploaded = await uploadAudio(clip.blob);
-        onVoiceChange({
-          mediaId: uploaded.mediaId,
-          url: previewUrl,
-          durationMs: clip.durationMs,
-        });
-      } catch (err) {
-        revokeIfBlob(previewUrl);
-        showToast(
-          err instanceof ApiError ? err.message : 'Could not save voice.',
-          'danger',
-        );
-      } finally {
-        setUploading(false);
+      const err = await recorder.start();
+      if (err) {
+        showToast(err, 'danger');
       }
-      return;
-    }
-    const err = await recorder.start();
-    if (err) {
-      showToast(err, 'danger');
-      return;
+    } finally {
+      micBusyRef.current = false;
     }
   };
 

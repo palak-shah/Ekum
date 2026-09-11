@@ -274,8 +274,8 @@ export class CollectionService {
     const nextEnds = endsAt === undefined ? existing.endsAt : endsAt;
     assertValidLiveWindow(nextStarts, nextEnds);
 
-    // Draft designs in the album become published + Explore-visible with the pack.
-    // Only the curator's own drafts are auto-published; foreign members stay as-is.
+    // Pack alone on Explore. Own drafts become Published for Order/Share/Curate
+    // inside the pack, but postedToMarketAt stays null (no design-tile flood).
     const memberIds = members.map((row) => row.productId);
     const allowForward = dto.allowForward !== false;
     const now = new Date();
@@ -287,7 +287,6 @@ export class CollectionService {
       },
       data: {
         status: ProductStatus.Published,
-        postedToMarketAt: now,
         audience: dto.audience,
         rateVisibility,
         audienceCompanyIds,

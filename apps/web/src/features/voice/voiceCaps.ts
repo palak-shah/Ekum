@@ -15,11 +15,8 @@ export type AudioContentType = 'audio/webm' | 'audio/mp4' | 'audio/mpeg';
 
 export function isUsableVoiceClip(input: { durationMs: number; sizeBytes: number }): boolean {
   if (input.durationMs < MIN_VOICE_DURATION_MS) return false;
-  if (input.sizeBytes < 1) return false;
-  // Very short clock + tiny blob = tap / failed flush (Safari).
-  if (input.sizeBytes < MIN_VOICE_BYTES && input.durationMs < MIN_VOICE_DURATION_MS * 2) {
-    return false;
-  }
+  // Tiny blob is never usable — even with a long wall-clock (failed Safari flush).
+  if (input.sizeBytes < MIN_VOICE_BYTES) return false;
   return true;
 }
 

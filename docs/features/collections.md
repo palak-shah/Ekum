@@ -43,7 +43,7 @@ Default layout is **grid**. Library home stays **You → My designs** (`/catalog
 | Rule | Detail |
 |------|--------|
 | Membership | Many-to-many; any owned non-archived design may be added |
-| Publish album | Requires ≥1 design; **auto-publishes** draft members to Explore with the pack audience, then publishes the collection |
+| Publish album | Requires ≥1 design; publishes the **collection** on Explore. Own draft members become **Published** for Order / Share / Curate **inside** the pack, but do **not** get `postedToMarketAt` (no separate Explore design tiles — avoids flooding buyers when a pack has many designs). Publish a design from My designs later to put it alone on Explore. |
 | Relist lock | `allowForward` snapshot (product: allowRelist). Uncheck **Buyers can add these designs to their collections** → they cannot **Curate** it. **Forward** the card is still free. View/audience checked when they open. |
 | Share to chat | Share sheet posts cards into a **chat** (not broadcast). Allowed when you own it, it was already in a chat you’re in, or it’s discoverable on Explore (e.g. Followers pack you follow). |
 | 48h share link | Share sheet: pinned then recent; quiet **Share a link · 48 hours**. Guest `/s/:token` is public. **Everyone** (live): look-only cover + name + designs; **Open on Ekum** → join → this pack. Closed: cover + name + **Request access**. Already on Ekum: skip to the real pack. Expires 48h. Not a guest shop. |
@@ -66,7 +66,7 @@ Default layout is **grid**. Library home stays **You → My designs** (`/catalog
 ## Seed walkthrough
 
 1. As **Ravi**: open **Wedding Edit 2026** under Collections — published album with seeded products; badges show Live / Evergreen.
-2. Create a draft album → Publish with a Buyer group → drafts become catalog-published with the album.
+2. Create a draft album → Publish with a Buyer group → pack is on Explore; member drafts become Published without separate Explore design tiles.
 3. As **Meena**: open the album from Explore / notification “New drop from Surat Silk House”.
 
 ## Automated verification

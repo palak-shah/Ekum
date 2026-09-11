@@ -23,8 +23,8 @@ export function ReferralsPage() {
     const url = referralUrl(referral.token);
     const isOpen = !referral.target;
     const copy = inviteShareCopy({
-      url,
       kind: isOpen ? 'connect' : 'vouch',
+      companyName: referral.referrer.name,
       targetName: referral.target?.name,
     });
     try {

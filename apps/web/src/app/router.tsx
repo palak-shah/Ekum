@@ -138,6 +138,14 @@ export const router = createBrowserRouter([
       { path: '/onboarding', element: <OnboardingPage /> },
       { path: '/s/:token', element: <ShareLinkLandingPage /> },
       {
+        path: '/r/:token',
+        element: (
+          <Suspense fallback={<LoadingBlock label="Opening invite…" />}>
+            <ReferralLandingPage />
+          </Suspense>
+        ),
+      },
+      {
         path: '/_visual/chat-trade-cards',
         element: (
           <Suspense fallback={<LoadingBlock label="Loading…" />}>
@@ -191,7 +199,6 @@ export const router = createBrowserRouter([
               { path: 'broadcast/new', element: <BroadcastComposePage /> },
               { path: 'referrals', element: <ReferralsPage /> },
               { path: 'referrals/new', element: <ReferralComposePage /> },
-              { path: 'r/:token', element: <ReferralLandingPage /> },
               { path: 'notifications', element: <NotificationsPage /> },
               { path: 'settings', element: <SettingsPage /> },
               { path: 'settings/profile', element: <ProfilePage /> },

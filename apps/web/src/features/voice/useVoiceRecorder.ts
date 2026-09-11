@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { acquireMediaStream, releaseMediaStream } from '@/lib/mediaSession';
 import { VOICE_MAX_DURATION_MS, pickAudioMimeType, withSniffedAudioType } from './voiceCaps';
+import { shouldSettleVoiceStop, VOICE_STOP_EARLY_MS, VOICE_STOP_FLUSH_MS } from './voiceStopFlush';
 import { stopAllVoicePlayback } from './voicePlayback';
 
 export type VoiceRecording = {
@@ -25,6 +26,13 @@ export function useVoiceRecorder(options: Options = {}) {
   const streamRef = useRef<MediaStream | null>(null);
   const cancelRef = useRef(false);
   const pickedMimeRef = useRef<string | undefined>(undefined);
+  const stopFlushRef = useRef<{
+    stopFired: boolean;
+    stoppedAt: number;
+    earlyTimer: number | null;
+    flushTimer: number | null;
+    trySettle: () => void;
+  } | null>(null);
 
   const clearTick = () => {
     if (tickRef.current != null) {
@@ -63,9 +71,14 @@ export function useVoiceRecorder(options: Options = {}) {
         }
         cancelRef.current = mode === 'cancel';
         let settled = false;
+        const chunkBytes = () => chunksRef.current.reduce((n, c) => n + c.size, 0);
         const settle = () => {
           if (settled) return;
           settled = true;
+          const flush = stopFlushRef.current;
+          if (flush?.earlyTimer != null) window.clearTimeout(flush.earlyTimer);
+          if (flush?.flushTimer != null) window.clearTimeout(flush.flushTimer);
+          stopFlushRef.current = null;
           clearTick();
           stopTracks();
           setRecording(false);
@@ -94,9 +107,35 @@ export function useVoiceRecorder(options: Options = {}) {
             resolve({ blob, durationMs });
           });
         };
+        const trySettle = () => {
+          const flush = stopFlushRef.current;
+          if (!flush) return;
+          if (
+            shouldSettleVoiceStop({
+              stopFired: flush.stopFired,
+              sizeBytes: chunkBytes(),
+              elapsedSinceStopMs: Date.now() - flush.stoppedAt,
+            })
+          ) {
+            settle();
+          }
+        };
+        stopFlushRef.current = {
+          stopFired: false,
+          stoppedAt: Date.now(),
+          earlyTimer: null,
+          flushTimer: null,
+          trySettle,
+        };
         recorder.onstop = () => {
-          // Safari often delivers the last dataavailable after onstop.
-          window.setTimeout(settle, 80);
+          const flush = stopFlushRef.current;
+          if (!flush) return;
+          flush.stopFired = true;
+          flush.stoppedAt = Date.now();
+          // Early debounce if bytes already exist; full window if still empty.
+          flush.earlyTimer = window.setTimeout(trySettle, VOICE_STOP_EARLY_MS);
+          flush.flushTimer = window.setTimeout(trySettle, VOICE_STOP_FLUSH_MS);
+          trySettle();
         };
         // Flush the final container before stop (Safari often needs this).
         try {
@@ -149,6 +188,7 @@ export function useVoiceRecorder(options: Options = {}) {
       mediaRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
+        stopFlushRef.current?.trySettle();
       };
       startedAtRef.current = Date.now();
       setElapsedMs(0);

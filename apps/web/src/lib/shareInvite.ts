@@ -1,5 +1,5 @@
 /**
- * Share an invite as one clickable link (title + text + url).
+ * Share an invite as one clickable link (title + text + url in body).
  * Do not attach a PNG — messengers send images as separate non-clickable media.
  * Branding on the link itself comes from Open Graph tags on the public site.
  */
@@ -10,16 +10,31 @@ export function shareMessageText(text: string, url: string): string {
   return text ? `${text}\n${url}` : url;
 }
 
+/**
+ * Build navigator.share() fields. When the URL is already in `text`, omit `url`
+ * so WhatsApp does not paste the link twice.
+ */
+export function nativeShareFields(options: {
+  title: string;
+  text: string;
+  url: string;
+}): ShareData {
+  const message = shareMessageText(options.text, options.url);
+  if (message.includes(options.url)) {
+    return { title: options.title, text: message };
+  }
+  return { title: options.title, text: message, url: options.url };
+}
+
 export async function shareOrCopyInvite(options: {
   url: string;
   title: string;
   text: string;
 }): Promise<'shared' | 'copied'> {
   const { url, title, text } = options;
-  const message = shareMessageText(text, url);
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title, text: message, url });
+      await navigator.share(nativeShareFields({ title, text, url }));
       return 'shared';
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -37,19 +52,23 @@ export function canNativeShare(): boolean {
 
 /** Branded share title/text so the clickable link doesn’t look like random spam. */
 export function inviteShareCopy(options: {
-  url: string;
   kind: 'connect' | 'vouch';
+  /** Inviter / referrer business name. */
+  companyName: string;
+  /** Targeted vouch recipient business. */
   targetName?: string;
 }): { title: string; text: string } {
-  if (options.kind === 'vouch' && options.targetName) {
+  const business = options.companyName.trim() || 'A business';
+  if (options.kind === 'vouch' && options.targetName?.trim()) {
+    const target = options.targetName.trim();
     return {
-      title: 'Ekum — referral',
-      text: `Request to connect on Ekum — referral for ${options.targetName}`,
+      title: `Ekum · ${business} introduces ${target}`,
+      text: `${business} introduces ${target} on Ekum`,
     };
   }
   return {
-    title: 'Ekum — connect with me',
-    text: 'Request to connect on Ekum',
+    title: `Ekum · Connect with ${business}`,
+    text: `${business} invites you to connect on Ekum`,
   };
 }
 

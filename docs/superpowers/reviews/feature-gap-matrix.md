@@ -49,6 +49,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Buyer groups (elevate broadcast lists) | Works | Unit | Required | 2026-08-13 Completeness |
 | Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open; Share = live+not-blocked (no sender canDiscover); Curate still locked; in-sheet Share errors |
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
+| Collections | Pack publish does not Explore-post member designs | Works | Unit | Required | Completeness 2026-09-11-collection-publish-no-design-explore |
 | Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; no buyer groups) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
@@ -69,8 +70,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Team | Join after archive (same phone → new shop / create company) | Works | Unit | Required | Completeness 2026-09-09-team-join-after-archive; live seat still blocks |
 | Network | Following / Followers lists | Works | Unit-only | Required | You → Network hub pages restored 2026-08-20 |
 | Network | Connections hub (both roles) + Requests | Works | Functional | Required | `network.referrals.journey.spec.ts` |
-| Referrals | Connect-with-me invite create + Share/Copy | Works | Functional | Required | `network.referrals.journey.spec.ts` |
-| Referrals | Open invite redeem → access request (approve gate) | Works | Functional | Required | `network.referrals.journey.spec.ts` guest login path |
+| Referrals | Connect-with-me invite create + Share/Copy | Works | Functional | Required | Presentable share + OG card 2026-09-11; `network.referrals.journey.spec.ts` |
+| Referrals | Open invite redeem → access request (approve gate) | Works | Functional | Required | Focused `/r/` landing (no bottom nav); `network.referrals.journey.spec.ts` |
 | Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Unit-only | Required | `inviteReturn` + Login/onboarding wiring |
 | Referrals | Targeted vouch (optional target company) | Works | Untested | Recommended | Seller still approves |
 | Referrals | Auto-connect / auto-follow on redeem | Rejected | — | Reject | Trust ladder |

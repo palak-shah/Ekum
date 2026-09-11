@@ -477,7 +477,7 @@ describe('CollectionService.ready', () => {
 });
 
 describe('CollectionService.publish', () => {
-  it('auto-publishes draft members then publishes the collection', async () => {
+  it('publishes own draft members for trade without Explore-posting them', async () => {
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
     const collectionUpdate = vi.fn(async () => ({
       id: 'col-1',
@@ -549,10 +549,11 @@ describe('CollectionService.publish', () => {
       },
       data: expect.objectContaining({
         status: ProductStatus.Published,
-        postedToMarketAt: expect.any(Date),
         audience: 'connections',
       }),
     });
+    const data = productUpdateMany.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty('postedToMarketAt');
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'col-1' },

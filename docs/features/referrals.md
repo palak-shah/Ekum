@@ -31,7 +31,8 @@ Any company. Entry: **＋ → Invite to connect** or **You → Invites** (`/refe
 | Self | Cannot redeem your own invite |
 | Login funnel | `/r/:token` and `?invite=` survive OTP / onboarding via return stash |
 | Follow | Not created by invite |
-| Share preview | Share sends **one clickable link** (not a separate PNG). Messengers show the Ekum card from Open Graph when the host is public (`VITE_PUBLIC_ORIGIN`). Share text always names Ekum. |
+| Share preview | Share sends **one** clickable link (URL once in the body — not duplicated). Messengers show an Ekum OG card from `GET /referrals/:token/card` (business name + Ekum icon / logo). Share text: `{Business} invites you to connect on Ekum`. |
+| Landing | `/r/:token` is a **focused invite** (no bottom nav), like `/s/` — Ekum mark, company hero, **Request to connect** / join. |
 
 ## Edge cases / empty states
 

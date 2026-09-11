@@ -1,23 +1,34 @@
+import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { AccessRequestView, ReferralView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useAuth } from '@/lib/auth';
 import { DEFAULT_ACCESS_REQUEST_NOTE } from '@/lib/accessRequestNote';
-import { clearInviteReturn } from '@/lib/inviteReturn';
-import { PageHeader } from '@/ui/PageHeader';
+import { clearInviteReturn, stashInviteReturn } from '@/lib/inviteReturn';
 import { useToast } from '@/ui/Toast';
-import { Avatar, Button, Card, ErrorState, LoadingBlock } from '@/ui/kit';
+import { Avatar, Button, ErrorState, LoadingBlock } from '@/ui/kit';
+
+function InviteShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))]">
+      <div className="flex flex-1 flex-col gap-5">{children}</div>
+    </div>
+  );
+}
 
 export function ReferralLandingPage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
+  const { status, session } = useAuth();
   const { showToast } = useToast();
   const [error, setError] = useState<string | null>(null);
 
   const referral = useQuery({
     queryKey: ['referral', token],
-    queryFn: () => api.get<ReferralView>(`/referrals/${token}`),
+    queryFn: () => api.publicGet<ReferralView>(`/referrals/${token}`),
+    enabled: Boolean(token),
   });
 
   const requestAccess = useMutation({
@@ -30,7 +41,7 @@ export function ReferralLandingPage() {
     onSuccess: () => {
       clearInviteReturn();
       showToast('Request sent');
-      if (referral.data?.target) navigate(`/company/${referral.data.target.id}`);
+      if (referral.data?.target) navigate(`/company/${referral.data.target.id}`, { replace: true });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not send request.'),
   });
@@ -40,60 +51,101 @@ export function ReferralLandingPage() {
     onSuccess: (data) => {
       clearInviteReturn();
       showToast('Request sent');
-      navigate(`/company/${data.company.id}`);
+      navigate(`/company/${data.company.id}`, { replace: true });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not send request.'),
   });
 
-  if (referral.isLoading) {
-    return <LoadingBlock label="Opening invite…" />;
+  const goJoin = () => {
+    const returnTo = `/r/${token}`;
+    stashInviteReturn(returnTo);
+    navigate('/login', { state: { from: returnTo } });
+  };
+
+  if (status === 'loading' || referral.isLoading) {
+    return (
+      <InviteShell>
+        <LoadingBlock label="Opening invite…" />
+      </InviteShell>
+    );
   }
+
   if (referral.isError || !referral.data) {
     return (
-      <>
-        <PageHeader title="Invite" />
-        <ErrorState message="This referral link is invalid or expired." />
-      </>
+      <InviteShell>
+        <p className="text-xs font-semibold text-accent">Ekum</p>
+        <ErrorState message="This invite link is invalid or expired." />
+      </InviteShell>
     );
+  }
+
+  if (status === 'authenticated' && session?.needsOnboarding) {
+    return <Navigate to="/onboarding" replace state={{ from: `/r/${token}` }} />;
   }
 
   const data = referral.data;
   const isOpenInvite = !data.target;
+  const hero = isOpenInvite ? data.referrer : data.target!;
+  const guest = status !== 'authenticated';
+  const busy = redeem.isPending || requestAccess.isPending;
+
+  const onPrimary = () => {
+    if (guest) {
+      goJoin();
+      return;
+    }
+    if (isOpenInvite) redeem.mutate();
+    else requestAccess.mutate();
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title={isOpenInvite ? 'Connect' : "You've been referred"} />
-      <Card className="flex flex-col items-center gap-3 text-center">
-        <Avatar name={data.referrer.name} imageUrl={data.referrer.logoUrl} size={56} />
+    <InviteShell>
+      <p className="text-xs font-semibold text-accent">Ekum</p>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <Avatar name={hero.name} imageUrl={hero.logoUrl} size={72} />
         {isOpenInvite ? (
           <>
-            <p className="text-sm text-muted">Request to connect with</p>
-            <p className="text-lg font-semibold text-ink">{data.referrer.name}</p>
-            {data.referrer.city ? <p className="text-sm text-muted">{data.referrer.city}</p> : null}
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl font-bold tracking-tight text-ink">
+                {data.referrer.name} invited you
+              </h1>
+              {data.referrer.city ? (
+                <p className="text-sm text-muted">{data.referrer.city}</p>
+              ) : null}
+            </div>
+            <p className="max-w-xs text-sm text-muted">
+              Connect on Ekum to see their designs and chat about trade.
+            </p>
           </>
         ) : (
           <>
-            <p className="text-sm text-ink">
-              <span className="font-semibold">{data.referrer.name}</span> vouches for
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl font-bold tracking-tight text-ink">
+                {data.referrer.name} introduced you to {data.target!.name}
+              </h1>
+              {data.target!.city ? (
+                <p className="text-sm text-muted">{data.target!.city}</p>
+              ) : null}
+            </div>
+            <p className="max-w-xs text-sm text-muted">
+              Connect on Ekum to see their designs and chat about trade.
             </p>
-            <p className="text-lg font-semibold text-ink">{data.target!.name}</p>
-            <p className="text-sm text-muted">{data.target!.city}</p>
           </>
         )}
-        {data.note ? <p className="text-sm text-muted">“{data.note}”</p> : null}
-      </Card>
+        {data.note ? (
+          <p className="max-w-xs text-sm italic text-muted">“{data.note}”</p>
+        ) : null}
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
+      </div>
 
-      {error ? <p className="text-center text-xs text-danger">{error}</p> : null}
-
-      {isOpenInvite ? (
-        <Button fullWidth disabled={redeem.isPending} onClick={() => redeem.mutate()}>
-          {redeem.isPending ? 'Sending…' : `Request access to ${data.referrer.name}`}
-        </Button>
-      ) : (
-        <Button fullWidth disabled={requestAccess.isPending} onClick={() => requestAccess.mutate()}>
-          {requestAccess.isPending ? 'Sending…' : `Request access to ${data.target!.name}`}
-        </Button>
-      )}
-    </div>
+      <Button fullWidth disabled={busy} onClick={onPrimary}>
+        {busy
+          ? 'Sending…'
+          : guest
+            ? 'Join Ekum to connect'
+            : 'Request to connect'}
+      </Button>
+    </InviteShell>
   );
 }

@@ -1337,8 +1337,8 @@ export function CollectionEditorPage() {
           {editing && !isPublished ? (
             <p className="text-sm text-muted">
               {hasForeignMembers
-                ? 'You’re sharing others’ designs under their rules. Draft designs you own will publish with this pack.'
-                : 'Draft designs in this album will be published with the collection.'}
+                ? 'You’re sharing others’ designs under their rules.'
+                : 'Publishing this pack puts the collection on Explore — not each design separately. Buyers can still order or share designs from inside the pack.'}
             </p>
           ) : null}
 

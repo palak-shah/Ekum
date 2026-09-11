@@ -32,13 +32,16 @@ describe('isUsableVoiceClip', () => {
     ).toBe(false);
   });
 
-  it('accepts a real short clip (incl. tiny AAC after a solid hold)', () => {
+  it('accepts a real short clip at the byte floor', () => {
     expect(
       isUsableVoiceClip({ durationMs: MIN_VOICE_DURATION_MS, sizeBytes: MIN_VOICE_BYTES }),
     ).toBe(true);
+  });
+
+  it('rejects tiny blobs even after a long wall-clock (failed flush)', () => {
     expect(
-      isUsableVoiceClip({ durationMs: MIN_VOICE_DURATION_MS * 2, sizeBytes: 32 }),
-    ).toBe(true);
+      isUsableVoiceClip({ durationMs: 5_000, sizeBytes: MIN_VOICE_BYTES - 1 }),
+    ).toBe(false);
   });
 });
 

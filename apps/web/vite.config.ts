@@ -20,13 +20,20 @@ function shareLinkOgMiddleware(
 
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const path = req.url?.split('?')[0] ?? '';
-    const match = path.match(/^\/s\/([^/]+)$/);
-    if (!match || !SHARE_LINK_BOT.test(req.headers['user-agent'] ?? '')) {
+    const shareMatch = path.match(/^\/s\/([^/]+)$/);
+    const inviteMatch = path.match(/^\/r\/([^/]+)$/);
+    const token = shareMatch?.[1] ?? inviteMatch?.[1];
+    const cardPath = shareMatch
+      ? `${apiBase}/share-links/${token}/card`
+      : inviteMatch
+        ? `${apiBase}/referrals/${token}/card`
+        : null;
+    if (!cardPath || !SHARE_LINK_BOT.test(req.headers['user-agent'] ?? '')) {
       next();
       return;
     }
     try {
-      const card = await fetch(`${apiBase}/share-links/${match[1]}/card`);
+      const card = await fetch(cardPath);
       if (!card.ok) {
         next();
         return;

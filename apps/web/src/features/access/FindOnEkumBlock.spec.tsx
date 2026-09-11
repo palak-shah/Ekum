@@ -26,6 +26,10 @@ vi.mock('@/lib/shareInvite', () => ({
   canNativeShare: () => false,
 }));
 
+vi.mock('@/lib/queries', () => ({
+  useMyCompany: () => ({ data: { name: 'Test Co' } }),
+}));
+
 function renderBlock(onMessage?: (id: string) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(

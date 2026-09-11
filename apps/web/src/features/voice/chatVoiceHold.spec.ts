@@ -60,4 +60,14 @@ describe('voiceStageFromClip', () => {
       voiceStageFromClip({ clip: null, didRecord: true, isUsable: usable }),
     ).toEqual({ kind: 'failed' });
   });
+
+  it('reports too_short only when a clip exists but fails the gate', () => {
+    expect(
+      voiceStageFromClip({
+        clip: { durationMs: 200, sizeBytes: 2000 },
+        didRecord: true,
+        isUsable: usable,
+      }),
+    ).toEqual({ kind: 'too_short' });
+  });
 });
