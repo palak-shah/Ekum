@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type {
   CollectionCard,
   CompanyCard,
@@ -16,7 +16,7 @@ import type {
 import { formatRate, timeAgo } from '@/lib/format';
 import { Avatar, Chip, Tag, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
-import { useLongPress } from './useLongPress';
+import { LONG_PRESS_SURFACE_CLASS, useLongPress } from './useLongPress';
 
 function VerificationTag({ verification }: { verification: string }) {
   if (verification === 'gst_verified') {
@@ -85,8 +85,13 @@ export function OpportunityCollectionCard({
   const { collection, relevance } = opportunity;
   const company = collection.company;
   const when = postedWhen(collection.updatedAt);
+  const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
   const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
+  const openAlbum = () => {
+    onOpen?.();
+    navigate(`/collections/${collection.id}`);
+  };
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
       <div className="flex items-center gap-3 px-4 py-2.5">
@@ -105,7 +110,12 @@ export function OpportunityCollectionCard({
           ) : null)}
       </div>
       {open ? (
-        <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>
+        <button
+          type="button"
+          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+          onClick={open}
+          {...longPress}
+        >
           <AlbumGrid
             images={collection.previewImages}
             imageCount={collection.imageCount}
@@ -121,10 +131,10 @@ export function OpportunityCollectionCard({
           </span>
         </button>
       ) : (
-        <Link
-          to={`/collections/${collection.id}`}
-          className="block px-3"
-          onClick={() => onOpen?.()}
+        <button
+          type="button"
+          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+          onClick={openAlbum}
           {...longPress}
         >
           <AlbumGrid
@@ -132,7 +142,7 @@ export function OpportunityCollectionCard({
             imageCount={collection.imageCount}
             alt={collection.name}
           />
-        </Link>
+        </button>
       )}
       {open ? (
         <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
@@ -140,14 +150,10 @@ export function OpportunityCollectionCard({
           <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
         </button>
       ) : (
-        <Link
-          to={`/collections/${collection.id}`}
-          className="mt-2 block px-4"
-          onClick={() => onOpen?.()}
-        >
+        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={openAlbum}>
           <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
           <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
-        </Link>
+        </button>
       )}
     </article>
   );
@@ -396,8 +402,13 @@ export function OpportunityDesignCard({
   const { product, relevance } = opportunity;
   const company = product.company;
   const when = postedWhen(product.postedAt);
+  const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
   const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
+  const openDesign = () => {
+    onOpen?.();
+    navigate(`/explore/products/${product.id}`);
+  };
 
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
@@ -417,7 +428,12 @@ export function OpportunityDesignCard({
           ) : null)}
       </div>
       {open ? (
-        <button type="button" className="relative block w-full px-3 text-left" onClick={open} {...longPress}>
+        <button
+          type="button"
+          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+          onClick={open}
+          {...longPress}
+        >
           <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
           <span
             className={cx(
@@ -429,14 +445,14 @@ export function OpportunityDesignCard({
           </span>
         </button>
       ) : (
-        <Link
-          to={`/explore/products/${product.id}`}
-          className="block px-3"
-          onClick={() => onOpen?.()}
+        <button
+          type="button"
+          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+          onClick={openDesign}
           {...longPress}
         >
           <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
-        </Link>
+        </button>
       )}
       {open ? (
         <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
@@ -444,14 +460,10 @@ export function OpportunityDesignCard({
           <p className="text-xs font-medium text-muted">Design</p>
         </button>
       ) : (
-        <Link
-          to={`/explore/products/${product.id}`}
-          className="mt-2 block px-4"
-          onClick={() => onOpen?.()}
-        >
+        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={openDesign}>
           <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
           <p className="text-xs font-medium text-muted">Design</p>
-        </Link>
+        </button>
       )}
     </article>
   );
@@ -472,7 +484,9 @@ export function DesignTile({
   onToggleSelect?: () => void;
 }) {
   const longPress = useLongPress(onLongSelect);
+  const navigate = useNavigate();
   const selecting = selectMode && onToggleSelect;
+  const openDesign = () => navigate(`/explore/products/${product.id}`);
 
   const body = (
     <>
@@ -506,6 +520,7 @@ export function DesignTile({
         type="button"
         className={cx(
           'block w-full overflow-hidden rounded-2xl border bg-surface text-left',
+          LONG_PRESS_SURFACE_CLASS,
           selected ? 'border-accent' : 'border-line',
         )}
         onClick={onToggleSelect}
@@ -517,13 +532,17 @@ export function DesignTile({
   }
 
   return (
-    <Link
-      to={`/explore/products/${product.id}`}
-      className="block overflow-hidden rounded-2xl border border-line bg-surface"
+    <button
+      type="button"
+      className={cx(
+        'block w-full overflow-hidden rounded-2xl border border-line bg-surface text-left',
+        LONG_PRESS_SURFACE_CLASS,
+      )}
+      onClick={openDesign}
       {...longPress}
     >
       {body}
-    </Link>
+    </button>
   );
 }
 

@@ -58,7 +58,7 @@ import {
 } from '@/ui/kit';
 import { CheckIcon, LockIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
-import { useLongPress } from '@/ui/useLongPress';
+import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { coverMissingFromMembers } from './collectionCover';
 
 type Layout = 'feed' | 'grid';
@@ -828,7 +828,7 @@ function DesignTile({
       <button
         type="button"
         onClick={onActivate}
-        className="relative block w-full"
+        className={cx('relative block w-full', LONG_PRESS_SURFACE_CLASS)}
         {...longPress}
       >
         {image ? (
@@ -865,7 +865,11 @@ function DesignTile({
       <button
         type="button"
         onClick={onActivate}
-        className={cx('block w-full text-left', variant === 'feed' ? 'p-3' : 'p-2.5')}
+        className={cx(
+          'block w-full text-left',
+          LONG_PRESS_SURFACE_CLASS,
+          variant === 'feed' ? 'p-3' : 'p-2.5',
+        )}
         {...longPress}
       >
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
@@ -32,7 +32,7 @@ import {
 import { partitionForTravelingSelection } from '@/features/browse/partitionForTravelingSelection';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { selectAllState } from '@/features/browse/selectAllState';
-import { useLongPress } from '@/ui/useLongPress';
+import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 
 function toCatalogShortlistEntry(
   product: ProductView,
@@ -680,6 +680,7 @@ function SellerProductTile({
   onLongSelect: () => void;
 }) {
   const subtitle = productTileSubtitle(product, groups);
+  const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const body = (
     <>
@@ -722,6 +723,7 @@ function SellerProductTile({
         onClick={onToggle}
         className={cx(
           'overflow-hidden rounded-2xl border bg-surface text-left',
+          LONG_PRESS_SURFACE_CLASS,
           selected ? 'border-accent' : 'border-line',
         )}
       >
@@ -731,14 +733,18 @@ function SellerProductTile({
   }
 
   return (
-    <Link
-      to={`/catalog/products/${product.id}`}
-      className="overflow-hidden rounded-2xl border border-line bg-surface"
+    <button
+      type="button"
       data-testid="catalog-product-tile"
+      className={cx(
+        'overflow-hidden rounded-2xl border border-line bg-surface text-left',
+        LONG_PRESS_SURFACE_CLASS,
+      )}
+      onClick={() => navigate(`/catalog/products/${product.id}`)}
       {...longPress}
     >
       {body}
-    </Link>
+    </button>
   );
 }
 
@@ -784,6 +790,7 @@ function SellerCollectionTile({
     : `${density} · ${summary.line}`;
   const whoWhen = auditLine(collection);
   const showPlus = collection.productCount > 4;
+  const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const mosaicCount = showPlus
     ? Math.max(collection.productCount, previews.length)
@@ -821,6 +828,7 @@ function SellerCollectionTile({
         onClick={onToggle}
         className={cx(
           'overflow-hidden rounded-2xl border bg-surface text-left',
+          LONG_PRESS_SURFACE_CLASS,
           selected ? 'border-accent' : 'border-line',
         )}
       >
@@ -830,8 +838,16 @@ function SellerCollectionTile({
   }
 
   return (
-    <Link to={href} className="overflow-hidden rounded-2xl border border-line bg-surface" {...longPress}>
+    <button
+      type="button"
+      className={cx(
+        'overflow-hidden rounded-2xl border border-line bg-surface text-left',
+        LONG_PRESS_SURFACE_CLASS,
+      )}
+      onClick={() => navigate(href)}
+      {...longPress}
+    >
       {body}
-    </Link>
+    </button>
   );
 }

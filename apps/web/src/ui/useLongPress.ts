@@ -1,5 +1,8 @@
 import { useRef, type MouseEvent } from 'react';
 
+/** Avoid iOS Safari link-preview / callout on long-press select surfaces. */
+export const LONG_PRESS_SURFACE_CLASS = 'ekum-long-press-surface';
+
 /** WhatsApp-style long-press; swallows the click that usually follows so activate does not fire. */
 export function useLongPress(onLongPress?: () => void, ms = 420) {
   const timer = useRef<number | null>(null);
@@ -7,8 +10,8 @@ export function useLongPress(onLongPress?: () => void, ms = 420) {
   const clear = () => {
     if (timer.current != null) {
       window.clearTimeout(timer.current);
-      timer.current = null;
     }
+    timer.current = null;
   };
   return {
     onPointerDown: () => {

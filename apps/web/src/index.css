@@ -125,6 +125,14 @@ body {
   display: none;
 }
 
+/* Long-press select surfaces — no iOS Safari link preview / callout. */
+.ekum-long-press-surface {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 /* Bottom nav / chrome — solid edge, not frosted haze. */
 .ekum-glass {
   background: #ffffff;

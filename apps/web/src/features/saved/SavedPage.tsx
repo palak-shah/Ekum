@@ -16,7 +16,7 @@ import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { AlbumGrid } from '@/ui/cards';
 import { useToast } from '@/ui/Toast';
-import { useLongPress } from '@/ui/useLongPress';
+import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import {
   Avatar,
   Button,
@@ -384,8 +384,12 @@ function SavedGridTile({
         selected ? 'border-accent' : 'border-line',
       )}
     >
-      <button type="button" className="block w-full text-left" onClick={onOpen} {...longPress}>
-        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
+      <button
+        type="button"
+        className={cx('block w-full text-left', LONG_PRESS_SURFACE_CLASS)}
+        onClick={onOpen}
+        {...longPress}
+      >        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
         <div className="px-2.5 py-2.5">
           <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
           <p className="truncate text-xs text-muted">{itemMeta(item)}</p>
@@ -468,7 +472,11 @@ function SavedFeedRow({
       </div>
       <button
         type="button"
-        className={cx('relative block w-full px-3 text-left', selected && 'opacity-95')}
+        className={cx(
+          'relative block w-full px-3 text-left',
+          LONG_PRESS_SURFACE_CLASS,
+          selected && 'opacity-95',
+        )}
         onClick={onOpen}
         {...longPress}
       >
