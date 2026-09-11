@@ -121,7 +121,11 @@ export function ChatTradeDirectionGalleryPage() {
             <p className="text-[11px] font-medium text-muted">{row.label}</p>
             <div className={row.model.mine ? 'flex justify-end' : 'flex justify-start'}>
               <div className="w-[85%]">
-                <ChatTradeCard model={row.model} />
+                <ChatTradeCard
+                  model={row.model}
+                  /* Match ThreadPage: pulses are tappable via onOpen (must stay div, not button). */
+                  onOpen={row.model.variant === 'pulse' ? () => undefined : undefined}
+                />
               </div>
             </div>
           </section>

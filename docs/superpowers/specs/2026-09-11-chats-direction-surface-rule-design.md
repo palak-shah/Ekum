@@ -25,3 +25,5 @@ Status labels (Requested / Updated / Dispatched / Accepted / Quote) remain copy 
 ## Implementation
 
 Shared `ChatTradeCard` (+ pulse + Thread legacy fallback) themes from `model.mine`.
+
+**Pulse shell must be a `div` (role=button), never a native `<button>`.** Tailwind preflight sets `button { background-color: transparent }`, which stripped outgoing teal on tappable Dispatched/Accepted pulses while white “View order” text remained — the Jaipur pale-card bug.

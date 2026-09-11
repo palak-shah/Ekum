@@ -38,6 +38,12 @@ test.describe('chat trade direction surfaces @visual', () => {
         expect(className).toMatch(/bg-surface/);
         expect(className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
       }
+      if (id === 'out-dispatched') {
+        expect(await card.evaluate((el) => el.tagName)).toBe('DIV');
+        const bg = await card.evaluate((el) => getComputedStyle(el).backgroundColor);
+        // Solid Ekum teal #0f6b70 — not transparent / foam.
+        expect(bg).toMatch(/rgb\(\s*15,\s*107,\s*112\s*\)/);
+      }
       await section.screenshot({ path: join(OUT, `${id}.png`) });
     }
 

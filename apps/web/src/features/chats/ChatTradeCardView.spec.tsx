@@ -121,6 +121,29 @@ describe('ChatTradeCard direction surface rule', () => {
     expect(screen.getByText('View order →').className).toMatch(/text-white/);
   });
 
+  it('outgoing Dispatched pulse with onOpen keeps a div shell (not button) so teal fill sticks', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: true,
+            kind: 'order',
+            variant: 'pulse',
+            primary: 'Order #FS3C · Dispatched',
+            action: { label: 'View order →', onClick: () => undefined, style: 'link' },
+            noteVoiceUrl: null,
+          })}
+          onOpen={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+    const card = screen.getByTestId('chat-trade-card-pulse');
+    expect(card.tagName).toBe('DIV');
+    expect(card).toHaveAttribute('role', 'button');
+    expect(card.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(screen.getByText('View order →').className).toMatch(/text-white/);
+  });
+
   it('outgoing quote Accept CTA contrasts on teal fill', () => {
     render(
       <MemoryRouter>

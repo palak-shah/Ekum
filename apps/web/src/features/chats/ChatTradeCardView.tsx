@@ -318,11 +318,14 @@ export function ChatTradeCard({
   const chrome = directionChrome(model.mine);
 
   if (model.variant === 'pulse') {
+    // Never use a native <button> shell — Tailwind preflight sets
+    // `button { background-color: transparent }`, which strips outgoing teal fill
+    // while leaving white link text (pale card + invisible "View order").
     const pulseClass = cx(
       MSG_BUBBLE_CLASS,
       'w-full rounded-xl px-2.5 py-2 text-left',
       chrome.pulseShell,
-      open && chrome.hoverOpen,
+      open && cx('cursor-pointer', chrome.hoverOpen),
     );
     const body = (
       <>
@@ -372,26 +375,35 @@ export function ChatTradeCard({
         <p className={cx('mt-1 text-right text-[11px]', chrome.time)}>{timeAgo(model.createdAt)}</p>
       </>
     );
-    if (!open) {
-      return (
-        <div className={pulseClass} data-testid="chat-trade-card-pulse" data-mine={model.mine ? 'true' : 'false'}>
-          {body}
-        </div>
-      );
-    }
     return (
-      <button
-        type="button"
+      <div
+        role={open ? 'button' : undefined}
+        tabIndex={open ? 0 : undefined}
         className={pulseClass}
         data-testid="chat-trade-card-pulse"
         data-mine={model.mine ? 'true' : 'false'}
-        onClick={(event) => {
-          event.stopPropagation();
-          open();
-        }}
+        onClick={
+          open
+            ? (event) => {
+                if ((event.target as HTMLElement).closest('[data-card-action]')) return;
+                event.stopPropagation();
+                open();
+              }
+            : undefined
+        }
+        onKeyDown={
+          open
+            ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  open();
+                }
+              }
+            : undefined
+        }
       >
         {body}
-      </button>
+      </div>
     );
   }
 
