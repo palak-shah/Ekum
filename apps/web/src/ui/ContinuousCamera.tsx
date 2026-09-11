@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, cx } from '@/ui/kit';
 import {
   continuousCameraCanShoot,
@@ -83,7 +84,9 @@ async function waitForVideoEl(
 
 /**
  * Full-screen continuous capture for Photo order / Add designs (phone).
- * Rear camera, shutter stack, Done / Cancel; torch + zoom when the device supports them.
+ * Portaled to document.body so AppShell `max-w-md` + `.ekum-rise` transform
+ * cannot shrink the viewfinder. Rear camera, shutter stack, Done / Cancel;
+ * torch + zoom when the device supports them.
  */
 export function ContinuousCamera({
   open,
@@ -232,6 +235,10 @@ export function ContinuousCamera({
     return null;
   }
 
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
   const canShoot = continuousCameraCanShoot({
     ready,
     busy,
@@ -325,8 +332,16 @@ export function ContinuousCamera({
     onGallery();
   };
 
-  return (
-    <div className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
+  // Portal out of AppShell — `.ekum-rise` keeps a transform, so in-tree
+  // `fixed inset-0` only fills the max-w-md column (tiny camera). Same as Sheet.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90] flex h-dvh w-full flex-col bg-black text-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Camera"
+      data-testid="continuous-camera"
+    >
       <div className="relative min-h-0 flex-1">
         <video
           ref={videoRef}
@@ -448,6 +463,7 @@ export function ContinuousCamera({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
