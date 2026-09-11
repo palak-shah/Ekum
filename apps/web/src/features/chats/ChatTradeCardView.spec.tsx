@@ -38,4 +38,32 @@ describe('ChatTradeCard voice note', () => {
     );
     expect(screen.getByTestId('voice-play')).toBeInTheDocument();
   });
+
+  it('keeps outgoing trade cards on a white surface (restrained teal, not solid fill)', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard model={model({ mine: true, variant: 'bubble' })} />
+      </MemoryRouter>,
+    );
+    const card = screen.getByTestId('chat-trade-card');
+    expect(card).toHaveAttribute('data-mine', 'true');
+    expect(card.className).toMatch(/bg-surface/);
+    expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+  });
+
+  it('makes quote amounts stronger than supporting detail lines', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            details: ['₹2,83,800', '9 designs · 20 pcs each'],
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const amount = screen.getByText('₹2,83,800');
+    expect(amount.className).toMatch(/font-semibold/);
+    expect(amount.className).toMatch(/text-\[15px\]/);
+  });
 });

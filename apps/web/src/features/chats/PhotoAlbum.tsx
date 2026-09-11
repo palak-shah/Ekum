@@ -103,32 +103,32 @@ export function PhotoAlbum({
     );
 
   if (thumb) {
-    // Fixed ~40px cells — single design thumbs must not expand to bubble width.
+    // Compact but photograph-first — fixed cells so single thumbs don’t expand.
     const grid =
       count === 1 ? (
-        <div className="h-10 w-10">
+        <div className="h-14 w-14">
           <Cell
             src={urlAt(preview, 0)}
             onClick={() => open(0)}
-            rounded="rounded-md"
+            rounded="rounded-lg"
             overlay={moreLabel}
             overlayClass={overlayClass}
             locked={locked}
           />
         </div>
       ) : (
-        <div className="grid h-10 w-[5.25rem] grid-cols-2" style={{ gap: GUTTER }}>
+        <div className="grid h-14 w-[7.5rem] grid-cols-2" style={{ gap: GUTTER }}>
           <Cell
             src={urlAt(preview, 0)}
             onClick={() => open(0)}
-            rounded="rounded-l-md"
+            rounded="rounded-l-lg"
             overlayClass={overlayClass}
             locked={locked}
           />
           <Cell
             src={urlAt(preview, 1)}
             onClick={() => open(1)}
-            rounded="rounded-r-md"
+            rounded="rounded-r-lg"
             overlay={moreLabel}
             overlayClass={overlayClass}
             locked={locked}
@@ -138,7 +138,7 @@ export function PhotoAlbum({
     return (
       <>
         <div
-          className="h-10 w-fit shrink-0 overflow-hidden"
+          className="h-14 w-fit shrink-0 overflow-hidden"
           data-testid="photo-album-thumb"
           data-locked={locked ? 'true' : undefined}
         >

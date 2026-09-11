@@ -1085,6 +1085,14 @@ export class OrderService {
       });
     }
 
+    const priorTrailQuotes = await this.prisma.orderTrailEvent.count({
+      where: { orderId: id, type: OrderTrailType.Quoted },
+    });
+    const alreadyQuoted =
+      Boolean(order.quotedAt) ||
+      priorTrailQuotes > 0 ||
+      (await this.hasSellerQuote(id, order.sellerCompanyId));
+
     const byId = new Map(order.items.map((item) => [item.id, item]));
     const lines = [...dto.items];
     const quotedIds = new Set(lines.map((line) => line.orderItemId));
@@ -1212,7 +1220,7 @@ export class OrderService {
       type: OrderTrailType.Quoted,
       actorCompanyId,
       actorUserId: userId,
-      summary: quoteTrailSummary(total, Boolean(order.quotedAt)),
+      summary: quoteTrailSummary(total, alreadyQuoted),
       detail: partial
         ? `${supplyable.length} of ${order.items.length} designs`
         : undefined,

@@ -204,10 +204,10 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
           </span>
         </div>
         {objectLabel ? (
-          <p className="mt-0.5 text-[13px] font-semibold tracking-tight text-accent">{objectLabel}</p>
+          <p className="mt-0.5 text-[12px] font-medium tracking-tight text-accent">{objectLabel}</p>
         ) : null}
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="min-w-0 truncate text-[13px] text-muted">{preview}</p>
+          <p className="min-w-0 truncate text-[13px] font-normal text-muted">{preview}</p>
           {thread.unreadCount > 0 ? (
             <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-white">
               {thread.unreadCount}

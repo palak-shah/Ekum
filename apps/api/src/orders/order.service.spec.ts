@@ -234,6 +234,9 @@ function makeService(options: Options) {
         return { id: 'ship-1' };
       },
     },
+    orderTrailEvent: {
+      count: async () => 0,
+    },
     message: {
       create: async (args: { data: Record<string, unknown> }) => {
         captured.messageCreate = args.data;
@@ -594,7 +597,7 @@ describe('OrderService quote + accept (partial)', () => {
     );
   });
 
-  it('labels a later Send quote as Quote updated with the new total', async () => {
+  it('labels a later Send quote as Quote updated when quotedAt is missing but a quote exists', async () => {
     const { service, captured } = makeService({
       sellerQuoted: true,
       order: {
@@ -602,7 +605,7 @@ describe('OrderService quote + accept (partial)', () => {
         status: OrderStatus.Requested,
         buyerCompanyId: 'buyer',
         sellerCompanyId: 'seller',
-        quotedAt: new Date('2026-09-01T10:00:00.000Z'),
+        quotedAt: null,
         items: [openItem('oi1', 10, 200)],
       },
     });

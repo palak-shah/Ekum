@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
+  OrderLineStatus,
   OrderTrailType,
+  isBareQuotedTrailSummary,
   orderTrailLabel,
+  quoteTrailSummary,
   type OrderTrailEventView,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -25,6 +28,19 @@ export type AppendTrailInput = {
   noteVoiceUrl?: string | null;
   noteVoiceDurationMs?: number | null;
   payload?: Prisma.InputJsonValue;
+};
+
+type TrailRow = {
+  id: string;
+  type: string;
+  at: Date;
+  actorCompanyId: string | null;
+  actorUserId: string | null;
+  summary: string | null;
+  detail: string | null;
+  note: string | null;
+  noteVoiceUrl: string | null;
+  noteVoiceDurationMs: number | null;
 };
 
 @Injectable()
@@ -74,6 +90,7 @@ export class OrderTrailService {
         orderBy: { at: 'asc' },
       });
     }
+    rows = await this.healBareQuotedSummaries(orderId, rows);
     const hide = names.upstreamNamesToHide ?? [];
     return rows.map((row) => {
       let who: string | null = null;
@@ -107,6 +124,49 @@ export class OrderTrailService {
         noteVoiceDurationMs: row.noteVoiceDurationMs,
       };
     });
+  }
+
+  /**
+   * Older tickets stored bare "Quoted". Relabel first → Quoted — ₹…,
+   * later → Quote updated — ₹… using current open-line total (best available).
+   */
+  private async healBareQuotedSummaries(
+    orderId: string,
+    rows: TrailRow[],
+  ): Promise<TrailRow[]> {
+    const needsHeal = rows.some(
+      (row) => row.type === OrderTrailType.Quoted && isBareQuotedTrailSummary(row.summary),
+    );
+    if (!needsHeal) return rows;
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { select: { rate: true, quantity: true, lineStatus: true } } },
+    });
+    if (!order) return rows;
+
+    const total = order.items.reduce((sum, item) => {
+      if (item.lineStatus === OrderLineStatus.Declined) return sum;
+      if (item.rate == null) return sum;
+      return sum + item.rate.toNumber() * item.quantity.toNumber();
+    }, 0);
+
+    let quotedIndex = 0;
+    const next = [...rows];
+    for (let i = 0; i < next.length; i++) {
+      const row = next[i]!;
+      if (row.type !== OrderTrailType.Quoted) continue;
+      const alreadyQuoted = quotedIndex > 0;
+      quotedIndex += 1;
+      if (!isBareQuotedTrailSummary(row.summary)) continue;
+      const summary = quoteTrailSummary(total, alreadyQuoted);
+      await this.prisma.orderTrailEvent.update({
+        where: { id: row.id },
+        data: { summary },
+      });
+      next[i] = { ...row, summary };
+    }
+    return next;
   }
 
   /** One-time synthesize from legacy columns when trail is empty. */

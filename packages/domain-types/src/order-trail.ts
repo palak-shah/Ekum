@@ -56,6 +56,13 @@ export function quoteTrailSummary(total: number, alreadyQuoted: boolean): string
   return alreadyQuoted ? `Quote updated — ${amount}` : `Quoted — ${amount}`;
 }
 
+/** Legacy / backfill rows with no money line (null, "Quoted", or plain label). */
+export function isBareQuotedTrailSummary(summary: string | null | undefined): boolean {
+  if (summary == null || summary.trim() === '') return true;
+  const trimmed = summary.trim();
+  return trimmed === 'Quoted' || trimmed === ORDER_TRAIL_LABELS[OrderTrailType.Quoted];
+}
+
 /** Completed for attention / filters: full dispatch, settle, legacy delivered. */
 export function isOrderFulfillmentComplete(status: string): boolean {
   return status === 'dispatched' || status === 'settled' || status === 'delivered';

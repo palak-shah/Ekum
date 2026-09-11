@@ -49,10 +49,10 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(screen.getByTestId('photo-album-overflow')).toHaveTextContent('+2');
   });
 
-  it('thumb size keeps a single image in a fixed 40px box', () => {
+  it('thumb size keeps a single image in a fixed box', () => {
     render(<PhotoAlbum urls={['https://example.com/a.jpg']} size="thumb" />);
     const wrap = screen.getByTestId('photo-album-thumb');
-    expect(wrap.className).toMatch(/h-10/);
+    expect(wrap.className).toMatch(/h-14/);
     expect(wrap.className).toMatch(/w-fit/);
     expect(wrap.querySelector('img')).toBeTruthy();
   });
