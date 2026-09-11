@@ -86,7 +86,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | UI | Long-press select without Safari link menu | Works | Unit + Functional | Required | Completeness 2026-09-10-longpress-select-no-safari-menu; button + navigate |
 | UI | Send quote qty/rate numbers not clipped (BM-07) | Works | Unit | Required | textInputChromeClass + wider quote columns |
 | UI | Chats visual polish (restrained teal 3+1 cards + list hierarchy) | Works | Unit | Recommended | Completeness 2026-09-11-chats-visual-polish; presentation only |
-| UI | Chat trade cards: same surface in/out (no mine solid teal) | Works | Unit | Required | Completeness 2026-09-11-chats-card-direction-consistency |
+| UI | Chat trade cards: same surface in/out (no mine solid teal) | Superseded | — | — | Replaced by direction surface rule |
+| UI | Chat trade cards: direction owns surface (in light / out teal) | Works | Unit + visual | Required | Completeness 2026-09-11-chats-direction-surface-rule |
 | UI | Home / Chats / Orders hierarchy (action / object / order facts) | Works | Unit | Recommended | Completeness 2026-09-10-home-chats-orders-hierarchy; presentation only |
 | Trader curation | Explore Buying: received by day/business | Works | Unit | Required | Slice C; directed audience or broadcast |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |

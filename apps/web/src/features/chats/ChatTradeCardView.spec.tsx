@@ -39,18 +39,6 @@ describe('ChatTradeCard voice note', () => {
     expect(screen.getByTestId('voice-play')).toBeInTheDocument();
   });
 
-  it('keeps outgoing trade cards on a white surface (restrained teal, not solid fill)', () => {
-    render(
-      <MemoryRouter>
-        <ChatTradeCard model={model({ mine: true, variant: 'bubble' })} />
-      </MemoryRouter>,
-    );
-    const card = screen.getByTestId('chat-trade-card');
-    expect(card).toHaveAttribute('data-mine', 'true');
-    expect(card.className).toMatch(/bg-surface/);
-    expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
-  });
-
   it('makes quote amounts stronger than supporting detail lines', () => {
     render(
       <MemoryRouter>
@@ -66,24 +54,108 @@ describe('ChatTradeCard voice note', () => {
     expect(amount.className).toMatch(/font-semibold/);
     expect(amount.className).toMatch(/text-\[15px\]/);
   });
+});
 
-  it('uses the same surface language for incoming and outgoing trade cards', () => {
-    const { rerender } = render(
+describe('ChatTradeCard direction surface rule', () => {
+  it('incoming bubble: light surface + teal rail (not solid accent fill)', () => {
+    render(
       <MemoryRouter>
-        <ChatTradeCard model={model({ mine: false, variant: 'bubble' })} />
+        <ChatTradeCard
+          model={model({
+            mine: false,
+            kind: 'order',
+            primary: 'Order #FS3C · Inquiry',
+            action: { label: 'View inquiry →', to: '/orders/1', style: 'link' },
+            noteVoiceUrl: null,
+          })}
+        />
       </MemoryRouter>,
     );
-    let card = screen.getByTestId('chat-trade-card');
+    const card = screen.getByTestId('chat-trade-card');
+    expect(card).toHaveAttribute('data-mine', 'false');
     expect(card.className).toMatch(/bg-surface/);
-    expect(card.className).toMatch(/border-l-/);
-
-    rerender(
-      <MemoryRouter>
-        <ChatTradeCard model={model({ mine: true, variant: 'bubble' })} />
-      </MemoryRouter>,
-    );
-    card = screen.getByTestId('chat-trade-card');
-    expect(card.className).toMatch(/bg-surface/);
+    expect(card.className).toMatch(/border-l-accent/);
     expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(screen.getByText('View inquiry →').className).toMatch(/text-accent/);
+  });
+
+  it('outgoing bubble: solid Ekum teal + white View link (status does not change fill)', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: true,
+            kind: 'order',
+            primary: 'Order #FS3C · Dispatched',
+            action: { label: 'View order →', to: '/orders/1', style: 'link' },
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const card = screen.getByTestId('chat-trade-card');
+    expect(card).toHaveAttribute('data-mine', 'true');
+    expect(card.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(card.className).not.toMatch(/bg-surface/);
+    expect(screen.getByText('View order →').className).toMatch(/text-white/);
+  });
+
+  it('outgoing pulse (Dispatched) still uses solid teal — status is not a pale fill', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: true,
+            kind: 'order',
+            variant: 'pulse',
+            primary: 'Order #FS3C · Dispatched',
+            action: { label: 'View order →', to: '/orders/1', style: 'link' },
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const card = screen.getByTestId('chat-trade-card-pulse');
+    expect(card.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(card.className).not.toMatch(/bg-surface/);
+    expect(screen.getByText('View order →').className).toMatch(/text-white/);
+  });
+
+  it('outgoing quote Accept CTA contrasts on teal fill', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: true,
+            kind: 'quote',
+            primary: 'Order #MGYF · Quote',
+            action: { label: 'Accept quote', onClick: () => undefined, style: 'primary' },
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const accept = screen.getByText('Accept quote');
+    expect(accept.className).toMatch(/bg-surface/);
+    expect(accept.className).toMatch(/text-ink/);
+  });
+
+  it('incoming quote Accept CTA stays solid accent on light card', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: false,
+            kind: 'quote',
+            primary: 'Order #MGYF · Quote',
+            action: { label: 'Accept quote', onClick: () => undefined, style: 'primary' },
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const accept = screen.getByText('Accept quote');
+    expect(accept.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(accept.className).toMatch(/text-white/);
   });
 });

@@ -106,6 +106,10 @@ const StarredMessagesPage = page(
   () => import('@/features/chats/StarredMessagesPage'),
   'StarredMessagesPage',
 );
+const ChatTradeDirectionGalleryPage = page(
+  () => import('@/features/chats/ChatTradeDirectionGalleryPage'),
+  'ChatTradeDirectionGalleryPage',
+);
 const ShareLinkLandingPage = page(
   () => import('@/features/catalog/ShareLinkLandingPage'),
   'ShareLinkLandingPage',
@@ -133,6 +137,14 @@ export const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/onboarding', element: <OnboardingPage /> },
       { path: '/s/:token', element: <ShareLinkLandingPage /> },
+      {
+        path: '/_visual/chat-trade-cards',
+        element: (
+          <Suspense fallback={<LoadingBlock label="Loading…" />}>
+            <ChatTradeDirectionGalleryPage />
+          </Suspense>
+        ),
+      },
       {
         path: '/t/:token',
         element: (

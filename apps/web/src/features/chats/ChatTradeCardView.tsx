@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { timeAgo } from '@/lib/format';
-import { kindToneClassesForMessageType } from '@/lib/kindTone';
 import { cx } from '@/ui/kit';
 import { KindIconBadge } from './KindIconBadge';
 import { PhotoAlbum } from './PhotoAlbum';
@@ -21,13 +20,56 @@ function isAmountLine(line: string): boolean {
   return /₹/.test(line);
 }
 
-function renderAction(action: NonNullable<ChatTradeCardModel['action']>): ReactNode {
-  const linkClass = 'text-accent';
-  const solidClass =
-    'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-ink';
-  const primaryClass =
-    'mt-1 w-full rounded-xl bg-accent px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-white';
+/** Direction owns fill; status never picks a third surface. */
+function directionChrome(mine: boolean) {
+  if (mine) {
+    return {
+      shell: 'border border-accent/35 bg-accent text-white',
+      pulseShell: 'border border-accent/35 bg-accent text-white',
+      headerBorder: 'border-white/20',
+      title: 'text-white',
+      who: 'text-white/70',
+      detailMuted: 'text-white/70',
+      detailStrong: 'text-white',
+      note: 'text-white',
+      time: 'text-white/65',
+      link: 'text-white',
+      footerBorder: 'border-white/20',
+      footerAccent: 'text-white',
+      footerQuiet: 'text-white/65',
+      primaryBtn:
+        'mt-1 w-full rounded-xl bg-surface px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-ink',
+      solidBtn:
+        'mt-1 w-full rounded-xl border border-white/35 bg-white/10 px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-white',
+      hoverOpen: 'hover:brightness-[0.97] active:brightness-[0.94]',
+    };
+  }
+  return {
+    shell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    pulseShell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    headerBorder: 'border-line/70',
+    title: 'text-ink',
+    who: 'text-muted',
+    detailMuted: 'text-muted',
+    detailStrong: 'text-ink',
+    note: 'text-ink',
+    time: 'text-muted',
+    link: 'text-accent',
+    footerBorder: 'border-line/70',
+    footerAccent: 'text-accent',
+    footerQuiet: 'text-muted',
+    primaryBtn:
+      'mt-1 w-full rounded-xl bg-accent px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-white',
+    solidBtn:
+      'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-ink',
+    hoverOpen: 'hover:bg-canvas active:bg-canvas',
+  };
+}
 
+function renderAction(
+  action: NonNullable<ChatTradeCardModel['action']>,
+  chrome: ReturnType<typeof directionChrome>,
+): ReactNode {
   if (action.style === 'primary' && action.onClick) {
     return (
       <button
@@ -38,7 +80,7 @@ function renderAction(action: NonNullable<ChatTradeCardModel['action']>): ReactN
           event.stopPropagation();
           action.onClick?.();
         }}
-        className={primaryClass}
+        className={chrome.primaryBtn}
       >
         {action.label}
       </button>
@@ -51,7 +93,7 @@ function renderAction(action: NonNullable<ChatTradeCardModel['action']>): ReactN
           to={action.to}
           data-card-action
           onClick={(event) => event.stopPropagation()}
-          className={solidClass}
+          className={chrome.solidBtn}
         >
           {action.label}
         </Link>
@@ -67,7 +109,7 @@ function renderAction(action: NonNullable<ChatTradeCardModel['action']>): ReactN
             event.stopPropagation();
             action.onClick?.();
           }}
-          className={solidClass}
+          className={chrome.solidBtn}
         >
           {action.label}
         </button>
@@ -80,7 +122,7 @@ function renderAction(action: NonNullable<ChatTradeCardModel['action']>): ReactN
         to={action.to}
         data-card-action
         onClick={(event) => event.stopPropagation()}
-        className={cx('mt-1 text-[13px] font-semibold tracking-tight', linkClass)}
+        className={cx('mt-1 text-[13px] font-semibold tracking-tight', chrome.link)}
       >
         {action.label}
       </Link>
@@ -96,7 +138,7 @@ function renderAction(action: NonNullable<ChatTradeCardModel['action']>): ReactN
           event.stopPropagation();
           action.onClick?.();
         }}
-        className={cx('mt-1 self-start text-[13px] font-semibold tracking-tight', linkClass)}
+        className={cx('mt-1 self-start text-[13px] font-semibold tracking-tight', chrome.link)}
       >
         {action.label}
       </button>
@@ -110,17 +152,22 @@ function PrimaryHeader({
   kind,
   primary,
   highlight,
+  chrome,
+  onAccent,
 }: {
   kind: ChatTradeCardModel['kind'];
   primary: string;
   highlight: (text: string) => ReactNode;
+  chrome: ReturnType<typeof directionChrome>;
+  onAccent: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 border-b border-line/70 px-2.5 py-2">
-      <KindIconBadge messageType={typeKeyForKind(kind)} />
+    <div className={cx('flex items-center gap-2 border-b px-2.5 py-2', chrome.headerBorder)}>
+      <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={onAccent} />
       <p
         className={cx(
-          'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-ink',
+          'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
+          chrome.title,
           (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
         )}
       >
@@ -133,9 +180,11 @@ function PrimaryHeader({
 function CardBody({
   model,
   highlight,
+  chrome,
 }: {
   model: ChatTradeCardModel;
   highlight: (text: string) => ReactNode;
+  chrome: ReturnType<typeof directionChrome>;
 }) {
   const hasThumbs = model.thumbs.length > 0;
   const hasFooter = Boolean(model.actionRow && model.actionRow.length > 0);
@@ -156,7 +205,9 @@ function CardBody({
         ) : null}
         <div className="min-w-0 flex-1">
           {model.who ? (
-            <p className="text-[12px] font-medium leading-snug text-muted">{highlight(model.who)}</p>
+            <p className={cx('text-[12px] font-medium leading-snug', chrome.who)}>
+              {highlight(model.who)}
+            </p>
           ) : null}
           {model.details.map((line, index) => {
             const amount = isAmountLine(line);
@@ -166,8 +217,8 @@ function CardBody({
                 className={cx(
                   'whitespace-pre-wrap break-words leading-snug',
                   amount
-                    ? 'text-[15px] font-semibold tracking-tight text-ink tabular-nums'
-                    : 'text-[12px] font-medium text-muted',
+                    ? cx('text-[15px] font-semibold tracking-tight tabular-nums', chrome.detailStrong)
+                    : cx('text-[12px] font-medium', chrome.detailMuted),
                 )}
               >
                 {highlight(line)}
@@ -175,7 +226,12 @@ function CardBody({
             );
           })}
           {note ? (
-            <p className="mt-0.5 whitespace-pre-wrap break-words text-[12px] font-medium leading-snug text-ink">
+            <p
+              className={cx(
+                'mt-0.5 whitespace-pre-wrap break-words text-[12px] font-medium leading-snug',
+                chrome.note,
+              )}
+            >
               {highlight(note)}
             </p>
           ) : null}
@@ -186,7 +242,7 @@ function CardBody({
           ) : null}
           {!hasFooter ? (
             <>
-              {model.action ? renderAction(model.action) : null}
+              {model.action ? renderAction(model.action, chrome) : null}
               {model.secondaryAction ? (
                 model.secondaryAction.onClick ? (
                   <button
@@ -196,24 +252,27 @@ function CardBody({
                       event.stopPropagation();
                       model.secondaryAction?.onClick?.();
                     }}
-                    className="mt-1 self-start text-[13px] font-semibold tracking-tight text-accent"
+                    className={cx(
+                      'mt-1 self-start text-[13px] font-semibold tracking-tight',
+                      chrome.link,
+                    )}
                   >
                     {model.secondaryAction.label}
                   </button>
                 ) : (
-                  <p className="mt-1 text-[12px] font-medium text-muted">
+                  <p className={cx('mt-1 text-[12px] font-medium', chrome.detailMuted)}>
                     {model.secondaryAction.label}
                   </p>
                 )
               ) : null}
             </>
           ) : null}
-          <p className="mt-1 text-right text-[11px] text-muted">{timeAgo(model.createdAt)}</p>
+          <p className={cx('mt-1 text-right text-[11px]', chrome.time)}>{timeAgo(model.createdAt)}</p>
         </div>
       </div>
       {hasFooter ? (
         <div
-          className="grid border-t border-line/70"
+          className={cx('grid border-t', chrome.footerBorder)}
           style={{ gridTemplateColumns: `repeat(${model.actionRow!.length}, minmax(0, 1fr))` }}
         >
           {model.actionRow!.map((action, index) => {
@@ -230,8 +289,8 @@ function CardBody({
                 }}
                 className={cx(
                   'px-2 py-2 text-center text-[12px] font-semibold leading-tight tracking-tight',
-                  index > 0 && 'border-l border-line/70',
-                  accent ? 'text-accent' : 'text-muted',
+                  index > 0 && cx('border-l', chrome.footerBorder),
+                  accent ? chrome.footerAccent : chrome.footerQuiet,
                 )}
               >
                 {action.label}
@@ -256,25 +315,35 @@ export function ChatTradeCard({
   selecting?: boolean;
 }) {
   const open = onOpen && !selecting ? onOpen : undefined;
-  const tone = kindToneClassesForMessageType(typeKeyForKind(model.kind));
+  const chrome = directionChrome(model.mine);
 
   if (model.variant === 'pulse') {
     const pulseClass = cx(
       MSG_BUBBLE_CLASS,
-      'w-full rounded-xl border border-line border-l-[3px] bg-surface px-2.5 py-2 text-left',
-      tone?.rail ?? 'border-l-accent',
-      open && 'hover:bg-canvas active:bg-canvas',
+      'w-full rounded-xl px-2.5 py-2 text-left',
+      chrome.pulseShell,
+      open && chrome.hoverOpen,
     );
     const body = (
       <>
         <div className="flex items-center gap-1.5">
-          <KindIconBadge messageType={typeKeyForKind(model.kind)} size={18} iconSize={12} />
-          <p className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-tight text-ink">
+          <KindIconBadge
+            messageType={typeKeyForKind(model.kind)}
+            size={18}
+            iconSize={12}
+            onAccent={model.mine}
+          />
+          <p
+            className={cx(
+              'min-w-0 flex-1 truncate text-[14px] font-semibold tracking-tight',
+              chrome.title,
+            )}
+          >
             {highlight(model.primary)}
           </p>
         </div>
         {model.who ? (
-          <p className="text-[11px] leading-tight text-muted">{highlight(model.who)}</p>
+          <p className={cx('text-[11px] leading-tight', chrome.who)}>{highlight(model.who)}</p>
         ) : null}
         {model.details.map((line, index) => (
           <p
@@ -282,15 +351,15 @@ export function ChatTradeCard({
             className={cx(
               'truncate leading-snug',
               isAmountLine(line)
-                ? 'text-[14px] font-semibold text-ink tabular-nums'
-                : 'text-[12px] text-muted',
+                ? cx('text-[14px] font-semibold tabular-nums', chrome.detailStrong)
+                : cx('text-[12px]', chrome.detailMuted),
             )}
           >
             {highlight(line)}
           </p>
         ))}
         {model.note?.trim() ? (
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[12px] text-ink">
+          <p className={cx('mt-0.5 whitespace-pre-wrap break-words text-[12px]', chrome.note)}>
             {highlight(model.note.trim())}
           </p>
         ) : null}
@@ -299,17 +368,23 @@ export function ChatTradeCard({
             <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
           </div>
         ) : null}
-        {model.action ? <div className="mt-1">{renderAction(model.action)}</div> : null}
-        <p className="mt-1 text-right text-[11px] text-muted">{timeAgo(model.createdAt)}</p>
+        {model.action ? <div className="mt-1">{renderAction(model.action, chrome)}</div> : null}
+        <p className={cx('mt-1 text-right text-[11px]', chrome.time)}>{timeAgo(model.createdAt)}</p>
       </>
     );
     if (!open) {
-      return <div className={pulseClass}>{body}</div>;
+      return (
+        <div className={pulseClass} data-testid="chat-trade-card-pulse" data-mine={model.mine ? 'true' : 'false'}>
+          {body}
+        </div>
+      );
     }
     return (
       <button
         type="button"
         className={pulseClass}
+        data-testid="chat-trade-card-pulse"
+        data-mine={model.mine ? 'true' : 'false'}
         onClick={(event) => {
           event.stopPropagation();
           open();
@@ -344,16 +419,22 @@ export function ChatTradeCard({
       }
       className={cx(
         MSG_BUBBLE_CLASS,
-        'w-full overflow-hidden border border-line border-l-[3px] bg-surface text-sm',
+        'w-full overflow-hidden text-sm',
         chatBubbleCorners(model.mine),
-        tone?.rail ?? 'border-l-accent',
+        chrome.shell,
         open && 'cursor-pointer',
       )}
       data-testid="chat-trade-card"
       data-mine={model.mine ? 'true' : 'false'}
     >
-      <PrimaryHeader kind={model.kind} primary={model.primary} highlight={highlight} />
-      <CardBody model={model} highlight={highlight} />
+      <PrimaryHeader
+        kind={model.kind}
+        primary={model.primary}
+        highlight={highlight}
+        chrome={chrome}
+        onAccent={model.mine}
+      />
+      <CardBody model={model} highlight={highlight} chrome={chrome} />
     </div>
   );
 }

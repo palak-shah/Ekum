@@ -3218,12 +3218,12 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
-        actionsOnAccent={false}
+        actionsOnAccent={message.mine}
         className="max-w-[85%]"
       >
         <div className="flex flex-col gap-0.5">
           {reply ? (
-            <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
+            <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
           ) : null}
           <ChatTradeCard
             model={tradeCard}
@@ -3245,32 +3245,57 @@ function TimelineItem({
       highlighted={highlighted}
       onToggleSelect={onToggleSelect}
       actions={actions}
-      actionsOnAccent={false}
+      actionsOnAccent={message.mine}
       className="max-w-[85%]"
     >
       <div className="flex flex-col gap-0.5">
         {reply ? (
-          <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
+          <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
         ) : null}
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'overflow-hidden border border-line border-l-[3px] border-l-accent bg-surface text-sm',
+            'overflow-hidden text-sm',
             chatBubbleCorners(message.mine),
+            message.mine
+              ? 'border border-accent/35 bg-accent text-white'
+              : 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
           )}
           data-testid="chat-trade-card-fallback"
         >
-          <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
-            <TypeIcon width={12} height={12} className="shrink-0 text-accent" aria-hidden />
-            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-ink">
+          <div
+            className={cx(
+              'flex items-center gap-1.5 border-b px-2.5 py-2',
+              message.mine ? 'border-white/20' : 'border-line/70',
+            )}
+          >
+            <TypeIcon
+              width={12}
+              height={12}
+              className={cx('shrink-0', message.mine ? 'text-white' : 'text-accent')}
+              aria-hidden
+            />
+            <p
+              className={cx(
+                'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
+                message.mine ? 'text-white' : 'text-ink',
+              )}
+            >
               {typeMeta.label}
             </p>
           </div>
           <div className="px-2.5 py-2">
-            <p className="text-[13px] font-medium text-ink">
+            <p className={cx('text-[13px] font-medium', message.mine ? 'text-white' : 'text-ink')}>
               {hl(message.body?.trim() || 'Shared attachment')}
             </p>
-            <p className="mt-1 text-right text-[11px] text-muted">{timeAgo(message.createdAt)}</p>
+            <p
+              className={cx(
+                'mt-1 text-right text-[11px]',
+                message.mine ? 'text-white/65' : 'text-muted',
+              )}
+            >
+              {timeAgo(message.createdAt)}
+            </p>
           </div>
         </div>
       </div>
