@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { VOICE_MAX_DURATION_MS, pickAudioMimeType } from './voiceCaps';
+import { VOICE_MAX_DURATION_MS, pickAudioMimeType, withSniffedAudioType } from './voiceCaps';
 import { stopAllVoicePlayback } from './voicePlayback';
 
 export type VoiceRecording = {
@@ -23,6 +23,7 @@ export function useVoiceRecorder(options: Options = {}) {
   const tickRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cancelRef = useRef(false);
+  const pickedMimeRef = useRef<string | undefined>(undefined);
 
   const clearTick = () => {
     if (tickRef.current != null) {
@@ -69,19 +70,33 @@ export function useVoiceRecorder(options: Options = {}) {
             resolve(null);
             return;
           }
-          const mime = recorder.mimeType || 'audio/webm';
-          const blob = new Blob(chunksRef.current, { type: mime });
+          const declared =
+            recorder.mimeType ||
+            pickedMimeRef.current ||
+            chunksRef.current.find((c) => c.type)?.type ||
+            '';
+          const raw = new Blob(chunksRef.current, { type: declared || undefined });
           chunksRef.current = [];
           const durationMs = Math.min(
             maxDurationMs,
             Math.max(0, Date.now() - startedAtRef.current),
           );
-          if (blob.size < 1) {
+          if (raw.size < 1) {
             resolve(null);
             return;
           }
-          resolve({ blob, durationMs });
+          void withSniffedAudioType(raw).then(({ blob }) => {
+            resolve({ blob, durationMs });
+          });
         };
+        // Flush the final container before stop (Safari often needs this).
+        try {
+          if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
+            recorder.requestData();
+          }
+        } catch {
+          /* ignore */
+        }
         recorder.stop();
       }),
     [maxDurationMs],
@@ -108,7 +123,13 @@ export function useVoiceRecorder(options: Options = {}) {
       });
       streamRef.current = stream;
       const mime = pickAudioMimeType();
-      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      pickedMimeRef.current = mime;
+      const recorder = new MediaRecorder(
+        stream,
+        mime
+          ? { mimeType: mime, audioBitsPerSecond: 128_000 }
+          : { audioBitsPerSecond: 128_000 },
+      );
       mediaRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);

@@ -67,3 +67,17 @@ export function overridesFromSheet(
   if (sheet.notes !== shared.notes) next.notes = sheet.notes;
   return next;
 }
+
+/** Shots allowed in ContinuousCamera — append-to-design vs new-design session. */
+export function continuousCameraMaxShots(input: {
+  appendToDraft: boolean;
+  draftImageCount: number;
+  draftCount: number;
+  maxDesigns: number;
+  maxPhotosPerDesign: number;
+}): number {
+  if (input.appendToDraft) {
+    return Math.max(0, input.maxPhotosPerDesign - input.draftImageCount);
+  }
+  return Math.max(0, input.maxDesigns - input.draftCount);
+}

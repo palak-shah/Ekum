@@ -34,4 +34,13 @@ describe('toAbsoluteMediaUrl', () => {
       'https://acct.blob.core.windows.net/media/c1/a.jpg';
     expect(toAbsoluteMediaUrl(azure, 'https://beta.ekum.app')).toBe(azure);
   });
+
+  it('leaves blob: and data: voice previews alone', () => {
+    expect(toAbsoluteMediaUrl('blob:https://beta.ekum.app/abc', 'https://beta.ekum.app')).toBe(
+      'blob:https://beta.ekum.app/abc',
+    );
+    expect(toAbsoluteMediaUrl('data:audio/webm;base64,AAA', 'https://beta.ekum.app')).toBe(
+      'data:audio/webm;base64,AAA',
+    );
+  });
 });

@@ -2,7 +2,7 @@ import type { CreateUploadUrlDto, UploadTicket } from '@ekum/domain-types';
 import { MediaKind } from '@ekum/domain-types';
 import { api, ApiError } from './apiClient';
 import { toAbsoluteMediaUrl } from './mediaUrl';
-import { normalizeAudioContentType, VOICE_MAX_BYTES } from '@/features/voice/voiceCaps';
+import { VOICE_MAX_BYTES, withSniffedAudioType } from '@/features/voice/voiceCaps';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -84,18 +84,20 @@ export async function uploadAudio(blob: Blob): Promise<UploadedAudio> {
       details: null,
     });
   }
-  const contentType = normalizeAudioContentType(blob.type || 'audio/webm');
+  // Sniff container bytes — empty blob.type + "default webm" used to store
+  // Safari AAC/MP4 as .webm, which plays as unrecognizable noise.
+  const { blob: typedBlob, contentType } = await withSniffedAudioType(blob);
   const ticket = await api.post<UploadTicket>('/media/upload-url', {
     kind: MediaKind.Audio,
     contentType,
-    sizeBytes: blob.size,
+    sizeBytes: typedBlob.size,
   } satisfies CreateUploadUrlDto);
 
   const uploadUrl = toAbsoluteMediaUrl(ticket.uploadUrl);
   const put = await fetch(uploadUrl, {
     method: ticket.method,
     headers: ticket.headers,
-    body: blob,
+    body: typedBlob,
   });
   if (!put.ok) {
     throw new ApiError({

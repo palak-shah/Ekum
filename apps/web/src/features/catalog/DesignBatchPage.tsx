@@ -40,6 +40,7 @@ import {
   gridHeading,
   overridesFromSheet,
   uniqueDraftSku,
+  continuousCameraMaxShots,
   type DraftOverrides,
 } from './designBatchHelpers';
 
@@ -98,6 +99,7 @@ type Draft = {
 };
 
 const MAX_DESIGNS = 120;
+const MAX_PHOTOS_PER_DESIGN = 12;
 const LARGE_BATCH = 20;
 const UPLOAD_CONCURRENCY = 4;
 const SAVE_CONCURRENCY = 3;
@@ -172,6 +174,7 @@ export function DesignBatchPage() {
   const [uploading, setUploading] = useState(false);
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
+  const [morePhotosPickerOpen, setMorePhotosPickerOpen] = useState(false);
   const [nameSearch, setNameSearch] = useState('');
   const [namePrefix, setNamePrefix] = useState('');
   const [publishOpen, setPublishOpen] = useState(false);
@@ -225,15 +228,30 @@ export function DesignBatchPage() {
       setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
       return;
     }
+    if (draftId) {
+      const draft = drafts.find((d) => d.id === draftId);
+      if (draft && draft.images.length >= MAX_PHOTOS_PER_DESIGN) {
+        setError(`This design already has ${MAX_PHOTOS_PER_DESIGN} photos.`);
+        return;
+      }
+    }
     setTargetDraftId(draftId);
     setError(null);
-    queueMicrotask(() => fileRef.current?.click());
+    // Sync click — deferred clicks are ignored by iOS Safari (no gallery opens).
+    fileRef.current?.click();
   };
 
   const openCamera = (draftId: string | null = null) => {
     if (!draftId && drafts.length >= MAX_DESIGNS) {
       setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
       return;
+    }
+    if (draftId) {
+      const draft = drafts.find((d) => d.id === draftId);
+      if (draft && draft.images.length >= MAX_PHOTOS_PER_DESIGN) {
+        setError(`This design already has ${MAX_PHOTOS_PER_DESIGN} photos.`);
+        return;
+      }
     }
     setError(null);
     setCameraGalleryDraftId(draftId);
@@ -258,13 +276,23 @@ export function DesignBatchPage() {
     setCameraOpen(false);
     setError(null);
     setCameraGalleryDraftId((draftId) => {
+      // Keep user gesture chain as short as possible for iOS file picker.
       queueMicrotask(() => openGallery(draftId));
       return null;
     });
   }, []);
 
   const openPickerForDraft = (draftId: string) => {
-    if (phone) {
+    setTargetDraftId(draftId);
+    setError(null);
+    setMorePhotosPickerOpen(true);
+  };
+
+  const pickMorePhotos = (source: 'camera' | 'gallery') => {
+    const draftId = targetDraftId ?? editDraftId;
+    setMorePhotosPickerOpen(false);
+    if (!draftId) return;
+    if (source === 'camera') {
       openCamera(draftId);
       return;
     }
@@ -419,12 +447,16 @@ export function DesignBatchPage() {
     }
   };
 
-  const onFiles = async (incoming: FileList | File[] | null) => {
+  const onFiles = async (
+    incoming: FileList | File[] | null,
+    appendToIdOverride?: string | null,
+  ) => {
     if (!incoming || (incoming instanceof FileList ? !incoming.length : incoming.length === 0)) {
       return;
     }
     setError(null);
-    const appendToId = targetDraftId;
+    const appendToId =
+      appendToIdOverride !== undefined ? appendToIdOverride : targetDraftId;
     const files = [...incoming];
     setTargetDraftId(null);
     if (fileRef.current) fileRef.current.value = '';
@@ -625,6 +657,16 @@ export function DesignBatchPage() {
       : drafts;
 
   const editDraft = drafts.find((d) => d.id === editDraftId) ?? null;
+  const cameraAppendDraft = cameraGalleryDraftId
+    ? (drafts.find((d) => d.id === cameraGalleryDraftId) ?? null)
+    : null;
+  const cameraMaxShots = continuousCameraMaxShots({
+    appendToDraft: Boolean(cameraGalleryDraftId),
+    draftImageCount: cameraAppendDraft?.images.length ?? 0,
+    draftCount: drafts.length,
+    maxDesigns: MAX_DESIGNS,
+    maxPhotosPerDesign: MAX_PHOTOS_PER_DESIGN,
+  });
 
   const unitSelect = (value: string, onChange: (v: string) => void) => (
     <select
@@ -920,7 +962,7 @@ export function DesignBatchPage() {
       <ContinuousCamera
         key={cameraSession}
         open={cameraOpen}
-        maxShots={Math.max(0, MAX_DESIGNS - drafts.length)}
+        maxShots={cameraMaxShots}
         onCancel={() => {
           setCameraOpen(false);
           setCameraGalleryDraftId(null);
@@ -933,11 +975,30 @@ export function DesignBatchPage() {
           openGallery(draftId);
         }}
         onDone={(files) => {
+          const draftId = cameraGalleryDraftId;
           setCameraOpen(false);
           setCameraGalleryDraftId(null);
-          void onFiles(files);
+          void onFiles(files, draftId);
         }}
       />
+
+      <Sheet
+        open={morePhotosPickerOpen}
+        onClose={() => setMorePhotosPickerOpen(false)}
+        title="Add photos to this design"
+      >
+        <div className="flex flex-col gap-2">
+          <p className="mb-1 text-sm text-muted">
+            Extra shots stay on this design — they do not create new designs.
+          </p>
+          <Button fullWidth onClick={() => pickMorePhotos('camera')}>
+            Camera
+          </Button>
+          <Button variant="secondary" fullWidth onClick={() => pickMorePhotos('gallery')}>
+            Gallery
+          </Button>
+        </div>
+      </Sheet>
 
       <Sheet
         open={Boolean(editDraft)}
@@ -1009,8 +1070,9 @@ export function DesignBatchPage() {
                 ))}
                 <button
                   type="button"
+                  data-testid="design-batch-add-more-photos"
                   onClick={() => openPickerForDraft(editDraft.id)}
-                  disabled={uploading}
+                  disabled={uploading || editDraft.images.length >= MAX_PHOTOS_PER_DESIGN}
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
                 >
                   <PlusIcon width={22} height={22} />

@@ -6,6 +6,7 @@ import {
   gridHeading,
   overridesFromSheet,
   uniqueDraftSku,
+  continuousCameraMaxShots,
 } from './designBatchHelpers';
 
 describe('generateDraftSku', () => {
@@ -72,5 +73,31 @@ describe('overridesFromSheet', () => {
 
   it('clears overrides when the sheet matches shared', () => {
     expect(overridesFromSheet(shared, shared)).toEqual({});
+  });
+});
+
+describe('continuousCameraMaxShots', () => {
+  it('uses remaining photo slots when appending to one design', () => {
+    expect(
+      continuousCameraMaxShots({
+        appendToDraft: true,
+        draftImageCount: 1,
+        draftCount: 3,
+        maxDesigns: 120,
+        maxPhotosPerDesign: 12,
+      }),
+    ).toBe(11);
+  });
+
+  it('uses remaining design slots when capturing new designs', () => {
+    expect(
+      continuousCameraMaxShots({
+        appendToDraft: false,
+        draftImageCount: 0,
+        draftCount: 3,
+        maxDesigns: 120,
+        maxPhotosPerDesign: 12,
+      }),
+    ).toBe(117);
   });
 });

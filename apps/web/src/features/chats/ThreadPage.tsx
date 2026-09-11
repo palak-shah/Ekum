@@ -3078,6 +3078,8 @@ function TimelineItem({
       name: ref?.name,
       totalLabel: ref?.totalLabel,
       metaOrderLabel: payMeta.orderLabel,
+      orderId: payMeta.orderId,
+      body: message.body,
     });
     return (
       <MessageChrome

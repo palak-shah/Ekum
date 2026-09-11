@@ -96,6 +96,19 @@ const CASES: { id: string; label: string; model: ChatTradeCardModel }[] = [
     }),
   },
   {
+    id: 'out-accepted',
+    label: '9 Outgoing Accepted (pulse)',
+    model: card({
+      mine: true,
+      kind: 'order',
+      variant: 'pulse',
+      primary: 'Order #6AMX Accepted',
+      who: undefined,
+      details: ['3 designs'],
+      action: { label: 'View order →', onClick: () => undefined, style: 'link' },
+    }),
+  },
+  {
     id: 'out-dispatched',
     label: '8 Dispatched Order (outgoing pulse)',
     model: card({

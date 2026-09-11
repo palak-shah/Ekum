@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { uploadAudio } from '@/lib/mediaUpload';
 import { ApiError } from '@/lib/apiClient';
 import { Button, TextArea, cx } from '@/ui/kit';
@@ -27,6 +27,10 @@ type Props = {
   optional?: boolean;
 };
 
+function revokeIfBlob(url: string | null | undefined) {
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+}
+
 /** Text note + optional voice clip (order sheets). */
 export function NoteVoiceField({
   label,
@@ -41,10 +45,24 @@ export function NoteVoiceField({
   const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const recorder = useVoiceRecorder();
+  const voiceUrlRef = useRef(voice?.url);
+  voiceUrlRef.current = voice?.url;
 
   useEffect(() => {
     onBusyChange?.(noteVoiceSheetBusy({ uploading, recording: recorder.recording }));
   }, [uploading, recorder.recording, onBusyChange]);
+
+  useEffect(
+    () => () => {
+      revokeIfBlob(voiceUrlRef.current);
+    },
+    [],
+  );
+
+  const clearVoice = () => {
+    revokeIfBlob(voice?.url);
+    onVoiceChange(null);
+  };
 
   const onMic = async () => {
     if (recorder.recording) {
@@ -56,15 +74,20 @@ export function NoteVoiceField({
         showToast('Recording too short.', 'danger');
         return;
       }
+      // Preview from the local blob first (same as chat) so traders hear clear
+      // speech even before / while the remote upload finishes.
+      const previewUrl = URL.createObjectURL(clip.blob);
+      revokeIfBlob(voice?.url);
       setUploading(true);
       try {
         const uploaded = await uploadAudio(clip.blob);
         onVoiceChange({
           mediaId: uploaded.mediaId,
-          url: uploaded.url,
+          url: previewUrl,
           durationMs: clip.durationMs,
         });
       } catch (err) {
+        revokeIfBlob(previewUrl);
         showToast(
           err instanceof ApiError ? err.message : 'Could not save voice.',
           'danger',
@@ -120,7 +143,7 @@ export function NoteVoiceField({
             type="button"
             variant="secondary"
             className="shrink-0 px-3"
-            onClick={() => onVoiceChange(null)}
+            onClick={clearVoice}
           >
             ×
           </Button>

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { formatVoiceDuration } from './voiceCaps';
 import {
   claimVoicePlayback,
@@ -20,6 +21,7 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [failed, setFailed] = useState(false);
+  const playSrc = useMemo(() => toAbsoluteMediaUrl(src), [src]);
 
   const stopSelf = useCallback(() => {
     const audio = audioRef.current;
@@ -69,7 +71,7 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
       audio.removeEventListener('error', onError);
       stopSelf();
     };
-  }, [src, stopSelf]);
+  }, [playSrc, stopSelf]);
 
   const toggle = (event: SyntheticEvent) => {
     event.preventDefault();
@@ -119,7 +121,7 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
     >
       <audio
         ref={audioRef}
-        src={src}
+        src={playSrc}
         preload="metadata"
         playsInline
         className="hidden"

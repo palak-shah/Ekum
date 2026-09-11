@@ -688,5 +688,31 @@ describe('ReferenceResolver payment cards', () => {
     expect(reference?.orderLabel).toBe('Order #FS3C');
     expect(reference?.status).toBe('paid');
   });
+
+  it('heals payment order label from message metadata when ask row is missing', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: { findMany: async () => [] },
+      paymentRequest: {
+        findMany: async () => [],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
+    const references = await resolver.resolve([
+      message({
+        id: 'm-pay',
+        type: MessageType.PaymentCard,
+        referenceId: 'pay-gone',
+        metadata: { orderId: 'seed-order-fs3c', status: 'paid', amount: 5700 },
+      }),
+    ]);
+    const reference = references.get('m-pay');
+    expect(reference?.name).toBe('Payment · Order #FS3C · Paid');
+    expect(reference?.orderLabel).toBe('Order #FS3C');
+    expect(reference?.status).toBe('paid');
+    expect(reference?.totalLabel).toBe('₹5,700');
+    expect(reference?.available).toBe(true);
+  });
 });
 

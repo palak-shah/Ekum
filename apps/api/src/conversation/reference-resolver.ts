@@ -199,23 +199,37 @@ export class ReferenceResolver {
         });
       } else if (message.type === MessageType.PaymentCard) {
         const ask = paymentById.get(message.referenceId);
-        const amount = ask ? ask.amount.toNumber() : null;
-        const orderLabel = ask ? shortOrderLabel(ask.orderId) : null;
-        const paid = ask?.status === PaymentRequestStatus.Paid;
+        const meta = (message.metadata ?? {}) as Record<string, unknown>;
+        const amount = ask
+          ? ask.amount.toNumber()
+          : typeof meta.amount === 'number'
+            ? meta.amount
+            : null;
+        const metaOrderId =
+          typeof meta.orderId === 'string' && meta.orderId.trim() ? meta.orderId.trim() : null;
+        const resolvedOrderId = ask?.orderId ?? metaOrderId;
+        const resolvedOrderLabel = resolvedOrderId ? shortOrderLabel(resolvedOrderId) : null;
+        const paid =
+          ask?.status === PaymentRequestStatus.Paid ||
+          (typeof meta.status === 'string' && meta.status.toLowerCase() === 'paid');
         const amountLabel = amount != null ? `₹${amount.toLocaleString('en-IN')}` : null;
+        const status =
+          ask?.status ?? (typeof meta.status === 'string' ? meta.status : null);
         references.set(message.id, {
           kind: 'payment',
           id: message.referenceId,
-          name: ask
+          name: resolvedOrderLabel
             ? paid
-              ? `Payment · ${orderLabel} · Paid`
-              : `Payment · ${orderLabel} · ${amountLabel}`
+              ? `Payment · ${resolvedOrderLabel} · Paid`
+              : amountLabel
+                ? `Payment · ${resolvedOrderLabel} · ${amountLabel}`
+                : `Payment · ${resolvedOrderLabel}`
             : 'Payment',
           image: null,
-          available: Boolean(ask),
-          status: ask?.status ?? null,
+          available: Boolean(ask) || Boolean(resolvedOrderId),
+          status,
           totalLabel: amountLabel,
-          orderLabel,
+          orderLabel: resolvedOrderLabel,
         });
       } else if (
         message.type === MessageType.OrderCard ||

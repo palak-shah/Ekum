@@ -13,6 +13,8 @@ export function toAbsoluteMediaUrl(
 ): string {
   const trimmed = url.trim();
   if (!trimmed) return trimmed;
+  // Local voice previews and data URLs must not be rewritten onto the page origin.
+  if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed;
   try {
     const absolute = new URL(trimmed, origin || 'http://localhost');
     const path = absolute.pathname + absolute.search + absolute.hash;

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { timeAgo } from '@/lib/format';
 import { cx } from '@/ui/kit';
 import { KindIconBadge } from './KindIconBadge';
@@ -20,12 +20,25 @@ function isAmountLine(line: string): boolean {
   return /₹/.test(line);
 }
 
+/** Literal tokens — never rely on CSS vars alone for trade-card shells (Safari/PWA). */
+const SHELL_ACCENT = '#0f6b70';
+const SHELL_SURFACE = '#ffffff';
+const SHELL_INK = '#1a1714';
+
 /** Direction owns fill; status never picks a third surface. */
 function directionChrome(mine: boolean) {
   if (mine) {
     return {
       shell: 'border border-accent/35 bg-accent text-white',
       pulseShell: 'border border-accent/35 bg-accent text-white',
+      /**
+       * Hex + !important via applyShellPaint — defeats preflight/transparency and any
+       * competing utility so Accepted/Dispatched never render pale with white links.
+       */
+      shellStyle: {
+        backgroundColor: SHELL_ACCENT,
+        color: '#ffffff',
+      } satisfies CSSProperties,
       headerBorder: 'border-white/20',
       title: 'text-white',
       who: 'text-white/70',
@@ -34,6 +47,7 @@ function directionChrome(mine: boolean) {
       note: 'text-white',
       time: 'text-white/65',
       link: 'text-white',
+      linkColor: '#ffffff',
       footerBorder: 'border-white/20',
       footerAccent: 'text-white',
       footerQuiet: 'text-white/65',
@@ -45,11 +59,12 @@ function directionChrome(mine: boolean) {
     };
   }
   return {
-    shell:
-      'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
-    /** Same surface language as bubble — status must not invent a second incoming fill. */
-    pulseShell:
-      'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    shell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    pulseShell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    shellStyle: {
+      backgroundColor: SHELL_SURFACE,
+      color: SHELL_INK,
+    } satisfies CSSProperties,
     headerBorder: 'border-line/70',
     title: 'text-ink',
     who: 'text-muted',
@@ -58,6 +73,7 @@ function directionChrome(mine: boolean) {
     note: 'text-ink',
     time: 'text-muted',
     link: 'text-accent',
+    linkColor: SHELL_ACCENT,
     footerBorder: 'border-line/70',
     footerAccent: 'text-accent',
     footerQuiet: 'text-muted',
@@ -67,6 +83,15 @@ function directionChrome(mine: boolean) {
       'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-ink',
     hoverOpen: 'hover:bg-canvas active:bg-canvas',
   };
+}
+
+/** Paint shell with !important so utilities / UA sheets cannot strip fill. */
+function applyShellPaint(el: HTMLElement | null, style: CSSProperties) {
+  if (!el) return;
+  const bg = style.backgroundColor;
+  const color = style.color;
+  if (typeof bg === 'string' && bg) el.style.setProperty('background-color', bg, 'important');
+  if (typeof color === 'string' && color) el.style.setProperty('color', color, 'important');
 }
 
 function renderAction(
@@ -126,6 +151,7 @@ function renderAction(
         data-card-action
         onClick={(event) => event.stopPropagation()}
         className={cx('mt-1 text-[13px] font-semibold tracking-tight', chrome.link)}
+        style={{ color: chrome.linkColor }}
       >
         {action.label}
       </Link>
@@ -142,6 +168,7 @@ function renderAction(
           action.onClick?.();
         }}
         className={cx('mt-1 self-start text-[13px] font-semibold tracking-tight', chrome.link)}
+        style={{ color: chrome.linkColor }}
       >
         {action.label}
       </button>
@@ -384,6 +411,7 @@ export function ChatTradeCard({
         role={open ? 'button' : undefined}
         tabIndex={open ? 0 : undefined}
         className={pulseClass}
+        ref={(el) => applyShellPaint(el, chrome.shellStyle)}
         data-testid="chat-trade-card-pulse"
         data-mine={model.mine ? 'true' : 'false'}
         onClick={
@@ -440,6 +468,7 @@ export function ChatTradeCard({
         chrome.shell,
         open && 'cursor-pointer',
       )}
+      ref={(el) => applyShellPaint(el, chrome.shellStyle)}
       data-testid="chat-trade-card"
       data-mine={model.mine ? 'true' : 'false'}
     >
