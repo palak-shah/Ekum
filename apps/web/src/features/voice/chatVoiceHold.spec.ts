@@ -33,6 +33,14 @@ describe('voiceHoldAfterRelease', () => {
   it('stops when already recording', () => {
     expect(voiceHoldAfterRelease({ phase: 'recording', slideCancel: false })).toBe('stop');
   });
+
+  it('ignores a second release while already stopping (pointerup + pointercancel)', () => {
+    expect(voiceHoldAfterRelease({ phase: 'stopping', slideCancel: false })).toBe('noop');
+  });
+
+  it('cancels only on intentional slide', () => {
+    expect(voiceHoldAfterRelease({ phase: 'recording', slideCancel: true })).toBe('cancel');
+  });
 });
 
 describe('voiceStageFromClip', () => {

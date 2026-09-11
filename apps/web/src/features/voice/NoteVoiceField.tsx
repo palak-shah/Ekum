@@ -142,7 +142,7 @@ export function NoteVoiceField({
         </button>
       </div>
       {recorder.recording ? (
-        <p className="text-xs text-danger">
+        <p className="text-xs text-muted">
           Recording… {formatVoiceDuration(recorder.elapsedMs)} · tap mic to stop
         </p>
       ) : null}

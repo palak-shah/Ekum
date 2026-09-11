@@ -28,6 +28,9 @@ export function useVoiceRecorder(options: Options = {}) {
   const cancelRef = useRef(false);
   const pickedMimeRef = useRef<string | undefined>(undefined);
   const captureProfileRef = useRef(voiceCaptureProfile());
+  /** Coalesce pointerup+pointercancel; ignore cancel while a keep/stop is in flight. */
+  const finishFlightRef = useRef<Promise<VoiceRecording | null> | null>(null);
+  const finishModeRef = useRef<'send' | 'cancel' | null>(null);
   const stopFlushRef = useRef<{
     stopFired: boolean;
     stoppedAt: number;
@@ -60,98 +63,110 @@ export function useVoiceRecorder(options: Options = {}) {
     [],
   );
 
-  const finish = useCallback(
-    (mode: 'send' | 'cancel'): Promise<VoiceRecording | null> =>
-      new Promise((resolve) => {
-        const recorder = mediaRef.current;
-        if (!recorder || recorder.state === 'inactive') {
-          setRecording(false);
-          clearTick();
-          stopTracks();
+  const finish = useCallback((mode: 'send' | 'cancel'): Promise<VoiceRecording | null> => {
+    const inFlight = finishFlightRef.current;
+    if (inFlight) {
+      // iOS often fires pointercancel after pointerup — never let cancel wipe a keep.
+      if (mode === 'cancel' && finishModeRef.current === 'send') {
+        return inFlight;
+      }
+      return inFlight;
+    }
+    finishModeRef.current = mode;
+    const flight = new Promise<VoiceRecording | null>((resolve) => {
+      const recorder = mediaRef.current;
+      if (!recorder || recorder.state === 'inactive') {
+        setRecording(false);
+        clearTick();
+        stopTracks();
+        resolve(null);
+        return;
+      }
+      cancelRef.current = mode === 'cancel';
+      let settled = false;
+      const chunkBytes = () => chunksRef.current.reduce((n, c) => n + c.size, 0);
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        const flush = stopFlushRef.current;
+        if (flush?.earlyTimer != null) window.clearTimeout(flush.earlyTimer);
+        if (flush?.flushTimer != null) window.clearTimeout(flush.flushTimer);
+        stopFlushRef.current = null;
+        clearTick();
+        stopTracks();
+        setRecording(false);
+        mediaRef.current = null;
+        if (cancelRef.current) {
+          chunksRef.current = [];
           resolve(null);
           return;
         }
-        cancelRef.current = mode === 'cancel';
-        let settled = false;
-        const chunkBytes = () => chunksRef.current.reduce((n, c) => n + c.size, 0);
-        const settle = () => {
-          if (settled) return;
-          settled = true;
-          const flush = stopFlushRef.current;
-          if (flush?.earlyTimer != null) window.clearTimeout(flush.earlyTimer);
-          if (flush?.flushTimer != null) window.clearTimeout(flush.flushTimer);
-          stopFlushRef.current = null;
-          clearTick();
-          stopTracks();
-          setRecording(false);
-          mediaRef.current = null;
-          if (cancelRef.current) {
-            chunksRef.current = [];
-            resolve(null);
-            return;
-          }
-          const declared =
-            recorder.mimeType ||
-            pickedMimeRef.current ||
-            chunksRef.current.find((c) => c.type)?.type ||
-            '';
-          const raw = new Blob(chunksRef.current, { type: declared || undefined });
-          chunksRef.current = [];
-          const durationMs = Math.min(
-            maxDurationMs,
-            Math.max(0, Date.now() - startedAtRef.current),
-          );
-          if (raw.size < 1) {
-            resolve(null);
-            return;
-          }
-          void withSniffedAudioType(raw).then(({ blob }) => {
-            resolve({ blob, durationMs });
-          });
-        };
-        const trySettle = () => {
-          const flush = stopFlushRef.current;
-          if (!flush) return;
-          if (
-            shouldSettleVoiceStop({
-              stopFired: flush.stopFired,
-              sizeBytes: chunkBytes(),
-              elapsedSinceStopMs: Date.now() - flush.stoppedAt,
-            })
-          ) {
-            settle();
-          }
-        };
-        stopFlushRef.current = {
-          stopFired: false,
-          stoppedAt: Date.now(),
-          earlyTimer: null,
-          flushTimer: null,
-          trySettle,
-        };
-        recorder.onstop = () => {
-          const flush = stopFlushRef.current;
-          if (!flush) return;
-          flush.stopFired = true;
-          flush.stoppedAt = Date.now();
-          flush.earlyTimer = window.setTimeout(trySettle, VOICE_STOP_EARLY_MS);
-          flush.flushTimer = window.setTimeout(trySettle, VOICE_STOP_FLUSH_MS);
-          trySettle();
-        };
-        const profile = captureProfileRef.current;
-        if (profile.requestDataBeforeStop) {
-          try {
-            if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
-              recorder.requestData();
-            }
-          } catch {
-            /* ignore */
-          }
+        const declared =
+          recorder.mimeType ||
+          pickedMimeRef.current ||
+          chunksRef.current.find((c) => c.type)?.type ||
+          '';
+        const raw = new Blob(chunksRef.current, { type: declared || undefined });
+        chunksRef.current = [];
+        const durationMs = Math.min(
+          maxDurationMs,
+          Math.max(0, Date.now() - startedAtRef.current),
+        );
+        if (raw.size < 1) {
+          resolve(null);
+          return;
         }
-        recorder.stop();
-      }),
-    [maxDurationMs],
-  );
+        void withSniffedAudioType(raw).then(({ blob }) => {
+          resolve({ blob, durationMs });
+        });
+      };
+      const trySettle = () => {
+        const flush = stopFlushRef.current;
+        if (!flush) return;
+        if (
+          shouldSettleVoiceStop({
+            stopFired: flush.stopFired,
+            sizeBytes: chunkBytes(),
+            elapsedSinceStopMs: Date.now() - flush.stoppedAt,
+          })
+        ) {
+          settle();
+        }
+      };
+      stopFlushRef.current = {
+        stopFired: false,
+        stoppedAt: Date.now(),
+        earlyTimer: null,
+        flushTimer: null,
+        trySettle,
+      };
+      recorder.onstop = () => {
+        const flush = stopFlushRef.current;
+        if (!flush) return;
+        flush.stopFired = true;
+        flush.stoppedAt = Date.now();
+        flush.earlyTimer = window.setTimeout(trySettle, VOICE_STOP_EARLY_MS);
+        flush.flushTimer = window.setTimeout(trySettle, VOICE_STOP_FLUSH_MS);
+        trySettle();
+      };
+      const profile = captureProfileRef.current;
+      if (profile.requestDataBeforeStop) {
+        try {
+          if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
+            recorder.requestData();
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      recorder.stop();
+    }).finally(() => {
+      finishFlightRef.current = null;
+      finishModeRef.current = null;
+    });
+    finishFlightRef.current = flight;
+    return flight;
+  }, [maxDurationMs]);
 
   const finishRef = useRef(finish);
   finishRef.current = finish;

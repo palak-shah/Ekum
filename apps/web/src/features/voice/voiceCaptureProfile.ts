@@ -22,7 +22,8 @@ export function voiceCaptureProfile(mime?: string): VoiceCaptureProfile {
   const mp4ish = Boolean(mime && /mp4|aac|m4a/i.test(mime));
   if (apple || mp4ish) {
     return {
-      timesliceMs: 1000,
+      // Short holds (chat) need chunks before 1s or stop can return empty.
+      timesliceMs: 250,
       bitsPerSecond: undefined,
       requestDataBeforeStop: false,
     };

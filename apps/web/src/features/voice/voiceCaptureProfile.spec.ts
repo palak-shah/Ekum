@@ -11,7 +11,7 @@ describe('voiceCaptureProfile', () => {
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
     });
     expect(voiceCaptureProfile('audio/mp4')).toEqual({
-      timesliceMs: 1000,
+      timesliceMs: 250,
       bitsPerSecond: undefined,
       requestDataBeforeStop: false,
     });

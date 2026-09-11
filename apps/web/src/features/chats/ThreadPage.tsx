@@ -1252,8 +1252,9 @@ export function ThreadPage() {
     voiceDidRecordRef.current = true;
     voiceHoldPhaseRef.current = 'recording';
     if (next === 'stop_now') {
-      voiceHoldPhaseRef.current = 'idle';
+      voiceHoldPhaseRef.current = 'stopping';
       const clip = await voiceRecorder.stopAndGet();
+      voiceHoldPhaseRef.current = 'idle';
       stageVoiceClip(clip, true);
     }
   };
@@ -1275,20 +1276,35 @@ export function ThreadPage() {
       return;
     }
     const didRecord = voiceDidRecordRef.current;
-    voiceHoldPhaseRef.current = 'idle';
+    // Mark stopping before await so a following pointercancel is a no-op.
+    voiceHoldPhaseRef.current = 'stopping';
     const clip = await voiceRecorder.stopAndGet();
+    voiceHoldPhaseRef.current = 'idle';
     stageVoiceClip(clip, didRecord);
   };
 
-  const onVoicePointerCancel = async () => {
+  const onVoicePointerCancel = async (event: PointerEvent<HTMLButtonElement>) => {
+    // iOS often fires cancel after a normal release — same as up, not discard.
+    const start = voicePointerRef.current;
     voicePointerRef.current = null;
     voiceHoldingRef.current = false;
-    voiceCancelRequestedRef.current = true;
-    const phase = voiceHoldPhaseRef.current;
-    voiceHoldPhaseRef.current = 'idle';
-    if (phase === 'recording' || phase === 'arming') {
+    const slideCancel = !!(start && start.x - event.clientX > 72);
+    const action = voiceHoldAfterRelease({
+      phase: voiceHoldPhaseRef.current,
+      slideCancel,
+    });
+    if (action === 'noop' || action === 'defer_to_start') return;
+    if (action === 'cancel') {
+      voiceCancelRequestedRef.current = true;
+      voiceHoldPhaseRef.current = 'idle';
       await voiceRecorder.cancel();
+      return;
     }
+    const didRecord = voiceDidRecordRef.current;
+    voiceHoldPhaseRef.current = 'stopping';
+    const clip = await voiceRecorder.stopAndGet();
+    voiceHoldPhaseRef.current = 'idle';
+    stageVoiceClip(clip, didRecord);
   };
 
   const filteredAttachProducts = useMemo(
@@ -1969,7 +1985,7 @@ export function ThreadPage() {
             </div>
           ) : null}
           {voiceRecorder.recording ? (
-            <p className="px-1 text-center text-xs text-danger">
+            <p className="px-1 text-center text-xs text-muted">
               Recording {formatVoiceDuration(voiceRecorder.elapsedMs)} · slide left to cancel
             </p>
           ) : null}
@@ -2056,7 +2072,7 @@ export function ThreadPage() {
                 )}
                 onPointerDown={(e) => void onVoicePointerDown(e)}
                 onPointerUp={(e) => void onVoicePointerUp(e)}
-                onPointerCancel={() => void onVoicePointerCancel()}
+                onPointerCancel={(e) => void onVoicePointerCancel(e)}
                 onContextMenu={(e) => e.preventDefault()}
               >
                 <MicIcon width={18} height={18} />

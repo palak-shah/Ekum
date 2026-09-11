@@ -1,6 +1,6 @@
 /** Pure hold-to-record state for chat mic (WhatsApp-style). */
 
-export type VoiceHoldPhase = 'idle' | 'arming' | 'recording';
+export type VoiceHoldPhase = 'idle' | 'arming' | 'recording' | 'stopping';
 
 /** After getUserMedia resolves — finger may already be up or cancelled. */
 export function voiceHoldAfterStart(input: {
@@ -14,12 +14,16 @@ export function voiceHoldAfterStart(input: {
   return 'keep_recording';
 }
 
-/** Finger up / cancel — while arming, wait for start() to finish. */
+/**
+ * Finger up / pointer lost.
+ * `pointercancel` on iOS often follows a real release — treat like stop, not discard,
+ * unless the user slid left to cancel.
+ */
 export function voiceHoldAfterRelease(input: {
   phase: VoiceHoldPhase;
   slideCancel: boolean;
 }): 'noop' | 'cancel' | 'defer_to_start' | 'stop' {
-  if (input.phase === 'idle') return 'noop';
+  if (input.phase === 'idle' || input.phase === 'stopping') return 'noop';
   if (input.slideCancel) return 'cancel';
   if (input.phase === 'arming') return 'defer_to_start';
   return 'stop';
