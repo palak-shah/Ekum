@@ -1,7 +1,7 @@
 # Presentable invite to connect — design
 
 **Date:** 2026-09-11  
-**Status:** Approved — implemented  
+**Status:** Implemented — presentable invite + catalog WhatsApp share (2026-09-11 catalog plan)  
 
 **Anchors:** Completeness `2026-09-11-presentable-invite-connect-completeness.md`, `docs/features/referrals.md`, 48h share OG (`share-link-og`, `/s/:token`)
 

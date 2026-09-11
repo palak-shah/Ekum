@@ -226,6 +226,8 @@ export interface ShareLinkView {
   kind: 'collection' | 'product';
   targetId: string;
   name: string;
+  /** Catalog owner business — used in WhatsApp share / OG. */
+  companyName: string;
   image: string | null;
   audience: string;
   /** Everyone + live: guest may see design thumbs. Closed packs stay cover + name. */

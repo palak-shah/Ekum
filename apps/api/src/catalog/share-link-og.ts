@@ -16,16 +16,24 @@ export function absoluteMediaUrl(image: string | null, mediaBase: string): strin
   return `${base}/${image.replace(/^\//, '')}`;
 }
 
-/** Crawler HTML: Ekum + name + one photo. Humans still open the SPA `/s/:token`. */
+export function shareLinkOgCopy(view: ShareLinkView): { title: string; description: string } {
+  const seller = view.companyName.trim() || 'A business';
+  const what = view.kind === 'collection' ? 'collection' : 'design';
+  const name = view.name.trim() || what;
+  return {
+    title: `${seller} · ${name}`,
+    description: `${seller} shared a ${what} on Ekum — open to view.`,
+  };
+}
+
+/** Crawler HTML: seller + name + teaser image. Humans still open the SPA `/s/:token`. */
 export function shareLinkOgHtml(options: {
   view: ShareLinkView;
   pageUrl: string;
   imageUrl: string | null;
   fallbackImageUrl: string;
 }): string {
-  const what = options.view.kind === 'collection' ? 'collection' : 'design';
-  const title = `Ekum · ${options.view.name}`;
-  const description = `${options.view.name} on Ekum — this ${what}`;
+  const { title, description } = shareLinkOgCopy(options.view);
   const image = options.imageUrl ?? options.fallbackImageUrl;
   const card = options.imageUrl ? 'summary_large_image' : 'summary';
   return `<!doctype html>

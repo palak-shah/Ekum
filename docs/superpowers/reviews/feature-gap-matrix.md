@@ -39,7 +39,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Works | Unit-only | Required | Completeness 2026-08-22; no gateway |
 | Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token |
-| Collections | 48h share link | Works | Functional | Required | `share-link.journey.spec.ts` guest → login → collection |
+| Collections | 48h share link | Works | Functional + Unit | Required | Presentable WhatsApp OG collage + seller copy 2026-09-11; `share-link.journey` |
 | Orders | Photo order / amend / samples / returns | Partial | Unit | Future | Raise return Select all / Clear + living chat Return pulse 2026-09-07 |
 | Orders | Leave guard (photo order + builders) | Works | Unit + Functional | Required | Completeness 2026-08-24-discard-guard; shared sheet |
 | Orders | Trade without connection | Rejected | — | Reject | Trust ladder |
@@ -70,7 +70,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Team | Join after archive (same phone → new shop / create company) | Works | Unit | Required | Completeness 2026-09-09-team-join-after-archive; live seat still blocks |
 | Network | Following / Followers lists | Works | Unit-only | Required | You → Network hub pages restored 2026-08-20 |
 | Network | Connections hub (both roles) + Requests | Works | Functional | Required | `network.referrals.journey.spec.ts` |
-| Referrals | Connect-with-me invite create + Share/Copy | Works | Functional | Required | Presentable share + OG card 2026-09-11; `network.referrals.journey.spec.ts` |
+| Referrals | Connect-with-me invite create + Share/Copy | Works | Functional + Unit | Required | Presentable OG + ＋ one-tap share 2026-09-11; `network.referrals.journey` |
 | Referrals | Open invite redeem → access request (approve gate) | Works | Functional | Required | Focused `/r/` landing (no bottom nav); `network.referrals.journey.spec.ts` |
 | Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Unit-only | Required | `inviteReturn` + Login/onboarding wiring |
 | Referrals | Targeted vouch (optional target company) | Works | Untested | Recommended | Seller still approves |

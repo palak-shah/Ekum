@@ -138,7 +138,11 @@ export function CatalogShareSheet({
     },
     onSuccess: async (link) => {
       const url = `${window.location.origin}${link.path}`;
-      const copy = catalogShareCopy({ name: link.name, kind: link.kind });
+      const copy = catalogShareCopy({
+        name: link.name,
+        kind: link.kind,
+        companyName: link.companyName,
+      });
       try {
         const result = await shareOrCopyInvite({
           url,

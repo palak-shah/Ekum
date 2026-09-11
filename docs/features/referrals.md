@@ -11,15 +11,16 @@ No auto-follow. Connection after approve unlocks **Connections**-audience collec
 
 ## Who uses it
 
-Any company. Entry: **＋ → Invite to connect** or **You → Invites** (`/referrals`).
+Any company. Entry: **＋ → Invite to connect** (one-tap create + Share) or **You → Invites** (`/referrals`) for list / vouch compose.
 
 ## User flows
 
-1. Open `/referrals` — list past links; **Share** (native sheet) or **Copy**.
-2. **New** (`/referrals/new`) — create connect-with-me invite or vouch → Share / Copy `/r/:token`.
-3. Recipient opens link (login / onboarding preserves return path when needed).
-4. **Open invite** → **Request access** → `POST /referrals/:token/redeem` → pending request (`referredBy: Invite`) → you approve on Buyers.
-5. **Targeted** → Request access to target → that seller approves as usual.
+1. **＋ → Invite to connect** — creates an open invite and opens the system share sheet (or copies the link).  
+2. Open `/referrals` — list past links; **Share** (native sheet) or **Copy**.  
+3. **New** (`/referrals/new`) — vouch / note → Share / Copy `/r/:token`.  
+4. Recipient opens link (login / onboarding preserves return path when needed).  
+5. **Open invite** → **Request access** → `POST /referrals/:token/redeem` → pending request (`referredBy: Invite`) → you approve on Buyers.  
+6. **Targeted** → Request access to target → that seller approves as usual.
 
 ## Business rules
 

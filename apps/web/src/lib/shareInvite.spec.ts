@@ -59,15 +59,23 @@ describe('inviteShareCopy', () => {
 });
 
 describe('catalogShareCopy', () => {
-  it('names Ekum and the pack so the link is not a bare URL', () => {
-    expect(catalogShareCopy({ name: 'Wedding silks', kind: 'collection' })).toEqual({
-      title: 'Ekum · Wedding silks',
-      text: 'Wedding silks on Ekum — this collection',
+  it('names the seller and pack so the link is worth opening', () => {
+    expect(
+      catalogShareCopy({
+        name: 'Mill Lot',
+        kind: 'collection',
+        companyName: 'Surat Silk House',
+      }),
+    ).toEqual({
+      title: 'Surat Silk House · Mill Lot',
+      text: 'Surat Silk House shared Mill Lot on Ekum',
     });
   });
 
-  it('calls a single design a design', () => {
-    expect(catalogShareCopy({ name: 'Banarasi', kind: 'product' }).text).toContain('design');
+  it('calls a single design a design when name is empty', () => {
+    expect(
+      catalogShareCopy({ name: '', kind: 'product', companyName: 'Surat Silk House' }).text,
+    ).toContain('a design');
   });
 });
 

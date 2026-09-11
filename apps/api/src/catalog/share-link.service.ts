@@ -64,6 +64,7 @@ export class ShareLinkService {
           status: true,
           startsAt: true,
           endsAt: true,
+          company: { select: { name: true } },
         },
       });
       if (!collection) {
@@ -76,6 +77,7 @@ export class ShareLinkService {
         kind: 'collection',
         targetId: collection.id,
         name: collection.name,
+        companyName: collection.company.name,
         image: collection.coverImage,
         audience: collection.audience,
         open,
@@ -94,6 +96,7 @@ export class ShareLinkService {
           audience: true,
           status: true,
           postedToMarketAt: true,
+          company: { select: { name: true } },
         },
       });
       if (!product) {
@@ -109,6 +112,7 @@ export class ShareLinkService {
         kind: 'product',
         targetId: product.id,
         name: product.name,
+        companyName: product.company.name,
         image: thumb,
         audience: product.audience,
         open,
@@ -118,6 +122,48 @@ export class ShareLinkService {
       };
     }
     throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
+  }
+
+  /**
+   * Up to 4 design thumbs for WhatsApp OG — even when the pack is closed
+   * (tease only; SPA `get()` still hides designs when `!open`).
+   */
+  async teaserImagePaths(token: string): Promise<{ paths: string[]; companyName: string }> {
+    const view = await this.get(token);
+    const row = await this.prisma.catalogShareLink.findUnique({ where: { token } });
+    if (!row) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
+    }
+    if (row.collectionId) {
+      const designs = await this.collectionDesigns(row.collectionId);
+      const paths = designs
+        .map((d) => d.image)
+        .filter((p): p is string => Boolean(p))
+        .slice(0, 4);
+      if (paths.length === 0 && view.image) paths.push(view.image);
+      return { paths, companyName: view.companyName };
+    }
+    const paths = view.image ? [view.image] : [];
+    return { paths, companyName: view.companyName };
+  }
+
+  async buildOgImageJpeg(token: string, mediaBase: string): Promise<Buffer> {
+    const { buildShareLinkOgJpeg } = await import('./share-link-og-image');
+    const { absoluteMediaUrl } = await import('./share-link-og');
+    const { paths, companyName } = await this.teaserImagePaths(token);
+    const buffers: Buffer[] = [];
+    for (const path of paths) {
+      const url = absoluteMediaUrl(path, mediaBase);
+      if (!url) continue;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        buffers.push(Buffer.from(await res.arrayBuffer()));
+      } catch {
+        /* skip bad thumb */
+      }
+    }
+    return buildShareLinkOgJpeg({ imageBuffers: buffers, sellerLabel: companyName });
   }
 
   private async collectionDesigns(collectionId: string): Promise<ShareLinkDesignPreview[]> {

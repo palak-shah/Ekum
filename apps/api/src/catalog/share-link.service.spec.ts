@@ -9,6 +9,7 @@ function liveCollection(over: Record<string, unknown> = {}) {
     id: 'c1',
     name: 'Wedding',
     companyId: 'owner',
+    company: { name: 'Surat Silk House' },
     status: CollectionStatus.Published,
     allowForward: true,
     coverImage: null,
@@ -39,6 +40,7 @@ describe('ShareLinkService', () => {
     expect(view.kind).toBe('collection');
     expect(view.path.startsWith('/s/')).toBe(true);
     expect(view.name).toBe('Wedding');
+    expect(view.companyName).toBe('Surat Silk House');
     expect(view.image).toBeNull();
     expect(view.open).toBe(false);
     expect(view.designs).toEqual([]);

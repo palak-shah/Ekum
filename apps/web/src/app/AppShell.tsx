@@ -1,10 +1,14 @@
 import { Suspense, useState, useTransition, type ReactNode } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import type { ReferralView } from '@ekum/domain-types';
 import { useAuth } from '@/lib/auth';
+import { api, ApiError } from '@/lib/apiClient';
 import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
+import { shareOpenConnectInvite } from '@/features/referrals/shareOpenConnectInvite';
+import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Sheet, cx } from '@/ui/kit';
 import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
 import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
@@ -75,9 +79,11 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [inviteSharing, setInviteSharing] = useState(false);
   const [, startTransition] = useTransition();
   const { session } = useAuth();
   const company = useMyCompany();
+  const { showToast } = useToast();
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
@@ -91,6 +97,28 @@ export function AppShell() {
   const go = (path: string) => {
     setSheetOpen(false);
     startTransition(() => navigate(path));
+  };
+
+  const onInviteToConnect = async () => {
+    if (inviteSharing) return;
+    setInviteSharing(true);
+    setSheetOpen(false);
+    try {
+      const result = await shareOpenConnectInvite({
+        postReferral: () => api.post<ReferralView>('/referrals', {}),
+        origin: window.location.origin,
+        companyName: company.data?.name ?? '',
+      });
+      if (result === 'copied') showToast('Link copied');
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      showToast(
+        err instanceof ApiError ? err.message : 'Could not share the invite.',
+        'danger',
+      );
+    } finally {
+      setInviteSharing(false);
+    }
   };
 
   return (
@@ -222,8 +250,13 @@ export function AppShell() {
               {/* Broadcast compose deferred — Buyer groups stay under Network for Publish. */}
             </>
           ) : null}
-          <Button variant="secondary" fullWidth onClick={() => go('/referrals/new')}>
-            Invite to connect
+          <Button
+            variant="secondary"
+            fullWidth
+            disabled={inviteSharing}
+            onClick={() => void onInviteToConnect()}
+          >
+            {inviteSharing ? 'Sharing…' : 'Invite to connect'}
           </Button>
         </div>
       </Sheet>

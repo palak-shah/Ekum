@@ -76,10 +76,13 @@ export function inviteShareCopy(options: {
 export function catalogShareCopy(options: {
   name: string;
   kind: 'collection' | 'product';
+  companyName: string;
 }): { title: string; text: string } {
-  const what = options.kind === 'collection' ? 'collection' : 'design';
+  const seller = options.companyName.trim() || 'A business';
+  const item =
+    options.name.trim() || (options.kind === 'collection' ? 'a collection' : 'a design');
   return {
-    title: `Ekum · ${options.name}`,
-    text: `${options.name} on Ekum — this ${what}`,
+    title: `${seller} · ${item}`,
+    text: `${seller} shared ${item} on Ekum`,
   };
 }
