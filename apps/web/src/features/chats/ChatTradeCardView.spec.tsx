@@ -163,6 +163,43 @@ describe('ChatTradeCard direction surface rule', () => {
     expect(accept.className).toMatch(/text-ink/);
   });
 
+  it('incoming bubble and pulse share the same white + teal-rail surface', () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: false,
+            kind: 'order',
+            variant: 'bubble',
+            primary: 'Order #W3WH · Requested',
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const bubble = screen.getByTestId('chat-trade-card');
+    expect(bubble.className).toMatch(/bg-surface/);
+    expect(bubble.className).toMatch(/border-l-accent/);
+
+    rerender(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            mine: false,
+            kind: 'order',
+            variant: 'pulse',
+            primary: 'Order #AEYR · Dispatched',
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const pulse = screen.getByTestId('chat-trade-card-pulse');
+    expect(pulse.className).toMatch(/bg-surface/);
+    expect(pulse.className).toMatch(/border-l-accent/);
+    expect(pulse.className).not.toMatch(/bg-foam|bg-kind-order/);
+  });
+
   it('incoming quote Accept CTA stays solid accent on light card', () => {
     render(
       <MemoryRouter>

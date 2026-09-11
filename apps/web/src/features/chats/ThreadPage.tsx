@@ -88,6 +88,7 @@ import { PhotoAlbum } from './PhotoAlbum';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
 import { MSG_BUBBLE_CLASS, messageChromeBubblePad } from './messageChrome';
 import { chatBubbleCorners } from './chatBubbleCorners';
+import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
 import {
   highlightSearchText,
@@ -3062,10 +3063,22 @@ function TimelineItem({
   }
 
   if (message.type === 'payment_card') {
-    const payMeta = (message.metadata ?? {}) as { orderId?: string; amount?: number; status?: string };
+    const payMeta = (message.metadata ?? {}) as {
+      orderId?: string;
+      amount?: number;
+      status?: string;
+      orderLabel?: string;
+    };
     const orderId = payMeta.orderId;
     const paid = (ref?.status ?? payMeta.status) === 'paid';
     const askId = ref?.id;
+    const title = paymentCardTitle({
+      paid,
+      orderLabel: ref?.orderLabel,
+      name: ref?.name,
+      totalLabel: ref?.totalLabel,
+      metaOrderLabel: payMeta.orderLabel,
+    });
     return (
       <MessageChrome
         messageId={message.id}
@@ -3092,10 +3105,8 @@ function TimelineItem({
               if (orderId) onOpenOrder(orderId);
             }}
           >
-            <p className="text-sm font-semibold text-ink">
-              {paid ? 'Payment · Paid' : ref?.name ?? 'Payment'}
-            </p>
-            {ref?.totalLabel && !paid ? (
+            <p className="text-sm font-semibold text-ink">{title}</p>
+            {ref?.totalLabel ? (
               <p className="text-xs text-muted">{ref.totalLabel}</p>
             ) : null}
             <p className="mt-1 text-xs font-medium text-accent">View order →</p>

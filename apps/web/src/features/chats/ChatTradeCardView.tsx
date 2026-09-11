@@ -45,8 +45,11 @@ function directionChrome(mine: boolean) {
     };
   }
   return {
-    shell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
-    pulseShell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    shell:
+      'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    /** Same surface language as bubble — status must not invent a second incoming fill. */
+    pulseShell:
+      'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
     headerBorder: 'border-line/70',
     title: 'text-ink',
     who: 'text-muted',
@@ -323,7 +326,8 @@ export function ChatTradeCard({
     // while leaving white link text (pale card + invisible "View order").
     const pulseClass = cx(
       MSG_BUBBLE_CLASS,
-      'w-full rounded-xl px-2.5 py-2 text-left',
+      'w-full px-2.5 py-2 text-left text-sm',
+      chatBubbleCorners(model.mine),
       chrome.pulseShell,
       open && cx('cursor-pointer', chrome.hoverOpen),
     );

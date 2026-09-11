@@ -4,6 +4,7 @@ import {
   MessageType,
   OrderLineStatus,
   OrderStatus,
+  PaymentRequestStatus,
   inferOrderChatEvent,
   orderChatEventLabel,
   shortOrderLabel,
@@ -199,15 +200,22 @@ export class ReferenceResolver {
       } else if (message.type === MessageType.PaymentCard) {
         const ask = paymentById.get(message.referenceId);
         const amount = ask ? ask.amount.toNumber() : null;
+        const orderLabel = ask ? shortOrderLabel(ask.orderId) : null;
+        const paid = ask?.status === PaymentRequestStatus.Paid;
+        const amountLabel = amount != null ? `₹${amount.toLocaleString('en-IN')}` : null;
         references.set(message.id, {
           kind: 'payment',
           id: message.referenceId,
-          name: ask ? `Payment · ₹${amount!.toLocaleString('en-IN')}` : 'Payment',
+          name: ask
+            ? paid
+              ? `Payment · ${orderLabel} · Paid`
+              : `Payment · ${orderLabel} · ${amountLabel}`
+            : 'Payment',
           image: null,
           available: Boolean(ask),
           status: ask?.status ?? null,
-          totalLabel: amount != null ? `₹${amount.toLocaleString('en-IN')}` : null,
-          orderLabel: ask ? shortOrderLabel(ask.orderId) : null,
+          totalLabel: amountLabel,
+          orderLabel,
         });
       } else if (
         message.type === MessageType.OrderCard ||

@@ -16,6 +16,7 @@ function Cell({
   rounded,
   overlayClass,
   locked,
+  well = 'bg-foam',
 }: {
   src: string;
   className?: string;
@@ -24,6 +25,8 @@ function Cell({
   rounded?: string;
   overlayClass?: string;
   locked?: boolean;
+  /** Trade-card thumbs use canvas — foam washed incoming cards pale green. */
+  well?: string;
 }) {
   return (
     <button
@@ -32,7 +35,8 @@ function Cell({
       disabled={locked}
       aria-disabled={locked || undefined}
       className={cx(
-        'relative block h-full w-full overflow-hidden bg-foam',
+        'relative block h-full w-full overflow-hidden',
+        well,
         locked ? 'cursor-default' : null,
         rounded,
         className,
@@ -114,6 +118,7 @@ export function PhotoAlbum({
             overlay={moreLabel}
             overlayClass={overlayClass}
             locked={locked}
+            well="bg-canvas"
           />
         </div>
       ) : (
@@ -124,6 +129,7 @@ export function PhotoAlbum({
             rounded="rounded-l-lg"
             overlayClass={overlayClass}
             locked={locked}
+            well="bg-canvas"
           />
           <Cell
             src={urlAt(preview, 1)}
@@ -132,6 +138,7 @@ export function PhotoAlbum({
             overlay={moreLabel}
             overlayClass={overlayClass}
             locked={locked}
+            well="bg-canvas"
           />
         </div>
       );

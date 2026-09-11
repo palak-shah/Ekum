@@ -652,10 +652,41 @@ describe('ReferenceResolver payment cards', () => {
     ]);
     const reference = references.get('m-pay');
     expect(reference?.kind).toBe('payment');
-    expect(reference?.name).toBe('Payment · ₹2,500');
+    expect(reference?.name).toBe('Payment · Order #ORD1 · ₹2,500');
     expect(reference?.status).toBe('open');
     expect(reference?.totalLabel).toBe('₹2,500');
+    expect(reference?.orderLabel).toBe('Order #ORD1');
     expect(reference?.available).toBe(true);
+  });
+
+  it('includes order id when payment is paid', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: { findMany: async () => [] },
+      paymentRequest: {
+        findMany: async () => [
+          {
+            id: 'pay-1',
+            orderId: 'seed-order-fs3c',
+            amount: { toNumber: () => 5700 },
+            status: 'paid',
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
+    const references = await resolver.resolve([
+      message({
+        id: 'm-pay',
+        type: MessageType.PaymentCard,
+        referenceId: 'pay-1',
+      }),
+    ]);
+    const reference = references.get('m-pay');
+    expect(reference?.name).toBe('Payment · Order #FS3C · Paid');
+    expect(reference?.orderLabel).toBe('Order #FS3C');
+    expect(reference?.status).toBe('paid');
   });
 });
 
