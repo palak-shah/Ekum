@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { RequireAuth } from './RequireAuth';
+import { NotFoundPage, RouteErrorPage } from './RouteErrorPage';
 import { AuthProvider } from '@/lib/auth';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
@@ -133,6 +134,7 @@ function AppRoot() {
 export const router = createBrowserRouter([
   {
     element: <AppRoot />,
+    errorElement: <RouteErrorPage />,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/onboarding', element: <OnboardingPage /> },
@@ -163,9 +165,11 @@ export const router = createBrowserRouter([
       },
       {
         element: <RequireAuth />,
+        errorElement: <RouteErrorPage />,
         children: [
           {
             element: <AppShell />,
+            errorElement: <RouteErrorPage />,
             children: [
               { index: true, element: <HomePage /> },
               { path: 'grants', element: <CollectionGrantsPage /> },
@@ -208,10 +212,12 @@ export const router = createBrowserRouter([
               { path: 'selection', element: <SelectionPage /> },
               { path: 'starred', element: <StarredMessagesPage /> },
               { path: 'more', element: <MorePage /> },
+              { path: '*', element: <NotFoundPage /> },
             ],
           },
         ],
       },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);

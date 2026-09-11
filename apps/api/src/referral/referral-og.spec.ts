@@ -57,5 +57,6 @@ describe('referralOgHtml', () => {
       'og:description" content="Jaipur Emporium invites you to connect on Ekum"',
     );
     expect(html).toContain('og:image" content="https://beta.ekum.app/brand/app-icon-512.png"');
+    expect(html).toContain('summary_large_image');
   });
 });

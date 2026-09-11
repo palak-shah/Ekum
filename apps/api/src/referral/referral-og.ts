@@ -36,7 +36,8 @@ export function referralOgHtml(options: {
   const logo = absoluteMediaUrl(options.view.referrer.logoUrl, options.mediaBase);
   const image =
     logo && /^https?:\/\//i.test(logo) ? logo : options.fallbackImageUrl;
-  const card = logo && /^https?:\/\//i.test(logo) ? 'summary_large_image' : 'summary';
+  // Always large card so WhatsApp shows the image (logo or Ekum app icon).
+  const card = 'summary_large_image';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -49,6 +50,8 @@ export function referralOgHtml(options: {
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:url" content="${escapeHtml(options.pageUrl)}" />
 <meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image:width" content="512" />
+<meta property="og:image:height" content="512" />
 <meta name="twitter:card" content="${card}" />
 <meta name="twitter:title" content="${escapeHtml(title)}" />
 <meta name="twitter:description" content="${escapeHtml(description)}" />
