@@ -41,6 +41,8 @@ import {
   morePhotosEntry,
   overridesFromSheet,
   parkEditDraftForCamera,
+  batchSaveErrorMessage,
+  DESIGNS_ALREADY_ADDED_MESSAGE,
   uniqueDraftSku,
   continuousCameraMaxShots,
   type DraftOverrides,
@@ -98,6 +100,8 @@ type Draft = {
   name: string;
   nameEdited: boolean;
   overrides: DraftOverrides;
+  /** Set after POST /products succeeds — skip re-create on Save/Publish retry. */
+  persistedProductId?: string;
 };
 
 const MAX_DESIGNS = 120;
@@ -167,6 +171,8 @@ export function DesignBatchPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   /** Reopen Update-design sheet after fullscreen camera Done/Cancel. */
   const resumeEditDraftIdRef = useRef<string | null>(null);
+  /** draftId → productId written during save (setState alone is too late for retries). */
+  const persistedProductByDraftRef = useRef<Map<string, string>>(new Map());
   const memory = readBatchMemory();
   const phone = isPhoneLike();
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -589,6 +595,16 @@ export function DesignBatchPage() {
         });
       }
       const shouldPublish = Boolean(opts?.publish);
+      const persistedOf = (draft: Draft) =>
+        draft.persistedProductId ?? persistedProductByDraftRef.current.get(draft.id) ?? null;
+      const needsCreate = ready.filter((d) => !persistedOf(d));
+      if (!shouldPublish && needsCreate.length === 0) {
+        return {
+          created: ready.map((d) => ({ id: persistedOf(d)! })),
+          published: false,
+          alreadyAdded: true as const,
+        };
+      }
       setProgressLabel(
         shouldPublish ? `Publishing 0 of ${ready.length}…` : `Saving 0 of ${ready.length}…`,
       );
@@ -597,23 +613,46 @@ export function DesignBatchPage() {
         SAVE_CONCURRENCY,
         async (draft) => {
           const e = effectiveFor(draft);
-          const images = draft.images
-            .map((i) => i.imageUrl)
-            .filter(Boolean)
-            .map((url) => toAbsoluteMediaUrl(url));
-          const identity = createProductIdentity(draft.name);
-          const dto: CreateProductDto = {
-            name: identity.name,
-            sku: identity.sku,
-            rate: e.rate.trim() ? Number(e.rate) : null,
-            moq: e.moq.trim() ? Number(e.moq) : null,
-            description: e.notes.trim() || undefined,
-            unit: (e.unit || undefined) as CreateProductDto['unit'],
-            categories: parseCategories(e.category),
-            images,
-          };
-          const product = await api.post<ProductView>('/products', dto);
-          if (shouldPublish) {
+          const existingId = persistedOf(draft);
+          let productId = existingId;
+          if (!productId) {
+            const images = draft.images
+              .map((i) => i.imageUrl)
+              .filter(Boolean)
+              .map((url) => toAbsoluteMediaUrl(url));
+            const identity = createProductIdentity(draft.name);
+            const dto: CreateProductDto = {
+              name: identity.name,
+              sku: identity.sku,
+              rate: e.rate.trim() ? Number(e.rate) : null,
+              moq: e.moq.trim() ? Number(e.moq) : null,
+              description: e.notes.trim() || undefined,
+              unit: (e.unit || undefined) as CreateProductDto['unit'],
+              categories: parseCategories(e.category),
+              images,
+            };
+            try {
+              const product = await api.post<ProductView>('/products', dto);
+              productId = product.id;
+              persistedProductByDraftRef.current.set(draft.id, product.id);
+              setDrafts((prev) =>
+                prev.map((d) =>
+                  d.id === draft.id ? { ...d, persistedProductId: product.id } : d,
+                ),
+              );
+            } catch (err) {
+              if (err instanceof ApiError && err.code === 'SKU_TAKEN') {
+                throw new ApiError({
+                  statusCode: 409,
+                  code: 'DESIGNS_ALREADY_ADDED',
+                  message: DESIGNS_ALREADY_ADDED_MESSAGE,
+                  details: null,
+                });
+              }
+              throw err;
+            }
+          }
+          if (shouldPublish && productId) {
             const publishDto: PostProductToMarketDto = {
               audience: publishAudience.audience as PostProductToMarketDto['audience'],
               rateVisibility:
@@ -622,35 +661,38 @@ export function DesignBatchPage() {
               ...publishAudienceDtoFields(publishAudience),
               ...(canPublishAlready ? {} : { consentToSell: true }),
             };
-            await api.post<ProductView>(`/products/${product.id}/post-to-market`, publishDto);
+            await api.post<ProductView>(`/products/${productId}/post-to-market`, publishDto);
           }
-          return product;
+          return { id: productId! };
         },
         (done, total) =>
           setProgressLabel(
             shouldPublish ? `Publishing ${done} of ${total}…` : `Saving ${done} of ${total}…`,
           ),
       );
-      return { created, published: shouldPublish };
+      return { created, published: shouldPublish, alreadyAdded: false as const };
     },
-    onSuccess: ({ published }) => {
+    onSuccess: ({ published, alreadyAdded }) => {
       writeBatchMemory(sharedCategory, sharedUnit);
       setProgressLabel(null);
       setPublishOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
-      showToast(published ? 'Published' : 'Designs saved');
-      navigate(
-        '/catalog?tab=products',
-        {
-          replace: true,
-          state: published ? { productFilter: 'published' } : { productFilter: 'draft' },
-        },
+      showToast(
+        alreadyAdded ? 'Designs already added' : published ? 'Published' : 'Designs saved',
       );
+      navigate('/catalog?tab=products', {
+        replace: true,
+        state: published ? { productFilter: 'published' } : { productFilter: 'draft' },
+      });
     },
     onError: (err) => {
       setProgressLabel(null);
-      setError(err instanceof ApiError ? err.message : 'Could not save designs.');
+      setError(
+        err instanceof ApiError
+          ? batchSaveErrorMessage(err)
+          : 'Could not save designs.',
+      );
     },
   });
 

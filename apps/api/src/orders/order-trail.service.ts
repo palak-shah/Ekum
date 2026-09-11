@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type OrderTrailEvent } from '@prisma/client';
 import {
   OrderLineStatus,
   OrderTrailType,
@@ -28,19 +28,6 @@ export type AppendTrailInput = {
   noteVoiceUrl?: string | null;
   noteVoiceDurationMs?: number | null;
   payload?: Prisma.InputJsonValue;
-};
-
-type TrailRow = {
-  id: string;
-  type: string;
-  at: Date;
-  actorCompanyId: string | null;
-  actorUserId: string | null;
-  summary: string | null;
-  detail: string | null;
-  note: string | null;
-  noteVoiceUrl: string | null;
-  noteVoiceDurationMs: number | null;
 };
 
 @Injectable()
@@ -132,8 +119,8 @@ export class OrderTrailService {
    */
   private async healBareQuotedSummaries(
     orderId: string,
-    rows: TrailRow[],
-  ): Promise<TrailRow[]> {
+    rows: OrderTrailEvent[],
+  ): Promise<OrderTrailEvent[]> {
     const needsHeal = rows.some(
       (row) => row.type === OrderTrailType.Quoted && isBareQuotedTrailSummary(row.summary),
     );

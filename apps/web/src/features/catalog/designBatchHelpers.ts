@@ -104,3 +104,14 @@ export function parkEditDraftForCamera(editDraftId: string | null): {
     resumeEditDraftId: editDraftId,
   };
 }
+
+/** Trader-facing copy when batch save hits SKU_TAKEN (usually a re-tap after success). */
+export const DESIGNS_ALREADY_ADDED_MESSAGE =
+  'Designs already added. Open My designs to check.';
+
+export function batchSaveErrorMessage(err: { code?: string; message?: string }): string {
+  if (err.code === 'SKU_TAKEN' || err.code === 'DESIGNS_ALREADY_ADDED') {
+    return DESIGNS_ALREADY_ADDED_MESSAGE;
+  }
+  return err.message?.trim() || 'Could not save designs.';
+}

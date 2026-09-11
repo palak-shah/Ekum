@@ -7,6 +7,8 @@ import {
   morePhotosEntry,
   overridesFromSheet,
   parkEditDraftForCamera,
+  batchSaveErrorMessage,
+  DESIGNS_ALREADY_ADDED_MESSAGE,
   uniqueDraftSku,
   continuousCameraMaxShots,
 } from './designBatchHelpers';
@@ -121,5 +123,22 @@ describe('parkEditDraftForCamera', () => {
       nextEditDraftId: null,
       resumeEditDraftId: null,
     });
+  });
+});
+
+describe('batchSaveErrorMessage', () => {
+  it('maps SKU_TAKEN to Designs already added (re-save after success)', () => {
+    expect(batchSaveErrorMessage({ code: 'SKU_TAKEN', message: 'That SKU is already used on another design.' })).toBe(
+      DESIGNS_ALREADY_ADDED_MESSAGE,
+    );
+    expect(batchSaveErrorMessage({ code: 'DESIGNS_ALREADY_ADDED' })).toBe(
+      DESIGNS_ALREADY_ADDED_MESSAGE,
+    );
+  });
+
+  it('keeps other API messages', () => {
+    expect(batchSaveErrorMessage({ code: 'VALIDATION', message: 'Missing photo.' })).toBe(
+      'Missing photo.',
+    );
   });
 });
