@@ -18,6 +18,7 @@ import { CollectionViewRequestService } from './collection-view-request.service'
 import { RelistRequestService } from './relist-request.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { AccessModule } from '../access/access.module';
+import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.pipe';
 
 /**
  * Catalog. Owns Products, Collections, and their many-to-many join. Publish is a
@@ -42,6 +43,7 @@ import { AccessModule } from '../access/access.module';
     CatalogSerializer,
     CollectionViewRequestService,
     RelistRequestService,
+    AbsolutizeProductImagesPipe,
   ],
   exports: [CatalogSerializer, CollectionViewRequestService, RelistRequestService],
 })

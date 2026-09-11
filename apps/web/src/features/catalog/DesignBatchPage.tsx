@@ -179,6 +179,8 @@ export function DesignBatchPage() {
   const pendingAppendDraftIdRef = useRef<string | null>(null);
   /** draftId → productId written during save (setState alone is too late for retries). */
   const persistedProductByDraftRef = useRef<Map<string, string>>(new Map());
+  /** Successful Save/Publish → My designs must not trip the discard sheet. */
+  const leaveBypassRef = useRef(false);
   const memory = readBatchMemory();
   const phone = isPhoneLike();
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -695,6 +697,7 @@ export function DesignBatchPage() {
       showToast(
         alreadyAdded ? 'Designs already added' : published ? 'Published' : 'Designs saved',
       );
+      leaveBypassRef.current = true;
       navigate('/catalog?tab=products', {
         replace: true,
         state: published ? { productFilter: 'published' } : { productFilter: 'draft' },
@@ -763,7 +766,7 @@ export function DesignBatchPage() {
       cameraOpen,
     [drafts, uploading, cameraOpen],
   );
-  const discard = useDiscardGuard(batchDirty);
+  const discard = useDiscardGuard(batchDirty, leaveBypassRef);
 
   return (
     <div className="flex flex-col gap-5 pb-10">

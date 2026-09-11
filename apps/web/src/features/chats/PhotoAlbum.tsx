@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { cx } from '@/ui/kit';
 
 const GUTTER = 2;
 
 function urlAt(urls: string[], index: number): string {
-  return urls[index] ?? '';
+  const raw = urls[index] ?? '';
+  return raw ? toAbsoluteMediaUrl(raw) : '';
 }
 
 function Cell({

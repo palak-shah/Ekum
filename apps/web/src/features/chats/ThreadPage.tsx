@@ -829,9 +829,16 @@ export function ThreadPage() {
 
   const curate = useMutation({
     mutationFn: (reference: MessageReference) => {
+      const images = productImagesFromChatReference(reference);
+      const hadPhotoRef =
+        Boolean(reference.image?.trim()) ||
+        Boolean(reference.images?.some((url) => Boolean(url?.trim())));
+      if (hadPhotoRef && images.length === 0) {
+        throw new Error('Photo isn’t ready yet. Remove it and add it again.');
+      }
       const dto: CreateProductDto = {
         name: (reference.name ?? 'Saved design').trim() || 'Saved design',
-        images: productImagesFromChatReference(reference),
+        images,
         categories: [],
       };
       return api.post<ProductView>('/products', dto).then((product) => ({ product, reference }));
@@ -842,7 +849,13 @@ export function ThreadPage() {
       setError(null);
     },
     onError: (err) =>
-      setError(err instanceof ApiError ? err.message : 'Could not save to your catalogue.'),
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not save to your catalogue.',
+      ),
   });
 
   const forward = useMutation({

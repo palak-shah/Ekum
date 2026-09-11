@@ -17,6 +17,7 @@ import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { RequirePermission } from '../auth/require-permission';
+import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.pipe';
 import { ProductService } from './product.service';
 
 @Controller({ path: 'products', version: '1' })
@@ -28,7 +29,8 @@ export class ProductController {
   create(
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
-    @Body(new ZodValidationPipe(createProductSchema)) dto: CreateProductDto,
+    @Body(AbsolutizeProductImagesPipe, new ZodValidationPipe(createProductSchema))
+    dto: CreateProductDto,
   ) {
     return this.products.create(companyId, user.userId, dto);
   }
@@ -52,7 +54,8 @@ export class ProductController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateProductSchema)) dto: UpdateProductDto,
+    @Body(AbsolutizeProductImagesPipe, new ZodValidationPipe(updateProductSchema))
+    dto: UpdateProductDto,
   ) {
     return this.products.update(companyId, user.userId, id, dto);
   }

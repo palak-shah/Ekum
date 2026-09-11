@@ -49,6 +49,8 @@ export function ProductEditorPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const moreAnchorRef = useRef<HTMLButtonElement>(null);
   const morePanelRef = useRef<HTMLDivElement>(null);
+  /** Successful save/navigate must not trip the discard sheet. */
+  const leaveBypassRef = useRef(false);
   const phone = isPhoneLike();
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -271,6 +273,7 @@ export function ProductEditorPage() {
       }
       invalidate();
       showToast(editing ? 'Updated' : 'Design saved');
+      leaveBypassRef.current = true;
       navigate(`/catalog/products/${product.id}`, { replace: true });
     },
     onError: (err) => {
@@ -302,6 +305,7 @@ export function ProductEditorPage() {
         showToast(onMarket || isPublished ? 'Visibility updated' : 'Published');
       }
       if (firstPublish) {
+        leaveBypassRef.current = true;
         navigate('/catalog?tab=products', {
           replace: true,
           state: { productFilter: 'published' },
@@ -333,6 +337,7 @@ export function ProductEditorPage() {
       setMoreOpen(false);
       invalidate();
       showToast('Archived');
+      leaveBypassRef.current = true;
       navigate('/catalog?tab=products');
     },
     onError: (err) => {
@@ -386,7 +391,7 @@ export function ProductEditorPage() {
           ),
     [editing, formSnapshot, form, imageUrls.length, uploading],
   );
-  const discard = useDiscardGuard(productDirty);
+  const discard = useDiscardGuard(productDirty, leaveBypassRef);
 
   if (editing && existing.isLoading) {
     return <LoadingBlock label="Loading design…" />;
