@@ -38,7 +38,9 @@ import {
   createProductIdentity,
   detailsCardTitle,
   gridHeading,
+  morePhotosEntry,
   overridesFromSheet,
+  parkEditDraftForCamera,
   uniqueDraftSku,
   continuousCameraMaxShots,
   type DraftOverrides,
@@ -163,6 +165,8 @@ export function DesignBatchPage() {
   const company = useMyCompany();
   const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  /** Reopen Update-design sheet after fullscreen camera Done/Cancel. */
+  const resumeEditDraftIdRef = useRef<string | null>(null);
   const memory = readBatchMemory();
   const phone = isPhoneLike();
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -174,7 +178,6 @@ export function DesignBatchPage() {
   const [uploading, setUploading] = useState(false);
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
-  const [morePhotosPickerOpen, setMorePhotosPickerOpen] = useState(false);
   const [nameSearch, setNameSearch] = useState('');
   const [namePrefix, setNamePrefix] = useState('');
   const [publishOpen, setPublishOpen] = useState(false);
@@ -254,9 +257,21 @@ export function DesignBatchPage() {
       }
     }
     setError(null);
+    // Sheet (z-80) must fully dismiss — otherwise it covers / fights the camera.
+    const park = parkEditDraftForCamera(editDraftId);
+    resumeEditDraftIdRef.current = park.resumeEditDraftId;
+    setEditDraftId(park.nextEditDraftId);
     setCameraGalleryDraftId(draftId);
     setCameraSession((n) => n + 1);
     setCameraOpen(true);
+  };
+
+  const closeCameraAndRestoreEdit = () => {
+    setCameraOpen(false);
+    setCameraGalleryDraftId(null);
+    const resumeId = resumeEditDraftIdRef.current;
+    resumeEditDraftIdRef.current = null;
+    if (resumeId) setEditDraftId(resumeId);
   };
 
   const openAddPhotos = () => {
@@ -273,29 +288,25 @@ export function DesignBatchPage() {
   };
 
   const onCameraUnavailable = useCallback(() => {
+    const draftId = cameraGalleryDraftId;
+    const resumeId = resumeEditDraftIdRef.current;
+    resumeEditDraftIdRef.current = null;
     setCameraOpen(false);
+    setCameraGalleryDraftId(null);
+    if (resumeId) setEditDraftId(resumeId);
     setError(null);
-    setCameraGalleryDraftId((draftId) => {
-      // Keep user gesture chain as short as possible for iOS file picker.
-      queueMicrotask(() => openGallery(draftId));
-      return null;
-    });
-  }, []);
+    // Keep user gesture chain as short as possible for iOS file picker.
+    queueMicrotask(() => openGallery(draftId));
+  }, [cameraGalleryDraftId]);
 
-  const openPickerForDraft = (draftId: string) => {
-    setTargetDraftId(draftId);
+  /** Add more photos on an open design — no nested Camera/Gallery sheet. */
+  const openMorePhotosForDraft = (draftId: string) => {
     setError(null);
-    setMorePhotosPickerOpen(true);
-  };
-
-  const pickMorePhotos = (source: 'camera' | 'gallery') => {
-    const draftId = targetDraftId ?? editDraftId;
-    setMorePhotosPickerOpen(false);
-    if (!draftId) return;
-    if (source === 'camera') {
+    if (morePhotosEntry(phone) === 'camera') {
       openCamera(draftId);
       return;
     }
+    setTargetDraftId(draftId);
     openGallery(draftId);
   };
 
@@ -481,6 +492,7 @@ export function DesignBatchPage() {
       return prev.filter((d) => d.id !== id);
     });
     if (editDraftId === id) setEditDraftId(null);
+    if (resumeEditDraftIdRef.current === id) resumeEditDraftIdRef.current = null;
   };
 
   const removeImage = (draftId: string, imageId: string) => {
@@ -964,41 +976,20 @@ export function DesignBatchPage() {
         open={cameraOpen}
         maxShots={cameraMaxShots}
         onCancel={() => {
-          setCameraOpen(false);
-          setCameraGalleryDraftId(null);
+          closeCameraAndRestoreEdit();
         }}
         onUnavailable={onCameraUnavailable}
         onGallery={() => {
           const draftId = cameraGalleryDraftId;
-          setCameraOpen(false);
-          setCameraGalleryDraftId(null);
+          closeCameraAndRestoreEdit();
           openGallery(draftId);
         }}
         onDone={(files) => {
           const draftId = cameraGalleryDraftId;
-          setCameraOpen(false);
-          setCameraGalleryDraftId(null);
+          closeCameraAndRestoreEdit();
           void onFiles(files, draftId);
         }}
       />
-
-      <Sheet
-        open={morePhotosPickerOpen}
-        onClose={() => setMorePhotosPickerOpen(false)}
-        title="Add photos to this design"
-      >
-        <div className="flex flex-col gap-2">
-          <p className="mb-1 text-sm text-muted">
-            Extra shots stay on this design — they do not create new designs.
-          </p>
-          <Button fullWidth onClick={() => pickMorePhotos('camera')}>
-            Camera
-          </Button>
-          <Button variant="secondary" fullWidth onClick={() => pickMorePhotos('gallery')}>
-            Gallery
-          </Button>
-        </div>
-      </Sheet>
 
       <Sheet
         open={Boolean(editDraft)}
@@ -1071,7 +1062,7 @@ export function DesignBatchPage() {
                 <button
                   type="button"
                   data-testid="design-batch-add-more-photos"
-                  onClick={() => openPickerForDraft(editDraft.id)}
+                  onClick={() => openMorePhotosForDraft(editDraft.id)}
                   disabled={uploading || editDraft.images.length >= MAX_PHOTOS_PER_DESIGN}
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
                 >

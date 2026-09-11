@@ -4,7 +4,9 @@ import {
   detailsCardTitle,
   generateDraftSku,
   gridHeading,
+  morePhotosEntry,
   overridesFromSheet,
+  parkEditDraftForCamera,
   uniqueDraftSku,
   continuousCameraMaxShots,
 } from './designBatchHelpers';
@@ -99,5 +101,25 @@ describe('continuousCameraMaxShots', () => {
         maxPhotosPerDesign: 12,
       }),
     ).toBe(117);
+  });
+});
+
+describe('morePhotosEntry', () => {
+  it('opens camera on phone and gallery on desktop', () => {
+    expect(morePhotosEntry(true)).toBe('camera');
+    expect(morePhotosEntry(false)).toBe('gallery');
+  });
+});
+
+describe('parkEditDraftForCamera', () => {
+  it('parks the open update sheet so camera is not covered', () => {
+    expect(parkEditDraftForCamera('draft-1')).toEqual({
+      nextEditDraftId: null,
+      resumeEditDraftId: 'draft-1',
+    });
+    expect(parkEditDraftForCamera(null)).toEqual({
+      nextEditDraftId: null,
+      resumeEditDraftId: null,
+    });
   });
 });

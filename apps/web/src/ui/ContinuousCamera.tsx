@@ -336,7 +336,7 @@ export function ContinuousCamera({
   // `fixed inset-0` only fills the max-w-md column (tiny camera). Same as Sheet.
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex h-dvh w-full flex-col bg-black text-white"
+      className="fixed inset-0 z-[100] flex h-dvh w-full flex-col bg-black text-white"
       role="dialog"
       aria-modal="true"
       aria-label="Camera"

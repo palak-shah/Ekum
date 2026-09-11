@@ -81,3 +81,26 @@ export function continuousCameraMaxShots(input: {
   }
   return Math.max(0, input.maxDesigns - input.draftCount);
 }
+
+/**
+ * How “Add more photos” opens on this device.
+ * Phone → fullscreen ContinuousCamera (Gallery is on that chrome).
+ * Desktop → file picker. Never stack a Camera/Gallery sheet over Update sheet.
+ */
+export function morePhotosEntry(phoneLike: boolean): 'camera' | 'gallery' {
+  return phoneLike ? 'camera' : 'gallery';
+}
+
+/**
+ * While fullscreen camera runs, park the Update-design sheet id so it can reopen
+ * after Done/Cancel with the new thumbs visible.
+ */
+export function parkEditDraftForCamera(editDraftId: string | null): {
+  nextEditDraftId: null;
+  resumeEditDraftId: string | null;
+} {
+  return {
+    nextEditDraftId: null,
+    resumeEditDraftId: editDraftId,
+  };
+}
