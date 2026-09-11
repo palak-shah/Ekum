@@ -2424,13 +2424,16 @@ function ReplyQuote({
   onJump,
 }: {
   preview: NonNullable<MessageView['replyTo']>;
+  /** True when nested inside a solid-accent text bubble (not on white trade cards). */
   mine: boolean;
   onJump?: () => void;
 }) {
   const className = cx(
     'mb-1.5 w-full rounded-lg border-l-2 px-2 py-1.5 text-left text-sm',
-    mine ? 'border-white/50 bg-white/10 text-white/85' : 'border-accent bg-surface/80 text-muted',
-    onJump && (mine ? 'hover:bg-white/20 active:bg-white/25' : 'hover:bg-surface active:bg-foam'),
+    mine
+      ? 'border-white/50 bg-white/10 text-white/85'
+      : 'border-accent bg-surface text-muted',
+    onJump && (mine ? 'hover:bg-white/20 active:bg-white/25' : 'hover:bg-canvas active:bg-canvas'),
   );
   const body = (
     <>
@@ -3215,12 +3218,12 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
-        actionsOnAccent={message.mine && tradeCard.variant !== 'pulse'}
+        actionsOnAccent={false}
         className="max-w-[85%]"
       >
         <div className="flex flex-col gap-0.5">
           {reply ? (
-            <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+            <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
           ) : null}
           <ChatTradeCard
             model={tradeCard}
@@ -3242,50 +3245,32 @@ function TimelineItem({
       highlighted={highlighted}
       onToggleSelect={onToggleSelect}
       actions={actions}
+      actionsOnAccent={false}
       className="max-w-[85%]"
     >
       <div className="flex flex-col gap-0.5">
         {reply ? (
-          <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+          <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
         ) : null}
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'overflow-hidden border text-sm shadow-sm',
+            'overflow-hidden border border-line border-l-[3px] border-l-accent bg-surface text-sm',
             chatBubbleCorners(message.mine),
-            message.mine
-              ? 'border-accent/35 bg-accent text-white'
-              : 'border-line bg-foam text-ink',
           )}
+          data-testid="chat-trade-card-fallback"
         >
-          <div
-            className={cx(
-              'flex items-center gap-1.5 px-2 py-1',
-              message.mine ? 'border-b border-white/20' : 'border-b border-line/70',
-            )}
-          >
-            <TypeIcon
-              width={12}
-              height={12}
-              className={cx('shrink-0', message.mine ? 'text-white' : 'text-accent')}
-              aria-hidden
-            />
-            <p
-              className={cx(
-                'min-w-0 flex-1 truncate text-xs font-bold tracking-tight',
-                message.mine ? 'text-white' : 'text-ink',
-              )}
-            >
+          <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
+            <TypeIcon width={12} height={12} className="shrink-0 text-accent" aria-hidden />
+            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-ink">
               {typeMeta.label}
             </p>
           </div>
-          <div className="px-2 py-1.5">
-            <p className={cx('text-xs font-semibold', message.mine ? 'text-white' : 'text-ink')}>
+          <div className="px-2.5 py-2">
+            <p className="text-[13px] font-medium text-ink">
               {hl(message.body?.trim() || 'Shared attachment')}
             </p>
-            <p className={cx('mt-0.5 text-right text-[10px]', message.mine ? 'text-white/70' : 'text-muted')}>
-              {timeAgo(message.createdAt)}
-            </p>
+            <p className="mt-1 text-right text-[11px] text-muted">{timeAgo(message.createdAt)}</p>
           </div>
         </div>
       </div>

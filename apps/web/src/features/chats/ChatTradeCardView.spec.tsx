@@ -66,4 +66,24 @@ describe('ChatTradeCard voice note', () => {
     expect(amount.className).toMatch(/font-semibold/);
     expect(amount.className).toMatch(/text-\[15px\]/);
   });
+
+  it('uses the same surface language for incoming and outgoing trade cards', () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <ChatTradeCard model={model({ mine: false, variant: 'bubble' })} />
+      </MemoryRouter>,
+    );
+    let card = screen.getByTestId('chat-trade-card');
+    expect(card.className).toMatch(/bg-surface/);
+    expect(card.className).toMatch(/border-l-/);
+
+    rerender(
+      <MemoryRouter>
+        <ChatTradeCard model={model({ mine: true, variant: 'bubble' })} />
+      </MemoryRouter>,
+    );
+    card = screen.getByTestId('chat-trade-card');
+    expect(card.className).toMatch(/bg-surface/);
+    expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+  });
 });
