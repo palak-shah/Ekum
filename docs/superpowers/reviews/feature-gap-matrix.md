@@ -84,6 +84,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | UI | Your selection visual polish (image-led rows; Order primary) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-selection-visual-polish; no model change |
 | UI | Order flow sheets visual polish (resolve + quantity) | Works | Functional + Visual | Recommended | Completeness 2026-09-10-order-flow-visual-polish; presentation only |
 | UI | Long-press select without Safari link menu | Works | Unit + Functional | Required | Completeness 2026-09-10-longpress-select-no-safari-menu; button + navigate |
+| UI | Send quote qty/rate numbers not clipped (BM-07) | Works | Unit | Required | textInputChromeClass + wider quote columns |
+| Orders trail | Quote vs Quote updated + ₹ total on Timeline | Works | Unit | Required | Completeness 2026-09-11-quote-updated-trail |
 | UI | Home / Chats / Orders hierarchy (action / object / order facts) | Works | Unit | Recommended | Completeness 2026-09-10-home-chats-orders-hierarchy; presentation only |
 | Trader curation | Explore Buying: received by day/business | Works | Unit | Required | Slice C; directed audience or broadcast |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |

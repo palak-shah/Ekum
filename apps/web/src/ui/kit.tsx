@@ -13,7 +13,7 @@ import { BackIcon, CloseIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { formControlWidthClass } from '@/ui/mobileOverflow';
+import { formControlWidthClass, textInputChromeClass } from '@/ui/mobileOverflow';
 
 export { cx } from '@/lib/cx';
 
@@ -127,9 +127,9 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
       <input
         ref={ref}
         className={cx(
-          // text-base (16px) avoids iOS focus-zoom; width bound stops WebKit intrinsic min-width blowout (BM-07).
-          formControlWidthClass(className),
-          'min-h-12 rounded-xl border border-line bg-surface px-3.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+          // text-base (16px) avoids iOS focus-zoom unless caller sets compact text-*;
+          // width / pad / min-h merge via textInputChromeClass (BM-07 clipped nums).
+          textInputChromeClass(className),
           className,
         )}
         {...props}

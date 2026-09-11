@@ -66,7 +66,7 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
-import { COMPACT_QTY_INPUT_CLASS } from '@/ui/mobileOverflow';
+import { COMPACT_QTY_INPUT_CLASS, COMPACT_SHEET_NUM_INPUT_CLASS } from '@/ui/mobileOverflow';
 
 function RateFigure({
   amount,
@@ -1263,7 +1263,7 @@ export function OrderDetailPage() {
                         />
                       </Field>
                     ) : null}
-                    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5rem] gap-x-2 gap-y-0">
+                    <div className="grid grid-cols-[minmax(0,1fr)_5rem_5.5rem] gap-x-2 gap-y-0">
                       <p className="pb-2 text-[10px] font-bold uppercase tracking-wide text-muted">
                         Design
                       </p>
@@ -1289,7 +1289,8 @@ export function OrderDetailPage() {
                             </p>
                           </div>
                           <TextInput
-                            className="w-full min-w-0 px-1.5 text-center tabular-nums"
+                            type="number"
+                            className={COMPACT_SHEET_NUM_INPUT_CLASS}
                             value={millQty[item.id] ?? String(item.quantity)}
                             onChange={(e) =>
                               setMillQty((prev) => ({ ...prev, [item.id]: e.target.value }))
@@ -1297,7 +1298,8 @@ export function OrderDetailPage() {
                             aria-label={`Quantity for ${item.name}`}
                           />
                           <TextInput
-                            className="w-full min-w-0 px-1.5 text-center tabular-nums"
+                            type="number"
+                            className={COMPACT_SHEET_NUM_INPUT_CLASS}
                             value={
                               millRate[item.id] ?? (item.rate != null ? String(item.rate) : '')
                             }
@@ -1840,8 +1842,8 @@ export function OrderDetailPage() {
           {(() => {
             const showFrom = (data.millDesks ?? []).some((desk) => desk.millQuoted && !desk.held);
             const cols = showFrom
-              ? 'grid-cols-[minmax(0,1fr)_3.75rem_3.5rem_4rem]'
-              : 'grid-cols-[minmax(0,1fr)_3.5rem_4rem]';
+              ? 'grid-cols-[minmax(0,1fr)_3.75rem_5rem_5.5rem]'
+              : 'grid-cols-[minmax(0,1fr)_5rem_5.5rem]';
             const span = showFrom ? 4 : 3;
             return (
               <div className={cx('grid gap-x-2 gap-y-0', cols)}>
@@ -1910,7 +1912,7 @@ export function OrderDetailPage() {
                           type="number"
                           min={1}
                           max={item.requestedQuantity}
-                          className="min-h-10 w-full min-w-0 px-1 text-center text-sm tabular-nums"
+                          className={COMPACT_SHEET_NUM_INPUT_CLASS}
                           value={offerQty[item.id] ?? ''}
                           onChange={(event) =>
                             setOfferQty((prev) => ({ ...prev, [item.id]: event.target.value }))
@@ -1927,7 +1929,7 @@ export function OrderDetailPage() {
                           type="number"
                           min={0}
                           placeholder="Rate"
-                          className="min-h-10 w-full min-w-0 px-1 text-center text-sm tabular-nums"
+                          className={COMPACT_SHEET_NUM_INPUT_CLASS}
                           value={rates[item.id] ?? ''}
                           onChange={(event) =>
                             setRates((prev) => ({ ...prev, [item.id]: event.target.value }))

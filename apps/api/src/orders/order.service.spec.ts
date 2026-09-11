@@ -38,12 +38,6 @@ const threads = {
   }),
 } as unknown as ThreadService;
 
-const trail = {
-  append: async () => undefined,
-  listForViewer: async () => [],
-  backfillFromOrder: async () => undefined,
-} as unknown as import('./order-trail.service').OrderTrailService;
-
 interface Captured {
   createData: { items: { create: Record<string, unknown>[] } } | null;
   updateData: Record<string, unknown> | null;
@@ -51,6 +45,7 @@ interface Captured {
   messageUpdate: Record<string, unknown> | null;
   itemUpdates: Record<string, unknown>[];
   shipmentCreate: Record<string, unknown> | null;
+  trailAppends: Record<string, unknown>[];
 }
 
 interface Options {
@@ -65,6 +60,7 @@ interface Options {
     tradeMode?: string;
     buyerCompanyId: string;
     sellerCompanyId: string;
+    quotedAt?: Date | string | null;
     transporter?: string | null;
     lrNumber?: string | null;
     parcelCount?: number | null;
@@ -90,7 +86,15 @@ function makeService(options: Options) {
     messageUpdate: null,
     itemUpdates: [],
     shipmentCreate: null,
+    trailAppends: [],
   };
+  const trail = {
+    append: async (input: Record<string, unknown>) => {
+      captured.trailAppends.push(input);
+    },
+    listForViewer: async () => [],
+    backfillFromOrder: async () => undefined,
+  } as unknown as import('./order-trail.service').OrderTrailService;
   let orderState = options.order
     ? {
         ...options.order,
@@ -582,6 +586,35 @@ describe('OrderService quote + accept (partial)', () => {
     });
     expect(captured.itemUpdates.some((u) => u.lineStatus === OrderLineStatus.Declined)).toBe(true);
     expect(captured.itemUpdates.some((u) => u.quantity === 20 && u.rate === 150)).toBe(true);
+    expect(captured.trailAppends).toContainEqual(
+      expect.objectContaining({
+        type: 'quoted',
+        summary: 'Quoted — ₹3,000',
+      }),
+    );
+  });
+
+  it('labels a later Send quote as Quote updated with the new total', async () => {
+    const { service, captured } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        quotedAt: new Date('2026-09-01T10:00:00.000Z'),
+        items: [openItem('oi1', 10, 200)],
+      },
+    });
+    await service.quote('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', rate: 220, quantity: 10 }],
+    });
+    expect(captured.trailAppends).toContainEqual(
+      expect.objectContaining({
+        type: 'quoted',
+        summary: 'Quote updated — ₹2,200',
+      }),
+    );
   });
 
   it('stores quote mic note on the living rate card metadata', async () => {

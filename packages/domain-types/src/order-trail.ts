@@ -50,6 +50,12 @@ export function orderTrailLabel(type: string): string {
   return ORDER_TRAIL_LABELS[type] ?? type;
 }
 
+/** Timeline line for Send quote — first vs later send. */
+export function quoteTrailSummary(total: number, alreadyQuoted: boolean): string {
+  const amount = `₹${Math.round(total).toLocaleString('en-IN')}`;
+  return alreadyQuoted ? `Quote updated — ${amount}` : `Quoted — ${amount}`;
+}
+
 /** Completed for attention / filters: full dispatch, settle, legacy delivered. */
 export function isOrderFulfillmentComplete(status: string): boolean {
   return status === 'dispatched' || status === 'settled' || status === 'delivered';

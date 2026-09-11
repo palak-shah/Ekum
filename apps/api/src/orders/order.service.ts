@@ -21,6 +21,7 @@ import {
   OrderTradeMode,
   OrderTrailType,
   PaymentRequestStatus,
+  quoteTrailSummary,
   shortOrderLabel,
   type AmendOrderDto,
   type CancelOrderDto,
@@ -1211,6 +1212,7 @@ export class OrderService {
       type: OrderTrailType.Quoted,
       actorCompanyId,
       actorUserId: userId,
+      summary: quoteTrailSummary(total, Boolean(order.quotedAt)),
       detail: partial
         ? `${supplyable.length} of ${order.items.length} designs`
         : undefined,
