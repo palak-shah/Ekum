@@ -68,6 +68,16 @@ export function overridesFromSheet(
   return next;
 }
 
+/** Pure: camera/gallery Done target — append to one design vs create new designs. */
+export function resolvePhotoBatchTarget(
+  appendToIdOverride: string | null | undefined,
+  fallbackTargetId: string | null,
+): { mode: 'append'; draftId: string } | { mode: 'create' } {
+  const id = appendToIdOverride !== undefined ? appendToIdOverride : fallbackTargetId;
+  if (id) return { mode: 'append', draftId: id };
+  return { mode: 'create' };
+}
+
 /** Shots allowed in ContinuousCamera — append-to-design vs new-design session. */
 export function continuousCameraMaxShots(input: {
   appendToDraft: boolean;

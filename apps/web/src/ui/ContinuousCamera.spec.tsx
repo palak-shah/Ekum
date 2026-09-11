@@ -1,9 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { resetMediaSessionForTests } from '@/lib/mediaSession';
 import { ContinuousCamera } from './ContinuousCamera';
 
 describe('ContinuousCamera shell', () => {
   beforeEach(() => {
+    resetMediaSessionForTests();
     vi.stubGlobal('isSecureContext', true);
     vi.stubGlobal('navigator', {
       ...navigator,
@@ -17,6 +19,7 @@ describe('ContinuousCamera shell', () => {
 
   afterEach(() => {
     cleanup();
+    resetMediaSessionForTests();
     vi.unstubAllGlobals();
   });
 
@@ -39,8 +42,11 @@ describe('ContinuousCamera shell', () => {
     expect(shell.parentElement).toBe(document.body);
     expect(shell.className).toMatch(/fixed/);
     expect(shell.className).toMatch(/inset-0/);
-    expect(shell.className).toMatch(/h-dvh/);
+    expect(shell.className).toMatch(/overflow-hidden/);
+    expect(shell.className).toMatch(/100dvh/);
+    expect(document.body.style.overflow).toBe('hidden');
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
+    expect(screen.getByTestId('continuous-camera-shutter')).toBeTruthy();
   });
 });

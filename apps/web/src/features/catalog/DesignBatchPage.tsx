@@ -17,7 +17,7 @@ import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
-import { CameraIcon, PlusIcon } from '@/ui/icons';
+import { CameraIcon } from '@/ui/icons';
 import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
 import { useQuery } from '@tanstack/react-query';
@@ -45,6 +45,7 @@ import {
   DESIGNS_ALREADY_ADDED_MESSAGE,
   uniqueDraftSku,
   continuousCameraMaxShots,
+  resolvePhotoBatchTarget,
   type DraftOverrides,
 } from './designBatchHelpers';
 
@@ -171,6 +172,11 @@ export function DesignBatchPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   /** Reopen Update-design sheet after fullscreen camera Done/Cancel. */
   const resumeEditDraftIdRef = useRef<string | null>(null);
+  /**
+   * Append-to-design target for the in-flight camera/gallery pick.
+   * Ref wins over state so Done / file onChange cannot race into “new designs”.
+   */
+  const pendingAppendDraftIdRef = useRef<string | null>(null);
   /** draftId → productId written during save (setState alone is too late for retries). */
   const persistedProductByDraftRef = useRef<Map<string, string>>(new Map());
   const memory = readBatchMemory();
@@ -244,6 +250,7 @@ export function DesignBatchPage() {
         return;
       }
     }
+    pendingAppendDraftIdRef.current = draftId;
     setTargetDraftId(draftId);
     setError(null);
     // Sync click — deferred clicks are ignored by iOS Safari (no gallery opens).
@@ -267,6 +274,7 @@ export function DesignBatchPage() {
     const park = parkEditDraftForCamera(editDraftId);
     resumeEditDraftIdRef.current = park.resumeEditDraftId;
     setEditDraftId(park.nextEditDraftId);
+    pendingAppendDraftIdRef.current = draftId;
     setCameraGalleryDraftId(draftId);
     setCameraSession((n) => n + 1);
     setCameraOpen(true);
@@ -294,7 +302,7 @@ export function DesignBatchPage() {
   };
 
   const onCameraUnavailable = useCallback(() => {
-    const draftId = cameraGalleryDraftId;
+    const draftId = pendingAppendDraftIdRef.current ?? cameraGalleryDraftId;
     const resumeId = resumeEditDraftIdRef.current;
     resumeEditDraftIdRef.current = null;
     setCameraOpen(false);
@@ -305,14 +313,14 @@ export function DesignBatchPage() {
     queueMicrotask(() => openGallery(draftId));
   }, [cameraGalleryDraftId]);
 
-  /** Add more photos on an open design — no nested Camera/Gallery sheet. */
+  /** Add more photos on an open design — never creates separate designs. */
   const openMorePhotosForDraft = (draftId: string) => {
     setError(null);
+    pendingAppendDraftIdRef.current = draftId;
     if (morePhotosEntry(phone) === 'camera') {
       openCamera(draftId);
       return;
     }
-    setTargetDraftId(draftId);
     openGallery(draftId);
   };
 
@@ -472,15 +480,21 @@ export function DesignBatchPage() {
       return;
     }
     setError(null);
-    const appendToId =
-      appendToIdOverride !== undefined ? appendToIdOverride : targetDraftId;
-    const files = [...incoming];
+    const appendId =
+      appendToIdOverride !== undefined
+        ? appendToIdOverride
+        : (pendingAppendDraftIdRef.current ?? targetDraftId);
+    pendingAppendDraftIdRef.current = null;
     setTargetDraftId(null);
+    setCameraGalleryDraftId(null);
     if (fileRef.current) fileRef.current.value = '';
 
+    const files = [...incoming];
+    const target = resolvePhotoBatchTarget(appendId, null);
+
     try {
-      if (appendToId) {
-        await uploadFilesToDraft(appendToId, files);
+      if (target.mode === 'append') {
+        await uploadFilesToDraft(target.draftId, files);
         return;
       }
       await createDraftsFromFiles(files);
@@ -1017,17 +1031,19 @@ export function DesignBatchPage() {
         key={cameraSession}
         open={cameraOpen}
         maxShots={cameraMaxShots}
+        appendToDraftId={cameraGalleryDraftId}
         onCancel={() => {
+          pendingAppendDraftIdRef.current = null;
           closeCameraAndRestoreEdit();
         }}
         onUnavailable={onCameraUnavailable}
         onGallery={() => {
-          const draftId = cameraGalleryDraftId;
+          const draftId = pendingAppendDraftIdRef.current ?? cameraGalleryDraftId;
           closeCameraAndRestoreEdit();
           openGallery(draftId);
         }}
-        onDone={(files) => {
-          const draftId = cameraGalleryDraftId;
+        onDone={(files, appendToDraftId) => {
+          const draftId = appendToDraftId ?? pendingAppendDraftIdRef.current;
           closeCameraAndRestoreEdit();
           void onFiles(files, draftId);
         }}
@@ -1104,12 +1120,13 @@ export function DesignBatchPage() {
                 <button
                   type="button"
                   data-testid="design-batch-add-more-photos"
+                  aria-label="Add photos to this design"
                   onClick={() => openMorePhotosForDraft(editDraft.id)}
                   disabled={uploading || editDraft.images.length >= MAX_PHOTOS_PER_DESIGN}
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
                 >
-                  <PlusIcon width={22} height={22} />
-                  <span className="text-xs font-medium">Add</span>
+                  <CameraIcon width={22} height={22} />
+                  <span className="text-xs font-medium">Add photos</span>
                 </button>
               </div>
             </div>

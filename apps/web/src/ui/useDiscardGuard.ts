@@ -4,6 +4,8 @@ import { armDiscardLeaveBypass } from './discardLeaveBypass';
 
 /**
  * Blocks route changes while `isActive` and offers Leave / Cancel confirm.
+ * Also arms the browser leave prompt on reload / pull-to-refresh / tab close
+ * (native dialog — SPA sheet cannot run across a hard refresh).
  * Use `tryLeave` for explicit back buttons that do not go through the blocker.
  * Set `leaveBypassRef.current = true` (or call `allowLeave`) before intentional
  * navigation — e.g. successful submit — so the blocker does not intercept it.
@@ -29,6 +31,32 @@ export function useDiscardGuard(
       setConfirmOpen(true);
     }
   }, [blocker.state]);
+
+  // Hard refresh / pull-to-refresh / close tab — cannot show our sheet.
+  useEffect(() => {
+    if (!isActive) return;
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (bypassRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    // Reduce accidental pull-to-refresh while WIP (Safari / Chrome Android).
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overscrollBehaviorY;
+    const prevBody = body.style.overscrollBehaviorY;
+    html.style.overscrollBehaviorY = 'none';
+    body.style.overscrollBehaviorY = 'none';
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      html.style.overscrollBehaviorY = prevHtml;
+      body.style.overscrollBehaviorY = prevBody;
+    };
+  }, [isActive, bypassRef]);
 
   const cancelLeave = useCallback(() => {
     setConfirmOpen(false);

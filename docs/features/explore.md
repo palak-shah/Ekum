@@ -19,7 +19,7 @@ Buyers, sellers, and dual-role companies. Explore is not limited to “seller ca
    - **Album:** long-press → select album. **Design:** long-press → select design. Both can stay selected together (types preserved — albums stay albums). Same traveling **Selection** as Saved, company shop, curated albums, and My designs/collections. Long-press uses a non-link press target so iOS Safari does **not** show Open / Open in New Tab; short tap still opens the album or design.
    - Explore header **Selection** control (next to Saved) opens **Your selection**; badge when count > 0. Small floater chip **N selected · View** above bottom nav when the pile is non-empty (hidden on `/selection`, open **chat threads**, and My Catalog root; shown on **Chats list**). Traveling Selection accepts **published** items only.
    - Trade verbs live on **Your selection** — **Order** · **Curate** (Trading on) · **Bookmark** · **Share** — not on an Explore dock. **Clear selection** empties both stores. Selection **survives logout**; empties only on Clear or after a successful action. After **Bookmark**, app opens **Saved** (not the empty Selection screen).
-   - **Share** / **Bookmark** keep original types (collection cards / Saved collection refs + design cards / Saved design refs). They do **not** expand an album into its designs.
+   - **Share** / **Bookmark** keep original types (collection cards / Saved collection refs + design cards / Saved design refs). They do **not** expand an album into its designs. **Share** opens a sheet to pick **one or many** companies (Find on Ekum, Clear) and posts into those chats — not buyer-group Broadcast.
    - **Order** needs design lines. If any collection is selected, a resolve sheet asks per album **All designs** or **Choose designs** (open album to pick). Then existing How many each. Expanding All **dedupes** by product id. A collection is never an order line.
    - **Curate** uses **selected designs only**. Selected collections are not auto-expanded for Curate.
    - Unavailable picks stay on Your selection (faded + reason such as Archived / Not published / No longer available) — never silently dropped. **Access only** (no inventory): a design stays available while the viewer can still open it — market post, connection, chat share, **or** still a member of a published live album whose designs are visible to them. Surviving logout does not fade rows when access is unchanged.
@@ -56,8 +56,9 @@ User control is **Buying** or **Selling** only (`?side=`). Dual presence (I buy 
 
 ## Edge cases / empty states
 
-- Cold start: **Find in Explore** from empty Chats and Share sheets → browse businesses (`?show=businesses&search=1`).
-- Share with no chats yet → **Find in Explore** (not a dead end); single selection still has **48h link**.
+- Cold start: **Find in Explore** / **Find on Ekum** from empty Chats and Share sheets → browse or look up businesses.
+- **Share** (Selection / album / collection): multi-select connected companies (select · deselect · **Clear**), **Find on Ekum**, primary **Share** / **Share with N** → posts collection/design cards into each chat (`POST /threads/direct` then messages). Opens that chat when exactly one recipient. Buyer groups stay on Publish / Network — not on this sheet. Single album or design still has **Share a link · 48 hours**.
+- Share with no connections yet → **Find on Ekum** + **Find in Explore** (not a dead end); single selection still has **48h link**.
 - Buying + no follows → empty followed shelf; still offer supplier discovery.
 - Post feed: **Follow** on card when stranger views a discoverable post; hidden when following, connected, own post, or select mode.
 - Selected-audience posts hidden from non-selected viewers.

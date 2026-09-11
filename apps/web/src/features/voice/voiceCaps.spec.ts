@@ -23,14 +23,21 @@ describe('isUsableVoiceClip', () => {
     expect(
       isUsableVoiceClip({ durationMs: MIN_VOICE_DURATION_MS - 1, sizeBytes: 2000 }),
     ).toBe(false);
+    expect(isUsableVoiceClip({ durationMs: 900, sizeBytes: 0 })).toBe(false);
     expect(
-      isUsableVoiceClip({ durationMs: 2000, sizeBytes: MIN_VOICE_BYTES - 1 }),
+      isUsableVoiceClip({
+        durationMs: MIN_VOICE_DURATION_MS,
+        sizeBytes: MIN_VOICE_BYTES - 1,
+      }),
     ).toBe(false);
   });
 
-  it('accepts a real short clip', () => {
+  it('accepts a real short clip (incl. tiny AAC after a solid hold)', () => {
     expect(
       isUsableVoiceClip({ durationMs: MIN_VOICE_DURATION_MS, sizeBytes: MIN_VOICE_BYTES }),
+    ).toBe(true);
+    expect(
+      isUsableVoiceClip({ durationMs: MIN_VOICE_DURATION_MS * 2, sizeBytes: 32 }),
     ).toBe(true);
   });
 });

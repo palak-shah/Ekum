@@ -81,7 +81,7 @@ export function AppShell() {
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
-  const { buying, selling, trading, canPublish } = useTradePresence();
+  const { buying, selling, trading } = useTradePresence();
   const { can } = useTeamCaps();
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
@@ -219,11 +219,7 @@ export function AppShell() {
                   Curate pack
                 </Button>
               ) : null}
-              {canPublish ? (
-                <Button variant="secondary" fullWidth onClick={() => go('/broadcast/new')}>
-                  Broadcast to buyers
-                </Button>
-              ) : null}
+              {/* Broadcast compose deferred — Buyer groups stay under Network for Publish. */}
             </>
           ) : null}
           <Button variant="secondary" fullWidth onClick={() => go('/referrals/new')}>

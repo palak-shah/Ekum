@@ -6,15 +6,21 @@ export { VOICE_MAX_DURATION_MS };
 export const VOICE_MAX_BYTES = 5 * 1024 * 1024;
 
 /** Ignore accidental taps — must hold at least this long. */
-export const MIN_VOICE_DURATION_MS = 700;
+export const MIN_VOICE_DURATION_MS = 500;
 
-/** Tiny blobs are empty/corrupt — do not upload. */
-export const MIN_VOICE_BYTES = 256;
+/** Reject empty/corrupt blobs; real AAC/webm frames are larger once duration passes. */
+export const MIN_VOICE_BYTES = 64;
 
 export type AudioContentType = 'audio/webm' | 'audio/mp4' | 'audio/mpeg';
 
 export function isUsableVoiceClip(input: { durationMs: number; sizeBytes: number }): boolean {
-  return input.durationMs >= MIN_VOICE_DURATION_MS && input.sizeBytes >= MIN_VOICE_BYTES;
+  if (input.durationMs < MIN_VOICE_DURATION_MS) return false;
+  if (input.sizeBytes < 1) return false;
+  // Very short clock + tiny blob = tap / failed flush (Safari).
+  if (input.sizeBytes < MIN_VOICE_BYTES && input.durationMs < MIN_VOICE_DURATION_MS * 2) {
+    return false;
+  }
+  return true;
 }
 
 export function formatVoiceDuration(ms: number): string {

@@ -34,7 +34,14 @@ import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
+import { productImagesFromChatReference } from '@/features/chats/productImagesFromChatReference';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
+import {
+  voiceHoldAfterRelease,
+  voiceHoldAfterStart,
+  voiceStageFromClip,
+  type VoiceHoldPhase,
+} from '@/features/voice/chatVoiceHold';
 import { formatVoiceDuration, isUsableVoiceClip } from '@/features/voice/voiceCaps';
 import { useVoiceRecorder } from '@/features/voice/useVoiceRecorder';
 import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
@@ -135,14 +142,24 @@ export function ThreadPage() {
     durationMs: number;
     previewUrl: string;
   } | null>(null);
-  const stageVoiceClip = (clip: VoiceRecording | null) => {
-    if (
-      !clip ||
-      !isUsableVoiceClip({ durationMs: clip.durationMs, sizeBytes: clip.blob.size })
-    ) {
+  const stageVoiceClip = (clip: VoiceRecording | null, didRecord: boolean) => {
+    const decision = voiceStageFromClip({
+      clip: clip
+        ? { durationMs: clip.durationMs, sizeBytes: clip.blob.size }
+        : null,
+      didRecord,
+      isUsable: isUsableVoiceClip,
+    });
+    if (decision.kind === 'silent') return;
+    if (decision.kind === 'too_short') {
       showToast('Hold longer to record.', 'danger');
       return;
     }
+    if (decision.kind === 'failed') {
+      showToast('Could not save voice. Try again.', 'danger');
+      return;
+    }
+    if (!clip) return;
     setPendingVoice((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl);
       const previewUrl = URL.createObjectURL(clip.blob);
@@ -163,9 +180,13 @@ export function ThreadPage() {
     });
   };
   const voiceRecorder = useVoiceRecorder({
-    onMaxDuration: (clip) => stageVoiceClip(clip),
+    onMaxDuration: (clip) => stageVoiceClip(clip, true),
   });
   const voicePointerRef = useRef<{ x: number; y: number } | null>(null);
+  const voiceHoldPhaseRef = useRef<VoiceHoldPhase>('idle');
+  const voiceHoldingRef = useRef(false);
+  const voiceCancelRequestedRef = useRef(false);
+  const voiceDidRecordRef = useRef(false);
   useEffect(() => {
     return () => {
       if (pendingVoiceUrlRef.current) {
@@ -810,7 +831,7 @@ export function ThreadPage() {
     mutationFn: (reference: MessageReference) => {
       const dto: CreateProductDto = {
         name: (reference.name ?? 'Saved design').trim() || 'Saved design',
-        images: reference.image ? [reference.image] : [],
+        images: productImagesFromChatReference(reference),
         categories: [],
       };
       return api.post<ProductView>('/products', dto).then((product) => ({ product, reference }));
@@ -1183,29 +1204,78 @@ export function ThreadPage() {
     }
   };
 
-  const onVoicePointerDown = async (event: PointerEvent) => {
+  const onVoicePointerDown = async (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     if (pendingVoice || uploadingVoice || send.isPending) return;
+    if (voiceHoldPhaseRef.current !== 'idle') return;
+    voiceHoldingRef.current = true;
+    voiceCancelRequestedRef.current = false;
+    voiceDidRecordRef.current = false;
+    voiceHoldPhaseRef.current = 'arming';
     voicePointerRef.current = { x: event.clientX, y: event.clientY };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore — older browsers */
+    }
     const err = await voiceRecorder.start();
-    if (err) showToast(err, 'danger');
-  };
-
-  const onVoicePointerUp = async (event: PointerEvent) => {
-    const start = voicePointerRef.current;
-    voicePointerRef.current = null;
-    if (!voiceRecorder.recording) return;
-    if (start && start.x - event.clientX > 72) {
+    const next = voiceHoldAfterStart({
+      stillHolding: voiceHoldingRef.current,
+      startError: err,
+      cancelRequested: voiceCancelRequestedRef.current,
+    });
+    if (next === 'error') {
+      voiceHoldPhaseRef.current = 'idle';
+      voiceHoldingRef.current = false;
+      if (err) showToast(err, 'danger');
+      return;
+    }
+    if (next === 'cancel') {
+      voiceHoldPhaseRef.current = 'idle';
+      voiceHoldingRef.current = false;
       await voiceRecorder.cancel();
       return;
     }
+    voiceDidRecordRef.current = true;
+    voiceHoldPhaseRef.current = 'recording';
+    if (next === 'stop_now') {
+      voiceHoldPhaseRef.current = 'idle';
+      const clip = await voiceRecorder.stopAndGet();
+      stageVoiceClip(clip, true);
+    }
+  };
+
+  const onVoicePointerUp = async (event: PointerEvent<HTMLButtonElement>) => {
+    const start = voicePointerRef.current;
+    voicePointerRef.current = null;
+    voiceHoldingRef.current = false;
+    const slideCancel = !!(start && start.x - event.clientX > 72);
+    const action = voiceHoldAfterRelease({
+      phase: voiceHoldPhaseRef.current,
+      slideCancel,
+    });
+    if (action === 'noop' || action === 'defer_to_start') return;
+    if (action === 'cancel') {
+      voiceCancelRequestedRef.current = true;
+      voiceHoldPhaseRef.current = 'idle';
+      await voiceRecorder.cancel();
+      return;
+    }
+    const didRecord = voiceDidRecordRef.current;
+    voiceHoldPhaseRef.current = 'idle';
     const clip = await voiceRecorder.stopAndGet();
-    stageVoiceClip(clip);
+    stageVoiceClip(clip, didRecord);
   };
 
   const onVoicePointerCancel = async () => {
     voicePointerRef.current = null;
-    if (voiceRecorder.recording) await voiceRecorder.cancel();
+    voiceHoldingRef.current = false;
+    voiceCancelRequestedRef.current = true;
+    const phase = voiceHoldPhaseRef.current;
+    voiceHoldPhaseRef.current = 'idle';
+    if (phase === 'recording' || phase === 'arming') {
+      await voiceRecorder.cancel();
+    }
   };
 
   const filteredAttachProducts = useMemo(

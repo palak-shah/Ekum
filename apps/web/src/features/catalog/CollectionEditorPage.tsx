@@ -36,6 +36,7 @@ import {
 import { createPortal } from 'react-dom';
 import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename } from './collectionCreateHelpers';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
@@ -87,6 +88,7 @@ export function CollectionEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreAnchorRef = useRef<HTMLButtonElement>(null);
@@ -1130,12 +1132,7 @@ export function CollectionEditorPage() {
                       >
                         Visibility
                       </Button>
-                      <Button
-                        className="min-w-0 flex-1"
-                        onClick={() =>
-                          navigate(`/broadcast/new?collectionId=${encodeURIComponent(id!)}`)
-                        }
-                      >
+                      <Button className="min-w-0 flex-1" onClick={() => setShareOpen(true)}>
                         Share
                       </Button>
                     </>
@@ -1360,6 +1357,22 @@ export function CollectionEditorPage() {
           );
           void queryClient.invalidateQueries({ queryKey: ['broadcast-lists'] });
         }}
+      />
+
+      <CatalogShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        collections={
+          id && existing.data
+            ? [
+                {
+                  collectionId: id,
+                  name: existing.data.name,
+                  image: existing.data.coverImage,
+                },
+              ]
+            : []
+        }
       />
     </div>
   );

@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { BroadcastListView } from '@ekum/domain-types';
 import { RateVisibility } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, Card, EmptyState, LoadingBlock, SectionHeader } from '@/ui/kit';
+import { Card, EmptyState, LoadingBlock, SectionHeader, Button } from '@/ui/kit';
 import { BuyerGroupFormSheet } from './BuyerGroupFormSheet';
 
 function groupSummary(list: BroadcastListView): string {
@@ -20,7 +19,6 @@ function groupSummary(list: BroadcastListView): string {
 }
 
 export function BroadcastPage() {
-  const navigate = useNavigate();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<BroadcastListView | null>(null);
 
@@ -41,22 +39,7 @@ export function BroadcastPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Buyer groups"
-        action={
-          <button className="text-sm font-medium text-accent" onClick={() => navigate('/broadcast/new')}>
-            Compose
-          </button>
-        }
-      />
-
-      <Card className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-ink">Send to many at once</p>
-          <p className="text-xs text-muted">Reach selected buyers or a saved group.</p>
-        </div>
-        <Button onClick={() => navigate('/broadcast/new')}>New</Button>
-      </Card>
+      <PageHeader title="Buyer groups" />
 
       <section className="flex flex-col gap-2">
         <SectionHeader
@@ -90,7 +73,7 @@ export function BroadcastPage() {
         ) : (
           <EmptyState
             title="No buyer groups"
-            message="Group connections for private publish, share, and broadcast."
+            message="Group connections for private publish audiences."
             action={<Button onClick={openCreate}>Add group</Button>}
           />
         )}

@@ -49,6 +49,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Buyer groups (elevate broadcast lists) | Works | Unit | Required | 2026-08-13 Completeness |
 | Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open; Share = live+not-blocked (no sender canDiscover); Curate still locked; in-sheet Share errors |
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
+| Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; no buyer groups) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
 | Trader curation | Curate **Add to existing pack** (merge; draft→editor / published toast) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing; saved.md |

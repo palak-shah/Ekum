@@ -11,6 +11,7 @@ import {
   DESIGNS_ALREADY_ADDED_MESSAGE,
   uniqueDraftSku,
   continuousCameraMaxShots,
+  resolvePhotoBatchTarget,
 } from './designBatchHelpers';
 
 describe('generateDraftSku', () => {
@@ -77,6 +78,20 @@ describe('overridesFromSheet', () => {
 
   it('clears overrides when the sheet matches shared', () => {
     expect(overridesFromSheet(shared, shared)).toEqual({});
+  });
+});
+
+describe('resolvePhotoBatchTarget', () => {
+  it('appends when Update-design Add passes a draft id', () => {
+    expect(resolvePhotoBatchTarget('draft-1', null)).toEqual({
+      mode: 'append',
+      draftId: 'draft-1',
+    });
+  });
+
+  it('creates new designs when the session has no append target', () => {
+    expect(resolvePhotoBatchTarget(null, null)).toEqual({ mode: 'create' });
+    expect(resolvePhotoBatchTarget(undefined, null)).toEqual({ mode: 'create' });
   });
 });
 

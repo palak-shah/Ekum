@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
-  CursorPage,
+  ConnectionView,
   MessageView,
   ShareLinkView,
-  ThreadSummary,
+  StartDirectThreadResult,
 } from '@ekum/domain-types';
 import { MessageType } from '@ekum/domain-types';
-import { rankShareChats } from '@/features/browse/rankShareChats';
+import {
+  catalogShareToastLabel,
+  dedupeCompanyIds,
+  shouldOpenChatAfterCatalogShare,
+} from '@/features/browse/catalogShareTargets';
 import { api, ApiError } from '@/lib/apiClient';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
-import { threadVisibilityLabel, threadVisibilitySubtitle } from '@/features/chats/threadVisibilityLabel';
-import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Avatar, Button, InlineNotice, LoadingBlock, Sheet } from '@/ui/kit';
+import { ConnectionPicker } from '@/ui/ConnectionPicker';
+import { Button, InlineNotice, LoadingBlock, Sheet } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
@@ -28,10 +32,9 @@ export type CatalogShareProductItem = {
 };
 
 /**
- * Catalogue → chat: post collection_card / product_card into a chosen thread.
- * Forward free — API allows live published cards unless blocked; view gated on open.
- * Path is Your paths / TradeLane — not chosen on each share.
- * Quiet text under the chat list: 48h link (any app) when exactly one album or design.
+ * Catalogue → chat(s): multi-select companies (Find on Ekum, Clear), then post
+ * collection_card / product_card into each DM. No buyer groups / Broadcast.
+ * Quiet 48h link when exactly one album or design.
  */
 export function CatalogShareSheet({
   open,
@@ -53,53 +56,67 @@ export function CatalogShareSheet({
   const designItems = products;
   const total = albumItems.length + designItems.length;
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setSelectedCompanyIds([]);
   }, [open]);
 
-  const threads = useQuery({
-    queryKey: ['threads', { catalogShare: true }],
-    queryFn: () =>
-      api.get<CursorPage<ThreadSummary>>('/threads', { limit: 40, state: 'active' }),
+  const connections = useQuery({
+    queryKey: ['connections'],
+    queryFn: () => api.get<ConnectionView[]>('/connections'),
     enabled: open && total > 0,
   });
 
-  const rankedChats = useMemo(
-    () => rankShareChats(threads.data?.results ?? []),
-    [threads.data?.results],
-  );
+  const connectionName = (companyId: string) =>
+    connections.data?.find((row) => row.company.id === companyId)?.company.name ?? null;
+
+  const postCardsToThread = async (threadId: string) => {
+    for (const item of albumItems) {
+      await api.post<MessageView>(`/threads/${threadId}/messages`, {
+        type: MessageType.CollectionCard,
+        referenceId: item.collectionId,
+        body: item.name,
+      });
+    }
+    for (const item of designItems) {
+      await api.post<MessageView>(`/threads/${threadId}/messages`, {
+        type: MessageType.ProductCard,
+        referenceId: item.productId,
+        body: item.name,
+      });
+    }
+  };
 
   const share = useMutation({
-    mutationFn: async (threadId: string) => {
+    mutationFn: async (companyIds: string[]) => {
+      const targets = dedupeCompanyIds(companyIds);
       if (total === 0) throw new Error('Nothing to share');
+      if (targets.length === 0) throw new Error('Pick at least one business');
       setError(null);
-      for (const item of albumItems) {
-        await api.post<MessageView>(`/threads/${threadId}/messages`, {
-          type: MessageType.CollectionCard,
-          referenceId: item.collectionId,
-          body: item.name,
-        });
+      const threadIds: string[] = [];
+      for (const companyId of targets) {
+        const thread = await api.post<StartDirectThreadResult>('/threads/direct', { companyId });
+        await postCardsToThread(thread.id);
+        threadIds.push(thread.id);
       }
-      for (const item of designItems) {
-        await api.post<MessageView>(`/threads/${threadId}/messages`, {
-          type: MessageType.ProductCard,
-          referenceId: item.productId,
-          body: item.name,
-        });
-      }
-      const title =
-        rankedChats.find((row) => row.id === threadId)?.title ??
-        rankedChats.find((row) => row.id === threadId)?.counterpart?.name ??
-        'chat';
-      return title;
+      return {
+        threadIds,
+        recipientCount: targets.length,
+        singleName: targets.length === 1 ? connectionName(targets[0]!) : null,
+      };
     },
-    onSuccess: (title) => {
-      showToast(total === 1 ? `Shared with ${title}` : `Shared ${total} with ${title}`);
+    onSuccess: ({ threadIds, recipientCount, singleName }) => {
+      showToast(catalogShareToastLabel({ recipientCount, singleName }));
       onShared?.();
       onClose();
+      if (shouldOpenChatAfterCatalogShare(recipientCount) && threadIds[0]) {
+        navigate(`/chats/${threadIds[0]}`);
+      }
     },
     onError: (err) => {
       setError(err instanceof ApiError ? err.message : 'Could not share.');
@@ -148,6 +165,9 @@ export function CatalogShareSheet({
           ? 'Share design…'
           : 'Share to…';
 
+  const selectedCount = selectedCompanyIds.length;
+  const busy = share.isPending || makeLink.isPending;
+
   return (
     <Sheet
       open={open}
@@ -155,78 +175,77 @@ export function CatalogShareSheet({
         if (!share.isPending) onClose();
       }}
       title={sheetTitle}
+      footer={
+        total > 0 ? (
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              fullWidth
+              disabled={busy || selectedCount < 1}
+              onClick={() => share.mutate(selectedCompanyIds)}
+              data-testid="catalog-share-send"
+            >
+              {share.isPending
+                ? 'Sharing…'
+                : selectedCount > 1
+                  ? `Share with ${selectedCount}`
+                  : 'Share'}
+            </Button>
+            {canLink ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => makeLink.mutate()}
+                className="text-center text-sm text-accent disabled:opacity-50"
+                data-testid="catalog-share-link"
+              >
+                {makeLink.isPending
+                  ? 'Making link…'
+                  : canNativeShare()
+                    ? 'Share a link · 48 hours'
+                    : 'Copy a link · 48 hours'}
+              </button>
+            ) : null}
+          </div>
+        ) : null
+      }
     >
       {error ? <InlineNotice message={error} className="mb-3" /> : null}
-      {threads.isLoading ? (
+      {total < 1 ? (
+        <p className="text-sm text-muted">Nothing to share.</p>
+      ) : connections.isLoading ? (
         <LoadingBlock />
       ) : (
-        <div className="flex max-h-80 flex-col gap-0.5">
-          {rankedChats.map((row) => {
-            const chatTitle = row.title ?? row.counterpart?.name ?? 'Conversation';
-            const visLine = threadVisibilitySubtitle(
-              threadVisibilityLabel(row),
-              row.counterpart?.city,
-            );
-            return (
+        <div className="flex max-h-[min(24rem,55vh)] flex-col gap-2 overflow-y-auto">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted">
+              {selectedCount} selected · posts into chat
+            </p>
+            {selectedCount > 0 ? (
               <button
-                key={row.id}
                 type="button"
-                disabled={share.isPending}
-                onClick={() => share.mutate(row.id)}
-                className="flex items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-foam active:bg-foam disabled:opacity-50"
+                className="text-xs font-medium text-accent disabled:opacity-50"
+                disabled={busy}
+                onClick={() => setSelectedCompanyIds([])}
+                data-testid="catalog-share-clear"
               >
-                <Avatar name={chatTitle} imageUrl={row.counterpart?.logoUrl} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink">
-                    {chatTitle}
-                  </span>
-                  {visLine ? (
-                    <span className="block truncate text-[11px] text-muted">{visLine}</span>
-                  ) : null}
-                </span>
+                Clear
               </button>
-            );
-          })}
-          {rankedChats.length === 0 ? (
-            <div className="flex flex-col gap-3 px-2 py-4 text-center">
-              <div>
-                <p className="text-sm font-semibold text-ink">No chats yet</p>
-                <p className="mt-1 text-sm text-muted">
-                  Find a business on Explore, then message them here.
-                </p>
-              </div>
-              <FindInExploreLink />
-              {canLink ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  fullWidth
-                  disabled={share.isPending || makeLink.isPending}
-                  onClick={() => makeLink.mutate()}
-                >
-                  {makeLink.isPending
-                    ? 'Making link…'
-                    : canNativeShare()
-                      ? 'Share a link · 48 hours'
-                      : 'Copy a link · 48 hours'}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-          {rankedChats.length > 0 && canLink ? (
-            <button
-              type="button"
-              disabled={share.isPending || makeLink.isPending}
-              onClick={() => makeLink.mutate()}
-              className="px-2 pt-3 text-left text-sm text-accent disabled:opacity-50"
-            >
-              {makeLink.isPending
-                ? 'Making link…'
-                : canNativeShare()
-                  ? 'Share a link · 48 hours'
-                  : 'Copy a link · 48 hours'}
-            </button>
-          ) : null}
+            ) : null}
+          </div>
+          <ConnectionPicker
+            mode="multi"
+            embedded
+            label=""
+            connections={connections.data ?? []}
+            value={selectedCompanyIds}
+            onChange={setSelectedCompanyIds}
+            emptyMessage="No connections yet — find a business below."
+            findOnEkum
+            onMessageFound={(companyId) => {
+              setSelectedCompanyIds((prev) => dedupeCompanyIds([...prev, companyId]));
+            }}
+          />
         </div>
       )}
     </Sheet>

@@ -12,6 +12,7 @@
 - Body: **Changes you have made will be discarded.**
 - **Cancel** (default focus) · **Leave**
 - Applies to route changes (bottom nav) and explicit back when WIP.
+- Hard refresh / pull-to-refresh / tab close: browser “Leave site?” (`beforeunload`); overscroll refresh dampened while dirty.
 
 ---
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { acquireMediaStream, releaseMediaStream } from '@/lib/mediaSession';
 import { Button, cx } from '@/ui/kit';
 import {
   continuousCameraCanShoot,
@@ -10,7 +11,12 @@ export interface ContinuousCameraProps {
   open: boolean;
   /** How many more shots allowed in this session (remaining slots). */
   maxShots: number;
-  onDone: (files: File[]) => void;
+  /**
+   * When opening from Update-design Add: freeze this id for the session so Done
+   * appends photos to that design (not new designs). Null/omit = new-design batch.
+   */
+  appendToDraftId?: string | null;
+  onDone: (files: File[], appendToDraftId: string | null) => void;
   onCancel: () => void;
   /** Permission / device failure — parent should fall back to gallery. */
   onUnavailable: () => void;
@@ -85,12 +91,13 @@ async function waitForVideoEl(
 /**
  * Full-screen continuous capture for Photo order / Add designs (phone).
  * Portaled to document.body so AppShell `max-w-md` + `.ekum-rise` transform
- * cannot shrink the viewfinder. Rear camera, shutter stack, Done / Cancel;
- * torch + zoom when the device supports them.
+ * cannot shrink the viewfinder. One viewport layer: video fills the screen;
+ * Cancel / Done / shutter overlay it (no scrollable chrome column).
  */
 export function ContinuousCamera({
   open,
   maxShots,
+  appendToDraftId = null,
   onDone,
   onCancel,
   onUnavailable,
@@ -98,6 +105,8 @@ export function ContinuousCamera({
 }: ContinuousCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  /** Locked when the session opens — parent re-renders must not lose append target. */
+  const sessionAppendRef = useRef<string | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -110,16 +119,12 @@ export function ContinuousCamera({
   );
 
   const stopStream = useCallback(() => {
-    const stream = streamRef.current;
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-      streamRef.current = null;
-    }
+    // Soft-release: keep session tracks so reopen does not re-prompt.
+    streamRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    releaseMediaStream('camera');
     setReady(false);
     setTorchOn(false);
     setTorchSupported(false);
@@ -132,6 +137,26 @@ export function ContinuousCamera({
       URL.revokeObjectURL(shot.previewUrl);
     }
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      sessionAppendRef.current = appendToDraftId ?? null;
+    } else {
+      sessionAppendRef.current = null;
+    }
+  }, [open, appendToDraftId]);
 
   useEffect(() => {
     if (!open) {
@@ -159,17 +184,13 @@ export function ContinuousCamera({
     setZoom(1);
 
     const start = async (attempt: number) => {
-      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-        onUnavailable();
-        return;
-      }
       try {
-        // iOS often needs a beat after the previous session's tracks stop.
+        // Brief pause only when retrying a failed attach (not a hard track stop).
         if (attempt > 0) {
           await delay(350);
           if (cancelled) return;
         }
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const acquired = await acquireMediaStream('camera', {
           audio: false,
           video: {
             facingMode: { ideal: 'environment' },
@@ -177,15 +198,25 @@ export function ContinuousCamera({
             height: { ideal: 1080 },
           },
         });
+        if (!acquired.ok) {
+          if (cancelled) return;
+          if (attempt < 1) {
+            void start(attempt + 1);
+            return;
+          }
+          onUnavailable();
+          return;
+        }
+        const stream = acquired.stream;
         if (cancelled) {
-          for (const track of stream.getTracks()) track.stop();
+          releaseMediaStream('camera');
           return;
         }
         streamRef.current = stream;
         const video = await waitForVideoEl(() => videoRef.current);
         if (!video) {
-          for (const track of stream.getTracks()) track.stop();
           streamRef.current = null;
+          releaseMediaStream('camera');
           if (!cancelled && attempt < 1) {
             void start(attempt + 1);
             return;
@@ -196,8 +227,8 @@ export function ContinuousCamera({
         video.srcObject = stream;
         await video.play();
         if (cancelled) {
-          for (const track of stream.getTracks()) track.stop();
           streamRef.current = null;
+          releaseMediaStream('camera');
           return;
         }
 
@@ -318,10 +349,11 @@ export function ContinuousCamera({
   const handleDone = () => {
     if (!doneEnabled) return;
     const files = shots.map((s) => s.file);
+    const appendId = sessionAppendRef.current;
     revokeShots(shots);
     setShots([]);
     stopStream();
-    onDone(files);
+    onDone(files, appendId);
   };
 
   const handleGallery = () => {
@@ -336,84 +368,81 @@ export function ContinuousCamera({
   // `fixed inset-0` only fills the max-w-md column (tiny camera). Same as Sheet.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex h-dvh w-full flex-col bg-black text-white"
+      className="fixed inset-0 z-[100] h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden overscroll-none bg-black text-white"
       role="dialog"
       aria-modal="true"
       aria-label="Camera"
       data-testid="continuous-camera"
     >
-      <div className="relative min-h-0 flex-1">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
-          playsInline
-          muted
-          autoPlay
-        />
-        {!ready ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black text-sm text-white/80">
-            Starting camera…
-          </div>
-        ) : null}
-
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/60 to-transparent px-4 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <div className="flex min-w-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-white"
-            >
-              Cancel
-            </button>
-            {onGallery ? (
-              <button
-                type="button"
-                onClick={handleGallery}
-                className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
-              >
-                Gallery
-              </button>
-            ) : null}
-          </div>
-          <p className="shrink-0 text-sm font-semibold tabular-nums">
-            {shots.length}/{maxShots}
-          </p>
-          <Button
-            type="button"
-            className="min-h-11 min-w-[4.5rem] px-3"
-            disabled={!doneEnabled}
-            onClick={handleDone}
-          >
-            Done
-          </Button>
+      <video
+        ref={videoRef}
+        className="absolute inset-0 h-full w-full object-cover"
+        playsInline
+        muted
+        autoPlay
+      />
+      {!ready ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black text-sm text-white/80">
+          Starting camera…
         </div>
+      ) : null}
 
-        {torchSupported ? (
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 bg-gradient-to-b from-black/70 to-transparent px-4 pb-10 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="pointer-events-auto flex min-w-0 items-center gap-1">
           <button
             type="button"
-            aria-label={torchOn ? 'Turn torch off' : 'Turn torch on'}
-            aria-pressed={torchOn}
-            onClick={() => void toggleTorch()}
-            className={cx(
-              'absolute right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] min-h-11 min-w-11 rounded-full px-3 text-xs font-bold',
-              torchOn ? 'bg-accent text-white' : 'bg-black/55 text-white',
-            )}
+            onClick={handleCancel}
+            className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-white"
           >
-            Torch
+            Cancel
           </button>
-        ) : null}
+          {onGallery ? (
+            <button
+              type="button"
+              onClick={handleGallery}
+              className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
+            >
+              Gallery
+            </button>
+          ) : null}
+        </div>
+        <p className="shrink-0 text-sm font-semibold tabular-nums">{shots.length}/{maxShots}</p>
+        <Button
+          type="button"
+          className="pointer-events-auto min-h-11 min-w-[4.5rem] px-3"
+          disabled={!doneEnabled}
+          onClick={handleDone}
+        >
+          Done
+        </Button>
       </div>
 
-      <div className="flex flex-col gap-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+      {torchSupported ? (
+        <button
+          type="button"
+          aria-label={torchOn ? 'Turn torch off' : 'Turn torch on'}
+          aria-pressed={torchOn}
+          onClick={() => void toggleTorch()}
+          className={cx(
+            'absolute right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] z-10 min-h-11 min-w-11 rounded-full px-3 text-xs font-bold',
+            torchOn ? 'bg-accent text-white' : 'bg-black/55 text-white',
+          )}
+        >
+          Torch
+        </button>
+      ) : null}
+
+      {/* All capture chrome overlays the preview — never a second scroll column. */}
+      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8">
         {shots.length > 0 ? (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {shots.map((shot) => (
               <button
                 key={shot.id}
                 type="button"
                 aria-label="Remove photo"
                 onClick={() => removeShot(shot.id)}
-                className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/30"
+                className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/30"
               >
                 <img src={shot.previewUrl} alt="" className="h-full w-full object-cover" />
                 <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-[10px]">
@@ -452,6 +481,7 @@ export function ContinuousCamera({
           <button
             type="button"
             aria-label="Take photo"
+            data-testid="continuous-camera-shutter"
             disabled={!canShoot}
             onClick={() => void capture()}
             className={cx(
