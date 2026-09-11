@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -21,6 +21,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
@@ -38,7 +39,8 @@ import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/i
 import { useToast } from '@/ui/Toast';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { nameFromFilename } from './collectionCreateHelpers';
+import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
+import { morePhotosEntry } from './designBatchHelpers';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { auditLine } from './productStatusSummary';
@@ -62,7 +64,7 @@ function toDateInput(iso: string | null | undefined): string {
   return iso.slice(0, 10);
 }
 
-const QUICK_PHOTO_CAP = 24;
+const QUICK_PHOTO_CAP = COLLECTION_QUICK_PHOTO_CAP;
 
 type PendingPhoto = {
   localId: string;
@@ -94,9 +96,9 @@ export function CollectionEditorPage() {
   const moreAnchorRef = useRef<HTMLButtonElement>(null);
   const morePanelRef = useRef<HTMLDivElement>(null);
   const [morePos, setMorePos] = useState({ top: 0, right: 0 });
-  const [designPickerOpen, setDesignPickerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [designCapture, setDesignCapture] = useState<boolean | 'gallery'>('gallery');
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSession, setCameraSession] = useState(0);
   const [quickUploading, setQuickUploading] = useState(false);
   const [savingDesigns, setSavingDesigns] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -445,31 +447,54 @@ export function CollectionEditorPage() {
     },
   });
 
-  const openDesignPicker = () => {
-    if (phone) {
-      setDesignPickerOpen(true);
+  const openCollectionGallery = () => {
+    setError(null);
+    queueMicrotask(() => designFileRef.current?.click());
+  };
+
+  const openCollectionCamera = () => {
+    if (pendingPhotos.length >= QUICK_PHOTO_CAP && !editing) {
+      setError(`You can add up to ${QUICK_PHOTO_CAP} photos.`);
       return;
     }
-    setDesignCapture('gallery');
-    queueMicrotask(() => designFileRef.current?.click());
+    setError(null);
+    setCameraSession((n) => n + 1);
+    setCameraOpen(true);
   };
 
-  const pickDesignPhotos = (mode: 'camera' | 'gallery') => {
-    setDesignPickerOpen(false);
-    setDesignCapture(mode === 'camera' ? true : 'gallery');
-    queueMicrotask(() => designFileRef.current?.click());
+  /** Phone → ContinuousCamera (Gallery on chrome); desktop → file multi-select. Same as Add designs. */
+  const openDesignPicker = () => {
+    if (morePhotosEntry(phone) === 'camera') {
+      openCollectionCamera();
+      return;
+    }
+    openCollectionGallery();
   };
 
-  const onCreatePhotoFiles = async (fileList: FileList | null) => {
-    if (!fileList?.length) return;
+  const onCameraUnavailable = useCallback(() => {
+    setCameraOpen(false);
+    setError(null);
+    queueMicrotask(() => openCollectionGallery());
+  }, []);
+
+  const ingestPhotoFiles = async (files: File[]) => {
+    if (!files.length) return;
+    if (!editing) {
+      await onCreatePhotoFiles(files);
+      return;
+    }
+    await onEditQuickDesignFiles(files);
+  };
+
+  const onCreatePhotoFiles = async (files: File[]) => {
     const room = QUICK_PHOTO_CAP - pendingPhotos.length;
     if (room <= 0) {
       setError(`You can add up to ${QUICK_PHOTO_CAP} photos.`);
       return;
     }
-    const files = [...fileList].slice(0, room);
+    const selected = files.slice(0, room);
     setError(null);
-    const stubs: PendingPhoto[] = files.map((file) => ({
+    const stubs: PendingPhoto[] = selected.map((file) => ({
       localId: crypto.randomUUID(),
       previewUrl: URL.createObjectURL(file),
       imageUrl: null,
@@ -479,8 +504,8 @@ export function CollectionEditorPage() {
     setPendingPhotos((prev) => [...prev, ...stubs]);
     setQuickUploading(true);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]!;
+      for (let i = 0; i < selected.length; i++) {
+        const file = selected[i]!;
         const stub = stubs[i]!;
         try {
           const imageUrl = await uploadImage(file);
@@ -501,18 +526,14 @@ export function CollectionEditorPage() {
     }
   };
 
-  const onQuickDesignFiles = async (fileList: FileList | null) => {
-    if (!editing) {
-      await onCreatePhotoFiles(fileList);
-      return;
-    }
-    if (!id || !fileList?.length) return;
-    const files = [...fileList].slice(0, QUICK_PHOTO_CAP);
+  const onEditQuickDesignFiles = async (files: File[]) => {
+    if (!id || !files.length) return;
+    const picked = files.slice(0, QUICK_PHOTO_CAP);
     setError(null);
     setQuickUploading(true);
     try {
       const createdIds: string[] = [];
-      for (const file of files) {
+      for (const file of picked) {
         const imageUrl = await uploadImage(file);
         const dto: CreateProductDto = {
           name: nameFromFilename(file.name),
@@ -533,6 +554,11 @@ export function CollectionEditorPage() {
       setQuickUploading(false);
       if (designFileRef.current) designFileRef.current.value = '';
     }
+  };
+
+  const onQuickDesignFiles = async (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+    await ingestPhotoFiles([...fileList]);
   };
 
   const onCreate = async (opts?: { publish?: boolean }) => {
@@ -1156,30 +1182,30 @@ export function CollectionEditorPage() {
         ref={designFileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/*"
-        multiple={designCapture !== true}
-        capture={designCapture === true ? 'environment' : undefined}
+        multiple
         className="hidden"
         onChange={(e) => void onQuickDesignFiles(e.target.files)}
       />
 
-      <Sheet
-        open={designPickerOpen}
-        onClose={() => setDesignPickerOpen(false)}
-        title={editing ? 'Add photos as designs' : 'Add photos'}
-      >
-        <div className="flex flex-col gap-2">
-          <p className="mb-1 text-sm text-muted">
-            Each photo becomes a draft design in your library
-            {editing ? ' and joins this collection.' : '.'}
-          </p>
-          <Button fullWidth onClick={() => pickDesignPhotos('camera')}>
-            Camera
-          </Button>
-          <Button variant="secondary" fullWidth onClick={() => pickDesignPhotos('gallery')}>
-            Gallery
-          </Button>
-        </div>
-      </Sheet>
+      <ContinuousCamera
+        key={cameraSession}
+        open={cameraOpen}
+        maxShots={
+          editing
+            ? QUICK_PHOTO_CAP
+            : collectionCameraMaxShots(pendingPhotos.length)
+        }
+        onCancel={() => setCameraOpen(false)}
+        onUnavailable={onCameraUnavailable}
+        onGallery={() => {
+          setCameraOpen(false);
+          openCollectionGallery();
+        }}
+        onDone={(files) => {
+          setCameraOpen(false);
+          void ingestPhotoFiles(files);
+        }}
+      />
 
       <Sheet
         open={libraryOpen}

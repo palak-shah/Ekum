@@ -12,7 +12,7 @@ Sellers building packs for shop / Explore. Buyers view published albums via Expl
 
 ### Create & edit (seller)
 
-1. **＋ → New collection** — **Photos** and/or **Designs** (library opens as a sheet; album grid = what’s in the pack) → **name (required, empty by default)** → **Save Collection in Draft** or **Create & Publish**. First item is cover. New photos become draft designs; library picks join as-is. Designs-only is fine. After create, opens **My designs → Collections** with **Draft** or **Published** filter.
+1. **＋ → New collection** — **Photos** and/or **Designs** (library opens as a sheet; album grid = what’s in the pack) → **name (required, empty by default)** → **Save Collection in Draft** or **Create & Publish**. First item is cover. **Photos** uses the same capture as **Add designs**: phone ContinuousCamera (Gallery on that chrome); desktop file multi-select. New photos become draft designs; library picks join as-is. Designs-only is fine. After create, opens **My designs → Collections** with **Draft** or **Published** filter.
 2. On edit: one plain **status line** under the title (`Published · who` / schedule; tap → Visibility when published). Sticky **Update** · **Publish** / Visibility · **Share** (broadcast). **Open** (header) or tap album photos opens the buyer album (`/collections/:id`). Back returns to My Catalog **Collections** tab. Rare actions (**Archive**, Hide) live under header **⋯** only — no status chip pile.
 3. Lifecycle: **Draft → Published → Archived** (same mental model as designs). New collection CTAs: **Save Collection in Draft** / **Create & Publish**. Publish from draft.
 4. Publish sheet (progressive): **Who** → **Rules** (rates / **Buyers can add these designs to their collections**). Path is **Your paths** / TradeLane — not on Publish or pack fields (first pair I handle + no group; see [orders Dual trade](./orders.md)). `Collection.orderPathPreference` is legacy (API returns null; column may remain). Schedule (**When** / starts / evergreen) deferred for later — packs go live on publish. Who = Everyone / **Followers** / **Selected** (multi-select **Buyer groups** with clear selected state + member preview, or **Pick companies**). **My connections** is not offered (connections include suppliers). Multiple groups = member union; rates/relist use company usual then group overrides with **strictest wins** if they disagree. **Create group** / **Add group** without leaving Publish. Published packs: **Visibility** restores chosen groups (`audienceGroupIds`) so you can add another group tomorrow without a new album.
@@ -54,7 +54,7 @@ Default layout is **grid**. Library home stays **You → My designs** (`/catalog
 | Unique names | Non-archived packs per company must have unique names (case-insensitive). Restore blocked if name is taken |
 | Explore resurface | `exploreActivityAt` bumps on first publish / republish after hide — not on audience-only tweaks while already published |
 | Hide / archive | Hide → draft (edit quietly); Archive ends the season; **Restore** (⋯ or dock) → draft again |
-| Quick add photos | Creates draft **Product** rows (name from filename), not orphan photos |
+| Quick add photos | Creates draft **Product** rows (name from filename), not orphan photos. Capture matches Add designs (ContinuousCamera on phone). |
 | Designs vs collections | Tabs stay separate — see [concepts](./00-concepts.md) |
 
 ## Edge cases / empty states

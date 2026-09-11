@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COLLECTION_QUICK_PHOTO_CAP,
+  collectionCameraMaxShots,
   coverUrlFromGrid,
   defaultCollectionName,
   itemKey,
@@ -16,6 +18,14 @@ describe('defaultCollectionName', () => {
 describe('nameFromFilename', () => {
   it('cleans underscores', () => {
     expect(nameFromFilename('Red_Banarasi.jpg')).toBe('Red Banarasi');
+  });
+});
+
+describe('collectionCameraMaxShots', () => {
+  it('matches Add designs continuous remaining slots for new collection', () => {
+    expect(collectionCameraMaxShots(0)).toBe(COLLECTION_QUICK_PHOTO_CAP);
+    expect(collectionCameraMaxShots(3)).toBe(COLLECTION_QUICK_PHOTO_CAP - 3);
+    expect(collectionCameraMaxShots(COLLECTION_QUICK_PHOTO_CAP)).toBe(0);
   });
 });
 

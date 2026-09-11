@@ -29,3 +29,14 @@ export function coverUrlFromGrid(
 export function itemKey(item: CreateGridItem): string {
   return item.kind === 'photo' ? item.localId : item.productId;
 }
+
+/** Cap for quick photos on New / edit collection (each photo → one draft design). */
+export const COLLECTION_QUICK_PHOTO_CAP = 24;
+
+/** ContinuousCamera remaining shots while building a new collection. */
+export function collectionCameraMaxShots(
+  pendingPhotoCount: number,
+  cap = COLLECTION_QUICK_PHOTO_CAP,
+): number {
+  return Math.max(0, cap - pendingPhotoCount);
+}
