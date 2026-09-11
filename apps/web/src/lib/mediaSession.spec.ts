@@ -78,4 +78,23 @@ describe('acquireMediaStream session reuse', () => {
     disposeMediaSession('camera');
     expect(track.stop).toHaveBeenCalled();
   });
+
+  it('soft-releases microphone without disabling tracks (Safari MediaRecorder)', async () => {
+    const track = fakeTrack('audio');
+    const stream = fakeStream([track]);
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia },
+    });
+
+    await acquireMediaStream('microphone', { audio: true });
+    releaseMediaStream('microphone');
+    expect(track.enabled).toBe(true);
+
+    const again = await acquireMediaStream('microphone', { audio: true });
+    expect(again.ok && again.reused).toBe(true);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(track.enabled).toBe(true);
+  });
 });

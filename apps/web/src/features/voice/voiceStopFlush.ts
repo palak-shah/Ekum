@@ -1,7 +1,7 @@
 /** Safari often delivers the last MediaRecorder chunk after `onstop`. */
-export const VOICE_STOP_FLUSH_MS = 300;
+export const VOICE_STOP_FLUSH_MS = 800;
 /** After onstop, wait briefly even if bytes already exist (late final chunk). */
-export const VOICE_STOP_EARLY_MS = 50;
+export const VOICE_STOP_EARLY_MS = 80;
 
 /**
  * After `stop()`, settle once we have bytes and a short post-onstop debounce,

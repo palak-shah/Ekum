@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { acquireMediaStream, releaseMediaStream } from '@/lib/mediaSession';
 import { VOICE_MAX_DURATION_MS, pickAudioMimeType, withSniffedAudioType } from './voiceCaps';
+import { voiceCaptureProfile } from './voiceCaptureProfile';
 import { shouldSettleVoiceStop, VOICE_STOP_EARLY_MS, VOICE_STOP_FLUSH_MS } from './voiceStopFlush';
 import { stopAllVoicePlayback } from './voicePlayback';
 
@@ -26,6 +27,7 @@ export function useVoiceRecorder(options: Options = {}) {
   const streamRef = useRef<MediaStream | null>(null);
   const cancelRef = useRef(false);
   const pickedMimeRef = useRef<string | undefined>(undefined);
+  const captureProfileRef = useRef(voiceCaptureProfile());
   const stopFlushRef = useRef<{
     stopFired: boolean;
     stoppedAt: number;
@@ -132,18 +134,19 @@ export function useVoiceRecorder(options: Options = {}) {
           if (!flush) return;
           flush.stopFired = true;
           flush.stoppedAt = Date.now();
-          // Early debounce if bytes already exist; full window if still empty.
           flush.earlyTimer = window.setTimeout(trySettle, VOICE_STOP_EARLY_MS);
           flush.flushTimer = window.setTimeout(trySettle, VOICE_STOP_FLUSH_MS);
           trySettle();
         };
-        // Flush the final container before stop (Safari often needs this).
-        try {
-          if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
-            recorder.requestData();
+        const profile = captureProfileRef.current;
+        if (profile.requestDataBeforeStop) {
+          try {
+            if (recorder.state === 'recording' && typeof recorder.requestData === 'function') {
+              recorder.requestData();
+            }
+          } catch {
+            /* ignore */
           }
-        } catch {
-          /* ignore */
         }
         recorder.stop();
       }),
@@ -176,14 +179,23 @@ export function useVoiceRecorder(options: Options = {}) {
     }
     try {
       const stream = acquired.stream;
+      for (const track of stream.getAudioTracks()) {
+        track.enabled = true;
+      }
       streamRef.current = stream;
       const mime = pickAudioMimeType();
       pickedMimeRef.current = mime;
+      const profile = voiceCaptureProfile(mime);
+      captureProfileRef.current = profile;
       const recorder = new MediaRecorder(
         stream,
         mime
-          ? { mimeType: mime, audioBitsPerSecond: 128_000 }
-          : { audioBitsPerSecond: 128_000 },
+          ? profile.bitsPerSecond != null
+            ? { mimeType: mime, audioBitsPerSecond: profile.bitsPerSecond }
+            : { mimeType: mime }
+          : profile.bitsPerSecond != null
+            ? { audioBitsPerSecond: profile.bitsPerSecond }
+            : undefined,
       );
       mediaRef.current = recorder;
       recorder.ondataavailable = (event) => {
@@ -202,8 +214,11 @@ export function useVoiceRecorder(options: Options = {}) {
           });
         }
       }, 200);
-      // No timeslice — chunked webm often plays choppy / “broken” in browsers.
-      recorder.start();
+      if (profile.timesliceMs != null) {
+        recorder.start(profile.timesliceMs);
+      } else {
+        recorder.start();
+      }
       return null;
     } catch (err) {
       const message =

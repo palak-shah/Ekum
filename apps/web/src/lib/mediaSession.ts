@@ -122,13 +122,17 @@ export async function acquireMediaStream(
 }
 
 /**
- * Soft-release: mute device for privacy/LED, keep tracks so the next open
- * in this tab does not re-prompt. Hard-stops after idle.
+ * Soft-release: keep tracks alive so the next open in this tab does not
+ * re-prompt. Camera mutes for privacy/LED; microphone stays enabled —
+ * Safari MediaRecorder often returns an empty blob after mute → unmute.
+ * Hard-stops after idle.
  */
 export function releaseMediaStream(kind: MediaKind) {
   const slot = slots[kind];
   if (!slot) return;
-  setTracksEnabled(slot.stream, kind, false);
+  if (kind === 'camera') {
+    setTracksEnabled(slot.stream, kind, false);
+  }
   clearIdle(kind);
   slot.idleTimer = setTimeout(() => {
     hardStop(kind);
