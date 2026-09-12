@@ -6,6 +6,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import type { Env } from '../core/config/config.schema';
+import { resolvePublicWebOrigin } from '../common/public-web-origin';
 import { shareLinkOgHtml } from './share-link-og';
 import { ShareLinkService } from './share-link.service';
 
@@ -29,10 +30,9 @@ export class ShareLinkController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   async card(@Param('token') token: string) {
     const view = await this.links.get(token);
-    const webOrigin = this.config
-      .get('CORS_ORIGINS', { infer: true })
-      .split(',')
-      .map((origin) => origin.trim())[0];
+    const webOrigin = resolvePublicWebOrigin(
+      this.config.get('CORS_ORIGINS', { infer: true }),
+    );
     const collageUrl = `${webOrigin}/api/v1/share-links/${view.token}/og-image`;
     return shareLinkOgHtml({
       view,

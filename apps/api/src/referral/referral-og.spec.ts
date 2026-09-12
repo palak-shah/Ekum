@@ -57,6 +57,26 @@ describe('referralOgHtml', () => {
       'og:description" content="Jaipur Emporium invites you to connect on Ekum"',
     );
     expect(html).toContain('og:image" content="https://beta.ekum.app/brand/app-icon-512.png"');
+    expect(html).toContain('og:image:width" content="512"');
+    expect(html).toContain('og:image:height" content="512"');
     expect(html).toContain('summary_large_image');
+  });
+
+  it('uses logo without claiming 512×512 dimensions', () => {
+    const html = referralOgHtml({
+      view: {
+        ...openInvite,
+        referrer: {
+          ...openInvite.referrer,
+          logoUrl: 'https://cdn.example/logos/jaipur.png',
+        },
+      },
+      pageUrl: 'https://beta.ekum.app/r/tok',
+      mediaBase: 'https://beta.ekum.app/media',
+      fallbackImageUrl: 'https://beta.ekum.app/brand/app-icon-512.png',
+    });
+    expect(html).toContain('og:image" content="https://cdn.example/logos/jaipur.png"');
+    expect(html).not.toContain('og:image:width');
+    expect(html).not.toContain('og:image:height');
   });
 });

@@ -4,7 +4,7 @@ import { loginAsRavi } from '../../helpers/persona';
 
 const fixture = path.join(process.cwd(), 'fixtures/sample.jpg');
 
-test.describe('add designs batch @functional @catalog', () => {
+test.describe('add designs batch @functional @catalog @creation', () => {
   test('SKU thumbs, one vs many details, no filename names', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/catalog/products/new');

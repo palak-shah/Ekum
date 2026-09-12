@@ -87,7 +87,7 @@ export function AppShell() {
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
-  const { buying, selling, trading } = useTradePresence();
+  const { buying, selling } = useTradePresence();
   const { can } = useTeamCaps();
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
@@ -231,9 +231,6 @@ export function AppShell() {
             <>
               {can('uploads') ? (
                 <>
-                  <Button variant="secondary" fullWidth onClick={() => go('/catalog')}>
-                    My designs
-                  </Button>
                   <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
                     Add designs
                   </Button>
@@ -242,12 +239,7 @@ export function AppShell() {
                   </Button>
                 </>
               ) : null}
-              {trading && can('uploads') ? (
-                <Button variant="secondary" fullWidth onClick={() => go('/saved?select=1')}>
-                  Curate pack
-                </Button>
-              ) : null}
-              {/* Broadcast compose deferred — Buyer groups stay under Network for Publish. */}
+              {/* Curate lives on Your selection (and Saved select) — not a ＋ create action. */}
             </>
           ) : null}
           <Button

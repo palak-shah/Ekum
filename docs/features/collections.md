@@ -30,7 +30,7 @@ Header is one tight row — not five equal pills:
 | **⋯** | Everyone | Share; Feed/Grid; **Bookmark** when owner |
 | Sticky dock | Selecting | **Share** · Curate · Order (same verbs as Explore) |
 
-Default layout is **grid**. Library home stays **You → My designs** (`/catalog`); also **＋ → My designs** and Home **My designs** when selling — no Catalog bottom tab.
+Default layout is **grid**. Library home stays **You → My designs** (`/catalog`); also Home **My designs** when selling — no Catalog bottom tab. **＋** creates (Add designs / New collection); it does not open the library.
 
 ### View (buyer)
 

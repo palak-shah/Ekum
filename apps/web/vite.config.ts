@@ -126,6 +126,18 @@ export default defineConfig(({ mode }) => {
     // So dual-test.html can load the app on both localhost and 127.0.0.1
     // (separate origins → two independent login sessions side by side).
     host: true,
+    // Match Compose nginx: page-origin `/media` and `/api` hit the API.
+    // Without this, `toAbsoluteMediaUrl` rewrites PUT tickets onto :5173 and uploads fail in e2e/dev.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
+      '/media': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
+    },
   },
 };
 });

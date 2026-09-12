@@ -122,7 +122,7 @@ Log out on both browsers (**You → Log out**), then log in again.
 
 **Kavita or Ravi**
 
-- [ ] **＋** → Add designs / New collection / **Curate pack**
+- [ ] **＋** → Add designs / New collection
 - [ ] Publish with audience (Everyone / connections / selected)
 
 **Meena**

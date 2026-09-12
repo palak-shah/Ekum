@@ -481,6 +481,8 @@ export function DesignBatchPage() {
     if (!incoming || (incoming instanceof FileList ? !incoming.length : incoming.length === 0)) {
       return;
     }
+    // Copy before clearing the input — FileList is live and empties when value is reset.
+    const files = [...incoming];
     setError(null);
     const appendId =
       appendToIdOverride !== undefined
@@ -491,7 +493,6 @@ export function DesignBatchPage() {
     setCameraGalleryDraftId(null);
     if (fileRef.current) fileRef.current.value = '';
 
-    const files = [...incoming];
     const target = resolvePhotoBatchTarget(appendId, null);
 
     try {

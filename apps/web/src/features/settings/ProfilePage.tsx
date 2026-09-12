@@ -13,6 +13,7 @@ import { uploadImage } from '@/lib/mediaUpload';
 import { useMyCompany } from '@/lib/queries';
 import { resolveTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
+import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
 
@@ -28,6 +29,7 @@ const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
 export function ProfilePage() {
   const company = useMyCompany();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [form, setForm] = useState({
@@ -81,7 +83,11 @@ export function ProfilePage() {
       };
       return api.patch<OwnCompanyProfile>('/companies/me', dto);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['company', 'me'] }),
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+      showToast('Profile saved.');
+    },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
   });
 

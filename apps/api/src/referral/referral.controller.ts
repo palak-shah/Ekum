@@ -5,6 +5,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import type { Env } from '../core/config/config.schema';
+import { resolvePublicWebOrigin } from '../common/public-web-origin';
 import { referralOgHtml } from './referral-og';
 import { ReferralService } from './referral.service';
 
@@ -33,10 +34,9 @@ export class ReferralController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   async card(@Param('token') token: string) {
     const view = await this.referrals.resolve(token);
-    const webOrigin = this.config
-      .get('CORS_ORIGINS', { infer: true })
-      .split(',')
-      .map((origin) => origin.trim())[0];
+    const webOrigin = resolvePublicWebOrigin(
+      this.config.get('CORS_ORIGINS', { infer: true }),
+    );
     const mediaBase = this.config.get('PUBLIC_MEDIA_BASE_URL', { infer: true });
     return referralOgHtml({
       view,

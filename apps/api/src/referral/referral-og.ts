@@ -34,10 +34,17 @@ export function referralOgHtml(options: {
 }): string {
   const { title, description } = referralInviteCopy(options.view);
   const logo = absoluteMediaUrl(options.view.referrer.logoUrl, options.mediaBase);
-  const image =
-    logo && /^https?:\/\//i.test(logo) ? logo : options.fallbackImageUrl;
+  const usingFallback = !(logo && /^https?:\/\//i.test(logo));
+  const image = usingFallback ? options.fallbackImageUrl : logo!;
   // Always large card so WhatsApp shows the image (logo or Ekum app icon).
   const card = 'summary_large_image';
+  // Only claim size when we know it (app-icon-512). Logos are arbitrary — omit tags
+  // so crawlers measure the real image (same as share-link OG).
+  const imageSizeTags = usingFallback
+    ? `<meta property="og:image:width" content="512" />
+<meta property="og:image:height" content="512" />
+`
+    : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -50,9 +57,7 @@ export function referralOgHtml(options: {
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:url" content="${escapeHtml(options.pageUrl)}" />
 <meta property="og:image" content="${escapeHtml(image)}" />
-<meta property="og:image:width" content="512" />
-<meta property="og:image:height" content="512" />
-<meta name="twitter:card" content="${card}" />
+${imageSizeTags}<meta name="twitter:card" content="${card}" />
 <meta name="twitter:title" content="${escapeHtml(title)}" />
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <meta name="twitter:image" content="${escapeHtml(image)}" />

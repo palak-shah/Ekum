@@ -6,7 +6,7 @@ The **design library** is first-class: create, edit, publish (live on Explore fo
 
 ## Who uses it
 
-Sellers (selling enabled). First publish requires consent; then `canPublish` stays on. Entry via **You → My designs & collections** (`/catalog`), **＋ → My designs**, Home **My designs** (when selling), or **＋ → Add designs** / **New collection**.
+Sellers (selling enabled). First publish requires consent; then `canPublish` stays on. Entry via **You → My designs & collections** (`/catalog`), Home **My designs** (when selling), or **＋ → Add designs** / **New collection**.
 
 ## User flows
 
