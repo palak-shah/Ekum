@@ -32,6 +32,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | WhatsApp open (unread divider / newest) | Works | Unit | Required | Completeness 2026-09-03-whatsapp-chat-open-locked-previews |
 | Chat | Locked catalog thumbs blur (no viewer) | Works | Unit | Required | `imagesLocked` + PhotoAlbum locked |
 | Chat | Message actions (Reply/Forward/Copy/Star/Edit/Delete) | Works | Unit | Required | Completeness 2026-09-03-chat-message-actions; no Select all; order teaser strip |
+| Chat | Photo long-press opens Ekum actions menu | Works | Unit + Functional | Required | Completeness 2026-09-13-photo-longpress-menu; WA gesture, Ekum verbs |
 | Collections | Pack Ask Allow/Deny (Granted on request) | Works | Unit | Required | Completeness 2026-09-03-collection-view-request-allow-deny; ≠ Connection |
 | Orders | Core trade request→quote→accept | Works | Functional | Required | Green 2026-08-11 |
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |

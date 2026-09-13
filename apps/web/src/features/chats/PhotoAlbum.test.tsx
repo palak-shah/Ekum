@@ -34,6 +34,21 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
   });
 
+  it('shows all three images in WhatsApp L-layout (not two)', () => {
+    render(
+      <PhotoAlbum
+        urls={[
+          'https://example.com/a.jpg',
+          'https://example.com/b.jpg',
+          'https://example.com/c.jpg',
+        ]}
+      />,
+    );
+    const album = screen.getByTestId('photo-album-3');
+    expect(album.querySelectorAll('img')).toHaveLength(3);
+    expect(album.className).toMatch(/grid-rows-2/);
+  });
+
   it('thumb size shows at most two cells with +N overflow', () => {
     render(
       <PhotoAlbum

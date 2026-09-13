@@ -213,33 +213,36 @@ export function PhotoAlbum({
       </div>
     );
   } else if (count === 3) {
+    // Flat 2×2 grid + row-span so all three cells paint (nested rows clipped as “2 photos”).
     grid = (
-      <div className={cx('grid grid-cols-2', compact ? 'h-20' : 'h-52')} style={{ gap: GUTTER }}>
+      <div
+        className={cx('grid grid-cols-2 grid-rows-2', compact ? 'h-20' : 'h-52')}
+        style={{ gap: GUTTER }}
+        data-testid="photo-album-3"
+      >
         <Cell
           src={urlAt(preview, 0)}
           onClick={() => open(0)}
           rounded="rounded-l-2xl"
-          className="row-span-2"
+          className="row-span-2 h-full min-h-0"
           overlayClass={overlayClass}
           locked={locked}
         />
-        <div className="grid h-full grid-rows-2" style={{ gap: GUTTER }}>
-          <Cell
-            src={urlAt(preview, 1)}
-            onClick={() => open(1)}
-            rounded="rounded-tr-2xl"
-            overlayClass={overlayClass}
-            locked={locked}
-          />
-          <Cell
-            src={urlAt(preview, 2)}
-            onClick={() => open(2)}
-            rounded="rounded-br-2xl"
-            overlay={moreLabel}
-            overlayClass={overlayClass}
-            locked={locked}
-          />
-        </div>
+        <Cell
+          src={urlAt(preview, 1)}
+          onClick={() => open(1)}
+          rounded="rounded-tr-2xl"
+          overlayClass={overlayClass}
+          locked={locked}
+        />
+        <Cell
+          src={urlAt(preview, 2)}
+          onClick={() => open(2)}
+          rounded="rounded-br-2xl"
+          overlay={moreLabel}
+          overlayClass={overlayClass}
+          locked={locked}
+        />
       </div>
     );
   } else {

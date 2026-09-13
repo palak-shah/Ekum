@@ -16,21 +16,30 @@ describe('isNearFit', () => {
 });
 
 describe('classifyDrag', () => {
-  it('pans when zoomed even if horizontal dominates', () => {
-    expect(classifyDrag({ scale: 2, dx: 80, dy: 10, urlCount: 3 })).toBe('pan');
+  it('pans when zoomed even if vertical dominates', () => {
+    expect(classifyDrag({ scale: 2, dx: 10, dy: 80, urlCount: 3, index: 1 })).toBe('pan');
   });
 
-  it('swipes next/prev when near fit and horizontal wins', () => {
-    expect(classifyDrag({ scale: 1, dx: -80, dy: 10, urlCount: 3 })).toBe('swipe-next');
-    expect(classifyDrag({ scale: 1, dx: 80, dy: 10, urlCount: 3 })).toBe('swipe-prev');
+  it('swipes next/prev when near fit and vertical wins (WhatsApp album)', () => {
+    expect(classifyDrag({ scale: 1, dx: 10, dy: -80, urlCount: 3, index: 0 })).toBe('swipe-next');
+    expect(classifyDrag({ scale: 1, dx: 10, dy: 80, urlCount: 3, index: 1 })).toBe('swipe-prev');
   });
 
-  it('swipes down when near fit and vertical dominates', () => {
-    expect(classifyDrag({ scale: 1, dx: 10, dy: 80, urlCount: 3 })).toBe('swipe-down');
+  it('dismisses on down swipe on the first photo of an album', () => {
+    expect(classifyDrag({ scale: 1, dx: 10, dy: 80, urlCount: 3, index: 0 })).toBe('swipe-down');
   });
 
-  it('does not change photo when only one url', () => {
-    expect(classifyDrag({ scale: 1, dx: -80, dy: 0, urlCount: 1 })).toBe('none');
+  it('still allows horizontal next/prev as secondary', () => {
+    expect(classifyDrag({ scale: 1, dx: -80, dy: 10, urlCount: 3, index: 0 })).toBe('swipe-next');
+    expect(classifyDrag({ scale: 1, dx: 80, dy: 10, urlCount: 3, index: 1 })).toBe('swipe-prev');
+  });
+
+  it('swipes down to dismiss a single photo', () => {
+    expect(classifyDrag({ scale: 1, dx: 10, dy: 80, urlCount: 1, index: 0 })).toBe('swipe-down');
+  });
+
+  it('does not change photo when only one url on horizontal flick', () => {
+    expect(classifyDrag({ scale: 1, dx: -80, dy: 0, urlCount: 1, index: 0 })).toBe('none');
   });
 });
 

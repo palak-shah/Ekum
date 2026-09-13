@@ -65,11 +65,11 @@ export function PhotoViewer({
         return;
       }
       if (!isNearFit(scale) || urls.length < 2) return;
-      if (event.key === 'ArrowRight') {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
         event.preventDefault();
         onIndex(nextIndex(safeIndex, urls.length, 'swipe-next'));
       }
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
         event.preventDefault();
         onIndex(nextIndex(safeIndex, urls.length, 'swipe-prev'));
       }
@@ -152,7 +152,13 @@ export function PhotoViewer({
       lastTap.current = now;
       return;
     }
-    const intent = classifyDrag({ scale, dx, dy, urlCount: urls.length });
+    const intent = classifyDrag({
+      scale,
+      dx,
+      dy,
+      urlCount: urls.length,
+      index: safeIndex,
+    });
     if (intent === 'swipe-down') onClose();
     if (intent === 'swipe-next' || intent === 'swipe-prev') {
       onIndex(nextIndex(safeIndex, urls.length, intent));

@@ -27,7 +27,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Owner on cards | Design/collection cards show **Order goes to** the ticket party: **I handle** → sharer (you); **Direct** → design owner. Header is pack/design name (no Design/Collection label); who-acted lives under the header |
 | Forward | **Text, photo, document, design, collection, order card** (not payment/system). Catalog: free for live published (not blocked); view on **open**. Order: forward card OK; **open** needs party (buyer/seller/facilitator) + hold/reveal. Non-party order teaser is **stripped** (no names/thumbs/amounts). Relist/Curate ≠ Forward. Locked packs: blurred thumbs; no PhotoViewer. |
 | First share from Explore | Same as Forward — live published card, not blocked. Sender need not match Explore audience. |
-| Message actions | Top-right chevron: **Reply · Forward · Copy · Star · Edit · Delete** (when applicable). Long-press still selects for forward. **No Select all** on thread forward mode (tap only); dock Cancel / Forward (n), **max 10**. |
+| Message actions | Top-right chevron: **Reply · Forward · Copy · Star · Edit · Delete** (when applicable). **Photo** long-press opens that same Ekum menu (WhatsApp-style; not device Save). Other types: long-press still **Select** for forward. **No Select all** on thread forward mode (tap only); dock Cancel / Forward (n), **max 10**. |
 | Edit | Own **text** only, within **15 minutes** of send. Quiet **Edited** mark. |
 | Delete | **Delete for me** (hide on our company). **Delete for everyone** on own messages within **1 hour** → tombstone “This message was deleted”. After window, for-me only. |
 | Star | Toggle in menu; thread search filter **Starred**; **You → Starred** cross-chat list (tap → thread `?message=`). |
@@ -57,7 +57,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 
 Message types: text, photo, voice, document, collection_card, product_card, order_card, rate, payment_card, system. Voice: body = audio URL; metadata.durationMs (max 2 min). Document: body = file URL; metadata `{ url, fileName, contentType, sizeBytes? }`.
 
-Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that album). Close returns to the thread. Document cards follow WhatsApp: name · type · size; original photos show a thumb but still open as a file (not PhotoAlbum).
+Chat photo albums open the shared **PhotoViewer** (pinch / **vertical swipe** between photos in the album, WhatsApp-style; horizontal still works). Close returns to the thread. Document cards follow WhatsApp: name · type · size; original photos show a thumb but still open as a file (not PhotoAlbum).
 
 ## Edge cases / empty states
 

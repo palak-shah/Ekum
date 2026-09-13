@@ -40,7 +40,7 @@ import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
-import { useLongPress } from '@/ui/useLongPress';
+import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
 import { productImagesFromChatReference } from '@/features/chats/productImagesFromChatReference';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
@@ -103,7 +103,7 @@ import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messageP
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
-import { MSG_BUBBLE_CLASS, messageChromeBubblePad } from './messageChrome';
+import { MSG_BUBBLE_CLASS, messageChromeBubblePad, resolveMessageLongPress } from './messageChrome';
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
@@ -2723,6 +2723,8 @@ function MessageChrome({
   className,
   /** Chevron on accent fill (white) vs light/surface fill (muted). */
   actionsOnAccent,
+  /** Photo: long-press opens Ekum actions menu (WhatsApp-style). */
+  longPressOpensMenu = false,
 }: {
   messageId: string;
   mine: boolean;
@@ -2734,6 +2736,7 @@ function MessageChrome({
   children: ReactNode;
   className?: string;
   actionsOnAccent?: boolean;
+  longPressOpensMenu?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -2747,16 +2750,24 @@ function MessageChrome({
       actions?.onDelete,
   );
   const chevronOnAccent = actionsOnAccent ?? mine;
-  // WhatsApp-style: long-press selects; chevron opens Reply/Forward/Select menu.
+  const longPressIntent = resolveMessageLongPress({
+    selecting,
+    canToggleSelect: Boolean(onToggleSelect),
+    opensMenu: longPressOpensMenu,
+    hasActions,
+    canEnterSelect: Boolean(actions?.onSelect),
+  });
   const longPress = useLongPress(
-    selecting
+    longPressIntent === 'toggle-select'
       ? onToggleSelect
-      : actions?.onSelect
-        ? () => {
-            setMenuOpen(false);
-            actions.onSelect?.();
-          }
-        : undefined,
+      : longPressIntent === 'open-menu'
+        ? () => setMenuOpen(true)
+        : longPressIntent === 'enter-select'
+          ? () => {
+              setMenuOpen(false);
+              actions?.onSelect?.();
+            }
+          : undefined,
   );
 
   useEffect(() => {
@@ -3059,7 +3070,8 @@ function TimelineItem({
         onToggleSelect={onToggleSelect}
         actions={actions}
         actionsOnAccent={false}
-        className="max-w-[85%]"
+        longPressOpensMenu
+        className={cx('max-w-[85%]', LONG_PRESS_SURFACE_CLASS)}
       >
         <div className="flex flex-col gap-0.5">
           <div
