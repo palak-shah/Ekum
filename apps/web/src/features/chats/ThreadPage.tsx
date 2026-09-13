@@ -26,11 +26,12 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useToast } from '@/ui/Toast';
 import { timeAgo } from '@/lib/format';
-import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
+import { isPhoneLike, uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
+import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
@@ -55,6 +56,7 @@ import {
   ChevronUpIcon,
   CollectionIcon,
   FilterIcon,
+  ImageIcon,
   MicIcon,
   OrdersIcon,
   MoreHorizontalIcon,
@@ -108,12 +110,10 @@ import { firstUnreadMessageId, unreadDividerLabel } from './threadOpenScroll';
 import { createStickLatch, isNearBottom, scrollListToBottom } from './threadStickScroll';
 import { chatComposerHeightPx } from './chatComposerHeight';
 
-type AttachStep =
-  | 'menu'
-  | 'product'
-  | 'collection'
-  | 'order'
-  | 'photo';
+type AttachStep = 'menu' | 'product' | 'collection' | 'order';
+
+/** Same magnitude as Photo order continuous-camera batch. */
+const CHAT_CAMERA_MAX_SHOTS = 30;
 
 export function ThreadPage() {
   const { id = '' } = useParams();
@@ -135,6 +135,9 @@ export function ThreadPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<Set<string>>(() => new Set());
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSession, setCameraSession] = useState(0);
+  const phoneLike = isPhoneLike();
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const pendingVoiceUrlRef = useRef<string | null>(null);
   const [pendingVoice, setPendingVoice] = useState<{
@@ -1163,8 +1166,7 @@ export function ThreadPage() {
     setSelectedIds(new Set());
   };
 
-  const onPhotoPicked = async (fileList: FileList | null) => {
-    const files = fileList ? Array.from(fileList) : [];
+  const sendPhotoFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setUploadingPhoto(true);
     setError(null);
@@ -1192,6 +1194,30 @@ export function ThreadPage() {
       setUploadProgress(null);
       if (photoRef.current) photoRef.current.value = '';
     }
+  };
+
+  const onPhotoPicked = (fileList: FileList | null) => {
+    void sendPhotoFiles(fileList ? Array.from(fileList) : []);
+  };
+
+  const openPhotoGallery = () => {
+    queueMicrotask(() => photoRef.current?.click());
+  };
+
+  const openChatCamera = () => {
+    closeAttachSheet();
+    if (phoneLike) {
+      setCameraSession((n) => n + 1);
+      setCameraOpen(true);
+      return;
+    }
+    openPhotoGallery();
+  };
+
+  const onCameraUnavailable = () => {
+    setCameraOpen(false);
+    showToast('Camera not available. Pick from gallery.', 'danger');
+    openPhotoGallery();
   };
 
   const sendPendingVoice = async () => {
@@ -1345,6 +1371,7 @@ export function ThreadPage() {
           attachSelectedIds.size > 0 ||
           attachSending ||
           uploadingPhoto ||
+          cameraOpen ||
           uploadingVoice ||
           uploadProgress ||
           forwardQueue.length > 0 ||
@@ -1356,6 +1383,8 @@ export function ThreadPage() {
       attachSelectedIds.size,
       attachSending,
       uploadingPhoto,
+      cameraOpen,
+      uploadingVoice,
       uploadProgress,
       forwardQueue.length,
       selecting,
@@ -1406,9 +1435,7 @@ export function ThreadPage() {
         ? 'Share a design'
         : attachStep === 'collection'
           ? 'Share a collection'
-          : attachStep === 'order'
-            ? 'Share an order'
-            : 'Share a photo';
+          : 'Share an order';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
@@ -2093,6 +2120,22 @@ export function ThreadPage() {
         onChange={(e) => void onPhotoPicked(e.target.files)}
       />
 
+      <ContinuousCamera
+        key={cameraSession}
+        open={cameraOpen}
+        maxShots={CHAT_CAMERA_MAX_SHOTS}
+        onCancel={() => setCameraOpen(false)}
+        onUnavailable={onCameraUnavailable}
+        onGallery={() => {
+          setCameraOpen(false);
+          openPhotoGallery();
+        }}
+        onDone={(files) => {
+          setCameraOpen(false);
+          void sendPhotoFiles(files);
+        }}
+      />
+
       <Sheet
         open={attachOpen}
         onClose={closeAttachSheet}
@@ -2116,46 +2159,55 @@ export function ThreadPage() {
             {(
               [
                 {
-                  step: 'product' as const,
+                  id: 'product' as const,
                   label: 'Design',
                   subtitle: 'Share a design',
                   Icon: ProductIcon,
                   iconClass: 'bg-kind-design-soft text-kind-design',
+                  onPick: () => goAttachStep('product'),
                 },
                 {
-                  step: 'collection' as const,
+                  id: 'collection' as const,
                   label: 'Collection',
                   subtitle: 'Share a collection',
                   Icon: CollectionIcon,
                   iconClass: 'bg-kind-collection-soft text-kind-collection',
+                  onPick: () => goAttachStep('collection'),
                 },
                 {
-                  step: 'photo' as const,
-                  label: 'Photos',
-                  subtitle: 'Send photos',
+                  id: 'camera' as const,
+                  label: 'Camera',
+                  subtitle: 'Take photos',
                   Icon: CameraIcon,
                   iconClass: 'bg-warning-soft text-warning-ink',
+                  onPick: () => openChatCamera(),
                 },
                 {
-                  step: 'order' as const,
+                  id: 'photos' as const,
+                  label: 'Photos',
+                  subtitle: 'From your gallery',
+                  Icon: ImageIcon,
+                  iconClass: 'bg-foam text-muted',
+                  onPick: () => {
+                    closeAttachSheet();
+                    openPhotoGallery();
+                  },
+                },
+                {
+                  id: 'order' as const,
                   label: 'Order',
                   subtitle: 'Share an order',
                   Icon: OrdersIcon,
                   iconClass: 'bg-kind-order-soft text-kind-order',
+                  onPick: () => goAttachStep('order'),
                 },
               ] as const
-            ).map(({ step, label, subtitle, Icon, iconClass }) => (
+            ).map(({ id, label, subtitle, Icon, iconClass, onPick }) => (
               <button
-                key={step}
+                key={id}
                 type="button"
-                onClick={() => {
-                  if (step === 'photo') {
-                    closeAttachSheet();
-                    queueMicrotask(() => photoRef.current?.click());
-                    return;
-                  }
-                  goAttachStep(step);
-                }}
+                data-testid={`attach-${id}`}
+                onClick={onPick}
                 className="flex items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-foam/70 active:bg-foam"
               >
                 <span

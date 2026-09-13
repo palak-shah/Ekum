@@ -329,10 +329,10 @@ export function suggestedPaymentAmount(
   return Math.round(total * 100) / 100;
 }
 
-/** Dispatch: omit items to ship all remaining confirmed qty; provide for partial. LR required. */
+/** Dispatch: omit items to ship all remaining confirmed qty; provide for partial. LR optional. */
 export const dispatchSchema = z.object({
   transporter: z.string().trim().max(160).optional(),
-  lrNumber: z.string().trim().min(1).max(80),
+  lrNumber: z.string().trim().max(80).optional(),
   parcelCount: z.number().int().positive().max(100000).optional(),
   items: z
     .array(

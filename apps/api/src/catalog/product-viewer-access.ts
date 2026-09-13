@@ -6,6 +6,7 @@ import {
 } from '@ekum/domain-types';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { VisibilityService } from '../access/visibility.service';
+import { connectionPairWhere } from '../access/connection-pair';
 import {
   canDiscoverCollection,
   canViewCollectionProducts,
@@ -177,8 +178,7 @@ export async function loadTradeAudienceCtx(
   const [connection, follow] = await Promise.all([
     prisma.connection.findFirst({
       where: {
-        ownerCompanyId: sellerCompanyId,
-        viewerCompanyId: buyerCompanyId,
+        ...connectionPairWhere(buyerCompanyId, sellerCompanyId),
         status: ConnectionStatus.Active,
       },
       select: { id: true },

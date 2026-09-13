@@ -25,6 +25,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { ThreadService } from '../conversation/thread.service';
 import { DomainEvents } from '../events/events.module';
 import { randomToken } from '../common/crypto.util';
+import { connectionPairWhere } from '../access/connection-pair';
 import { OrderSerializer } from './order.serializer';
 import { phoneDigits, phoneVariants } from './order-invite-claim';
 
@@ -430,28 +431,14 @@ export class BuyForBuyerService {
   }
 
   private async assertTradable(actorCompanyId: string, buyerCompanyId: string) {
-    const blocked = await this.prisma.connection.findFirst({
-      where: {
-        status: ConnectionStatus.Blocked,
-        OR: [
-          { ownerCompanyId: actorCompanyId, viewerCompanyId: buyerCompanyId },
-          { ownerCompanyId: buyerCompanyId, viewerCompanyId: actorCompanyId },
-        ],
-      },
+    const pair = connectionPairWhere(actorCompanyId, buyerCompanyId);
+    const blocked = await this.prisma.connection.findUnique({
+      where: { companyLowId_companyHighId: pair },
     });
-    if (blocked) {
+    if (blocked?.status === ConnectionStatus.Blocked) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
     }
-    const active = await this.prisma.connection.findFirst({
-      where: {
-        status: ConnectionStatus.Active,
-        OR: [
-          { ownerCompanyId: actorCompanyId, viewerCompanyId: buyerCompanyId },
-          { ownerCompanyId: buyerCompanyId, viewerCompanyId: actorCompanyId },
-        ],
-      },
-    });
-    if (!active) {
+    if (blocked?.status !== ConnectionStatus.Active) {
       throw new BadRequestException({
         code: 'NOT_CONNECTED',
         message: 'Connect with them first, or use name and phone.',

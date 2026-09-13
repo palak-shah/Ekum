@@ -12,6 +12,7 @@ import {
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { CompanySerializer } from '../access/company.serializer';
+import { connectionPairWhere } from '../access/connection-pair';
 import { toAuditActor } from '../common/audit';
 import { canDiscoverCollection } from '../catalog/audience-visibility';
 import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
@@ -237,16 +238,18 @@ export class SavedService {
     ownerCompanyId: string,
   ): Promise<{ connected: boolean; following: boolean; blocked: boolean }> {
     const [connection, follow] = await Promise.all([
-      this.prisma.connection.findMany({
-        where: { ownerCompanyId, viewerCompanyId },
-        select: { ownerCompanyId: true, status: true },
+      this.prisma.connection.findUnique({
+        where: {
+          companyLowId_companyHighId: connectionPairWhere(viewerCompanyId, ownerCompanyId),
+        },
+        select: { status: true },
       }),
       this.prisma.follow.findMany({
         where: { followerCompanyId: viewerCompanyId, followedCompanyId: ownerCompanyId },
         select: { followedCompanyId: true },
       }),
     ]);
-    const status = connection[0]?.status;
+    const status = connection?.status;
     return {
       connected: status === ConnectionStatus.Active,
       following: follow.length > 0,

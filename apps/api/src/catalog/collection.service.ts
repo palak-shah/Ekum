@@ -26,6 +26,7 @@ import {
   curatedPublishRateVisibility,
   type CuratableProduct,
 } from './curation-ceiling';
+import { counterpartCompanyId } from '../access/connection-pair';
 import {
   assertCanPublish,
   grantPublishCapability,
@@ -525,10 +526,12 @@ export class CollectionService {
     const [connections, follows] = await Promise.all([
       this.prisma.connection.findMany({
         where: {
-          ownerCompanyId: { in: ownerIds },
-          viewerCompanyId,
+          OR: [
+            { companyLowId: viewerCompanyId, companyHighId: { in: ownerIds } },
+            { companyHighId: viewerCompanyId, companyLowId: { in: ownerIds } },
+          ],
         },
-        select: { ownerCompanyId: true, status: true },
+        select: { companyLowId: true, companyHighId: true, status: true },
       }),
       this.prisma.follow.findMany({
         where: {
@@ -540,7 +543,9 @@ export class CollectionService {
     ]);
 
     const connectionByOwner = new Map(
-      connections.map((row) => [row.ownerCompanyId, row.status] as const),
+      connections.map(
+        (row) => [counterpartCompanyId(viewerCompanyId, row), row.status] as const,
+      ),
     );
     const followingOwners = new Set(follows.map((row) => row.followedCompanyId));
 

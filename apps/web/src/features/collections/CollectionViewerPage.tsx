@@ -16,6 +16,11 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
+import {
+  readDesignBrowseLayout,
+  writeDesignBrowseLayout,
+  type DesignBrowseLayout,
+} from '@/lib/designBrowseLayout';
 import { useMyCompany } from '@/lib/queries';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
@@ -61,7 +66,7 @@ import { useToast } from '@/ui/Toast';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { coverMissingFromMembers } from './collectionCover';
 
-type Layout = 'feed' | 'grid';
+type Layout = DesignBrowseLayout;
 
 function toShortlistEntry(
   product: ProductView,
@@ -98,10 +103,11 @@ export function CollectionViewerPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useMyCompany();
+  const myCompanyId = me.data?.id;
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
-  const [layout, setLayout] = useState<Layout>('grid');
+  const [layout, setLayout] = useState<Layout>(() => readDesignBrowseLayout(myCompanyId));
   const [viewerProduct, setViewerProduct] = useState<ProductView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -117,6 +123,10 @@ export function CollectionViewerPage() {
   const enterSelect = Boolean(
     (location.state as { enterSelect?: boolean } | null)?.enterSelect,
   );
+
+  useEffect(() => {
+    setLayout(readDesignBrowseLayout(myCompanyId));
+  }, [myCompanyId]);
 
   useEffect(() => {
     if (!enterSelect) return;
@@ -493,7 +503,11 @@ export function CollectionViewerPage() {
                     className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
                     onClick={() => {
                       setMoreOpen(false);
-                      setLayout((prev) => (prev === 'feed' ? 'grid' : 'feed'));
+                      setLayout((prev) => {
+                        const next = prev === 'feed' ? 'grid' : 'feed';
+                        writeDesignBrowseLayout(myCompanyId, next);
+                        return next;
+                      });
                     }}
                   >
                     {layout === 'feed' ? 'Grid view' : 'Feed view'}

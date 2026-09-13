@@ -65,8 +65,8 @@ flowchart LR
 | **Collection view Ask** | **Ask to see this pack** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not pack/relist). Deny silent. |
 | **Pack / relist Ask** | **Ask to put in my pack** — unlock Curate when pack permission is off. Distinct chat card (“wants to put … in their pack”). Never bare **Ask**. Via **your** pack → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
-| **Connection** | After approve: `active` → catalog visibility & trade. Owner can **pause** or **block** (silent to the other party). |
-| **Block / pause** | Viewer is not told. API returns **404** (not 403). Approve never reactivates a block — must **unblock** first. |
+| **Connection** | After approve: **one mutual pair** (`active`) — both companies are Connected. Each can see the other’s published shop content that Connection unlocks (Connections-audience included; Selected stays Selected). **Either** side can **pause** or **block** (silent to the other). **Only the company that paused/blocked can resume/unblock.** |
+| **Block / pause** | Other party is not told and does not see the connection row. API returns **404** (not 403) where relevant. Approve never reactivates a block — the **blocker** must **unblock** first. |
 
 ## Catalog lifecycle
 

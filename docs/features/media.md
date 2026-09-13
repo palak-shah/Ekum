@@ -10,7 +10,7 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 ## User flows
 
-1. User picks photos: phone **Add designs** / **Photo order** use shared continuous camera (multi-shot; gallery fallback); elsewhere camera / gallery / paste URL as the feature allows.
+1. User picks photos: phone **Add designs** / **Photo order** / **chat ＋ Camera** use shared continuous camera (multi-shot; gallery fallback); elsewhere camera / gallery / paste URL as the feature allows.
 2. Client requests upload URL → uploads bytes → completes upload.
 3. Feature stores the resulting URL on the product, message, cover, etc.
 4. Background job may derive a thumbnail (`media.thumbnail`).
@@ -47,7 +47,7 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 ## Where it lives
 
-- Web: `apps/web/src/lib/mediaUpload.ts`, `apps/web/src/lib/mediaSession.ts` (camera/mic permission reuse in-tab), `apps/web/src/ui/ContinuousCamera.tsx` (Add designs / Photo order), and feature call sites
+- Web: `apps/web/src/lib/mediaUpload.ts`, `apps/web/src/lib/mediaSession.ts` (camera/mic permission reuse in-tab), `apps/web/src/ui/ContinuousCamera.tsx` (Add designs / Photo order / **chat ＋ Camera**), and feature call sites
 - Camera / mic: first allow in the tab is remembered for that session — reopening camera or holding mic again does not call a fresh permission prompt while tracks stay live (soft-release; hard-stop after ~5 min idle or tab close). Camera soft-release mutes tracks; microphone stays enabled so Safari MediaRecorder does not return empty clips after mute/unmute.
 - API: `apps/api/src/media/`; job `media.thumbnail` in `apps/api/src/jobs/`
 - Contracts: `packages/domain-types/src/media.ts`

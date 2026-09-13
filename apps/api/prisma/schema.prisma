@@ -78,8 +78,8 @@ model Company {
 
   accessRequestsSent     AccessRequest[] @relation("AccessRequester")
   accessRequestsReceived AccessRequest[] @relation("AccessTarget")
-  connectionsAsOwner     Connection[]    @relation("ConnectionOwner")
-  connectionsAsViewer    Connection[]    @relation("ConnectionViewer")
+  connectionsAsLow       Connection[]    @relation("ConnectionLow")
+  connectionsAsHigh      Connection[]    @relation("ConnectionHigh")
   collectionViewGrants   CollectionViewGrant[] @relation("CollectionViewGrantee")
   collectionViewRequestsSent     CollectionViewRequest[] @relation("CollectionViewRequester")
   collectionViewRequestsReceived CollectionViewRequest[] @relation("CollectionViewTarget")
@@ -221,22 +221,24 @@ model AccessRequest {
   @@index([requesterCompanyId])
 }
 
-/// A directional, approved access grant: the viewer company may see the owner
-/// company's controlled catalogue. Pausing and blocking are deliberately silent.
+/// A mutual, approved access grant between two companies. Pausing and blocking
+/// are deliberately silent; only the company that set the status can clear it.
 model Connection {
-  id              String   @id @default(cuid())
-  ownerCompanyId  String
-  viewerCompanyId String
-  status          String   @default("active") // ConnectionStatus: active | paused | blocked
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  companyLowId         String
+  companyHighId        String
+  status               String   @default("active") // ConnectionStatus: active | paused | blocked
+  /// Set when paused/blocked; null when active. Only this company may resume/unblock.
+  statusSetByCompanyId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  owner  Company @relation("ConnectionOwner", fields: [ownerCompanyId], references: [id], onDelete: Cascade)
-  viewer Company @relation("ConnectionViewer", fields: [viewerCompanyId], references: [id], onDelete: Cascade)
+  companyLow  Company @relation("ConnectionLow", fields: [companyLowId], references: [id], onDelete: Cascade)
+  companyHigh Company @relation("ConnectionHigh", fields: [companyHighId], references: [id], onDelete: Cascade)
 
-  @@unique([ownerCompanyId, viewerCompanyId])
-  @@index([viewerCompanyId, status])
-  @@index([ownerCompanyId, status])
+  @@unique([companyLowId, companyHighId])
+  @@index([companyLowId, status])
+  @@index([companyHighId, status])
 }
 
 /// Trader × mill × end-buyer path: who the ticket is with + whether ends see each other.

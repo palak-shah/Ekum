@@ -267,7 +267,7 @@ export function ProfilePage() {
           })}
         </div>
       </Field>
-      <Field label="Fine categories you sell" hint="Optional. Comma-separated (e.g. sarees, kurtis).">
+      <Field label="Categories you sell" hint="Optional. Comma-separated (e.g. sarees, kurtis).">
         <SuggestInput
           kind="category"
           mode="list"
@@ -275,7 +275,7 @@ export function ProfilePage() {
           onChange={(sellCategories) => setForm({ ...form, sellCategories })}
         />
       </Field>
-      <Field label="Fine categories you buy" hint="Optional. Comma-separated.">
+      <Field label="Categories you buy" hint="Optional. Comma-separated.">
         <SuggestInput
           kind="category"
           mode="list"

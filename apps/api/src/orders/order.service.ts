@@ -1513,12 +1513,13 @@ export class OrderService {
       }
     }
 
+    const lrNumber = dto.lrNumber?.trim() || null;
     const now = new Date();
     await this.prisma.orderShipment.create({
       data: {
         orderId: id,
         transporter: dto.transporter ?? null,
-        lrNumber: dto.lrNumber ?? null,
+        lrNumber,
         parcelCount: dto.parcelCount ?? null,
         dispatchedAt: now,
         dispatchedByUserId: userId,
@@ -1563,7 +1564,7 @@ export class OrderService {
 
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
-    const lrNote = dto.lrNumber ? ` · LR ${dto.lrNumber}` : '';
+    const lrNote = lrNumber ? ` · LR ${lrNumber}` : '';
     const dispatchNote = dto.note?.trim() || null;
     const dispatchVoice = await this.trailVoiceFields(actorCompanyId, dto);
 
@@ -1578,7 +1579,7 @@ export class OrderService {
           returnWindowClosesAt: closesAt,
           closedAt: now,
           transporter: dto.transporter ?? order.transporter,
-          lrNumber: dto.lrNumber ?? order.lrNumber,
+          lrNumber: lrNumber ?? order.lrNumber,
           parcelCount: dto.parcelCount ?? order.parcelCount,
           ...this.withActor(userId),
         },
@@ -1589,7 +1590,7 @@ export class OrderService {
         at: now,
         actorCompanyId,
         actorUserId: userId,
-        detail: dto.lrNumber ? `LR ${dto.lrNumber}` : 'Dispatched · complete',
+        detail: lrNumber ? `LR ${lrNumber}` : 'Dispatched · complete',
         note: dispatchNote,
         ...dispatchVoice,
       });
@@ -1607,7 +1608,7 @@ export class OrderService {
           actorLabel,
           actorRole: 'seller',
           partial: false,
-          lrNumber: dto.lrNumber ?? null,
+          lrNumber,
         },
       );
       if (closesAt) {
@@ -1623,7 +1624,7 @@ export class OrderService {
       data: {
         status: OrderStatus.PartShipped,
         transporter: dto.transporter ?? order.transporter,
-        lrNumber: dto.lrNumber ?? order.lrNumber,
+        lrNumber: lrNumber ?? order.lrNumber,
         parcelCount: dto.parcelCount ?? order.parcelCount,
         ...this.withActor(userId),
       },
@@ -1634,7 +1635,7 @@ export class OrderService {
       at: now,
       actorCompanyId,
       actorUserId: userId,
-      detail: dto.lrNumber ? `LR ${dto.lrNumber}` : null,
+      detail: lrNumber ? `LR ${lrNumber}` : null,
       note: dispatchNote,
       ...dispatchVoice,
     });
@@ -1652,7 +1653,7 @@ export class OrderService {
         actorLabel,
         actorRole: 'seller',
         partial: true,
-        lrNumber: dto.lrNumber ?? null,
+        lrNumber,
       },
     );
     await this.passMillDispatchToParent(id, actorCompanyId, userId, candidates);

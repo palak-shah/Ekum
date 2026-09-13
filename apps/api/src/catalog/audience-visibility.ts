@@ -1,4 +1,5 @@
-import { ConnectionStatus, PublishAudience } from '@ekum/domain-types';
+import { PublishAudience } from '@ekum/domain-types';
+import { companyActiveConnectedWith } from '../access/connection-pair';
 
 type AudienceRow = {
   companyId: string;
@@ -70,11 +71,7 @@ export function audienceVisibilityOr(viewerCompanyId: string): object[] {
     { audience: PublishAudience.Everyone },
     {
       audience: PublishAudience.Connections,
-      company: {
-        connectionsAsOwner: {
-          some: { viewerCompanyId, status: ConnectionStatus.Active },
-        },
-      },
+      company: companyActiveConnectedWith(viewerCompanyId),
     },
     {
       audience: PublishAudience.Followers,

@@ -10,8 +10,14 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import {
+  readDesignBrowseLayout,
+  writeDesignBrowseLayout,
+  type DesignBrowseLayout,
+} from '@/lib/designBrowseLayout';
 import { useMyCompany } from '@/lib/queries';
 import { Button, Chip, EmptyState, FilterRail, LoadingBlock, Sheet, cx } from '@/ui/kit';
+import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { CheckIcon } from '@/ui/icons';
 import { AlbumGrid } from '@/ui/cards';
@@ -161,8 +167,12 @@ export function MyCatalogPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const me = useMyCompany();
+  const companyId = me.data?.id;
   const tab = tabFromSearch(searchParams.get('tab'));
   const [postOpen, setPostOpen] = useState(false);
+  const [layout, setLayout] = useState<DesignBrowseLayout>(() =>
+    readDesignBrowseLayout(companyId),
+  );
   const location = useLocation();
   const navState = location.state as {
     productFilter?: ProductFilter;
@@ -185,6 +195,18 @@ export function MyCatalogPage() {
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
+
+  useEffect(() => {
+    setLayout(readDesignBrowseLayout(companyId));
+  }, [companyId]);
+
+  const toggleLayout = () => {
+    setLayout((prev) => {
+      const next = prev === 'feed' ? 'grid' : 'feed';
+      writeDesignBrowseLayout(companyId, next);
+      return next;
+    });
+  };
 
   const setTab = (next: Tab) => {
     setSearchParams(
@@ -401,6 +423,8 @@ export function MyCatalogPage() {
   });
 
   const busy = bulkArchive.isPending || bulkHide.isPending || bulkRestore.isPending;
+  const tabHasItems =
+    tab === 'products' ? filteredProducts.length > 0 : filteredCollections.length > 0;
 
   return (
     <div
@@ -409,6 +433,23 @@ export function MyCatalogPage() {
         selecting && 'pb-28',
       )}
     >
+      <PageHeader
+        title="My designs"
+        action={
+          tabHasItems && !selecting ? (
+            <button
+              type="button"
+              data-testid="catalog-layout-toggle"
+              aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
+              className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
+              onClick={toggleLayout}
+            >
+              {layout === 'feed' ? 'Grid' : 'Feed'}
+            </button>
+          ) : null
+        }
+      />
+
       {/* Mode like Chats; Add like “Mark all read” — not a second pill family. */}
       <div className="flex items-center gap-2">
         {(['products', 'collections'] as const).map((value) => (
@@ -490,12 +531,19 @@ export function MyCatalogPage() {
           {products.isLoading ? (
             <LoadingBlock />
           ) : filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div
+              className={
+                layout === 'feed' ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-3'
+              }
+              data-testid="catalog-products-layout"
+              data-layout={layout}
+            >
               {filteredProducts.map((product) => (
                 <SellerProductTile
                   key={product.id}
                   product={product}
                   groups={buyerGroups}
+                  variant={layout}
                   selecting={selecting}
                   selected={selectedIds.has(product.id)}
                   onToggle={() => toggleSelected(product.id)}
@@ -520,12 +568,19 @@ export function MyCatalogPage() {
           {collections.isLoading ? (
             <LoadingBlock />
           ) : filteredCollections.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div
+              className={
+                layout === 'feed' ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-3'
+              }
+              data-testid="catalog-collections-layout"
+              data-layout={layout}
+            >
               {filteredCollections.map((collection) => (
                 <SellerCollectionTile
                   key={collection.id}
                   collection={collection}
                   groups={buyerGroups}
+                  variant={layout}
                   selecting={selecting}
                   selected={selectedIds.has(collection.id)}
                   onToggle={() => toggleSelected(collection.id)}
@@ -667,6 +722,7 @@ export function MyCatalogPage() {
 function SellerProductTile({
   product,
   groups,
+  variant,
   selecting,
   selected,
   onToggle,
@@ -674,6 +730,7 @@ function SellerProductTile({
 }: {
   product: ProductView;
   groups: BroadcastListView[];
+  variant: DesignBrowseLayout;
   selecting: boolean;
   selected: boolean;
   onToggle: () => void;
@@ -682,13 +739,23 @@ function SellerProductTile({
   const subtitle = productTileSubtitle(product, groups);
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
+  const feed = variant === 'feed';
   const body = (
     <>
       <div className="relative">
         {product.images[0] ? (
-          <img src={product.images[0]} alt="" className="h-32 w-full object-cover" />
+          <img
+            src={product.images[0]}
+            alt=""
+            className={cx('w-full object-cover', feed ? 'aspect-[3/4]' : 'h-32')}
+          />
         ) : (
-          <div className="flex h-32 items-center justify-center bg-foam text-2xl font-bold text-muted">
+          <div
+            className={cx(
+              'flex items-center justify-center bg-foam font-bold text-muted',
+              feed ? 'aspect-[3/4] text-4xl' : 'h-32 text-2xl',
+            )}
+          >
             {product.name.charAt(0)}
           </div>
         )}
@@ -705,7 +772,7 @@ function SellerProductTile({
           </span>
         ) : null}
       </div>
-      <div className="flex flex-col gap-1 p-2.5">
+      <div className={cx('flex flex-col gap-1', feed ? 'p-3' : 'p-2.5')}>
         <p className="truncate text-sm font-medium text-ink">{product.name}</p>
         <p className="line-clamp-2 text-xs text-muted">{subtitle}</p>
         {auditLine(product) ? (
@@ -751,6 +818,7 @@ function SellerProductTile({
 function SellerCollectionTile({
   collection,
   groups,
+  variant,
   selecting,
   selected,
   onToggle,
@@ -758,6 +826,7 @@ function SellerCollectionTile({
 }: {
   collection: CollectionView;
   groups: BroadcastListView[];
+  variant: DesignBrowseLayout;
   selecting: boolean;
   selected: boolean;
   onToggle: () => void;
@@ -795,10 +864,11 @@ function SellerCollectionTile({
   const mosaicCount = showPlus
     ? Math.max(collection.productCount, previews.length)
     : previews.length;
+  const feed = variant === 'feed';
 
   const body = (
     <>
-      <div className="relative">
+      <div className={cx('relative', feed && 'px-0')}>
         <AlbumGrid images={previews} imageCount={mosaicCount} alt={collection.name} />
         {selecting ? (
           <span

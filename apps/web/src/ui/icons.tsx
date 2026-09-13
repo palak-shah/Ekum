@@ -116,6 +116,15 @@ export const CameraIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Gallery / Photos (distinct from Camera). */
+export const ImageIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="8.5" cy="10" r="1.5" />
+    <path d="m21 15-5-5-8 8" />
+  </Icon>
+);
+
 export const SendIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M4 12 20 4l-6 16-3-7-7-1Z" />

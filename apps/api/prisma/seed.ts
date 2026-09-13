@@ -471,27 +471,20 @@ async function main(): Promise<void> {
     create: { id: 'seed-follow-2', followerCompanyId: RAVI, followedCompanyId: KAVITA },
     update: {},
   });
-  await prisma.connection.upsert({
-    where: { ownerCompanyId_viewerCompanyId: { ownerCompanyId: RAVI, viewerCompanyId: MEENA } },
-    create: {
-      id: 'seed-conn-1',
-      ownerCompanyId: RAVI,
-      viewerCompanyId: MEENA,
-      status: ConnectionStatus.Active,
-    },
-    update: { status: ConnectionStatus.Active },
-  });
-  // Reciprocal edge so Ravi’s Network → Connections lists Meena.
-  await prisma.connection.upsert({
-    where: { ownerCompanyId_viewerCompanyId: { ownerCompanyId: MEENA, viewerCompanyId: RAVI } },
-    create: {
-      id: 'seed-conn-1b',
-      ownerCompanyId: MEENA,
-      viewerCompanyId: RAVI,
-      status: ConnectionStatus.Active,
-    },
-    update: { status: ConnectionStatus.Active },
-  });
+  {
+    const [companyLowId, companyHighId] = RAVI < MEENA ? [RAVI, MEENA] : [MEENA, RAVI];
+    await prisma.connection.upsert({
+      where: { companyLowId_companyHighId: { companyLowId, companyHighId } },
+      create: {
+        id: 'seed-conn-1',
+        companyLowId,
+        companyHighId,
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
+      },
+      update: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
+    });
+  }
 
   // --- Orders -------------------------------------------------------------
   const delivered = new Date();

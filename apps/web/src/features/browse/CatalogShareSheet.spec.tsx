@@ -30,9 +30,12 @@ vi.mock('@/lib/shareInvite', () => ({
 
 const jaipur: ConnectionView = {
   id: 'conn-1',
-  role: 'viewer',
   status: 'active',
   createdAt: '2026-09-01T00:00:00.000Z',
+  canPause: true,
+  canResume: false,
+  canBlock: true,
+  canUnblock: false,
   company: {
     id: 'c1',
     name: 'Jaipur Emporium',
@@ -44,9 +47,12 @@ const jaipur: ConnectionView = {
 
 const ahmedabad: ConnectionView = {
   id: 'conn-2',
-  role: 'viewer',
   status: 'active',
   createdAt: '2026-09-01T00:00:00.000Z',
+  canPause: true,
+  canResume: false,
+  canBlock: true,
+  canUnblock: false,
   company: {
     id: 'c2',
     name: 'Ahmedabad Cloth company',

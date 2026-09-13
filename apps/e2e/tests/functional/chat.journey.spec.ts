@@ -40,7 +40,11 @@ test.describe('chat journey @functional @chat', () => {
 
     await page.getByTestId('chat-attach').click();
     await expect(page.getByRole('heading', { name: 'Share in chat' })).toBeVisible();
-    await page.getByRole('button', { name: /Design/ }).first().click();
+    await expect(page.getByTestId('attach-camera')).toBeVisible();
+    await expect(page.getByTestId('attach-photos')).toBeVisible();
+    await expect(page.getByTestId('attach-camera')).toContainText('Camera');
+    await expect(page.getByTestId('attach-photos')).toContainText('Photos');
+    await page.getByTestId('attach-product').click();
     await expect(page.getByRole('heading', { name: 'Share a design' })).toBeVisible();
 
     await expect(page.getByTestId('attach-back')).toBeVisible();

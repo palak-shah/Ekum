@@ -30,7 +30,7 @@ Header is one tight row — not five equal pills:
 | **⋯** | Everyone | Share; Feed/Grid; **Bookmark** when owner |
 | Sticky dock | Selecting | **Share** · Curate · Order (same verbs as Explore) |
 
-Default layout is **grid**. Library home stays **You → My designs** (`/catalog`); also Home **My designs** when selling — no Catalog bottom tab. **＋** creates (Add designs / New collection); it does not open the library.
+Default layout is the trader’s last **Feed / Grid** choice (device-local); **Ekum default is Feed** when never set. Same preference is shared with Saved and My designs. Library home stays **You → My designs** (`/catalog`); also Home **My designs** when selling — no Catalog bottom tab. **＋** creates (Add designs / New collection); it does not open the library.
 
 ### View (buyer)
 

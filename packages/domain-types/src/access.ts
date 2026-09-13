@@ -29,10 +29,13 @@ export interface AccessRequestView {
 export interface ConnectionView {
   id: string;
   company: PublicCompanySummary;
-  /** Whether the current company is the catalogue owner or the viewer. */
-  role: 'owner' | 'viewer';
   status: string;
   createdAt: string;
+  /** Current company may pause (active only). */
+  canPause: boolean;
+  canResume: boolean;
+  canBlock: boolean;
+  canUnblock: boolean;
 }
 
 export interface PublicCompanySummary {

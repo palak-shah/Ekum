@@ -17,6 +17,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ThreadService } from '../conversation/thread.service';
 import { CompanySerializer } from './company.serializer';
+import { connectionPairWhere } from './connection-pair';
 import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
 
@@ -47,10 +48,7 @@ export class AccessService {
     // If the target has blocked this company, behave as if it does not exist.
     const connection = await this.prisma.connection.findUnique({
       where: {
-        ownerCompanyId_viewerCompanyId: {
-          ownerCompanyId: targetCompanyId,
-          viewerCompanyId: requesterCompanyId,
-        },
+        companyLowId_companyHighId: connectionPairWhere(targetCompanyId, requesterCompanyId),
       },
     });
     if (!target || connection?.status === ConnectionStatus.Blocked) {
@@ -152,14 +150,10 @@ export class AccessService {
     const request = await this.loadDecidableRequest(companyId, requestId);
 
     // A block must be lifted explicitly; approving a request must never silently
-    // reactivate a connection the owner has blocked.
+    // reactivate a connection either side has blocked.
+    const pair = connectionPairWhere(request.targetCompanyId, request.requesterCompanyId);
     const existingConnection = await this.prisma.connection.findUnique({
-      where: {
-        ownerCompanyId_viewerCompanyId: {
-          ownerCompanyId: request.targetCompanyId,
-          viewerCompanyId: request.requesterCompanyId,
-        },
-      },
+      where: { companyLowId_companyHighId: pair },
     });
     if (existingConnection?.status === ConnectionStatus.Blocked) {
       throw new ConflictException({
@@ -174,18 +168,14 @@ export class AccessService {
         data: { status: AccessRequestStatus.Approved, decidedAt: new Date() },
       }),
       this.prisma.connection.upsert({
-        where: {
-          ownerCompanyId_viewerCompanyId: {
-            ownerCompanyId: request.targetCompanyId,
-            viewerCompanyId: request.requesterCompanyId,
-          },
-        },
+        where: { companyLowId_companyHighId: pair },
         create: {
-          ownerCompanyId: request.targetCompanyId,
-          viewerCompanyId: request.requesterCompanyId,
+          companyLowId: pair.companyLowId,
+          companyHighId: pair.companyHighId,
           status: ConnectionStatus.Active,
+          statusSetByCompanyId: null,
         },
-        update: { status: ConnectionStatus.Active },
+        update: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
       }),
     ]);
 

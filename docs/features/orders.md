@@ -72,10 +72,10 @@ Samples and returns appear in the same `/orders` list (meta line says Sample / R
 
 | Need | How |
 |------|-----|
-| **Quote partial** | Send quote sheet: lower offer qty, toggle **Can’t supply** per line, set rates (optional top **Rate all** fills open lines; each design keeps its own rate; qty + rate on one line), optional **note** (text and/or **voice**) → chat **Quote** card (totals frozen on that message) |
+| **Quote partial** | Send quote sheet: **h-12** design thumb + name, lower offer qty, toggle **Can’t supply** per line, set rates (optional top **Rate all** fills open lines; each design keeps its own rate; qty + rate on one line), optional **note** (text and/or **voice**) → chat **Quote** card (totals frozen on that message) |
 | **Line outcomes** | **Confirm / decline lines** without rates; posts `Order #… · Confirmed|Declined|Updated` in chat; body only names counts that happened (no “declined 0”); rollup when no open lines remain |
 | **Confirm all open** | One tap confirms every remaining open line |
-| **Split dispatch** | On confirmed order: compact qty list (scroll) + sticky **LR** (required), transporter/parcels optional → shipment history; status → **`part_shipped`** until everything shippable is out, then **`dispatched`** |
+| **Split dispatch** | On confirmed order: compact qty list (scroll) + sticky **LR** (optional), transporter/parcels optional → shipment history; status → **`part_shipped`** until everything shippable is out, then **`dispatched`** |
 
 ### Samples (`/samples`)
 
@@ -119,13 +119,13 @@ Redirects to `/orders?kind=return`. Within return window after **settled** (or l
 | Quote | At least one supplyable line; open lines omitted from payload are treated as unavailable |
 | Accept quote | Only after the seller posts a Rate card — catalog rates on lines (e.g. after Ask for rates) do not count |
 | Chat totals | Rate card `totalLabel` is frozen in message metadata — earlier order cards do not pick up later rates |
-| Shipments | Each dispatch is an `OrderShipment` with its own **LR** (required); transporter/parcels optional; history is not overwritten |
+| Shipments | Each dispatch is an `OrderShipment` with optional **LR**, transporter, parcels; history is not overwritten |
 | Action cards | One living `order_card` / `rate` per order in the trade thread — lifecycle transitions **update that row** (preserve `metadata.quoted`); do not append a new card per status. Legacy stacks: UI keeps the newest per order |
 | Intent | `order` (default) or `inquiry`; firm → `order` on quote / confirm lines / accept quote |
 | Amend | Buyer `POST /orders/:id/amend` while requested, all lines open, no seller message yet; increments `amendCount`; posts `order_updated`. **I-handle:** mill-owned designs are allowed (seller is the trader). |
 | Chat events | `order_requested` · `rate_requested` · `order_updated` · `quote_sent` · `lines_decided` · `quote_accepted` · `order_declined` · `order_cancelled` · `order_dispatched` · `order_settled` · `order_delivered` (legacy) |
 | Dispatchable qty | Only `confirmed` / `dispatched` lines have remaining qty — `open` lines cannot be shipped |
-| Dispatch sheet | Name + remaining on the left; compact qty on the right (`w-20`, not full-width). LR / transporter / parcels stay pinned in the footer. |
+| Dispatch sheet | **h-12** design thumb + name + remaining on the left; compact qty on the right (`w-20`, not full-width). **LR** / transporter / parcels stay pinned in the footer (all optional). |
 | Settle | Seller-only while **part shipped** (qty mismatch); `POST /orders/:id/settle`; line `quantity` := shipped; status → `settled` (**Completed**). Timeline **Settled**. **I-handle:** mill Settle rewrites matching parent (Meena) lines; parent → `settled` when **all released** mill subsets are complete (one supplier Settled → parent Settled; two+ with one open → those lines done, rest pending, stay part shipped). **Trader does not Settle** the Manage parent while mill desks exist — mills close it. Stuck parents heal on open/list. |
 | Full dispatch | Remaining 0 → status `dispatched` (**Dispatched · complete**; no Settled timeline row; no buyer Mark delivered) |
 | Own album vs curated pack | Own-design albums place via `/orders/batch`. Curated I-handle packs use `/orders/from-pack`. If from-pack rejects `NOT_CURATED` / `DIRECT_PACK`, Place Order falls back to batch so the buyer is not stuck. |

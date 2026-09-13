@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
   CollectionStatus,
-  ConnectionStatus,
   ProductStatus,
   type CollectionCard,
   type CompanyCard,
@@ -11,6 +10,7 @@ import {
   type UniversalSearchResults,
 } from '@ekum/domain-types';
 import { Prisma } from '@prisma/client';
+import { companyNotBlockedWith } from '../access/connection-pair';
 import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { DiscoverySerializer } from './discovery.serializer';
@@ -58,9 +58,7 @@ export class SearchService {
         where: {
           id: { not: viewerCompanyId },
           city: { contains: query.q, mode: 'insensitive' },
-          connectionsAsOwner: {
-            none: { viewerCompanyId, status: ConnectionStatus.Blocked },
-          },
+          ...companyNotBlockedWith(viewerCompanyId),
         },
         select: { city: true },
         distinct: ['city'],
@@ -69,9 +67,7 @@ export class SearchService {
       this.prisma.company.findMany({
         where: {
           id: { not: viewerCompanyId },
-          connectionsAsOwner: {
-            none: { viewerCompanyId, status: ConnectionStatus.Blocked },
-          },
+          ...companyNotBlockedWith(viewerCompanyId),
           OR: [
             { sellCategories: { hasSome: [query.q] } },
             { buyCategories: { hasSome: [query.q] } },
@@ -135,7 +131,7 @@ export class SearchService {
       where: {
         id: { not: viewerCompanyId },
         OR: or,
-        connectionsAsOwner: { none: { viewerCompanyId, status: ConnectionStatus.Blocked } },
+        ...companyNotBlockedWith(viewerCompanyId),
       },
       ...cursorArgs(query),
     });
@@ -155,7 +151,7 @@ export class SearchService {
           { company: { name: { contains: query.q, mode: 'insensitive' } } },
           { company: { city: { contains: query.q, mode: 'insensitive' } } },
         ],
-        company: { connectionsAsOwner: { none: { viewerCompanyId, status: ConnectionStatus.Blocked } } },
+        company: { ...companyNotBlockedWith(viewerCompanyId) },
         AND: [
           { OR: audienceVisibilityOr(viewerCompanyId) },
           { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
@@ -183,11 +179,7 @@ export class SearchService {
           { categories: { has: query.q } },
           { company: { name: { contains: query.q, mode: 'insensitive' } } },
         ],
-        company: {
-          connectionsAsOwner: {
-            none: { viewerCompanyId, status: ConnectionStatus.Blocked },
-          },
-        },
+        company: { ...companyNotBlockedWith(viewerCompanyId) },
         AND: [{ OR: audienceVisibilityOr(viewerCompanyId) }],
       },
       include: { company: true },

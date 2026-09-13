@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConnectionStatus } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { connectionPairWhere } from './connection-pair';
 
 /**
  * The one place that answers "can company A see this thing belonging to company
@@ -17,25 +18,25 @@ export class VisibilityService {
     if (viewerCompanyId === ownerCompanyId) {
       return true;
     }
-    const connection = await this.findConnection(ownerCompanyId, viewerCompanyId);
+    const connection = await this.findConnection(viewerCompanyId, ownerCompanyId);
     return connection?.status === ConnectionStatus.Active;
   }
 
   /**
-   * True when the owner has blocked the viewer. Because blocking is silent, the
+   * True when either side has blocked the other. Because blocking is silent, the
    * API responds 404 (not 403) to a blocked party so the block is never confirmed.
    */
   async isBlocked(viewerCompanyId: string, ownerCompanyId: string): Promise<boolean> {
     if (viewerCompanyId === ownerCompanyId) {
       return false;
     }
-    const connection = await this.findConnection(ownerCompanyId, viewerCompanyId);
+    const connection = await this.findConnection(viewerCompanyId, ownerCompanyId);
     return connection?.status === ConnectionStatus.Blocked;
   }
 
-  private findConnection(ownerCompanyId: string, viewerCompanyId: string) {
+  private findConnection(a: string, b: string) {
     return this.prisma.connection.findUnique({
-      where: { ownerCompanyId_viewerCompanyId: { ownerCompanyId, viewerCompanyId } },
+      where: { companyLowId_companyHighId: connectionPairWhere(a, b) },
     });
   }
 }

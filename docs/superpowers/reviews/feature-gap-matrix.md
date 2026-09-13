@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-10  
+**Updated:** 2026-09-12  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -15,6 +15,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |
 | Chat | Inbox deep search + why-line | Works | Unit + Functional | Required | Completeness 2026-08-24-chat-search-deep; `GET /threads?q=` |
 | Chat | Attach search + multi-share | Works | Unit + Functional | Required | Completeness 2026-08-24-chat-attach-multi-share |
+| Chat | Attach Camera + Photos (ContinuousCamera) | Works | Functional | Required | Completeness 2026-09-12-chat-attach-camera; phone ContinuousCamera; one album message |
+| Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
 | Chat | Requests inbox (unconnected) | Works | Functional | Recommended | `chat.requests.journey.spec.ts` |
 | Chat | Find on Ekum in connection pickers | Works | Unit | Required | Completeness 2026-08-27-phone-find-connect; name/mobile/GST; invite if phone miss |
@@ -69,7 +71,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Team | Invite staff + five caps + owner-only chat | Works | Unit | Required | You → Team; `/t/:token` join; staff seed +919800000004 |
 | Team | Join after archive (same phone → new shop / create company) | Works | Unit | Required | Completeness 2026-09-09-team-join-after-archive; live seat still blocks |
 | Network | Following / Followers lists | Works | Unit-only | Required | You → Network hub pages restored 2026-08-20 |
-| Network | Connections hub (both roles) + Requests | Works | Functional | Required | `network.referrals.journey.spec.ts` |
+| Network | Connections hub (both roles) + Requests | Partial | Functional | Required | Mutual pair shipped; e2e `network.connections.mutual.journey` — Completeness 2026-09-12-mutual-connection |
 | Referrals | Connect-with-me invite create + Share/Copy | Works | Functional + Unit | Required | Presentable OG + ＋ one-tap share 2026-09-11; `network.referrals.journey` |
 | Referrals | Open invite redeem → access request (approve gate) | Works | Functional | Required | Focused `/r/` landing (no bottom nav); `network.referrals.journey.spec.ts` |
 | Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Unit-only | Required | `inviteReturn` + Login/onboarding wiring |
@@ -85,7 +87,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | UI | Home attention-center composition (count + compact metrics + need rows) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-home-attention-center; presentation only |
 | UI | Your selection visual polish (image-led rows; Order primary) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-selection-visual-polish; no model change |
 | UI | Order flow sheets visual polish (resolve + quantity) | Works | Functional + Visual | Recommended | Completeness 2026-09-10-order-flow-visual-polish; presentation only |
-| UI | Long-press select without Safari link menu | Works | Unit + Functional | Required | Completeness 2026-09-10-longpress-select-no-safari-menu; button + navigate |
+| UI | Long-press select without Safari link menu | Works | Unit + Functional | Required | Completeness 2026-09-10; Android stickiness 2026-09-12-explore-longpress-select-stays |
 | UI | Send quote qty/rate numbers not clipped (BM-07) | Works | Unit | Required | textInputChromeClass + wider quote columns |
 | UI | Chats visual polish (restrained teal 3+1 cards + list hierarchy) | Works | Unit | Recommended | Completeness 2026-09-11-chats-visual-polish; presentation only |
 | UI | Chat trade cards: same surface in/out (no mine solid teal) | Superseded | — | — | Replaced by direction surface rule |

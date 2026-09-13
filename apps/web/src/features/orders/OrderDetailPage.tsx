@@ -321,7 +321,6 @@ export function OrderDetailPage() {
   const [lineActions, setLineActions] = useState<Record<string, 'confirm' | 'decline'>>({});
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
-  const [lrTouched, setLrTouched] = useState(false);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
   const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
   const [takeOverOpen, setTakeOverOpen] = useState(false);
@@ -560,14 +559,7 @@ export function OrderDetailPage() {
 
   const dispatchOrder = useMutation({
     mutationFn: () => {
-      const lrNumber = (dispatch.lrNumber ?? '').trim();
-      if (!lrNumber) {
-        throw new ApiError({
-          statusCode: 400,
-          code: 'LR_REQUIRED',
-          message: 'Enter the LR number.',
-        });
-      }
+      const lrNumber = (dispatch.lrNumber ?? '').trim() || undefined;
       const items = shippableItems
         .map((item) => ({
           orderItemId: item.id,
@@ -597,7 +589,6 @@ export function OrderDetailPage() {
       setDispatchError(null);
       setDispatchNote('');
       setDispatchNoteVoice(null);
-      setLrTouched(false);
       refresh();
     },
     onError: (err) =>
@@ -605,13 +596,7 @@ export function OrderDetailPage() {
   });
 
   const submitDispatch = () => {
-    setLrTouched(true);
     setDispatchError(null);
-    const lrNumber = (dispatch.lrNumber ?? '').trim();
-    if (!lrNumber) {
-      setDispatchError('Enter the LR number.');
-      return;
-    }
     if (shippableItems.every((item) => Number(shipQty[item.id] || 0) <= 0)) {
       setDispatchError('Enter a quantity to ship on at least one line.');
       return;
@@ -809,7 +794,6 @@ export function OrderDetailPage() {
     setShipQty(qty);
     setDispatch({});
     setDispatchError(null);
-    setLrTouched(false);
     setDispatchOpen(true);
   };
 
@@ -1874,22 +1858,30 @@ export function OrderDetailPage() {
                       className="grid grid-cols-subgrid items-center gap-x-2 border-t border-line py-2"
                       style={{ gridColumn: `span ${span} / span ${span}` }}
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                        <label className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
-                          <input
-                            type="checkbox"
-                            className="h-3.5 w-3.5"
-                            checked={Boolean(unavailable[item.id])}
-                            onChange={(event) =>
-                              setUnavailable((prev) => ({
-                                ...prev,
-                                [item.id]: event.target.checked,
-                              }))
-                            }
-                          />
-                          Can’t supply
-                        </label>
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <OrderLinePhoto
+                          item={item}
+                          items={data.items}
+                          onOpen={openPhotoViewer}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                          <label className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5"
+                              checked={Boolean(unavailable[item.id])}
+                              onChange={(event) =>
+                                setUnavailable((prev) => ({
+                                  ...prev,
+                                  [item.id]: event.target.checked,
+                                }))
+                              }
+                            />
+                            Can’t supply
+                          </label>
+                        </div>
                       </div>
                       {showFrom ? (
                         unavailable[item.id] ? (
@@ -1967,7 +1959,15 @@ export function OrderDetailPage() {
           <p className="text-sm text-muted">Decide each open design without sending rates.</p>
           {openItems.map((item) => (
             <div key={item.id} className="flex items-center justify-between gap-2">
-              <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{item.name}</p>
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <OrderLinePhoto
+                  item={item}
+                  items={data.items}
+                  onOpen={openPhotoViewer}
+                  size="sm"
+                />
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{item.name}</p>
+              </div>
               <div className="flex gap-1">
                 <button
                   type="button"
@@ -2020,22 +2020,13 @@ export function OrderDetailPage() {
         title="Dispatch"
         footer={
           <div className="flex flex-col gap-2.5">
-            <Field
-              label="LR number"
-              error={
-                lrTouched && !(dispatch.lrNumber ?? '').trim() ? 'LR number is required' : null
-              }
-            >
+            <Field label="LR number">
               <TextInput
                 value={dispatch.lrNumber ?? ''}
-                placeholder="Required"
-                className={cx(
-                  lrTouched && !(dispatch.lrNumber ?? '').trim() && 'border-danger focus:border-danger',
-                )}
-                onChange={(event) => {
-                  setLrTouched(true);
-                  setDispatch((prev) => ({ ...prev, lrNumber: event.target.value }));
-                }}
+                placeholder="Optional"
+                onChange={(event) =>
+                  setDispatch((prev) => ({ ...prev, lrNumber: event.target.value }))
+                }
               />
             </Field>
             <div className="grid grid-cols-2 gap-2">
@@ -2087,6 +2078,12 @@ export function OrderDetailPage() {
                 key={item.id}
                 className="flex items-center gap-3 border-b border-line py-2 last:border-0"
               >
+                <OrderLinePhoto
+                  item={item}
+                  items={data.items}
+                  onOpen={openPhotoViewer}
+                  size="sm"
+                />
                 <div className="min-w-0 flex-1">
                   <p
                     data-testid="order-dispatch-line-name"
@@ -2149,11 +2146,19 @@ export function OrderDetailPage() {
                   key={item.id}
                   className="flex items-center justify-between gap-2 rounded-xl border border-line p-3"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                    <p className="text-xs text-muted">
-                      Asked {item.requestedQuantity} · final {shipped}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <OrderLinePhoto
+                      item={item}
+                      items={data.items}
+                      onOpen={openPhotoViewer}
+                      size="sm"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                      <p className="text-xs text-muted">
+                        Asked {item.requestedQuantity} · final {shipped}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
@@ -2191,6 +2196,12 @@ export function OrderDetailPage() {
                     removed && 'opacity-50',
                   )}
                 >
+                  <OrderLinePhoto
+                    item={item}
+                    items={data.items}
+                    onOpen={openPhotoViewer}
+                    size="sm"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{item.name}</p>
                     {item.sku ? <p className="text-[11px] text-muted">{item.sku}</p> : null}

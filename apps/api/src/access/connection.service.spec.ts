@@ -8,19 +8,51 @@ import type { AuthPrincipal } from '../auth/auth.types';
 const actor: AuthPrincipal = {
   userId: 'user-1',
   phone: '+910000000000',
-  companyId: 'owner',
+  companyId: 'co-a',
   role: 'owner',
 };
 
-function setup(connection: { id: string; ownerCompanyId: string; status: string } | null) {
-  const update = vi.fn(async () => ({
+const summary = (id: string) => ({
+  id,
+  name: id,
+  city: 'Surat',
+  verification: 'not_verified',
+  logoUrl: null as string | null,
+});
+
+type ConnRow = {
+  id: string;
+  companyLowId: string;
+  companyHighId: string;
+  status: string;
+  statusSetByCompanyId: string | null;
+  companyLow?: ReturnType<typeof summary>;
+  companyHigh?: ReturnType<typeof summary>;
+};
+
+function setup(connection: ConnRow | null) {
+  const update = vi.fn(async (_args: unknown) => ({
     id: 'conn-1',
+    companyLowId: 'co-a',
+    companyHighId: 'co-b',
     status: ConnectionStatus.Active,
+    statusSetByCompanyId: null,
     createdAt: new Date(),
-    viewer: { id: 'viewer-1', name: 'Viewer Co', city: 'Surat', verification: 'not_verified' },
+    companyLow: summary('co-a'),
+    companyHigh: summary('co-b'),
   }));
   const prisma = {
-    connection: { findUnique: async () => connection, update },
+    connection: {
+      findUnique: async () =>
+        connection
+          ? {
+              ...connection,
+              companyLow: connection.companyLow ?? summary(connection.companyLowId),
+              companyHigh: connection.companyHigh ?? summary(connection.companyHighId),
+            }
+          : null,
+      update,
+    },
   } as unknown as PrismaService;
   const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
   const serializer = {
@@ -37,78 +69,154 @@ function setup(connection: { id: string; ownerCompanyId: string; status: string 
 }
 
 describe('ConnectionService.applyOwnerAction', () => {
-  it('refuses to pause a blocked connection (block stays until explicit unblock)', async () => {
+  it('refuses to pause a blocked connection', async () => {
     const { service, update } = setup({
       id: 'conn-1',
-      ownerCompanyId: 'owner',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
       status: ConnectionStatus.Blocked,
+      statusSetByCompanyId: 'co-a',
     });
-    await expect(service.applyOwnerAction('owner', 'conn-1', 'pause', actor)).rejects.toThrow();
+    await expect(service.applyOwnerAction('co-a', 'conn-1', 'pause', actor)).rejects.toThrow();
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('allows unblocking a blocked connection', async () => {
+  it('allows the blocker to unblock', async () => {
     const { service, update, audit } = setup({
       id: 'conn-1',
-      ownerCompanyId: 'owner',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
       status: ConnectionStatus.Blocked,
+      statusSetByCompanyId: 'co-a',
     });
-    await service.applyOwnerAction('owner', 'conn-1', 'unblock', actor);
+    await service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor);
     expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: ConnectionStatus.Active } }),
+      expect.objectContaining({
+        data: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
+      }),
     );
     expect(audit.record).toHaveBeenCalled();
   });
 
-  it('hides connections the caller does not own', async () => {
+  it('hides unblock from the non-actor', async () => {
     const { service } = setup({
       id: 'conn-1',
-      ownerCompanyId: 'someone-else',
-      status: ConnectionStatus.Active,
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
+      status: ConnectionStatus.Blocked,
+      statusSetByCompanyId: 'co-b',
     });
-    await expect(service.applyOwnerAction('owner', 'conn-1', 'pause', actor)).rejects.toThrow();
+    await expect(service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor)).rejects.toThrow();
+  });
+
+  it('allows either side to pause an active connection', async () => {
+    const { service, update } = setup({
+      id: 'conn-1',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
+      status: ConnectionStatus.Active,
+      statusSetByCompanyId: null,
+    });
+    await service.applyOwnerAction('co-a', 'conn-1', 'pause', actor);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: ConnectionStatus.Paused, statusSetByCompanyId: 'co-a' },
+      }),
+    );
+  });
+
+  it('allows only the pauser to resume', async () => {
+    const { service, update } = setup({
+      id: 'conn-1',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
+      status: ConnectionStatus.Paused,
+      statusSetByCompanyId: 'co-a',
+    });
+    await service.applyOwnerAction('co-a', 'conn-1', 'resume', actor);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
+      }),
+    );
+  });
+
+  it('hides resume from the non-actor', async () => {
+    const { service, update } = setup({
+      id: 'conn-1',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
+      status: ConnectionStatus.Paused,
+      statusSetByCompanyId: 'co-b',
+    });
+    await expect(service.applyOwnerAction('co-a', 'conn-1', 'resume', actor)).rejects.toThrow();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('hides connections the caller is not on', async () => {
+    const { service } = setup({
+      id: 'conn-1',
+      companyLowId: 'other-a',
+      companyHighId: 'other-b',
+      status: ConnectionStatus.Active,
+      statusSetByCompanyId: null,
+    });
+    await expect(service.applyOwnerAction('co-a', 'conn-1', 'pause', actor)).rejects.toThrow();
   });
 });
 
-describe('ConnectionService.list silent-block masking', () => {
-  it('hides paused/blocked connections from the viewer but not from the owner', async () => {
-    const summary = (id: string) => ({
-      id,
-      name: id,
-      city: 'Surat',
-      verification: 'not_verified',
-      logoUrl: null as string | null,
-    });
+describe('ConnectionService.list silent masking', () => {
+  it('shows paused/blocked only to the actor; active to both', async () => {
     const rows = [
-      // Caller is the owner here — a blocked connection stays visible to them.
       {
-        id: 'owned-blocked',
-        ownerCompanyId: 'me',
-        viewerCompanyId: 'x',
+        id: 'blocked-by-me',
+        companyLowId: 'me',
+        companyHighId: 'x',
         status: ConnectionStatus.Blocked,
+        statusSetByCompanyId: 'me',
         createdAt: new Date(),
-        owner: summary('me'),
-        viewer: summary('x'),
+        companyLow: summary('me'),
+        companyHigh: summary('x'),
       },
-      // Caller is the viewer here — a blocked connection must be hidden.
       {
-        id: 'viewer-blocked',
-        ownerCompanyId: 'y',
-        viewerCompanyId: 'me',
+        id: 'blocked-by-other',
+        companyLowId: 'me',
+        companyHighId: 'y',
         status: ConnectionStatus.Blocked,
+        statusSetByCompanyId: 'y',
         createdAt: new Date(),
-        owner: summary('y'),
-        viewer: summary('me'),
+        companyLow: summary('me'),
+        companyHigh: summary('y'),
       },
-      // Caller is the viewer of an active connection — visible.
       {
-        id: 'viewer-active',
-        ownerCompanyId: 'z',
-        viewerCompanyId: 'me',
+        id: 'paused-by-me',
+        companyLowId: 'me',
+        companyHighId: 'p',
+        status: ConnectionStatus.Paused,
+        statusSetByCompanyId: 'me',
+        createdAt: new Date(),
+        companyLow: summary('me'),
+        companyHigh: summary('p'),
+      },
+      {
+        id: 'paused-by-other',
+        companyLowId: 'me',
+        companyHighId: 'q',
+        status: ConnectionStatus.Paused,
+        statusSetByCompanyId: 'q',
+        createdAt: new Date(),
+        companyLow: summary('me'),
+        companyHigh: summary('q'),
+      },
+      {
+        id: 'active',
+        companyLowId: 'me',
+        companyHighId: 'z',
         status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
         createdAt: new Date(),
-        owner: summary('z'),
-        viewer: summary('me'),
+        companyLow: summary('me'),
+        companyHigh: summary('z'),
       },
     ];
     const prisma = {
@@ -121,6 +229,9 @@ describe('ConnectionService.list silent-block masking', () => {
     const service = new ConnectionService(prisma, audit, serializer as never);
 
     const result = await service.list('me');
-    expect(result.map((view) => view.id)).toEqual(['owned-blocked', 'viewer-active']);
+    expect(result.map((view) => view.id)).toEqual(['blocked-by-me', 'paused-by-me', 'active']);
+    expect(result.find((view) => view.id === 'blocked-by-me')?.canUnblock).toBe(true);
+    expect(result.find((view) => view.id === 'paused-by-me')?.canResume).toBe(true);
+    expect(result.find((view) => view.id === 'active')?.canPause).toBe(true);
   });
 });

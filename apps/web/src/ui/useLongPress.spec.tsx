@@ -39,4 +39,27 @@ describe('useLongPress', () => {
     fireEvent.click(surface);
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it('suppresses click after long-press even if the surface remounts', () => {
+    const onLong = vi.fn();
+    const onClick = vi.fn();
+    const { getByTestId, rerender } = render(
+      <div onClick={onClick}>
+        <Probe key="a" onLong={onLong} />
+      </div>,
+    );
+    const surface = getByTestId('surface');
+    fireEvent.pointerDown(surface);
+    vi.advanceTimersByTime(50);
+    expect(onLong).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(surface);
+    // Simulate select-mode re-render swapping the button (new hook instance).
+    rerender(
+      <div onClick={onClick}>
+        <Probe key="b" onLong={onLong} />
+      </div>,
+    );
+    fireEvent.click(getByTestId('surface'));
+    expect(onClick).not.toHaveBeenCalled();
+  });
 });

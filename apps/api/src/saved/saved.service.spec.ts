@@ -51,7 +51,7 @@ describe('SavedService.create', () => {
         findUnique: async () => publishedProduct,
       },
       connection: {
-        findMany: async () => [],
+        findUnique: async () => null,
       },
       follow: {
         findMany: async () => [],
@@ -90,7 +90,7 @@ describe('SavedService.create', () => {
         findUnique: async () => product,
       },
       connection: {
-        findMany: async () => [],
+        findUnique: async () => null,
       },
       follow: {
         findMany: async () => [],
@@ -217,9 +217,7 @@ describe('SavedService.create (connected audience)', () => {
     const prisma = {
       product: { findUnique: async () => product },
       connection: {
-        findMany: async () => [
-          { ownerCompanyId: 'seller-co', status: ConnectionStatus.Active },
-        ],
+        findUnique: async () => ({ status: ConnectionStatus.Active }),
       },
       follow: { findMany: async () => [] },
       savedItem: { upsert },

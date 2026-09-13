@@ -83,9 +83,12 @@ describe('ConnectionPicker empty network', () => {
     const user = userEvent.setup();
     const row: ConnectionView = {
       id: 'c1',
-      role: 'viewer',
       status: 'active',
       createdAt: '2026-01-01',
+      canPause: true,
+      canResume: false,
+      canBlock: true,
+      canUnblock: false,
       company: {
         id: 'co-1',
         name: 'Jaipur Emporium',

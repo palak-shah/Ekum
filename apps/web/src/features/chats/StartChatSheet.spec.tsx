@@ -38,9 +38,12 @@ vi.mock('@/lib/teamCaps', () => ({
 
 const shop = (id: string, name: string, city: string) => ({
   id: `c-${id}`,
-  role: 'viewer',
   status: 'active',
   createdAt: '2026-01-01',
+  canPause: true,
+  canResume: false,
+  canBlock: true,
+  canUnblock: false,
   company: {
     id,
     name,

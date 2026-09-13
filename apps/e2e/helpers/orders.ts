@@ -89,7 +89,7 @@ export async function dispatchOrder(
   request: APIRequestContext,
   accessToken: string,
   orderId: string,
-  body: { lrNumber: string; transporter?: string; parcelCount?: number },
+  body: { lrNumber?: string; transporter?: string; parcelCount?: number },
 ): Promise<{ id: string; status: string }> {
   const res = await request.post(`${API_URL}/orders/${orderId}/dispatch`, {
     headers: { authorization: `Bearer ${accessToken}` },

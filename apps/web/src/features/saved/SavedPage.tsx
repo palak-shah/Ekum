@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavedItemView } from '@ekum/domain-types';
+import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
+import {
+  readDesignBrowseLayout,
+  writeDesignBrowseLayout,
+  type DesignBrowseLayout,
+} from '@/lib/designBrowseLayout';
 import { formatRate } from '@/lib/format';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
@@ -30,7 +36,7 @@ import { CheckIcon } from '@/ui/icons';
 import { savedAlbumImageCount } from './savedAlbumCount';
 import { SAVED_QUERY_KEY, useSavedList } from './useSaveToggle';
 
-type Layout = 'feed' | 'grid';
+type Layout = DesignBrowseLayout;
 type Tab = 'designs' | 'collections';
 
 function tabFromSearch(value: string | null): Tab {
@@ -73,13 +79,26 @@ export function SavedPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const companyId = useCompanyId();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const saved = useSavedList();
   const tab = tabFromSearch(searchParams.get('tab'));
-  const [layout, setLayout] = useState<Layout>('grid');
+  const [layout, setLayout] = useState<Layout>(() => readDesignBrowseLayout(companyId));
   const [viewer, setViewer] = useState<SavedItemView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
+
+  useEffect(() => {
+    setLayout(readDesignBrowseLayout(companyId));
+  }, [companyId]);
+
+  const toggleLayout = () => {
+    setLayout((prev) => {
+      const next = prev === 'feed' ? 'grid' : 'feed';
+      writeDesignBrowseLayout(companyId, next);
+      return next;
+    });
+  };
 
   const setTab = (next: Tab) => {
     setSearchParams(next === 'collections' ? { tab: 'collections' } : {}, { replace: true });
@@ -198,7 +217,7 @@ export function SavedPage() {
                   type="button"
                   aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
                   className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                  onClick={() => setLayout((prev) => (prev === 'feed' ? 'grid' : 'feed'))}
+                  onClick={toggleLayout}
                 >
                   {layout === 'feed' ? 'Grid' : 'Feed'}
                 </button>

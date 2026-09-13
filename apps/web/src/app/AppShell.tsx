@@ -42,8 +42,7 @@ function shellTitle(pathname: string): string | null {
   }
   if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
   if (pathname.startsWith('/following') || pathname.startsWith('/followers')) return 'Network';
-  // Hub like Chats — one top row with bell/avatar; create/edit hides this chrome.
-  if (pathname === '/catalog' || pathname === '/catalog/') return 'My designs';
+  // Create/edit under /catalog/* use PageHeader; list is also PageHeader (like Saved).
   if (pathname.startsWith('/catalog')) return null;
   if (pathname.startsWith('/company')) return 'Business';
   if (pathname.startsWith('/collections')) return 'Collection';
@@ -59,7 +58,7 @@ function shellTitle(pathname: string): string | null {
  */
 function pageOwnsTopChrome(pathname: string): boolean {
   if (/^\/chats\/[^/]+/.test(pathname)) return true;
-  if (/^\/catalog\//.test(pathname)) return true;
+  if (pathname === '/catalog' || pathname.startsWith('/catalog/')) return true;
   if (pathname.startsWith('/broadcast')) return true;
   if (pathname.startsWith('/referrals')) return true;
   if (pathname.startsWith('/saved')) return true;

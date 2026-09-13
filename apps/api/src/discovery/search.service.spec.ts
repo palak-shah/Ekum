@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectionStatus } from '@ekum/domain-types';
+import { companyNotBlockedWith } from '../access/connection-pair';
 import { SearchService } from './search.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { DiscoverySerializer } from './discovery.serializer';
@@ -21,9 +21,7 @@ describe('SearchService.companies', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           id: { not: 'viewer' },
-          connectionsAsOwner: {
-            none: { viewerCompanyId: 'viewer', status: ConnectionStatus.Blocked },
-          },
+          ...companyNotBlockedWith('viewer'),
         }),
       }),
     );
@@ -47,11 +45,7 @@ describe('SearchService.designs', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: 'published',
-          company: {
-            connectionsAsOwner: {
-              none: { viewerCompanyId: 'viewer', status: ConnectionStatus.Blocked },
-            },
-          },
+          company: companyNotBlockedWith('viewer'),
         }),
       }),
     );

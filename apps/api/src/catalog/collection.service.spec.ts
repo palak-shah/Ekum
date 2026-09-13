@@ -701,7 +701,11 @@ describe('CollectionService.publish', () => {
       },
       connection: {
         findMany: async () => [
-          { ownerCompanyId: 'other-co', status: 'active' },
+          {
+            companyLowId: 'company-1',
+            companyHighId: 'other-co',
+            status: 'active',
+          },
         ],
       },
       follow: { findMany: async () => [] },

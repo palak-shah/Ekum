@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   CollectionStatus,
-  ConnectionStatus,
   MessageType,
   ProductStatus,
   PublishAudience,
@@ -26,6 +25,11 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import {
+  activeConnectionsForCompanyWhere,
+  companyNotBlockedWith,
+  counterpartIdsFromRows,
+} from '../access/connection-pair';
 import { VisibilityService } from '../access/visibility.service';
 import { CatalogSerializer } from '../catalog/catalog.serializer';
 import { DiscoverySerializer } from './discovery.serializer';
@@ -168,11 +172,8 @@ export class ExploreService {
         ? this.companies(viewerCompanyId, { ...base, scope: 'sell' })
         : Promise.resolve({ results: [] as CompanyCard[], nextCursor: null }),
       this.prisma.connection.findMany({
-        where: {
-          viewerCompanyId,
-          status: ConnectionStatus.Active,
-        },
-        select: { ownerCompanyId: true },
+        where: activeConnectionsForCompanyWhere(viewerCompanyId),
+        select: { companyLowId: true, companyHighId: true },
       }),
       this.prisma.follow.findMany({
         where: { followerCompanyId: viewerCompanyId },
@@ -188,7 +189,7 @@ export class ExploreService {
       }),
     ]);
 
-    const connectedIds = new Set(connectedRows.map((row) => row.ownerCompanyId));
+    const connectedIds = new Set(counterpartIdsFromRows(viewerCompanyId, connectedRows));
     const followedIds = new Set(followedRows.map((row) => row.followedCompanyId));
     const networkIds = new Set(networkPage.results.map((row) => row.id));
     const networkDesignIds = new Set(networkDesigns.results.map((row) => row.id));
@@ -670,9 +671,7 @@ export class ExploreService {
     const where: Prisma.CompanyWhereInput = {
       id: { not: viewerCompanyId },
       ...categoryClause,
-      connectionsAsOwner: {
-        none: { viewerCompanyId, status: ConnectionStatus.Blocked },
-      },
+      ...companyNotBlockedWith(viewerCompanyId),
       ...cityEqualsWhere(cities),
     };
     if (query.following) {
@@ -722,10 +721,7 @@ export class ExploreService {
 
     const where: Prisma.CompanyWhereInput = {
       id: { not: viewerCompanyId },
-      connectionsAsOwner: {
-        none: { viewerCompanyId, status: ConnectionStatus.Blocked },
-      },
-      AND: [postedContent],
+      AND: [postedContent, companyNotBlockedWith(viewerCompanyId)],
       ...(lookingForBuyers
         ? categories.length
           ? categoryHasSomeWhere(categories, 'buyCategories')
@@ -796,13 +792,13 @@ export class ExploreService {
         select: { followedCompanyId: true },
       }),
       this.prisma.connection.findMany({
-        where: { viewerCompanyId, status: ConnectionStatus.Active },
-        select: { ownerCompanyId: true },
+        where: activeConnectionsForCompanyWhere(viewerCompanyId),
+        select: { companyLowId: true, companyHighId: true },
       }),
       this.resolveViewerRankContext(viewerCompanyId, query),
     ]);
     const followedIds = followed.map((row) => row.followedCompanyId);
-    const connectedIds = new Set(connectedRows.map((row) => row.ownerCompanyId));
+    const connectedIds = new Set(counterpartIdsFromRows(viewerCompanyId, connectedRows));
     const followedSet = new Set(followedIds);
     const fetchCap = Math.min(Math.max(query.limit * 4, 40), 120);
 
@@ -1497,9 +1493,7 @@ export class ExploreService {
 
   private companyFilter(viewerCompanyId: string, query: ExploreQuery): Prisma.CompanyWhereInput {
     const filter: Prisma.CompanyWhereInput = {
-      connectionsAsOwner: {
-        none: { viewerCompanyId, status: ConnectionStatus.Blocked },
-      },
+      ...companyNotBlockedWith(viewerCompanyId),
     };
     const { categories, cities } = narrowLists(query);
     Object.assign(filter, cityEqualsWhere(cities), categoryHasSomeWhere(categories, 'sellCategories'));

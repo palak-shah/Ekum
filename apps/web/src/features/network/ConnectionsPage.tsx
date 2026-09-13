@@ -5,6 +5,12 @@ import { api } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Card, EmptyState, LoadingBlock, StatusPill } from '@/ui/kit';
 
+function connectionSubtitle(status: string): string {
+  if (status === 'paused') return 'Paused';
+  if (status === 'blocked') return 'Blocked';
+  return 'Connected';
+}
+
 export function ConnectionsPage() {
   const queryClient = useQueryClient();
   const connections = useQuery({
@@ -42,17 +48,15 @@ export function ConnectionsPage() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
                   <p className="truncate text-xs text-muted">
-                    {connection.role === 'owner' ? 'They buy from you' : 'You buy from them'}
+                    {connectionSubtitle(connection.status)}
                   </p>
                 </div>
               </Link>
               <StatusPill status={connection.status} />
-              {connection.role === 'owner' ? (
-                <OwnerConnectionAction
-                  status={connection.status}
-                  onAction={(action) => connectionAction.mutate({ id: connection.id, action })}
-                />
-              ) : null}
+              <ConnectionActions
+                connection={connection}
+                onAction={(action) => connectionAction.mutate({ id: connection.id, action })}
+              />
             </Card>
           ))}
         </div>
@@ -66,30 +70,50 @@ export function ConnectionsPage() {
   );
 }
 
-function OwnerConnectionAction({
-  status,
+function ConnectionActions({
+  connection,
   onAction,
 }: {
-  status: string;
+  connection: ConnectionView;
   onAction: (action: 'pause' | 'resume' | 'block' | 'unblock') => void;
 }) {
-  if (status === 'blocked') {
+  if (connection.canUnblock) {
     return (
       <button type="button" className="text-xs font-medium text-accent" onClick={() => onAction('unblock')}>
         Unblock
       </button>
     );
   }
-  if (status === 'paused') {
+  if (connection.canResume) {
     return (
       <button type="button" className="text-xs font-medium text-accent" onClick={() => onAction('resume')}>
         Resume
       </button>
     );
   }
-  return (
-    <button type="button" className="text-xs font-medium text-muted" onClick={() => onAction('pause')}>
-      Pause
-    </button>
-  );
+  if (connection.canPause || connection.canBlock) {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        {connection.canPause ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-muted"
+            onClick={() => onAction('pause')}
+          >
+            Pause
+          </button>
+        ) : null}
+        {connection.canBlock ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-danger"
+            onClick={() => onAction('block')}
+          >
+            Block
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+  return null;
 }

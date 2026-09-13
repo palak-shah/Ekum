@@ -16,7 +16,7 @@ import type {
 import { formatRate, timeAgo } from '@/lib/format';
 import { Avatar, Chip, Tag, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
-import { LONG_PRESS_SURFACE_CLASS, useLongPress } from './useLongPress';
+import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 function VerificationTag({ verification }: { verification: string }) {
   if (verification === 'gst_verified') {
@@ -87,10 +87,15 @@ export function OpportunityCollectionCard({
   const when = postedWhen(collection.updatedAt);
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
-  const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
+  const selecting = selectMode && onToggleSelect;
   const openAlbum = () => {
     onOpen?.();
     navigate(`/collections/${collection.id}`);
+  };
+  const onMediaClick = () => {
+    if (isLongPressActivateSuppressed()) return;
+    if (selecting) onToggleSelect();
+    else openAlbum();
   };
   return (
     <article className="-mx-4 border-b border-line/70 pb-3.5">
@@ -109,18 +114,18 @@ export function OpportunityCollectionCard({
             <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
           ) : null)}
       </div>
-      {open ? (
-        <button
-          type="button"
-          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
-          onClick={open}
-          {...longPress}
-        >
-          <AlbumGrid
-            images={collection.previewImages}
-            imageCount={collection.imageCount}
-            alt={collection.name}
-          />
+      <button
+        type="button"
+        className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+        onClick={onMediaClick}
+        {...longPress}
+      >
+        <AlbumGrid
+          images={collection.previewImages}
+          imageCount={collection.imageCount}
+          alt={collection.name}
+        />
+        {selectMode ? (
           <span
             className={cx(
               'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
@@ -129,32 +134,12 @@ export function OpportunityCollectionCard({
           >
             <CheckIcon width={14} height={14} />
           </span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
-          onClick={openAlbum}
-          {...longPress}
-        >
-          <AlbumGrid
-            images={collection.previewImages}
-            imageCount={collection.imageCount}
-            alt={collection.name}
-          />
-        </button>
-      )}
-      {open ? (
-        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
-          <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
-          <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
-        </button>
-      ) : (
-        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={openAlbum}>
-          <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
-          <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
-        </button>
-      )}
+        ) : null}
+      </button>
+      <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onMediaClick}>
+        <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
+        <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
+      </button>
     </article>
   );
 }
@@ -404,10 +389,15 @@ export function OpportunityDesignCard({
   const when = postedWhen(product.postedAt);
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
-  const open = selectMode && onToggleSelect ? onToggleSelect : undefined;
+  const selecting = selectMode && onToggleSelect;
   const openDesign = () => {
     onOpen?.();
     navigate(`/explore/products/${product.id}`);
+  };
+  const onMediaClick = () => {
+    if (isLongPressActivateSuppressed()) return;
+    if (selecting) onToggleSelect();
+    else openDesign();
   };
 
   return (
@@ -427,14 +417,14 @@ export function OpportunityDesignCard({
             <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
           ) : null)}
       </div>
-      {open ? (
-        <button
-          type="button"
-          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
-          onClick={open}
-          {...longPress}
-        >
-          <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+      <button
+        type="button"
+        className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+        onClick={onMediaClick}
+        {...longPress}
+      >
+        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+        {selectMode ? (
           <span
             className={cx(
               'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
@@ -443,28 +433,12 @@ export function OpportunityDesignCard({
           >
             <CheckIcon width={14} height={14} />
           </span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
-          onClick={openDesign}
-          {...longPress}
-        >
-          <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
-        </button>
-      )}
-      {open ? (
-        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={open}>
-          <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
-          <p className="text-xs font-medium text-muted">Design</p>
-        </button>
-      ) : (
-        <button type="button" className="mt-2 block w-full px-4 text-left" onClick={openDesign}>
-          <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
-          <p className="text-xs font-medium text-muted">Design</p>
-        </button>
-      )}
+        ) : null}
+      </button>
+      <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onMediaClick}>
+        <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
+        <p className="text-xs font-medium text-muted">Design</p>
+      </button>
     </article>
   );
 }
@@ -485,8 +459,13 @@ export function DesignTile({
 }) {
   const longPress = useLongPress(onLongSelect);
   const navigate = useNavigate();
-  const selecting = selectMode && onToggleSelect;
+  const selecting = Boolean(selectMode && onToggleSelect);
   const openDesign = () => navigate(`/explore/products/${product.id}`);
+  const onTileClick = () => {
+    if (isLongPressActivateSuppressed()) return;
+    if (selecting) onToggleSelect?.();
+    else openDesign();
+  };
 
   const body = (
     <>
@@ -514,31 +493,15 @@ export function DesignTile({
     </>
   );
 
-  if (selecting) {
-    return (
-      <button
-        type="button"
-        className={cx(
-          'block w-full overflow-hidden rounded-2xl border bg-surface text-left',
-          LONG_PRESS_SURFACE_CLASS,
-          selected ? 'border-accent' : 'border-line',
-        )}
-        onClick={onToggleSelect}
-        {...longPress}
-      >
-        {body}
-      </button>
-    );
-  }
-
   return (
     <button
       type="button"
       className={cx(
-        'block w-full overflow-hidden rounded-2xl border border-line bg-surface text-left',
+        'block w-full overflow-hidden rounded-2xl border bg-surface text-left',
         LONG_PRESS_SURFACE_CLASS,
+        selecting && selected ? 'border-accent' : 'border-line',
       )}
-      onClick={openDesign}
+      onClick={onTileClick}
       {...longPress}
     >
       {body}

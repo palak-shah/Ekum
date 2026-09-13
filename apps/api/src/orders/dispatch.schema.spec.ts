@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { dispatchSchema } from '@ekum/domain-types';
 
 describe('dispatchSchema', () => {
-  it('requires a non-empty LR number', () => {
-    expect(dispatchSchema.safeParse({}).success).toBe(false);
-    expect(dispatchSchema.safeParse({ lrNumber: '' }).success).toBe(false);
-    expect(dispatchSchema.safeParse({ lrNumber: '  ' }).success).toBe(false);
+  it('allows dispatch without LR', () => {
+    expect(dispatchSchema.safeParse({}).success).toBe(true);
+    expect(dispatchSchema.safeParse({ lrNumber: '' }).success).toBe(true);
+    expect(dispatchSchema.safeParse({ lrNumber: '  ' }).success).toBe(true);
   });
 
   it('accepts LR with optional transporter and parcels', () => {

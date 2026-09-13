@@ -4,10 +4,11 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CompanySerializer } from './company.serializer';
 import type { AuthPrincipal } from '../auth/auth.types';
+import { counterpartCompanyId } from './connection-pair';
 
-type OwnerAction = 'pause' | 'resume' | 'block' | 'unblock';
+type ConnectionAction = 'pause' | 'resume' | 'block' | 'unblock';
 
-const ACTION_TO_STATUS: Record<OwnerAction, string> = {
+const ACTION_TO_STATUS: Record<ConnectionAction, string> = {
   pause: ConnectionStatus.Paused,
   resume: ConnectionStatus.Active,
   block: ConnectionStatus.Blocked,
@@ -16,10 +17,10 @@ const ACTION_TO_STATUS: Record<OwnerAction, string> = {
 
 // Legal source states for each action. A block can only be lifted by unblock, so
 // pause/resume must never touch a blocked connection.
-const ALLOWED_FROM: Record<OwnerAction, readonly string[]> = {
+const ALLOWED_FROM: Record<ConnectionAction, readonly string[]> = {
   pause: [ConnectionStatus.Active],
   resume: [ConnectionStatus.Paused],
-  block: [ConnectionStatus.Active, ConnectionStatus.Paused],
+  block: [ConnectionStatus.Active],
   unblock: [ConnectionStatus.Blocked],
 };
 
@@ -33,44 +34,39 @@ export class ConnectionService {
 
   async list(companyId: string): Promise<ConnectionView[]> {
     const connections = await this.prisma.connection.findMany({
-      where: { OR: [{ ownerCompanyId: companyId }, { viewerCompanyId: companyId }] },
+      where: { OR: [{ companyLowId: companyId }, { companyHighId: companyId }] },
       orderBy: { createdAt: 'desc' },
-      include: { owner: true, viewer: true },
+      include: { companyLow: true, companyHigh: true },
     });
 
     return connections
       .filter((connection) => {
-        // Pause and block are silent: from the viewer's side only active
-        // connections are visible, so a paused/blocked party gets no signal.
-        // The owner, who performed the action, sees every status.
-        const isOwner = connection.ownerCompanyId === companyId;
-        return isOwner || connection.status === ConnectionStatus.Active;
+        // Pause and block are silent: only the actor who set the status sees the row.
+        if (connection.status === ConnectionStatus.Active) return true;
+        return connection.statusSetByCompanyId === companyId;
       })
-      .map((connection) => {
-        const isOwner = connection.ownerCompanyId === companyId;
-        return {
-          id: connection.id,
-          company: this.serializer.toPublicSummary(isOwner ? connection.viewer : connection.owner),
-          role: isOwner ? 'owner' : 'viewer',
-          status: connection.status,
-          createdAt: connection.createdAt.toISOString(),
-        };
-      });
+      .map((connection) => this.toView(companyId, connection));
   }
 
   /**
-   * Owner-only state changes. Pause and block are deliberately silent — no
-   * notification is ever generated for these transitions.
+   * Either-side state changes. Pause and block are deliberately silent — no
+   * notification is ever generated for these transitions. Only the actor who
+   * paused/blocked may resume/unblock.
    */
   async applyOwnerAction(
     companyId: string,
     connectionId: string,
-    action: OwnerAction,
+    action: ConnectionAction,
     actor: AuthPrincipal,
   ): Promise<ConnectionView> {
-    const connection = await this.prisma.connection.findUnique({ where: { id: connectionId } });
-    // Only the catalogue owner controls the connection; otherwise hide it.
-    if (!connection || connection.ownerCompanyId !== companyId) {
+    const connection = await this.prisma.connection.findUnique({
+      where: { id: connectionId },
+      include: { companyLow: true, companyHigh: true },
+    });
+    if (
+      !connection ||
+      (connection.companyLowId !== companyId && connection.companyHighId !== companyId)
+    ) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Connection not found.' });
     }
 
@@ -81,11 +77,21 @@ export class ConnectionService {
       });
     }
 
+    if (
+      (action === 'resume' || action === 'unblock') &&
+      connection.statusSetByCompanyId !== companyId
+    ) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Connection not found.' });
+    }
+
     const nextStatus = ACTION_TO_STATUS[action];
+    const statusSetByCompanyId =
+      nextStatus === ConnectionStatus.Active ? null : companyId;
+
     const updated = await this.prisma.connection.update({
       where: { id: connection.id },
-      data: { status: nextStatus },
-      include: { viewer: true },
+      data: { status: nextStatus, statusSetByCompanyId },
+      include: { companyLow: true, companyHigh: true },
     });
 
     await this.audit.record({
@@ -94,16 +100,39 @@ export class ConnectionService {
       action: `connection.${action}`,
       targetType: 'connection',
       targetId: connection.id,
-      before: { status: connection.status },
-      after: { status: nextStatus },
+      before: { status: connection.status, statusSetByCompanyId: connection.statusSetByCompanyId },
+      after: { status: nextStatus, statusSetByCompanyId },
     });
 
+    return this.toView(companyId, updated);
+  }
+
+  private toView(
+    companyId: string,
+    connection: {
+      id: string;
+      companyLowId: string;
+      companyHighId: string;
+      status: string;
+      statusSetByCompanyId: string | null;
+      createdAt: Date;
+      companyLow: Parameters<CompanySerializer['toPublicSummary']>[0];
+      companyHigh: Parameters<CompanySerializer['toPublicSummary']>[0];
+    },
+  ): ConnectionView {
+    const otherId = counterpartCompanyId(companyId, connection);
+    const other =
+      otherId === connection.companyLowId ? connection.companyLow : connection.companyHigh;
+    const isActor = connection.statusSetByCompanyId === companyId;
     return {
-      id: updated.id,
-      company: this.serializer.toPublicSummary(updated.viewer),
-      role: 'owner',
-      status: updated.status,
-      createdAt: updated.createdAt.toISOString(),
+      id: connection.id,
+      company: this.serializer.toPublicSummary(other),
+      status: connection.status,
+      createdAt: connection.createdAt.toISOString(),
+      canPause: connection.status === ConnectionStatus.Active,
+      canResume: connection.status === ConnectionStatus.Paused && isActor,
+      canBlock: connection.status === ConnectionStatus.Active,
+      canUnblock: connection.status === ConnectionStatus.Blocked && isActor,
     };
   }
 }
