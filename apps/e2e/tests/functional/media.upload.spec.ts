@@ -19,7 +19,12 @@ test.describe('media upload @functional @media @creation', () => {
     const before = await page.locator('.ekum-msg-bubble img[src*="/media"]').count();
 
     await page.getByRole('button', { name: 'Attach' }).click();
-    await page.getByRole('button', { name: 'Photos' }).click();
+    await page.getByTestId('attach-photos').click();
+    // Phone viewport opens ContinuousCamera — Gallery reaches the same file input.
+    const camera = page.getByTestId('continuous-camera');
+    if (await camera.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await page.getByRole('button', { name: 'Gallery' }).click();
+    }
     await page.getByTestId('chat-photo-input').setInputFiles(fixture);
 
     await expect

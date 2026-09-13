@@ -49,6 +49,13 @@ export function formatSearchHitPreview(input: {
     return name ? `In chat · Shared: ${name}` : 'In chat · Shared a card';
   }
 
+  if (input.type === MessageType.Document) {
+    const meta = asMeta(input.metadata);
+    const fileName =
+      typeof meta?.fileName === 'string' && meta.fileName.trim() ? meta.fileName.trim() : null;
+    return fileName ? `In chat · ${trimSnippet(fileName)}` : 'In chat · Document';
+  }
+
   const body = input.body?.trim();
   if (body) {
     return `In chat · ${trimSnippet(body)}`;
@@ -87,6 +94,21 @@ export async function messageSearchOrClause(
         LIMIT ${ORDER_LABEL_ID_LIMIT}
       `;
 
+  const fileNameRows = options?.threadId
+    ? await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "Message"
+        WHERE "threadId" = ${options.threadId}
+          AND type = 'document'
+          AND LOWER(COALESCE(metadata->>'fileName', '')) LIKE ${like}
+        LIMIT ${ORDER_LABEL_ID_LIMIT}
+      `
+    : await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "Message"
+        WHERE type = 'document'
+          AND LOWER(COALESCE(metadata->>'fileName', '')) LIKE ${like}
+        LIMIT ${ORDER_LABEL_ID_LIMIT}
+      `;
+
   const [products, collections] = await Promise.all([
     prisma.product.findMany({
       where: { name: { contains: needle, mode: 'insensitive' } },
@@ -103,6 +125,9 @@ export async function messageSearchOrClause(
   const or: Prisma.MessageWhereInput[] = [{ body: { contains: needle, mode: 'insensitive' } }];
   if (orderLabelRows.length > 0) {
     or.push({ id: { in: orderLabelRows.map((row) => row.id) } });
+  }
+  if (fileNameRows.length > 0) {
+    or.push({ id: { in: fileNameRows.map((row) => row.id) } });
   }
   if (products.length > 0) {
     or.push({

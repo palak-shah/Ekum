@@ -24,7 +24,12 @@ const cardTypes = [
   MessageType.OrderCard,
   MessageType.Rate,
 ] as const;
-const needsBodyTypes = [MessageType.Text, MessageType.Photo, MessageType.Voice] as const;
+const needsBodyTypes = [
+  MessageType.Text,
+  MessageType.Photo,
+  MessageType.Voice,
+  MessageType.Document,
+] as const;
 
 export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 export const MESSAGE_DELETE_EVERYONE_WINDOW_MS = 60 * 60 * 1000;
@@ -81,6 +86,15 @@ export const voiceMessageMetadataSchema = z.object({
 });
 export type VoiceMessageMetadata = z.infer<typeof voiceMessageMetadataSchema>;
 
+/** Chat Document attach: one file per message (URL in body + metadata). */
+export const documentMessageMetadataSchema = z.object({
+  url: z.string().trim().min(1),
+  fileName: z.string().trim().min(1).max(240),
+  contentType: z.string().trim().min(1).max(120),
+  sizeBytes: z.number().int().positive().max(15 * 1024 * 1024).optional(),
+});
+export type DocumentMessageMetadata = z.infer<typeof documentMessageMetadataSchema>;
+
 /** Resolve album URLs from metadata, falling back to a legacy single-body photo. */
 export function photoUrlsFromMessage(message: {
   body: string | null | undefined;
@@ -97,6 +111,48 @@ export function photoUrlsFromMessage(message: {
 export function voiceDurationMsFromMessage(metadata: unknown): number | null {
   const parsed = voiceMessageMetadataSchema.safeParse(metadata);
   return parsed.success ? parsed.data.durationMs : null;
+}
+
+export function documentFromMessage(message: {
+  body: string | null | undefined;
+  metadata: unknown;
+}): DocumentMessageMetadata | null {
+  const parsed = documentMessageMetadataSchema.safeParse(message.metadata);
+  if (parsed.success) return parsed.data;
+  const body = message.body?.trim();
+  if (!body) return null;
+  return {
+    url: body,
+    fileName: 'Document',
+    contentType: 'application/octet-stream',
+  };
+}
+
+/** Short type cue for document bubbles / previews. */
+export function documentTypeCue(contentType: string, fileName?: string): string {
+  const lower = contentType.toLowerCase();
+  const name = (fileName ?? '').toLowerCase();
+  if (lower.includes('pdf') || name.endsWith('.pdf')) return 'PDF';
+  if (
+    lower.includes('word') ||
+    lower.includes('msword') ||
+    name.endsWith('.doc') ||
+    name.endsWith('.docx')
+  ) {
+    return 'Word';
+  }
+  if (
+    lower.includes('excel') ||
+    lower.includes('spreadsheet') ||
+    name.endsWith('.xls') ||
+    name.endsWith('.xlsx')
+  ) {
+    return 'Excel';
+  }
+  if (lower.includes('csv') || name.endsWith('.csv')) return 'CSV';
+  if (lower.startsWith('text/') || name.endsWith('.txt')) return 'Text';
+  if (lower.startsWith('image/')) return 'Photo';
+  return 'Document';
 }
 
 export const startDirectThreadSchema = z.object({
@@ -133,7 +189,9 @@ export const sendMessageSchema = z
             ? 'A photo message needs an image URL.'
             : value.type === MessageType.Voice
               ? 'A voice message needs an audio URL.'
-              : 'A text message needs a body.',
+              : value.type === MessageType.Document
+                ? 'A document message needs a file URL.'
+                : 'A text message needs a body.',
         path: ['body'],
       });
     }
@@ -174,6 +232,22 @@ export const sendMessageSchema = z
         });
       }
     }
+    if (value.type === MessageType.Document) {
+      const parsed = documentMessageMetadataSchema.safeParse(value.metadata ?? {});
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Document messages need metadata.url, fileName, and contentType.',
+          path: ['metadata'],
+        });
+      } else if (value.body && value.body !== parsed.data.url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Document body must match metadata.url.',
+          path: ['body'],
+        });
+      }
+    }
   });
 export type SendMessageDto = z.infer<typeof sendMessageSchema>;
 
@@ -184,6 +258,21 @@ export type EditMessageDto = z.infer<typeof editMessageSchema>;
 
 export const listStarredMessagesQuerySchema = cursorPageQuerySchema;
 export type ListStarredMessagesQuery = z.infer<typeof listStarredMessagesQuerySchema>;
+
+/** Cross-chat find kinds from Chats list search (Orders stay on Orders tab). */
+export const crossChatFindKindValues = [
+  'photos',
+  'documents',
+  'collections',
+  'designs',
+] as const;
+export type CrossChatFindKind = (typeof crossChatFindKindValues)[number];
+
+export const listCrossChatFindQuerySchema = cursorPageQuerySchema.extend({
+  kind: z.enum(crossChatFindKindValues),
+  q: z.string().trim().max(80).optional(),
+});
+export type ListCrossChatFindQuery = z.infer<typeof listCrossChatFindQuerySchema>;
 
 export const listThreadsQuerySchema = cursorPageQuerySchema.extend({
   state: z.enum(threadParticipantStateValues).optional(),
@@ -196,6 +285,7 @@ export type ListThreadsQuery = z.infer<typeof listThreadsQuerySchema>;
 export const threadMessageViewValues = [
   'all',
   'photos',
+  'documents',
   'collections',
   'designs',
   'orders',
@@ -342,6 +432,14 @@ export interface StarredMessageView {
   threadTitle: string | null;
   counterpartName: string | null;
   starredAt: string;
+}
+
+/** Cross-chat find row (Photos / Documents / Collections / Designs). */
+export interface CrossChatFindItemView {
+  message: MessageView;
+  threadId: string;
+  threadTitle: string | null;
+  counterpartName: string | null;
 }
 
 export interface ParticipantView {

@@ -4,13 +4,27 @@ import { MediaKind, mediaKindValues } from './enums';
 /**
  * Media contracts. Uploads are direct-to-blob: the client asks the API for a
  * short-lived, scoped upload ticket, PUTs the bytes straight to storage, then
- * confirms. Images get a thumbnail worker; audio is marked ready on complete.
+ * confirms. Images get a thumbnail worker; audio/document are marked ready on complete.
  */
 
 export const imageContentTypes = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export const audioContentTypes = ['audio/webm', 'audio/mp4', 'audio/mpeg'] as const;
+/** Office / text docs for chat Document attach (not images — those use Image kind). */
+export const documentContentTypes = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+  'text/plain',
+] as const;
 
-const uploadContentTypes = [...imageContentTypes, ...audioContentTypes] as const;
+const uploadContentTypes = [
+  ...imageContentTypes,
+  ...audioContentTypes,
+  ...documentContentTypes,
+] as const;
 
 export const createUploadUrlSchema = z
   .object({
@@ -22,6 +36,7 @@ export const createUploadUrlSchema = z
   .superRefine((value, ctx) => {
     const isImage = (imageContentTypes as readonly string[]).includes(value.contentType);
     const isAudio = (audioContentTypes as readonly string[]).includes(value.contentType);
+    const isDocument = (documentContentTypes as readonly string[]).includes(value.contentType);
     if (value.kind === MediaKind.Image && !isImage) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -33,6 +48,13 @@ export const createUploadUrlSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Voice uploads need WebM, MP4, or MPEG audio.',
+        path: ['contentType'],
+      });
+    }
+    if (value.kind === MediaKind.Document && !isDocument) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Document uploads need PDF, Word, Excel, CSV, or plain text.',
         path: ['contentType'],
       });
     }

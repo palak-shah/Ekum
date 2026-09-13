@@ -214,7 +214,7 @@ export interface ExploreReceivedDay {
 /**
  * Sectioned Explore home.
  * Collections and designs are separate shelves. Own company never appears.
- * `lookingForWhatYouSell` is null when the viewer does not sell.
+ * `lookingForWhatYouSell` is null when the viewer has not set sell categories.
  * `receivedByDay` is filled when `side=buying`; otherwise [].
  */
 export interface ExploreHomeView {

@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
-import { photoUrlsFromMessage, type MessageView } from '@ekum/domain-types';
+import { photoUrlsFromMessage, documentFromMessage, documentTypeCue, type MessageView } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import {
   CameraIcon,
@@ -137,6 +137,13 @@ export function messagePreviewText(message: MessageView | null | undefined): str
     case 'voice':
       core = 'Voice';
       break;
+    case 'document': {
+      const doc = documentFromMessage(message);
+      core = doc
+        ? `${documentTypeCue(doc.contentType, doc.fileName)} · ${doc.fileName}`
+        : 'Document';
+      break;
+    }
     case 'product_card':
     case 'collection_card':
       core = name ? `Shared: ${name}` : 'Shared a card';

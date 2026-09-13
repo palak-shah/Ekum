@@ -447,6 +447,18 @@ describe('MessageService.list filters', () => {
     });
   });
 
+  it('scopes documents to document only', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list(actor('me'), 't', { view: 'documents', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        { type: MessageType.Document },
+      ]),
+    });
+  });
+
   it('scopes collections to collection_card', async () => {
     const captured: { where: unknown } = { where: null };
     const service = listService(captured);
@@ -558,6 +570,75 @@ describe('MessageService.list filters', () => {
           ]),
         },
       ]),
+    });
+  });
+});
+
+describe('MessageService.listFind', () => {
+  function findService(captured: { where: unknown }) {
+    const prisma = {
+      message: {
+        findMany: async (args: { where: unknown; take: number }) => {
+          captured.where = args.where;
+          return [];
+        },
+      },
+      messageStar: { findMany: async () => [] },
+      thread: { findMany: async () => [] },
+      $queryRaw: async () => [] as { id: string }[],
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const threads = threadStub();
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
+    return new MessageService(prisma, threads, serializer, references, events, visibilityStub());
+  }
+
+  it('scopes photos kind to photo only across memberships', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = findService(captured);
+    await service.listFind(actor('me'), { kind: 'photos', limit: 40 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { type: MessageType.Photo },
+        { deletedForEveryoneAt: null },
+        {
+          thread: {
+            participants: {
+              some: { companyId: 'me', leftAt: null },
+            },
+          },
+        },
+      ]),
+    });
+  });
+
+  it('scopes documents kind to document only', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = findService(captured);
+    await service.listFind(actor('me'), { kind: 'documents', limit: 40 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([{ type: MessageType.Document }]),
+    });
+  });
+
+  it('scopes collections and designs to card types', async () => {
+    const capturedCollections: { where: unknown } = { where: null };
+    await findService(capturedCollections).listFind(actor('me'), {
+      kind: 'collections',
+      limit: 40,
+    });
+    expect(capturedCollections.where).toMatchObject({
+      AND: expect.arrayContaining([{ type: MessageType.CollectionCard }]),
+    });
+
+    const capturedDesigns: { where: unknown } = { where: null };
+    await findService(capturedDesigns).listFind(actor('me'), { kind: 'designs', limit: 40 });
+    expect(capturedDesigns.where).toMatchObject({
+      AND: expect.arrayContaining([{ type: MessageType.ProductCard }]),
     });
   });
 });

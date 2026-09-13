@@ -24,7 +24,12 @@ export async function getOrder(
   id: string;
   threadId: string;
   status: string;
-  items: Array<{ id: string; quantity: number }>;
+  items: Array<{
+    id: string;
+    quantity: number;
+    shippedQuantity?: number;
+    remainingQuantity?: number;
+  }>;
 }> {
   const res = await request.get(`${API_URL}/orders/${orderId}`, {
     headers: { authorization: `Bearer ${accessToken}` },
@@ -36,7 +41,12 @@ export async function getOrder(
     id: string;
     threadId: string;
     status: string;
-    items: Array<{ id: string; quantity: number }>;
+    items: Array<{
+      id: string;
+      quantity: number;
+      shippedQuantity?: number;
+      remainingQuantity?: number;
+    }>;
   }>;
 }
 
@@ -89,7 +99,12 @@ export async function dispatchOrder(
   request: APIRequestContext,
   accessToken: string,
   orderId: string,
-  body: { lrNumber?: string; transporter?: string; parcelCount?: number },
+  body: {
+    lrNumber?: string;
+    transporter?: string;
+    parcelCount?: number;
+    items?: Array<{ orderItemId: string; quantity: number }>;
+  },
 ): Promise<{ id: string; status: string }> {
   const res = await request.post(`${API_URL}/orders/${orderId}/dispatch`, {
     headers: { authorization: `Bearer ${accessToken}` },

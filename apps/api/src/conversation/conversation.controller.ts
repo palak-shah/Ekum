@@ -12,6 +12,7 @@ import {
   addParticipantsSchema,
   createGroupThreadSchema,
   editMessageSchema,
+  listCrossChatFindQuerySchema,
   listThreadMessagesQuerySchema,
   listThreadsQuerySchema,
   sendMessageSchema,
@@ -22,6 +23,7 @@ import {
   type AddParticipantsDto,
   type CreateGroupThreadDto,
   type EditMessageDto,
+  type ListCrossChatFindQuery,
   type ListThreadMessagesQuery,
   type ListThreadsQuery,
   type SendMessageDto,
@@ -85,6 +87,15 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
   ) {
     return this.threads.unreadTotal(companyId, user.role, user.userId);
+  }
+
+  /** Cross-chat find (Photos / Documents / Collections / Designs). Before `:id`. */
+  @Get('messages/find')
+  findMessages(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(listCrossChatFindQuerySchema)) query: ListCrossChatFindQuery,
+  ) {
+    return this.messages.listFind(user, query);
   }
 
   @Get(':id')

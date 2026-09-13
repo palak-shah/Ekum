@@ -25,6 +25,9 @@ test.describe('chat journey @functional @chat', () => {
     await pickThreadSearchScope(page, 'photos');
     await expect(page.getByTestId('thread-search-band')).toBeVisible();
 
+    await pickThreadSearchScope(page, 'documents');
+    await expect(page.getByTestId('thread-search-band')).toBeVisible();
+
     await pickThreadSearchScope(page, 'designs');
     await expect(page.getByTestId('thread-search-band')).toBeVisible();
 
@@ -40,10 +43,11 @@ test.describe('chat journey @functional @chat', () => {
 
     await page.getByTestId('chat-attach').click();
     await expect(page.getByRole('heading', { name: 'Share in chat' })).toBeVisible();
-    await expect(page.getByTestId('attach-camera')).toBeVisible();
     await expect(page.getByTestId('attach-photos')).toBeVisible();
-    await expect(page.getByTestId('attach-camera')).toContainText('Camera');
+    await expect(page.getByTestId('attach-document')).toBeVisible();
+    await expect(page.getByTestId('attach-camera')).toHaveCount(0);
     await expect(page.getByTestId('attach-photos')).toContainText('Photos');
+    await expect(page.getByTestId('attach-document')).toContainText('Document');
     await page.getByTestId('attach-product').click();
     await expect(page.getByRole('heading', { name: 'Share a design' })).toBeVisible();
 

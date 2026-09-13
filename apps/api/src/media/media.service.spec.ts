@@ -110,4 +110,42 @@ describe('MediaService.complete', () => {
     );
     void created;
   });
+
+  it('marks document ready without thumbnail job', async () => {
+    const update = vi.fn(async () => undefined);
+    const prisma = {
+      media: {
+        findUnique: async () => ({
+          id: 'd1',
+          companyId: 'c1',
+          status: MediaStatus.Pending,
+          kind: MediaKind.Document,
+          contentType: 'application/pdf',
+          url: 'https://host/c1/a.pdf',
+          thumbnailUrl: null,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const config = { get: () => '10m' } as unknown as ConfigService<Env, true>;
+    const enqueue = vi.fn(async () => 'job-1');
+    const jobs = { enqueue } as unknown as JobQueue;
+    const storage = {
+      createUploadTarget: () => ({
+        uploadUrl: 'https://host/c1/a.pdf?sig=abc',
+        method: 'PUT' as const,
+        headers: { 'content-type': 'application/pdf' },
+      }),
+      publicUrl: () => 'https://host/c1/a.pdf',
+    } as unknown as StorageDriver;
+    const service = new MediaService(prisma, config, jobs, storage);
+    await service.complete('c1', 'd1');
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: MediaStatus.Ready }),
+      }),
+    );
+  });
 });

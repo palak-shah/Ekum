@@ -8,7 +8,7 @@ import { timeAgo } from '@/lib/format';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
 import { Avatar, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { PinIcon, PlusIcon } from '@/ui/icons';
+import { ChevronRightIcon, PlusIcon, PinIcon } from '@/ui/icons';
 import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
 import { inboxObjectLabel, inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
@@ -21,12 +21,20 @@ const TAB_LABEL: Record<Tab, string> = {
   requests: 'Requests Received',
 };
 
+const IN_CHATS: { kind: string; label: string }[] = [
+  { kind: 'photos', label: 'Photos' },
+  { kind: 'documents', label: 'Documents' },
+  { kind: 'collections', label: 'Collections' },
+  { kind: 'designs', label: 'Designs' },
+];
+
 export function ChatsPage() {
   const queryClient = useQueryClient();
   const { can } = useTeamCaps();
   const canChat = can('chats');
   const [tab, setTab] = useState<Tab>('active');
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const deferredQuery = useDeferredValue(query.trim());
   const [readAllError, setReadAllError] = useState<string | null>(null);
   const [startOpen, setStartOpen] = useState(false);
@@ -59,6 +67,7 @@ export function ChatsPage() {
   const list = threads.data?.results ?? [];
   const hasUnread = list.some((thread) => thread.unreadCount > 0);
   const searching = Boolean(deferredQuery);
+  const showInChats = searchFocused && !query.trim();
 
   return (
     <div className="flex flex-col gap-4">
@@ -68,9 +77,15 @@ export function ChatsPage() {
             className="w-full"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => {
+              // Defer so shortcut Link clicks register before hide.
+              window.setTimeout(() => setSearchFocused(false), 150);
+            }}
             placeholder="Search chats"
             aria-label="Search chats"
             autoComplete="off"
+            data-testid="chats-search"
           />
         }
         action={
@@ -82,80 +97,105 @@ export function ChatsPage() {
         }
       />
 
-      <div className="flex items-center gap-3">
-        <div
-          className="flex min-w-0 flex-1 rounded-xl bg-linen p-0.5"
-          role="tablist"
-          aria-label="Chat lists"
-        >
-          {(['active', 'requests'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              onClick={() => setTab(value)}
-              className={cx(
-                'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-semibold tracking-tight',
-                tab === value ? 'bg-surface text-ink shadow-[var(--shadow-soft)]' : 'text-muted',
-              )}
-            >
-              {TAB_LABEL[value]}
-            </button>
-          ))}
-        </div>
-        {hasUnread && !searching ? (
-          <button
-            type="button"
-            disabled={readAll.isPending}
-            onClick={() => readAll.mutate()}
-            className="shrink-0 text-[13px] font-semibold text-accent disabled:opacity-40"
-          >
-            {readAll.isPending ? 'Reading…' : 'Mark all read'}
-          </button>
-        ) : null}
-      </div>
-      {readAllError ? <p className="text-center text-sm text-danger">{readAllError}</p> : null}
-
-      {threads.isLoading && !threads.data ? (
-        <LoadingBlock />
-      ) : list.length > 0 ? (
-        <div className="-mx-4 overflow-hidden bg-surface">
-          {list.map((thread) => (
-            <ThreadRow key={thread.id} thread={thread} />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          title={
-            searching
-              ? 'No matches'
-              : tab === 'requests'
-                ? 'No requests received'
-                : 'No chats yet'
-          }
-          message={
-            searching
-              ? 'Try another name, order, or message.'
-              : tab === 'requests'
-                ? 'Messages from businesses you don’t know yet land here.'
-                : 'Find a business to start chatting.'
-          }
-          action={
-            !searching && tab === 'active' ? (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStartOpen(true)}
-                  className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-[15px] font-semibold text-white"
+      {showInChats ? (
+        <section data-testid="chats-in-chats" className="flex flex-col gap-2">
+          <h2 className="px-0.5 text-[13px] font-semibold text-muted">In chats</h2>
+          <ul className="-mx-4 overflow-hidden bg-surface">
+            {IN_CHATS.map((item) => (
+              <li key={item.kind}>
+                <Link
+                  to={`/chats/find?kind=${item.kind}`}
+                  data-testid={`chats-find-${item.kind}`}
+                  className="flex items-center gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
                 >
-                  Start a chat
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linen text-[11px] font-bold tracking-tight text-slate">
+                    {item.label.slice(0, 2)}
+                  </span>
+                  <span className="min-w-0 flex-1 text-[15px] font-semibold text-ink">{item.label}</span>
+                  <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
+            <div
+              className="flex min-w-0 flex-1 rounded-xl bg-linen p-0.5"
+              role="tablist"
+              aria-label="Chat lists"
+            >
+              {(['active', 'requests'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === value}
+                  onClick={() => setTab(value)}
+                  className={cx(
+                    'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-semibold tracking-tight',
+                    tab === value ? 'bg-surface text-ink shadow-[var(--shadow-soft)]' : 'text-muted',
+                  )}
+                >
+                  {TAB_LABEL[value]}
                 </button>
-                <FindInExploreLink label="Find businesses" variant="ghost" fullWidth={false} />
-              </div>
-            ) : undefined
-          }
-        />
+              ))}
+            </div>
+            {hasUnread && !searching ? (
+              <button
+                type="button"
+                disabled={readAll.isPending}
+                onClick={() => readAll.mutate()}
+                className="shrink-0 text-[13px] font-semibold text-accent disabled:opacity-40"
+              >
+                {readAll.isPending ? 'Reading…' : 'Mark all read'}
+              </button>
+            ) : null}
+          </div>
+          {readAllError ? <p className="text-center text-sm text-danger">{readAllError}</p> : null}
+
+          {threads.isLoading && !threads.data ? (
+            <LoadingBlock />
+          ) : list.length > 0 ? (
+            <div className="-mx-4 overflow-hidden bg-surface">
+              {list.map((thread) => (
+                <ThreadRow key={thread.id} thread={thread} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title={
+                searching
+                  ? 'No matches'
+                  : tab === 'requests'
+                    ? 'No requests received'
+                    : 'No chats yet'
+              }
+              message={
+                searching
+                  ? 'Try another name, order, or message.'
+                  : tab === 'requests'
+                    ? 'Messages from businesses you don’t know yet land here.'
+                    : 'Find a business to start chatting.'
+              }
+              action={
+                !searching && tab === 'active' ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStartOpen(true)}
+                      className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-[15px] font-semibold text-white"
+                    >
+                      Start a chat
+                    </button>
+                    <FindInExploreLink label="Find businesses" variant="ghost" fullWidth={false} />
+                  </div>
+                ) : undefined
+              }
+            />
+          )}
+        </>
       )}
 
       <StartChatSheet open={startOpen} onClose={() => setStartOpen(false)} />

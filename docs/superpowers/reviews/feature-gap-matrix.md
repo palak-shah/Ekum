@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-12  
+**Updated:** 2026-09-13  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -15,7 +15,9 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |
 | Chat | Inbox deep search + why-line | Works | Unit + Functional | Required | Completeness 2026-08-24-chat-search-deep; `GET /threads?q=` |
 | Chat | Attach search + multi-share | Works | Unit + Functional | Required | Completeness 2026-08-24-chat-attach-multi-share |
-| Chat | Attach Camera + Photos (ContinuousCamera) | Works | Functional | Required | Completeness 2026-09-12-chat-attach-camera; phone ContinuousCamera; one album message |
+| Chat | Attach Photos (ContinuousCamera + gallery) | Works | Functional | Required | Completeness 2026-09-12-chat-attach-camera; one Photos row like Add designs; Document separate |
+| Chat | Attach Document (PDF/office + original photo) | Works | Unit + Functional | Required | Completeness 2026-09-13-chat-document-attach; multi-pick; no video |
+| Chat | Cross-chat find (Photos / Documents / Collections / Designs) | Works | Unit + Functional | Required | Completeness 2026-09-13-chats-cross-find; Orders on Orders tab only; `/chats/find` |
 | Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
 | Chat | Requests inbox (unconnected) | Works | Functional | Recommended | `chat.requests.journey.spec.ts` |
@@ -38,6 +40,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Order card +N thumbs | Works | Regression | Required | BM-01 |
 | Orders | Living card dedupe helpers | Works | Unit-only | Required | BM-04 |
 | Orders | Dispatch → settle (+ legacy deliver) | Works | Unit | Required | Completeness 2026-09-06-settle-order-trail; trail Timeline |
+| Orders | Pending qty clarity (partial ship + settle) | Works | Unit + Functional | Required | Completeness 2026-09-13-order-pending-qty-clarity; left→pending; Settle Dispatched\|Pending |
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Works | Unit-only | Required | Completeness 2026-08-22; no gateway |
 | Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token |

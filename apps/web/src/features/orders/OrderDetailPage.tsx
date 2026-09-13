@@ -28,6 +28,7 @@ import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
+import { ShipProgressHint, SettleQtyColumns } from '@/features/orders/shipProgressLabel';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
@@ -1413,9 +1414,15 @@ export function OrderDetailPage() {
               </p>
               <p className="text-[11px] font-medium text-slate">
                 {lineStatusLabel(item.lineStatus)}
-                {item.shippedQuantity > 0
-                  ? ` · shipped ${item.shippedQuantity}${item.remainingQuantity > 0 ? ` · left ${item.remainingQuantity}` : ''}`
-                  : null}
+                {item.shippedQuantity > 0 ? (
+                  <>
+                    {' · '}
+                    <ShipProgressHint
+                      shipped={item.shippedQuantity}
+                      pending={item.remainingQuantity}
+                    />
+                  </>
+                ) : null}
               </p>
               {item.note ? <p className="text-xs text-muted">{item.note}</p> : null}
             </div>
@@ -2080,7 +2087,7 @@ export function OrderDetailPage() {
             Ship all remaining, or lower qty per line. Logistics stay pinned below.
           </p>
           {shippableItems.length === 0 ? (
-            <InlineNotice message="No confirmed quantity left to dispatch." />
+            <InlineNotice message="No confirmed quantity pending to dispatch." />
           ) : (
             shippableItems.map((item) => (
               <div
@@ -2100,7 +2107,9 @@ export function OrderDetailPage() {
                   >
                     {item.name}
                   </p>
-                  <p className="text-[11px] text-muted">left {item.remainingQuantity}</p>
+                  <p className="text-[11px] text-muted">
+                    <ShipProgressHint shipped={0} pending={item.remainingQuantity} />
+                  </p>
                 </div>
                 <TextInput
                   type="number"
@@ -2143,30 +2152,28 @@ export function OrderDetailPage() {
       >
         <div className="flex flex-col gap-3 pb-2">
           <p className="text-sm text-muted">
-            Won’t ship the rest. Quantities become what already left, and this ticket closes as
-            Settled.
+            Won’t ship the rest. Ticket closes as Settled; quantities become what already shipped.
           </p>
           {(data.items ?? [])
             .filter((item) => item.lineStatus !== 'declined')
             .map((item) => {
               const shipped = item.shippedQuantity ?? 0;
+              const pending = item.remainingQuantity ?? 0;
               return (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-line p-3"
+                  className="flex items-center gap-2 rounded-xl border border-line p-3"
                 >
-                  <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
                     <OrderLinePhoto
                       item={item}
                       items={data.items}
                       onOpen={openPhotoViewer}
                       size="sm"
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                      <p className="text-xs text-muted">
-                        Asked {item.requestedQuantity} · final {shipped}
-                      </p>
+                      <SettleQtyColumns dispatched={shipped} pending={pending} />
                     </div>
                   </div>
                 </div>

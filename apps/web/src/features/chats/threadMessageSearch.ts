@@ -4,6 +4,7 @@ import type { MessageView } from '@ekum/domain-types';
 export type ThreadMessageViewScope =
   | 'all'
   | 'photos'
+  | 'documents'
   | 'collections'
   | 'designs'
   | 'orders'
@@ -16,6 +17,7 @@ export const THREAD_SEARCH_SCOPE_OPTIONS: Array<{
 }> = [
   { id: 'all', label: 'All' },
   { id: 'photos', label: 'Photos' },
+  { id: 'documents', label: 'Documents' },
   { id: 'collections', label: 'Collections' },
   { id: 'designs', label: 'Designs' },
   { id: 'orders', label: 'Orders' },
@@ -67,6 +69,9 @@ export function messageMatchesSearch(message: MessageView, q: string): boolean {
   if (message.body?.toLowerCase().includes(needle)) return true;
   const meta = metaOf(message);
   if (typeof meta?.orderLabel === 'string' && meta.orderLabel.toLowerCase().includes(needle)) {
+    return true;
+  }
+  if (typeof meta?.fileName === 'string' && meta.fileName.toLowerCase().includes(needle)) {
     return true;
   }
   const ref = message.reference;

@@ -22,6 +22,13 @@ const EXTENSION: Record<string, string> = {
   'audio/webm': 'webm',
   'audio/mp4': 'm4a',
   'audio/mpeg': 'mp3',
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'text/csv': 'csv',
+  'text/plain': 'txt',
 };
 
 @Injectable()
@@ -77,10 +84,10 @@ export class MediaService {
     };
   }
 
-  /** Confirms the client finished uploading. Images enqueue thumbnail; audio is ready. */
+  /** Confirms the client finished uploading. Images enqueue thumbnail; audio/document are ready. */
   async complete(companyId: string, mediaId: string): Promise<MediaView> {
     const media = await this.owned(companyId, mediaId);
-    if (media.kind === MediaKind.Audio) {
+    if (media.kind === MediaKind.Audio || media.kind === MediaKind.Document) {
       if (media.status !== MediaStatus.Ready) {
         await this.prisma.media.update({
           where: { id: mediaId },

@@ -36,7 +36,7 @@ User control is **Buying** or **Selling** only (`?side=`). Dual presence (I buy 
 | Side | Intent |
 |------|--------|
 | **Buying** | Ranked feed: **follows first**, then **connected + your categories**, then **category matches**; **Received** packs by UTC day then business (directed audience or broadcast — not Everyone-market); Stories for follow/connected publishers who posted |
-| **Selling** | **Buyers for you** only — **not** My Catalog |
+| **Selling** | **Buyers for you** — companies whose buy interests match what you sell. Not My Catalog. Requires sell categories on your profile. |
 
 ## Business rules
 
@@ -63,6 +63,7 @@ User control is **Buying** or **Selling** only (`?side=`). Dual presence (I buy 
 - Post feed: **Follow** on card when stranger views a discoverable post; hidden when following, connected, own post, or select mode.
 - Selected-audience posts hidden from non-selected viewers.
 - Story with no posts in current shelves → Open shop → company profile.
+- **Explore Buyers** with no sell categories → explain why the shelf is empty and link to **Business profile** (`/settings/profile?focus=sell`) — scrolls to **Categories you sell** and keeps that field highlighted until Save.
 
 ## Seed walkthrough
 

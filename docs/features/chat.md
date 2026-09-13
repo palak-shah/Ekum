@@ -25,7 +25,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Open-catalog order | Order / Ask rates on a discoverable post opens/activates a **trade thread** (both Active) with a living order card — **no** Connection and **not** the pending inbox. Distinct from cold Message |
 | Block | Sender may still see a thread; recipient side is silently archived |
 | Owner on cards | Design/collection cards show **Order goes to** the ticket party: **I handle** → sharer (you); **Direct** → design owner. Header is pack/design name (no Design/Collection label); who-acted lives under the header |
-| Forward | **Text, photo, design, collection, order card** (not payment/system). Catalog: free for live published (not blocked); view on **open**. Order: forward card OK; **open** needs party (buyer/seller/facilitator) + hold/reveal. Non-party order teaser is **stripped** (no names/thumbs/amounts). Relist/Curate ≠ Forward. Locked packs: blurred thumbs; no PhotoViewer. |
+| Forward | **Text, photo, document, design, collection, order card** (not payment/system). Catalog: free for live published (not blocked); view on **open**. Order: forward card OK; **open** needs party (buyer/seller/facilitator) + hold/reveal. Non-party order teaser is **stripped** (no names/thumbs/amounts). Relist/Curate ≠ Forward. Locked packs: blurred thumbs; no PhotoViewer. |
 | First share from Explore | Same as Forward — live published card, not blocked. Sender need not match Explore audience. |
 | Message actions | Top-right chevron: **Reply · Forward · Copy · Star · Edit · Delete** (when applicable). Long-press still selects for forward. **No Select all** on thread forward mode (tap only); dock Cancel / Forward (n), **max 10**. |
 | Edit | Own **text** only, within **15 minutes** of send. Quiet **Edited** mark. |
@@ -49,15 +49,15 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Payment card | One living `payment_card` per ask. Title includes the order id (`Payment · Order #… · ₹…` / `… · Paid`). Tap → order. Buyer **Paid**; seller **Mark received**. No Seller/Buyer on the card. |
 | Buy for buyer | Seller-logged ticket: living order card + **Accept** (not Accept quote). Off-app `/o/:token`. |
 | Order card CTAs | Quiet **View order →** (or **View inquiry →** while live `intent` is still inquiry / Ask rates; flips to View order after quote firms intent); whole card also opens the ticket; solid **Accept quote** only when live `canAcceptQuote` — never rewrite frozen Quote card copy |
-| In-thread search | Header search opens **ListSearchRow** chrome: kit **TextInput** + **46×46 filter** square (Orders / Explore). Close via header search again (or Esc) — no Done. Scope via filter menu; **Showing …** + Clear when not All. Typing shows hit stepper row (**Clear · N of M · ↑↓**). Empty scope browses that slice **newest at bottom**. Photos / Collections / Designs / Orders / Starred as before. |
-| Inbox search | Chats list search matches company/group name **and** message content (order #, shared design/collection, text). Deep hits show muted **In chat · …** why-line instead of last-message preview. Tap opens the thread. |
-| Attach share | From **＋** → Design / Collection / **Camera** / **Photos** / Order. Design·Collection·Order: icon-only back, search, multi-select, **Send (n)**. **Camera** (phone): shared ContinuousCamera → Done sends **one** photo album message; Cancel sends nothing; Gallery on chrome = same as Photos. ContinuousCamera start must not restart when the parent re-renders (e.g. closing the attach sheet). Desktop Camera opens gallery. **Photos**: device gallery multi-pick → one album. Tap album → PhotoViewer (swipe/pinch). |
-| Leave guard | Composer draft, reply, attach selection, photo upload / open camera, or forward/select WIP → **Leave the page?** before back or bottom-nav away (Cancel default). |
+| In-thread search | Header search opens **ListSearchRow** chrome: kit **TextInput** + **46×46 filter** square (Orders / Explore — not WhatsApp chip strip). Close via header search again (or Esc) — no Done. Scope via filter menu; **Showing …** + Clear when not All. Typing shows hit stepper row (**Clear · N of M · ↑↓**). Empty scope browses that slice **newest at bottom**. Scopes: All / Photos / **Documents** / Collections / Designs / Orders / Starred. |
+| Inbox search | Chats list search matches company/group name **and** message content (order #, shared design/collection, text). Deep hits show muted **In chat · …** why-line instead of last-message preview. Tap opens the thread. **Empty search (focused):** section **In chats** — Photos · Documents · Collections · Designs (WhatsApp-style cross-chat find). **Orders** stay on the Orders tab (not here). Tap a kind → `/chats/find?kind=` results (Photos = month grid; Documents / Collections / Designs = list). Tap a result → thread `?message=`. |
+| Attach share | From **＋** → Design / Collection / **Photos** / **Document** / Order. **Match WhatsApp / Instagram muscle memory** unless Ekum has a clearly simpler path (e.g. one Photos row like Add designs). Design·Collection·Order: icon-only back, search, multi-select, **Send (n)**. **Photos**: phone → ContinuousCamera (Gallery on chrome); desktop → gallery; multi → **one album** collage message (WhatsApp-style). Tap → PhotoViewer. **Document** (WhatsApp-like): multi-pick → **one message per file**; file card with name · type · size; image-as-document shows a small thumb + opens as file (not album). Allowlist PDF / Word / Excel / CSV / text / original photo. No video. 15MB per file. Invalid types skipped with a toast; valid ones still send. |
+| Leave guard | Composer draft, reply, attach selection, photo or document upload / open camera, or forward/select WIP → **Leave the page?** before back or bottom-nav away (Cancel default). |
 | Composer | Multi-line like WhatsApp: text wraps, field grows up to ~5 lines then scrolls (no scrollbar chrome). **Enter** sends; **Shift+Enter** new line. |
 
-Message types: text, photo, voice, collection_card, product_card, order_card, rate, payment_card, system. Voice: body = audio URL; metadata.durationMs (max 2 min).
+Message types: text, photo, voice, document, collection_card, product_card, order_card, rate, payment_card, system. Voice: body = audio URL; metadata.durationMs (max 2 min). Document: body = file URL; metadata `{ url, fileName, contentType, sizeBytes? }`.
 
-Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that album). Close returns to the thread.
+Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that album). Close returns to the thread. Document cards follow WhatsApp: name · type · size; original photos show a thumb but still open as a file (not PhotoAlbum).
 
 ## Edge cases / empty states
 
@@ -78,9 +78,9 @@ Chat photo albums open the shared **PhotoViewer** (pinch / swipe within that alb
 
 ## Automated verification
 
-- **Functional:** `pnpm test:e2e:functional` — `@chat` send + in-thread search + `＋` opens chat (no Private); `@chat` requests Open/Ignore
+- **Functional:** `pnpm test:e2e:functional` — `@chat` send + in-thread search + `＋` opens chat (no Private); `@chat` requests Open/Ignore; Document attach (`chat.document.journey.spec.ts`)
 - **Regression:** `pnpm test:e2e:smoke` + `pnpm --filter @ekum/web test` — PhotoAlbum BM-01, order card copy/dedupe, thread search helpers
-- Completeness: `docs/superpowers/reviews/completeness/2026-09-01-chat-membership-completeness.md`, `2026-09-01-new-chat-sheet-completeness.md`
+- Completeness: `docs/superpowers/reviews/completeness/2026-09-01-chat-membership-completeness.md`, `2026-09-01-new-chat-sheet-completeness.md`, `2026-09-13-chat-document-attach-completeness.md`
 - CI: units via `pnpm test`; E2E smoke via manual `workflow_dispatch`
 
 ## Where it lives

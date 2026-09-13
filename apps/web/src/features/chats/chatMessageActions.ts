@@ -3,6 +3,8 @@ import {
   MessageType,
   canDeleteForEveryoneMeta,
   canEditMessageMeta,
+  documentFromMessage,
+  documentTypeCue,
   photoUrlsFromMessage,
   shortOrderLabel,
   type MessageView,
@@ -18,6 +20,9 @@ export function canForwardMessage(message: MessageView): boolean {
   }
   if (message.type === 'photo') {
     return photoUrlsFromMessage(message).length > 0;
+  }
+  if (message.type === 'document') {
+    return Boolean(documentFromMessage(message)?.url);
   }
   if (message.type === 'voice') {
     return Boolean(message.body?.trim());
@@ -36,6 +41,7 @@ export function canReplyToMessage(message: MessageView): boolean {
   return [
     'text',
     'photo',
+    'document',
     'voice',
     'product_card',
     'collection_card',
@@ -59,6 +65,11 @@ export function copyTextForMessage(message: MessageView): string | null {
   if (message.type === 'photo') {
     const n = photoUrlsFromMessage(message).length;
     return n > 1 ? `${n} photos` : 'Photo';
+  }
+  if (message.type === 'document') {
+    const doc = documentFromMessage(message);
+    if (!doc) return 'Document';
+    return `${documentTypeCue(doc.contentType, doc.fileName)} · ${doc.fileName}`;
   }
   if (message.type === 'voice') {
     return 'Voice';
@@ -125,6 +136,22 @@ export function forwardPayload(message: MessageView): {
     }
     return { type: 'photo', body: first, metadata: { urls } };
   }
+  if (message.type === 'document') {
+    const doc = documentFromMessage(message);
+    if (!doc?.url) {
+      throw new Error('Nothing to forward');
+    }
+    return {
+      type: MessageType.Document,
+      body: doc.url,
+      metadata: {
+        url: doc.url,
+        fileName: doc.fileName,
+        contentType: doc.contentType,
+        ...(doc.sizeBytes != null ? { sizeBytes: doc.sizeBytes } : {}),
+      },
+    };
+  }
   if (message.type === 'voice') {
     const body = message.body?.trim();
     if (!body) throw new Error('Nothing to forward');
@@ -179,6 +206,13 @@ export function replyComposerLabel(message: MessageView): string {
   if (message.type === 'photo') {
     const count = photoUrlsFromMessage(message).length;
     return count > 1 ? `${count} photos` : 'Photo';
+  }
+  if (message.type === 'document') {
+    const doc = documentFromMessage(message);
+    if (doc) {
+      return `${documentTypeCue(doc.contentType, doc.fileName)} · ${doc.fileName}`;
+    }
+    return 'Document';
   }
   const body = message.body?.trim();
   if (body) {

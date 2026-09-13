@@ -7,8 +7,13 @@ import {
   ThreadParticipantState,
   canDeleteForEveryoneMeta,
   canEditMessageMeta,
+  documentFromMessage,
+  documentTypeCue,
   photoUrlsFromMessage,
+  type CrossChatFindItemView,
+  type CrossChatFindKind,
   type CursorPage,
+  type ListCrossChatFindQuery,
   type ListThreadMessagesQuery,
   type MessageReference,
   type MessageReplyPreview,
@@ -171,6 +176,8 @@ export class MessageService {
       });
     } else if (view === 'photos') {
       clauses.push({ type: MessageType.Photo });
+    } else if (view === 'documents') {
+      clauses.push({ type: MessageType.Document });
     } else if (view === 'media') {
       // Deprecated alias — older clients asked for photo+voice.
       clauses.push({ type: { in: [MessageType.Photo, MessageType.Voice] } });
@@ -391,6 +398,14 @@ export class MessageService {
     }
     if (message.type === MessageType.Voice) {
       return 'Voice';
+    }
+    if (message.type === MessageType.Document) {
+      const doc = documentFromMessage(message);
+      if (doc) {
+        const cue = documentTypeCue(doc.contentType, doc.fileName);
+        return `${cue} · ${doc.fileName}`;
+      }
+      return 'Document';
     }
     const body = message.body?.trim();
     if (body) {
@@ -696,6 +711,90 @@ export class MessageService {
     return { results, nextCursor: hasMore && last ? last.id : null };
   }
 
+  /**
+   * Cross-chat find from Chats list search: Photos / Documents / Collections / Designs.
+   * Only messages in threads the viewer still belongs to; hides + deleted-for-everyone excluded.
+   */
+  async listFind(
+    actor: AuthPrincipal,
+    query: ListCrossChatFindQuery,
+  ): Promise<CursorPage<CrossChatFindItemView>> {
+    const actorCompanyId = assertActiveCompany(actor);
+    const type = findKindToMessageType(query.kind);
+    const clauses: Prisma.MessageWhereInput[] = [
+      { type },
+      { deletedForEveryoneAt: null },
+      { NOT: { hides: { some: { companyId: actorCompanyId } } } },
+      {
+        thread: {
+          participants: {
+            some: {
+              companyId: actorCompanyId,
+              leftAt: null,
+            },
+          },
+        },
+      },
+    ];
+    const q = query.q?.trim();
+    if (q) {
+      const searchOr = await messageSearchOrClause(this.prisma, q);
+      if (searchOr) {
+        clauses.push(searchOr);
+      }
+    }
+
+    const rows = await this.prisma.message.findMany({
+      where: { AND: clauses },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: query.limit + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    });
+    const hasMore = rows.length > query.limit;
+    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const references = await this.references.resolve(page, actorCompanyId);
+    const starredIds = await this.starredIdsFor(
+      actor.userId,
+      actorCompanyId,
+      page.map((row) => row.id),
+    );
+    const threadIds = [...new Set(page.map((m) => m.threadId))];
+    const threads = await this.prisma.thread.findMany({
+      where: { id: { in: threadIds } },
+      select: {
+        id: true,
+        title: true,
+        participants: {
+          where: { leftAt: null, NOT: { companyId: actorCompanyId } },
+          take: 1,
+          include: { company: true },
+        },
+      },
+    });
+    const threadById = new Map(threads.map((t) => [t.id, t]));
+    const results = page.map((message) => {
+      const thread = threadById.get(message.threadId);
+      const counterpart = thread?.participants[0]?.company?.name ?? null;
+      return {
+        message: scrubOrderMessageView(
+          this.serializer.toMessageView(
+            message,
+            actorCompanyId,
+            actor.userId,
+            references.get(message.id) ?? null,
+            null,
+            { starred: starredIds.has(message.id) },
+          ),
+        ),
+        threadId: message.threadId,
+        threadTitle: thread?.title ?? null,
+        counterpartName: counterpart,
+      };
+    });
+    const last = page[page.length - 1];
+    return { results, nextCursor: hasMore && last ? last.id : null };
+  }
+
   private async loadMessageInThread(threadId: string, messageId: string): Promise<Message> {
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, threadId },
@@ -720,5 +819,18 @@ export class MessageService {
         { starred: starred.has(message.id) },
       ),
     );
+  }
+}
+
+function findKindToMessageType(kind: CrossChatFindKind): string {
+  switch (kind) {
+    case 'photos':
+      return MessageType.Photo;
+    case 'documents':
+      return MessageType.Document;
+    case 'collections':
+      return MessageType.CollectionCard;
+    case 'designs':
+      return MessageType.ProductCard;
   }
 }

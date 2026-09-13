@@ -20,13 +20,20 @@ import type {
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
-import { photoUrlsFromMessage, voiceDurationMsFromMessage } from '@ekum/domain-types';
+import { photoUrlsFromMessage, voiceDurationMsFromMessage, documentFromMessage, documentTypeCue } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useToast } from '@/ui/Toast';
-import { timeAgo } from '@/lib/format';
-import { isPhoneLike, uploadAudio, uploadImage } from '@/lib/mediaUpload';
+import { timeAgo, formatFileSize } from '@/lib/format';
+import {
+  classifyChatDocumentFile,
+  isPhoneLike,
+  uploadAudio,
+  uploadDocument,
+  uploadImage,
+} from '@/lib/mediaUpload';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -50,11 +57,11 @@ import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
 import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import {
-  CameraIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   CollectionIcon,
+  DocumentIcon,
   FilterIcon,
   ImageIcon,
   MicIcon,
@@ -65,6 +72,7 @@ import {
   SearchIcon,
   SendIcon,
 } from '@/ui/icons';
+import { morePhotosEntry } from '@/features/catalog/designBatchHelpers';
 import {
   MAX_FORWARD_BATCH,
   canCopyMessage,
@@ -135,6 +143,7 @@ export function ThreadPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<Set<string>>(() => new Set());
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
   const [uploadingVoice, setUploadingVoice] = useState(false);
@@ -228,6 +237,7 @@ export function ThreadPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
+  const documentRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const stickLatch = useRef(createStickLatch(true)).current;
@@ -1199,23 +1209,85 @@ export function ThreadPage() {
     void sendPhotoFiles(fileList ? Array.from(fileList) : []);
   };
 
+  const sendDocumentFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    const classified = files.map((file) => ({ file, kind: classifyChatDocumentFile(file) }));
+    const valid = classified.filter((row) => row.kind);
+    const skipped = classified.length - valid.length;
+    if (skipped > 0) {
+      showToast('Use a PDF, Word, Excel, text, or photo file.', 'danger');
+    }
+    if (valid.length === 0) return;
+
+    setUploadingDocument(true);
+    setError(null);
+    try {
+      for (let i = 0; i < valid.length; i += 1) {
+        const row = valid[i];
+        if (!row?.kind) continue;
+        const { file, kind } = row;
+        setUploadProgress(`Uploading ${i + 1}/${valid.length}…`);
+        let url: string;
+        let contentType: string;
+        let sizeBytes = file.size;
+        if (kind.kind === 'image') {
+          url = await uploadImage(file);
+          contentType = kind.contentType;
+        } else {
+          const uploaded = await uploadDocument(file);
+          url = uploaded.url;
+          contentType = uploaded.contentType;
+          sizeBytes = uploaded.sizeBytes;
+        }
+        setUploadProgress(
+          valid.length > 1 ? `Sending ${i + 1}/${valid.length}…` : 'Sending…',
+        );
+        await send.mutateAsync({
+          type: 'document',
+          body: url,
+          metadata: {
+            url,
+            fileName: file.name.trim() || 'Document',
+            contentType,
+            sizeBytes,
+          },
+          replyToMessageId: i === 0 ? replyTo?.id : undefined,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not upload file.');
+    } finally {
+      setUploadingDocument(false);
+      setUploadProgress(null);
+      if (documentRef.current) documentRef.current.value = '';
+    }
+  };
+
+  const onDocumentPicked = (fileList: FileList | null) => {
+    void sendDocumentFiles(fileList ? Array.from(fileList) : []);
+  };
+
   const openPhotoGallery = useCallback(() => {
     queueMicrotask(() => photoRef.current?.click());
   }, []);
 
-  const openChatCamera = useCallback(() => {
-    // Dismiss attach sheet first — same rule as Add designs (sheet must not fight camera).
+  const openDocumentPicker = useCallback(() => {
+    queueMicrotask(() => documentRef.current?.click());
+  }, []);
+
+  /** One Photos row: phone → ContinuousCamera (Gallery on chrome); desktop → gallery. */
+  const openPhotosAttach = useCallback(() => {
     setAttachOpen(false);
     setAttachStep('menu');
     setAttachQuery('');
     setAttachSelectedIds(new Set());
     setAttachSendError(null);
-    if (!isPhoneLike()) {
-      openPhotoGallery();
+    if (morePhotosEntry(isPhoneLike()) === 'camera') {
+      setCameraSession((n) => n + 1);
+      setCameraOpen(true);
       return;
     }
-    setCameraSession((n) => n + 1);
-    setCameraOpen(true);
+    openPhotoGallery();
   }, [openPhotoGallery]);
 
   const onCameraUnavailable = useCallback(() => {
@@ -1375,6 +1447,7 @@ export function ThreadPage() {
           attachSelectedIds.size > 0 ||
           attachSending ||
           uploadingPhoto ||
+          uploadingDocument ||
           cameraOpen ||
           uploadingVoice ||
           uploadProgress ||
@@ -1387,6 +1460,7 @@ export function ThreadPage() {
       attachSelectedIds.size,
       attachSending,
       uploadingPhoto,
+      uploadingDocument,
       cameraOpen,
       uploadingVoice,
       uploadProgress,
@@ -1946,19 +2020,21 @@ export function ThreadPage() {
               ? 'No matches'
               : searchOpen && searchView === 'photos'
                 ? 'No photos yet'
-                : searchOpen && searchView === 'collections'
-                  ? 'No collections in this chat'
-                  : searchOpen && searchView === 'designs'
-                    ? 'No designs in this chat'
-                    : searchOpen && searchView === 'orders'
-                      ? 'No orders in this chat'
-                      : searchOpen && searchView === 'starred'
-                        ? 'No starred messages'
-                      : searchOpen && searchView === 'all'
-                        ? 'Type to search this chat'
-                        : detail.counterpart?.name
-                          ? `Say hello to ${detail.counterpart.name}.`
-                          : 'Say hello.'}
+                : searchOpen && searchView === 'documents'
+                  ? 'No documents yet'
+                  : searchOpen && searchView === 'collections'
+                    ? 'No collections in this chat'
+                    : searchOpen && searchView === 'designs'
+                      ? 'No designs in this chat'
+                      : searchOpen && searchView === 'orders'
+                        ? 'No orders in this chat'
+                        : searchOpen && searchView === 'starred'
+                          ? 'No starred messages'
+                          : searchOpen && searchView === 'all'
+                            ? 'Type to search this chat'
+                            : detail.counterpart?.name
+                              ? `Say hello to ${detail.counterpart.name}.`
+                              : 'Say hello.'}
           </p>
         )}
       </div>
@@ -2123,6 +2199,15 @@ export function ThreadPage() {
         className="hidden"
         onChange={(e) => void onPhotoPicked(e.target.files)}
       />
+      <input
+        ref={documentRef}
+        data-testid="chat-document-input"
+        type="file"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/jpeg,image/png,image/webp"
+        multiple
+        className="hidden"
+        onChange={(e) => void onDocumentPicked(e.target.files)}
+      />
 
       <ContinuousCamera
         key={cameraSession}
@@ -2179,22 +2264,22 @@ export function ThreadPage() {
                   onPick: () => goAttachStep('collection'),
                 },
                 {
-                  id: 'camera' as const,
-                  label: 'Camera',
-                  subtitle: 'Take photos',
-                  Icon: CameraIcon,
-                  iconClass: 'bg-warning-soft text-warning-ink',
-                  onPick: () => openChatCamera(),
-                },
-                {
                   id: 'photos' as const,
                   label: 'Photos',
-                  subtitle: 'From your gallery',
+                  subtitle: 'Take or pick photos',
                   Icon: ImageIcon,
+                  iconClass: 'bg-foam text-muted',
+                  onPick: () => openPhotosAttach(),
+                },
+                {
+                  id: 'document' as const,
+                  label: 'Document',
+                  subtitle: 'PDF, Word, Excel, or original photo',
+                  Icon: DocumentIcon,
                   iconClass: 'bg-foam text-muted',
                   onPick: () => {
                     closeAttachSheet();
-                    openPhotoGallery();
+                    openDocumentPicker();
                   },
                 },
                 {
@@ -2400,9 +2485,10 @@ export function ThreadPage() {
           </AttachList>
         ) : null}
 
-        {uploadingPhoto || send.isPending ? (
+        {uploadingPhoto || uploadingDocument || send.isPending ? (
           <p className="mt-3 text-center text-xs text-muted">
-            {uploadProgress ?? (uploadingPhoto ? 'Uploading…' : 'Sending…')}
+            {uploadProgress ??
+              (uploadingPhoto || uploadingDocument ? 'Uploading…' : 'Sending…')}
           </p>
         ) : null}
       </Sheet>
@@ -2996,6 +3082,83 @@ function TimelineItem({
             <PhotoAlbum urls={photoUrls} />
             <p className="px-3 py-1.5 text-right text-xs text-muted">
               {timeAgo(message.createdAt)}
+            </p>
+          </div>
+        </div>
+      </MessageChrome>
+    );
+  }
+
+  const documentMeta =
+    message.type === 'document' ? documentFromMessage(message) : null;
+  if (message.type === 'document' && documentMeta) {
+    const cue = documentTypeCue(documentMeta.contentType, documentMeta.fileName);
+    const sizeLabel = formatFileSize(documentMeta.sizeBytes);
+    const openUrl = toAbsoluteMediaUrl(documentMeta.url);
+    const isImageDoc = documentMeta.contentType.toLowerCase().startsWith('image/');
+    return (
+      <MessageChrome
+        messageId={message.id}
+        mine={message.mine}
+        selecting={selecting}
+        selected={selected}
+        highlighted={highlighted}
+        onToggleSelect={onToggleSelect}
+        actions={actions}
+        actionsOnAccent={false}
+        className="max-w-[85%]"
+      >
+        <div className="flex flex-col gap-0.5">
+          <div
+            className={cx(
+              MSG_BUBBLE_CLASS,
+              'overflow-hidden border border-line bg-surface',
+              chatBubbleCorners(message.mine),
+            )}
+          >
+            {inCardSenderLine(message, senderLabel) ? (
+              <div className="px-3 pt-2">
+                <InCardActor message={message} label={senderLabel} />
+              </div>
+            ) : null}
+            {reply ? (
+              <div className="px-3">
+                <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
+              </div>
+            ) : null}
+            <a
+              href={openUrl}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="chat-document-card"
+              className="flex items-center gap-3 px-3 py-2.5 text-left hover:bg-foam"
+              onClick={(event) => {
+                if (selecting) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {isImageDoc ? (
+                <span className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-foam">
+                  <img src={openUrl} alt="" className="h-full w-full object-cover" />
+                </span>
+              ) : (
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-foam text-muted">
+                  <DocumentIcon width={22} height={22} />
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-ink">
+                  {documentMeta.fileName}
+                </span>
+                <span className="block text-xs text-muted">
+                  {sizeLabel ? `${cue} · ${sizeLabel}` : cue}
+                </span>
+              </span>
+            </a>
+            <p className="px-3 py-1.5 text-right text-xs text-muted">
+              {timeAgo(message.createdAt)}
+              {message.editedAt ? ' · Edited' : ''}
             </p>
           </div>
         </div>

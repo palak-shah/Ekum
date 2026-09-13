@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   accessTokenFromPage,
+  dispatchOrder,
   getOrder,
   setupConfirmedOrder,
 } from '../../helpers/orders';
@@ -45,5 +46,39 @@ test.describe('order fulfillment @functional @orders', () => {
     });
     await expect(page.getByRole('button', { name: 'Raise a return' })).toBeVisible();
     await expect(page.getByTestId('order-deliver')).toHaveCount(0);
+  });
+
+  test('partial dispatch shows pending; Settle shows Dispatched and Pending', async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+
+    const { id: orderId } = await setupConfirmedOrder(page.request, meenaToken, raviToken);
+    const detailed = await getOrder(page.request, raviToken, orderId);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected order items');
+    const half = Math.max(1, Math.floor(first.quantity / 2));
+
+    await dispatchOrder(page.request, raviToken, orderId, {
+      items: [{ orderItemId: first.id, quantity: half }],
+    });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('ship-progress-pending').first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('ship-progress-pending').first()).toContainText(/pending/);
+    await expect(page.getByTestId('ship-progress-hint').first()).not.toContainText(/\bleft\b/);
+
+    await page.getByTestId('order-settle-open').first().click();
+    const settleSheet = page.getByRole('dialog');
+    await expect(settleSheet.getByRole('heading', { name: 'Settle order' })).toBeVisible();
+    await expect(settleSheet.getByTestId('settle-qty-columns').first()).toBeVisible();
+    await expect(settleSheet.getByText('Dispatched').first()).toBeVisible();
+    await expect(settleSheet.getByText('Pending').first()).toBeVisible();
+    await expect(settleSheet.getByTestId('settle-qty-pending').first()).toBeVisible();
   });
 });

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
@@ -30,6 +31,10 @@ export function ProfilePage() {
   const company = useMyCompany();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusSell = searchParams.get('focus') === 'sell';
+  const sellFieldRef = useRef<HTMLDivElement>(null);
+  const [sellHighlight, setSellHighlight] = useState(focusSell);
   const [error, setError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [form, setForm] = useState({
@@ -58,6 +63,30 @@ export function ProfilePage() {
     }
   }, [company.data]);
 
+  useEffect(() => {
+    if (!focusSell || company.isLoading) return;
+    setSellHighlight(true);
+    const handle = window.setTimeout(() => {
+      sellFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+    return () => window.clearTimeout(handle);
+  }, [focusSell, company.isLoading]);
+
+  const clearSellFocus = () => {
+    if (!focusSell && !sellHighlight) return;
+    setSellHighlight(false);
+    if (focusSell) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('focus');
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  };
+
   const toggleSuper = (value: SuperCategoryType) => {
     setForm((prev) => ({
       ...prev,
@@ -85,6 +114,7 @@ export function ProfilePage() {
     },
     onSuccess: () => {
       setError(null);
+      clearSellFocus();
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
       showToast('Profile saved.');
     },
@@ -267,14 +297,31 @@ export function ProfilePage() {
           })}
         </div>
       </Field>
-      <Field label="Categories you sell" hint="Optional. Comma-separated (e.g. sarees, kurtis).">
-        <SuggestInput
-          kind="category"
-          mode="list"
-          value={form.sellCategories}
-          onChange={(sellCategories) => setForm({ ...form, sellCategories })}
-        />
-      </Field>
+      <div
+        ref={sellFieldRef}
+        id="sell-categories"
+        data-testid="profile-sell-categories"
+        className={cx(
+          'rounded-xl transition-[box-shadow,background-color] duration-300',
+          sellHighlight && 'bg-accent/5 p-3 ring-2 ring-accent',
+        )}
+      >
+        <Field
+          label="Categories you sell"
+          hint={
+            sellHighlight
+              ? 'Add what you sell — then buyers looking for those goods show in Explore.'
+              : 'Optional. Comma-separated (e.g. sarees, kurtis).'
+          }
+        >
+          <SuggestInput
+            kind="category"
+            mode="list"
+            value={form.sellCategories}
+            onChange={(sellCategories) => setForm({ ...form, sellCategories })}
+          />
+        </Field>
+      </div>
       <Field label="Categories you buy" hint="Optional. Comma-separated.">
         <SuggestInput
           kind="category"

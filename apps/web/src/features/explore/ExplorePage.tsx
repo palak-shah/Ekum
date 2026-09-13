@@ -726,11 +726,16 @@ export function ExplorePage() {
           ? 1
           : filteredPosts.length;
 
+  const hasSellCategories = (company.data?.sellCategories ?? []).some(
+    (tag) => tag.trim().length > 0,
+  );
   const buyersCount = data?.lookingForWhatYouSell?.length ?? 0;
   const hasAny =
     contentMode === 'businesses' ||
     Boolean(storyCompanyId) ||
-    (tradeSide === 'selling' ? buyersCount > 0 : contentCount > 0);
+    (tradeSide === 'selling' ? hasSellCategories && buyersCount > 0 : contentCount > 0);
+  const sellingNeedsProfile =
+    tradeSide === 'selling' && !storyCompanyId && company.isSuccess && !hasSellCategories;
 
   const clearFilters = () => {
     setMenuOpen(false);
@@ -863,19 +868,32 @@ export function ExplorePage() {
         <ExploreSearchResults query={searchQuery} onPickQuery={onSearchTermChange} />
       ) : contentMode === 'businesses' ? (
         <SupplierDirectory filters={filters} />
-      ) : home.isLoading ? (
+      ) : home.isLoading || (tradeSide === 'selling' && company.isLoading) ? (
         <LoadingBlock />
       ) : home.isError ? (
         <EmptyState
           title="Couldn’t load Explore"
           message="Check your connection and try again."
         />
+      ) : sellingNeedsProfile ? (
+        <EmptyState
+          title="Tell us what you sell"
+          message="We’ll show buyers looking for those goods."
+          action={
+            <Button
+              data-testid="explore-set-sell-categories"
+              onClick={() => navigate('/settings/profile?focus=sell')}
+            >
+              Set what you sell
+            </Button>
+          }
+        />
       ) : !hasAny ? (
         <EmptyState
           title="Nothing to explore yet"
           message={
             tradeSide === 'selling'
-              ? 'Businesses that buy what you sell show up here.'
+              ? 'No buyers match what you sell yet. Check back as more businesses join.'
               : contentMode === 'collections'
                 ? 'Published collections that match your interests show up here.'
                 : contentMode === 'designs'

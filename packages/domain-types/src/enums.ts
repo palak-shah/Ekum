@@ -285,6 +285,7 @@ export const MessageType = {
   Text: 'text',
   Photo: 'photo',
   Voice: 'voice',
+  Document: 'document',
   CollectionCard: 'collection_card',
   ProductCard: 'product_card',
   OrderCard: 'order_card',
@@ -324,10 +325,11 @@ export const BroadcastStatus = {
 export type BroadcastStatus = (typeof BroadcastStatus)[keyof typeof BroadcastStatus];
 export const broadcastStatusValues = values(BroadcastStatus);
 
-/** Media is uploaded direct-to-blob, then a worker derives a thumbnail. */
+/** Media is uploaded direct-to-blob, then a worker derives a thumbnail (images). */
 export const MediaKind = {
   Image: 'image',
   Audio: 'audio',
+  Document: 'document',
 } as const;
 export type MediaKind = (typeof MediaKind)[keyof typeof MediaKind];
 export const mediaKindValues = values(MediaKind);
