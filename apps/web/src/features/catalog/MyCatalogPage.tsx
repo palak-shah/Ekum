@@ -427,8 +427,8 @@ export function MyCatalogPage() {
     tab === 'products' ? filteredProducts.length > 0 : filteredCollections.length > 0;
 
   const onCatalogBack = () => {
-    const idx = (window.history.state as { idx?: number } | null)?.idx;
-    if (typeof idx === 'number' && idx > 0) {
+    // React Router: initial entry uses key "default"; prefer this over history.state.idx.
+    if (location.key !== 'default') {
       navigate(-1);
       return;
     }
