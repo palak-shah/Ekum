@@ -13,18 +13,27 @@ export function orderCompanyPair(
     : { companyLowId: b, companyHighId: a };
 }
 
-const STATUS_RANK: Record<string, number> = {
+const STATUS_RANK: Record<ConnectionStatus, number> = {
   [ConnectionStatus.Blocked]: 3,
   [ConnectionStatus.Paused]: 2,
   [ConnectionStatus.Active]: 1,
 };
 
 /** Prefer Blocked > Paused > Active when collapsing directed edges. */
-export function mergeConnectionStatuses(...statuses: string[]): string {
-  let best = ConnectionStatus.Active;
+export function mergeConnectionStatuses(
+  ...statuses: Array<string | ConnectionStatus>
+): ConnectionStatus {
+  let best: ConnectionStatus = ConnectionStatus.Active;
   let bestRank = 0;
   for (const status of statuses) {
-    const rank = STATUS_RANK[status] ?? 0;
+    if (
+      status !== ConnectionStatus.Active &&
+      status !== ConnectionStatus.Paused &&
+      status !== ConnectionStatus.Blocked
+    ) {
+      continue;
+    }
+    const rank = STATUS_RANK[status];
     if (rank > bestRank) {
       best = status;
       bestRank = rank;

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -137,7 +137,6 @@ export function ThreadPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
-  const phoneLike = isPhoneLike();
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const pendingVoiceUrlRef = useRef<string | null>(null);
   const [pendingVoice, setPendingVoice] = useState<{
@@ -1200,25 +1199,30 @@ export function ThreadPage() {
     void sendPhotoFiles(fileList ? Array.from(fileList) : []);
   };
 
-  const openPhotoGallery = () => {
+  const openPhotoGallery = useCallback(() => {
     queueMicrotask(() => photoRef.current?.click());
-  };
+  }, []);
 
-  const openChatCamera = () => {
-    closeAttachSheet();
-    if (phoneLike) {
-      setCameraSession((n) => n + 1);
-      setCameraOpen(true);
+  const openChatCamera = useCallback(() => {
+    // Dismiss attach sheet first — same rule as Add designs (sheet must not fight camera).
+    setAttachOpen(false);
+    setAttachStep('menu');
+    setAttachQuery('');
+    setAttachSelectedIds(new Set());
+    setAttachSendError(null);
+    if (!isPhoneLike()) {
+      openPhotoGallery();
       return;
     }
-    openPhotoGallery();
-  };
+    setCameraSession((n) => n + 1);
+    setCameraOpen(true);
+  }, [openPhotoGallery]);
 
-  const onCameraUnavailable = () => {
+  const onCameraUnavailable = useCallback(() => {
     setCameraOpen(false);
     showToast('Camera not available. Pick from gallery.', 'danger');
     openPhotoGallery();
-  };
+  }, [openPhotoGallery, showToast]);
 
   const sendPendingVoice = async () => {
     if (!pendingVoice) return;

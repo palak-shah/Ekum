@@ -25,6 +25,7 @@ import {
 } from '@/features/orders/orderItemImages';
 import { useCompanyId } from '@/lib/auth';
 import { formatDate, formatRate, formatUnit } from '@/lib/format';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
@@ -232,16 +233,23 @@ function OrderLinePhoto({
   onOpen: (index: number) => void;
   size?: 'md' | 'sm';
 }) {
-  const url = urlsForOrderItem(item)[0];
-  const dim = size === 'sm' ? 'h-12 w-12 rounded-lg' : 'h-14 w-14 rounded-xl';
+  const raw = urlsForOrderItem(item)[0];
+  const url = raw ? toAbsoluteMediaUrl(raw) : '';
+  const box =
+    size === 'sm'
+      ? 'h-12 w-12 min-h-12 min-w-12 shrink-0 rounded-lg'
+      : 'h-14 w-14 min-h-14 min-w-14 shrink-0 rounded-xl';
   if (!url) {
     return (
       <div
+        data-testid="order-line-photo"
+        data-empty="true"
         className={cx(
-          'flex shrink-0 items-center justify-center bg-foam text-muted',
-          dim,
-          size === 'sm' && 'text-sm font-bold',
+          'flex items-center justify-center bg-foam text-muted',
+          box,
+          size === 'sm' ? 'text-sm font-bold' : 'text-base font-bold',
         )}
+        aria-hidden
       >
         {item.name.charAt(0)}
       </div>
@@ -250,14 +258,15 @@ function OrderLinePhoto({
   return (
     <button
       type="button"
-      className="shrink-0"
+      data-testid="order-line-photo"
+      className={cx('overflow-hidden bg-foam', box)}
       aria-label={`View photo for ${item.name}`}
       onClick={(event) => {
         event.stopPropagation();
         onOpen(galleryIndexForItem(items, item.id));
       }}
     >
-      <img src={url} alt="" className={cx(dim, 'object-cover')} />
+      <img src={url} alt="" className="h-full w-full object-cover" />
     </button>
   );
 }

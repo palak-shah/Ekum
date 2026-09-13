@@ -426,6 +426,15 @@ export function MyCatalogPage() {
   const tabHasItems =
     tab === 'products' ? filteredProducts.length > 0 : filteredCollections.length > 0;
 
+  const onCatalogBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx;
+    if (typeof idx === 'number' && idx > 0) {
+      navigate(-1);
+      return;
+    }
+    navigate('/more');
+  };
+
   return (
     <div
       className={cx(
@@ -435,6 +444,7 @@ export function MyCatalogPage() {
     >
       <PageHeader
         title="My designs"
+        onBack={onCatalogBack}
         action={
           tabHasItems && !selecting ? (
             <button

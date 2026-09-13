@@ -104,7 +104,9 @@ body {
 }
 
 .ekum-rise {
-  animation: ekum-rise 140ms ease-out both;
+  /* Do not use `both` — a leftover transform traps sticky PageHeaders inside the
+     animated wrapper so Back scrolls away with the page. */
+  animation: ekum-rise 140ms ease-out;
 }
 
 /* Class, not inline style — re-setting animation on each React render restarts the slide. */

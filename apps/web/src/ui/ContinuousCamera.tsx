@@ -107,6 +107,9 @@ export function ContinuousCamera({
   const streamRef = useRef<MediaStream | null>(null);
   /** Locked when the session opens — parent re-renders must not lose append target. */
   const sessionAppendRef = useRef<string | null>(null);
+  /** Parent often passes an inline callback; keep start-effect deps on `open` only. */
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
   const [shots, setShots] = useState<Shot[]>([]);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -204,7 +207,7 @@ export function ContinuousCamera({
             void start(attempt + 1);
             return;
           }
-          onUnavailable();
+          onUnavailableRef.current();
           return;
         }
         const stream = acquired.stream;
@@ -221,7 +224,7 @@ export function ContinuousCamera({
             void start(attempt + 1);
             return;
           }
-          if (!cancelled) onUnavailable();
+          if (!cancelled) onUnavailableRef.current();
           return;
         }
         video.srcObject = stream;
@@ -250,7 +253,7 @@ export function ContinuousCamera({
           void start(attempt + 1);
           return;
         }
-        onUnavailable();
+        onUnavailableRef.current();
       }
     };
 
@@ -260,7 +263,7 @@ export function ContinuousCamera({
       cancelled = true;
       stopStream();
     };
-  }, [open, onUnavailable, stopStream, revokeShots]);
+  }, [open, stopStream, revokeShots]);
 
   if (!open) {
     return null;

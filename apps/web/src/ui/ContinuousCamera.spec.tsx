@@ -49,4 +49,53 @@ describe('ContinuousCamera shell', () => {
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
     expect(screen.getByTestId('continuous-camera-shutter')).toBeTruthy();
   });
+
+  it('does not re-call getUserMedia when onUnavailable identity changes while open', async () => {
+    const track = {
+      kind: 'video',
+      readyState: 'live' as MediaStreamTrackState,
+      enabled: true,
+      stop: vi.fn(),
+      getCapabilities: () => ({}),
+      applyConstraints: vi.fn(async () => undefined),
+    };
+    const stream = {
+      getTracks: () => [track],
+      getVideoTracks: () => [track],
+      getAudioTracks: () => [],
+    } as unknown as MediaStream;
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      mediaDevices: { getUserMedia },
+    });
+
+    HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
+
+    const { rerender } = render(
+      <ContinuousCamera
+        open
+        maxShots={3}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        onUnavailable={() => undefined}
+      />,
+    );
+
+    await screen.findByTestId('continuous-camera');
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <ContinuousCamera
+        open
+        maxShots={3}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        onUnavailable={() => undefined}
+      />,
+    );
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
 });
