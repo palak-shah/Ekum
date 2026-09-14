@@ -47,6 +47,7 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     const album = screen.getByTestId('photo-album-3');
     expect(album.querySelectorAll('img')).toHaveLength(3);
     expect(album.className).toMatch(/grid-rows-2/);
+    expect(screen.getByTestId('photo-album-collage').className).toMatch(/w-\[280px\]/);
   });
 
   it('thumb size shows at most two cells with +N overflow', () => {

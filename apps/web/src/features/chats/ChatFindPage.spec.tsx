@@ -103,4 +103,41 @@ describe('ChatFindPage', () => {
     expect(screen.getByText(/rate-sheet\.pdf/)).toBeInTheDocument();
     expect(screen.getByText('Buyers')).toBeInTheDocument();
   });
+
+  it('opens PhotoViewer on photo tap instead of navigating to chat', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockResolvedValue({
+      results: [
+        {
+          threadId: 't1',
+          threadTitle: null,
+          counterpartName: 'Ravi Fabrics',
+          message: {
+            id: 'm1',
+            threadId: 't1',
+            senderCompanyId: 'c1',
+            type: MessageType.Photo,
+            body: null,
+            reference: null,
+            metadata: {
+              urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'],
+            },
+            createdAt: '2026-09-01T10:00:00.000Z',
+            mine: true,
+            actor: null,
+            replyTo: null,
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+    renderFind('photos');
+    await waitFor(() => {
+      expect(screen.getAllByTestId('chat-find-photo')).toHaveLength(2);
+    });
+    await user.click(screen.getAllByTestId('chat-find-photo')[0]!);
+    expect(screen.getByTestId('photo-viewer')).toBeInTheDocument();
+    expect(screen.getByTestId('photo-viewer-go-chat')).toBeInTheDocument();
+    expect(screen.queryByTestId('chats-home')).toBeNull();
+  });
 });

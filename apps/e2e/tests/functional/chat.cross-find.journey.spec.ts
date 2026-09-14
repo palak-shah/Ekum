@@ -11,7 +11,7 @@ test.describe('chat cross-find @functional @chat', () => {
     hasTouch: true,
   });
 
-  test('Chats search Photos shortcut opens grid then thread', async ({ page }) => {
+  test('Chats search Photos opens viewer; Chat jumps to thread', async ({ page }) => {
     test.setTimeout(90_000);
     await loginAsMeena(page);
     await page.goto('/chats/seed-thread-1');
@@ -34,9 +34,11 @@ test.describe('chat cross-find @functional @chat', () => {
     await expect(page.getByTestId('chats-in-chats')).toBeVisible();
     await page.getByTestId('chats-find-photos').click();
     await expect(page).toHaveURL(/\/chats\/find\?kind=photos/);
-    await expect(page.getByRole('button', { name: /Photos/ })).toBeVisible();
     await expect(page.getByTestId('chat-find-photo').first()).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('chat-find-photo').first().click();
+    await expect(page.getByTestId('photo-viewer')).toBeVisible();
+    await expect(page).toHaveURL(/\/chats\/find\?kind=photos/);
+    await page.getByTestId('photo-viewer-go-chat').click();
     await expect(page).toHaveURL(/\/chats\/[^/]+\?message=/);
   });
 });

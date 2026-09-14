@@ -25,12 +25,15 @@ export function PhotoViewer({
   index,
   onIndex,
   onClose,
+  /** Optional header action (e.g. View in chat from cross-chat Photos find). */
+  headerAction,
 }: {
   open: boolean;
   urls: string[];
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
+  headerAction?: { label: string; onClick: () => void; testId?: string };
 }) {
   const safeIndex = clamp(index, urls.length);
   const [scale, setScale] = useState(1);
@@ -189,7 +192,18 @@ export function PhotoViewer({
         ) : (
           <span className="w-16" />
         )}
-        <span className="w-16" />
+        {headerAction ? (
+          <button
+            type="button"
+            data-testid={headerAction.testId ?? 'photo-viewer-header-action'}
+            className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-white/10"
+            onClick={headerAction.onClick}
+          >
+            {headerAction.label}
+          </button>
+        ) : (
+          <span className="w-16" />
+        )}
       </div>
       <div
         className="relative flex min-h-0 flex-1 touch-none items-center justify-center px-2 pb-[max(1.5rem,env(safe-area-inset-bottom))]"

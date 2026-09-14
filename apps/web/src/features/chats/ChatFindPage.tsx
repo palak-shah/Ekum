@@ -11,7 +11,9 @@ import {
   type CursorPage,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Chip, EmptyState, ErrorState, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import { timeAgo } from '@/lib/format';
 
@@ -36,6 +38,15 @@ const EMPTY_COPY: Record<CrossChatFindKind, { title: string; message: string }> 
     title: 'No designs in chats yet',
     message: 'Designs shared in chats show up here.',
   },
+};
+
+type PhotoCell = {
+  key: string;
+  url: string;
+  threadId: string;
+  messageId: string;
+  createdAt: string;
+  chatLabel: string;
 };
 
 function parseKind(raw: string | null): CrossChatFindKind | null {
@@ -82,12 +93,35 @@ function thumbUrl(row: CrossChatFindItemView, kind: CrossChatFindKind): string |
   return row.message.reference?.image ?? row.message.reference?.images?.[0] ?? null;
 }
 
+/** One grid cell per image URL (WhatsApp Media — albums expand). */
+export function expandFindPhotoCells(rows: CrossChatFindItemView[]): PhotoCell[] {
+  const cells: PhotoCell[] = [];
+  for (const row of rows) {
+    const urls = photoUrlsFromMessage(row.message);
+    const label = chatTitle(row);
+    urls.forEach((raw, index) => {
+      const url = toAbsoluteMediaUrl(raw);
+      if (!url) return;
+      cells.push({
+        key: `${row.message.id}-${index}`,
+        url,
+        threadId: row.threadId,
+        messageId: row.message.id,
+        createdAt: row.message.createdAt,
+        chatLabel: label,
+      });
+    });
+  }
+  return cells;
+}
+
 export function ChatFindPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const kind = parseKind(params.get('kind'));
   const [query, setQuery] = useState(params.get('q') ?? '');
   const deferredQ = useDeferredValue(query.trim());
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const find = useInfiniteQuery({
     queryKey: ['threads', 'messages', 'find', kind, deferredQ || undefined],
@@ -109,20 +143,32 @@ export function ChatFindPage() {
     [find.data],
   );
 
+  const photoCells = useMemo(
+    () => (kind === 'photos' ? expandFindPhotoCells(rows) : []),
+    [kind, rows],
+  );
+
   const photoGroups = useMemo(() => {
     if (kind !== 'photos') return [];
-    const groups: { key: string; label: string; items: CrossChatFindItemView[] }[] = [];
-    for (const row of rows) {
-      const key = monthKey(row.message.createdAt);
+    const groups: { key: string; label: string; items: PhotoCell[]; startIndex: number }[] = [];
+    let offset = 0;
+    for (const cell of photoCells) {
+      const key = monthKey(cell.createdAt);
       const last = groups[groups.length - 1];
       if (last?.key === key) {
-        last.items.push(row);
+        last.items.push(cell);
       } else {
-        groups.push({ key, label: monthLabel(row.message.createdAt), items: [row] });
+        groups.push({
+          key,
+          label: monthLabel(cell.createdAt),
+          items: [cell],
+          startIndex: offset,
+        });
       }
+      offset += 1;
     }
     return groups;
-  }, [kind, rows]);
+  }, [kind, photoCells]);
 
   if (!kind) {
     return (
@@ -143,6 +189,10 @@ export function ChatFindPage() {
   };
 
   const empty = EMPTY_COPY[kind];
+  const viewerCell =
+    viewerIndex != null && viewerIndex >= 0 && viewerIndex < photoCells.length
+      ? photoCells[viewerIndex]
+      : null;
 
   return (
     <div className="flex flex-col gap-3 pb-24">
@@ -174,20 +224,24 @@ export function ChatFindPage() {
             <section key={group.key}>
               <h2 className="mb-2 px-0.5 text-[13px] font-semibold text-muted">{group.label}</h2>
               <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-xl">
-                {group.items.map((row) => {
-                  const url = thumbUrl(row, 'photos');
+                {group.items.map((cell, localIndex) => {
+                  const globalIndex = group.startIndex + localIndex;
                   return (
-                    <Link
-                      key={row.message.id}
-                      to={`/chats/${row.threadId}?message=${encodeURIComponent(row.message.id)}`}
+                    <button
+                      key={cell.key}
+                      type="button"
                       className="relative aspect-square bg-linen"
                       data-testid="chat-find-photo"
-                      aria-label={`Photo in ${chatTitle(row)}`}
+                      aria-label={`Photo in ${cell.chatLabel}`}
+                      onClick={() => setViewerIndex(globalIndex)}
                     >
-                      {url ? (
-                        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                      ) : null}
-                    </Link>
+                      <img
+                        src={cell.url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
                   );
                 })}
               </div>
@@ -247,6 +301,29 @@ export function ChatFindPage() {
         >
           {find.isFetchingNextPage ? 'Loading…' : 'Show more'}
         </button>
+      ) : null}
+
+      {kind === 'photos' && viewerIndex != null && photoCells.length > 0 ? (
+        <PhotoViewer
+          open
+          urls={photoCells.map((cell) => cell.url)}
+          index={viewerIndex}
+          onIndex={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+          headerAction={
+            viewerCell
+              ? {
+                  label: 'Chat',
+                  testId: 'photo-viewer-go-chat',
+                  onClick: () => {
+                    navigate(
+                      `/chats/${viewerCell.threadId}?message=${encodeURIComponent(viewerCell.messageId)}`,
+                    );
+                  },
+                }
+              : undefined
+          }
+        />
       ) : null}
     </div>
   );

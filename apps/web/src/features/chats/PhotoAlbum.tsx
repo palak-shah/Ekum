@@ -37,7 +37,7 @@ function Cell({
       disabled={locked}
       aria-disabled={locked || undefined}
       className={cx(
-        'relative block h-full w-full overflow-hidden',
+        'relative block h-full min-h-0 w-full min-w-0 overflow-hidden',
         well,
         locked ? 'cursor-default' : null,
         rounded,
@@ -194,7 +194,10 @@ export function PhotoAlbum({
     );
   } else if (count === 2) {
     grid = (
-      <div className={cx('grid grid-cols-2', compact ? 'h-16' : 'h-40')} style={{ gap: GUTTER }}>
+      <div
+        className={cx('grid w-full grid-cols-2', compact ? 'h-16' : 'h-44')}
+        style={{ gap: GUTTER }}
+      >
         <Cell
           src={urlAt(preview, 0)}
           onClick={() => open(0)}
@@ -213,10 +216,10 @@ export function PhotoAlbum({
       </div>
     );
   } else if (count === 3) {
-    // Flat 2×2 grid + row-span so all three cells paint (nested rows clipped as “2 photos”).
+    // Flat 2×2 + row-span; explicit album width (below) so flex bubbles don’t collapse.
     grid = (
       <div
-        className={cx('grid grid-cols-2 grid-rows-2', compact ? 'h-20' : 'h-52')}
+        className={cx('grid w-full grid-cols-2 grid-rows-2', compact ? 'h-28' : 'h-52')}
         style={{ gap: GUTTER }}
         data-testid="photo-album-3"
       >
@@ -224,7 +227,7 @@ export function PhotoAlbum({
           src={urlAt(preview, 0)}
           onClick={() => open(0)}
           rounded="rounded-l-2xl"
-          className="row-span-2 h-full min-h-0"
+          className="row-span-2"
           overlayClass={overlayClass}
           locked={locked}
         />
@@ -248,7 +251,7 @@ export function PhotoAlbum({
   } else {
     grid = (
       <div
-        className={cx('grid grid-cols-2 grid-rows-2', compact ? 'h-20' : 'h-52')}
+        className={cx('grid w-full grid-cols-2 grid-rows-2', compact ? 'h-28' : 'h-52')}
         style={{ gap: GUTTER }}
       >
         <Cell
@@ -284,10 +287,15 @@ export function PhotoAlbum({
     );
   }
 
+  // Multi-photo: fixed WA-like width. `w-full` alone shrink-wraps in flex bubbles → thin strip.
+  const shellWidth =
+    compact ? 'w-[120px]' : count === 1 ? 'w-full max-w-[280px]' : 'w-[280px] max-w-full';
+
   return (
     <>
       <div
-        className={cx('overflow-hidden', compact ? 'w-[120px]' : 'w-full max-w-[280px]')}
+        className={cx('overflow-hidden', shellWidth)}
+        data-testid={count >= 2 ? 'photo-album-collage' : undefined}
         data-locked={locked ? 'true' : undefined}
       >
         {grid}

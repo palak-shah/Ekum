@@ -18,7 +18,7 @@ From Chats list search (empty query), find Photos / Documents / Collections / De
 
 | Kind | Layout | Tap |
 |------|--------|-----|
-| Photos | 3-col grid, month headers | Thread at message |
+| Photos | 3-col grid, month headers; **one cell per image** (albums expand) | **PhotoViewer** (swipe across results). Header **Chat** → thread `?message=` |
 | Documents | List: chat · filename · type | Thread at message |
 | Collections / Designs | List: chat · card name · thumb | Thread at message |
 
