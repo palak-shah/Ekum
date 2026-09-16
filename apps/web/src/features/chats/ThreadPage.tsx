@@ -3101,6 +3101,62 @@ function TimelineItem({
     );
   }
 
+  if (message.type === 'design_album') {
+    const designUrls = (ref?.images ?? []).filter(Boolean) as string[];
+    const caption = ref?.name?.trim() || message.body?.trim() || 'Designs';
+    const locked = Boolean(ref?.imagesLocked);
+    return (
+      <MessageChrome
+        messageId={message.id}
+        mine={message.mine}
+        selecting={selecting}
+        selected={selected}
+        highlighted={highlighted}
+        onToggleSelect={onToggleSelect}
+        actions={actions}
+        actionsOnAccent={false}
+        longPressOpensMenu
+        className={cx('max-w-[85%]', LONG_PRESS_SURFACE_CLASS)}
+      >
+        <div className="flex flex-col gap-0.5" data-testid="design-album-message">
+          <div
+            className={cx(
+              MSG_BUBBLE_CLASS,
+              'overflow-hidden border border-line bg-surface',
+              chatBubbleCorners(message.mine),
+            )}
+          >
+            {inCardSenderLine(message, senderLabel) ? (
+              <div className="px-3 pt-2">
+                <InCardActor message={message} label={senderLabel} />
+              </div>
+            ) : null}
+            {reply ? (
+              <div className="px-3">
+                <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
+              </div>
+            ) : null}
+            {designUrls.length > 0 ? (
+              <PhotoAlbum
+                urls={designUrls}
+                interactive={!selecting}
+                locked={locked}
+              />
+            ) : (
+              <div className="flex aspect-[4/3] items-center justify-center bg-foam text-sm font-medium text-muted">
+                {caption}
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+              <p className="text-xs font-medium text-ink">{caption}</p>
+              <p className="shrink-0 text-xs text-muted">{timeAgo(message.createdAt)}</p>
+            </div>
+          </div>
+        </div>
+      </MessageChrome>
+    );
+  }
+
   const documentMeta =
     message.type === 'document' ? documentFromMessage(message) : null;
   if (message.type === 'document' && documentMeta) {

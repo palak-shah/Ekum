@@ -5,6 +5,8 @@ import {
   OrderLineStatus,
   OrderStatus,
   PaymentRequestStatus,
+  designAlbumCaption,
+  designAlbumProductIdsFromMessage,
   inferOrderChatEvent,
   orderChatEventLabel,
   shortOrderLabel,
@@ -36,7 +38,11 @@ export class ReferenceResolver {
     messages: Message[],
     viewerCompanyId?: string,
   ): Promise<Map<string, MessageReference>> {
-    const productIds = this.idsFor(messages, MessageType.ProductCard);
+    const productIds = [
+      ...this.idsFor(messages, MessageType.ProductCard),
+      ...this.designAlbumProductIds(messages),
+    ];
+    const uniqueProductIds = [...new Set(productIds)];
     const collectionIds = this.idsFor(messages, MessageType.CollectionCard);
     const orderIds = [
       ...this.idsFor(messages, MessageType.OrderCard),
@@ -46,9 +52,9 @@ export class ReferenceResolver {
     const paymentIds = this.idsFor(messages, MessageType.PaymentCard);
 
     const [products, collections, orders, payments] = await Promise.all([
-      productIds.length
+      uniqueProductIds.length
         ? this.prisma.product.findMany({
-            where: { id: { in: productIds } },
+            where: { id: { in: uniqueProductIds } },
             select: {
               id: true,
               name: true,
@@ -146,6 +152,45 @@ export class ReferenceResolver {
 
     const references = new Map<string, MessageReference>();
     for (const message of messages) {
+      if (message.type === MessageType.DesignAlbum) {
+        const ids = designAlbumProductIdsFromMessage(message.metadata);
+        const thumbs: string[] = [];
+        let anyLocked = false;
+        let anyAvailable = false;
+        let ownerCompanyId: string | null = null;
+        let ownerCompanyName: string | null = null;
+        let allowForward = true;
+        for (const id of ids) {
+          const product = productById.get(id);
+          if (!product) continue;
+          anyAvailable = true;
+          const images = (product.images ?? []).filter(Boolean);
+          if (images[0]) thumbs.push(images[0]);
+          if (!this.canShowCatalogImages(viewerCompanyId, product, audienceCtxByOwner)) {
+            anyLocked = true;
+          }
+          if (!ownerCompanyId) {
+            ownerCompanyId = product.company?.id ?? product.companyId ?? null;
+            ownerCompanyName = product.company?.name ?? null;
+          }
+          if (product.allowForward === false) allowForward = false;
+        }
+        references.set(message.id, {
+          kind: 'designs',
+          id: ids[0] ?? message.id,
+          name: designAlbumCaption(ids.length),
+          image: thumbs[0] ?? null,
+          images: thumbs.length > 0 ? thumbs : null,
+          productIds: ids,
+          imagesLocked: anyAvailable && anyLocked,
+          ownerCompanyId,
+          ownerCompanyName,
+          allowForward,
+          available: anyAvailable,
+          itemCount: ids.length,
+        });
+        continue;
+      }
       if (!message.referenceId) {
         continue;
       }
@@ -459,6 +504,15 @@ export class ReferenceResolver {
       }),
     );
     return map;
+  }
+
+  private designAlbumProductIds(messages: Message[]): string[] {
+    const ids: string[] = [];
+    for (const message of messages) {
+      if (message.type !== MessageType.DesignAlbum) continue;
+      ids.push(...designAlbumProductIdsFromMessage(message.metadata));
+    }
+    return ids;
   }
 
   private idsFor(messages: Message[], type: string): string[] {

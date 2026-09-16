@@ -889,12 +889,14 @@ model PaymentRequest {
   @@index([orderId, status])
 }
 
-/// Off-app 48h door to one album or design. After login, normal audience rules.
+/// Off-app 48h door to one album, one design, or a set of designs.
 model CatalogShareLink {
   id                 String   @id @default(cuid())
   token              String   @unique
   collectionId       String?
   productId          String?
+  /// Ordered product ids for kind designs (empty when collection/product link).
+  productIds         String[] @default([])
   createdByCompanyId String
   expiresAt          DateTime
   createdAt          DateTime @default(now())

@@ -46,7 +46,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Works | Unit-only | Required | Completeness 2026-08-22; no gateway |
 | Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token |
-| Collections | 48h share link | Works | Functional + Unit | Required | Presentable WhatsApp OG collage + seller copy 2026-09-11; `share-link.journey` |
+| Collections | 48h share link | Works | Functional + Unit | Required | Presentable WhatsApp OG collage + seller copy 2026-09-11; multi-design kind `designs` 2026-09-16; `share-link.journey` |
+| Explore / Catalog | Grouped designs share (chat collage + 48h, not a Collection) | Works | Unit | Required | Completeness 2026-09-16-design-album-share |
 | Orders | Photo order / amend / samples / returns | Partial | Unit | Future | Raise return Select all / Clear + living chat Return pulse 2026-09-07 |
 | Orders | Leave guard (photo order + builders) | Works | Unit + Functional | Required | Completeness 2026-08-24-discard-guard; shared sheet |
 | Orders | Trade without connection | Rejected | — | Reject | Trust ladder |

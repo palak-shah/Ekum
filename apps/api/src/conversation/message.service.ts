@@ -9,6 +9,8 @@ import {
   canEditMessageMeta,
   documentFromMessage,
   documentTypeCue,
+  designAlbumCaption,
+  designAlbumProductIdsFromMessage,
   photoUrlsFromMessage,
   type CrossChatFindItemView,
   type CrossChatFindKind,
@@ -67,6 +69,21 @@ export class MessageService {
     });
     const senderName = sender?.name?.trim() || null;
 
+    const designIds =
+      dto.type === MessageType.DesignAlbum
+        ? designAlbumProductIdsFromMessage(dto.metadata)
+        : [];
+    const body =
+      dto.type === MessageType.DesignAlbum
+        ? designAlbumCaption(designIds.length)
+        : (dto.body ?? null);
+    const metadata =
+      dto.type === MessageType.DesignAlbum
+        ? { productIds: designIds }
+        : dto.metadata
+          ? (dto.metadata as Prisma.InputJsonValue)
+          : undefined;
+
     const now = new Date();
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
@@ -76,9 +93,9 @@ export class MessageService {
           senderUserId: actor.userId,
           senderName,
           type: dto.type,
-          body: dto.body ?? null,
+          body,
           referenceId: dto.referenceId ?? null,
-          metadata: dto.metadata ? (dto.metadata as Prisma.InputJsonValue) : undefined,
+          metadata,
           replyToMessageId: dto.replyToMessageId ?? null,
         },
       });
@@ -184,7 +201,9 @@ export class MessageService {
     } else if (view === 'collections') {
       clauses.push({ type: MessageType.CollectionCard });
     } else if (view === 'designs') {
-      clauses.push({ type: MessageType.ProductCard });
+      clauses.push({
+        type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] },
+      });
     } else if (view === 'orders') {
       clauses.push({
         OR: [
@@ -420,32 +439,19 @@ export class MessageService {
    * senders still cannot share. Curate stays gated elsewhere.
    */
   private async validateReference(actorCompanyId: string, dto: SendMessageDto): Promise<void> {
+    if (dto.type === MessageType.DesignAlbum) {
+      const productIds = designAlbumProductIdsFromMessage(dto.metadata);
+      if (productIds.length < 2) {
+        throw this.invalidReference();
+      }
+      for (const productId of productIds) {
+        await this.validateProductShareable(actorCompanyId, productId);
+      }
+      return;
+    }
     if (dto.type === MessageType.ProductCard) {
-      const product = await this.prisma.product.findFirst({
-        where: { id: dto.referenceId },
-        select: {
-          id: true,
-          companyId: true,
-          status: true,
-          postedToMarketAt: true,
-        },
-      });
-      if (!product) {
-        throw this.invalidReference();
-      }
-      if (product.companyId === actorCompanyId) {
-        return;
-      }
-      if (await this.visibility.isBlocked(actorCompanyId, product.companyId)) {
-        throw this.invalidReference();
-      }
-      if (await this.wasSharedInChat(actorCompanyId, product.id, MessageType.ProductCard)) {
-        return;
-      }
-      if (product.status === ProductStatus.Published && product.postedToMarketAt) {
-        return;
-      }
-      throw this.invalidReference();
+      await this.validateProductShareable(actorCompanyId, dto.referenceId!);
+      return;
     } else if (dto.type === MessageType.CollectionCard) {
       const collection = await this.prisma.collection.findFirst({
         where: { id: dto.referenceId },
@@ -499,6 +505,37 @@ export class MessageService {
         throw this.invalidReference();
       }
     }
+  }
+
+  private async validateProductShareable(
+    actorCompanyId: string,
+    productId: string,
+  ): Promise<void> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        postedToMarketAt: true,
+      },
+    });
+    if (!product) {
+      throw this.invalidReference();
+    }
+    if (product.companyId === actorCompanyId) {
+      return;
+    }
+    if (await this.visibility.isBlocked(actorCompanyId, product.companyId)) {
+      throw this.invalidReference();
+    }
+    if (await this.wasSharedInChat(actorCompanyId, product.id, MessageType.ProductCard)) {
+      return;
+    }
+    if (product.status === ProductStatus.Published && product.postedToMarketAt) {
+      return;
+    }
+    throw this.invalidReference();
   }
 
   private async wasSharedInChat(
@@ -722,7 +759,7 @@ export class MessageService {
     const actorCompanyId = assertActiveCompany(actor);
     const type = findKindToMessageType(query.kind);
     const clauses: Prisma.MessageWhereInput[] = [
-      { type },
+      { type: Array.isArray(type) ? { in: type } : type },
       { deletedForEveryoneAt: null },
       { NOT: { hides: { some: { companyId: actorCompanyId } } } },
       {
@@ -822,7 +859,7 @@ export class MessageService {
   }
 }
 
-function findKindToMessageType(kind: CrossChatFindKind): string {
+function findKindToMessageType(kind: CrossChatFindKind): string | string[] {
   switch (kind) {
     case 'photos':
       return MessageType.Photo;
@@ -831,6 +868,6 @@ function findKindToMessageType(kind: CrossChatFindKind): string {
     case 'collections':
       return MessageType.CollectionCard;
     case 'designs':
-      return MessageType.ProductCard;
+      return [MessageType.ProductCard, MessageType.DesignAlbum];
   }
 }

@@ -32,4 +32,22 @@ test.describe('share link guest @functional @catalog', () => {
 
     await expect(page).toHaveURL(/\/collections\/seed-col-1/, { timeout: 20_000 });
   });
+
+  test('guest opens 48h designs link (not a collection)', async ({ page }) => {
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+    const link = await createShareLink(page.request, raviToken, {
+      productIds: ['seed-prod-1', 'seed-prod-2'],
+    });
+    expect(link.kind).toBe('designs');
+    expect(link.name).toMatch(/designs/i);
+
+    await page.goto('/');
+    await page.evaluate(() => localStorage.removeItem('ekum.tokens'));
+    await page.goto(`/s/${link.token}`);
+
+    await expect(page.getByText(/designs/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/· Designs · 48 hours|Designs · 48 hours/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Open on Ekum|Request access/ })).toBeVisible();
+  });
 });

@@ -78,6 +78,33 @@ export const photoMessageMetadataSchema = z.object({
 });
 export type PhotoMessageMetadata = z.infer<typeof photoMessageMetadataSchema>;
 
+/** Grouped designs share: ordered product ids (not a Collection). */
+export const DESIGN_ALBUM_MAX_PRODUCTS = 50;
+export const designAlbumMetadataSchema = z.object({
+  productIds: z
+    .array(z.string().min(1))
+    .min(2)
+    .max(DESIGN_ALBUM_MAX_PRODUCTS),
+});
+export type DesignAlbumMetadata = z.infer<typeof designAlbumMetadataSchema>;
+
+export function designAlbumProductIdsFromMessage(metadata: unknown): string[] {
+  const parsed = designAlbumMetadataSchema.safeParse(metadata);
+  if (!parsed.success) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of parsed.data.productIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+export function designAlbumCaption(count: number): string {
+  return `${count} designs`;
+}
+
 /** Voice clip: duration + optional media id (body holds the playable URL). */
 export const VOICE_MAX_DURATION_MS = 120_000;
 export const voiceMessageMetadataSchema = z.object({
@@ -248,6 +275,23 @@ export const sendMessageSchema = z
         });
       }
     }
+    if (value.type === MessageType.DesignAlbum) {
+      const ids = designAlbumProductIdsFromMessage(value.metadata);
+      if (ids.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Design album needs metadata.productIds with at least 2 designs.',
+          path: ['metadata', 'productIds'],
+        });
+      }
+      if (value.referenceId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Design album must not use referenceId.',
+          path: ['referenceId'],
+        });
+      }
+    }
   });
 export type SendMessageDto = z.infer<typeof sendMessageSchema>;
 
@@ -341,15 +385,18 @@ export interface ThreadCloneConflict {
 // --- View models ------------------------------------------------------------
 
 export interface MessageReference {
-  kind: 'product' | 'collection' | 'order' | 'rate' | 'payment';
+  kind: 'product' | 'collection' | 'order' | 'rate' | 'payment' | 'designs';
   id: string;
   name: string | null;
   image: string | null;
   /**
    * Preview images for WhatsApp-style grids in chat.
    * Collection: first design thumbs. Product: product photos.
+   * Designs album: one thumb per design (ordered).
    */
   images?: string[] | null;
+  /** design_album: ordered product ids. */
+  productIds?: string[] | null;
   /**
    * When true, chat may show small blurred thumbs but must not open PhotoViewer.
    * Viewer lacks design view rights; opening the pack still uses Ask / shell.

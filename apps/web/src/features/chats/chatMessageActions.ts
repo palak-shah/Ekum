@@ -30,6 +30,13 @@ export function canForwardMessage(message: MessageView): boolean {
   if (message.type === 'product_card' || message.type === 'collection_card') {
     return Boolean(message.reference?.available && message.reference.id);
   }
+  if (message.type === 'design_album') {
+    return Boolean(
+      message.reference?.available &&
+        ((message.reference.productIds?.length ?? 0) >= 2 ||
+          (message.reference.images?.length ?? 0) >= 1),
+    );
+  }
   if (message.type === 'order_card' || message.type === 'rate') {
     return Boolean(message.reference?.id && message.reference.available);
   }
@@ -45,6 +52,7 @@ export function canReplyToMessage(message: MessageView): boolean {
     'voice',
     'product_card',
     'collection_card',
+    'design_album',
     'order_card',
     'rate',
     'payment_card',
@@ -80,6 +88,9 @@ export function copyTextForMessage(message: MessageView): string | null {
   }
   if (message.type === 'product_card') {
     return name ? `Design · ${name}` : 'Design';
+  }
+  if (message.type === 'design_album') {
+    return name || message.body?.trim() || 'Designs';
   }
   if (message.type === 'order_card' || message.type === 'rate') {
     if (message.reference?.orderLabel) return message.reference.orderLabel;
@@ -179,6 +190,21 @@ export function forwardPayload(message: MessageView): {
       body: message.reference?.name ?? message.body ?? undefined,
     };
   }
+  if (message.type === 'design_album') {
+    const productIds =
+      message.reference?.productIds ??
+      (Array.isArray((message.metadata as { productIds?: unknown })?.productIds)
+        ? ((message.metadata as { productIds: string[] }).productIds)
+        : []);
+    if (productIds.length < 2) {
+      throw new Error('Nothing to forward');
+    }
+    return {
+      type: MessageType.DesignAlbum,
+      metadata: { productIds },
+      body: message.body ?? `${productIds.length} designs`,
+    };
+  }
   if (message.type === 'order_card' || message.type === 'rate') {
     const referenceId = message.reference?.id;
     if (!referenceId || !message.reference?.available) {
@@ -200,6 +226,9 @@ export function replyComposerLabel(message: MessageView): string {
     }
     if (message.reference.kind === 'product') {
       return `Design · ${message.reference.name}`;
+    }
+    if (message.reference.kind === 'designs') {
+      return message.reference.name;
     }
     return message.reference.name;
   }

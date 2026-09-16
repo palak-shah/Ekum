@@ -33,8 +33,8 @@ export type CatalogShareProductItem = {
 
 /**
  * Catalogue → chat(s): multi-select companies (Find on Ekum, Clear), then post
- * collection_card / product_card into each DM. No buyer groups / Broadcast.
- * Quiet 48h link when exactly one album or design.
+ * collection_card / product_card / design_album into each DM. No buyer groups / Broadcast.
+ * Quiet 48h link when one album, one design, or 2+ designs.
  */
 export function CatalogShareSheet({
   open,
@@ -83,12 +83,21 @@ export function CatalogShareSheet({
         body: item.name,
       });
     }
-    for (const item of designItems) {
+    if (designItems.length >= 2) {
+      const productIds = designItems.map((item) => item.productId);
       await api.post<MessageView>(`/threads/${threadId}/messages`, {
-        type: MessageType.ProductCard,
-        referenceId: item.productId,
-        body: item.name,
+        type: MessageType.DesignAlbum,
+        metadata: { productIds },
+        body: `${productIds.length} designs`,
       });
+    } else {
+      for (const item of designItems) {
+        await api.post<MessageView>(`/threads/${threadId}/messages`, {
+          type: MessageType.ProductCard,
+          referenceId: item.productId,
+          body: item.name,
+        });
+      }
     }
   };
 
@@ -125,16 +134,24 @@ export function CatalogShareSheet({
 
   const singleCollection = albumItems.length === 1 && designItems.length === 0;
   const singleProduct = designItems.length === 1 && albumItems.length === 0;
-  const canLink = singleCollection || singleProduct;
+  const multiDesigns = designItems.length >= 2;
+  const canLink = singleCollection || singleProduct || multiDesigns;
   const makeLink = useMutation({
     mutationFn: () => {
       setError(null);
-      return api.post<ShareLinkView>(
-        '/share-links',
-        singleCollection
-          ? { collectionId: albumItems[0]!.collectionId }
-          : { productId: designItems[0]!.productId },
-      );
+      if (singleCollection) {
+        return api.post<ShareLinkView>('/share-links', {
+          collectionId: albumItems[0]!.collectionId,
+        });
+      }
+      if (multiDesigns) {
+        return api.post<ShareLinkView>('/share-links', {
+          productIds: designItems.map((item) => item.productId),
+        });
+      }
+      return api.post<ShareLinkView>('/share-links', {
+        productId: designItems[0]!.productId,
+      });
     },
     onSuccess: async (link) => {
       const url = `${window.location.origin}${link.path}`;
@@ -161,13 +178,15 @@ export function CatalogShareSheet({
   });
 
   const sheetTitle =
-    total > 1
-      ? `Share ${total}…`
-      : albumItems.length === 1
-        ? 'Share collection…'
-        : designItems.length === 1
-          ? 'Share design…'
-          : 'Share to…';
+    designItems.length >= 2 && albumItems.length === 0
+      ? `Share ${designItems.length} designs…`
+      : total > 1
+        ? `Share ${total}…`
+        : albumItems.length === 1
+          ? 'Share collection…'
+          : designItems.length === 1
+            ? 'Share design…'
+            : 'Share to…';
 
   const selectedCount = selectedCompanyIds.length;
   const busy = share.isPending || makeLink.isPending;

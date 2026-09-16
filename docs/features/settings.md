@@ -19,7 +19,7 @@ Every signed-in company owner/operator in Phase 1.
 ### Settings (`/settings`)
 
 1. **Home attention** — optional age-out for Home Needs (Off / 7 / 14 / 30 days; default Off). Device-local.
-2. Manage **addresses** and **billing GST firms**.
+2. Manage **addresses** and **billing GST firms** — each section has **Add** (sheet: firm name, optional GST + billing address). First billing firm is saved as Default.
 3. Return policy / trade defaults / my-tools as exposed by the API.
 4. Profile edit → `/settings/profile` (see [company](./company.md)).
 5. Trade presence on Profile: buying / selling / trading only. Path (Me / mill · see each other) is **Your paths** — not on Profile. New middle-hop pair always starts **I handle**, they do **not** see each other (see [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md)).  

@@ -288,6 +288,8 @@ export const MessageType = {
   Document: 'document',
   CollectionCard: 'collection_card',
   ProductCard: 'product_card',
+  /** Chat-friendly collage of 2+ designs (not a Collection). */
+  DesignAlbum: 'design_album',
   OrderCard: 'order_card',
   Rate: 'rate',
   System: 'system',

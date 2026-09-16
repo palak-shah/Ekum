@@ -1,15 +1,48 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AddressView, BillingFirmView, UpsertAddressDto } from '@ekum/domain-types';
-import { api } from '@/lib/apiClient';
+import type {
+  AddressView,
+  BillingFirmView,
+  UpsertAddressDto,
+  UpsertBillingFirmDto,
+} from '@ekum/domain-types';
+import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, Card, EmptyState, Field, LoadingBlock, SectionHeader, Sheet, Tag, TextInput } from '@/ui/kit';
+import {
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  InlineNotice,
+  LoadingBlock,
+  SectionHeader,
+  Sheet,
+  Tag,
+  TextInput,
+} from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
+
+const emptyAddress = (): UpsertAddressDto => ({
+  label: '',
+  line1: '',
+  city: '',
+  isDefault: false,
+});
+
+const emptyFirm = (): UpsertBillingFirmDto => ({
+  name: '',
+  gstNumber: '',
+  addressLine: '',
+  isDefault: false,
+});
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const [addrOpen, setAddrOpen] = useState(false);
-  const [addr, setAddr] = useState<UpsertAddressDto>({ label: '', line1: '', city: '', isDefault: false });
+  const [firmOpen, setFirmOpen] = useState(false);
+  const [addr, setAddr] = useState<UpsertAddressDto>(emptyAddress());
+  const [firm, setFirm] = useState<UpsertBillingFirmDto>(emptyFirm());
+  const [firmError, setFirmError] = useState<string | null>(null);
 
   const addresses = useQuery({
     queryKey: ['addresses'],
@@ -24,10 +57,42 @@ export function SettingsPage() {
     mutationFn: () => api.post('/settings/addresses', addr),
     onSuccess: () => {
       setAddrOpen(false);
-      setAddr({ label: '', line1: '', city: '', isDefault: false });
+      setAddr(emptyAddress());
       void queryClient.invalidateQueries({ queryKey: ['addresses'] });
     },
   });
+
+  const createFirm = useMutation({
+    mutationFn: (dto: UpsertBillingFirmDto) => api.post('/settings/billing-firms', dto),
+    onSuccess: () => {
+      setFirmOpen(false);
+      setFirm(emptyFirm());
+      setFirmError(null);
+      void queryClient.invalidateQueries({ queryKey: ['billing-firms'] });
+    },
+    onError: (err) => {
+      setFirmError(err instanceof ApiError ? err.message : 'Could not save billing firm.');
+    },
+  });
+
+  const openAddFirm = () => {
+    setFirmError(null);
+    setFirm({
+      ...emptyFirm(),
+      isDefault: (billingFirms.data?.length ?? 0) === 0,
+    });
+    setFirmOpen(true);
+  };
+
+  const saveFirm = () => {
+    setFirmError(null);
+    createFirm.mutate({
+      name: firm.name.trim(),
+      gstNumber: firm.gstNumber?.trim() || undefined,
+      addressLine: firm.addressLine?.trim() || undefined,
+      isDefault: firm.isDefault,
+    });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,17 +129,30 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-2">
-        <SectionHeader title="Billing firms" />
+        <SectionHeader
+          title="Billing firms"
+          action={
+            <button
+              type="button"
+              data-testid="settings-add-billing-firm"
+              className="text-xs font-medium text-accent"
+              onClick={openAddFirm}
+            >
+              Add
+            </button>
+          }
+        />
         {billingFirms.isLoading ? (
           <LoadingBlock />
         ) : billingFirms.data && billingFirms.data.length > 0 ? (
-          billingFirms.data.map((firm) => (
-            <Card key={firm.id} className="flex items-start justify-between">
+          billingFirms.data.map((row) => (
+            <Card key={row.id} className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-semibold text-ink">{firm.name}</p>
-                {firm.gstNumber ? <p className="text-xs text-muted">GST · {firm.gstNumber}</p> : null}
+                <p className="text-sm font-semibold text-ink">{row.name}</p>
+                {row.gstNumber ? <p className="text-xs text-muted">GST · {row.gstNumber}</p> : null}
+                {row.addressLine ? <p className="text-xs text-muted">{row.addressLine}</p> : null}
               </div>
-              {firm.isDefault ? <Tag tone="success">Default</Tag> : null}
+              {row.isDefault ? <Tag tone="success">Default</Tag> : null}
             </Card>
           ))
         ) : (
@@ -108,6 +186,43 @@ export function SettingsPage() {
             onClick={() => createAddress.mutate()}
           >
             Save address
+          </Button>
+        </div>
+      </Sheet>
+
+      <Sheet open={firmOpen} onClose={() => setFirmOpen(false)} title="New billing firm">
+        <div className="flex flex-col gap-3">
+          {firmError ? <InlineNotice message={firmError} /> : null}
+          <Field label="Firm name">
+            <TextInput
+              data-testid="billing-firm-name"
+              value={firm.name}
+              onChange={(e) => setFirm({ ...firm, name: e.target.value })}
+              placeholder="Business legal name"
+            />
+          </Field>
+          <Field label="GST number">
+            <TextInput
+              data-testid="billing-firm-gst"
+              value={firm.gstNumber ?? ''}
+              onChange={(e) => setFirm({ ...firm, gstNumber: e.target.value })}
+              placeholder="Optional"
+            />
+          </Field>
+          <Field label="Billing address">
+            <TextInput
+              value={firm.addressLine ?? ''}
+              onChange={(e) => setFirm({ ...firm, addressLine: e.target.value })}
+              placeholder="Optional"
+            />
+          </Field>
+          <Button
+            fullWidth
+            data-testid="billing-firm-save"
+            disabled={!firm.name.trim() || createFirm.isPending}
+            onClick={saveFirm}
+          >
+            {createFirm.isPending ? 'Saving…' : 'Save firm'}
           </Button>
         </div>
       </Sheet>

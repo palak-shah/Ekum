@@ -76,7 +76,10 @@ function rowLabel(row: CrossChatFindItemView, kind: CrossChatFindKind): string {
     return doc?.fileName?.trim() || 'Document';
   }
   if (kind === 'collections' || kind === 'designs') {
-    return msg.reference?.name?.trim() || (kind === 'collections' ? 'Collection' : 'Design');
+    return (
+      msg.reference?.name?.trim() ||
+      (kind === 'collections' ? 'Collection' : msg.type === 'design_album' ? 'Designs' : 'Design')
+    );
   }
   return 'Photo';
 }

@@ -471,14 +471,14 @@ describe('MessageService.list filters', () => {
     });
   });
 
-  it('scopes designs to product_card', async () => {
+  it('scopes designs to product_card and design_album', async () => {
     const captured: { where: unknown } = { where: null };
     const service = listService(captured);
     await service.list(actor('me'), 't', { view: 'designs', limit: 20 });
     expect(captured.where).toMatchObject({
       AND: expect.arrayContaining([
         { threadId: 't' },
-        { type: MessageType.ProductCard },
+        { type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] } },
       ]),
     });
   });
@@ -638,7 +638,9 @@ describe('MessageService.listFind', () => {
     const capturedDesigns: { where: unknown } = { where: null };
     await findService(capturedDesigns).listFind(actor('me'), { kind: 'designs', limit: 40 });
     expect(capturedDesigns.where).toMatchObject({
-      AND: expect.arrayContaining([{ type: MessageType.ProductCard }]),
+      AND: expect.arrayContaining([
+        { type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] } },
+      ]),
     });
   });
 });

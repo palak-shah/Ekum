@@ -151,6 +151,64 @@ describe('CatalogShareSheet multi-select share', () => {
     );
   });
 
+  it('posts 2+ designs as one design_album and offers 48h link', async () => {
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/threads/direct') {
+        return { id: 'thread-c1' } as never;
+      }
+      if (String(path).includes('/messages')) return { id: 'm1' } as never;
+      throw new Error(`unexpected post ${path}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') return [jaipur] as never;
+      if (path === '/access-requests/outgoing') return [] as never;
+      if (path === '/settings') {
+        return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
+      }
+      throw new Error(`unexpected get ${path}`);
+    });
+
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CatalogShareSheet
+            open
+            onClose={() => {}}
+            products={[
+              { productId: 'p1', name: 'A' },
+              { productId: 'p2', name: 'B' },
+            ]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('catalog-share-link')).toBeInTheDocument();
+    expect(screen.getByText(/Share 2 designs/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Jaipur Emporium/i }));
+    await user.click(screen.getByTestId('catalog-share-send'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/threads/thread-c1/messages',
+        expect.objectContaining({
+          type: 'design_album',
+          metadata: { productIds: ['p1', 'p2'] },
+        }),
+      );
+    });
+  });
+
   it('clears the selection', async () => {
     const { userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();

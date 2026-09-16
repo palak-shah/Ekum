@@ -4,7 +4,7 @@ import { API_URL } from './env';
 export async function createShareLink(
   request: APIRequestContext,
   accessToken: string,
-  body: { collectionId?: string; productId?: string },
+  body: { collectionId?: string; productId?: string; productIds?: string[] },
 ): Promise<{ token: string; name: string; kind: string; targetId: string }> {
   const res = await request.post(`${API_URL}/share-links`, {
     headers: { authorization: `Bearer ${accessToken}` },

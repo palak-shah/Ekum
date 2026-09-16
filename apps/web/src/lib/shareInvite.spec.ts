@@ -77,6 +77,19 @@ describe('catalogShareCopy', () => {
       catalogShareCopy({ name: '', kind: 'product', companyName: 'Surat Silk House' }).text,
     ).toContain('a design');
   });
+
+  it('says designs for a multi-design share', () => {
+    expect(
+      catalogShareCopy({
+        name: '3 designs',
+        kind: 'designs',
+        companyName: 'Surat Silk House',
+      }),
+    ).toEqual({
+      title: 'Surat Silk House · 3 designs',
+      text: 'Surat Silk House shared designs on Ekum',
+    });
+  });
 });
 
 describe('shareOrCopyInvite', () => {

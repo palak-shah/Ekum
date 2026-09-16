@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   CollectionStatus,
   ProductStatus,
+  designAlbumCaption,
   type CreateShareLinkDto,
   type ShareLinkDesignPreview,
   type ShareLinkView,
@@ -29,7 +30,51 @@ export class ShareLinkService {
         collection.companyId,
         collection.status === CollectionStatus.Published,
       );
-      const token = await this.insertToken('collection', collection.id, actorCompanyId);
+      const token = await this.insertToken({
+        kind: 'collection',
+        targetId: collection.id,
+        createdByCompanyId: actorCompanyId,
+      });
+      return this.get(token);
+    }
+
+    if (dto.productIds && dto.productIds.length >= 2) {
+      const seen = new Set<string>();
+      const productIds: string[] = [];
+      for (const id of dto.productIds) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        productIds.push(id);
+      }
+      if (productIds.length < 2) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Pick at least 2 designs.' });
+      }
+      const products = await this.prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+          postedToMarketAt: true,
+        },
+      });
+      const byId = new Map(products.map((row) => [row.id, row]));
+      for (const id of productIds) {
+        const product = byId.get(id);
+        if (!product) {
+          throw new NotFoundException({ code: 'NOT_FOUND', message: 'Design not found.' });
+        }
+        this.assertShareable(
+          actorCompanyId,
+          product.companyId,
+          product.status === ProductStatus.Published || Boolean(product.postedToMarketAt),
+        );
+      }
+      const token = await this.insertToken({
+        kind: 'designs',
+        productIds,
+        createdByCompanyId: actorCompanyId,
+      });
       return this.get(token);
     }
 
@@ -44,7 +89,11 @@ export class ShareLinkService {
       product.companyId,
       product.status === ProductStatus.Published || Boolean(product.postedToMarketAt),
     );
-    const token = await this.insertToken('product', product.id, actorCompanyId);
+    const token = await this.insertToken({
+      kind: 'product',
+      targetId: product.id,
+      createdByCompanyId: actorCompanyId,
+    });
     return this.get(token);
   }
 
@@ -85,6 +134,9 @@ export class ShareLinkService {
         expired: false,
         path: `/s/${token}`,
       };
+    }
+    if ((row.productIds?.length ?? 0) >= 2) {
+      return this.designsShareView(token, row.productIds);
     }
     if (row.productId) {
       const product = await this.prisma.product.findUnique({
@@ -143,6 +195,15 @@ export class ShareLinkService {
       if (paths.length === 0 && view.image) paths.push(view.image);
       return { paths, companyName: view.companyName };
     }
+    if ((row.productIds?.length ?? 0) >= 2) {
+      const designs = await this.productsAsDesignPreviews(row.productIds);
+      const paths = designs
+        .map((d) => d.image)
+        .filter((p): p is string => Boolean(p))
+        .slice(0, 4);
+      if (paths.length === 0 && view.image) paths.push(view.image);
+      return { paths, companyName: view.companyName };
+    }
     const paths = view.image ? [view.image] : [];
     return { paths, companyName: view.companyName };
   }
@@ -164,6 +225,71 @@ export class ShareLinkService {
       }
     }
     return buildShareLinkOgJpeg({ imageBuffers: buffers, sellerLabel: companyName });
+  }
+
+  private async designsShareView(
+    token: string,
+    productIds: string[],
+  ): Promise<ShareLinkView> {
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        id: true,
+        name: true,
+        images: true,
+        audience: true,
+        status: true,
+        postedToMarketAt: true,
+        company: { select: { name: true } },
+      },
+    });
+    const byId = new Map(products.map((row) => [row.id, row]));
+    const ordered = productIds.map((id) => byId.get(id)).filter(Boolean) as typeof products;
+    if (ordered.length < 1) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
+    }
+    const open = ordered.every((product) => shareLinkOpenForProduct(product));
+    const designs: ShareLinkDesignPreview[] = open
+      ? ordered.map((product) => ({
+          id: product.id,
+          name: product.name,
+          image: product.images[0] ?? null,
+        }))
+      : [];
+    const thumbs = ordered
+      .map((product) => product.images[0])
+      .filter((url): url is string => Boolean(url));
+    return {
+      token,
+      kind: 'designs',
+      targetId: ordered[0]!.id,
+      name: designAlbumCaption(productIds.length),
+      companyName: ordered[0]!.company.name,
+      image: thumbs[0] ?? null,
+      audience: ordered[0]!.audience,
+      open,
+      designs,
+      expired: false,
+      path: `/s/${token}`,
+    };
+  }
+
+  private async productsAsDesignPreviews(
+    productIds: string[],
+  ): Promise<ShareLinkDesignPreview[]> {
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, images: true },
+    });
+    const byId = new Map(products.map((row) => [row.id, row]));
+    return productIds
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((product) => ({
+        id: product!.id,
+        name: product!.name,
+        image: product!.images[0] ?? null,
+      }));
   }
 
   private async collectionDesigns(collectionId: string): Promise<ShareLinkDesignPreview[]> {
@@ -192,18 +318,20 @@ export class ShareLinkService {
     }
   }
 
-  private async insertToken(
-    kind: 'collection' | 'product',
-    targetId: string,
-    createdByCompanyId: string,
-  ): Promise<string> {
+  private async insertToken(options: {
+    kind: 'collection' | 'product' | 'designs';
+    targetId?: string;
+    productIds?: string[];
+    createdByCompanyId: string;
+  }): Promise<string> {
     const token = randomToken(18);
     await this.prisma.catalogShareLink.create({
       data: {
         token,
-        collectionId: kind === 'collection' ? targetId : null,
-        productId: kind === 'product' ? targetId : null,
-        createdByCompanyId,
+        collectionId: options.kind === 'collection' ? options.targetId! : null,
+        productId: options.kind === 'product' ? options.targetId! : null,
+        productIds: options.kind === 'designs' ? (options.productIds ?? []) : [],
+        createdByCompanyId: options.createdByCompanyId,
         expiresAt: new Date(Date.now() + TTL_MS),
       },
     });

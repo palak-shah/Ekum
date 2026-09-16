@@ -18,11 +18,15 @@ export function absoluteMediaUrl(image: string | null, mediaBase: string): strin
 
 export function shareLinkOgCopy(view: ShareLinkView): { title: string; description: string } {
   const seller = view.companyName.trim() || 'A business';
-  const what = view.kind === 'collection' ? 'collection' : 'design';
+  const what =
+    view.kind === 'collection' ? 'collection' : view.kind === 'designs' ? 'designs' : 'design';
   const name = view.name.trim() || what;
   return {
     title: `${seller} · ${name}`,
-    description: `${seller} shared a ${what} on Ekum — open to view.`,
+    description:
+      view.kind === 'designs'
+        ? `${seller} shared designs on Ekum — open to view.`
+        : `${seller} shared a ${what} on Ekum — open to view.`,
   };
 }
 

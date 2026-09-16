@@ -75,14 +75,22 @@ export function inviteShareCopy(options: {
 /** One clickable link. Do not attach a photo — messengers split image + URL. */
 export function catalogShareCopy(options: {
   name: string;
-  kind: 'collection' | 'product';
+  kind: 'collection' | 'product' | 'designs';
   companyName: string;
 }): { title: string; text: string } {
   const seller = options.companyName.trim() || 'A business';
   const item =
-    options.name.trim() || (options.kind === 'collection' ? 'a collection' : 'a design');
+    options.name.trim() ||
+    (options.kind === 'collection'
+      ? 'a collection'
+      : options.kind === 'designs'
+        ? 'designs'
+        : 'a design');
   return {
     title: `${seller} · ${item}`,
-    text: `${seller} shared ${item} on Ekum`,
+    text:
+      options.kind === 'designs'
+        ? `${seller} shared designs on Ekum`
+        : `${seller} shared ${item} on Ekum`,
   };
 }

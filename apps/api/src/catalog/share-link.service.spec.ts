@@ -31,6 +31,7 @@ describe('ShareLinkService', () => {
           token: 'tok',
           collectionId: 'c1',
           productId: null,
+          productIds: [],
           expiresAt: new Date(Date.now() + 60_000),
         })),
       },
@@ -56,6 +57,7 @@ describe('ShareLinkService', () => {
           token: 'tok',
           collectionId: 'c1',
           productId: null,
+          productIds: [],
           expiresAt: new Date(Date.now() + 60_000),
         })),
       },
@@ -105,6 +107,58 @@ describe('ShareLinkService', () => {
     const view = await svc.get('t');
     expect(view.open).toBe(true);
     expect(view.designs).toEqual([{ id: 'p1', name: 'Saree', image: 'a.jpg' }]);
+  });
+
+  it('creates a designs link for 2+ product ids', async () => {
+    const products = [
+      {
+        id: 'p1',
+        name: 'A',
+        images: ['a.jpg'],
+        companyId: 'owner',
+        company: { name: 'Surat Silk House' },
+        audience: PublishAudience.Everyone,
+        status: 'published',
+        postedToMarketAt: new Date(),
+      },
+      {
+        id: 'p2',
+        name: 'B',
+        images: ['b.jpg'],
+        companyId: 'owner',
+        company: { name: 'Surat Silk House' },
+        audience: PublishAudience.Everyone,
+        status: 'published',
+        postedToMarketAt: new Date(),
+      },
+    ];
+    const prisma = {
+      product: {
+        findMany: vi.fn(async () => products),
+      },
+      catalogShareLink: {
+        create: vi.fn(async () => ({})),
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: null,
+          productId: null,
+          productIds: ['p1', 'p2'],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+    } as unknown as PrismaService;
+    const svc = new ShareLinkService(prisma);
+    const view = await svc.create('owner', { productIds: ['p1', 'p2'] });
+    expect(view.kind).toBe('designs');
+    expect(view.name).toBe('2 designs');
+    expect(view.companyName).toBe('Surat Silk House');
+    expect(view.open).toBe(true);
+    expect(view.designs).toHaveLength(2);
+    expect(prisma.catalogShareLink.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ productIds: ['p1', 'p2'] }),
+      }),
+    );
   });
 
   it('does not leak designs for a Connections album', async () => {

@@ -7,12 +7,12 @@
  * Kind colors (Order / Collection / Design) are platform object hues — not status.
  */
 @theme {
-  /* Crisp / high-contrast tokens — ivory canvas stays; ink & teal gain definition. */
+  /* Crisp / high-contrast tokens — white page canvas; ink & teal gain definition. */
   --color-ink: #1a1714;
   --color-muted: #5a554c;
   --color-slate: #2c2824;
   --color-surface: #ffffff;
-  --color-canvas: #f7f3ea;
+  --color-canvas: #ffffff;
   --color-foam: #dce9e8;
   --color-linen: #e4e1d4;
   --color-line: #ddd6c8;

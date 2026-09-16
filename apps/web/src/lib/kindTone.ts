@@ -67,6 +67,7 @@ export function kindToneForMessageType(type: string | null | undefined): KindTon
     case 'collections':
       return 'collection';
     case 'product_card':
+    case 'design_album':
     case 'designs':
       return 'design';
     case 'orders':

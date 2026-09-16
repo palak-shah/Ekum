@@ -197,19 +197,25 @@ export interface CollectionDetailView extends CollectionView {
   products: ProductView[];
 }
 
+export const SHARE_LINK_DESIGNS_MAX = 50;
+
 export const createShareLinkSchema = z
   .object({
     collectionId: z.string().min(1).optional(),
     productId: z.string().min(1).optional(),
+    /** 2+ designs as one 48h door (not a Collection). */
+    productIds: z.array(z.string().min(1)).min(2).max(SHARE_LINK_DESIGNS_MAX).optional(),
   })
   .superRefine((value, ctx) => {
     const hasCollection = Boolean(value.collectionId);
     const hasProduct = Boolean(value.productId);
-    if (hasCollection === hasProduct) {
+    const hasDesigns = Boolean(value.productIds && value.productIds.length >= 2);
+    const n = Number(hasCollection) + Number(hasProduct) + Number(hasDesigns);
+    if (n !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Pick one album or one design.',
-        path: ['collectionId'],
+        message: 'Pick one album, one design, or several designs.',
+        path: hasDesigns ? ['productIds'] : ['collectionId'],
       });
     }
   });
@@ -223,7 +229,8 @@ export interface ShareLinkDesignPreview {
 
 export interface ShareLinkView {
   token: string;
-  kind: 'collection' | 'product';
+  kind: 'collection' | 'product' | 'designs';
+  /** Collection/product id; for designs = first product id. */
   targetId: string;
   name: string;
   /** Catalog owner business — used in WhatsApp share / OG. */

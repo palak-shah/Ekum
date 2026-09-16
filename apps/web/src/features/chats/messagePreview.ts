@@ -38,6 +38,8 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
   switch (type) {
     case 'product_card':
       return { kind: 'product', label: 'Design', Icon: ProductIcon };
+    case 'design_album':
+      return { kind: 'photo', label: 'Designs', Icon: ProductIcon };
     case 'collection_card':
       return { kind: 'collection', label: 'Collection', Icon: CollectionIcon };
     case 'order_card':
@@ -147,6 +149,9 @@ export function messagePreviewText(message: MessageView | null | undefined): str
     case 'product_card':
     case 'collection_card':
       core = name ? `Shared: ${name}` : 'Shared a card';
+      break;
+    case 'design_album':
+      core = name || message.body?.trim() || 'Designs';
       break;
     case 'payment_card':
       core = name || 'Payment';
