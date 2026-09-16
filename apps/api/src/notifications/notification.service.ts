@@ -92,9 +92,15 @@ export class NotificationService {
     return toCursorPage(rows, query.limit, (row) => this.toView(row));
   }
 
-  async unreadCount(companyId: string): Promise<{ count: number }> {
+  async unreadCount(companyId: string, userId?: string): Promise<{ count: number }> {
     const count = await this.prisma.notification.count({
-      where: { recipientCompanyId: companyId, readAt: null },
+      where: {
+        recipientCompanyId: companyId,
+        readAt: null,
+        ...(userId
+          ? { OR: [{ recipientUserId: null }, { recipientUserId: userId }] }
+          : {}),
+      },
     });
     return { count };
   }
@@ -244,6 +250,7 @@ export class NotificationService {
       title: input.title,
       body: input.body ?? null,
       type: input.type,
+      url: pushDeepLink(input.refType, input.refId),
     });
   }
 
@@ -258,5 +265,26 @@ export class NotificationService {
       read: notification.readAt !== null,
       createdAt: notification.createdAt.toISOString(),
     };
+  }
+}
+
+/** Path for web-push click; mirrors web `notificationDeepLink`. */
+export function pushDeepLink(refType?: string | null, refId?: string | null): string {
+  if (!refType) return '/notifications';
+  switch (refType) {
+    case 'order':
+      return refId ? `/orders/${refId}` : '/orders';
+    case 'thread':
+      return refId ? `/chats/${refId}` : '/chats';
+    case 'company':
+      return refId ? `/company/${refId}` : '/notifications';
+    case 'collection':
+      return refId ? `/collections/${refId}` : '/notifications';
+    case 'product':
+      return refId ? `/explore/products/${refId}` : '/notifications';
+    case 'broadcast':
+      return '/broadcast';
+    default:
+      return '/notifications';
   }
 }

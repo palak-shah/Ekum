@@ -85,4 +85,24 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     await user.click(wrap.querySelector('button')!);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('non-interactive collage does not open viewer (forward select)', async () => {
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <PhotoAlbum
+        urls={[
+          'https://example.com/a.jpg',
+          'https://example.com/b.jpg',
+          'https://example.com/c.jpg',
+        ]}
+        interactive={false}
+      />,
+    );
+    const collage = screen.getByTestId('photo-album-collage');
+    expect(collage).toHaveAttribute('data-interactive', 'false');
+    expect(collage.className).toMatch(/pointer-events-none/);
+    await user.click(collage.querySelector('button')!);
+    expect(screen.queryByTestId('photo-viewer')).toBeNull();
+  });
 });

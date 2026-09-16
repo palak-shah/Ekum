@@ -76,7 +76,9 @@ test.describe('order fulfillment @functional @orders', () => {
     await page.getByTestId('order-settle-open').first().click();
     const settleSheet = page.getByRole('dialog');
     await expect(settleSheet.getByRole('heading', { name: 'Settle order' })).toBeVisible();
+    await expect(settleSheet.getByTestId('settle-pending-summary')).toBeVisible();
     await expect(settleSheet.getByTestId('settle-qty-columns').first()).toBeVisible();
+    await expect(settleSheet.getByTestId('settle-line-pending').first()).toBeVisible();
     await expect(settleSheet.getByText('Dispatched').first()).toBeVisible();
     await expect(settleSheet.getByText('Pending').first()).toBeVisible();
     await expect(settleSheet.getByTestId('settle-qty-pending').first()).toBeVisible();

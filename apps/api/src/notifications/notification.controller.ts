@@ -29,8 +29,8 @@ export class NotificationController {
   }
 
   @Get('unread-count')
-  unreadCount(@CurrentCompanyId() companyId: string) {
-    return this.notifications.unreadCount(companyId);
+  unreadCount(@CurrentCompanyId() companyId: string, @CurrentUser() user: AuthPrincipal) {
+    return this.notifications.unreadCount(companyId, user.userId);
   }
 
   @Get('preferences')

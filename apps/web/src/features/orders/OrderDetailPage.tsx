@@ -28,7 +28,7 @@ import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
-import { ShipProgressHint, SettleQtyColumns } from '@/features/orders/shipProgressLabel';
+import { ShipProgressHint, SettleQtyColumns, SettlePendingSummary, fulfillmentRowClass } from '@/features/orders/shipProgressLabel';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
@@ -1399,35 +1399,54 @@ export function OrderDetailPage() {
         : null}
 
       {!(data.millDesks && data.millDesks.length > 0) || isBuyer ? (
-      <Card className="flex flex-col gap-3">
-        {data.items.map((item) => (
-          <div key={item.id} className="flex items-center gap-3">
-            <OrderLinePhoto item={item} items={data.items} onOpen={openPhotoViewer} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-              <p className="text-xs text-muted">
-                {item.quantity}
-                {item.requestedQuantity !== item.quantity
-                  ? ` of ${item.requestedQuantity} asked`
-                  : ''}{' '}
-                × {formatRate(item.rate, item.unit)}
-              </p>
-              <p className="text-[11px] font-medium text-slate">
-                {lineStatusLabel(item.lineStatus)}
-                {item.shippedQuantity > 0 ? (
-                  <>
-                    {' · '}
-                    <ShipProgressHint
-                      shipped={item.shippedQuantity}
-                      pending={item.remainingQuantity}
-                    />
-                  </>
-                ) : null}
-              </p>
-              {item.note ? <p className="text-xs text-muted">{item.note}</p> : null}
+      <Card className="flex flex-col gap-2">
+        {data.items.map((item) => {
+          const pending = item.remainingQuantity ?? 0;
+          const partOpen = item.shippedQuantity > 0 && pending > 0;
+          return (
+            <div
+              key={item.id}
+              className={cx(
+                'flex items-center gap-3 rounded-xl px-2 py-2',
+                partOpen && 'border border-accent/40 bg-accent/5',
+              )}
+              data-testid={partOpen ? 'order-line-pending' : undefined}
+            >
+              <OrderLinePhoto item={item} items={data.items} onOpen={openPhotoViewer} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                <p className="text-xs text-muted">
+                  {item.quantity}
+                  {item.requestedQuantity !== item.quantity
+                    ? ` of ${item.requestedQuantity} asked`
+                    : ''}{' '}
+                  × {formatRate(item.rate, item.unit)}
+                </p>
+                <p className="text-[11px] font-medium text-slate">
+                  {lineStatusLabel(item.lineStatus)}
+                  {item.shippedQuantity > 0 ? (
+                    <>
+                      {' · '}
+                      <ShipProgressHint
+                        shipped={item.shippedQuantity}
+                        pending={pending}
+                      />
+                    </>
+                  ) : null}
+                </p>
+                {item.note ? <p className="text-xs text-muted">{item.note}</p> : null}
+              </div>
+              {partOpen ? (
+                <p
+                  className="shrink-0 text-lg font-bold tabular-nums text-accent"
+                  data-testid="order-line-pending-qty"
+                >
+                  {pending}
+                </p>
+              ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {data.note ? <p className="border-t border-line pt-2 text-sm text-muted">{data.note}</p> : null}
         {data.noteVoiceUrl ? (
           <div className="border-t border-line pt-2">
@@ -2154,31 +2173,64 @@ export function OrderDetailPage() {
           <p className="text-sm text-muted">
             Won’t ship the rest. Ticket closes as Settled; quantities become what already shipped.
           </p>
-          {(data.items ?? [])
-            .filter((item) => item.lineStatus !== 'declined')
-            .map((item) => {
-              const shipped = item.shippedQuantity ?? 0;
-              const pending = item.remainingQuantity ?? 0;
-              return (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-2 rounded-xl border border-line p-3"
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                    <OrderLinePhoto
-                      item={item}
-                      items={data.items}
-                      onOpen={openPhotoViewer}
-                      size="sm"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                      <SettleQtyColumns dispatched={shipped} pending={pending} />
+          {(() => {
+            const settleLines = (data.items ?? []).filter(
+              (item) => item.lineStatus !== 'declined',
+            );
+            const pendingLines = settleLines.filter((item) => (item.remainingQuantity ?? 0) > 0);
+            const pendingPieces = pendingLines.reduce(
+              (sum, item) => sum + (item.remainingQuantity ?? 0),
+              0,
+            );
+            return (
+              <>
+                <SettlePendingSummary
+                  designCount={pendingLines.length}
+                  pendingPieces={pendingPieces}
+                />
+                {settleLines.map((item) => {
+                  const shipped = item.shippedQuantity ?? 0;
+                  const pending = item.remainingQuantity ?? 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className={cx(
+                        'flex items-center gap-2',
+                        fulfillmentRowClass(pending),
+                      )}
+                      data-testid={
+                        pending > 0 ? 'settle-line-pending' : 'settle-line-done'
+                      }
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                        <OrderLinePhoto
+                          item={item}
+                          items={data.items}
+                          onOpen={openPhotoViewer}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                          <SettleQtyColumns dispatched={shipped} pending={pending} />
+                        </div>
+                      </div>
+                      {pending > 0 ? (
+                        <p
+                          className="shrink-0 text-xl font-bold tabular-nums text-accent"
+                          data-testid="settle-line-pending-qty"
+                          aria-label={`${pending} pending`}
+                        >
+                          {pending}
+                        </p>
+                      ) : (
+                        <p className="shrink-0 text-[12px] font-medium text-muted">Done</p>
+                      )}
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </>
+            );
+          })()}
           <NoteVoiceField
             label="Note"
             note={settleNote}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationType } from '@ekum/domain-types';
-import { NotificationService } from './notification.service';
+import { NotificationService, pushDeepLink } from './notification.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { WebPushService } from './web-push.service';
 
@@ -11,6 +11,7 @@ function makeService(overrides: Partial<PrismaService> = {}) {
     notification: {
       create: vi.fn(async () => ({ id: 'n1' })),
       deleteMany: vi.fn(async () => ({ count: 0 })),
+      count: vi.fn(async () => 0),
       ...overrides.notification,
     },
     companyMembership: {
@@ -53,9 +54,30 @@ describe('NotificationService.create push fan-out', () => {
       recipientCompanyId: 'co',
       type: NotificationType.Message,
       title: 'New message',
+      refType: 'thread',
+      refId: 'th-1',
     });
     expect(capturedPushUserIds).toEqual(['u2']);
     expect(sendMany).toHaveBeenCalledOnce();
+    expect(sendMany.mock.calls[0]![1]).toMatchObject({ url: '/chats/th-1' });
+  });
+});
+
+describe('NotificationService.unreadCount scope', () => {
+  it('scopes unread count to company + viewer (null or self user rows)', async () => {
+    const count = vi.fn(async () => 2);
+    const { service } = makeService({
+      notification: { count },
+    } as Partial<PrismaService>);
+    const result = await service.unreadCount('co-a', 'user-me');
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        recipientCompanyId: 'co-a',
+        readAt: null,
+        OR: [{ recipientUserId: null }, { recipientUserId: 'user-me' }],
+      },
+    });
+    expect(result.count).toBe(2);
   });
 });
 
@@ -93,5 +115,17 @@ describe('NotificationService.delete', () => {
       where: { recipientCompanyId: 'co-a' },
     });
     expect(result.deleted).toBe(5);
+  });
+});
+
+describe('pushDeepLink', () => {
+  it('maps ref types to app paths', () => {
+    expect(pushDeepLink('order', 'o1')).toBe('/orders/o1');
+    expect(pushDeepLink('thread', 't1')).toBe('/chats/t1');
+    expect(pushDeepLink('collection', 'c1')).toBe('/collections/c1');
+    expect(pushDeepLink('product', 'p1')).toBe('/explore/products/p1');
+    expect(pushDeepLink('broadcast', 'b1')).toBe('/broadcast');
+    expect(pushDeepLink('company', 'co1')).toBe('/company/co1');
+    expect(pushDeepLink(null, null)).toBe('/notifications');
   });
 });

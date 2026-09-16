@@ -3,7 +3,7 @@
 // Renders web-push payloads and focuses/opens the app on click.
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'Ekum', body: '', type: '' };
+  let payload = { title: 'Ekum', body: '', type: '', url: '/' };
   try {
     if (event.data) {
       payload = { ...payload, ...event.data.json() };
@@ -17,19 +17,26 @@ self.addEventListener('push', (event) => {
       tag: payload.type || undefined,
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
+      data: { url: payload.url || '/' },
     }),
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl =
+    (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      const existing = windowClients.find((client) => 'focus' in client);
-      if (existing) {
-        return existing.focus();
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          if ('navigate' in client && typeof client.navigate === 'function') {
+            return client.navigate(targetUrl).then((navigated) => (navigated || client).focus());
+          }
+          return client.focus();
+        }
       }
-      return clients.openWindow('/');
+      return clients.openWindow(targetUrl);
     }),
   );
 });

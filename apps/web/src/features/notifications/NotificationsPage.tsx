@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CursorPage, NotificationPreferencesView, NotificationView } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
@@ -7,23 +7,10 @@ import { timeAgo } from '@/lib/format';
 import { enablePush, pushSupported } from '@/lib/push';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button, Card, EmptyState, LoadingBlock, Sheet } from '@/ui/kit';
-
-function link(item: NotificationView): string {
-  switch (item.refType) {
-    case 'order':
-      return `/orders/${item.refId}`;
-    case 'thread':
-      return `/chats/${item.refId}`;
-    case 'company':
-      return `/company/${item.refId}`;
-    case 'return':
-      return `/orders`;
-    default:
-      return '/notifications';
-  }
-}
+import { openNotificationItem } from './openNotificationItem';
 
 export function NotificationsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -37,28 +24,34 @@ export function NotificationsPage() {
     queryFn: () => api.get<NotificationPreferencesView>('/notifications/preferences'),
   });
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  const invalidateFeed = () => {
+    void queryClient.invalidateQueries({ queryKey: ['notifications', 'feed'] });
+    void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
   };
 
   const markAll = useMutation({
     mutationFn: () => api.post('/notifications/read', {}),
-    onSuccess: invalidate,
+    onSuccess: invalidateFeed,
   });
 
   const clearRead = useMutation({
     mutationFn: () => api.del('/notifications/read'),
-    onSuccess: invalidate,
+    onSuccess: invalidateFeed,
   });
 
   const clearAll = useMutation({
     mutationFn: () => api.del('/notifications'),
-    onSuccess: invalidate,
+    onSuccess: invalidateFeed,
   });
 
   const deleteOne = useMutation({
     mutationFn: (id: string) => api.del(`/notifications/${id}`),
-    onSuccess: invalidate,
+    onSuccess: invalidateFeed,
+  });
+
+  const markRead = useMutation({
+    mutationFn: (id: string) => api.post(`/notifications/${id}/read`, {}),
+    onSuccess: invalidateFeed,
   });
 
   const setPref = useMutation({
@@ -66,6 +59,14 @@ export function NotificationsPage() {
       api.put<NotificationPreferencesView>('/notifications/preferences', { pushEnabled }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', 'preferences'] }),
   });
+
+  const openItem = async (item: NotificationView) => {
+    await openNotificationItem({
+      item,
+      markRead: (id) => markRead.mutateAsync(id),
+      navigate,
+    });
+  };
 
   const turnOnPush = async () => {
     setPushBusy(true);
@@ -141,7 +142,11 @@ export function NotificationsPage() {
               data-testid="notification-item"
               className="flex items-start gap-1 rounded-xl px-1 py-2.5 hover:bg-foam"
             >
-              <Link to={link(item)} className="flex min-w-0 flex-1 items-start gap-2 px-1">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-start gap-2 px-1 text-left"
+                onClick={() => void openItem(item)}
+              >
                 <span
                   className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read ? 'bg-transparent' : 'bg-accent'}`}
                 />
@@ -150,7 +155,7 @@ export function NotificationsPage() {
                   {item.body ? <p className="text-xs text-muted">{item.body}</p> : null}
                 </div>
                 <span className="shrink-0 text-xs text-muted">{timeAgo(item.createdAt)}</span>
-              </Link>
+              </button>
               <button
                 type="button"
                 data-testid="notification-delete"

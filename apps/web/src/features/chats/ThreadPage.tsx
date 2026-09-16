@@ -3091,7 +3091,7 @@ function TimelineItem({
                 <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
               </div>
             ) : null}
-            <PhotoAlbum urls={photoUrls} />
+            <PhotoAlbum urls={photoUrls} interactive={!selecting} />
             <p className="px-3 py-1.5 text-right text-xs text-muted">
               {timeAgo(message.createdAt)}
             </p>

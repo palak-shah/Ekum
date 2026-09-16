@@ -1,5 +1,20 @@
 import { cx } from '@/ui/kit';
 
+/** Rows that still need ship/settle attention — accent wash so 100s of lines stay scannable. */
+export function fulfillmentNeedsAttention(pending: number): boolean {
+  return pending > 0;
+}
+
+export function fulfillmentRowClass(pending: number, className?: string): string {
+  return cx(
+    'rounded-xl border p-3',
+    fulfillmentNeedsAttention(pending)
+      ? 'border-accent/40 bg-accent/5'
+      : 'border-line bg-surface',
+    className,
+  );
+}
+
 /** Shipped (quiet) + pending (accent when open) — order line / dispatch cue. */
 export function ShipProgressHint({
   shipped,
@@ -37,10 +52,7 @@ export function SettleQtyColumns({
   pending: number;
 }) {
   return (
-    <div
-      className="mt-1.5 grid grid-cols-2 gap-3"
-      data-testid="settle-qty-columns"
-    >
+    <div className="mt-1.5 grid grid-cols-2 gap-3" data-testid="settle-qty-columns">
       <div>
         <p className="text-[11px] font-medium text-muted">Dispatched</p>
         <p className="text-base font-semibold tabular-nums text-ink">{dispatched}</p>
@@ -57,6 +69,29 @@ export function SettleQtyColumns({
           {pending}
         </p>
       </div>
+    </div>
+  );
+}
+
+/** Sticky settle summary — scan totals without reading every row. */
+export function SettlePendingSummary({
+  designCount,
+  pendingPieces,
+}: {
+  designCount: number;
+  pendingPieces: number;
+}) {
+  if (pendingPieces <= 0) return null;
+  return (
+    <div
+      className="rounded-xl border border-accent/40 bg-accent/5 px-3 py-2.5"
+      data-testid="settle-pending-summary"
+    >
+      <p className="text-sm font-semibold text-accent">
+        {designCount} {designCount === 1 ? 'design' : 'designs'} ·{' '}
+        <span className="tabular-nums">{pendingPieces}</span> pending
+      </p>
+      <p className="mt-0.5 text-[12px] text-muted">Highlighted rows won’t ship. Rest already out.</p>
     </div>
   );
 }

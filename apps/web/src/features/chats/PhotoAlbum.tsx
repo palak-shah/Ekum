@@ -72,11 +72,17 @@ export function PhotoAlbum({
   size = 'full',
   /** Gated catalog: small blurred teaser; never open PhotoViewer. */
   locked = false,
+  /**
+   * When false (chat forward select), clicks pass through to MessageChrome —
+   * don’t open PhotoViewer / steal the tap.
+   */
+  interactive = true,
 }: {
   urls: string[];
   overflowCount?: number;
   size?: 'full' | 'compact' | 'thumb';
   locked?: boolean;
+  interactive?: boolean;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Drop blanks so a bad reference never throws through the router error boundary.
@@ -85,11 +91,12 @@ export function PhotoAlbum({
   const preview = clean.slice(0, thumb ? 2 : 4);
   const compact = size === 'compact';
   const overlayClass = thumb ? 'text-[10px]' : compact ? 'text-sm' : 'text-2xl';
+  const canOpen = interactive && !locked;
 
   if (clean.length === 0) return null;
 
   const open = (index: number) => {
-    if (locked) return;
+    if (!canOpen) return;
     setViewerIndex(index);
   };
   /** Thumbs beyond the preview, plus designs with no image still counted on the card. */
@@ -98,7 +105,7 @@ export function PhotoAlbum({
   const count = preview.length;
 
   const viewer =
-    locked || viewerIndex === null ? null : (
+    !canOpen || viewerIndex === null ? null : (
       <PhotoViewer
         open
         urls={clean}
@@ -294,8 +301,14 @@ export function PhotoAlbum({
   return (
     <>
       <div
-        className={cx('overflow-hidden', shellWidth)}
+        className={cx(
+          'overflow-hidden',
+          shellWidth,
+          // Select mode: let MessageChrome receive the tap (toggle), don’t open viewer.
+          !interactive && 'pointer-events-none',
+        )}
         data-testid={count >= 2 ? 'photo-album-collage' : undefined}
+        data-interactive={interactive ? undefined : 'false'}
         data-locked={locked ? 'true' : undefined}
       >
         {grid}

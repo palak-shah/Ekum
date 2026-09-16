@@ -9,6 +9,8 @@ export interface PushPayload {
   title: string;
   body: string | null;
   type: string;
+  /** App path to open on notification click, e.g. `/orders/abc`. */
+  url?: string;
 }
 
 /**
