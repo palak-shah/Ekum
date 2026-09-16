@@ -14,6 +14,13 @@ const CONTENT_TYPES: Record<string, string> = {
   '.m4a': 'audio/mp4',
   '.mp3': 'audio/mpeg',
   '.mp4': 'audio/mp4',
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.csv': 'text/csv',
+  '.txt': 'text/plain',
 };
 
 /**

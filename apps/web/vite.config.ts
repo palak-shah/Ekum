@@ -87,6 +87,10 @@ export default defineConfig(({ mode }) => {
       // imports our push handler so browser push works even when the tab is shut.
       workbox: {
         navigateFallback: 'index.html',
+        // Chat Document / voice open same-origin `/media/…` as a real navigation
+        // (target=_blank). Without a denylist, Workbox serves index.html and the
+        // browser shows “Failed to load PDF document” (images in <img> still work).
+        navigateFallbackDenylist: [/^\/api/, /^\/media/],
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },
