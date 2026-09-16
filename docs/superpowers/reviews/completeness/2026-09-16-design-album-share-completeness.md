@@ -66,6 +66,7 @@
 | Gap | No first-class “design set” route today |
 | Recommendation | Landing keeps collage; after join stay on `/s/:token` while open or navigate to a thin multi-design surface — not a Collection viewer |
 | Priority | Required before calling done — must not dump to first design only as the sole story |
+| Resolution | **Closed** — `/designs/set?ids=…` (`DesignSetPage`); chat **View designs →** + authenticated 48h landing both open the virtual set; access remains per design |
 
 ---
 

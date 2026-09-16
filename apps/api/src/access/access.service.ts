@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -173,6 +174,14 @@ export class AccessService {
     request: { id: string; requesterCompanyId: string; targetCompanyId: string },
     actor: AuthPrincipal,
   ): Promise<void> {
+    // Approver must be acting as the request target (CurrentCompanyId === JWT company).
+    if (actor.companyId !== request.targetCompanyId) {
+      throw new ForbiddenException({
+        code: 'COMPANY_MISMATCH',
+        message: 'Switch to the business that received this request.',
+      });
+    }
+
     // A block must be lifted explicitly; approving a request must never silently
     // reactivate a connection either side has blocked.
     const pair = connectionPairWhere(request.targetCompanyId, request.requesterCompanyId);
@@ -205,7 +214,7 @@ export class AccessService {
 
     await this.audit.record({
       actorUserId: actor.userId,
-      actorCompanyId: request.targetCompanyId,
+      actorCompanyId: actor.companyId,
       action: 'access.approved',
       targetType: 'access_request',
       targetId: request.id,

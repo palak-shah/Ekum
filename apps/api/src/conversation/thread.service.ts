@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Prisma, type Thread, type ThreadParticipant } from '@prisma/client';
 import {
   MAX_PINNED_THREADS,
@@ -491,6 +491,13 @@ export class ThreadService {
     threadId: string,
     actor: AuthPrincipal,
   ): Promise<ThreadDetail> {
+    // Controller passes CurrentCompanyId + CurrentUser; keep them aligned for audit.
+    if (actor.companyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'COMPANY_MISMATCH',
+        message: 'Switch to the business that owns this chat.',
+      });
+    }
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, actor.userId);
     if (mine.state === ThreadParticipantState.Pending) {
       await this.prisma.threadParticipant.update({

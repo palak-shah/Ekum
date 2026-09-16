@@ -1,17 +1,20 @@
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ShareLinkView } from '@ekum/domain-types';
+import { designSetPath } from '@/features/browse/designSetPath';
+import { DesignAlbumGrid } from '@/features/chats/DesignAlbumGrid';
 import { api } from '@/lib/apiClient';
 import { useAuth } from '@/lib/auth';
 import { stashInviteReturn } from '@/lib/inviteReturn';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { DesignAlbumGrid } from '@/features/chats/DesignAlbumGrid';
 import { Button, ErrorState, LoadingBlock } from '@/ui/kit';
 
 function viewerPath(data: ShareLinkView): string {
-  return data.kind === 'collection'
-    ? `/collections/${data.targetId}`
-    : `/explore/products/${data.targetId}`;
+  if (data.kind === 'collection') return `/collections/${data.targetId}`;
+  if (data.kind === 'designs') {
+    return designSetPath(data.designs.map((d) => d.id));
+  }
+  return `/explore/products/${data.targetId}`;
 }
 
 function kindLabel(kind: ShareLinkView['kind']): string {
@@ -56,18 +59,9 @@ export function ShareLinkLandingPage() {
   if (status === 'authenticated' && session?.needsOnboarding) {
     return <Navigate to="/onboarding" replace state={{ from: `/s/${token}` }} />;
   }
-  // Single album/design: jump to the live viewer. Designs set stays on this page.
-  if (authenticated && data.kind !== 'designs') {
+  if (authenticated) {
     return <Navigate to={viewerPath(data)} replace />;
   }
-
-  const openDesign = (designId: string) => {
-    if (authenticated) {
-      navigate(`/explore/products/${designId}`);
-      return;
-    }
-    goJoin();
-  };
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
@@ -85,12 +79,7 @@ export function ShareLinkLandingPage() {
               <DesignAlbumGrid
                 items={data.designs}
                 interactive
-                designPath={
-                  authenticated
-                    ? (id) => `/explore/products/${id}`
-                    : undefined
-                }
-                onOpenDesign={authenticated ? undefined : openDesign}
+                onOpenDesign={() => goJoin()}
               />
             ) : data.image ? (
               <img
@@ -127,7 +116,7 @@ export function ShareLinkLandingPage() {
               <button
                 key={design.id}
                 type="button"
-                onClick={() => openDesign(design.id)}
+                onClick={goJoin}
                 className="overflow-hidden rounded-2xl border border-line bg-surface text-left"
               >
                 {design.image ? (
@@ -149,16 +138,7 @@ export function ShareLinkLandingPage() {
           </div>
         ) : null}
       </div>
-      <Button
-        fullWidth
-        onClick={() => {
-          if (authenticated && data.kind === 'designs' && data.designs[0]) {
-            navigate(`/explore/products/${data.designs[0].id}`);
-            return;
-          }
-          goJoin();
-        }}
-      >
+      <Button fullWidth onClick={goJoin}>
         {data.open ? 'Open on Ekum' : 'Request access'}
       </Button>
     </div>

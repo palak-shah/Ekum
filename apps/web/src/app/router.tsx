@@ -41,6 +41,10 @@ const CollectionViewerPage = page(
   () => import('@/features/collections/CollectionViewerPage'),
   'CollectionViewerPage',
 );
+const DesignSetPage = page(
+  () => import('@/features/browse/DesignSetPage'),
+  'DesignSetPage',
+);
 const ProductDetailPage = page(
   () => import('@/features/collections/ProductDetailPage'),
   'ProductDetailPage',
@@ -179,6 +183,7 @@ export const router = createBrowserRouter([
               { path: 'search', element: <SearchPage /> },
               { path: 'company/:id', element: <CompanyProfilePage /> },
               { path: 'collections/:id', element: <CollectionViewerPage /> },
+              { path: 'designs/set', element: <DesignSetPage /> },
               { path: 'products/:id', element: <ProductDetailPage /> },
               { path: 'orders', element: <OrdersPage /> },
               { path: 'orders/new', element: <OrderBuilderPage /> },

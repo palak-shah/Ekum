@@ -1,7 +1,7 @@
 # Grouped designs share (chat + 48h) — design
 
 **Date:** 2026-09-16  
-**Status:** Approved for implementation  
+**Status:** Implemented  
 **Anchors:** Completeness `2026-09-16-design-album-share-completeness.md`, `docs/features/chat.md`, `docs/features/explore.md`, CatalogShareSheet, PhotoAlbum / photo messages, share-link 48h
 
 ## Job
@@ -16,14 +16,16 @@ Today multi-select posts **N `product_card`s** and hides **Share a link · 48 ho
 
 | Surface | Behavior |
 |--------|----------|
-| Chat | One message type `design_album` with `metadata.productIds`. Bubble = **grid of designs** (thumb + name + **View design →**). Tap / View design → same as a single design card (`/explore/products/:id`). |
-| 48h link | Kind `designs` with same `productIds`. Landing = same named design grid; tap opens design (or join first). |
+| Chat | Clubbed collage card (**{N} designs** + **View designs →**) — collection-like chrome, **designs** wording. Opens virtual set `/designs/set`. |
+| 48h link | Kind `designs`; after join → same virtual set. |
+| Access | **Per design** — audience / connection / grants / blur. Set does not unlock a design you couldn’t open alone. |
+| Catalog | **Nothing** created. |
 | Catalog | **Nothing** created in My Catalog. |
 
 ### Visual / copy (required)
 
-- **Do:** each design shows **name** + **View design →**; tap opens the design page like `product_card`.  
-- **Don’t:** photo-only / PhotoViewer-as-primary; `collection_card` / pack chrome.
+- **Do:** compact tiles with names in chat; on open, design caption + **View design →**.  
+- **Don’t:** photo-only viewer; big per-design trade cards in the bubble; pack/collection chrome.
 
 ### Share sheet
 

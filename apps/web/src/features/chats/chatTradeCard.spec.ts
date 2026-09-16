@@ -4,6 +4,7 @@ import { orderCardMessage, textMessage } from '@/test/messageFixtures';
 import {
   buildChatTradeCard,
   buildCollectionTradeCard,
+  buildDesignSetTradeCard,
   buildDesignTradeCard,
   buildOrderTradeCard,
   isRedundantActionDetail,
@@ -216,6 +217,34 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
     expect(model.primary).toBe('Banarasi Silk Saree');
     expect(model.who).toBe('Jaipur Emporium');
     expect(model.details).toEqual(['Order goes to Surat Silk House']);
+  });
+
+  it('design set card says Designs and View designs (not collection)', () => {
+    const message = textMessage({
+      id: 'd1',
+      type: 'design_album',
+      mine: false,
+      senderCompanyId: 'co-a',
+      reference: {
+        id: 'p1',
+        kind: 'designs',
+        name: '3 designs',
+        image: 'https://example.com/a.jpg',
+        images: ['https://example.com/a.jpg', 'https://example.com/b.jpg'],
+        productIds: ['p1', 'p2', 'p3'],
+        itemCount: 3,
+        available: true,
+        ownerCompanyId: 'co-a',
+        ownerCompanyName: 'Surat Silk House',
+      },
+    });
+    const model = buildDesignSetTradeCard(message, message.reference, 'Surat Silk House', {
+      designsPath: '/designs/set?ids=p1,p2,p3',
+    });
+    expect(model.kind).toBe('designs');
+    expect(model.primary).toBe('3 designs');
+    expect(model.action?.label).toBe('View designs →');
+    expect(model.action?.to).toContain('/designs/set');
   });
 });
 

@@ -13,6 +13,7 @@ function typeKeyForKind(kind: ChatTradeCardModel['kind']): string {
   if (kind === 'order') return 'order_card';
   if (kind === 'quote') return 'rate';
   if (kind === 'collection') return 'collection_card';
+  if (kind === 'designs') return 'design_album';
   return 'product_card';
 }
 

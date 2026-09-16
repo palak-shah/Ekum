@@ -8,7 +8,7 @@ import type { ConversationSerializer } from './conversation.serializer';
 import type { ReferenceResolver } from './reference-resolver';
 import type { AuthPrincipal } from '../auth/auth.types';
 
-const actor = { userId: 'u1', role: 'owner' } as AuthPrincipal;
+const actor = { userId: 'u1', companyId: 'me', role: 'owner' } as AuthPrincipal;
 
 describe('ThreadService.accept / decline', () => {
   it('activates a pending participant on accept and approves incoming access', async () => {

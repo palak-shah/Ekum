@@ -13,6 +13,7 @@ const actor: AuthPrincipal = {
   phone: '+910000000000',
   companyId: 'owner',
   role: 'owner',
+  permissions: null,
 };
 
 const events = { accessApproved: vi.fn() } as unknown as DomainEvents;
@@ -74,9 +75,16 @@ describe('AccessService.approve', () => {
     expect(events.accessApproved).toHaveBeenCalled();
   });
 
-  it('approveIncomingFromCounterpartIfPending is a no-op when none pending', async () => {
+  it('approveIncomingFromCounterpartIfPending rejects actor/company mismatch', async () => {
     const prisma = {
-      accessRequest: { findFirst: async () => null },
+      accessRequest: {
+        findFirst: async () => ({
+          id: 'req-2',
+          targetCompanyId: 'owner',
+          requesterCompanyId: 'viewer',
+          status: AccessRequestStatus.Pending,
+        }),
+      },
     } as unknown as PrismaService;
     const service = new AccessService(
       prisma,
@@ -85,9 +93,16 @@ describe('AccessService.approve', () => {
       events,
       threads as never,
     );
-    expect(await service.approveIncomingFromCounterpartIfPending('owner', 'viewer', actor)).toBe(
-      false,
-    );
+    const wrongActor: AuthPrincipal = {
+      userId: 'user-1',
+      phone: '+910000000000',
+      companyId: 'other-co',
+      role: 'owner',
+      permissions: null,
+    };
+    await expect(
+      service.approveIncomingFromCounterpartIfPending('owner', 'viewer', wrongActor),
+    ).rejects.toThrow(/Switch to the business/);
   });
 });
 

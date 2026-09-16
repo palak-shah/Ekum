@@ -55,7 +55,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 | Leave guard | Composer draft, reply, attach selection, photo or document upload / open camera, or forward/select WIP → **Leave the page?** before back or bottom-nav away (Cancel default). |
 | Composer | Multi-line like WhatsApp: text wraps, field grows up to ~5 lines then scrolls (no scrollbar chrome). **Enter** sends; **Shift+Enter** new line. |
 
-Message types: text, photo, voice, document, collection_card, product_card, design_album, order_card, rate, payment_card, system. Voice: body = audio URL; metadata.durationMs (max 2 min). Document: body = file URL; metadata `{ url, fileName, contentType, sizeBytes? }`. **design_album**: metadata.productIds (≥2); bubble shows each design’s photo + name + **View design →** (same open path as a single design card); set caption “{N} designs” (not a pack).
+Message types: text, photo, voice, document, collection_card, product_card, design_album, order_card, rate, payment_card, system. Voice: body = audio URL; metadata.durationMs (max 2 min). Document: body = file URL; metadata `{ url, fileName, contentType, sizeBytes? }`. **design_album**: metadata.productIds (≥2); chat card like a pack collage labeled **Designs** + **View designs →** → virtual set page `/designs/set?ids=…` (no My Catalog pack). Per-design audience/view rules on open.
 
 Chat photo albums open the shared **PhotoViewer** (pinch / **vertical swipe** between photos in the album, WhatsApp-style; horizontal still works). Close returns to the thread. Document cards follow WhatsApp: name · type · size; original photos show a thumb but still open as a file (not PhotoAlbum).
 
@@ -65,7 +65,7 @@ Chat photo albums open the shared **PhotoViewer** (pinch / **vertical swipe** be
 - Empty **New** (no connections) → **Find on Ekum** link immediately, then name / mobile / GST if they tap with an empty search; **Find in Explore**. Other pickers still use the Find on Ekum **field**.
 - Find on Ekum hit → **Request access** or **Message** (opens/starts a thread; not auto-connect). Already on the connection list → omitted from Find results (Add from the list above). Already in an **active chat** → **Message** only (no Request access; why-line **In chats**).
 - Chats ＋ **Send invite** (after Find is opened) → connect link via OS share. Other pickers: invite only on a phone-like miss.
-- Explore **Share** with no chats → same **Find in Explore** CTA; one album/design **or 2+ designs** still offers **48h link** (multi-design = kind `designs`, not a Collection).
+- Explore **Share** (Selection): **2+ designs** → one clubbed chat card (**View designs →** virtual set) and **48h link** kind `designs`; access stays per design.
 - Empty New → short line that unknown businesses land here.
 - Blocked counterpart → no confirmation of block in UI.
 - Thread detail uses counterpart header (shell title suppressed).

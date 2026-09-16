@@ -91,6 +91,7 @@ import {
   catalogOrderGoesToLine,
   rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
+import { designSetPath } from '@/features/browse/designSetPath';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { ThreadForwardDock } from '@/features/chats/ThreadForwardDock';
 import { ThreadSearchFilterMenu } from '@/features/chats/ThreadSearchFilterMenu';
@@ -102,7 +103,6 @@ import {
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
-import { DesignAlbumGrid } from './DesignAlbumGrid';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
 import { MSG_BUBBLE_CLASS, messageChromeBubblePad, resolveMessageLongPress } from './messageChrome';
 import { chatBubbleCorners } from './chatBubbleCorners';
@@ -3006,6 +3006,7 @@ function TimelineItem({
   onToggleSelect?: () => void;
   actions?: MessageActions;
 }) {
+  const navigate = useNavigate();
   const hl = (text: string) => highlightSearchText(text, searchHighlight);
   const ref = message.reference;
   const facilitator = resolveForwardFacilitator({
@@ -3037,6 +3038,12 @@ function TimelineItem({
           sharePath,
         )
       : undefined;
+  const designsPath =
+    message.type === 'design_album' && ref?.available
+      ? designSetPath(ref.productIds ?? ref.designItems?.map((d) => d.id) ?? [], {
+          facilitator,
+        })
+      : undefined;
   const orderGoesTo = catalogOrderGoesToLine({
     path: sharePath,
     ownerName: ref?.ownerCompanyName,
@@ -3053,6 +3060,7 @@ function TimelineItem({
     message.type === 'rate' ||
     message.type === 'collection_card' ||
     message.type === 'product_card' ||
+    message.type === 'design_album' ||
     message.type === 'payment_card' ||
     isLegacyOrderNotice;
   const isOrderLikeCard =
@@ -3098,72 +3106,6 @@ function TimelineItem({
             <p className="px-3 py-1.5 text-right text-xs text-muted">
               {timeAgo(message.createdAt)}
             </p>
-          </div>
-        </div>
-      </MessageChrome>
-    );
-  }
-
-  if (message.type === 'design_album') {
-    const caption = ref?.name?.trim() || message.body?.trim() || 'Designs';
-    const locked = Boolean(ref?.imagesLocked);
-    const designItems =
-      ref?.designItems && ref.designItems.length > 0
-        ? ref.designItems
-        : (ref?.productIds ?? []).map((id, index) => ({
-            id,
-            name: `Design ${index + 1}`,
-            image: ref?.images?.[index] ?? null,
-          }));
-    return (
-      <MessageChrome
-        messageId={message.id}
-        mine={message.mine}
-        selecting={selecting}
-        selected={selected}
-        highlighted={highlighted}
-        onToggleSelect={onToggleSelect}
-        actions={actions}
-        actionsOnAccent={false}
-        longPressOpensMenu
-        className={cx('max-w-[85%]', LONG_PRESS_SURFACE_CLASS)}
-      >
-        <div className="flex flex-col gap-0.5" data-testid="design-album-message">
-          <div
-            className={cx(
-              MSG_BUBBLE_CLASS,
-              'overflow-hidden border border-line bg-surface',
-              chatBubbleCorners(message.mine),
-            )}
-          >
-            {inCardSenderLine(message, senderLabel) ? (
-              <div className="px-3 pt-2">
-                <InCardActor message={message} label={senderLabel} />
-              </div>
-            ) : null}
-            {reply ? (
-              <div className="px-3">
-                <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
-              </div>
-            ) : null}
-            {designItems.length > 0 ? (
-              <DesignAlbumGrid
-                items={designItems}
-                locked={locked}
-                interactive={!selecting}
-                designPath={(productId) =>
-                  withFacilitatorQuery(`/explore/products/${productId}`, facilitator)
-                }
-              />
-            ) : (
-              <div className="flex aspect-[4/3] items-center justify-center bg-foam text-sm font-medium text-muted">
-                {caption}
-              </div>
-            )}
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5">
-              <p className="text-xs font-medium text-ink">{caption}</p>
-              <p className="shrink-0 text-xs text-muted">{timeAgo(message.createdAt)}</p>
-            </div>
           </div>
         </div>
       </MessageChrome>
@@ -3614,6 +3556,7 @@ function TimelineItem({
       accepting,
       collectionPath,
       productPath,
+      designsPath,
       onCurate: ref?.available ? () => onCurate(ref) : undefined,
       curating,
       curated,
@@ -3640,7 +3583,15 @@ function TimelineItem({
           <ChatTradeCard
             model={tradeCard}
             highlight={hl}
-            onOpen={openOrder && !selecting ? openOrder : undefined}
+            onOpen={
+              selecting
+                ? undefined
+                : openOrder
+                  ? openOrder
+                  : tradeCard.kind === 'designs' && designsPath
+                    ? () => navigate(designsPath)
+                    : undefined
+            }
             selecting={selecting}
           />
         </div>

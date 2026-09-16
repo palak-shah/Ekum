@@ -6,7 +6,7 @@ import {
 import { inCardSenderLine } from './messagePreview';
 import { buildOrderCardCopy, type OrderCardCopy } from './orderCardCopy';
 
-export type ChatTradeCardKind = 'order' | 'quote' | 'collection' | 'design';
+export type ChatTradeCardKind = 'order' | 'quote' | 'collection' | 'design' | 'designs';
 
 export type ChatTradeCardActionStyle = 'link' | 'primary' | 'solid';
 
@@ -54,6 +54,8 @@ export interface TradeCardActions {
   accepting?: boolean;
   collectionPath?: string;
   productPath?: string;
+  /** Virtual design set (clubbed designs, not a Collection). */
+  designsPath?: string;
   onCurate?: () => void;
   curating?: boolean;
   curated?: boolean;
@@ -280,6 +282,40 @@ export function buildCollectionTradeCard(
   };
 }
 
+export function buildDesignSetTradeCard(
+  message: MessageView,
+  ref: MessageReference | null | undefined,
+  senderLabel: string,
+  actions: TradeCardActions = {},
+): ChatTradeCardModel {
+  const { thumbs, overflow } = resolveThumbs(ref);
+  const count = ref?.itemCount ?? ref?.productIds?.length ?? ref?.designItems?.length ?? 0;
+  const primary =
+    ref?.name?.trim() ||
+    message.body?.trim() ||
+    (count > 0 ? `${count} designs` : 'Designs');
+  const details: string[] = [];
+  if (count > 0 && !/^\d+\s+designs$/i.test(primary)) {
+    details.push(`${count} design${count === 1 ? '' : 's'}`);
+  }
+  return {
+    kind: 'designs',
+    primary,
+    who: catalogWhoLine(message, senderLabel, ref),
+    details,
+    thumbs,
+    thumbOverflow: overflow,
+    imagesLocked: Boolean(ref?.imagesLocked),
+    action:
+      ref?.available && actions.designsPath
+        ? { label: 'View designs →', to: actions.designsPath, style: 'link' }
+        : undefined,
+    createdAt: message.createdAt,
+    mine: message.mine,
+    variant: 'bubble',
+  };
+}
+
 export function buildDesignTradeCard(
   message: MessageView,
   ref: MessageReference | null | undefined,
@@ -369,6 +405,9 @@ export function buildChatTradeCard(
       options.orderGoesTo ?? null,
       options.actions,
     );
+  }
+  if (message.type === 'design_album') {
+    return buildDesignSetTradeCard(message, ref, senderLabel, options.actions);
   }
   return null;
 }
