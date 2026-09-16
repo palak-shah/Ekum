@@ -6,6 +6,7 @@ import type {
   ConnectionView,
   CursorPage,
   ReferralView,
+  ThreadSummary,
 } from '@ekum/domain-types';
 import { DEFAULT_ACCESS_REQUEST_NOTE, resolveAccessRequestNote } from '@/lib/accessRequestNote';
 import { api, ApiError } from '@/lib/apiClient';
@@ -73,6 +74,12 @@ export function FindOnEkumBlock({
     queryFn: () => api.get<AccessRequestView[]>('/access-requests/outgoing'),
   });
 
+  const activeThreads = useQuery({
+    queryKey: ['threads', 'find-on-ekum-active'],
+    queryFn: () =>
+      api.get<CursorPage<ThreadSummary>>('/threads', { limit: 100, state: 'active' }),
+  });
+
   const requestAccess = useMutation({
     mutationFn: (companyId: string) =>
       api.post<AccessRequestView>('/access-requests', {
@@ -131,6 +138,11 @@ export function FindOnEkumBlock({
       .filter((row) => row.status === 'pending')
       .map((row) => row.company.id),
   );
+  const chattingIds = new Set(
+    (activeThreads.data?.results ?? [])
+      .map((thread) => thread.counterpart?.id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   const inviteButton =
     inviteAlways && searchReady ? (
@@ -154,18 +166,21 @@ export function FindOnEkumBlock({
       {results.map((company) => {
         const connected = connectedIds.has(company.id);
         const pending = pendingIds.has(company.id);
+        const alreadyChatting = chattingIds.has(company.id);
         return (
           <div
             key={company.id}
             className={cx(
               'flex items-center gap-3 rounded-xl border px-3 py-2.5',
-              connected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+              connected || alreadyChatting ? 'border-accent bg-accent/5' : 'border-line bg-surface',
             )}
           >
             <Avatar name={company.name} imageUrl={company.logoUrl} size={36} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
-              <p className="truncate text-xs text-muted">{company.city}</p>
+              <p className="truncate text-xs text-muted">
+                {alreadyChatting && !connected ? 'In chats' : company.city}
+              </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               {connected ? (
@@ -178,7 +193,7 @@ export function FindOnEkumBlock({
                 </button>
               ) : pending ? (
                 <span className="text-xs text-muted">Requested</span>
-              ) : (
+              ) : alreadyChatting ? null : (
                 <button
                   type="button"
                   disabled={requestAccess.isPending}

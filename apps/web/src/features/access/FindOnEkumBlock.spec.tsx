@@ -46,6 +46,7 @@ describe('FindOnEkumBlock', () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [];
       if (path === '/access-requests/outgoing') return [];
+      if (path === '/threads') return { results: [], nextCursor: null };
       if (path === '/search') return { results: [], nextCursor: null };
       throw new Error(`unexpected ${path}`);
     });
@@ -101,6 +102,7 @@ describe('FindOnEkumBlock', () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [];
       if (path === '/access-requests/outgoing') return [];
+      if (path === '/threads') return { results: [], nextCursor: null };
       if (path === '/search') {
         return {
           results: [
@@ -134,10 +136,64 @@ describe('FindOnEkumBlock', () => {
     expect(onMessage).toHaveBeenCalledWith('co-1');
   });
 
+  it('hides Request access when already in an active chat', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') return [];
+      if (path === '/access-requests/outgoing') return [];
+      if (path === '/threads') {
+        return {
+          results: [
+            {
+              id: 'th-1',
+              counterpart: {
+                id: 'co-1',
+                name: 'Surat Silk House',
+                city: 'Surat',
+                verification: 'gst_verified',
+                logoUrl: null,
+              },
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === '/search') {
+        return {
+          results: [
+            {
+              id: 'co-1',
+              name: 'Surat Silk House',
+              city: 'Surat',
+              verification: 'gst_verified',
+              logoUrl: null,
+              sellCategories: [],
+              buyCategories: [],
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+
+    const user = userEvent.setup();
+    renderBlock(vi.fn());
+
+    await user.type(screen.getByLabelText('Find on Ekum'), 'Surat');
+
+    await waitFor(() => {
+      expect(screen.getByText('Surat Silk House')).toBeInTheDocument();
+      expect(screen.getByText('In chats')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Request access' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Message' })).toBeInTheDocument();
+  });
+
   it('link mode waits for tap, omits listed shops, and offers Send invite', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [];
       if (path === '/access-requests/outgoing') return [];
+      if (path === '/threads') return { results: [], nextCursor: null };
       if (path === '/search') {
         return {
           results: [

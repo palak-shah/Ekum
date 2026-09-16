@@ -148,7 +148,31 @@ export class AccessService {
     actor: AuthPrincipal,
   ): Promise<AccessRequestView> {
     const request = await this.loadDecidableRequest(companyId, requestId);
+    await this.finalizeApprove(request, actor);
+    return this.toView(request.id, 'requester');
+  }
 
+  /**
+   * When the target Opens a pending chat that was opened by an access request,
+   * grant the same mutual Connection without a second Network Approve.
+   */
+  async approveIncomingFromCounterpartIfPending(
+    targetCompanyId: string,
+    requesterCompanyId: string,
+    actor: AuthPrincipal,
+  ): Promise<boolean> {
+    const pending = await this.findPending(requesterCompanyId, targetCompanyId);
+    if (!pending) {
+      return false;
+    }
+    await this.finalizeApprove(pending, actor);
+    return true;
+  }
+
+  private async finalizeApprove(
+    request: { id: string; requesterCompanyId: string; targetCompanyId: string },
+    actor: AuthPrincipal,
+  ): Promise<void> {
     // A block must be lifted explicitly; approving a request must never silently
     // reactivate a connection either side has blocked.
     const pair = connectionPairWhere(request.targetCompanyId, request.requesterCompanyId);
@@ -181,7 +205,7 @@ export class AccessService {
 
     await this.audit.record({
       actorUserId: actor.userId,
-      actorCompanyId: companyId,
+      actorCompanyId: request.targetCompanyId,
       action: 'access.approved',
       targetType: 'access_request',
       targetId: request.id,
@@ -198,8 +222,6 @@ export class AccessService {
       requesterCompanyId: request.requesterCompanyId,
       targetCompanyId: request.targetCompanyId,
     });
-
-    return this.toView(request.id, 'requester');
   }
 
   async decline(

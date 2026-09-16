@@ -77,7 +77,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Team | Invite staff + five caps + owner-only chat | Works | Unit | Required | You → Team; `/t/:token` join; staff seed +919800000004 |
 | Team | Join after archive (same phone → new shop / create company) | Works | Unit | Required | Completeness 2026-09-09-team-join-after-archive; live seat still blocks |
 | Network | Following / Followers lists | Works | Unit-only | Required | You → Network hub pages restored 2026-08-20 |
-| Network | Connections hub (both roles) + Requests | Partial | Functional | Required | Mutual pair shipped; e2e `network.connections.mutual.journey` — Completeness 2026-09-12-mutual-connection |
+| Network | Connections hub (both roles) + Requests | Works | Functional | Required | Mutual pair; Open chat also Approves pending access — Completeness 2026-09-16-chat-open-access-approve |
 | Referrals | Connect-with-me invite create + Share/Copy | Works | Functional + Unit | Required | Presentable OG + ＋ one-tap share 2026-09-11; `network.referrals.journey` |
 | Referrals | Open invite redeem → access request (approve gate) | Works | Functional | Required | Focused `/r/` landing (no bottom nav); `network.referrals.journey.spec.ts` |
 | Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Unit-only | Required | `inviteReturn` + Login/onboarding wiring |

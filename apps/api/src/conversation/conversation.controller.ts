@@ -194,7 +194,7 @@ export class ConversationController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
   ) {
-    return this.threads.accept(companyId, user.role, id, user.userId);
+    return this.threads.accept(companyId, user.role, id, user);
   }
 
   @Post(':id/decline')

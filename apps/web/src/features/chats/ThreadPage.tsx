@@ -102,6 +102,7 @@ import {
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
+import { DesignAlbumGrid } from './DesignAlbumGrid';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
 import { MSG_BUBBLE_CLASS, messageChromeBubblePad, resolveMessageLongPress } from './messageChrome';
 import { chatBubbleCorners } from './chatBubbleCorners';
@@ -628,6 +629,8 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['thread', id] });
       void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
       if (action === 'decline') {
         navigate('/chats');
       }
@@ -3102,9 +3105,16 @@ function TimelineItem({
   }
 
   if (message.type === 'design_album') {
-    const designUrls = (ref?.images ?? []).filter(Boolean) as string[];
     const caption = ref?.name?.trim() || message.body?.trim() || 'Designs';
     const locked = Boolean(ref?.imagesLocked);
+    const designItems =
+      ref?.designItems && ref.designItems.length > 0
+        ? ref.designItems
+        : (ref?.productIds ?? []).map((id, index) => ({
+            id,
+            name: `Design ${index + 1}`,
+            image: ref?.images?.[index] ?? null,
+          }));
     return (
       <MessageChrome
         messageId={message.id}
@@ -3136,11 +3146,14 @@ function TimelineItem({
                 <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
               </div>
             ) : null}
-            {designUrls.length > 0 ? (
-              <PhotoAlbum
-                urls={designUrls}
-                interactive={!selecting}
+            {designItems.length > 0 ? (
+              <DesignAlbumGrid
+                items={designItems}
                 locked={locked}
+                interactive={!selecting}
+                designPath={(productId) =>
+                  withFacilitatorQuery(`/explore/products/${productId}`, facilitator)
+                }
               />
             ) : (
               <div className="flex aspect-[4/3] items-center justify-center bg-foam text-sm font-medium text-muted">

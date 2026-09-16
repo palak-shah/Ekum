@@ -20,6 +20,7 @@ export function RequestsPage() {
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
     void queryClient.invalidateQueries({ queryKey: ['connections'] });
+    void queryClient.invalidateQueries({ queryKey: ['threads'] });
   };
 
   const decide = useMutation({

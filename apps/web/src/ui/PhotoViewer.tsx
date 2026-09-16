@@ -25,6 +25,8 @@ export function PhotoViewer({
   index,
   onIndex,
   onClose,
+  /** Optional caption per photo (e.g. design name). */
+  captions,
   /** Optional header action (e.g. View in chat from cross-chat Photos find). */
   headerAction,
 }: {
@@ -33,9 +35,11 @@ export function PhotoViewer({
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
+  captions?: Array<string | null | undefined>;
   headerAction?: { label: string; onClick: () => void; testId?: string };
 }) {
   const safeIndex = clamp(index, urls.length);
+  const caption = captions?.[safeIndex]?.trim() || null;
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
@@ -206,7 +210,7 @@ export function PhotoViewer({
         )}
       </div>
       <div
-        className="relative flex min-h-0 flex-1 touch-none items-center justify-center px-2 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        className="relative flex min-h-0 flex-1 touch-none items-center justify-center px-2"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -215,13 +219,25 @@ export function PhotoViewer({
         {src ? (
           <img
             src={src}
-            alt=""
+            alt={caption ?? ''}
             draggable={false}
             className="max-h-full max-w-full object-contain"
             style={{ transform: `translate(${panX}px, ${panY}px) scale(${scale})` }}
           />
         ) : null}
       </div>
+      {caption ? (
+        <div className="shrink-0 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 text-center">
+          <p
+            data-testid="photo-viewer-caption"
+            className="truncate text-sm font-semibold text-white"
+          >
+            {caption}
+          </p>
+        </div>
+      ) : (
+        <div className="pb-[max(1.5rem,env(safe-area-inset-bottom))]" />
+      )}
     </div>,
     document.body,
   );

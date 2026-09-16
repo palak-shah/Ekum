@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Prisma, type Thread, type ThreadParticipant } from '@prisma/client';
 import {
   MAX_PINNED_THREADS,
@@ -24,6 +24,8 @@ import {
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
+import { AccessService } from '../access/access.service';
+import type { AuthPrincipal } from '../auth/auth.types';
 import { ConversationSerializer } from './conversation.serializer';
 import { ReferenceResolver } from './reference-resolver';
 import { findThreadSearchHits, threadSurfaceMatchesQ } from './message-search';
@@ -47,6 +49,8 @@ export class ThreadService {
     private readonly visibility: VisibilityService,
     private readonly serializer: ConversationSerializer,
     private readonly references: ReferenceResolver,
+    @Inject(forwardRef(() => AccessService))
+    private readonly access: AccessService,
   ) {}
 
   /**
@@ -485,16 +489,26 @@ export class ThreadService {
     actorCompanyId: string,
     role: string | null,
     threadId: string,
-    viewerUserId: string | null = null,
+    actor: AuthPrincipal,
   ): Promise<ThreadDetail> {
-    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, actor.userId);
     if (mine.state === ThreadParticipantState.Pending) {
       await this.prisma.threadParticipant.update({
         where: { id: mine.id },
         data: { state: ThreadParticipantState.Active },
       });
     }
-    return this.detail(threadId, actorCompanyId, role, viewerUserId);
+    if (mine.thread.type === ThreadType.Direct) {
+      const counterpartId = await this.directCounterpartCompanyId(threadId, actorCompanyId);
+      if (counterpartId) {
+        await this.access.approveIncomingFromCounterpartIfPending(
+          actorCompanyId,
+          counterpartId,
+          actor,
+        );
+      }
+    }
+    return this.detail(threadId, actorCompanyId, role, actor.userId);
   }
 
   async decline(
@@ -1176,6 +1190,18 @@ export class ThreadService {
 
   private async connectedActive(a: string, b: string): Promise<boolean> {
     return (await this.visibility.canViewCatalog(a, b)) || (await this.visibility.canViewCatalog(b, a));
+  }
+
+  private async directCounterpartCompanyId(
+    threadId: string,
+    actorCompanyId: string,
+  ): Promise<string | null> {
+    const others = await this.prisma.threadParticipant.findMany({
+      where: { threadId, companyId: { not: actorCompanyId } },
+      select: { companyId: true },
+      take: 2,
+    });
+    return others.length === 1 ? others[0]!.companyId : null;
   }
 
   private notFound(): NotFoundException {

@@ -45,6 +45,50 @@ describe('AccessService.approve', () => {
     await expect(service.approve('owner', 'req-1', actor)).rejects.toThrow();
     expect(transaction).not.toHaveBeenCalled();
   });
+
+  it('approveIncomingFromCounterpartIfPending grants mutual connection', async () => {
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      accessRequest: {
+        findFirst: async () => ({
+          id: 'req-2',
+          targetCompanyId: 'owner',
+          requesterCompanyId: 'viewer',
+          status: AccessRequestStatus.Pending,
+        }),
+        update: vi.fn(async () => ({})),
+      },
+      connection: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
+
+    const granted = await service.approveIncomingFromCounterpartIfPending('owner', 'viewer', actor);
+    expect(granted).toBe(true);
+    expect(transaction).toHaveBeenCalled();
+    expect(threads.activateDirectParticipants).toHaveBeenCalledWith('viewer', 'owner');
+    expect(events.accessApproved).toHaveBeenCalled();
+  });
+
+  it('approveIncomingFromCounterpartIfPending is a no-op when none pending', async () => {
+    const prisma = {
+      accessRequest: { findFirst: async () => null },
+    } as unknown as PrismaService;
+    const service = new AccessService(
+      prisma,
+      { record: vi.fn() } as unknown as AuditService,
+      {} as CompanySerializer,
+      events,
+      threads as never,
+    );
+    expect(await service.approveIncomingFromCounterpartIfPending('owner', 'viewer', actor)).toBe(
+      false,
+    );
+  });
 });
 
 describe('AccessService.createRequest', () => {

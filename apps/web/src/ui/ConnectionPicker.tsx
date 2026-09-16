@@ -152,6 +152,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
           onSelectConnected={(companyId) => toggle(companyId)}
           onMessage={onMessageFound}
           onMissChange={onFindMissChange}
+          excludeCompanyIds={connections.map((row) => row.company.id)}
           connectedLabel={props.mode === 'multi' ? 'Add' : 'Select'}
         />
       ) : null}

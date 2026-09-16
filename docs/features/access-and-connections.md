@@ -19,7 +19,7 @@ Any company can request / follow; the other Approves. Both use **Network → Con
 ### Request access (Connect)
 
 1. On company profile or **Find on Ekum** → Request access. Note is prefilled…  
-2. Other business sees incoming on **Network → Requests** and Home Needs → Approve or Decline → **one mutual Connection** (no second approve).
+2. Other business sees incoming on **Network → Requests** and Home Needs → Approve or Decline → **one mutual Connection** (no second approve). Same Connection if they **Open chat** on the access-request thread in Chats → Requests.
 
 ### Ask to see a pack (not Connect, not put in pack)
 

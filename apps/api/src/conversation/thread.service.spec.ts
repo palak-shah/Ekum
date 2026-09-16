@@ -3,11 +3,18 @@ import { ThreadParticipantState, ThreadVisibility } from '@ekum/domain-types';
 import { ThreadService } from './thread.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { VisibilityService } from '../access/visibility.service';
+import type { AccessService } from '../access/access.service';
 import type { ConversationSerializer } from './conversation.serializer';
 import type { ReferenceResolver } from './reference-resolver';
 
 interface CreatedData {
   data: { participants: { create: { companyId: string; state: string }[] } } | null;
+}
+
+function accessStub(): AccessService {
+  return {
+    approveIncomingFromCounterpartIfPending: async () => false,
+  } as unknown as AccessService;
 }
 
 function makeStartDirectService(options: { blocked?: boolean; connected?: boolean }) {
@@ -60,7 +67,10 @@ function makeStartDirectService(options: { blocked?: boolean; connected?: boolea
   } as unknown as ConversationSerializer;
   const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
 
-  return { service: new ThreadService(prisma, visibility, serializer, references), created };
+  return {
+    service: new ThreadService(prisma, visibility, serializer, references, accessStub()),
+    created,
+  };
 }
 
 function targetState(created: CreatedData): string | undefined {
@@ -109,6 +119,7 @@ describe('ThreadService.membershipOrThrow owner_only visibility', () => {
       {} as VisibilityService,
       {} as ConversationSerializer,
       {} as ReferenceResolver,
+      accessStub(),
     );
   }
 
@@ -178,6 +189,7 @@ describe('ThreadService.findDirectThread one 1:1', () => {
       { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
       { toThreadSummary: () => ({ id: 'shared-1' }) } as ConversationSerializer,
       { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
     );
 
     const result = await service.startDirect('me', 'owner', {
@@ -224,6 +236,7 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
       { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
       { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
       { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
     );
 
     const id = await service.ensureTradeLaneGroup('trader', 'mill', 'buyer', null);
@@ -257,6 +270,7 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
       { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
       { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
       { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
     );
 
     await expect(service.ensureTradeLaneGroup('trader', 'mill', 'buyer', 'stored')).resolves.toBe(
@@ -299,6 +313,7 @@ describe('ThreadService.ensureTradeThread', () => {
       { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
       { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
       { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
     );
 
     await expect(service.ensureTradeThread('buyer', 'seller')).resolves.toBe('legacy-1');

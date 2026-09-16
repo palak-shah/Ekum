@@ -397,6 +397,12 @@ export interface MessageReference {
   images?: string[] | null;
   /** design_album: ordered product ids. */
   productIds?: string[] | null;
+  /** design_album: per-design name + thumb (not photo-only). */
+  designItems?: Array<{
+    id: string;
+    name: string;
+    image: string | null;
+  }> | null;
   /**
    * When true, chat may show small blurred thumbs but must not open PhotoViewer.
    * Viewer lacks design view rights; opening the pack still uses Ask / shell.

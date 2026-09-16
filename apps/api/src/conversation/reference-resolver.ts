@@ -155,6 +155,7 @@ export class ReferenceResolver {
       if (message.type === MessageType.DesignAlbum) {
         const ids = designAlbumProductIdsFromMessage(message.metadata);
         const thumbs: string[] = [];
+        const designItems: Array<{ id: string; name: string; image: string | null }> = [];
         let anyLocked = false;
         let anyAvailable = false;
         let ownerCompanyId: string | null = null;
@@ -162,10 +163,15 @@ export class ReferenceResolver {
         let allowForward = true;
         for (const id of ids) {
           const product = productById.get(id);
-          if (!product) continue;
+          if (!product) {
+            designItems.push({ id, name: 'Unavailable', image: null });
+            continue;
+          }
           anyAvailable = true;
           const images = (product.images ?? []).filter(Boolean);
-          if (images[0]) thumbs.push(images[0]);
+          const thumb = images[0] ?? null;
+          if (thumb) thumbs.push(thumb);
+          designItems.push({ id: product.id, name: product.name, image: thumb });
           if (!this.canShowCatalogImages(viewerCompanyId, product, audienceCtxByOwner)) {
             anyLocked = true;
           }
@@ -182,6 +188,7 @@ export class ReferenceResolver {
           image: thumbs[0] ?? null,
           images: thumbs.length > 0 ? thumbs : null,
           productIds: ids,
+          designItems,
           imagesLocked: anyAvailable && anyLocked,
           ownerCompanyId,
           ownerCompanyName,

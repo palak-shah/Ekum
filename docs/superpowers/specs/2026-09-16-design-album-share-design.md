@@ -16,14 +16,14 @@ Today multi-select posts **N `product_card`s** and hides **Share a link · 48 ho
 
 | Surface | Behavior |
 |--------|----------|
-| Chat | One message type `design_album` with `metadata.productIds` (ordered, unique, ≥2). Bubble = photo-message `PhotoAlbum` + caption **“{N} designs”**. Tap → `PhotoViewer` swipe. |
-| 48h link | Kind `designs` with same `productIds`. Landing + OG use collage + **designs** copy. Tap → photo swipe. |
+| Chat | One message type `design_album` with `metadata.productIds`. Bubble = **grid of designs** (thumb + name + **View design →**). Tap / View design → same as a single design card (`/explore/products/:id`). |
+| 48h link | Kind `designs` with same `productIds`. Landing = same named design grid; tap opens design (or join first). |
 | Catalog | **Nothing** created in My Catalog. |
 
 ### Visual / copy (required)
 
-- **Do:** photo-message collage; “{N} designs”; PhotoViewer.  
-- **Don’t:** `collection_card` / trade-card pack chrome; pack/album/collection wording; collection KindIcon.
+- **Do:** each design shows **name** + **View design →**; tap opens the design page like `product_card`.  
+- **Don’t:** photo-only / PhotoViewer-as-primary; `collection_card` / pack chrome.
 
 ### Share sheet
 
