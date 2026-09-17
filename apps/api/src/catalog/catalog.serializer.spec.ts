@@ -55,6 +55,7 @@ describe('CatalogSerializer', () => {
       name: 'Summer Line',
       description: null,
       coverImage: null,
+      categories: [] as string[],
       status: 'published',
       audience: 'connections',
       rateVisibility: 'on_request',
@@ -71,6 +72,7 @@ describe('CatalogSerializer', () => {
     const view = serializer.toCollectionView(collection);
     expect(view.productCount).toBe(3);
     expect(view.companyId).toBe('company-1');
+    expect(view.categories).toEqual([]);
     expect(view.memberShops).toEqual([]);
     expect(view.allowForward).toBe(true);
     expect(view.orderPathPreference).toBeNull();
@@ -91,6 +93,7 @@ describe('CatalogSerializer', () => {
       name: 'Summer Line',
       description: null,
       coverImage: null,
+      categories: ['Bedsheet'],
       status: 'draft',
       audience: 'everyone',
       rateVisibility: 'visible',
@@ -106,6 +109,7 @@ describe('CatalogSerializer', () => {
     } as unknown as Collection & { products: (CollectionProduct & { product: Product })[] };
     const detail = serializer.toCollectionDetail(collection);
     expect(detail.productCount).toBe(1);
+    expect(detail.categories).toEqual(['Bedsheet']);
     expect(detail.orderPathPreference).toBeNull();
     expect(detail.products[0]?.name).toBe('Banarasi Silk');
   });
@@ -117,6 +121,7 @@ describe('CatalogSerializer', () => {
       name: 'Curated',
       description: null,
       coverImage: null,
+      categories: [],
       status: 'published',
       audience: 'followers',
       rateVisibility: 'visible',

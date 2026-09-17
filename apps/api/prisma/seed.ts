@@ -28,6 +28,7 @@ import {
   VerificationStatus,
 } from '@ekum/domain-types';
 import { ensureSeedImages } from '../src/common/seed-media';
+import { seedOfficialCatalogTags } from '../src/catalog/official-tags.seed';
 
 const prisma = new PrismaClient();
 
@@ -878,8 +879,10 @@ async function main(): Promise<void> {
     },
   });
 
+  const tagCount = await seedOfficialCatalogTags(prisma);
+
   console.log(
-    'Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 4 orders (I-handle pair held), 1 thread.',
+    `Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 4 orders (I-handle pair held), 1 thread, ${tagCount} official tags.`,
   );
 }
 

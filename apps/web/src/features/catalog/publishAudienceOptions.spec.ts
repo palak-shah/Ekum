@@ -11,25 +11,27 @@ describe('publishAudienceOptions', () => {
     expect(DEFAULT_PUBLISH_AUDIENCE).toBe(PublishAudience.Followers);
   });
 
-  it('Who list excludes My connections', () => {
+  it('Who list is Followers and Selected only (no Everyone)', () => {
     const values = PUBLISH_WHO_OPTIONS.map(([value]) => value);
     expect(values).toEqual([
-      PublishAudience.Everyone,
       PublishAudience.Followers,
       PublishAudience.Selected,
     ]);
     expect(values).not.toContain(PublishAudience.Connections);
+    expect(values).not.toContain(PublishAudience.Everyone);
   });
 
-  it('maps legacy connections to Followers on the sheet', () => {
+  it('maps legacy connections and everyone to Followers on the sheet', () => {
     expect(audienceForPublishSheet(PublishAudience.Connections)).toBe(
+      PublishAudience.Followers,
+    );
+    expect(audienceForPublishSheet(PublishAudience.Everyone)).toBe(
       PublishAudience.Followers,
     );
     expect(audienceForPublishSheet(undefined)).toBe(PublishAudience.Followers);
   });
 
-  it('keeps Everyone / Followers / Selected when allowed', () => {
-    expect(audienceForPublishSheet(PublishAudience.Everyone)).toBe(PublishAudience.Everyone);
+  it('keeps Followers / Selected when allowed', () => {
     expect(audienceForPublishSheet(PublishAudience.Followers)).toBe(PublishAudience.Followers);
     expect(audienceForPublishSheet(PublishAudience.Selected)).toBe(PublishAudience.Selected);
   });

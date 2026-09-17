@@ -369,6 +369,22 @@ export const JobStatus = {
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 export const jobStatusValues = values(JobStatus);
 
+/** Official taxonomy vs company-private custom catalog tags. */
+export const CatalogTagScope = {
+  Official: 'official',
+  Company: 'company',
+} as const;
+export type CatalogTagScope = (typeof CatalogTagScope)[keyof typeof CatalogTagScope];
+export const catalogTagScopeValues = values(CatalogTagScope);
+
+/** Pending = company custom / trade-name pool; verified = official or promoted. */
+export const CatalogTagStatus = {
+  Pending: 'pending',
+  Verified: 'verified',
+} as const;
+export type CatalogTagStatus = (typeof CatalogTagStatus)[keyof typeof CatalogTagStatus];
+export const catalogTagStatusValues = values(CatalogTagStatus);
+
 /**
  * Coarse "what do you deal in" chips collected at onboarding. Distinct from fine
  * sell/buy product categories (sarees, kurtis, …) which are added later.

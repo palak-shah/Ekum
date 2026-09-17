@@ -15,8 +15,8 @@ import { ListSquareButton } from '@/ui/ListSearchRow';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
+import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
-import { SuggestInput } from '@/ui/SuggestInput';
 import { CameraIcon } from '@/ui/icons';
 import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
@@ -34,6 +34,7 @@ import {
   type PublishAudienceState,
 } from './PublishAudienceFields';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
+import { TagsField } from './TagsField';
 import {
   createProductIdentity,
   detailsCardTitle,
@@ -841,13 +842,17 @@ export function DesignBatchPage() {
                 </p>
               </div>
             ) : null}
-            <div className="grid grid-cols-3 gap-2">
-              {visibleDrafts.map((d) => {
+            <CappedMediaGrid
+              items={visibleDrafts}
+              getKey={(d) => d.id}
+              overflowPreviewUrl={(d) => d.images[0]?.previewUrl ?? null}
+              loadMoreTestId="design-batch-load-more"
+              renderTile={(d) => {
                 const lead = d.images[0];
                 const busy = d.images.some((i) => i.uploading);
                 const different = hasOverrides(d.overrides);
                 return (
-                  <div key={d.id} className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1">
                     <div className="relative aspect-square overflow-hidden rounded-xl bg-foam">
                       <button
                         type="button"
@@ -901,8 +906,8 @@ export function DesignBatchPage() {
                     />
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
             {isLarge && searchQ && visibleDrafts.length === 0 ? (
               <p className="mt-2 text-center text-sm text-muted">No designs match that name.</p>
             ) : null}
@@ -911,15 +916,11 @@ export function DesignBatchPage() {
           <section className="rounded-2xl border border-line bg-surface p-4">
             {sectionTitle(detailsCardTitle(drafts.length))}
             <div className="flex flex-col gap-3">
-              <Field label="Category">
-                <SuggestInput
-                  kind="category"
-                  mode="list"
-                  value={sharedCategory}
-                  onChange={setSharedCategory}
-                  placeholder="Sarees"
-                />
-              </Field>
+              <TagsField
+                label="Tags"
+                value={parseCategories(sharedCategory)}
+                onChange={(tags) => setSharedCategory(tags.join(', '))}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Rate">
                   <TextInput
@@ -955,19 +956,19 @@ export function DesignBatchPage() {
             <Button
               fullWidth
               disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
-              onClick={() => saveAll.mutate({})}
+              onClick={() => setPublishOpen(true)}
             >
-              {saveAll.isPending && !publishOpen
-                ? progressLabel || 'Saving…'
-                : `Save ${readyCount || drafts.length} design${(readyCount || drafts.length) === 1 ? '' : 's'} in Draft`}
+              Publish {readyCount || drafts.length}
             </Button>
             <Button
               variant="secondary"
               fullWidth
               disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
-              onClick={() => setPublishOpen(true)}
+              onClick={() => saveAll.mutate({})}
             >
-              Publish
+              {saveAll.isPending && !publishOpen
+                ? progressLabel || 'Saving…'
+                : `Save ${readyCount || drafts.length} design${(readyCount || drafts.length) === 1 ? '' : 's'} in Draft`}
             </Button>
           </div>
         </>
@@ -1136,15 +1137,11 @@ export function DesignBatchPage() {
             </div>
 
             <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
-              <Field label="Category">
-                <SuggestInput
-                  kind="category"
-                  mode="list"
-                  value={sheetCategory}
-                  onChange={setSheetCategory}
-                  placeholder="Sarees"
-                />
-              </Field>
+              <TagsField
+                label="Tags"
+                value={parseCategories(sheetCategory)}
+                onChange={(tags) => setSheetCategory(tags.join(', '))}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Rate">
                   <TextInput

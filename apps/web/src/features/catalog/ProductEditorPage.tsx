@@ -18,13 +18,13 @@ import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
-import { SuggestInput } from '@/ui/SuggestInput';
 import { CameraIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
 import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
+import { TagsField } from './TagsField';
 import {
   emptyPublishAudienceState,
   publishAudienceCanSubmit,
@@ -555,15 +555,11 @@ export function ProductEditorPage() {
                   placeholder="Leave blank to auto-assign"
                 />
               </Field>
-              <Field label="Categories" hint="Comma-separated.">
-                <SuggestInput
-                  kind="category"
-                  mode="list"
-                  value={form.categories}
-                  onChange={(categories) => setForm({ ...form, categories })}
-                  placeholder="sarees, party wear"
-                />
-              </Field>
+              <TagsField
+                label="Tags"
+                value={parseList(form.categories)}
+                onChange={(tags) => setForm({ ...form, categories: tags.join(', ') })}
+              />
               <Field
                 label="Notes"
                 hint="Fabric, size, width — anything buyers should know."

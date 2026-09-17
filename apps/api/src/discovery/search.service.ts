@@ -148,6 +148,7 @@ export class SearchService {
         companyId: { not: viewerCompanyId },
         OR: [
           { name: { contains: query.q, mode: 'insensitive' } },
+          { categories: { has: query.q } },
           { company: { name: { contains: query.q, mode: 'insensitive' } } },
           { company: { city: { contains: query.q, mode: 'insensitive' } } },
         ],

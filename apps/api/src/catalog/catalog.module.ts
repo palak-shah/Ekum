@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { ProductController } from './product.controller';
 import { CollectionController } from './collection.controller';
 import { ShareLinkController } from './share-link.controller';
+import { CatalogTagController } from './catalog-tag.controller';
 import {
   CollectionViewGrantController,
   CollectionViewRequestController,
@@ -13,6 +14,7 @@ import {
 import { ProductService } from './product.service';
 import { CollectionService } from './collection.service';
 import { ShareLinkService } from './share-link.service';
+import { CatalogTagService } from './catalog-tag.service';
 import { CatalogSerializer } from './catalog.serializer';
 import { CollectionViewRequestService } from './collection-view-request.service';
 import { RelistRequestService } from './relist-request.service';
@@ -30,6 +32,7 @@ import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.
   controllers: [
     ProductController,
     CollectionController,
+    CatalogTagController,
     ShareLinkController,
     CollectionViewRequestController,
     CollectionViewGrantController,
@@ -39,6 +42,7 @@ import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.
   providers: [
     ProductService,
     CollectionService,
+    CatalogTagService,
     ShareLinkService,
     CatalogSerializer,
     CollectionViewRequestService,

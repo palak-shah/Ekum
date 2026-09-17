@@ -89,6 +89,7 @@ model Company {
 
   products     Product[]
   collections  Collection[]
+  catalogTags  CatalogTag[]
   addresses    Address[]
   billingFirms BillingFirm[]
   settings     CompanySettings?
@@ -317,6 +318,8 @@ model Collection {
   name           String
   description    String?
   coverImage     String?
+  /** Tag labels for Explore search (same bridge as Product.categories). */
+  categories     String[] @default([])
   status         String   @default("draft") // CollectionStatus
   // Decided at publish time (PublishAudience / RateVisibility).
   audience            String   @default("connections")
@@ -357,6 +360,25 @@ model Collection {
   @@index([status, startsAt])
   @@index([createdByUserId])
   @@index([updatedByUserId])
+}
+
+/// Official taxonomy tags (seeded) + company-private custom tags for catalog pickers.
+/// Unique: company tags on (companyId, lower(label)); official on (parentKey, lower(label)).
+model CatalogTag {
+  id        String   @id @default(cuid())
+  scope     String // official | company
+  companyId String?
+  label     String
+  /** Main Category for official tags (HOME TEXTILES, WOMENS WEAR, …). */
+  parentKey String?
+  status    String   @default("verified") // pending | verified
+  createdAt DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([scope, parentKey])
+  @@index([scope, status])
 }
 
 /// Reactive allow for one pack (Ask → Allow). Not Connection; not publish Selected.

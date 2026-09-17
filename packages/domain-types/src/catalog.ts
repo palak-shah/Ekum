@@ -65,6 +65,8 @@ export const createCollectionSchema = z.object({
     .string()
     .url({ message: 'Photo isn’t ready yet. Remove it and add it again.' })
     .optional(),
+  /** Tag labels for Explore search (official + company custom). */
+  categories: z.array(z.string().trim().min(1)).max(20).default([]),
   /** Live window start. null clears. */
   startsAt: optionalScheduleInstant,
   /** Live window end. null = evergreen. */
@@ -76,6 +78,21 @@ export type CreateCollectionDto = z.infer<typeof createCollectionSchema>;
 
 export const updateCollectionSchema = createCollectionSchema.partial();
 export type UpdateCollectionDto = z.infer<typeof updateCollectionSchema>;
+
+export const createCatalogTagSchema = z.object({
+  label: z.string().trim().min(1, 'Give this tag a name.').max(80),
+});
+export type CreateCatalogTagDto = z.infer<typeof createCatalogTagSchema>;
+
+export interface CatalogTagView {
+  id: string;
+  scope: string;
+  companyId: string | null;
+  label: string;
+  parentKey: string | null;
+  status: string;
+  createdAt: string;
+}
 
 /** Replaces the ordered set of products in a collection. */
 export const setCollectionProductsSchema = z.object({
@@ -168,6 +185,8 @@ export interface CollectionView {
   name: string;
   description: string | null;
   coverImage: string | null;
+  /** Tag labels (search bridge; same shape as Product.categories). */
+  categories: string[];
   status: string;
   audience: string;
   rateVisibility: string;

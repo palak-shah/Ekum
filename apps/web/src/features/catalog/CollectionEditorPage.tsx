@@ -16,12 +16,15 @@ import {
   ProductStatus,
   PublishAudience,
   RateVisibility,
+  Unit,
+  unitValues,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
+import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
@@ -34,13 +37,14 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
-import { createPortal } from 'react-dom';
-import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
-import { useToast } from '@/ui/Toast';
+import { TagsField } from './TagsField';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
 import { morePhotosEntry } from './designBatchHelpers';
+import { createPortal } from 'react-dom';
+import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
+import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { auditLine } from './productStatusSummary';
@@ -72,7 +76,36 @@ type PendingPhoto = {
   imageUrl: string | null;
   name: string;
   uploading: boolean;
+  rate: string;
+  unit: string;
+  moq: string;
+  notes: string;
+  categories: string[];
+  tagsDirty: boolean;
 };
+
+type MemberSheetState =
+  | { kind: 'pending'; localId: string }
+  | { kind: 'product'; productId: string };
+
+function unitSelect(
+  value: string,
+  onChange: (next: string) => void,
+) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="min-h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink"
+    >
+      {unitValues.map((u) => (
+        <option key={u} value={u}>
+          {u}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export function CollectionEditorPage() {
   const { id: routeId } = useParams();
@@ -107,6 +140,7 @@ export function CollectionEditorPage() {
     name: '',
     description: '',
     coverImage: '',
+    categories: [] as string[],
   });
   const leaveBypassRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -116,8 +150,17 @@ export function CollectionEditorPage() {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [evergreen, setEvergreen] = useState(true);
-  const [noteOpen, setNoteOpen] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [memberSheet, setMemberSheet] = useState<MemberSheetState | null>(null);
+  const [memberForm, setMemberForm] = useState({
+    name: '',
+    rate: '',
+    unit: Unit.Piece,
+    moq: '',
+    notes: '',
+    categories: [] as string[],
+  });
+  const [memberSaving, setMemberSaving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedSnapshotRef = useRef<string | null>(null);
   /** Create mode: photos and/or library designs; Publish/Share after create. */
@@ -223,6 +266,7 @@ export function CollectionEditorPage() {
         name: existing.data.name,
         description: existing.data.description ?? '',
         coverImage: existing.data.coverImage ?? '',
+        categories: existing.data.categories ?? [],
       });
       setSelected(new Set(existing.data.products.map((product) => product.id)));
       setPublishAudience(
@@ -237,11 +281,11 @@ export function CollectionEditorPage() {
       setStartsAt(toDateInput(existing.data.startsAt));
       setEndsAt(toDateInput(existing.data.endsAt));
       setEvergreen(!existing.data.endsAt);
-      setNoteOpen(Boolean(existing.data.description?.trim()));
       savedSnapshotRef.current = JSON.stringify({
         name: existing.data.name,
         description: existing.data.description ?? '',
         coverImage: existing.data.coverImage ?? '',
+        categories: existing.data.categories ?? [],
         productIds: existing.data.products.map((product) => product.id).sort(),
       });
     }
@@ -375,6 +419,7 @@ export function CollectionEditorPage() {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         coverImage: form.coverImage.trim() || undefined,
+        categories: form.categories,
       };
       return api.patch<CollectionDetailView>(`/collections/${id}`, dto);
     },
@@ -500,6 +545,12 @@ export function CollectionEditorPage() {
       imageUrl: null,
       name: nameFromFilename(file.name),
       uploading: true,
+      rate: '',
+      unit: Unit.Piece,
+      moq: '',
+      notes: '',
+      categories: [],
+      tagsDirty: false,
     }));
     setPendingPhotos((prev) => [...prev, ...stubs]);
     setQuickUploading(true);
@@ -593,16 +644,34 @@ export function CollectionEditorPage() {
         coverRaw && /^https?:\/\//i.test(coverRaw) ? coverRaw : undefined;
       const created = await api.post<CollectionDetailView>('/collections', {
         name,
+        description: form.description.trim() || undefined,
+        categories: form.categories,
         ...(cover ? { coverImage: cover } : {}),
       } satisfies CreateCollectionDto);
       const createdIds: string[] = [];
       for (const photo of readyCreatePhotos) {
+        const categories =
+          photo.tagsDirty || photo.categories.length > 0
+            ? photo.categories
+            : form.categories;
         const product = await api.post<ProductView>('/products', {
           name: photo.name,
           images: [toAbsoluteMediaUrl(photo.imageUrl!)],
-          categories: [],
+          categories,
+          description: photo.notes.trim() || undefined,
+          rate: photo.rate.trim() ? Number(photo.rate) : undefined,
+          unit: photo.unit || undefined,
+          moq: photo.moq.trim() ? Number(photo.moq) : undefined,
         } satisfies CreateProductDto);
         createdIds.push(product.id);
+      }
+      // Cascade collection tags onto library picks that have no categories yet.
+      for (const productId of libraryPicks) {
+        const product = selectableDesigns.find((p) => p.id === productId);
+        if (!product || product.categories.length > 0 || form.categories.length === 0) {
+          continue;
+        }
+        await api.patch(`/products/${productId}`, { categories: form.categories });
       }
       const productIds = [...createdIds, ...libraryPicks];
       await api.put<CollectionDetailView>(
@@ -694,6 +763,7 @@ export function CollectionEditorPage() {
         name: form.name,
         description: form.description,
         coverImage: form.coverImage,
+        categories: form.categories,
         productIds: [...selected].sort(),
       }),
     [form, selected],
@@ -705,6 +775,7 @@ export function CollectionEditorPage() {
         pendingPhotos.length > 0 ||
         libraryPicks.size > 0 ||
         Boolean(form.description.trim()) ||
+        form.categories.length > 0 ||
         Boolean(form.coverImage) ||
         Boolean(form.name.trim())
       );
@@ -719,10 +790,83 @@ export function CollectionEditorPage() {
     pendingPhotos.length,
     libraryPicks.size,
     form.description,
+    form.categories,
     form.coverImage,
     form.name,
   ]);
   const discard = useDiscardGuard(collectionDirty, leaveBypassRef);
+
+  const openMemberDesignSheet = (product: ProductView) => {
+    setMemberForm({
+      name: product.name,
+      rate: product.rate != null ? String(product.rate) : '',
+      unit: product.unit || Unit.Piece,
+      moq: product.moq != null ? String(product.moq) : '',
+      notes: product.description ?? '',
+      categories: product.categories ?? [],
+    });
+    setMemberSheet({ kind: 'product', productId: product.id });
+  };
+
+  const openPendingDesignSheet = (localId: string) => {
+    const photo = pendingPhotos.find((p) => p.localId === localId);
+    if (!photo) return;
+    setMemberForm({
+      name: photo.name,
+      rate: photo.rate,
+      unit: photo.unit || Unit.Piece,
+      moq: photo.moq,
+      notes: photo.notes,
+      categories:
+        photo.tagsDirty || photo.categories.length > 0
+          ? photo.categories
+          : [...form.categories],
+    });
+    setMemberSheet({ kind: 'pending', localId });
+  };
+
+  const saveMemberSheet = async () => {
+    if (!memberSheet) return;
+    setMemberSaving(true);
+    setError(null);
+    try {
+      if (memberSheet.kind === 'pending') {
+        setPendingPhotos((prev) =>
+          prev.map((p) =>
+            p.localId === memberSheet.localId
+              ? {
+                  ...p,
+                  name: memberForm.name.trim() || p.name,
+                  rate: memberForm.rate,
+                  unit: memberForm.unit,
+                  moq: memberForm.moq,
+                  notes: memberForm.notes,
+                  categories: memberForm.categories,
+                  tagsDirty: true,
+                }
+              : p,
+          ),
+        );
+      } else {
+        await api.patch(`/products/${memberSheet.productId}`, {
+          name: memberForm.name.trim(),
+          description: memberForm.notes.trim() || undefined,
+          rate: memberForm.rate.trim() ? Number(memberForm.rate) : undefined,
+          unit: memberForm.unit || undefined,
+          moq: memberForm.moq.trim() ? Number(memberForm.moq) : undefined,
+          categories: memberForm.categories,
+        });
+        void queryClient.invalidateQueries({ queryKey: ['my-products'] });
+        void queryClient.invalidateQueries({ queryKey: ['collection', id] });
+        showToast('Design updated');
+      }
+      setMemberSheet(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save design.');
+    } finally {
+      setMemberSaving(false);
+    }
+  };
 
   // No early returns above — loading/error are branches so hook order never changes.
   if (editing && existing.isLoading) {
@@ -838,57 +982,90 @@ export function CollectionEditorPage() {
           </div>
 
           {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2">
-              {pendingPhotos.map((photo, index) => (
-                <div
-                  key={photo.localId}
-                  className="relative overflow-hidden rounded-xl bg-foam"
-                >
-                  <img
-                    src={photo.previewUrl}
-                    alt=""
-                    className="aspect-square w-full object-cover"
-                  />
-                  {index === 0 && !photo.uploading ? (
-                    <span className="absolute left-1 top-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
-                      Cover
-                    </span>
-                  ) : null}
-                  {photo.uploading ? (
-                    <span className="absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-bold text-white">
-                      …
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    aria-label="Remove photo"
-                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
-                    onClick={() => removePending(photo.localId)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {createLibraryDesigns.map((product, index) => {
+            <CappedMediaGrid
+              items={[
+                ...pendingPhotos.map((photo, index) => ({
+                  kind: 'photo' as const,
+                  photo,
+                  index,
+                })),
+                ...createLibraryDesigns.map((product, index) => ({
+                  kind: 'library' as const,
+                  product,
+                  index,
+                })),
+              ]}
+              getKey={(tile) =>
+                tile.kind === 'photo' ? tile.photo.localId : tile.product.id
+              }
+              overflowPreviewUrl={(tile) =>
+                tile.kind === 'photo'
+                  ? tile.photo.previewUrl
+                  : tile.product.images[0] ?? null
+              }
+              renderTile={(tile) => {
+                if (tile.kind === 'photo') {
+                  const { photo, index } = tile;
+                  return (
+                    <div className="relative overflow-hidden rounded-xl bg-foam">
+                      <button
+                        type="button"
+                        className="block w-full text-left"
+                        data-testid="collection-pending-tile"
+                        onClick={() => openPendingDesignSheet(photo.localId)}
+                        aria-label={`Edit design · ${photo.name}`}
+                      >
+                        <img
+                          src={photo.previewUrl}
+                          alt=""
+                          className="aspect-square w-full object-cover"
+                        />
+                      </button>
+                      {index === 0 && !photo.uploading ? (
+                        <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          Cover
+                        </span>
+                      ) : null}
+                      {photo.uploading ? (
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-bold text-white">
+                          …
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label="Remove photo"
+                        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                        onClick={() => removePending(photo.localId)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                }
+                const { product, index } = tile;
                 const isCover = readyCreatePhotos.length === 0 && index === 0;
                 return (
-                  <div
-                    key={product.id}
-                    className="relative overflow-hidden rounded-xl bg-foam"
-                  >
-                    {product.images[0] ? (
-                      <img
-                        src={product.images[0]}
-                        alt=""
-                        className="aspect-square w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex aspect-square items-center justify-center text-lg font-bold text-muted">
-                        {product.name.charAt(0)}
-                      </div>
-                    )}
+                  <div className="relative overflow-hidden rounded-xl bg-foam">
+                    <button
+                      type="button"
+                      className="block w-full text-left"
+                      onClick={() => openMemberDesignSheet(product)}
+                      aria-label={`Edit design · ${product.name}`}
+                    >
+                      {product.images[0] ? (
+                        <img
+                          src={product.images[0]}
+                          alt=""
+                          className="aspect-square w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex aspect-square items-center justify-center text-lg font-bold text-muted">
+                          {product.name.charAt(0)}
+                        </div>
+                      )}
+                    </button>
                     {isCover ? (
-                      <span className="absolute left-1 top-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
                         Cover
                       </span>
                     ) : null}
@@ -902,8 +1079,8 @@ export function CollectionEditorPage() {
                     </button>
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
           ) : null}
 
           {/* In-flow on create — fixed docks break under ekum-rise (transform containing block). */}
@@ -918,21 +1095,19 @@ export function CollectionEditorPage() {
               autoComplete="off"
             />
           </Field>
+          <Field label="Description">
+            <TextArea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Optional — what this pack is for"
+            />
+          </Field>
+          <TagsField
+            value={form.categories}
+            onChange={(categories) => setForm({ ...form, categories })}
+          />
           <div className="flex flex-col gap-2">
             <Button
-              fullWidth
-              disabled={
-                creating ||
-                quickUploading ||
-                createMemberCount < 1 ||
-                !form.name.trim()
-              }
-              onClick={() => void onCreate()}
-            >
-              {creating && !publishOpen ? 'Saving…' : 'Save Collection in Draft'}
-            </Button>
-            <Button
-              variant="secondary"
               fullWidth
               disabled={
                 creating ||
@@ -943,6 +1118,19 @@ export function CollectionEditorPage() {
               onClick={() => setPublishOpen(true)}
             >
               Create & Publish
+            </Button>
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={
+                creating ||
+                quickUploading ||
+                createMemberCount < 1 ||
+                !form.name.trim()
+              }
+              onClick={() => void onCreate()}
+            >
+              {creating && !publishOpen ? 'Saving…' : 'Save in Draft'}
             </Button>
           </div>
         </>
@@ -961,23 +1149,17 @@ export function CollectionEditorPage() {
                 placeholder="Festive 2026"
               />
             </Field>
-            {noteOpen ? (
-              <Field label="Note">
-                <TextArea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Optional note for your team or buyers"
-                />
-              </Field>
-            ) : (
-              <button
-                type="button"
-                className="self-start text-sm font-medium text-accent"
-                onClick={() => setNoteOpen(true)}
-              >
-                Add note
-              </button>
-            )}
+            <Field label="Description">
+              <TextArea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Optional — what this pack is for"
+              />
+            </Field>
+            <TagsField
+              value={form.categories}
+              onChange={(categories) => setForm({ ...form, categories })}
+            />
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -994,17 +1176,18 @@ export function CollectionEditorPage() {
           </div>
 
           {selectedProducts.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2">
-              {selectedProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="relative overflow-hidden rounded-xl border border-line bg-foam"
-                >
+            <CappedMediaGrid
+              items={selectedProducts}
+              getKey={(product) => product.id}
+              overflowPreviewUrl={(product) => product.images[0] ?? null}
+              renderTile={(product) => (
+                <div className="relative overflow-hidden rounded-xl border border-line bg-foam">
                   <button
                     type="button"
                     className="block w-full text-left"
-                    onClick={() => navigate(`/collections/${id}`)}
-                    aria-label={`Open album · ${product.name}`}
+                    data-testid="collection-member-tile"
+                    onClick={() => openMemberDesignSheet(product)}
+                    aria-label={`Edit design · ${product.name}`}
                   >
                     {product.images[0] ? (
                       <img
@@ -1030,8 +1213,8 @@ export function CollectionEditorPage() {
                     ×
                   </button>
                 </div>
-              ))}
-            </div>
+              )}
+            />
           ) : (
             <p className="text-sm text-muted">Add photos or designs from your library.</p>
           )}
@@ -1246,14 +1429,17 @@ export function CollectionEditorPage() {
                 onChange={(e) => setDesignSearch(e.target.value)}
                 placeholder="Search by name"
               />
-              <div className="grid grid-cols-3 gap-2">
-                {filteredDesigns.map((product) => {
+              <CappedMediaGrid
+                items={filteredDesigns}
+                getKey={(product) => product.id}
+                overflowPreviewUrl={(product) => product.images[0] ?? null}
+                loadMoreTestId="collection-library-load-more"
+                renderTile={(product) => {
                   const on = editing
                     ? selected.has(product.id)
                     : libraryPicks.has(product.id);
                   return (
                     <button
-                      key={product.id}
                       type="button"
                       onClick={() =>
                         editing ? toggle(product.id) : toggleLibraryPick(product.id)
@@ -1284,8 +1470,8 @@ export function CollectionEditorPage() {
                       </span>
                     </button>
                   );
-                })}
-              </div>
+                }}
+              />
             </>
           )}
         </div>
@@ -1366,6 +1552,61 @@ export function CollectionEditorPage() {
           />
 
           {sheetError ? <p className="text-center text-xs text-danger">{sheetError}</p> : null}
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={Boolean(memberSheet)}
+        onClose={() => !memberSaving && setMemberSheet(null)}
+        title="Update this design"
+        footer={
+          <Button fullWidth disabled={memberSaving} onClick={() => void saveMemberSheet()}>
+            {memberSaving ? 'Saving…' : 'Done'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Field label="Name">
+            <TextInput
+              value={memberForm.name}
+              onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
+              placeholder="Design name"
+            />
+          </Field>
+          <TagsField
+            value={memberForm.categories}
+            onChange={(categories) => setMemberForm({ ...memberForm, categories })}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Rate">
+              <TextInput
+                type="number"
+                value={memberForm.rate}
+                onChange={(e) => setMemberForm({ ...memberForm, rate: e.target.value })}
+                placeholder="1200"
+              />
+            </Field>
+            <Field label="Unit">
+              {unitSelect(memberForm.unit, (unit) => setMemberForm({ ...memberForm, unit }))}
+            </Field>
+          </div>
+          <Field label="Minimum order">
+            <TextInput
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={memberForm.moq}
+              onChange={(e) => setMemberForm({ ...memberForm, moq: e.target.value })}
+              placeholder="100 pieces"
+            />
+          </Field>
+          <Field label="Notes">
+            <TextArea
+              value={memberForm.notes}
+              onChange={(e) => setMemberForm({ ...memberForm, notes: e.target.value })}
+              placeholder="e.g. 44 inch, cotton"
+            />
+          </Field>
         </div>
       </Sheet>
 

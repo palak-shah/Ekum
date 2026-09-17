@@ -9,7 +9,6 @@ export const DEFAULT_PUBLISH_AUDIENCE = PublishAudience.Followers;
 
 /** Who chips on Publish / Visibility (Connections kept in API for legacy rows only). */
 export const PUBLISH_WHO_OPTIONS = [
-  [PublishAudience.Everyone, 'Everyone'],
   [PublishAudience.Followers, 'My followers'],
   [PublishAudience.Selected, 'Selected'],
 ] as const;
@@ -25,7 +24,9 @@ export function audienceForPublishSheet(
   maxAudience: string | null = null,
 ): string {
   const preferred =
-    !audience || audience === PublishAudience.Connections
+    !audience ||
+    audience === PublishAudience.Connections ||
+    audience === PublishAudience.Everyone
       ? DEFAULT_PUBLISH_AUDIENCE
       : audience;
   const clamped = clampAudienceToCeiling(preferred, maxAudience);

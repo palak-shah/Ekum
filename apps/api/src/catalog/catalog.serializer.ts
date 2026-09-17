@@ -85,6 +85,7 @@ export class CatalogSerializer {
       name: collection.name,
       description: collection.description,
       coverImage: collection.coverImage,
+      categories: collection.categories ?? [],
       status: collection.status,
       audience: collection.audience,
       rateVisibility: collection.rateVisibility,

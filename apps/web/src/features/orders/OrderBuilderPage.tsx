@@ -21,6 +21,7 @@ import { Button, Card, Field, InlineNotice, LoadingBlock, Sheet, TextArea, TextI
 import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
+import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
 import { navigateToOrderChat } from './navigateToOrderChat';
@@ -495,12 +496,13 @@ export function OrderBuilderPage() {
                 <p className="text-xs text-muted">Up to {MAX_PHOTO_LINES} photos per order.</p>
               ) : null}
 
-              <div className="grid grid-cols-3 gap-2">
-                {photos.map((photo) => (
-                  <div
-                    key={photo.id}
-                    className="relative aspect-square overflow-hidden rounded-xl border border-line bg-foam"
-                  >
+              <CappedMediaGrid
+                items={photos}
+                getKey={(photo) => photo.id}
+                overflowPreviewUrl={(photo) => photo.previewUrl || photo.imageUrl}
+                loadMoreTestId="photo-order-load-more"
+                renderTile={(photo) => (
+                  <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-foam">
                     <button
                       type="button"
                       onClick={() => openPhotoPieces(photo.id)}
@@ -531,8 +533,8 @@ export function OrderBuilderPage() {
                       ×
                     </button>
                   </div>
-                ))}
-              </div>
+                )}
+              />
 
               <div className="flex flex-col gap-2">
                 <p className="text-sm font-bold tracking-tight text-ink">Pieces for all</p>

@@ -437,7 +437,7 @@ describe('CollectionService name uniqueness', () => {
     } as unknown as PrismaService;
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
     await expect(
-      service.create('company-1', 'u1', { name: 'wedding edit' }),
+      service.create('company-1', 'u1', { name: 'wedding edit', categories: [] }),
     ).rejects.toThrow(/already have a collection/i);
   });
 });
@@ -922,5 +922,77 @@ describe('CollectionService.update', () => {
       data: { status: CollectionStatus.Draft, exploreActivityAt: null },
     });
     expect(view).toMatchObject({ status: CollectionStatus.Draft, exploreActivityAt: null });
+  });
+});
+
+describe('CollectionService categories', () => {
+  it('persists categories on create', async () => {
+    const create = vi.fn(async (args: { data: { categories: string[] } }) => ({
+      id: 'col-1',
+      ...args.data,
+      products: [],
+      _count: { products: 0 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => null,
+        create,
+      },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.create('company-1', 'u1', {
+      name: 'Wedding Edit',
+      categories: ['Bedsheet', 'Bed Linen'],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          categories: ['Bedsheet', 'Bed Linen'],
+        }),
+      }),
+    );
+  });
+
+  it('updates categories when provided', async () => {
+    const update = vi.fn(async () => ({
+      id: 'col-1',
+      categories: ['Towels'],
+      products: [],
+      _count: { products: 0 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          name: 'Pack',
+          status: CollectionStatus.Draft,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.update('company-1', 'u1', 'col-1', { categories: ['Towels'] });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ categories: ['Towels'] }),
+      }),
+    );
   });
 });
