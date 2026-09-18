@@ -96,7 +96,7 @@ describe('resolvePhotoBatchTarget', () => {
 });
 
 describe('continuousCameraMaxShots', () => {
-  it('uses remaining photo slots when appending to one design', () => {
+  it('uses remaining photo slots when appending with a cap', () => {
     expect(
       continuousCameraMaxShots({
         appendToDraft: true,
@@ -108,6 +108,18 @@ describe('continuousCameraMaxShots', () => {
     ).toBe(11);
   });
 
+  it('uses a soft session max when photos per design are uncapped', () => {
+    expect(
+      continuousCameraMaxShots({
+        appendToDraft: true,
+        draftImageCount: 3,
+        draftCount: 3,
+        maxDesigns: 120,
+        maxPhotosPerDesign: null,
+      }),
+    ).toBe(50);
+  });
+
   it('uses remaining design slots when capturing new designs', () => {
     expect(
       continuousCameraMaxShots({
@@ -115,7 +127,7 @@ describe('continuousCameraMaxShots', () => {
         draftImageCount: 0,
         draftCount: 3,
         maxDesigns: 120,
-        maxPhotosPerDesign: 12,
+        maxPhotosPerDesign: null,
       }),
     ).toBe(117);
   });

@@ -43,9 +43,16 @@ describe('CatalogSerializer', () => {
     expect(view.rate).toBe(120.5);
   });
 
-  it('exposes moq when set', () => {
-    const view = serializer.toProductView({ ...product(null), moq: 100 } as Product);
-    expect(view.moq).toBe(100);
+  it('converts a Decimal rateMax to a number', () => {
+    const view = serializer.toProductView({
+      ...product(null),
+      rateMax: { toNumber: () => 1400 },
+    } as unknown as Product);
+    expect(view.rateMax).toBe(1400);
+  });
+
+  it('treats missing rateMax as null', () => {
+    expect(serializer.toProductView(product(null)).rateMax).toBeNull();
   });
 
   it('reports product count from the _count aggregate', () => {

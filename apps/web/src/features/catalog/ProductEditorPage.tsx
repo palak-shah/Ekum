@@ -24,6 +24,7 @@ import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
 import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
+import { formatRateInput, parseRateInput } from './rateInput';
 import { TagsField } from './TagsField';
 import {
   emptyPublishAudienceState,
@@ -120,7 +121,7 @@ export function ProductEditorPage() {
       setForm({
         name: existing.data.name,
         sku: existing.data.sku ?? '',
-        rate: existing.data.rate === null ? '' : String(existing.data.rate),
+        rate: formatRateInput(existing.data.rate, existing.data.rateMax ?? null),
         moq:
           existing.data.moq === null || existing.data.moq === undefined
             ? ''
@@ -149,7 +150,7 @@ export function ProductEditorPage() {
       savedSnapshotRef.current = JSON.stringify({
         name: existing.data.name,
         sku: existing.data.sku ?? '',
-        rate: existing.data.rate === null ? '' : String(existing.data.rate),
+        rate: formatRateInput(existing.data.rate, existing.data.rateMax ?? null),
         moq:
           existing.data.moq === null || existing.data.moq === undefined
             ? ''
@@ -253,10 +254,12 @@ export function ProductEditorPage() {
 
   const save = useMutation({
     mutationFn: () => {
+      const parsed = parseRateInput(form.rate);
       const dto: CreateProductDto = {
         name: form.name.trim(),
         sku: form.sku.trim() || undefined,
-        rate: form.rate.trim() ? Number(form.rate) : null,
+        rate: parsed.rate,
+        rateMax: parsed.rateMax,
         moq: form.moq.trim() ? Number(form.moq) : null,
         unit: form.unit ? (form.unit as (typeof unitValues)[number]) : undefined,
         description: form.description.trim() || undefined,
@@ -497,10 +500,10 @@ export function ProductEditorPage() {
       <div className="grid grid-cols-2 gap-3">
         <Field label="Rate" hint="Blank = on request">
           <TextInput
-            type="number"
             value={form.rate}
             onChange={(e) => setForm({ ...form, rate: e.target.value })}
-            placeholder="1200"
+            placeholder="1200 or 1200-1400"
+            inputMode="decimal"
           />
         </Field>
         <Field label="Unit">

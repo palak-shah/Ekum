@@ -825,7 +825,7 @@ function DesignTile({
 }) {
   const image = product.images[0] ?? null;
   const extraPhotos = Math.max(0, product.images.length - 1);
-  const meta = [product.sku, formatRate(product.rate, product.unit)].filter(Boolean).join(' · ');
+  const meta = [product.sku, formatRate(product.rate, product.unit, product.rateMax)].filter(Boolean).join(' · ');
   const origin =
     showOrigin && product.companyName?.trim()
       ? `From ${product.companyName.trim()}`
@@ -958,7 +958,7 @@ function ProductPhotosSheet({
               No photos
             </div>
           )}
-          <p className="text-sm font-semibold text-ink">{formatRate(product.rate, product.unit)}</p>
+          <p className="text-sm font-semibold text-ink">{formatRate(product.rate, product.unit, product.rateMax)}</p>
           {product.moq != null && product.moq > 0 ? (
             <p className="text-sm font-medium text-ink">Minimum order · {product.moq} pcs</p>
           ) : null}

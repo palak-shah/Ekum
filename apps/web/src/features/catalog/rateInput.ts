@@ -1,0 +1,66 @@
+/** Parse / display catalog rates that may be a single number or a range. */
+
+export type ParsedRate = {
+  rate: number | null;
+  rateMax: number | null;
+};
+
+export type SameForAllDetails = {
+  categories: string[];
+  rate: string;
+  unit: string;
+  moq: string;
+  notes: string;
+};
+
+function parseOneNumber(raw: string): number | null {
+  const cleaned = raw.replace(/,/g, '').trim();
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+/** Accepts `1200`, `1,200`, `1200-1400`, `1200–1400`. Invalid → both null. */
+export function parseRateInput(raw: string): ParsedRate {
+  const text = raw.trim();
+  if (!text) return { rate: null, rateMax: null };
+
+  const rangeParts = text.split(/\s*[–-]\s*/);
+  if (rangeParts.length === 2) {
+    const low = parseOneNumber(rangeParts[0] ?? '');
+    const high = parseOneNumber(rangeParts[1] ?? '');
+    if (low == null || high == null || high < low) {
+      return { rate: null, rateMax: null };
+    }
+    if (high === low) return { rate: low, rateMax: null };
+    return { rate: low, rateMax: high };
+  }
+
+  const rate = parseOneNumber(text);
+  return { rate, rateMax: null };
+}
+
+export function formatRateInput(rate: number | null, rateMax: number | null): string {
+  if (rate == null) return '';
+  if (rateMax != null && rateMax > rate) return `${rate}-${rateMax}`;
+  return String(rate);
+}
+
+/** One-line summary for the Same for all row; null when empty (dashed skippable). */
+export function sameForAllSummary(details: SameForAllDetails): string | null {
+  const parts: string[] = [];
+  const rate = details.rate.trim();
+  if (rate) parts.push(rate);
+  if (details.unit.trim()) parts.push(details.unit.trim());
+  if (details.moq.trim()) parts.push(`MOQ ${details.moq.trim()}`);
+  if (details.notes.trim()) parts.push(details.notes.trim());
+  if (details.categories.length > 0) {
+    parts.push(details.categories.slice(0, 2).join(', '));
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+export function sameForAllIsEmpty(details: SameForAllDetails): boolean {
+  return sameForAllSummary(details) == null;
+}

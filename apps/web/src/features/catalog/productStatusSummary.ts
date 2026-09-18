@@ -37,7 +37,7 @@ export function productTileSubtitle(
   groups: BuyerGroupName[] = [],
 ): string {
   const bits: string[] = [];
-  const rate = formatRate(product.rate, product.unit);
+  const rate = formatRate(product.rate, product.unit, product.rateMax);
   if (rate !== 'On request') bits.push(rate);
   else if (product.rate == null) bits.push('On request');
   if (product.sku) bits.push(product.sku);

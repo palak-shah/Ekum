@@ -40,6 +40,29 @@ describe('CappedMediaGrid', () => {
     expect(screen.getByTestId('capped-media-load-more')).toHaveTextContent('Load more');
   });
 
+  it('keeps load-more the same aspect and full cell width', () => {
+    const items = Array.from({ length: CAPPED_MEDIA_PAGE + 2 }, (_, i) => ({
+      id: `i${i}`,
+      url: `https://example.com/${i}.jpg`,
+    }));
+    render(
+      <CappedMediaGrid
+        items={items}
+        getKey={(x) => x.id}
+        overflowPreviewUrl={(x) => x.url}
+        renderTile={(x) => (
+          <button type="button" className="aspect-square w-full">
+            {x.id}
+          </button>
+        )}
+      />,
+    );
+    const loadMore = screen.getByTestId('capped-media-load-more');
+    expect(loadMore.className).toMatch(/aspect-square/);
+    expect(loadMore.className).toMatch(/(?:^|\s)w-full(?:\s|$)/);
+    expect(loadMore.parentElement?.className).toMatch(/min-w-0/);
+  });
+
   it('expands by another page on Load more', async () => {
     const user = userEvent.setup();
     const items = Array.from({ length: 15 }, (_, i) => ({ id: `i${i}` }));

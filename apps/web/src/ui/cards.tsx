@@ -116,7 +116,7 @@ export function OpportunityCollectionCard({
       </div>
       <button
         type="button"
-        className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+        className={cx('relative block w-full px-4 text-left', LONG_PRESS_SURFACE_CLASS)}
         onClick={onMediaClick}
         {...longPress}
       >
@@ -128,7 +128,7 @@ export function OpportunityCollectionCard({
         {selectMode ? (
           <span
             className={cx(
-              'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              'absolute left-6 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
               selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
             )}
           >
@@ -233,11 +233,11 @@ export function OpportunityBusinessCard({
           <VerificationTag verification={company.verification} />
         )}
       </div>
-      <Link to={shopTo} className="block px-3">
+      <Link to={shopTo} className="block px-4">
         {hasShopVisual ? (
           <>
             <AlbumGrid images={previews} imageCount={imageCount} alt={company.name} />
-            <div className="mt-2 flex items-start justify-between gap-3 px-1">
+            <div className="mt-2 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 {catalogLine ? (
                   <p className="text-sm font-semibold tracking-tight text-ink">{catalogLine}</p>
@@ -419,7 +419,7 @@ export function OpportunityDesignCard({
       </div>
       <button
         type="button"
-        className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
+        className={cx('relative block w-full px-4 text-left', LONG_PRESS_SURFACE_CLASS)}
         onClick={onMediaClick}
         {...longPress}
       >
@@ -427,7 +427,7 @@ export function OpportunityDesignCard({
         {selectMode ? (
           <span
             className={cx(
-              'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              'absolute left-6 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
               selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
             )}
           >
@@ -759,7 +759,7 @@ export function ProductTile({
       </div>
       <div className="p-2.5">
         <p className="truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">{formatRate(product.rate, product.unit)}</p>
+        <p className="text-xs font-medium text-muted">{formatRate(product.rate, product.unit, product.rateMax)}</p>
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ function product(id: string, name: string): ProductView {
     description: null,
     moq: null,
     rate: null,
+    rateMax: null,
     unit: null,
     categories: [],
     images: [],

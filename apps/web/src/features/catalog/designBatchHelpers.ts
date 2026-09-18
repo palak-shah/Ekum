@@ -78,15 +78,22 @@ export function resolvePhotoBatchTarget(
   return { mode: 'create' };
 }
 
+/** Soft camera session size when photos-per-design is uncapped (no product hard cap). */
+export const CAMERA_APPEND_SOFT_MAX = 50;
+
 /** Shots allowed in ContinuousCamera — append-to-design vs new-design session. */
 export function continuousCameraMaxShots(input: {
   appendToDraft: boolean;
   draftImageCount: number;
   draftCount: number;
   maxDesigns: number;
-  maxPhotosPerDesign: number;
+  /** null = unlimited photos on the design; camera uses a soft session max. */
+  maxPhotosPerDesign: number | null;
 }): number {
   if (input.appendToDraft) {
+    if (input.maxPhotosPerDesign == null) {
+      return CAMERA_APPEND_SOFT_MAX;
+    }
     return Math.max(0, input.maxPhotosPerDesign - input.draftImageCount);
   }
   return Math.max(0, input.maxDesigns - input.draftCount);

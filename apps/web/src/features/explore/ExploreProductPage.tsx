@@ -233,7 +233,7 @@ export function ExploreProductPage() {
         {data.visible ? (
           <>
             <span className="text-lg font-semibold text-ink">
-              {formatRate(data.rate, data.unit)}
+              {formatRate(data.rate, data.unit, data.rateMax)}
             </span>
             {data.moq != null && data.moq > 0 ? (
               <p className="text-sm font-medium text-ink">Minimum order · {data.moq} pcs</p>

@@ -49,6 +49,7 @@ import {
   resolvePhotoBatchTarget,
   type DraftOverrides,
 } from './designBatchHelpers';
+import { parseRateInput } from './rateInput';
 
 /** One-line by default; grows while typing / when focused. */
 function ExpandableNotes({
@@ -107,7 +108,6 @@ type Draft = {
 };
 
 const MAX_DESIGNS = 120;
-const MAX_PHOTOS_PER_DESIGN = 12;
 const LARGE_BATCH = 20;
 const UPLOAD_CONCURRENCY = 4;
 const SAVE_CONCURRENCY = 3;
@@ -246,13 +246,6 @@ export function DesignBatchPage() {
       setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
       return;
     }
-    if (draftId) {
-      const draft = drafts.find((d) => d.id === draftId);
-      if (draft && draft.images.length >= MAX_PHOTOS_PER_DESIGN) {
-        setError(`This design already has ${MAX_PHOTOS_PER_DESIGN} photos.`);
-        return;
-      }
-    }
     pendingAppendDraftIdRef.current = draftId;
     setTargetDraftId(draftId);
     setError(null);
@@ -264,13 +257,6 @@ export function DesignBatchPage() {
     if (!draftId && drafts.length >= MAX_DESIGNS) {
       setError(`You can add up to ${MAX_DESIGNS} designs at once.`);
       return;
-    }
-    if (draftId) {
-      const draft = drafts.find((d) => d.id === draftId);
-      if (draft && draft.images.length >= MAX_PHOTOS_PER_DESIGN) {
-        setError(`This design already has ${MAX_PHOTOS_PER_DESIGN} photos.`);
-        return;
-      }
     }
     setError(null);
     // Sheet (z-80) must fully dismiss — otherwise it covers / fights the camera.
@@ -639,10 +625,12 @@ export function DesignBatchPage() {
               .filter(Boolean)
               .map((url) => toAbsoluteMediaUrl(url));
             const identity = createProductIdentity(draft.name);
+            const parsed = parseRateInput(e.rate);
             const dto: CreateProductDto = {
               name: identity.name,
               sku: identity.sku,
-              rate: e.rate.trim() ? Number(e.rate) : null,
+              rate: parsed.rate,
+              rateMax: parsed.rateMax,
               moq: e.moq.trim() ? Number(e.moq) : null,
               description: e.notes.trim() || undefined,
               unit: (e.unit || undefined) as CreateProductDto['unit'],
@@ -738,7 +726,7 @@ export function DesignBatchPage() {
     draftImageCount: cameraAppendDraft?.images.length ?? 0,
     draftCount: drafts.length,
     maxDesigns: MAX_DESIGNS,
-    maxPhotosPerDesign: MAX_PHOTOS_PER_DESIGN,
+    maxPhotosPerDesign: null,
   });
 
   const unitSelect = (value: string, onChange: (v: string) => void) => (
@@ -924,10 +912,10 @@ export function DesignBatchPage() {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Rate">
                   <TextInput
-                    type="number"
                     value={sharedRate}
                     onChange={(e) => setSharedRate(e.target.value)}
-                    placeholder="1200"
+                    placeholder="1200 or 1200-1400"
+                    inputMode="decimal"
                   />
                 </Field>
                 <Field label="Unit">{unitSelect(sharedUnit, setSharedUnit)}</Field>
@@ -1127,7 +1115,7 @@ export function DesignBatchPage() {
                   data-testid="design-batch-add-more-photos"
                   aria-label="Add photos to this design"
                   onClick={() => openMorePhotosForDraft(editDraft.id)}
-                  disabled={uploading || editDraft.images.length >= MAX_PHOTOS_PER_DESIGN}
+                  disabled={uploading}
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
                 >
                   <CameraIcon width={22} height={22} />
@@ -1145,10 +1133,10 @@ export function DesignBatchPage() {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Rate">
                   <TextInput
-                    type="number"
                     value={sheetRate}
                     onChange={(e) => setSheetRate(e.target.value)}
-                    placeholder="1200"
+                    placeholder="1200 or 1200-1400"
+                    inputMode="decimal"
                   />
                 </Field>
                 <Field label="Unit">{unitSelect(sheetUnit, setSheetUnit)}</Field>

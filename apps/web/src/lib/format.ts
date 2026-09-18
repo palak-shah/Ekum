@@ -9,11 +9,19 @@ const UNIT_LABEL: Record<string, string> = {
 };
 
 /** Rate + unit, honouring the "on request" default when no rate is set. */
-export function formatRate(rate: number | null, unit: string | null): string {
+export function formatRate(
+  rate: number | null,
+  unit: string | null,
+  rateMax: number | null = null,
+): string {
   if (rate === null || rate === undefined) {
     return 'On request';
   }
-  const price = `₹${rate.toLocaleString('en-IN')}`;
+  const low = `₹${rate.toLocaleString('en-IN')}`;
+  const price =
+    rateMax != null && rateMax > rate
+      ? `${low}–₹${rateMax.toLocaleString('en-IN')}`
+      : low;
   return unit ? `${price}/${UNIT_LABEL[unit] ?? unit}` : price;
 }
 

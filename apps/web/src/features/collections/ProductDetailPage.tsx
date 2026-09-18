@@ -80,7 +80,7 @@ export function ProductDetailPage() {
 
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-lg font-semibold text-ink">{formatRate(data.rate, data.unit)}</span>
+          <span className="text-lg font-semibold text-ink">{formatRate(data.rate, data.unit, data.rateMax)}</span>
           <StatusPill status={data.status} />
         </div>
         {data.moq != null && data.moq > 0 ? (

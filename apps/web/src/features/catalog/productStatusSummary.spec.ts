@@ -12,6 +12,7 @@ function product(partial: Partial<ProductView>): ProductView {
     description: null,
     moq: null,
     rate: null,
+    rateMax: null,
     unit: 'pc',
     categories: [],
     images: [],
@@ -22,10 +23,12 @@ function product(partial: Partial<ProductView>): ProductView {
     rateVisibility: 'on_request',
     allowForward: true,
     postedToMarketAt: null,
+    createdBy: null,
+    updatedBy: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...partial,
-  } as ProductView;
+  };
 }
 
 describe('productStatusLine', () => {

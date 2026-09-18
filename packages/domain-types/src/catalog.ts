@@ -30,7 +30,7 @@ export const listCatalogQuerySchema = z.object({
 });
 export type ListCatalogQuery = z.infer<typeof listCatalogQuerySchema>;
 
-export const createProductSchema = z.object({
+const createProductObjectSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
   /** Optional on create; server fills a stable SKU when omitted. */
   sku: z.string().trim().min(1).max(64).optional(),
@@ -40,6 +40,8 @@ export const createProductSchema = z.object({
   moq: z.number().int().positive().max(1_000_000).nullable().optional(),
   // null / omitted => "on request"; a number is a per-unit rate.
   rate: z.number().nonnegative().nullable().optional(),
+  /** Optional high end for display ranges (e.g. 1200–1400). Orders use `rate` only. */
+  rateMax: z.number().nonnegative().nullable().optional(),
   unit: z.enum(unitValues).optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
   images: z
@@ -50,9 +52,28 @@ export const createProductSchema = z.object({
     )
     .default([]),
 });
+
+function refineRateRange(
+  value: { rate?: number | null; rateMax?: number | null },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    value.rate != null &&
+    value.rateMax != null &&
+    value.rateMax < value.rate
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'High rate must be at least the low rate.',
+      path: ['rateMax'],
+    });
+  }
+}
+
+export const createProductSchema = createProductObjectSchema.superRefine(refineRateRange);
 export type CreateProductDto = z.infer<typeof createProductSchema>;
 
-export const updateProductSchema = createProductSchema.partial();
+export const updateProductSchema = createProductObjectSchema.partial().superRefine(refineRateRange);
 export type UpdateProductDto = z.infer<typeof updateProductSchema>;
 
 /** ISO datetime or YYYY-MM-DD; null clears. Parsed to UTC bounds in the API. */
@@ -156,6 +177,8 @@ export interface ProductView {
   /** Minimum order quantity in pieces; null when not set. */
   moq: number | null;
   rate: number | null;
+  /** High end when rate is a range; null for single / on request. */
+  rateMax: number | null;
   unit: string | null;
   categories: string[];
   images: string[];
