@@ -33,6 +33,44 @@ function renderPage() {
   );
 }
 
+describe('ChatsPage Mark all read', () => {
+  beforeEach(() => {
+    vi.mocked(api.post).mockResolvedValue({ ok: true });
+  });
+
+  it('keeps Mark all read in ⋯ menu, not beside All Chats / Requests tabs', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      results: [
+        {
+          id: 't1',
+          kind: 'direct',
+          title: 'Surat Silk',
+          unreadCount: 2,
+          pinned: false,
+          updatedAt: new Date().toISOString(),
+          lastMessageAt: new Date().toISOString(),
+          lastPreview: 'Hi',
+          counterpartCompanyId: 'c1',
+          counterpartCompanyName: 'Surat Silk',
+          counterpartLogoUrl: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole('tab', { name: 'All Chats' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Requests Received' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
+
+    await user.click(await screen.findByTestId('chats-more'));
+    expect(screen.getByTestId('chats-mark-all-read')).toBeInTheDocument();
+    await user.click(screen.getByTestId('chats-mark-all-read'));
+    expect(api.post).toHaveBeenCalledWith('/threads/read-all', {});
+  });
+});
+
 describe('ChatsPage In chats find', () => {
   beforeEach(() => {
     vi.mocked(api.get).mockResolvedValue({ results: [], nextCursor: null });

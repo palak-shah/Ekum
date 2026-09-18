@@ -15,6 +15,10 @@ export function productStatusLine(
   if (product.status === ProductStatus.Draft) {
     return 'Draft';
   }
+  /** Pack publish marks designs Published without a solo Explore tile. */
+  if (!product.postedToMarketAt) {
+    return 'Published · in packs';
+  }
   const who = whoCanSeeLabel(
     {
       status: product.status,

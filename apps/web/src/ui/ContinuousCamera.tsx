@@ -22,6 +22,8 @@ export interface ContinuousCameraProps {
   onUnavailable: () => void;
   /** Pick from gallery instead — discards in-progress shots and closes camera. */
   onGallery?: () => void;
+  /** Pick existing designs — discards in-progress shots and closes camera. */
+  onDesigns?: () => void;
 }
 
 interface Shot {
@@ -102,6 +104,7 @@ export function ContinuousCamera({
   onCancel,
   onUnavailable,
   onGallery,
+  onDesigns,
 }: ContinuousCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -359,13 +362,16 @@ export function ContinuousCamera({
     onDone(files, appendId);
   };
 
-  const handleGallery = () => {
-    if (!onGallery) return;
+  const leaveFor = (action?: () => void) => {
+    if (!action) return;
     revokeShots(shots);
     setShots([]);
     stopStream();
-    onGallery();
+    action();
   };
+
+  const handleGallery = () => leaveFor(onGallery);
+  const handleDesigns = () => leaveFor(onDesigns);
 
   // Portal out of AppShell — `.ekum-rise` keeps a transform, so in-tree
   // `fixed inset-0` only fills the max-w-md column (tiny camera). Same as Sheet.
@@ -406,6 +412,16 @@ export function ContinuousCamera({
               className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
             >
               Gallery
+            </button>
+          ) : null}
+          {onDesigns ? (
+            <button
+              type="button"
+              data-testid="continuous-camera-designs"
+              onClick={handleDesigns}
+              className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
+            >
+              Designs
             </button>
           ) : null}
         </div>

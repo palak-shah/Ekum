@@ -50,6 +50,23 @@ describe('ContinuousCamera shell', () => {
     expect(screen.getByTestId('continuous-camera-shutter')).toBeTruthy();
   });
 
+  it('shows Designs on the camera bar when provided', async () => {
+    const onDesigns = vi.fn();
+    render(
+      <ContinuousCamera
+        open
+        maxShots={3}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        onUnavailable={() => undefined}
+        onDesigns={onDesigns}
+      />,
+    );
+    const designs = await screen.findByTestId('continuous-camera-designs');
+    designs.click();
+    expect(onDesigns).toHaveBeenCalled();
+  });
+
   it('does not re-call getUserMedia when onUnavailable identity changes while open', async () => {
     const track = {
       kind: 'video',

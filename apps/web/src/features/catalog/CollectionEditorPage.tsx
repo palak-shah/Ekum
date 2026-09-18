@@ -43,7 +43,7 @@ import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
 import { morePhotosEntry } from './designBatchHelpers';
 import { createPortal } from 'react-dom';
-import { CameraIcon, CollectionIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
+import { CameraIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { collectionStatusSummary } from './collectionStatusSummary';
@@ -132,6 +132,8 @@ export function CollectionEditorPage() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
+  /** Desktop, or camera unavailable — Photo library / Designs. Not the OS picker. */
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [quickUploading, setQuickUploading] = useState(false);
   const [savingDesigns, setSavingDesigns] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -507,19 +509,19 @@ export function CollectionEditorPage() {
     setCameraOpen(true);
   };
 
-  /** Phone → ContinuousCamera (Gallery on chrome); desktop → file multi-select. Same as Add designs. */
+  /** Phone → ContinuousCamera (Gallery + Designs on chrome); desktop → source menu. */
   const openDesignPicker = () => {
     if (morePhotosEntry(phone) === 'camera') {
       openCollectionCamera();
       return;
     }
-    openCollectionGallery();
+    setSourceOpen(true);
   };
 
   const onCameraUnavailable = useCallback(() => {
     setCameraOpen(false);
     setError(null);
-    queueMicrotask(() => openCollectionGallery());
+    setSourceOpen(true);
   }, []);
 
   const ingestPhotoFiles = async (files: File[]) => {
@@ -954,32 +956,19 @@ export function CollectionEditorPage() {
 
       {!editing ? (
         <>
-          <p className="text-sm text-muted">
-            Add photos, designs, or both. First item is the cover.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              data-testid="collection-add-photos"
-              onClick={openDesignPicker}
-              disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
-              className="flex aspect-[5/4] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-3 text-muted disabled:opacity-40"
-            >
-              <CameraIcon width={32} height={32} />
-              <span className="text-base font-semibold text-ink">
-                {quickUploading ? 'Uploading…' : 'Photos'}
-              </span>
-            </button>
-            <button
-              type="button"
-              data-testid="collection-add-designs"
-              onClick={() => setLibraryOpen(true)}
-              className="flex aspect-[5/4] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-3 text-muted"
-            >
-              <CollectionIcon width={32} height={32} />
-              <span className="text-base font-semibold text-ink">Designs</span>
-            </button>
-          </div>
+          <p className="text-sm text-muted">First item is the cover.</p>
+          <button
+            type="button"
+            data-testid="collection-add-designs"
+            onClick={openDesignPicker}
+            disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
+            className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-3 text-muted disabled:opacity-40"
+          >
+            <CameraIcon width={32} height={32} />
+            <span className="text-base font-semibold text-ink">
+              {quickUploading ? 'Uploading…' : 'Designs'}
+            </span>
+          </button>
 
           {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
             <CappedMediaGrid
@@ -1216,31 +1205,21 @@ export function CollectionEditorPage() {
               )}
             />
           ) : (
-            <p className="text-sm text-muted">Add photos or designs from your library.</p>
+            <p className="text-sm text-muted">Add designs — photo or from your library.</p>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={openDesignPicker}
-              disabled={quickUploading}
-              className={cx(
-                'flex min-h-12 items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm font-medium text-muted',
-                'disabled:opacity-40',
-              )}
-            >
-              <PlusIcon width={18} height={18} />
-              {quickUploading ? 'Adding…' : 'Photos'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setLibraryOpen(true)}
-              className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm font-medium text-muted"
-            >
-              <PlusIcon width={18} height={18} />
-              Designs
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={openDesignPicker}
+            disabled={quickUploading}
+            className={cx(
+              'flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm font-medium text-muted',
+              'disabled:opacity-40',
+            )}
+          >
+            <CameraIcon width={18} height={18} />
+            {quickUploading ? 'Adding…' : 'Designs'}
+          </button>
         </div>
       ) : null}
 
@@ -1361,6 +1340,49 @@ export function CollectionEditorPage() {
           )
         : null}
 
+      {sourceOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <>
+              <button
+                type="button"
+                aria-label="Close"
+                className="fixed inset-0 z-[80] cursor-default bg-ink/40"
+                onClick={() => setSourceOpen(false)}
+              />
+              <div
+                role="menu"
+                data-testid="collection-source-menu"
+                className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[81] overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full px-4 py-3.5 text-left text-[15px] font-semibold text-ink hover:bg-foam"
+                  onClick={() => {
+                    setSourceOpen(false);
+                    openCollectionGallery();
+                  }}
+                >
+                  Photo library
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="collection-source-designs"
+                  className="flex w-full border-t border-line px-4 py-3.5 text-left text-[15px] font-semibold text-ink hover:bg-foam"
+                  onClick={() => {
+                    setSourceOpen(false);
+                    setLibraryOpen(true);
+                  }}
+                >
+                  Designs
+                </button>
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
+
       <input
         ref={designFileRef}
         type="file"
@@ -1383,6 +1405,10 @@ export function CollectionEditorPage() {
         onGallery={() => {
           setCameraOpen(false);
           openCollectionGallery();
+        }}
+        onDesigns={() => {
+          setCameraOpen(false);
+          setLibraryOpen(true);
         }}
         onDone={(files) => {
           setCameraOpen(false);

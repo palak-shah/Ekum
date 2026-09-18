@@ -9,6 +9,14 @@ test.describe('seller collection publish @functional @collections', () => {
     await page.goto('/catalog/collections/new');
 
     await page.getByTestId('collection-add-designs').click();
+    const fromCamera = page.getByTestId('continuous-camera-designs');
+    const fromMenu = page.getByTestId('collection-source-designs');
+    await expect(fromCamera.or(fromMenu)).toBeVisible({ timeout: 8_000 });
+    if (await fromCamera.isVisible()) {
+      await fromCamera.click();
+    } else {
+      await fromMenu.click();
+    }
     await page.getByPlaceholder('Search by name').fill('Banarasi');
     await page
       .getByRole('dialog')

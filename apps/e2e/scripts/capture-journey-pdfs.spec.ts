@@ -199,6 +199,13 @@ test.describe('demo journey PDFs', () => {
       const addDesigns = page.getByTestId('collection-add-designs');
       if (await addDesigns.isVisible().catch(() => false)) {
         await addDesigns.click();
+        const fromCamera = page.getByTestId('continuous-camera-designs');
+        const fromMenu = page.getByTestId('collection-source-designs');
+        if (await fromCamera.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          await fromCamera.click();
+        } else if (await fromMenu.isVisible().catch(() => false)) {
+          await fromMenu.click();
+        }
         await settle(page, 800);
         await shot(page, dir, shots, '06-add-designs.png', 'Add designs', 'Pick designs from the mill library.');
         const done = page.getByRole('button', { name: 'Done' });

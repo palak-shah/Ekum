@@ -78,18 +78,16 @@ function addAlbumMany(entries: BrowseAlbumEntry[]) {
 }
 
 type Tab = 'products' | 'collections';
-type CollectionFilter = 'all' | 'draft' | 'published' | 'archived';
-type ProductFilter = 'all' | 'draft' | 'published' | 'archived';
+type CollectionFilter = 'draft' | 'published' | 'archived';
+type ProductFilter = 'draft' | 'published' | 'archived';
 
 const COLLECTION_FILTERS: { id: CollectionFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
   { id: 'draft', label: 'Draft' },
   { id: 'published', label: 'Published' },
   { id: 'archived', label: 'Archived' },
 ];
 
 const PRODUCT_FILTERS: { id: ProductFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
   { id: 'draft', label: 'Draft' },
   { id: 'published', label: 'Published' },
   { id: 'archived', label: 'Archived' },
@@ -100,7 +98,7 @@ function emptyCollectionCopy(filter: CollectionFilter): { title: string; message
     case 'published':
       return {
         title: 'No published collections',
-        message: 'Publish a pack so buyers can see it.',
+        message: 'Publish a pack so buyers can see it on Explore.',
       };
     case 'archived':
       return {
@@ -112,11 +110,6 @@ function emptyCollectionCopy(filter: CollectionFilter): { title: string; message
         title: 'No draft collections',
         message: 'Start a new album from photos or designs.',
       };
-    default:
-      return {
-        title: 'No collections yet',
-        message: 'Albums of designs from your library.',
-      };
   }
 }
 
@@ -125,7 +118,8 @@ function emptyProductCopy(filter: ProductFilter): { title: string; message: stri
     case 'published':
       return {
         title: 'No published designs',
-        message: 'Publish a design so buyers can see it on Explore.',
+        message:
+          'Publish a design for Explore, or publish a pack — pack designs show here too (not as separate Explore tiles).',
       };
     case 'archived':
       return {
@@ -135,12 +129,7 @@ function emptyProductCopy(filter: ProductFilter): { title: string; message: stri
     case 'draft':
       return {
         title: 'No draft designs',
-        message: 'Add a design from New post.',
-      };
-    default:
-      return {
-        title: 'No designs yet',
-        message: 'Your design library. Group any of them into a collection.',
+        message: 'Add designs, or create a collection — photos become designs here.',
       };
   }
 }
@@ -183,11 +172,11 @@ export function MyCatalogPage() {
   const initialProductFilter: ProductFilter =
     navProductFilter && PRODUCT_FILTERS.some((f) => f.id === navProductFilter)
       ? navProductFilter
-      : 'all';
+      : 'draft';
   const initialCollectionFilter: CollectionFilter =
     navCollectionFilter && COLLECTION_FILTERS.some((f) => f.id === navCollectionFilter)
       ? navCollectionFilter
-      : 'all';
+      : 'draft';
 
   const [collectionFilter, setCollectionFilter] =
     useState<CollectionFilter>(initialCollectionFilter);
@@ -244,7 +233,6 @@ export function MyCatalogPage() {
 
   const filteredCollections = useMemo(() => {
     const rows = collections.data ?? [];
-    if (collectionFilter === 'all') return rows;
     if (collectionFilter === 'draft') {
       return rows.filter(
         (row) =>
@@ -256,7 +244,6 @@ export function MyCatalogPage() {
 
   const filteredProducts = useMemo(() => {
     const rows = products.data ?? [];
-    if (productFilter === 'all') return rows;
     return rows.filter((row) => row.status === productFilter);
   }, [products.data, productFilter]);
 
@@ -566,7 +553,7 @@ export function MyCatalogPage() {
               title={emptyProductCopy(productFilter).title}
               message={emptyProductCopy(productFilter).message}
               action={
-                productFilter === 'all' || productFilter === 'draft' ? (
+                productFilter === 'draft' ? (
                   <Button onClick={() => setPostOpen(true)}>New post</Button>
                 ) : undefined
               }
@@ -603,7 +590,7 @@ export function MyCatalogPage() {
               title={emptyCollectionCopy(collectionFilter).title}
               message={emptyCollectionCopy(collectionFilter).message}
               action={
-                collectionFilter === 'all' || collectionFilter === 'draft' ? (
+                collectionFilter === 'draft' ? (
                   <Button onClick={() => navigate('/catalog/collections/new')}>New collection</Button>
                 ) : undefined
               }

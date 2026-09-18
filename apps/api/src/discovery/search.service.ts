@@ -13,6 +13,7 @@ import { Prisma } from '@prisma/client';
 import { companyNotBlockedWith } from '../access/connection-pair';
 import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { idsMatchingCategoryLabel } from './categories-match';
 import { DiscoverySerializer } from './discovery.serializer';
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
@@ -142,16 +143,21 @@ export class SearchService {
     viewerCompanyId: string,
     query: SearchQuery,
   ): Promise<CursorPage<CollectionCard>> {
+    const categoryIds = await idsMatchingCategoryLabel(this.prisma, 'Collection', query.q);
+    const or: Prisma.CollectionWhereInput[] = [
+      { name: { contains: query.q, mode: 'insensitive' } },
+      { company: { name: { contains: query.q, mode: 'insensitive' } } },
+      { company: { city: { contains: query.q, mode: 'insensitive' } } },
+    ];
+    if (categoryIds.length > 0) {
+      or.push({ id: { in: categoryIds } });
+    }
+
     const rows = await this.prisma.collection.findMany({
       where: {
         status: CollectionStatus.Published,
         companyId: { not: viewerCompanyId },
-        OR: [
-          { name: { contains: query.q, mode: 'insensitive' } },
-          { categories: { has: query.q } },
-          { company: { name: { contains: query.q, mode: 'insensitive' } } },
-          { company: { city: { contains: query.q, mode: 'insensitive' } } },
-        ],
+        OR: or,
         company: { ...companyNotBlockedWith(viewerCompanyId) },
         AND: [
           { OR: audienceVisibilityOr(viewerCompanyId) },
@@ -169,17 +175,22 @@ export class SearchService {
     viewerCompanyId: string,
     query: SearchQuery,
   ): Promise<CursorPage<DiscoveryProductCard>> {
+    const categoryIds = await idsMatchingCategoryLabel(this.prisma, 'Product', query.q);
+    const or: Prisma.ProductWhereInput[] = [
+      { name: { contains: query.q, mode: 'insensitive' } },
+      { description: { contains: query.q, mode: 'insensitive' } },
+      { company: { name: { contains: query.q, mode: 'insensitive' } } },
+    ];
+    if (categoryIds.length > 0) {
+      or.push({ id: { in: categoryIds } });
+    }
+
     const rows = await this.prisma.product.findMany({
       where: {
         status: ProductStatus.Published,
         postedToMarketAt: { not: null },
         companyId: { not: viewerCompanyId },
-        OR: [
-          { name: { contains: query.q, mode: 'insensitive' } },
-          { description: { contains: query.q, mode: 'insensitive' } },
-          { categories: { has: query.q } },
-          { company: { name: { contains: query.q, mode: 'insensitive' } } },
-        ],
+        OR: or,
         company: { ...companyNotBlockedWith(viewerCompanyId) },
         AND: [{ OR: audienceVisibilityOr(viewerCompanyId) }],
       },

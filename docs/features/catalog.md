@@ -13,8 +13,8 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 ### Browse library
 
 1. Open `/catalog` → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
-2. Filters: All / Draft / Published / Archived. Tiles show rate · SKU · photo count · `Published · who` (or Draft/Archived), plus a short staff audit line when known.
-3. **PageHeader** with **Back** (like Saved — not a bottom-nav hub). Content chrome: **Designs / Collections** mode pills + quiet **Feed / Grid** in the header (when the tab has items; last choice remembered with album + Saved; **Ekum default Feed**) + **Add** on the tab row. Status **All / Draft / Published / Archived** on a `FilterRail` of kit `Chip`s — not a second pill row. **Long-press** a tile → floating **Select all** + **Clear** (this filter) → dock: **Publish** (drafts) / **Hide · draft** (published) / **Archive** / **Restore** (archived), plus quiet **To selection**. **To selection** sends **published** picks into traveling Selection and opens **Your selection** (`/selection`) for **Order** (for buyer) · **Curate** · **Bookmark** · **Share**. Drafts and archived cannot go to Selection (toast). Selecting on My designs does **not** auto-fill Selection. Create/edit screens keep **PageHeader** at the top.
+2. Filters: **Draft / Published / Archived** (no All). Default **Draft**. Tiles show rate · SKU · photo count · status. Pack-only designs (published with the pack, not alone on Explore) show **Published · in packs**.
+3. **PageHeader** with **Back** (like Saved — not a bottom-nav hub). Content chrome: **Designs / Collections** mode pills + quiet **Feed / Grid** in the header (when the tab has items; last choice remembered with album + Saved; **Ekum default Feed**) + **Add** on the tab row. Status **Draft / Published / Archived** on a `FilterRail` of kit `Chip`s — not a second pill row. **Long-press** a tile → floating **Select all** + **Clear** (this filter) → dock: **Publish** (drafts) / **Hide · draft** (published) / **Archive** / **Restore** (archived), plus quiet **To selection**. **To selection** sends **published** picks into traveling Selection and opens **Your selection** (`/selection`) for **Order** (for buyer) · **Curate** · **Bookmark** · **Share**. Drafts and archived cannot go to Selection (toast). Selecting on My designs does **not** auto-fill Selection. Create/edit screens keep **PageHeader** at the top.
 4. Open a design → editor. Back returns to Designs tab. After **Publish** or **Save in Draft** from Add designs batch, app opens **My designs** (Designs tab with **Published** or **Draft** filter) without the leave-without-saving prompt. Add designs photo grid shows a top-right camera button to add more (same as photo order).
 
 ### Batch add designs
@@ -33,7 +33,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 | Rule | Detail |
 |------|--------|
 | Lifecycle | `draft` → `published` → `archived` |
-| Publish = Explore | Publish sets audience + `postedToMarketAt`. See [concepts](./00-concepts.md). |
+| Publish = Explore | Solo **Publish design** sets audience + `postedToMarketAt` (Explore tile). **Publish collection** puts the pack on Explore and marks member designs **Published** in My designs **without** separate Explore design tiles (`postedToMarketAt` stays null — **Published · in packs**). |
 | First publish | `consentToSell` grants `canPublish` |
 | Rates | Nullable / on request by default; units from domain `Unit` enum |
 | SKU | Optional on API; batch add assigns a session-unique `EK-` code and sends it so Edit design **Reference / SKU** matches. Server still assigns if omitted elsewhere |

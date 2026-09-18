@@ -6,9 +6,9 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { timeAgo } from '@/lib/format';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Avatar, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { Avatar, EmptyState, LoadingBlock, Sheet, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { ChevronRightIcon, PlusIcon, PinIcon } from '@/ui/icons';
+import { ChevronRightIcon, MoreHorizontalIcon, PlusIcon, PinIcon } from '@/ui/icons';
 import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
 import { inboxObjectLabel, inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
@@ -38,6 +38,7 @@ export function ChatsPage() {
   const deferredQuery = useDeferredValue(query.trim());
   const [readAllError, setReadAllError] = useState<string | null>(null);
   const [startOpen, setStartOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const threads = useQuery({
     queryKey: ['threads', { tab, q: deferredQuery || undefined }],
@@ -120,7 +121,7 @@ export function ChatsPage() {
         </section>
       ) : (
         <>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div
               className="flex min-w-0 flex-1 rounded-xl bg-linen p-0.5"
               role="tablist"
@@ -145,11 +146,17 @@ export function ChatsPage() {
             {hasUnread && !searching ? (
               <button
                 type="button"
-                disabled={readAll.isPending}
-                onClick={() => readAll.mutate()}
-                className="shrink-0 text-[13px] font-semibold text-accent disabled:opacity-40"
+                data-testid="chats-more"
+                aria-label="More"
+                aria-expanded={moreOpen}
+                aria-haspopup="dialog"
+                onClick={() => setMoreOpen(true)}
+                className={cx(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
+                  moreOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam hover:text-ink',
+                )}
               >
-                {readAll.isPending ? 'Reading…' : 'Mark all read'}
+                <MoreHorizontalIcon width={20} height={20} />
               </button>
             ) : null}
           </div>
@@ -199,6 +206,21 @@ export function ChatsPage() {
       )}
 
       <StartChatSheet open={startOpen} onClose={() => setStartOpen(false)} />
+
+      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="Chats">
+        <button
+          type="button"
+          data-testid="chats-mark-all-read"
+          disabled={readAll.isPending}
+          className="flex w-full rounded-xl bg-foam px-4 py-3.5 text-left text-[15px] font-semibold text-ink hover:bg-linen disabled:opacity-40"
+          onClick={() => {
+            readAll.mutate();
+            setMoreOpen(false);
+          }}
+        >
+          {readAll.isPending ? 'Reading…' : 'Mark all read'}
+        </button>
+      </Sheet>
     </div>
   );
 }
