@@ -14,8 +14,9 @@ One photos-first path: dump designs → optional Same for all → pack name → 
 |----------|--------|
 | Same for all UI | Compact summary row under design grid → sheet (not always-open form) |
 | Required before save | Pack name only; rates/details optional |
-| Inheritance | Filled same-for-all → new camera/gallery designs; library picks not overwritten |
-| Per design | Overrides + Diff badge; Use same as all designs |
+| Inheritance | **Done** sets shared defaults for **new photos** (pending + later camera/gallery). Library designs keep their rates/tags — never bulk-PATCH from this sheet. |
+| Per design | Overrides + **Diff** badge + accent ring when they differ from shared; tap → edit or **Use same as all designs** |
+| Sheet CTA | Single **Done** (toast clarifies saved / cleared) |
 | Photos per design | **No cap** (collection + Add designs) |
 | Rate range | `rate` + optional `rateMax`; text input `1200` or `1200-1400` |
 | Orders | Snapshot `rate` only (low/single); quote remains firm |
@@ -39,4 +40,4 @@ One photos-first path: dump designs → optional Same for all → pack name → 
 
 ## Out of scope
 
-Order range math; Collection DB column for same-for-all; forcing details before publish.
+Order range math; Collection DB column for same-for-all; forcing details before publish; bulk overwrite of library from Same for all.

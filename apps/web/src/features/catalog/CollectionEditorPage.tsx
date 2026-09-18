@@ -44,15 +44,15 @@ import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
 import {
   applySameForAllToForm,
+  collectSameForAllDiffIds,
   emptySameForAll,
-  memberDiffersFromSameForAll,
   productFieldsFromMember,
   sameForAllIsEmpty,
   sameForAllSummary,
   type MemberDesignForm,
   type SameForAllDetails,
 } from './collectionSameForAll';
-import { formatRateInput } from './rateInput';
+import { formatRateInput, rateFieldInputProps } from './rateInput';
 import {
   CAMERA_APPEND_SOFT_MAX,
   morePhotosEntry,
@@ -196,7 +196,6 @@ export function CollectionEditorPage() {
     emptySameForAll(Unit.Piece),
   );
   const [sameForAllOpen, setSameForAllOpen] = useState(false);
-  const [diffIds, setDiffIds] = useState<Set<string>>(() => new Set());
   const cameraAppendRef = useRef<CameraAppendTarget | null>(null);
   const [cameraAppend, setCameraAppend] = useState<CameraAppendTarget | null>(null);
   const resumeMemberSheetRef = useRef<MemberSheetState | null>(null);
@@ -296,6 +295,44 @@ export function CollectionEditorPage() {
     () => selectableDesigns.filter((p) => libraryPicks.has(p.id)),
     [selectableDesigns, libraryPicks],
   );
+  const memberDiffSources = editing ? selectedProducts : createLibraryDesigns;
+  const diffIds = useMemo(() => {
+    const members: Array<{ id: string; form: MemberDesignForm }> = [
+      ...pendingPhotos.map((photo) => ({
+        id: photo.localId,
+        form: {
+          name: photo.name,
+          rate: photo.rate,
+          unit: photo.unit,
+          moq: photo.moq,
+          notes: photo.notes,
+          categories:
+            photo.tagsDirty || photo.categories.length > 0
+              ? photo.categories
+              : sameForAll.categories.length > 0
+                ? [...sameForAll.categories]
+                : [...form.categories],
+        },
+      })),
+      ...memberDiffSources.map((product) => ({
+        id: product.id,
+        form: {
+          name: product.name,
+          rate: formatRateInput(product.rate, product.rateMax ?? null),
+          unit: product.unit || Unit.Piece,
+          moq: product.moq != null ? String(product.moq) : '',
+          notes: product.description ?? '',
+          categories: product.categories ?? [],
+        },
+      })),
+    ];
+    return collectSameForAllDiffIds(sameForAll, members);
+  }, [
+    pendingPhotos,
+    memberDiffSources,
+    sameForAll,
+    form.categories,
+  ]);
   const ceilingMembers = editing ? selectedProducts : createLibraryDesigns;
   const maxCuratedAudience = useMemo(
     () => maxPublishAudienceForCuratedPack(company.data?.id, ceilingMembers),
@@ -940,12 +977,6 @@ export function CollectionEditorPage() {
       }
       return prev.filter((p) => p.localId !== localId);
     });
-    setDiffIds((prev) => {
-      if (!prev.has(localId)) return prev;
-      const next = new Set(prev);
-      next.delete(localId);
-      return next;
-    });
   };
 
   const toggleLibraryPick = (productId: string) => {
@@ -1048,25 +1079,16 @@ export function CollectionEditorPage() {
     setMemberSheet({ kind: 'pending', localId });
   };
 
-  const markDiff = (id: string, differs: boolean) => {
-    setDiffIds((prev) => {
-      const has = prev.has(id);
-      if (differs && has) return prev;
-      if (!differs && !has) return prev;
-      const next = new Set(prev);
-      if (differs) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  };
-
-  const confirmSameForAll = async () => {
+  const confirmSameForAll = () => {
     const next = sameForAllDraft;
+    const skipIds = diffIds;
     setSameForAll(next);
     setSameForAllOpen(false);
+
     setPendingPhotos((prev) =>
       prev.map((p) => {
-        if (diffIds.has(p.localId)) return p;
+        if (skipIds.has(p.localId)) return p;
+        if (sameForAllIsEmpty(next)) return p;
         return {
           ...p,
           rate: next.rate.trim() ? next.rate : p.rate,
@@ -1079,42 +1101,20 @@ export function CollectionEditorPage() {
         };
       }),
     );
-    if (!editing || !id) return;
-    const ownId = company.data?.id;
-    const targets = selectedProducts.filter(
-      (p) => p.companyId === ownId && !diffIds.has(p.id),
-    );
-    if (targets.length === 0 || sameForAllIsEmpty(next)) return;
-    setSavingDesigns(true);
-    try {
-      for (const product of targets) {
-        const fields = productFieldsFromMember({
-          name: product.name,
-          rate: next.rate.trim() ? next.rate : formatRateInput(product.rate, product.rateMax ?? null),
-          unit: next.unit.trim() ? next.unit : product.unit || Unit.Piece,
-          moq: next.moq.trim() ? next.moq : product.moq != null ? String(product.moq) : '',
-          notes: next.notes.trim() ? next.notes : product.description ?? '',
-          categories:
-            next.categories.length > 0
-              ? [...next.categories]
-              : product.categories ?? [],
-        });
-        await api.patch(`/products/${product.id}`, {
-          description: fields.description,
-          rate: fields.rate,
-          rateMax: fields.rateMax,
-          unit: fields.unit,
-          moq: fields.moq ?? null,
-          categories: fields.categories,
-        });
-      }
-      void queryClient.invalidateQueries({ queryKey: ['my-products'] });
-      void queryClient.invalidateQueries({ queryKey: ['collection', id] });
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not apply details.');
-    } finally {
-      setSavingDesigns(false);
+
+    if (sameForAllIsEmpty(next)) {
+      showToast('Same for all cleared');
+      return;
     }
+
+    const pendingApplied = pendingPhotos.filter((p) => !skipIds.has(p.localId)).length;
+    showToast(
+      pendingApplied > 0
+        ? 'Saved for new photos · ' +
+            pendingApplied +
+            ' updated'
+        : 'Saved for new photos',
+    );
   };
 
   const saveMemberSheet = async () => {
@@ -1122,7 +1122,6 @@ export function CollectionEditorPage() {
     setMemberSaving(true);
     setError(null);
     try {
-      const differs = memberDiffersFromSameForAll(memberForm, sameForAll);
       if (memberSheet.kind === 'pending') {
         const imageUrls = memberPhotos.map((p) => p.url).filter(Boolean);
         setPendingPhotos((prev) =>
@@ -1155,7 +1154,6 @@ export function CollectionEditorPage() {
               : p,
           ),
         );
-        markDiff(memberSheet.localId, differs);
       } else {
         const fields = productFieldsFromMember(memberForm, {
           includeEmptyCategories: true,
@@ -1179,7 +1177,6 @@ export function CollectionEditorPage() {
           categories: memberForm.categories,
           images: memberPhotos.map((p) => p.url).filter((u) => !u.startsWith('blob:')),
         });
-        markDiff(memberSheet.productId, differs);
         void queryClient.invalidateQueries({ queryKey: ['my-products'] });
         void queryClient.invalidateQueries({ queryKey: ['collection', id] });
         showToast('Design updated');
@@ -1194,12 +1191,7 @@ export function CollectionEditorPage() {
 
   const useSameAsAllOnMember = () => {
     if (!memberSheet) return;
-    const next = applySameForAllToForm(memberForm, sameForAll);
-    setMemberForm(next);
-    markDiff(
-      memberSheet.kind === 'pending' ? memberSheet.localId : memberSheet.productId,
-      false,
-    );
+    setMemberForm(applySameForAllToForm(memberForm, sameForAll));
   };
 
   const sameForAllLine = sameForAllSummary(sameForAll);
@@ -1229,7 +1221,7 @@ export function CollectionEditorPage() {
         </span>
       ) : (
         <span className="text-xs text-muted">
-          Optional · applies to every design here and new ones you add
+          Optional · for new photos · library keeps its own
         </span>
       )}
     </button>
@@ -1360,8 +1352,17 @@ export function CollectionEditorPage() {
               renderTile={(tile) => {
                 if (tile.kind === 'photo') {
                   const { photo, index } = tile;
+                  const isDiff = diffIds.has(photo.localId);
+                  const isCover =
+                    index === 0 && !photo.images.some((img) => img.uploading);
                   return (
-                    <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam">
+                    <div
+                      className={cx(
+                        'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
+                        isDiff ? 'ring-2 ring-inset ring-accent' : null,
+                      )}
+                      data-testid={isDiff ? 'collection-diff-tile' : undefined}
+                    >
                       <button
                         type="button"
                         className="absolute inset-0 block text-left"
@@ -1377,13 +1378,19 @@ export function CollectionEditorPage() {
                           />
                         ) : null}
                       </button>
-                      {index === 0 && !photo.images.some((img) => img.uploading) ? (
-                        <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {isCover ? (
+                        <span className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
                           Cover
                         </span>
                       ) : null}
-                      {diffIds.has(photo.localId) ? (
-                        <span className="pointer-events-none absolute left-1 bottom-1 rounded bg-accent px-1.5 text-[10px] font-bold text-white">
+                      {isDiff ? (
+                        <span
+                          data-testid="collection-diff-badge"
+                          className={cx(
+                            'pointer-events-none absolute left-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white',
+                            isCover ? 'top-7' : 'top-1',
+                          )}
+                        >
                           Diff
                         </span>
                       ) : null}
@@ -1405,8 +1412,15 @@ export function CollectionEditorPage() {
                 }
                 const { product, index } = tile;
                 const isCover = readyCreatePhotos.length === 0 && index === 0;
+                const isDiff = diffIds.has(product.id);
                 return (
-                  <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam">
+                  <div
+                    className={cx(
+                      'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
+                      isDiff ? 'ring-2 ring-inset ring-accent' : null,
+                    )}
+                    data-testid={isDiff ? 'collection-diff-tile' : undefined}
+                  >
                     <button
                       type="button"
                       className="absolute inset-0 block text-left"
@@ -1426,12 +1440,18 @@ export function CollectionEditorPage() {
                       )}
                     </button>
                     {isCover ? (
-                      <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <span className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
                         Cover
                       </span>
                     ) : null}
-                    {diffIds.has(product.id) ? (
-                      <span className="pointer-events-none absolute left-1 bottom-1 rounded bg-accent px-1.5 text-[10px] font-bold text-white">
+                    {isDiff ? (
+                      <span
+                        data-testid="collection-diff-badge"
+                        className={cx(
+                          'pointer-events-none absolute left-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white',
+                          isCover ? 'top-7' : 'top-1',
+                        )}
+                      >
                         Diff
                       </span>
                     ) : null}
@@ -1551,8 +1571,16 @@ export function CollectionEditorPage() {
               items={selectedProducts}
               getKey={(product) => product.id}
               overflowPreviewUrl={(product) => product.images[0] ?? null}
-              renderTile={(product) => (
-                <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl border border-line bg-foam">
+              renderTile={(product) => {
+                const isDiff = diffIds.has(product.id);
+                return (
+                <div
+                  className={cx(
+                    'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
+                    isDiff ? 'border-2 border-accent' : 'border-2 border-line',
+                  )}
+                  data-testid={isDiff ? 'collection-diff-tile' : 'collection-member-tile-wrap'}
+                >
                   <button
                     type="button"
                     className="absolute inset-0 block text-left"
@@ -1575,8 +1603,11 @@ export function CollectionEditorPage() {
                       {product.name}
                     </span>
                   </button>
-                  {diffIds.has(product.id) ? (
-                    <span className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 text-[10px] font-bold text-white">
+                  {isDiff ? (
+                    <span
+                      data-testid="collection-diff-badge"
+                      className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
+                    >
                       Diff
                     </span>
                   ) : null}
@@ -1589,7 +1620,8 @@ export function CollectionEditorPage() {
                     ×
                   </button>
                 </div>
-              )}
+                );
+              }}
             />
           ) : (
             <p className="text-sm text-muted">Add designs — photo or from your library.</p>
@@ -2071,8 +2103,7 @@ export function CollectionEditorPage() {
               <TextInput
                 value={memberForm.rate}
                 onChange={(e) => setMemberForm({ ...memberForm, rate: e.target.value })}
-                placeholder="1200 or 1200-1400"
-                inputMode="decimal"
+                {...rateFieldInputProps}
               />
             </Field>
             <Field label="Unit">
@@ -2104,15 +2135,19 @@ export function CollectionEditorPage() {
         onClose={() => setSameForAllOpen(false)}
         title="Same for all designs"
         footer={
-          <Button fullWidth onClick={() => void confirmSameForAll()}>
+          <Button
+            fullWidth
+            data-testid="collection-same-for-all-done"
+            onClick={() => confirmSameForAll()}
+          >
             Done
           </Button>
         }
       >
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
-            Optional. Applies to every design here and new ones you add. Tap a design to change
-            one.
+            New photos get these. Designs from your library keep their own — Diff marks
+            differences. Tap a design to change one.
           </p>
           <TagsField
             label="Tags"
@@ -2128,8 +2163,7 @@ export function CollectionEditorPage() {
                 onChange={(e) =>
                   setSameForAllDraft((prev) => ({ ...prev, rate: e.target.value }))
                 }
-                placeholder="1200 or 1200-1400"
-                inputMode="decimal"
+                {...rateFieldInputProps}
               />
             </Field>
             <Field label="Unit">

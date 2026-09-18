@@ -13,6 +13,18 @@ export type SameForAllDetails = {
   notes: string;
 };
 
+/**
+ * Phone `decimal` keypads omit `-`, so ranges like 1200-1400 cannot be typed.
+ * Use text mode on every rate field that accepts a range.
+ */
+export const rateFieldInputProps = {
+  placeholder: '1200 or 1200-1400',
+  inputMode: 'text' as const,
+  autoCapitalize: 'off' as const,
+  autoCorrect: 'off' as const,
+  spellCheck: false as const,
+};
+
 function parseOneNumber(raw: string): number | null {
   const cleaned = raw.replace(/,/g, '').trim();
   if (!cleaned) return null;

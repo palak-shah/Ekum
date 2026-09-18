@@ -14,7 +14,7 @@ test.describe('seller collection publish @functional @collections', () => {
     const sameSheet = page.getByRole('dialog').filter({ hasText: 'Same for all designs' });
     await expect(sameSheet.getByRole('heading', { name: 'Same for all designs' })).toBeVisible();
     await sameSheet.getByPlaceholder('1200 or 1200-1400').fill('1200-1400');
-    await sameSheet.getByRole('button', { name: 'Done' }).click();
+    await sameSheet.getByTestId('collection-same-for-all-done').click();
     await expect(sameForAll.getByText(/1200-1400/)).toBeVisible();
 
     await page.getByTestId('collection-add-designs').click();
@@ -35,6 +35,10 @@ test.describe('seller collection publish @functional @collections', () => {
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
+    // Library design keeps its own rate — Diff stays (no bulk overwrite).
+    await expect(page.getByTestId('collection-diff-badge').first()).toBeVisible();
+    await expect(page.getByTestId('collection-diff-tile').first()).toBeVisible();
+
     await page
       .getByTestId('collection-member-tile')
       .or(page.locator('[aria-label^="Edit design"]'))
@@ -43,6 +47,7 @@ test.describe('seller collection publish @functional @collections', () => {
     const memberSheet = page.getByRole('dialog').filter({ hasText: 'Update this design' });
     await expect(memberSheet.getByRole('heading', { name: 'Update this design' })).toBeVisible();
     await expect(memberSheet.getByTestId('collection-member-add-photos')).toBeVisible();
+    await expect(memberSheet.getByRole('button', { name: 'Use same as all designs' })).toBeVisible();
     await memberSheet.getByRole('button', { name: 'Done' }).click();
   });
 

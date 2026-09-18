@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatRateInput,
   parseRateInput,
+  rateFieldInputProps,
   sameForAllSummary,
   type SameForAllDetails,
 } from './rateInput';
@@ -34,6 +35,13 @@ describe('formatRateInput', () => {
     expect(formatRateInput(null, null)).toBe('');
     expect(formatRateInput(1200, null)).toBe('1200');
     expect(formatRateInput(1200, 1400)).toBe('1200-1400');
+  });
+});
+
+describe('rateFieldInputProps', () => {
+  it('uses text inputMode so phones can type a range dash', () => {
+    expect(rateFieldInputProps.inputMode).toBe('text');
+    expect(rateFieldInputProps.placeholder).toMatch(/1200-1400/);
   });
 });
 

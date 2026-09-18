@@ -24,7 +24,7 @@ import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
 import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
-import { formatRateInput, parseRateInput } from './rateInput';
+import { formatRateInput, parseRateInput, rateFieldInputProps } from './rateInput';
 import { TagsField } from './TagsField';
 import {
   emptyPublishAudienceState,
@@ -502,8 +502,7 @@ export function ProductEditorPage() {
           <TextInput
             value={form.rate}
             onChange={(e) => setForm({ ...form, rate: e.target.value })}
-            placeholder="1200 or 1200-1400"
-            inputMode="decimal"
+            {...rateFieldInputProps}
           />
         </Field>
         <Field label="Unit">

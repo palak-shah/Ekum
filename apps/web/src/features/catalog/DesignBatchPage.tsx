@@ -49,7 +49,7 @@ import {
   resolvePhotoBatchTarget,
   type DraftOverrides,
 } from './designBatchHelpers';
-import { parseRateInput } from './rateInput';
+import { parseRateInput, rateFieldInputProps } from './rateInput';
 
 /** One-line by default; grows while typing / when focused. */
 function ExpandableNotes({
@@ -844,7 +844,12 @@ export function DesignBatchPage() {
                 const different = hasOverrides(d.overrides);
                 return (
                   <div className="flex min-w-0 flex-col gap-1">
-                    <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam">
+                    <div
+                      className={cx(
+                        'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
+                        different ? 'ring-2 ring-inset ring-accent' : null,
+                      )}
+                    >
                       <button
                         type="button"
                         onClick={() => openUpdateSheet(d)}
@@ -870,7 +875,10 @@ export function DesignBatchPage() {
                         </span>
                       ) : null}
                       {different ? (
-                        <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 text-[10px] font-bold text-white">
+                        <span
+                          data-testid="design-batch-diff-badge"
+                          className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
+                        >
                           Diff
                         </span>
                       ) : null}
@@ -917,8 +925,7 @@ export function DesignBatchPage() {
                   <TextInput
                     value={sharedRate}
                     onChange={(e) => setSharedRate(e.target.value)}
-                    placeholder="1200 or 1200-1400"
-                    inputMode="decimal"
+                    {...rateFieldInputProps}
                   />
                 </Field>
                 <Field label="Unit">{unitSelect(sharedUnit, setSharedUnit)}</Field>
@@ -1138,8 +1145,7 @@ export function DesignBatchPage() {
                   <TextInput
                     value={sheetRate}
                     onChange={(e) => setSheetRate(e.target.value)}
-                    placeholder="1200 or 1200-1400"
-                    inputMode="decimal"
+                    {...rateFieldInputProps}
                   />
                 </Field>
                 <Field label="Unit">{unitSelect(sheetUnit, setSheetUnit)}</Field>

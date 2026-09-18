@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applySameForAllToForm,
+  collectSameForAllDiffIds,
   emptySameForAll,
   memberDiffersFromSameForAll,
   productFieldsFromMember,
@@ -37,6 +38,56 @@ describe('memberDiffersFromSameForAll', () => {
         { ...emptySameForAll('pc'), rate: '1200', moq: '100' },
       ),
     ).toBe(true);
+  });
+});
+
+describe('collectSameForAllDiffIds', () => {
+  const shared = { ...emptySameForAll('pc'), rate: '1200', moq: '100' };
+
+  it('returns empty when same-for-all is blank', () => {
+    expect(
+      collectSameForAllDiffIds(emptySameForAll(), [
+        {
+          id: 'a',
+          form: {
+            name: 'A',
+            rate: '900',
+            unit: 'pc',
+            moq: '',
+            notes: '',
+            categories: [],
+          },
+        },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it('marks only mismatched members', () => {
+    const ids = collectSameForAllDiffIds(shared, [
+      {
+        id: 'same',
+        form: {
+          name: 'A',
+          rate: '1200',
+          unit: 'pc',
+          moq: '100',
+          notes: '',
+          categories: [],
+        },
+      },
+      {
+        id: 'diff',
+        form: {
+          name: 'B',
+          rate: '900',
+          unit: 'pc',
+          moq: '100',
+          notes: '',
+          categories: [],
+        },
+      },
+    ]);
+    expect([...ids]).toEqual(['diff']);
   });
 });
 

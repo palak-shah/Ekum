@@ -40,6 +40,19 @@ export function memberDiffersFromSameForAll(
   return false;
 }
 
+/** Ids of members whose details differ from filled same-for-all. */
+export function collectSameForAllDiffIds(
+  shared: SameForAllDetails,
+  members: Array<{ id: string; form: MemberDesignForm }>,
+): Set<string> {
+  const ids = new Set<string>();
+  if (sameForAllIsEmpty(shared)) return ids;
+  for (const member of members) {
+    if (memberDiffersFromSameForAll(member.form, shared)) ids.add(member.id);
+  }
+  return ids;
+}
+
 /** Apply filled same-for-all fields onto a member form (keeps name). */
 export function applySameForAllToForm(
   form: MemberDesignForm,

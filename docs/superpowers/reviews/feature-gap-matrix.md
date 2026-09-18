@@ -54,7 +54,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Buyer view Wedding Edit + shortlist clear | Works | Functional | Required | Green 2026-08-11 (BM-03) |
 | Collections | Seller create photos-first + cover tag | Works | Unit | Required | Slice 1 2026-08-12; Photos = ContinuousCamera like Add designs (2026-09-11) |
 | Collections | Create polish (9-cap grid, publish-first, tags, no Everyone, tile→design sheet) | Works | Unit | Required | Completeness 2026-09-17-collection-create-polish |
-| Collections | Same for all + photos-first + rate range + unlimited design photos | Works | Unit + Functional | Required | Completeness 2026-09-18-collection-same-for-all; `collection.publish.journey` same-for-all |
+| Collections | Same for all + photos-first + rate range + unlimited design photos | Works | Unit + Functional | Required | Completeness 2026-09-18-collection-same-for-all-ux-simplify; Done = new photos only; library Diff; `collection.publish.journey` |
 | Collections | Seller create/publish / quick-add (edit) | Works | Functional | Recommended | `collection.publish.journey.spec.ts` |
 | Collections | Buyer groups (elevate broadcast lists) | Works | Unit | Required | 2026-08-13 Completeness |
 | Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open; Share = live+not-blocked (no sender canDiscover); Curate still locked; in-sheet Share errors |
