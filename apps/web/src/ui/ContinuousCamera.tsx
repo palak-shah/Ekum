@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { acquireMediaStream, releaseMediaStream } from '@/lib/mediaSession';
+import { acquireMediaStream, mediaAccessErrorMessage, releaseMediaStream } from '@/lib/mediaSession';
 import { Button, cx } from '@/ui/kit';
 import {
   continuousCameraCanShoot,
@@ -24,7 +24,22 @@ export interface ContinuousCameraProps {
   onGallery?: () => void;
   /** Pick existing designs — discards in-progress shots and closes camera. */
   onDesigns?: () => void;
+  /**
+   * Stay on this screen if the stream fails (error + Gallery / Designs).
+   * Default closes via onUnavailable so other flows can fall back to the file picker.
+   */
+  keepChromeOnFailure?: boolean;
 }
+
+/** Same constraints for the tap (user gesture) and the viewfinder attach. */
+export const continuousCameraConstraints: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  },
+};
 
 interface Shot {
   id: string;
@@ -105,6 +120,7 @@ export function ContinuousCamera({
   onUnavailable,
   onGallery,
   onDesigns,
+  keepChromeOnFailure = false,
 }: ContinuousCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -113,6 +129,8 @@ export function ContinuousCamera({
   /** Parent often passes an inline callback; keep start-effect deps on `open` only. */
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
+  const keepChromeRef = useRef(keepChromeOnFailure);
+  keepChromeRef.current = keepChromeOnFailure;
   const [shots, setShots] = useState<Shot[]>([]);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -189,6 +207,14 @@ export function ContinuousCamera({
     setZoomRange(null);
     setZoom(1);
 
+    const fail = (message: string) => {
+      if (keepChromeRef.current) {
+        setError(message);
+        return;
+      }
+      onUnavailableRef.current();
+    };
+
     const start = async (attempt: number) => {
       try {
         // Brief pause only when retrying a failed attach (not a hard track stop).
@@ -196,21 +222,14 @@ export function ContinuousCamera({
           await delay(350);
           if (cancelled) return;
         }
-        const acquired = await acquireMediaStream('camera', {
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        });
+        const acquired = await acquireMediaStream('camera', continuousCameraConstraints);
         if (!acquired.ok) {
           if (cancelled) return;
           if (attempt < 1) {
             void start(attempt + 1);
             return;
           }
-          onUnavailableRef.current();
+          fail(acquired.message);
           return;
         }
         const stream = acquired.stream;
@@ -227,7 +246,7 @@ export function ContinuousCamera({
             void start(attempt + 1);
             return;
           }
-          if (!cancelled) onUnavailableRef.current();
+          if (!cancelled) fail('Could not open camera.');
           return;
         }
         video.srcObject = stream;
@@ -250,13 +269,13 @@ export function ContinuousCamera({
         }
 
         setReady(true);
-      } catch {
+      } catch (err) {
         if (cancelled) return;
         if (attempt < 1) {
           void start(attempt + 1);
           return;
         }
-        onUnavailableRef.current();
+        fail(mediaAccessErrorMessage(err, 'camera'));
       }
     };
 
@@ -390,7 +409,7 @@ export function ContinuousCamera({
         muted
         autoPlay
       />
-      {!ready ? (
+      {!ready && !error ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black text-sm text-white/80">
           Starting camera…
         </div>

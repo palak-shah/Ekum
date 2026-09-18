@@ -14,6 +14,7 @@ describe('CappedMediaGrid', () => {
       />,
     );
     expect(screen.queryByTestId('capped-media-load-more')).not.toBeInTheDocument();
+    expect(screen.getByText('i0').parentElement?.className).toMatch(/min-w-0/);
     expect(screen.getByText('i0')).toBeInTheDocument();
     expect(screen.getByText('i4')).toBeInTheDocument();
   });

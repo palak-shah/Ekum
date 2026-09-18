@@ -42,7 +42,9 @@ export function CappedMediaGrid<T>({
   return (
     <div className={cx('grid grid-cols-3 gap-2', className)}>
       {items.slice(0, clearCount).map((item, index) => (
-        <div key={getKey(item, index)}>{renderTile(item, index)}</div>
+        <div key={getKey(item, index)} className="min-w-0 overflow-hidden">
+          {renderTile(item, index)}
+        </div>
       ))}
       {needsCap && overflowItem ? (
         <button

@@ -19,6 +19,9 @@ const slots: Record<MediaKind, Slot | null> = {
   microphone: null,
 };
 
+/** Concurrent opens share one getUserMedia so a tap can start it and the viewfinder can wait. */
+const inflight: Partial<Record<MediaKind, Promise<AcquireMediaResult>>> = {};
+
 let pageHideBound = false;
 
 function bindPageHideOnce() {
@@ -84,34 +87,47 @@ export type AcquireMediaResult =
 
 /**
  * Get a live stream for camera or mic. Reuses the session stream when tracks
- * are still live (no second permission prompt).
+ * are still live (no second permission prompt). Overlapping calls share one
+ * getUserMedia so a tap can start it and the viewfinder can attach later.
  */
-export async function acquireMediaStream(
+export function acquireMediaStream(
   kind: MediaKind,
   constraints: MediaStreamConstraints,
 ): Promise<AcquireMediaResult> {
   bindPageHideOnce();
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-    return {
+    return Promise.resolve({
       ok: false,
       message:
         kind === 'camera'
           ? 'Camera needs a secure (https) connection.'
           : 'Microphone needs a secure (https) connection.',
-    };
+    });
   }
 
   clearIdle(kind);
   const existing = slots[kind];
   if (existing && streamHasLiveTrack(existing.stream, kind)) {
     setTracksEnabled(existing.stream, kind, true);
-    return { ok: true, stream: existing.stream, reused: true };
+    return Promise.resolve({ ok: true, stream: existing.stream, reused: true });
   }
 
-  if (existing) {
-    hardStop(kind);
-  }
+  const pending = inflight[kind];
+  if (pending) return pending;
 
+  const run = requestFreshStream(kind, constraints);
+  inflight[kind] = run;
+  void run.finally(() => {
+    if (inflight[kind] === run) delete inflight[kind];
+  });
+  return run;
+}
+
+async function requestFreshStream(
+  kind: MediaKind,
+  constraints: MediaStreamConstraints,
+): Promise<AcquireMediaResult> {
+  if (slots[kind]) hardStop(kind);
   try {
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     slots[kind] = { stream, idleTimer: null };
@@ -152,5 +168,7 @@ export function disposeMediaSession(kind?: MediaKind) {
 /** Test helper — reset module state between specs. */
 export function resetMediaSessionForTests() {
   disposeMediaSession();
+  delete inflight.camera;
+  delete inflight.microphone;
   pageHideBound = false;
 }

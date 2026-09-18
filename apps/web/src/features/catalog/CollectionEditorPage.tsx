@@ -21,9 +21,10 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
+import { uploadImage } from '@/lib/mediaUpload';
+import { acquireMediaStream } from '@/lib/mediaSession';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { ContinuousCamera } from '@/ui/ContinuousCamera';
+import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -41,7 +42,6 @@ import { TagsField } from './TagsField';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
-import { morePhotosEntry } from './designBatchHelpers';
 import { createPortal } from 'react-dom';
 import { CameraIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
@@ -119,7 +119,6 @@ export function CollectionEditorPage() {
   const company = useMyCompany();
   const { showToast } = useToast();
   const designFileRef = useRef<HTMLInputElement>(null);
-  const phone = isPhoneLike();
   const [error, setError] = useState<string | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -505,24 +504,16 @@ export function CollectionEditorPage() {
       return;
     }
     setError(null);
+    // Start getUserMedia in this tap. Phones ignore a later effect call.
+    void acquireMediaStream('camera', continuousCameraConstraints);
     setCameraSession((n) => n + 1);
     setCameraOpen(true);
   };
 
-  /** Phone → ContinuousCamera (Gallery + Designs on chrome); desktop → source menu. */
+  /** Same camera on phone and desktop. Gallery and Designs live on that chrome. */
   const openDesignPicker = () => {
-    if (morePhotosEntry(phone) === 'camera') {
-      openCollectionCamera();
-      return;
-    }
-    setSourceOpen(true);
+    openCollectionCamera();
   };
-
-  const onCameraUnavailable = useCallback(() => {
-    setCameraOpen(false);
-    setError(null);
-    setSourceOpen(true);
-  }, []);
 
   const ingestPhotoFiles = async (files: File[]) => {
     if (!files.length) return;
@@ -1352,7 +1343,7 @@ export function CollectionEditorPage() {
               <div
                 role="menu"
                 data-testid="collection-source-menu"
-                className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[81] overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]"
+                className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[81] mx-auto max-w-md overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]"
               >
                 <button
                   type="button"
@@ -1401,7 +1392,11 @@ export function CollectionEditorPage() {
             : collectionCameraMaxShots(pendingPhotos.length)
         }
         onCancel={() => setCameraOpen(false)}
-        onUnavailable={onCameraUnavailable}
+        keepChromeOnFailure
+        onUnavailable={() => {
+          setCameraOpen(false);
+          setSourceOpen(true);
+        }}
         onGallery={() => {
           setCameraOpen(false);
           openCollectionGallery();
@@ -1471,7 +1466,7 @@ export function CollectionEditorPage() {
                         editing ? toggle(product.id) : toggleLibraryPick(product.id)
                       }
                       className={cx(
-                        'relative overflow-hidden rounded-xl border-2 bg-foam text-left',
+                        'relative w-full min-w-0 overflow-hidden rounded-xl border-2 bg-foam text-left',
                         on ? 'border-accent' : 'border-transparent',
                       )}
                     >
