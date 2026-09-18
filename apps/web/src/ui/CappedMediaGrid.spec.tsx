@@ -51,7 +51,7 @@ describe('CappedMediaGrid', () => {
         getKey={(x) => x.id}
         overflowPreviewUrl={(x) => x.url}
         renderTile={(x) => (
-          <button type="button" className="aspect-square w-full">
+          <button type="button" className="aspect-square w-full min-w-0">
             {x.id}
           </button>
         )}
@@ -60,7 +60,35 @@ describe('CappedMediaGrid', () => {
     const loadMore = screen.getByTestId('capped-media-load-more');
     expect(loadMore.className).toMatch(/aspect-square/);
     expect(loadMore.className).toMatch(/(?:^|\s)w-full(?:\s|$)/);
+    expect(loadMore.className).toMatch(/min-w-0/);
     expect(loadMore.parentElement?.className).toMatch(/min-w-0/);
+    expect(loadMore.closest('.grid')?.className).toMatch(/items-start/);
+  });
+
+  it('renders optional overflow footer under Load more', () => {
+    const items = Array.from({ length: CAPPED_MEDIA_PAGE + 1 }, (_, i) => ({
+      id: `i${i}`,
+      url: `https://example.com/${i}.jpg`,
+    }));
+    render(
+      <CappedMediaGrid
+        items={items}
+        getKey={(x) => x.id}
+        overflowPreviewUrl={(x) => x.url}
+        overflowFooter={<div data-testid="overflow-footer" className="min-h-9" />}
+        renderTile={(x) => (
+          <div className="flex flex-col gap-1">
+            <button type="button" className="aspect-square w-full">
+              {x.id}
+            </button>
+            <div className="min-h-9" />
+          </div>
+        )}
+      />,
+    );
+    const footer = screen.getByTestId('overflow-footer');
+    const loadMore = screen.getByTestId('capped-media-load-more');
+    expect(footer.previousElementSibling).toBe(loadMore);
   });
 
   it('expands by another page on Load more', async () => {

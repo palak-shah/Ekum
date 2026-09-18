@@ -502,7 +502,7 @@ export function OrderBuilderPage() {
                 overflowPreviewUrl={(photo) => photo.previewUrl || photo.imageUrl}
                 loadMoreTestId="photo-order-load-more"
                 renderTile={(photo) => (
-                  <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-foam">
+                  <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl border border-line bg-foam">
                     <button
                       type="button"
                       onClick={() => openPhotoPieces(photo.id)}
@@ -513,7 +513,7 @@ export function OrderBuilderPage() {
                       <img
                         src={photo.previewUrl || photo.imageUrl}
                         alt=""
-                        className="h-full w-full object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                       />
                     </button>
                     {photo.uploading ? (

@@ -835,13 +835,16 @@ export function DesignBatchPage() {
               getKey={(d) => d.id}
               overflowPreviewUrl={(d) => d.images[0]?.previewUrl ?? null}
               loadMoreTestId="design-batch-load-more"
+              overflowFooter={
+                <div className="min-h-9 w-full" aria-hidden />
+              }
               renderTile={(d) => {
                 const lead = d.images[0];
                 const busy = d.images.some((i) => i.uploading);
                 const different = hasOverrides(d.overrides);
                 return (
-                  <div className="flex flex-col gap-1">
-                    <div className="relative aspect-square overflow-hidden rounded-xl bg-foam">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam">
                       <button
                         type="button"
                         onClick={() => openUpdateSheet(d)}
@@ -852,7 +855,7 @@ export function DesignBatchPage() {
                           <img
                             src={lead.previewUrl}
                             alt=""
-                            className="h-full w-full object-cover"
+                            className="absolute inset-0 h-full w-full object-cover"
                           />
                         ) : null}
                         {busy ? (

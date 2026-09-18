@@ -1361,10 +1361,10 @@ export function CollectionEditorPage() {
                 if (tile.kind === 'photo') {
                   const { photo, index } = tile;
                   return (
-                    <div className="relative overflow-hidden rounded-xl bg-foam">
+                    <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam">
                       <button
                         type="button"
-                        className="block w-full text-left"
+                        className="absolute inset-0 block text-left"
                         data-testid="collection-pending-tile"
                         onClick={() => openPendingDesignSheet(photo.localId)}
                         aria-label={`Edit design · ${photo.name}`}
@@ -1373,7 +1373,7 @@ export function CollectionEditorPage() {
                           <img
                             src={photo.images[0].previewUrl}
                             alt=""
-                            className="aspect-square w-full object-cover"
+                            className="absolute inset-0 h-full w-full object-cover"
                           />
                         ) : null}
                       </button>
@@ -1395,7 +1395,7 @@ export function CollectionEditorPage() {
                       <button
                         type="button"
                         aria-label="Remove photo"
-                        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                        className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
                         onClick={() => removePending(photo.localId)}
                       >
                         ×
@@ -1406,10 +1406,10 @@ export function CollectionEditorPage() {
                 const { product, index } = tile;
                 const isCover = readyCreatePhotos.length === 0 && index === 0;
                 return (
-                  <div className="relative overflow-hidden rounded-xl bg-foam">
+                  <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam">
                     <button
                       type="button"
-                      className="block w-full text-left"
+                      className="absolute inset-0 block text-left"
                       onClick={() => openMemberDesignSheet(product)}
                       aria-label={`Edit design · ${product.name}`}
                     >
@@ -1417,10 +1417,10 @@ export function CollectionEditorPage() {
                         <img
                           src={product.images[0]}
                           alt=""
-                          className="aspect-square w-full object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex aspect-square items-center justify-center text-lg font-bold text-muted">
+                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
                           {product.name.charAt(0)}
                         </div>
                       )}
@@ -1438,7 +1438,7 @@ export function CollectionEditorPage() {
                     <button
                       type="button"
                       aria-label={`Remove ${product.name}`}
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                      className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
                       onClick={() => toggleLibraryPick(product.id)}
                     >
                       ×
@@ -1552,10 +1552,10 @@ export function CollectionEditorPage() {
               getKey={(product) => product.id}
               overflowPreviewUrl={(product) => product.images[0] ?? null}
               renderTile={(product) => (
-                <div className="relative overflow-hidden rounded-xl border border-line bg-foam">
+                <div className="relative aspect-square min-w-0 w-full overflow-hidden rounded-xl border border-line bg-foam">
                   <button
                     type="button"
-                    className="block w-full text-left"
+                    className="absolute inset-0 block text-left"
                     data-testid="collection-member-tile"
                     onClick={() => openMemberDesignSheet(product)}
                     aria-label={`Edit design · ${product.name}`}
@@ -1564,26 +1564,26 @@ export function CollectionEditorPage() {
                       <img
                         src={product.images[0]}
                         alt=""
-                        className="aspect-square w-full object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="flex aspect-square items-center justify-center text-lg font-bold text-muted">
+                      <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
                         {product.name.charAt(0)}
                       </div>
                     )}
-                    <span className="block truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
                       {product.name}
                     </span>
                   </button>
                   {diffIds.has(product.id) ? (
-                    <span className="pointer-events-none absolute left-1 top-1 rounded bg-accent px-1.5 text-[10px] font-bold text-white">
+                    <span className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 text-[10px] font-bold text-white">
                       Diff
                     </span>
                   ) : null}
                   <button
                     type="button"
                     aria-label={`Remove ${product.name}`}
-                    className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-ink/75 text-sm leading-none text-white"
+                    className="absolute right-1 top-1 z-[1] flex h-7 w-7 items-center justify-center rounded-full bg-ink/75 text-sm leading-none text-white"
                     onClick={() => toggle(product.id)}
                   >
                     ×
@@ -1890,19 +1890,19 @@ export function CollectionEditorPage() {
                         <img
                           src={product.images[0]}
                           alt=""
-                          className="h-full w-full object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
+                        <div className="absolute inset-0 flex items-center justify-center text-lg font-bold text-muted">
                           {product.name.charAt(0)}
                         </div>
                       )}
                       {on ? (
-                        <span className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
+                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
                           ✓
                         </span>
                       ) : null}
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
+                      <span className="absolute inset-x-0 bottom-0 z-[1] truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
                         {product.name}
                       </span>
                     </button>
