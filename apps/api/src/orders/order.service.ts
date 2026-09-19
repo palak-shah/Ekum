@@ -1173,12 +1173,15 @@ export class OrderService {
       actorCompanyId,
       dto.note ??
         (partial
-          ? `Quote · ${supplyable.length} of ${order.items.length} designs`
+          ? declinedCount > 0
+            ? `Quote · ${supplyable.length} quoted · ${declinedCount} can’t supply`
+            : `Quote · ${supplyable.length} of ${order.items.length} designs`
           : 'Quote'),
       order.id,
       {
         status: OrderStatus.Requested,
-        itemCount: supplyable.length,
+        itemCount: order.items.length,
+        declinedCount: declinedCount > 0 ? declinedCount : undefined,
         totalLabel: `₹${total.toLocaleString('en-IN')}`,
         validUntil: dto.validUntil ?? null,
         quoted: true,
@@ -1221,9 +1224,14 @@ export class OrderService {
       actorCompanyId,
       actorUserId: userId,
       summary: quoteTrailSummary(total, alreadyQuoted),
-      detail: partial
-        ? `${supplyable.length} of ${order.items.length} designs`
-        : undefined,
+      detail:
+        declinedCount > 0
+          ? supplyable.length > 0
+            ? `${supplyable.length} quoted · ${declinedCount} can’t supply`
+            : `${declinedCount} can’t supply`
+          : partial
+            ? `${supplyable.length} of ${order.items.length} designs`
+            : undefined,
       note: dto.note?.trim() || null,
       noteVoiceMediaId: typeof voice.noteVoiceMediaId === 'string' ? voice.noteVoiceMediaId : null,
       noteVoiceUrl: typeof voice.noteVoiceUrl === 'string' ? voice.noteVoiceUrl : null,

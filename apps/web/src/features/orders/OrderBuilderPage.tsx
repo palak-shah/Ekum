@@ -17,12 +17,13 @@ import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ListSquareButton } from '@/ui/ListSearchRow';
-import { Button, Card, Field, InlineNotice, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
+import { QtyStepper, sameForAllChipLabel } from '@/features/orders/QtyStepper';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
 import { navigateToOrderChat } from './navigateToOrderChat';
 
@@ -39,8 +40,12 @@ interface StandardLine {
   name: string;
   image: string | null;
   rate: number | null;
+  rateMax: number | null;
   unit: string | null;
+  categories: string[];
   quantity: string;
+  note: string;
+  noteOpen: boolean;
 }
 
 /** Wholesale-scale presets — traders usually think in 50s / 100s, not singles. */
@@ -80,6 +85,8 @@ export function OrderBuilderPage() {
   const [uploading, setUploading] = useState(false);
   const [bulkQty, setBulkQty] = useState(DEFAULT_QTY);
   const [bulkDraft, setBulkDraft] = useState('');
+  const [sameOpen, setSameOpen] = useState(false);
+  const [sameDraft, setSameDraft] = useState(Number(DEFAULT_QTY));
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
   const [editPhotoId, setEditPhotoId] = useState<string | null>(null);
@@ -112,13 +119,19 @@ export function OrderBuilderPage() {
           name: product.name,
           image: product.images[0] ?? null,
           rate: product.rate,
+          rateMax: product.rateMax ?? null,
           unit: product.unit,
+          categories: product.categories ?? [],
           quantity: DEFAULT_QTY,
+          note: '',
+          noteOpen: false,
         })),
       );
       setInitialQuantities(Object.fromEntries(rows.map((product) => [product.id, DEFAULT_QTY])));
       setBulkQty(DEFAULT_QTY);
       setBulkDraft('');
+      setSameDraft(Number(DEFAULT_QTY));
+      setSameOpen(false);
     }
   }, [collection.data, productIds.join(',')]);
 
@@ -168,6 +181,7 @@ export function OrderBuilderPage() {
               productId: line.productId,
               quantity: Number(line.quantity) || 1,
               images: [],
+              ...(line.note.trim() ? { note: line.note.trim() } : {}),
             })),
           }
         : {
@@ -389,80 +403,183 @@ export function OrderBuilderPage() {
               emptyMessage="Connect with a business first, then place an order."
             />
           ) : null}
-          <Card className="flex flex-col gap-2">
-            <p className="text-sm font-bold tracking-tight text-ink">Same pieces for all</p>
-            <p className="text-xs text-muted">Tap a number, or type your own and press Apply.</p>
-            <div className="flex flex-wrap gap-2">
-              {QTY_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => applyQtyToAll(preset)}
-                  className={cx(
-                    'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-bold',
-                    bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
-                  )}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <TextInput
-                type="number"
-                min={1}
-                inputMode="numeric"
-                placeholder="e.g. 150"
-                className="min-h-11 flex-1"
-                value={bulkDraft}
-                onChange={(event) => setBulkDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') applyQtyToAll(bulkDraft);
-                }}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="min-h-11 shrink-0 px-4"
-                disabled={!bulkDraft.trim()}
-                onClick={() => applyQtyToAll(bulkDraft)}
+          {standardLines.length > 1 ? (
+            sameOpen ? (
+              <div
+                className="rounded-xl border border-line bg-foam/80 px-3 py-2.5"
+                data-testid="same-for-all-editor"
               >
-                Apply
-              </Button>
-            </div>
-          </Card>
-          {standardLines.map((line, index) => (
-            <Card key={line.productId} className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                {line.image ? (
-                  <img src={line.image} alt={line.name} className="h-16 w-16 rounded-xl object-cover" />
-                ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-foam text-lg font-bold text-muted">
-                    {line.name.charAt(0)}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{line.name}</p>
-                  <p className="text-xs text-muted">{formatRate(line.rate, line.unit)}</p>
+                <p className="text-[13px] font-semibold text-ink">Same for all</p>
+                <div className="mt-2">
+                  <QtyStepper
+                    value={sameDraft}
+                    aria-label="Same pieces for all designs"
+                    onChange={setSameDraft}
+                  />
+                </div>
+                <div className="mt-2.5 flex items-center gap-4">
+                  <button
+                    type="button"
+                    className="text-[13px] font-bold text-accent"
+                    onClick={() => {
+                      applyQtyToAll(String(sameDraft));
+                      setSameOpen(false);
+                    }}
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    className="text-[13px] font-bold text-muted"
+                    onClick={() => {
+                      setSameDraft(Number(bulkQty) || Number(DEFAULT_QTY));
+                      setSameOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
-              <Field label="Pieces">
-                <TextInput
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  value={line.quantity}
-                  onChange={(event) =>
-                    setStandardLines((prev) =>
-                      prev.map((item, i) =>
-                        i === index ? { ...item, quantity: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-              </Field>
-            </Card>
-          ))}
+            ) : (
+              <button
+                type="button"
+                data-testid="same-for-all-chip"
+                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink"
+                onClick={() => {
+                  setSameDraft(Number(bulkQty) || Number(DEFAULT_QTY));
+                  setSameOpen(true);
+                }}
+              >
+                {sameForAllChipLabel(Number(bulkQty) || Number(DEFAULT_QTY))}
+              </button>
+            )
+          ) : null}
+          <ul
+            className="overflow-hidden rounded-xl border border-line bg-surface"
+            data-testid="order-builder-lines"
+          >
+            {standardLines.map((line, index) => {
+              const tags = line.categories
+                .map((t) => t.trim())
+                .filter(Boolean)
+                .slice(0, 4)
+                .join(' · ');
+              const rate = formatRate(line.rate, line.unit, line.rateMax);
+              return (
+                <li
+                  key={line.productId}
+                  className={cx('px-3 py-3', index > 0 && 'border-t border-line/70')}
+                >
+                  <div className="flex items-start gap-3">
+                    {line.image ? (
+                      <img
+                        src={line.image}
+                        alt=""
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+                        {line.name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
+                            {line.name}
+                          </p>
+                          {tags ? (
+                            <p className="mt-0.5 truncate text-[12px] text-muted">{tags}</p>
+                          ) : null}
+                          {rate !== 'On request' ? (
+                            <p className="mt-0.5 text-[12px] text-muted">{rate}</p>
+                          ) : null}
+                        </div>
+                        {standardLines.length > 1 ? (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${line.name}`}
+                            className="shrink-0 px-1 text-lg leading-none text-muted"
+                            onClick={() =>
+                              setStandardLines((prev) =>
+                                prev.filter((item) => item.productId !== line.productId),
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="mt-2">
+                        <QtyStepper
+                          value={Number(line.quantity) || 1}
+                          aria-label={`Pieces for ${line.name}`}
+                          onChange={(next) =>
+                            setStandardLines((prev) =>
+                              prev.map((item) =>
+                                item.productId === line.productId
+                                  ? { ...item, quantity: String(next) }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      {line.noteOpen ? (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className="text-[12px] font-bold tracking-tight text-accent"
+                            onClick={() =>
+                              setStandardLines((prev) =>
+                                prev.map((item) =>
+                                  item.productId === line.productId
+                                    ? { ...item, noteOpen: false }
+                                    : item,
+                                ),
+                              )
+                            }
+                          >
+                            Note ▴
+                          </button>
+                          <TextArea
+                            className="mt-1.5 min-h-[4.5rem] text-sm"
+                            placeholder="Colour, packing…"
+                            value={line.note}
+                            onChange={(event) =>
+                              setStandardLines((prev) =>
+                                prev.map((item) =>
+                                  item.productId === line.productId
+                                    ? { ...item, note: event.target.value }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="mt-2 text-[12px] font-bold tracking-tight text-accent"
+                          onClick={() =>
+                            setStandardLines((prev) =>
+                              prev.map((item) =>
+                                item.productId === line.productId
+                                  ? { ...item, noteOpen: true }
+                                  : item,
+                              ),
+                            )
+                          }
+                        >
+                          Add note
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">

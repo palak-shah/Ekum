@@ -37,7 +37,8 @@ import {
 import {
   matchesTradeCompleted,
   matchesTradeNeeds,
-  matchesTradeProgress,
+  matchesTradePending,
+  sortTradePending,
   toTradeItems,
   type TradeListItem,
 } from './tradeList';
@@ -45,7 +46,14 @@ import { OrdersFilterMenu } from './OrdersFilterMenu';
 import { statusFromParam, tradeMenuFilterSummary } from './ordersFilterConfig';
 
 type Direction = 'all' | 'buying' | 'selling';
-type StatusFilter = 'needs' | 'progress' | 'completed';
+type StatusFilter = 'pending' | 'completed';
+
+function statusFilterFromParam(value: string | null): StatusFilter {
+  if (value === 'completed') return 'completed';
+  // Legacy Needs you / In progress deep links land on Pending.
+  if (value === 'pending' || value === 'needs' || value === 'progress') return 'pending';
+  return 'pending';
+}
 
 function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
   if (value === 'sample' || value === 'return' || value === 'order' || value === 'trading') {
@@ -65,9 +73,7 @@ export function OrdersPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [direction, setDirection] = useState<Direction>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
-    filterParam === 'needs' || filterParam === 'progress' || filterParam === 'completed'
-      ? filterParam
-      : 'progress',
+    statusFilterFromParam(filterParam),
   );
   const [find, setFind] = useState<TradeFindState>(() => ({
     ...emptyFindState(),
@@ -79,8 +85,13 @@ export function OrdersPage() {
   const deferredFind = useDeferredValue(find);
 
   useEffect(() => {
-    if (filterParam === 'needs' || filterParam === 'progress' || filterParam === 'completed') {
-      setStatusFilter(filterParam);
+    if (
+      filterParam === 'pending' ||
+      filterParam === 'needs' ||
+      filterParam === 'progress' ||
+      filterParam === 'completed'
+    ) {
+      setStatusFilter(statusFilterFromParam(filterParam));
     }
   }, [filterParam]);
 
@@ -149,14 +160,15 @@ export function OrdersPage() {
   const filterIconActive = filterApplied || menuOpen;
 
   const filtered = useMemo(() => {
-    return merged.filter((item) => {
+    const rows = merged.filter((item) => {
       if (!tradeMatchesFind(item, deferredFind)) return false;
       if (listDirection !== 'all' && item.direction !== listDirection) return false;
       if (findOverridesAttention) return true;
-      if (listStatus === 'needs') return matchesTradeNeeds(item);
-      if (listStatus === 'progress') return matchesTradeProgress(item);
+      if (listStatus === 'pending') return matchesTradePending(item);
       return matchesTradeCompleted(item);
     });
+    if (findOverridesAttention || listStatus !== 'pending') return rows;
+    return sortTradePending(rows);
   }, [merged, deferredFind, listDirection, listStatus, findOverridesAttention]);
 
   const showDirection =
@@ -319,8 +331,7 @@ export function OrdersPage() {
         <FilterRail className={cx('min-w-0 w-full', findOverridesAttention && 'opacity-50')}>
           {(
             [
-              ['needs', 'Needs you'],
-              ['progress', 'In progress'],
+              ['pending', 'Pending'],
               ['completed', 'Completed'],
             ] as const
           ).map(([value, label]) => (
@@ -330,8 +341,20 @@ export function OrdersPage() {
               onClick={() => {
                 setStatusFilter(value);
                 if (findOverridesAttention) {
-                  clearFind();
+                  setFind(emptyFindState());
                 }
+                setSearchParams(
+                  (prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('filter', value);
+                    if (findOverridesAttention) {
+                      next.delete('kind');
+                      next.delete('status');
+                    }
+                    return next;
+                  },
+                  { replace: true },
+                );
               }}
             >
               {label}
@@ -386,9 +409,9 @@ export function OrdersPage() {
               title={
                 findOverridesAttention
                   ? 'No matches'
-                  : listStatus === 'needs'
-                    ? 'Nothing needs you'
-                    : 'No orders here'
+                  : listStatus === 'pending'
+                    ? 'No open orders'
+                    : 'No completed orders'
               }
               message={
                 findOverridesAttention
@@ -410,6 +433,8 @@ function TradeRow({
   item: TradeListItem;
   companyId: string | null;
 }) {
+  const needsYou = matchesTradeNeeds(item);
+
   if (item.kind === 'order') {
     const order = item.order;
     const staff =
@@ -438,7 +463,7 @@ function TradeRow({
             {staff ? ` · ${staff}` : ''}
           </p>
         </div>
-        <StatusPill status={order.status} />
+        <TradeRowStatus needsYou={needsYou} status={order.status} />
       </Link>
     );
   }
@@ -454,7 +479,7 @@ function TradeRow({
             {sample.counterpart.name} · {timeAgo(sample.createdAt)}
           </p>
         </div>
-        <StatusPill status={sample.status} />
+        <TradeRowStatus needsYou={needsYou} status={sample.status} />
       </div>
     );
   }
@@ -475,7 +500,35 @@ function TradeRow({
           {linePreview || `${ret.items.length} designs`} · {timeAgo(ret.createdAt)}
         </p>
       </div>
-      <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
+      <TradeRowStatus
+        needsYou={needsYou}
+        status={ret.status}
+        label={returnStatusLabel(ret.status)}
+      />
     </Link>
+  );
+}
+
+function TradeRowStatus({
+  needsYou,
+  status,
+  label,
+}: {
+  needsYou: boolean;
+  status: string;
+  label?: string;
+}) {
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-1">
+      {needsYou ? (
+        <span
+          data-testid="orders-needs-you"
+          className="text-[11px] font-bold tracking-tight text-accent"
+        >
+          Needs you
+        </span>
+      ) : null}
+      <StatusPill status={status} label={label} />
+    </div>
   );
 }

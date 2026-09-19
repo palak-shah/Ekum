@@ -79,7 +79,7 @@ export function ExploreProductPage() {
   });
 
   const createOrder = useMutation({
-    mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
+    mutationFn: (lines: Array<{ productId: string; quantity: number; note?: string }>) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
         sellerCompanyId:
           handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
@@ -91,6 +91,7 @@ export function ExploreProductPage() {
           productId: line.productId,
           quantity: line.quantity,
           images: [],
+          ...(line.note?.trim() ? { note: line.note.trim() } : {}),
         })),
       }),
     onSuccess: (order) => {
@@ -105,7 +106,7 @@ export function ExploreProductPage() {
   });
 
   const askRates = useMutation({
-    mutationFn: (lines: Array<{ productId: string; quantity: number }>) =>
+    mutationFn: (lines: Array<{ productId: string; quantity: number; note?: string }>) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
         sellerCompanyId:
           handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
@@ -119,6 +120,7 @@ export function ExploreProductPage() {
           productId: line.productId,
           quantity: line.quantity,
           images: [],
+          ...(line.note?.trim() ? { note: line.note.trim() } : {}),
         })),
       }),
     onSuccess: (order) => {
@@ -157,6 +159,10 @@ export function ExploreProductPage() {
     images: data.images,
     moq: data.moq ?? null,
     companyId: data.company.id,
+    categories: data.categories ?? [],
+    rate: data.rate,
+    rateMax: null,
+    unit: data.unit,
   } as ProductView;
 
   const openCurate = () => {
@@ -233,7 +239,7 @@ export function ExploreProductPage() {
         {data.visible ? (
           <>
             <span className="text-lg font-semibold text-ink">
-              {formatRate(data.rate, data.unit, data.rateMax)}
+              {formatRate(data.rate, data.unit)}
             </span>
             {data.moq != null && data.moq > 0 ? (
               <p className="text-sm font-medium text-ink">Minimum order · {data.moq} pcs</p>

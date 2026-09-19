@@ -2,6 +2,32 @@ import { test, expect } from '@playwright/test';
 import { loginAsMeena } from '../../helpers/persona';
 
 test.describe('orders chrome @functional @orders', () => {
+  test('Pending and Completed tabs replace Needs you / In progress', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/orders');
+
+    await expect(page.getByRole('button', { name: 'Pending' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Completed' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Needs you' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'In progress' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Completed' }).click();
+    await expect(page).toHaveURL(/filter=completed/, { timeout: 10_000 });
+
+    await page.getByRole('button', { name: 'Pending' }).click();
+    await expect(page).toHaveURL(/filter=pending/, { timeout: 10_000 });
+  });
+
+  test('How many each uses editable qty stepper', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/explore/products/seed-prod-1');
+    await page.getByRole('button', { name: 'Order' }).click();
+    await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
+    const qty = page.getByRole('group', { name: /Pieces for/i }).getByRole('textbox');
+    await qty.fill('175');
+    await expect(qty).toHaveValue('175');
+  });
+
   test('filter menu selects type and dismisses on Escape', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/orders');

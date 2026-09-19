@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   agreementStepLabel,
   buildOrderTimelineSteps,
+  collapseQuotedTrailEvents,
   shortOrderLabel,
   suggestedPaymentAmount,
   type CreatePaymentRequestDto,
@@ -29,6 +30,7 @@ import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { ShipProgressHint, SettleQtyColumns, SettlePendingSummary, fulfillmentRowClass } from '@/features/orders/shipProgressLabel';
+import { orderLinePhotoTarget } from '@/features/orders/orderLinePhotoTarget';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
@@ -113,9 +115,19 @@ function actionErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-function OrderTimeline({ order }: { order: OrderView }) {
-  const trail = order.trail ?? [];
-  if (trail.length > 0) {
+function OrderTimeline({
+  order,
+  hidePriorQuotes = false,
+}: {
+  order: OrderView;
+  /** Buyer: one live quote + Edited. Seller keeps full quote history. */
+  hidePriorQuotes?: boolean;
+}) {
+  const rawTrail = order.trail ?? [];
+  if (rawTrail.length > 0) {
+    const { events: trail, quoteEditCount } = hidePriorQuotes
+      ? collapseQuotedTrailEvents(rawTrail)
+      : { events: rawTrail, quoteEditCount: 0 };
     return (
       <Card className="flex flex-col gap-0">
         <p className="mb-3 text-sm font-semibold text-ink">Timeline</p>
@@ -131,6 +143,12 @@ function OrderTimeline({ order }: { order: OrderView }) {
               <div className={cx('min-w-0 pb-3', index === trail.length - 1 && 'pb-0')}>
                 <p className="text-sm font-medium text-ink">{step.summary ?? step.type}</p>
                 <p className="text-xs text-muted">{formatDate(step.at)}</p>
+                {hidePriorQuotes && step.type === 'quoted' && quoteEditCount > 0 ? (
+                  <p className="text-xs text-muted">
+                    Edited
+                    {quoteEditCount > 1 ? ` · ${quoteEditCount} times` : ''}
+                  </p>
+                ) : null}
                 {step.who ? <p className="text-[11px] text-muted">{step.who}</p> : null}
                 {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
                 {step.note ? (
@@ -234,6 +252,7 @@ function OrderLinePhoto({
   onOpen: (index: number) => void;
   size?: 'md' | 'sm';
 }) {
+  const navigate = useNavigate();
   const raw = urlsForOrderItem(item)[0];
   const url = raw ? toAbsoluteMediaUrl(raw) : '';
   const box =
@@ -256,14 +275,23 @@ function OrderLinePhoto({
       </div>
     );
   }
+  const target = orderLinePhotoTarget(item.productId);
   return (
     <button
       type="button"
       data-testid="order-line-photo"
       className={cx('overflow-hidden bg-foam', box)}
-      aria-label={`View photo for ${item.name}`}
+      aria-label={
+        target.kind === 'product'
+          ? `Open design · ${item.name}`
+          : `View photo for ${item.name}`
+      }
       onClick={(event) => {
         event.stopPropagation();
+        if (target.kind === 'product') {
+          navigate(target.href);
+          return;
+        }
         onOpen(galleryIndexForItem(items, item.id));
       }}
     >
@@ -1403,26 +1431,52 @@ export function OrderDetailPage() {
         {data.items.map((item) => {
           const pending = item.remainingQuantity ?? 0;
           const partOpen = item.shippedQuantity > 0 && pending > 0;
+          const cantSupply = item.lineStatus === 'declined';
           return (
             <div
               key={item.id}
               className={cx(
                 'flex items-center gap-3 rounded-xl px-2 py-2',
                 partOpen && 'border border-accent/40 bg-accent/5',
+                cantSupply && 'bg-foam/80',
               )}
-              data-testid={partOpen ? 'order-line-pending' : undefined}
+              data-testid={
+                cantSupply
+                  ? 'order-line-cant-supply'
+                  : partOpen
+                    ? 'order-line-pending'
+                    : undefined
+              }
             >
               <OrderLinePhoto item={item} items={data.items} onOpen={openPhotoViewer} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                <p className="text-xs text-muted">
-                  {item.quantity}
-                  {item.requestedQuantity !== item.quantity
-                    ? ` of ${item.requestedQuantity} asked`
-                    : ''}{' '}
-                  × {formatRate(item.rate, item.unit)}
+                <p
+                  className={cx(
+                    'truncate text-sm font-medium',
+                    cantSupply ? 'text-muted' : 'text-ink',
+                  )}
+                >
+                  {item.name}
                 </p>
-                <p className="text-[11px] font-medium text-slate">
+                {!cantSupply ? (
+                  <p className="text-xs text-muted">
+                    {item.quantity}
+                    {item.requestedQuantity !== item.quantity
+                      ? ` of ${item.requestedQuantity} asked`
+                      : ''}{' '}
+                    × {formatRate(item.rate, item.unit)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted">
+                    {item.requestedQuantity} asked
+                  </p>
+                )}
+                <p
+                  className={cx(
+                    'text-[11px] font-medium',
+                    cantSupply ? 'text-danger' : 'text-slate',
+                  )}
+                >
                   {lineStatusLabel(item.lineStatus)}
                   {item.shippedQuantity > 0 ? (
                     <>
@@ -1453,20 +1507,6 @@ export function OrderDetailPage() {
             <VoicePlayer src={data.noteVoiceUrl} durationMs={data.noteVoiceDurationMs} />
           </div>
         ) : null}
-        {data.hasSellerQuote && (data.quoteNote || data.quoteNoteVoiceUrl) ? (
-          <div className="flex flex-col gap-1.5 border-t border-line pt-2">
-            <p className="text-xs font-semibold text-ink">Quote note</p>
-            {data.quoteNote ? (
-              <p className="whitespace-pre-wrap text-sm text-muted">{data.quoteNote}</p>
-            ) : null}
-            {data.quoteNoteVoiceUrl ? (
-              <VoicePlayer
-                src={data.quoteNoteVoiceUrl}
-                durationMs={data.quoteNoteVoiceDurationMs}
-              />
-            ) : null}
-          </div>
-        ) : null}
       </Card>
       ) : data.note || data.noteVoiceUrl ? (
         <Card className="flex flex-col gap-2">
@@ -1477,7 +1517,7 @@ export function OrderDetailPage() {
         </Card>
       ) : null}
 
-      <OrderTimeline order={data} />
+      <OrderTimeline order={data} hidePriorQuotes={isBuyer} />
 
       {(data.returns ?? []).length > 0 ? (
         <Card className="flex flex-col gap-3 text-sm">
@@ -1950,7 +1990,7 @@ export function OrderDetailPage() {
                         <p className="text-center text-[11px] text-muted">—</p>
                       )}
                       {unavailable[item.id] ? (
-                        <p className="text-center text-[11px] text-muted">Skip</p>
+                        <p className="text-center text-[11px] font-medium text-danger">Can’t supply</p>
                       ) : (
                         <TextInput
                           type="number"

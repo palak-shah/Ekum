@@ -1195,6 +1195,11 @@ export function CollectionEditorPage() {
   };
 
   const sameForAllLine = sameForAllSummary(sameForAll);
+  const albumTip = sameForAllLine
+    ? diffIds.size > 0
+      ? `New photos use shared details. ${diffIds.size} Diff — library kept its own; tap to change.`
+      : 'New photos use shared details. Library designs keep their own rates and tags.'
+    : 'Tap a design to edit or add photos.';
   const sameForAllRow = (
     <button
       type="button"
@@ -1205,11 +1210,23 @@ export function CollectionEditorPage() {
       }}
       className={cx(
         'flex w-full flex-col gap-0.5 rounded-xl border px-3 py-3 text-left',
-        sameForAllLine ? 'border-line bg-surface' : 'border-dashed border-line',
+        sameForAllLine
+          ? 'border-accent bg-accent/5'
+          : 'border-dashed border-line',
       )}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-ink">Same for all designs</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="text-sm font-semibold text-ink">Same for new photos</span>
+          {sameForAllLine ? (
+            <span
+              data-testid="collection-same-for-all-on"
+              className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
+            >
+              On
+            </span>
+          ) : null}
+        </span>
         <span aria-hidden className="text-muted">
           ›
         </span>
@@ -1221,7 +1238,7 @@ export function CollectionEditorPage() {
         </span>
       ) : (
         <span className="text-xs text-muted">
-          Optional · for new photos · library keeps its own
+          Optional · library designs keep their rates and tags
         </span>
       )}
     </button>
@@ -1470,7 +1487,7 @@ export function CollectionEditorPage() {
           ) : null}
 
           {(pendingPhotos.length > 0 || createLibraryDesigns.length > 0) && (
-            <p className="text-xs text-muted">Tap a design to edit or add photos.</p>
+            <p className="text-xs text-muted">{albumTip}</p>
           )}
           {sameForAllRow}
 
@@ -1640,7 +1657,7 @@ export function CollectionEditorPage() {
             {quickUploading ? 'Adding…' : 'Designs'}
           </button>
           {selectedProducts.length > 0 ? (
-            <p className="text-xs text-muted">Tap a design to edit or add photos.</p>
+            <p className="text-xs text-muted">{albumTip}</p>
           ) : null}
           {sameForAllRow}
         </div>
@@ -2133,7 +2150,7 @@ export function CollectionEditorPage() {
       <Sheet
         open={sameForAllOpen}
         onClose={() => setSameForAllOpen(false)}
-        title="Same for all designs"
+        title="Same for new photos"
         footer={
           <Button
             fullWidth
@@ -2146,8 +2163,8 @@ export function CollectionEditorPage() {
       >
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
-            New photos get these. Designs from your library keep their own — Diff marks
-            differences. Tap a design to change one.
+            Applies to new camera and gallery photos. Designs you pick from the library keep
+            their rates and tags — Diff marks differences. Tap a design to change one.
           </p>
           <TagsField
             label="Tags"

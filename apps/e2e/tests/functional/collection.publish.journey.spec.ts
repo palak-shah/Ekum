@@ -11,11 +11,12 @@ test.describe('seller collection publish @functional @collections', () => {
     await expect(sameForAll.getByText(/Optional/i)).toBeVisible();
 
     await sameForAll.click();
-    const sameSheet = page.getByRole('dialog').filter({ hasText: 'Same for all designs' });
-    await expect(sameSheet.getByRole('heading', { name: 'Same for all designs' })).toBeVisible();
+    const sameSheet = page.getByRole('dialog').filter({ hasText: 'Same for new photos' });
+    await expect(sameSheet.getByRole('heading', { name: 'Same for new photos' })).toBeVisible();
     await sameSheet.getByPlaceholder('1200 or 1200-1400').fill('1200-1400');
     await sameSheet.getByTestId('collection-same-for-all-done').click();
     await expect(sameForAll.getByText(/1200-1400/)).toBeVisible();
+    await expect(page.getByTestId('collection-same-for-all-on')).toBeVisible();
 
     await page.getByTestId('collection-add-designs').click();
     const fromCamera = page.getByTestId('continuous-camera-designs');

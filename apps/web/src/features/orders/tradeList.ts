@@ -55,6 +55,11 @@ export function matchesTradeNeeds(item: TradeListItem): boolean {
   return matchesReturnNeeds(item.ret);
 }
 
+/** Open trade — not finished (replaces separate Needs you + In progress tabs). */
+export function matchesTradePending(item: TradeListItem): boolean {
+  return !matchesTradeCompleted(item);
+}
+
 export function matchesTradeProgress(item: TradeListItem): boolean {
   if (item.kind === 'order') return matchesProgress(item.order);
   if (item.kind === 'sample') return matchesSampleProgress(item.sample);
@@ -65,4 +70,14 @@ export function matchesTradeCompleted(item: TradeListItem): boolean {
   if (item.kind === 'order') return matchesCompleted(item.order);
   if (item.kind === 'sample') return matchesSampleCompleted(item.sample);
   return matchesReturnCompleted(item.ret);
+}
+
+/** Pending list: Needs you first, then newest. */
+export function sortTradePending(items: TradeListItem[]): TradeListItem[] {
+  return [...items].sort((a, b) => {
+    const aNeeds = matchesTradeNeeds(a) ? 0 : 1;
+    const bNeeds = matchesTradeNeeds(b) ? 0 : 1;
+    if (aNeeds !== bNeeds) return aNeeds - bNeeds;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 }

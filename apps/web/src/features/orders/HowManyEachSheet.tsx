@@ -1,16 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProductView } from '@ekum/domain-types';
 import { orderWhoMode } from '@/features/orders/orderWho';
-import { orderSheetTitle, type QtyMode } from '@/features/orders/orderQtyUi';
+import { orderSheetTitle } from '@/features/orders/orderQtyUi';
+import {
+  QtyStepper,
+  cxNoteLink,
+  sameForAllChipLabel,
+} from '@/features/orders/QtyStepper';
+import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { Button, Chip, FilterRail, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
-import { COMPACT_QTY_INPUT_CLASS } from '@/ui/mobileOverflow';
+import { Button, InlineNotice, Sheet, TextArea, cx } from '@/ui/kit';
 import { OrderForBuyerSheet } from './OrderForBuyerSheet';
 
-export const WHOLESALE_QTY_PRESETS = [10, 15, 20, 25, 50] as const;
+export type HowManyLine = {
+  productId: string;
+  quantity: number;
+  note?: string;
+};
 
 function qtyMemoryKey(sellerId: string) {
   return `ekum:qty-each:${sellerId}`;
@@ -36,6 +45,12 @@ function rememberQty(sellerId: string, qty: number) {
   }
 }
 
+function tagsLine(product: ProductView): string | null {
+  const tags = (product.categories ?? []).map((t) => t.trim()).filter(Boolean);
+  if (tags.length === 0) return null;
+  return tags.slice(0, 4).join(' · ');
+}
+
 export function HowManyEachSheet({
   open,
   onClose,
@@ -56,8 +71,8 @@ export function HowManyEachSheet({
   submitting?: boolean;
   asking?: boolean;
   error?: string | null;
-  onSendOrder: (lines: Array<{ productId: string; quantity: number }>) => void;
-  onAskRates: (lines: Array<{ productId: string; quantity: number }>) => void;
+  onSendOrder: (lines: HowManyLine[]) => void;
+  onAskRates: (lines: HowManyLine[]) => void;
   orderGoesToName?: string | null;
   orderGoesToNames?: string[] | null;
 }) {
@@ -75,9 +90,12 @@ export function HowManyEachSheet({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [buyerOpen, setBuyerOpen] = useState(false);
   const [sharedQty, setSharedQty] = useState(20);
-  const [custom, setCustom] = useState('');
-  const [qtyMode, setQtyMode] = useState<QtyMode>('same');
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
+  const [sameOpen, setSameOpen] = useState(false);
+  const [sameDraft, setSameDraft] = useState(20);
 
   const productKey = products.map((product) => product.id).join(',');
   const qtyKey = sellerId || 'multi';
@@ -86,37 +104,54 @@ export function HowManyEachSheet({
     if (!open) return;
     const remembered = readRememberedQty(qtyKey);
     setSharedQty(remembered);
-    setCustom(String(remembered));
-    setQtyMode('same');
+    setSameDraft(remembered);
     setOverrides({});
+    setNotes({});
+    setNoteOpen({});
+    setRemoved(new Set());
+    setSameOpen(false);
     setBuyerOpen(false);
     setInviteUrl(null);
   }, [open, qtyKey, productKey]);
 
+  const activeProducts = useMemo(
+    () => products.filter((product) => !removed.has(product.id)),
+    [products, removed],
+  );
+
   const lines = useMemo(
     () =>
-      products.map((product) => ({
+      activeProducts.map((product) => ({
         product,
         quantity: overrides[product.id] ?? sharedQty,
+        note: notes[product.id]?.trim() || undefined,
       })),
-    [products, overrides, sharedQty],
+    [activeProducts, overrides, sharedQty, notes],
   );
 
   const applyShared = (qty: number) => {
     if (qty <= 0) return;
     setSharedQty(qty);
-    setCustom(String(qty));
+    setSameDraft(qty);
     setOverrides({});
+    setSameOpen(false);
   };
 
-  const payload = () =>
+  const cancelSame = () => {
+    setSameDraft(sharedQty);
+    setSameOpen(false);
+  };
+
+  const payload = (): HowManyLine[] =>
     lines.map((line) => ({
       productId: line.product.id,
       quantity: line.quantity,
+      ...(line.note ? { note: line.note } : {}),
     }));
 
   const busy = Boolean(submitting || asking);
-  const sheetTitle = orderSheetTitle(products.length);
+  const sheetTitle = orderSheetTitle(activeProducts.length);
+  const canRemove = activeProducts.length > 1;
 
   if (inviteUrl) {
     return (
@@ -152,7 +187,7 @@ export function HowManyEachSheet({
         <>
           <Button
             fullWidth
-            disabled={busy || products.length === 0}
+            disabled={busy || activeProducts.length === 0}
             onClick={() => {
               rememberQty(qtyKey, sharedQty);
               onSendOrder(payload());
@@ -163,7 +198,7 @@ export function HowManyEachSheet({
           <Button
             variant="secondary"
             fullWidth
-            disabled={busy || products.length === 0}
+            disabled={busy || activeProducts.length === 0}
             onClick={() => {
               rememberQty(qtyKey, sharedQty);
               onAskRates(payload());
@@ -177,7 +212,7 @@ export function HowManyEachSheet({
         <Button
           variant="secondary"
           fullWidth
-          disabled={busy || products.length === 0}
+          disabled={busy || activeProducts.length === 0}
           onClick={() => setBuyerOpen(true)}
         >
           Order for buyer
@@ -189,7 +224,7 @@ export function HowManyEachSheet({
   return (
     <>
       <Sheet open={open} onClose={onClose} title={sheetTitle} footer={decideFooter}>
-        <div className="flex flex-col gap-5 pb-1">
+        <div className="flex flex-col gap-4 pb-1">
           {orderGoesToNames && orderGoesToNames.length > 0 ? (
             <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink">
               Order goes to{' '}
@@ -201,118 +236,170 @@ export function HowManyEachSheet({
             </p>
           ) : null}
 
-          {products.length > 1 ? (
-            <>
-              <FilterRail>
-                <Chip
-                  active={qtyMode === 'same'}
-                  onClick={() => {
-                    if (busy) return;
-                    setQtyMode('same');
-                    setOverrides({});
-                  }}
-                >
-                  Same for all
-                </Chip>
-                <Chip
-                  active={qtyMode === 'perDesign'}
-                  onClick={() => {
-                    if (busy) return;
-                    setQtyMode('perDesign');
-                  }}
-                >
-                  Each design
-                </Chip>
-              </FilterRail>
-              {qtyMode === 'same' ? (
-                <p className="-mt-2 text-[13px] text-muted">Same pieces for every design</p>
-              ) : null}
-            </>
-          ) : null}
-
-          {products.length === 1 || qtyMode === 'same' ? (
-            <div className="flex flex-col gap-2.5">
-              <p className="text-[15px] font-semibold tracking-tight text-ink">How many pieces?</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {WHOLESALE_QTY_PRESETS.map((preset) => (
+          {activeProducts.length > 1 ? (
+            sameOpen ? (
+              <div
+                className="rounded-xl border border-line bg-foam/80 px-3 py-2.5"
+                data-testid="same-for-all-editor"
+              >
+                <p className="text-[13px] font-semibold text-ink">Same for all</p>
+                <div className="mt-2">
+                  <QtyStepper
+                    value={sameDraft}
+                    disabled={busy}
+                    aria-label="Same pieces for all designs"
+                    onChange={setSameDraft}
+                  />
+                </div>
+                <div className="mt-2.5 flex items-center gap-4">
                   <button
-                    key={preset}
                     type="button"
                     disabled={busy}
-                    onClick={() => applyShared(preset)}
-                    className={cx(
-                      'min-h-10 rounded-xl px-3.5 text-sm font-semibold tracking-tight',
-                      sharedQty === preset && Object.keys(overrides).length === 0
-                        ? 'bg-accent text-white'
-                        : 'border border-line bg-surface text-slate',
-                    )}
+                    className="text-[13px] font-bold text-accent disabled:opacity-45"
+                    onClick={() => applyShared(sameDraft)}
                   >
-                    {preset}
+                    Apply
                   </button>
-                ))}
-                <TextInput
-                  type="number"
-                  min={1}
-                  placeholder="Custom"
-                  value={custom}
-                  disabled={busy}
-                  className={COMPACT_QTY_INPUT_CLASS}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setCustom(value);
-                    const n = Number(value);
-                    if (Number.isFinite(n) && n > 0) {
-                      applyShared(n);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          ) : (
-            <ul className="flex max-h-56 flex-col gap-2.5 overflow-y-auto">
-              {lines.map(({ product, quantity }) => {
-                const thumb = product.images[0] ?? null;
-                return (
-                  <li
-                    key={product.id}
-                    className="flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5"
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="text-[13px] font-bold text-muted disabled:opacity-45"
+                    onClick={cancelSame}
                   >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                data-testid="same-for-all-chip"
+                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink disabled:opacity-45"
+                onClick={() => {
+                  setSameDraft(sharedQty);
+                  setSameOpen(true);
+                }}
+              >
+                {sameForAllChipLabel(sharedQty)}
+              </button>
+            )
+          ) : null}
+
+          <ul
+            className="max-h-[min(24rem,55vh)] overflow-y-auto overflow-x-hidden rounded-xl border border-line bg-surface"
+            data-testid="how-many-lines"
+          >
+            {lines.map(({ product, quantity }, index) => {
+              const thumb = product.images[0] ?? null;
+              const tags = tagsLine(product);
+              const rate = formatRate(
+                product.rate ?? null,
+                product.unit ?? null,
+                product.rateMax ?? null,
+              );
+              const openNote = Boolean(noteOpen[product.id]);
+              const noteValue = notes[product.id] ?? '';
+              return (
+                <li
+                  key={product.id}
+                  className={cx(
+                    'px-3 py-3',
+                    index > 0 && 'border-t border-line/70',
+                  )}
+                  data-testid="how-many-line"
+                >
+                  <div className="flex items-start gap-3">
                     {thumb ? (
                       <img
                         src={thumb}
                         alt=""
-                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
                         {product.name.charAt(0)}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
-                        {product.name}
-                      </p>
-                      {product.sku ? (
-                        <p className="truncate text-[13px] text-muted">{product.sku}</p>
-                      ) : null}
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
+                            {product.name}
+                          </p>
+                          {tags ? (
+                            <p className="mt-0.5 truncate text-[12px] text-muted">{tags}</p>
+                          ) : null}
+                          {rate !== 'On request' ? (
+                            <p className="mt-0.5 text-[12px] text-muted">{rate}</p>
+                          ) : null}
+                        </div>
+                        {canRemove ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            aria-label={`Remove ${product.name}`}
+                            className="shrink-0 px-1 text-lg leading-none text-muted disabled:opacity-45"
+                            onClick={() =>
+                              setRemoved((prev) => new Set(prev).add(product.id))
+                            }
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="mt-2">
+                        <QtyStepper
+                          value={quantity}
+                          disabled={busy}
+                          aria-label={`Pieces for ${product.name}`}
+                          onChange={(next) =>
+                            setOverrides((prev) => ({ ...prev, [product.id]: next }))
+                          }
+                        />
+                      </div>
+                      {openNote ? (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className={cxNoteLink()}
+                            onClick={() =>
+                              setNoteOpen((prev) => ({ ...prev, [product.id]: false }))
+                            }
+                          >
+                            Note ▴
+                          </button>
+                          <TextArea
+                            className="mt-1.5 min-h-[4.5rem] text-sm"
+                            placeholder="Colour, packing…"
+                            value={noteValue}
+                            disabled={busy}
+                            onChange={(event) =>
+                              setNotes((prev) => ({
+                                ...prev,
+                                [product.id]: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={cx(cxNoteLink(), 'mt-2')}
+                          disabled={busy}
+                          onClick={() =>
+                            setNoteOpen((prev) => ({ ...prev, [product.id]: true }))
+                          }
+                        >
+                          Add note
+                        </button>
+                      )}
                     </div>
-                    <TextInput
-                      type="number"
-                      min={1}
-                      className={COMPACT_QTY_INPUT_CLASS}
-                      value={String(quantity)}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const n = Number(event.target.value);
-                        if (!Number.isFinite(n) || n <= 0) return;
-                        setOverrides((prev) => ({ ...prev, [product.id]: n }));
-                      }}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
 
           {error ? <InlineNotice message={error} /> : null}
         </div>
@@ -322,7 +409,7 @@ export function HowManyEachSheet({
         open={buyerOpen}
         onClose={() => setBuyerOpen(false)}
         lines={payload()}
-        productIds={products.map((product) => product.id)}
+        productIds={activeProducts.map((product) => product.id)}
         onInvite={(url) => {
           setBuyerOpen(false);
           setInviteUrl(url);

@@ -309,12 +309,13 @@ export function CollectionViewerPage() {
   const packOrder = useMutation({
     mutationFn: async (input: {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
-      lines: Array<{ productId: string; quantity: number }>;
+      lines: Array<{ productId: string; quantity: number; note?: string }>;
     }) => {
       const items = input.lines.map((line) => ({
         productId: line.productId,
         quantity: line.quantity,
         images: [] as string[],
+        ...(line.note?.trim() ? { note: line.note.trim() } : {}),
       }));
       const batchBody = {
         kind: OrderKind.Standard,

@@ -39,6 +39,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
 | Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
 | Orders | Orders More menu portal (Samples/Returns) | Works | Functional | Recommended | `orders.chrome.journey.spec.ts` |
+| Orders | List tabs Pending / Completed + row Needs you | Works | Unit + Functional | Required | Completeness 2026-09-19-orders-list-tabs; legacy `filter=needs|progress` → Pending |
+| Orders | Place-order tabular lines (− editable qty + · Same for all chip · Add note) | Works | Unit + Functional | Required | Completeness 2026-09-20-place-order-line-chrome; HowManyEach + Order builder |
 | Orders | Order card +N thumbs | Works | Regression | Required | BM-01 |
 | Orders | Living card dedupe helpers | Works | Unit-only | Required | BM-04 |
 | Orders | Dispatch → settle (+ legacy deliver) | Works | Unit | Required | Completeness 2026-09-06-settle-order-trail; trail Timeline |

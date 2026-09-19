@@ -12,9 +12,8 @@ One photos-first path: dump designs → optional Same for all → pack name → 
 
 | Decision | Choice |
 |----------|--------|
-| Same for all UI | Compact summary row under design grid → sheet (not always-open form) |
-| Required before save | Pack name only; rates/details optional |
-| Inheritance | **Done** sets shared defaults for **new photos** (pending + later camera/gallery). Library designs keep their rates/tags — never bulk-PATCH from this sheet. |
+| Same for all UI | Compact summary row under design grid → sheet. Label **Same for new photos**. Empty = dashed; set = accent border + **On** pill + summary. |
+| Inheritance | **Done** sets shared defaults for **new photos** (pending + later camera/gallery). Library designs keep their rates/tags — never bulk-PATCH from this sheet. Adding a library design after shared is on → **Diff** if it differs. |
 | Per design | Overrides + **Diff** badge + accent ring when they differ from shared; tap → edit or **Use same as all designs** |
 | Sheet CTA | Single **Done** (toast clarifies saved / cleared) |
 | Photos per design | **No cap** (collection + Add designs) |
@@ -27,7 +26,7 @@ One photos-first path: dump designs → optional Same for all → pack name → 
 ```text
 [ Design grid · Designs CTA ]
   Tip: Tap a design to edit or add photos
-[ Same for all designs › ]   optional dashed when empty
+[ Same for new photos › ]   dashed when empty; On + accent when set
 [ Name · Description · Tags ]
 [ Create & Publish / Save ]
 ```

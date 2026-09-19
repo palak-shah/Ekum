@@ -56,6 +56,29 @@ export function quoteTrailSummary(total: number, alreadyQuoted: boolean): string
   return alreadyQuoted ? `Quote updated — ${amount}` : `Quoted — ${amount}`;
 }
 
+/**
+ * WhatsApp-style: one live quote in the timeline. Earlier Quoted / Quote updated
+ * rows are dropped; the latest keeps its summary. Caller may show a quiet Edited cue.
+ */
+export function collapseQuotedTrailEvents(
+  trail: OrderTrailEventView[],
+): { events: OrderTrailEventView[]; quoteEditCount: number } {
+  const quotedIndexes: number[] = [];
+  trail.forEach((step, index) => {
+    if (step.type === OrderTrailType.Quoted || step.type === 'quoted') {
+      quotedIndexes.push(index);
+    }
+  });
+  if (quotedIndexes.length <= 1) {
+    return { events: trail, quoteEditCount: 0 };
+  }
+  const drop = new Set(quotedIndexes.slice(0, -1));
+  return {
+    events: trail.filter((_, index) => !drop.has(index)),
+    quoteEditCount: quotedIndexes.length - 1,
+  };
+}
+
 /** Legacy / backfill rows with no money line (null, "Quoted", or plain label). */
 export function isBareQuotedTrailSummary(summary: string | null | undefined): boolean {
   if (summary == null || summary.trim() === '') return true;

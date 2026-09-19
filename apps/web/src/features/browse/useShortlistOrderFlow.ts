@@ -17,17 +17,18 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
 import { useToast } from '@/ui/Toast';
 
-function toBatchItems(lines: Array<{ productId: string; quantity: number }>) {
+function toBatchItems(lines: Array<{ productId: string; quantity: number; note?: string }>) {
   return lines.map((line) => ({
     productId: line.productId,
     quantity: line.quantity,
     images: [],
+    ...(line.note?.trim() ? { note: line.note.trim() } : {}),
   }));
 }
 
 async function placeFromPackOrBatch(input: {
   intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
-  lines: Array<{ productId: string; quantity: number }>;
+  lines: Array<{ productId: string; quantity: number; note?: string }>;
   collectionId?: string;
   facilitatorCompanyId?: string;
 }): Promise<CreateOrdersBatchResult> {
@@ -88,7 +89,7 @@ export function useShortlistOrderFlow() {
   const batch = useMutation({
     mutationFn: (input: {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
-      lines: Array<{ productId: string; quantity: number }>;
+      lines: Array<{ productId: string; quantity: number; note?: string }>;
       collectionId?: string;
       facilitatorCompanyId?: string;
     }) => {
@@ -175,7 +176,7 @@ export function useShortlistOrderFlow() {
     submitting: batch.isPending && batch.variables?.intent !== OrderIntent.Inquiry,
     asking: batch.isPending && batch.variables?.intent === OrderIntent.Inquiry,
     sendOrder: (
-      lines: Array<{ productId: string; quantity: number }>,
+      lines: Array<{ productId: string; quantity: number; note?: string }>,
       opts?: { collectionId?: string; facilitatorCompanyId?: string },
     ) => {
       setError(null);
@@ -187,7 +188,7 @@ export function useShortlistOrderFlow() {
       });
     },
     askRates: (
-      lines: Array<{ productId: string; quantity: number }>,
+      lines: Array<{ productId: string; quantity: number; note?: string }>,
       opts?: { collectionId?: string; facilitatorCompanyId?: string },
     ) => {
       setError(null);

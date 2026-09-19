@@ -227,7 +227,17 @@ export function buildOrderCardCopy(
     lines.push(`Part of ${parentLabel}`);
   }
   if (ref?.itemCount != null) {
-    lines.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
+    const declined = asCount(meta?.declinedCount) ?? 0;
+    if (isQuote && declined > 0) {
+      const quoted = Math.max(0, ref.itemCount - declined);
+      lines.push(
+        quoted > 0
+          ? `${quoted} quoted · ${declined} can’t supply`
+          : `${declined} can’t supply`,
+      );
+    } else {
+      lines.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
+    }
   }
   if (body) {
     const note = stripOrderChatBodyNoise(body, frozenActor);
