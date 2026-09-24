@@ -88,6 +88,31 @@ describe('buildHomeNeeds', () => {
     expect(needs[0]?.to).toBe('/orders/solo');
     expect(needs[0]?.title).toBe('Dispatch to Jaipur Emporium');
   });
+
+  it('links follow asks to Followers Asked', () => {
+    const needs = buildHomeNeeds({
+      orders: [],
+      returns: [],
+      accessRequests: [],
+      followAsks: [
+        {
+          company: {
+            id: 'c-ask',
+            name: 'Ahmedabad Loom Co',
+            city: 'Ahmedabad',
+            logoUrl: null,
+            verification: 'none',
+          },
+          createdAt: '2026-09-24T10:00:00.000Z',
+        },
+      ],
+      chatRequests: [],
+    });
+    expect(needs).toHaveLength(1);
+    expect(needs[0]?.kind).toBe('follow_request');
+    expect(needs[0]?.title).toBe('Follow ask · Ahmedabad Loom Co');
+    expect(needs[0]?.to).toBe('/network/followers?tab=asked');
+  });
 });
 
 describe('needTitle', () => {

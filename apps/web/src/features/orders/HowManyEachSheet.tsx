@@ -1,18 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ProductView } from '@ekum/domain-types';
+import { useQueries } from '@tanstack/react-query';
+import type { ExploreProductPreviewView, ProductView } from '@ekum/domain-types';
 import { orderWhoMode } from '@/features/orders/orderWho';
 import { orderSheetTitle } from '@/features/orders/orderQtyUi';
 import {
   QtyStepper,
+  SameForAllEditor,
   cxNoteLink,
   sameForAllChipLabel,
 } from '@/features/orders/QtyStepper';
-import { formatRate } from '@/lib/format';
+import { applyHowManyDetail } from '@/features/orders/howManyHydrate';
+import { howManyLineMeta } from '@/features/orders/howManyLineMeta';
+import { howManySingleGoesTo, howManySplitBanner } from '@/features/orders/howManySplitBanner';
+import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { Button, InlineNotice, Sheet, TextArea, cx } from '@/ui/kit';
+import { PhotoViewer } from '@/ui/PhotoViewer';
+import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
+import {
+  galleryIndexForProduct,
+  howManyGalleryCaptions,
+  howManyGalleryDetails,
+  howManyGalleryUrls,
+  howManyPhotoUrls,
+} from '@/features/orders/howManySheetPhotos';
 import { OrderForBuyerSheet } from './OrderForBuyerSheet';
 
 export type HowManyLine = {
@@ -45,12 +59,6 @@ function rememberQty(sellerId: string, qty: number) {
   }
 }
 
-function tagsLine(product: ProductView): string | null {
-  const tags = (product.categories ?? []).map((t) => t.trim()).filter(Boolean);
-  if (tags.length === 0) return null;
-  return tags.slice(0, 4).join(' · ');
-}
-
 export function HowManyEachSheet({
   open,
   onClose,
@@ -62,7 +70,7 @@ export function HowManyEachSheet({
   onSendOrder,
   onAskRates,
   orderGoesToName,
-  orderGoesToNames,
+  onRemoveProduct,
 }: {
   open: boolean;
   onClose: () => void;
@@ -74,15 +82,29 @@ export function HowManyEachSheet({
   onSendOrder: (lines: HowManyLine[]) => void;
   onAskRates: (lines: HowManyLine[]) => void;
   orderGoesToName?: string | null;
-  orderGoesToNames?: string[] | null;
+  /** × also updates traveling Selection (sr 42). */
+  onRemoveProduct?: (productId: string) => void;
 }) {
   const { selling, trading } = useTradePresence();
   const me = useMyCompany();
   const { showToast } = useToast();
+  const details = useQueries({
+    queries: products.map((product) => ({
+      queryKey: ['explore-product', product.id],
+      queryFn: () => api.get<ExploreProductPreviewView>(`/explore/products/${product.id}`),
+      enabled: open && Boolean(product.id),
+      staleTime: 60_000,
+      retry: false,
+    })),
+  });
+  const catalogProducts = useMemo(
+    () => products.map((product, index) => applyHowManyDetail(product, details[index]?.data)),
+    [products, details],
+  );
   const whoMode = orderWhoMode({
     canLogForBuyer: selling || trading,
     actorCompanyId: me.data?.id ?? '',
-    productCompanyIds: products.map((product) => product.companyId),
+    productCompanyIds: catalogProducts.map((product) => product.companyId),
   });
   const canOrderForBuyer = whoMode !== 'hidden';
   const showPlaceOrderAsk = whoMode !== 'buyer-only';
@@ -96,8 +118,10 @@ export function HowManyEachSheet({
   const [removed, setRemoved] = useState<Set<string>>(() => new Set());
   const [sameOpen, setSameOpen] = useState(false);
   const [sameDraft, setSameDraft] = useState(20);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
 
-  const productKey = products.map((product) => product.id).join(',');
+  const productKey = catalogProducts.map((product) => product.id).join(',');
   const qtyKey = sellerId || 'multi';
 
   useEffect(() => {
@@ -110,13 +134,14 @@ export function HowManyEachSheet({
     setNoteOpen({});
     setRemoved(new Set());
     setSameOpen(false);
+    setPhotoOpen(false);
     setBuyerOpen(false);
     setInviteUrl(null);
   }, [open, qtyKey, productKey]);
 
   const activeProducts = useMemo(
-    () => products.filter((product) => !removed.has(product.id)),
-    [products, removed],
+    () => catalogProducts.filter((product) => !removed.has(product.id)),
+    [catalogProducts, removed],
   );
 
   const lines = useMemo(
@@ -150,8 +175,17 @@ export function HowManyEachSheet({
     }));
 
   const busy = Boolean(submitting || asking);
+  const splitBanner = sellerId === 'multi' ? howManySplitBanner(activeProducts) : null;
+  const goesTo =
+    sellerId === 'multi'
+      ? howManySingleGoesTo(activeProducts, orderGoesToName)
+      : orderGoesToName?.trim() || null;
+  const multiShop = Boolean(splitBanner);
   const sheetTitle = orderSheetTitle(activeProducts.length);
   const canRemove = activeProducts.length > 1;
+  const photoGallery = useMemo(() => howManyGalleryUrls(activeProducts), [activeProducts]);
+  const photoCaptions = useMemo(() => howManyGalleryCaptions(activeProducts), [activeProducts]);
+  const photoDetails = useMemo(() => howManyGalleryDetails(activeProducts), [activeProducts]);
 
   if (inviteUrl) {
     return (
@@ -184,39 +218,44 @@ export function HowManyEachSheet({
   const decideFooter = (
     <div className="flex flex-col gap-2">
       {showPlaceOrderAsk ? (
-        <>
-          <Button
-            fullWidth
-            disabled={busy || activeProducts.length === 0}
-            onClick={() => {
-              rememberQty(qtyKey, sharedQty);
-              onSendOrder(payload());
-            }}
-          >
-            {submitting ? 'Sending…' : 'Place Order'}
-          </Button>
-          <Button
-            variant="secondary"
-            fullWidth
-            disabled={busy || activeProducts.length === 0}
-            onClick={() => {
-              rememberQty(qtyKey, sharedQty);
-              onAskRates(payload());
-            }}
-          >
-            {asking ? 'Opening…' : 'Ask rates'}
-          </Button>
-        </>
-      ) : null}
-      {canOrderForBuyer ? (
         <Button
-          variant="secondary"
           fullWidth
           disabled={busy || activeProducts.length === 0}
-          onClick={() => setBuyerOpen(true)}
+          onClick={() => {
+            rememberQty(qtyKey, sharedQty);
+            onSendOrder(payload());
+          }}
         >
-          Order for buyer
+          {submitting ? 'Sending…' : 'Place Order'}
         </Button>
+      ) : null}
+      {showPlaceOrderAsk || canOrderForBuyer ? (
+        <div className="grid grid-cols-2 gap-2">
+          {showPlaceOrderAsk ? (
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={busy || activeProducts.length === 0}
+              onClick={() => {
+                rememberQty(qtyKey, sharedQty);
+                onAskRates(payload());
+              }}
+            >
+              {asking ? 'Opening…' : 'Ask rates'}
+            </Button>
+          ) : null}
+          {canOrderForBuyer ? (
+            <Button
+              variant="secondary"
+              fullWidth
+              className={!showPlaceOrderAsk ? 'col-span-2' : undefined}
+              disabled={busy || activeProducts.length === 0}
+              onClick={() => setBuyerOpen(true)}
+            >
+              Order for buyer
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -225,51 +264,34 @@ export function HowManyEachSheet({
     <>
       <Sheet open={open} onClose={onClose} title={sheetTitle} footer={decideFooter}>
         <div className="flex flex-col gap-4 pb-1">
-          {orderGoesToNames && orderGoesToNames.length > 0 ? (
-            <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink">
-              Order goes to{' '}
-              <span className="font-semibold">{orderGoesToNames.join(', ')}</span>
+          {splitBanner ? (
+            <p
+              data-testid="how-many-split"
+              className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink"
+            >
+              {splitBanner}
             </p>
-          ) : orderGoesToName ? (
+          ) : goesTo ? (
             <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink">
-              Order goes to <span className="font-semibold">{orderGoesToName}</span>
+              Order goes to <span className="font-semibold">{goesTo}</span>
             </p>
           ) : null}
 
           {activeProducts.length > 1 ? (
             sameOpen ? (
-              <div
-                className="rounded-xl border border-line bg-foam/80 px-3 py-2.5"
-                data-testid="same-for-all-editor"
+              <SameForAllEditor
+                disabled={busy}
+                onApply={() => applyShared(sameDraft)}
+                onCancel={cancelSame}
               >
-                <p className="text-[13px] font-semibold text-ink">Same for all</p>
-                <div className="mt-2">
-                  <QtyStepper
-                    value={sameDraft}
-                    disabled={busy}
-                    aria-label="Same pieces for all designs"
-                    onChange={setSameDraft}
-                  />
-                </div>
-                <div className="mt-2.5 flex items-center gap-4">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="text-[13px] font-bold text-accent disabled:opacity-45"
-                    onClick={() => applyShared(sameDraft)}
-                  >
-                    Apply
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="text-[13px] font-bold text-muted disabled:opacity-45"
-                    onClick={cancelSame}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+                <QtyStepper
+                  autoFocus
+                  value={sameDraft}
+                  disabled={busy}
+                  aria-label="Same pieces for all designs"
+                  onChange={setSameDraft}
+                />
+              </SameForAllEditor>
             ) : (
               <button
                 type="button"
@@ -287,77 +309,56 @@ export function HowManyEachSheet({
           ) : null}
 
           <ul
-            className="max-h-[min(24rem,55vh)] overflow-y-auto overflow-x-hidden rounded-xl border border-line bg-surface"
+            className="overflow-x-hidden rounded-xl border border-line bg-surface"
             data-testid="how-many-lines"
+            {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
           >
             {lines.map(({ product, quantity }, index) => {
-              const thumb = product.images[0] ?? null;
-              const tags = tagsLine(product);
-              const rate = formatRate(
-                product.rate ?? null,
-                product.unit ?? null,
-                product.rateMax ?? null,
-              );
+              const thumbs = howManyPhotoUrls(product);
+              const thumb = thumbs[0] ?? null;
+              const facts = howManyLineMeta(product);
               const openNote = Boolean(noteOpen[product.id]);
               const noteValue = notes[product.id] ?? '';
               return (
                 <li
                   key={product.id}
-                  className={cx(
-                    'px-3 py-3',
-                    index > 0 && 'border-t border-line/70',
-                  )}
+                  className={cx('px-3 py-3', index > 0 && 'border-t border-line/70')}
                   data-testid="how-many-line"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-2.5">
                     {thumb ? (
-                      <img
-                        src={thumb}
-                        alt=""
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                      />
+                      <button
+                        type="button"
+                        data-testid={`how-many-photo-${product.id}`}
+                        className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
+                        aria-label={`View photo for ${product.name}`}
+                        onClick={() => {
+                          setPhotoIndex(galleryIndexForProduct(activeProducts, product.id));
+                          setPhotoOpen(true);
+                        }}
+                      >
+                        <img src={thumb} alt="" className="h-full w-full object-cover" />
+                      </button>
                     ) : (
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
                         {product.name.charAt(0)}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
-                            {product.name}
-                          </p>
-                          {tags ? (
-                            <p className="mt-0.5 truncate text-[12px] text-muted">{tags}</p>
-                          ) : null}
-                          {rate !== 'On request' ? (
-                            <p className="mt-0.5 text-[12px] text-muted">{rate}</p>
-                          ) : null}
-                        </div>
-                        {canRemove ? (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            aria-label={`Remove ${product.name}`}
-                            className="shrink-0 px-1 text-lg leading-none text-muted disabled:opacity-45"
-                            onClick={() =>
-                              setRemoved((prev) => new Set(prev).add(product.id))
-                            }
-                          >
-                            ×
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="mt-2">
-                        <QtyStepper
-                          value={quantity}
-                          disabled={busy}
-                          aria-label={`Pieces for ${product.name}`}
-                          onChange={(next) =>
-                            setOverrides((prev) => ({ ...prev, [product.id]: next }))
-                          }
-                        />
-                      </div>
+                      <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
+                        {product.name}
+                      </p>
+                      {multiShop && product.companyName?.trim() ? (
+                        <p className="truncate text-[12px] text-muted">{product.companyName}</p>
+                      ) : null}
+                      {facts ? (
+                        <p
+                          className="mt-0.5 truncate text-[12px] text-muted"
+                          data-testid="how-many-facts"
+                        >
+                          {facts}
+                        </p>
+                      ) : null}
                       {openNote ? (
                         <div className="mt-2">
                           <button
@@ -395,6 +396,30 @@ export function HowManyEachSheet({
                         </button>
                       )}
                     </div>
+                    <QtyStepper
+                      value={quantity}
+                      disabled={busy}
+                      chainQty
+                      enterKeyHint={index === lines.length - 1 ? 'done' : 'next'}
+                      aria-label={`Pieces for ${product.name}`}
+                      onChange={(next) =>
+                        setOverrides((prev) => ({ ...prev, [product.id]: next }))
+                      }
+                    />
+                    {canRemove ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        aria-label={`Remove ${product.name}`}
+                        className="shrink-0 px-1 text-lg leading-none text-muted disabled:opacity-45"
+                        onClick={() => {
+                          setRemoved((prev) => new Set(prev).add(product.id));
+                          onRemoveProduct?.(product.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -404,6 +429,16 @@ export function HowManyEachSheet({
           {error ? <InlineNotice message={error} /> : null}
         </div>
       </Sheet>
+
+      <PhotoViewer
+        open={photoOpen && photoGallery.length > 0}
+        urls={photoGallery}
+        index={photoIndex}
+        onIndex={setPhotoIndex}
+        onClose={() => setPhotoOpen(false)}
+        captions={photoCaptions}
+        details={photoDetails}
+      />
 
       <OrderForBuyerSheet
         open={buyerOpen}

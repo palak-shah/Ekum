@@ -9,6 +9,7 @@ export type ThreadMessageViewScope =
   | 'designs'
   | 'orders'
   | 'starred'
+  | 'links'
   | 'media';
 
 export const THREAD_SEARCH_SCOPE_OPTIONS: Array<{
@@ -22,6 +23,7 @@ export const THREAD_SEARCH_SCOPE_OPTIONS: Array<{
   { id: 'designs', label: 'Designs' },
   { id: 'orders', label: 'Orders' },
   { id: 'starred', label: 'Starred' },
+  { id: 'links', label: 'Links' },
 ];
 
 export function threadSearchScopeLabel(scope: ThreadMessageViewScope): string {

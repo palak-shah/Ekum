@@ -2,21 +2,30 @@ import { test, expect } from '@playwright/test';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
 test.describe('seller collection publish @functional @collections', () => {
-  test('same-for-all is optional and member sheet can add photos', async ({ page }) => {
+  test('add-and-go chrome; sticky dock; no bottom nav', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/catalog/collections/new');
 
+    await expect(page.getByTestId('collection-create-dock')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Chats' })).toHaveCount(0);
+    await expect(page.getByLabel('Name')).toHaveAttribute('placeholder', 'Name this pack');
+    await expect(page.getByLabel('Description')).toBeVisible();
+    await expect(page.getByTestId('tags-field-open')).toBeVisible();
     const sameForAll = page.getByTestId('collection-same-for-all');
     await expect(sameForAll).toBeVisible();
-    await expect(sameForAll.getByText(/Optional/i)).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Same for new photos' })).toHaveCount(0);
+    await expect(page.getByTestId('collection-who')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Create & Publish' })).toHaveCount(0);
 
-    await sameForAll.click();
-    const sameSheet = page.getByRole('dialog').filter({ hasText: 'Same for new photos' });
-    await expect(sameSheet.getByRole('heading', { name: 'Same for new photos' })).toBeVisible();
-    await sameSheet.getByPlaceholder('1200 or 1200-1400').fill('1200-1400');
-    await sameSheet.getByTestId('collection-same-for-all-done').click();
-    await expect(sameForAll.getByText(/1200-1400/)).toBeVisible();
-    await expect(page.getByTestId('collection-same-for-all-on')).toBeVisible();
+    await page.getByTestId('collection-same-for-all-toggle').click();
+    await expect(sameForAll.getByTestId('tags-field-open')).toHaveCount(0);
+    const unit = sameForAll.getByLabel('Unit');
+    if ((await unit.inputValue()) !== 'set') {
+      await expect(sameForAll.getByLabel('Pieces in one set')).toHaveCount(0);
+      await unit.selectOption('set');
+    }
+    await expect(sameForAll.getByLabel('Pieces in one set')).toBeVisible();
+    await sameForAll.getByTestId('collection-same-for-all-done').click();
 
     await page.getByTestId('collection-add-designs').click();
     const fromCamera = page.getByTestId('continuous-camera-designs');
@@ -36,9 +45,7 @@ test.describe('seller collection publish @functional @collections', () => {
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
-    // Library design keeps its own rate — Diff stays (no bulk overwrite).
-    await expect(page.getByTestId('collection-diff-badge').first()).toBeVisible();
-    await expect(page.getByTestId('collection-diff-tile').first()).toBeVisible();
+    await expect(page.getByTestId('collection-add-designs')).toHaveText(/Add designs/i);
 
     await page
       .getByTestId('collection-member-tile')
@@ -77,14 +84,7 @@ test.describe('seller collection publish @functional @collections', () => {
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByLabel('Name').fill(collectionName);
-    await page.getByRole('button', { name: 'Create & Publish' }).click();
-
-    const publishSheet = page.getByRole('dialog');
-    await expect(publishSheet.getByRole('heading', { name: 'Create & Publish' })).toBeVisible({
-      timeout: 15_000,
-    });
-    await publishSheet.getByRole('button', { name: 'Everyone', exact: true }).click();
-    await publishSheet.getByRole('button', { name: 'Create & Publish', exact: true }).click();
+    await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });
     await expect(page).toHaveURL(/\/catalog/, { timeout: 15_000 });

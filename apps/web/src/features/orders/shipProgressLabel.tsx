@@ -1,6 +1,14 @@
 import { cx } from '@/ui/kit';
 
-/** Rows that still need ship/settle attention — accent wash so 100s of lines stay scannable. */
+/** Confirmed/dispatched lines still to ship — accent on order detail. */
+export function orderLineShowsPending(item: {
+  remainingQuantity?: number;
+  lineStatus?: string;
+}): boolean {
+  const pending = item.remainingQuantity ?? 0;
+  if (pending <= 0) return false;
+  return item.lineStatus === 'confirmed' || item.lineStatus === 'dispatched';
+}
 export function fulfillmentNeedsAttention(pending: number): boolean {
   return pending > 0;
 }

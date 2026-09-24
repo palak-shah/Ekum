@@ -245,7 +245,11 @@ export class SavedService {
         select: { status: true },
       }),
       this.prisma.follow.findMany({
-        where: { followerCompanyId: viewerCompanyId, followedCompanyId: ownerCompanyId },
+        where: {
+          followerCompanyId: viewerCompanyId,
+          followedCompanyId: ownerCompanyId,
+          status: 'allowed',
+        },
         select: { followedCompanyId: true },
       }),
     ]);
@@ -294,12 +298,11 @@ export class SavedService {
       };
     }
     if (row.collectionId && row.collection) {
-      const fromMembers = row.collection.products.flatMap((entry) => entry.product.images);
       const images: string[] = [];
-      if (row.collection.coverImage) images.push(row.collection.coverImage);
-      for (const url of fromMembers) {
+      for (const entry of row.collection.products) {
         if (images.length >= 4) break;
-        if (!images.includes(url)) images.push(url);
+        const first = entry.product.images.find((url) => url?.trim());
+        if (first && !images.includes(first)) images.push(first);
       }
       const productCount = row.collection._count?.products ?? row.collection.products.length;
       const imageCount = Math.max(images.length, productCount > 0 ? images.length : 0);

@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import type {
-  CollectionCard,
-  CompanyCard,
-  CursorPage,
-  DiscoveryProductCard,
-  SearchType,
-  UniversalSearchResults,
+import {
+  categoryDisplayLabel,
+  type CollectionCard,
+  type CompanyCard,
+  type CursorPage,
+  type DiscoveryProductCard,
+  type SearchType,
+  type UniversalSearchResults,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { CollectionListItem, CompanyRow, ProductTile } from '@/ui/cards';
@@ -139,7 +140,7 @@ function HintLinks({
             onClick={() => onPick(value)}
             className="text-sm font-semibold tracking-tight text-accent"
           >
-            {value}
+            {title === 'Categories' ? categoryDisplayLabel(value) : value}
           </button>
         ))}
       </div>

@@ -298,7 +298,7 @@ test.describe('demo journey PDFs', () => {
       await shot(page, dir, shots, '02-explore-selection.png', 'Explore + selection', 'Trader shortlists supplier packs/designs.');
 
       if (await page.getByTestId('selection-workspace-bar').isVisible().catch(() => false)) {
-        await page.getByTestId('selection-workspace-bar').click();
+        await page.getByTestId('selection-workspace-view').click();
         await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
           timeout: 15_000,
         });

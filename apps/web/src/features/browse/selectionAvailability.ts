@@ -76,6 +76,18 @@ export async function resolveCollectionAvailability(
   }
 }
 
+/** List fade/reason — discovery + pack-lock only. Never curate-check copy. */
+export function selectionListDesignChrome(input: {
+  discoveryUnavailable: boolean;
+  availabilityReason?: string;
+  packReason?: string | null;
+}): { packLocked: boolean; reason?: string } {
+  return {
+    packLocked: Boolean(input.packReason) && !input.discoveryUnavailable,
+    reason: input.availabilityReason ?? input.packReason ?? undefined,
+  };
+}
+
 export async function resolveSelectionAvailability(input: {
   designs: BrowseShortlistEntry[];
   albums: BrowseAlbumEntry[];

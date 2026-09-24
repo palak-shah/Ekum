@@ -15,7 +15,8 @@ test.describe('settings billing firms @functional @settings', () => {
     await page.getByTestId('billing-firm-gst').fill('24AAAAA0000A1Z5');
     await page.getByTestId('billing-firm-save').click();
 
-    await expect(page.getByText(`Test Billing ${suffix}`)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/GST · 24AAAAA0000A1Z5/i)).toBeVisible();
+    const firm = page.getByText(`Test Billing ${suffix}`);
+    await expect(firm).toBeVisible({ timeout: 15_000 });
+    await expect(firm.locator('..')).toContainText(/GST · 24AAAAA0000A1Z5/i);
   });
 });

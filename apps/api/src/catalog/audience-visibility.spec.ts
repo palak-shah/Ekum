@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { canDiscoverCollection, canViewCollectionProducts } from './audience-visibility';
+import {
+  audienceVisibilityOr,
+  canDiscoverCollection,
+  canViewCollectionProducts,
+} from './audience-visibility';
 
 describe('audience visibility', () => {
   it('keeps selected collections private to the list', () => {
@@ -114,5 +118,16 @@ describe('audience visibility', () => {
         ['supplier-a'],
       ),
     ).toBe(true);
+  });
+
+  it('requires allowed follow rows for followers audience', () => {
+    const clause = audienceVisibilityOr('viewer').find(
+      (row) =>
+        typeof row === 'object' &&
+        row !== null &&
+        'audience' in row &&
+        (row as { audience: string }).audience === 'followers',
+    ) as { company?: { followers?: { some?: { status?: string } } } };
+    expect(clause.company?.followers?.some?.status).toBe('allowed');
   });
 });

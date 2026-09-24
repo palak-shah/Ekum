@@ -38,7 +38,7 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 1. As **Ravi**: Add designs → continuous camera or gallery → 2–3 photos → confirm thumbs in batch, then save to library.
 2. As **Meena**: send a chat photo in the seeded thread.
-3. Photo order: attach images via **＋ → Photo order** (same continuous camera on phone).
+3. Photo order: attach images via **Orders ＋** or **chat ＋ → Photo order** (same continuous camera on phone).
 
 ## Automated verification
 

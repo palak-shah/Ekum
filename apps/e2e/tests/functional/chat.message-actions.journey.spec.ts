@@ -43,7 +43,10 @@ test.describe('chat message actions @functional @chat', () => {
     await page.getByTestId('thread-search-filter-starred').click();
     await expect(page.getByText(edited)).toBeVisible({ timeout: 10_000 });
 
-    await page.goto('/starred');
+    await page.goto('/chats');
+    await page.getByTestId('chats-more').click();
+    await page.getByTestId('chats-starred').click();
+    await expect(page).toHaveURL(/\/chats\/starred/);
     await expect(page.getByRole('heading', { name: 'Starred' })).toBeVisible();
     await expect(page.getByText(edited)).toBeVisible({ timeout: 10_000 });
 

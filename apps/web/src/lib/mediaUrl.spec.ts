@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { toAbsoluteMediaUrl } from './mediaUrl';
 
 describe('toAbsoluteMediaUrl', () => {
+  it('returns empty when the url is missing (group photo optional)', () => {
+    expect(toAbsoluteMediaUrl(null)).toBe('');
+    expect(toAbsoluteMediaUrl(undefined)).toBe('');
+    expect(toAbsoluteMediaUrl('')).toBe('');
+  });
+
   it('turns relative /media paths into absolute page URLs', () => {
     expect(toAbsoluteMediaUrl('/media/c1/a.jpg', 'https://beta.ekum.app')).toBe(
       'https://beta.ekum.app/media/c1/a.jpg',

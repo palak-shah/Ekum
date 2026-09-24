@@ -12,8 +12,15 @@ interface OtpIssueResult {
   devCode?: string;
 }
 
+/** Horizontal wash sampled from `logo-primary.png` (left #1b8481 → right #01a7bc). */
+const LOGIN_PANEL =
+  'flex w-full flex-col gap-6 rounded-2xl bg-gradient-to-r from-[#1b8481] to-[#01a7bc] px-5 pb-5 pt-7 [&_label>span.text-ink]:text-white [&_.text-muted]:text-white/80';
+
+const FORM_STACK = 'flex flex-col gap-4';
+
 /**
- * Mobile login: logo is the hero, then one job (phone → OTP).
+ * Mobile login: logo + OTP sit on one horizontal box filled with the
+ * same teal gradient as the badge.
  * Invite deep links (`state.from` / `?invite=`) survive OTP and onboarding.
  */
 export function LoginPage() {
@@ -80,12 +87,16 @@ export function LoginPage() {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]">
       <div className="ekum-rise flex flex-1 flex-col justify-center">
-        <div className="mb-14 flex justify-center">
+        <div className={LOGIN_PANEL}>
+        <div className="-mt-1 flex flex-col items-center gap-2">
           <BrandMark size="login" />
+          <p className="text-center text-sm font-medium tracking-tight text-white/90">
+            Textile trade, organised.
+          </p>
         </div>
 
         {inviteReturn ? (
-          <div className="mb-6 rounded-xl border border-accent/30 bg-accent/5 px-3.5 py-3 text-center text-sm text-ink">
+          <div className="rounded-xl bg-white/15 px-3.5 py-3 text-center text-sm text-white">
             {inviteReturn.startsWith('/s/')
               ? 'Sign in to open this on Ekum.'
               : inviteReturn.startsWith('/t/')
@@ -96,7 +107,7 @@ export function LoginPage() {
 
         {step === 'phone' ? (
           <form
-            className="flex flex-col gap-5"
+            className={FORM_STACK}
             onSubmit={(event) => {
               event.preventDefault();
               void requestOtp();
@@ -113,13 +124,18 @@ export function LoginPage() {
                 onChange={(event) => setPhone(event.target.value)}
               />
             </Field>
-            <Button type="submit" fullWidth disabled={busy || phone.trim().length < 10}>
+            <Button
+              type="submit"
+              variant="secondary"
+              fullWidth
+              disabled={busy || phone.trim().length < 10}
+            >
               {busy ? 'Sending…' : 'Continue'}
             </Button>
           </form>
         ) : (
           <form
-            className="flex flex-col gap-5"
+            className={FORM_STACK}
             onSubmit={(event) => {
               event.preventDefault();
               void verifyOtp();
@@ -140,12 +156,17 @@ export function LoginPage() {
                 onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
               />
             </Field>
-            <Button type="submit" fullWidth disabled={busy || code.length !== 6}>
+            <Button
+              type="submit"
+              variant="secondary"
+              fullWidth
+              disabled={busy || code.length !== 6}
+            >
               {busy ? 'Verifying…' : 'Continue'}
             </Button>
             <button
               type="button"
-              className="text-center text-sm font-bold text-accent"
+              className="text-center text-sm font-bold text-white"
               onClick={() => {
                 setStep('phone');
                 setCode('');
@@ -156,6 +177,7 @@ export function LoginPage() {
             </button>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

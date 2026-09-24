@@ -30,6 +30,13 @@ export async function shareOrCopyInvite(options: {
   url: string;
   title: string;
   text: string;
+  /**
+   * Open the OS share sheet when the browser can. Clipboard is only a last
+   * resort (desktop / no share targets) — never the first path on a phone.
+   */
+  preferShareSheet?: boolean;
+  /** When set, clipboard writes this (e.g. several 48h URLs) instead of `url` only. */
+  copyText?: string;
 }): Promise<'shared' | 'copied'> {
   const { url, title, text } = options;
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
@@ -42,7 +49,7 @@ export async function shareOrCopyInvite(options: {
       }
     }
   }
-  await navigator.clipboard.writeText(url);
+  await navigator.clipboard.writeText(options.copyText ?? url);
   return 'copied';
 }
 
@@ -52,13 +59,22 @@ export function canNativeShare(): boolean {
 
 /** Branded share title/text so the clickable link doesn’t look like random spam. */
 export function inviteShareCopy(options: {
-  kind: 'connect' | 'vouch';
+  kind: 'connect' | 'vouch' | 'group';
   /** Inviter / referrer business name. */
   companyName: string;
   /** Targeted vouch recipient business. */
   targetName?: string;
+  /** Group title when kind is group. */
+  groupName?: string;
 }): { title: string; text: string } {
   const business = options.companyName.trim() || 'A business';
+  if (options.kind === 'group') {
+    const group = options.groupName?.trim() || 'a group';
+    return {
+      title: `Ekum · Join ${group}`,
+      text: `${business} invites you to ${group} on Ekum`,
+    };
+  }
   if (options.kind === 'vouch' && options.targetName?.trim()) {
     const target = options.targetName.trim();
     return {
@@ -69,6 +85,15 @@ export function inviteShareCopy(options: {
   return {
     title: `Ekum · Connect with ${business}`,
     text: `${business} invites you to connect on Ekum`,
+  };
+}
+
+/** Public shop URL for connections / WhatsApp. */
+export function companyShareCopy(companyName: string): { title: string; text: string } {
+  const name = companyName.trim() || 'A business';
+  return {
+    title: `${name} on Ekum`,
+    text: `${name} on Ekum`,
   };
 }
 

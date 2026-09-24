@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import {
+  designBrowsePhotoClass,
   readDesignBrowseLayout,
   writeDesignBrowseLayout,
   type DesignBrowseLayout,
@@ -51,20 +52,28 @@ import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
 import { CompanyRow } from '@/ui/cards';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
-import { collectionViewerPrimaryAction } from '@/features/collections/collectionViewerChrome';
+import {
+  collectionPackTradeDock,
+  collectionShowHandleCopy,
+  collectionViewerPrimaryAction,
+} from '@/features/collections/collectionViewerChrome';
+import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
+import { curatedMemberUnavailableReason } from '@/features/collections/curatedMemberAvailability';
 import {
   Button,
   Card,
   ErrorState,
   LoadingBlock,
+  SearchInput,
   Sheet,
   StatusPill,
   cx,
 } from '@/ui/kit';
 import { CheckIcon, LockIcon, MoreHorizontalIcon } from '@/ui/icons';
+import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
+import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { useToast } from '@/ui/Toast';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
-import { coverMissingFromMembers } from './collectionCover';
 
 type Layout = DesignBrowseLayout;
 
@@ -86,6 +95,11 @@ function toShortlistEntry(
     companyId: product.companyId,
     companyName: product.companyName ?? companyName,
     allowForward: product.allowForward,
+    categories: product.categories ?? [],
+    unit: product.unit ?? null,
+    moq: product.moq ?? null,
+    rate: product.rate ?? null,
+    rateMax: product.rateMax ?? null,
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
@@ -119,6 +133,10 @@ export function CollectionViewerPage() {
   const [morePos, setMorePos] = useState({ top: 0, right: 8 });
   const moreAnchorRef = useRef<HTMLButtonElement>(null);
   const morePanelRef = useRef<HTMLDivElement>(null);
+  const [pageSelecting, setPageSelecting] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [listSearch, setListSearch] = useState('');
+  const deferredListSearch = useDeferredValue(listSearch);
 
   const enterSelect = Boolean(
     (location.state as { enterSelect?: boolean } | null)?.enterSelect,
@@ -130,6 +148,7 @@ export function CollectionViewerPage() {
 
   useEffect(() => {
     if (!enterSelect) return;
+    setPageSelecting(true);
     shortlist.setSelectMode(true);
     navigate(location.pathname + location.search, { replace: true, state: {} });
   }, [enterSelect, shortlist, navigate, location.pathname, location.search]);
@@ -201,8 +220,16 @@ export function CollectionViewerPage() {
   });
 
   const products = collection.data?.products ?? [];
+  const visibleProducts = useMemo(
+    () =>
+      products.filter((product) =>
+        catalogSearchMatches(deferredListSearch, ...designFindParts(product)),
+      ),
+    [products, deferredListSearch],
+  );
+  const listSearchActive = Boolean(deferredListSearch.trim());
   const selectedCount = shortlist.count;
-  const selectMode = shortlist.selectMode;
+  const selectMode = collectionPageIsSelecting({ enterSelect, pageSelecting });
   const resumeAfterPick = readResumeAfterAlbumPick();
   const showResumeContinue = Boolean(resumeAfterPick && selectMode);
   const companyId = collection.data?.company.id ?? '';
@@ -217,24 +244,30 @@ export function CollectionViewerPage() {
     if (!ownerId || products.length === 0) return false;
     return products.some((product) => product.companyId !== ownerId);
   }, [collection.data?.company.id, products]);
-  /** Curated packs always order with the pack owner (from-pack); path is TradeLane. */
+  /** Place still from-pack with the pack owner. Copy follows Your paths ticket. */
   const handlePack = isCuratedPack;
+  const viewerTicket = collection.data?.viewerTicket ?? null;
+  const showHandleCopy = collectionShowHandleCopy({
+    curatedVisitor: isCuratedPack && !isOwner,
+    viewerTicket,
+  });
+  const packPath = viewerTicket === 'mill' ? ('direct' as const) : handlePack ? ('handle' as const) : null;
   const packStamp =
     id && collection.data
       ? {
           collectionId: id,
           handlerName: collection.data.company.name,
-          path: handlePack ? ('handle' as const) : null,
+          path: packPath,
           allowForward: collection.data.allowForward !== false,
         }
       : undefined;
 
   useEffect(() => {
     if (!id || !collection.data || !handlePack) return;
-    rememberOrderPath('collection', id, 'handle');
+    rememberOrderPath('collection', id, packPath === 'direct' ? 'direct' : 'handle');
     rememberCatalogHandlerName('collection', id, collection.data.company.name);
     rememberForwardFacilitator('collection', id, collection.data.company.id);
-  }, [id, collection.data, handlePack]);
+  }, [id, collection.data, handlePack, packPath]);
   const canSelectDesigns = products.length > 0;
   const companyName = collection.data?.company.name ?? '';
 
@@ -247,14 +280,15 @@ export function CollectionViewerPage() {
     return collectionOwnerSourceLine(collection.data.company.id, shops);
   }, [isOwner, collection.data, products]);
 
-  const visibleDesignIds = products.map((product) => product.id);
+  const visibleDesignIds = visibleProducts.map((product) => product.id);
   const selectAll = selectAllState(visibleDesignIds, shortlist.productIds);
   const onSelectAllVisible = () => {
-    const published = products.filter((product) => isPublishedForSelection(product.status));
-    const skipped = products.length - published.length;
+    const published = visibleProducts.filter((product) => isPublishedForSelection(product.status));
+    const skipped = visibleProducts.length - published.length;
     const notice = selectionSkipToast(skipped, published.length);
     if (notice) showToast(notice);
     if (published.length < 1) return;
+    setPageSelecting(true);
     shortlist.addMany(
       published.map((product) =>
         toShortlistEntry(product, product.companyName ?? companyName, packStamp),
@@ -263,6 +297,7 @@ export function CollectionViewerPage() {
   };
   const onClearVisible = () => {
     shortlist.removeIds(visibleDesignIds);
+    setPageSelecting(false);
   };
 
   const accessPending =
@@ -397,6 +432,12 @@ export function CollectionViewerPage() {
   };
 
   const onDesignLongSelect = (product: ProductView) => {
+    const ended = curatedMemberUnavailableReason(product.status);
+    if (ended) {
+      showToast(ended, 'danger');
+      return;
+    }
+    setPageSelecting(true);
     toggleProduct(product);
   };
 
@@ -420,12 +461,18 @@ export function CollectionViewerPage() {
 
   const data = collection.data;
   const floaterClearance = selectedCount + albumPick.count > 0 || showResumeContinue;
+  const packTradeDock = collectionPackTradeDock({
+    curatedVisitor: Boolean(data.products && isCuratedPack && !isOwner),
+    selecting: selectMode,
+    resumeContinue: showResumeContinue,
+  });
 
   return (
     <div
       className={cx(
         'flex flex-col gap-4',
         floaterClearance && (showResumeContinue ? 'pb-[calc(5rem+10rem)]' : 'pb-[calc(5rem+5.5rem)]'),
+        packTradeDock && 'pb-[calc(5rem+5.5rem)]',
       )}
     >
       <PageHeader
@@ -433,6 +480,21 @@ export function CollectionViewerPage() {
         subtitle={`${data.productCount} designs`}
         action={
           <div className="flex items-center gap-1">
+            {data.products ? (
+              <CatalogFindToggle
+                testId="collection-find-toggle"
+                open={searchOpen}
+                label="Find in this pack"
+                onToggle={() => {
+                  if (searchOpen) {
+                    setSearchOpen(false);
+                    setListSearch('');
+                    return;
+                  }
+                  setSearchOpen(true);
+                }}
+              />
+            ) : null}
             {primaryAction === 'edit' ? (
               <button
                 type="button"
@@ -534,8 +596,18 @@ export function CollectionViewerPage() {
           )
         : null}
 
+      {searchOpen && data.products ? (
+        <SearchInput
+          data-testid="collection-find"
+          aria-label="Find in this pack"
+          placeholder="Find in this pack"
+          value={listSearch}
+          onChange={(event) => setListSearch(event.target.value)}
+        />
+      ) : null}
+
       <SelectAllFloat
-        open={selectMode && products.length > 0}
+        open={selectMode && visibleProducts.length > 0}
         count={selectedCount}
         allSelected={selectAll.allSelected}
         onSelectAll={onSelectAllVisible}
@@ -558,46 +630,52 @@ export function CollectionViewerPage() {
           )
         : null}
 
-      {data.products &&
-      data.coverImage &&
-      (layout === 'feed' || coverMissingFromMembers(data.coverImage, data.products)) ? (
-        <img src={data.coverImage} alt={data.name} className="h-44 w-full rounded-2xl object-cover" />
-      ) : null}
-
       <CompanyRow company={data.company} to={`/company/${data.company.id}`} />
       {ownerSourceLine ? (
         <p className="px-0.5 text-xs text-muted">{ownerSourceLine}</p>
       ) : null}
+      {data.products && showHandleCopy ? (
+        <div className="px-0.5" data-testid="collection-order-goes-to">
+          <p className="text-sm font-semibold text-ink">Order goes to {data.company.name}</p>
+          <p className="text-xs text-muted">You chat with them. They send the mill lots on.</p>
+        </div>
+      ) : null}
 
       {data.products ? (
-        layout === 'feed' ? (
+        visibleProducts.length === 0 && listSearchActive ? (
+          <p className="px-0.5 text-sm text-muted">No designs match.</p>
+        ) : layout === 'feed' ? (
           <div className="flex flex-col gap-4">
-            {products.map((product) => (
-              <DesignTile
-                key={product.id}
-                variant="feed"
-                product={product}
-                selected={shortlist.productIds.has(product.id)}
-                selectMode={selectMode}
-                showOrigin={isOwner && product.companyId !== data.company.id}
-                onActivate={() => onDesignActivate(product)}
-                onLongSelect={() => onDesignLongSelect(product)}
-              />
+            {visibleProducts.map((product) => (
+                <DesignTile
+                  key={product.id}
+                  variant="feed"
+                  product={product}
+                  selected={shortlist.productIds.has(product.id)}
+                  selectMode={selectMode}
+                  showOrigin={isOwner && product.companyId !== data.company.id}
+                  unavailableReason={curatedMemberUnavailableReason(product.status)}
+                  onActivate={() => onDesignActivate(product)}
+                  onOpen={() => openViewer(product, 0)}
+                  onLongSelect={() => onDesignLongSelect(product)}
+                />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {products.map((product) => (
-              <DesignTile
-                key={product.id}
-                variant="grid"
-                product={product}
-                selected={shortlist.productIds.has(product.id)}
-                selectMode={selectMode}
-                showOrigin={isOwner && product.companyId !== data.company.id}
-                onActivate={() => onDesignActivate(product)}
-                onLongSelect={() => onDesignLongSelect(product)}
-              />
+            {visibleProducts.map((product) => (
+                <DesignTile
+                  key={product.id}
+                  variant="grid"
+                  product={product}
+                  selected={shortlist.productIds.has(product.id)}
+                  selectMode={selectMode}
+                  showOrigin={isOwner && product.companyId !== data.company.id}
+                  unavailableReason={curatedMemberUnavailableReason(product.status)}
+                  onActivate={() => onDesignActivate(product)}
+                  onOpen={() => openViewer(product, 0)}
+                  onLongSelect={() => onDesignLongSelect(product)}
+                />
             ))}
           </div>
         )
@@ -629,50 +707,20 @@ export function CollectionViewerPage() {
         </Card>
       )}
 
-      {data.products && isCuratedPack && !isOwner ? (
-        handlePack ? (
-          <Card className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Order goes to {data.company.name}</p>
-            <p className="text-xs text-muted">
-              You chat with them. They send the mill lots on.
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                fullWidth
-                onClick={() => {
-                  setOrderError(null);
-                  setQtyOpen(true);
-                }}
-              >
-                Ask for rates
-              </Button>
-              <Button
-                fullWidth
-                onClick={() => {
-                  setOrderError(null);
-                  setQtyOpen(true);
-                }}
-              >
-                Order
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <Card className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Message to order these designs</p>
-            <p className="text-xs text-muted">
-              This pack mixes designs from more than one business. Chat to place an order.
-            </p>
-            <Button
-              fullWidth
-              onClick={() => startChat.mutate()}
-              disabled={startChat.isPending}
-            >
-              {startChat.isPending ? 'Opening…' : 'Open chat'}
-            </Button>
-          </Card>
-        )
+      {data.products && isCuratedPack && !isOwner && !handlePack ? (
+        <Card className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-ink">Message to order these designs</p>
+          <p className="text-xs text-muted">
+            This pack mixes designs from more than one business. Chat to place an order.
+          </p>
+          <Button
+            fullWidth
+            onClick={() => startChat.mutate()}
+            disabled={startChat.isPending}
+          >
+            {startChat.isPending ? 'Opening…' : 'Open chat'}
+          </Button>
+        </Card>
       ) : null}
 
       {isOwner && (viewGrants.data?.length ?? 0) > 0 ? (
@@ -702,6 +750,33 @@ export function CollectionViewerPage() {
             ))}
           </ul>
         </Card>
+      ) : null}
+
+      {packTradeDock ? (
+        <div
+          className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur"
+          data-testid="collection-pack-trade-dock"
+        >
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => {
+              setOrderError(null);
+              setQtyOpen(true);
+            }}
+          >
+            Ask for rates
+          </Button>
+          <Button
+            fullWidth
+            onClick={() => {
+              setOrderError(null);
+              setQtyOpen(true);
+            }}
+          >
+            Order
+          </Button>
+        </div>
       ) : null}
 
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
@@ -742,7 +817,7 @@ export function CollectionViewerPage() {
           submitting={packOrder.isPending && packOrder.variables?.intent !== OrderIntent.Inquiry}
           asking={packOrder.isPending && packOrder.variables?.intent === OrderIntent.Inquiry}
           error={orderError}
-          orderGoesToName={data.company.name}
+          orderGoesToName={showHandleCopy ? data.company.name : null}
           onSendOrder={(lines) => {
             setOrderError(null);
             packOrder.mutate({ intent: OrderIntent.Order, lines });
@@ -763,6 +838,7 @@ export function CollectionViewerPage() {
         selected={viewerProduct ? shortlist.productIds.has(viewerProduct.id) : false}
         onToggleSelect={() => {
           if (viewerProduct) {
+            if (!shortlist.productIds.has(viewerProduct.id)) setPageSelecting(true);
             toggleProduct(viewerProduct);
           }
         }}
@@ -813,7 +889,9 @@ function DesignTile({
   selectMode,
   variant,
   showOrigin = false,
+  unavailableReason,
   onActivate,
+  onOpen,
   onLongSelect,
 }: {
   product: ProductView;
@@ -821,7 +899,9 @@ function DesignTile({
   selectMode: boolean;
   variant: 'feed' | 'grid';
   showOrigin?: boolean;
+  unavailableReason?: string;
   onActivate: () => void;
+  onOpen?: () => void;
   onLongSelect?: () => void;
 }) {
   const image = product.images[0] ?? null;
@@ -851,16 +931,16 @@ function DesignTile({
             src={image}
             alt={product.name}
             className={cx(
-              'w-full object-cover',
-              variant === 'feed' ? 'aspect-[3/4]' : 'h-36',
+              designBrowsePhotoClass(variant),
+              unavailableReason && 'opacity-45',
             )}
             loading="lazy"
           />
         ) : (
           <div
             className={cx(
-              'flex w-full items-center justify-center bg-foam font-bold text-muted',
-              variant === 'feed' ? 'aspect-[3/4] text-4xl' : 'h-36 text-2xl',
+              designBrowsePhotoClass(variant, 'placeholder'),
+              unavailableReason && 'opacity-45',
             )}
           >
             {product.name.charAt(0).toUpperCase()}
@@ -871,21 +951,28 @@ function DesignTile({
             +{extraPhotos}
           </span>
         ) : null}
-        {selectMode ? (
+        {selectMode && !unavailableReason ? (
           <span className="absolute right-2 top-2">
             <SelectMark selected={selected} />
+          </span>
+        ) : null}
+        {unavailableReason ? (
+          <span
+            className="absolute left-2 top-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
+            data-testid="collection-member-unavailable"
+          >
+            {unavailableReason}
           </span>
         ) : null}
       </button>
       <button
         type="button"
-        onClick={onActivate}
+        onClick={onOpen ?? onActivate}
+        data-testid={`collection-design-open-${product.id}`}
         className={cx(
           'block w-full text-left',
-          LONG_PRESS_SURFACE_CLASS,
           variant === 'feed' ? 'p-3' : 'p-2.5',
         )}
-        {...longPress}
       >
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
         {origin ? <p className="truncate text-xs text-muted">{origin}</p> : null}

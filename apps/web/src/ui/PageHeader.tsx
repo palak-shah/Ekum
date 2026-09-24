@@ -10,23 +10,26 @@ export function PageHeader({
   title,
   subtitle,
   titleTo,
+  titleToState,
   action,
   onBack,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
   /** When set, title + subtitle navigate here (e.g. company profile). */
   titleTo?: string;
+  titleToState?: object;
   action?: ReactNode;
   onBack?: () => void;
 }) {
   const navigate = useNavigate();
-  const identity = (
+  const showTitle = Boolean(title?.trim());
+  const identity = showTitle ? (
     <>
       <h1 className="truncate text-[17px] font-semibold tracking-tight text-ink">{title}</h1>
       {subtitle ? <p className="truncate text-xs font-medium text-muted">{subtitle}</p> : null}
     </>
-  );
+  ) : null;
 
   return (
     <header className="sticky top-0 z-30 -mx-4 mb-3 flex shrink-0 items-center gap-2 border-b border-line bg-canvas px-4 py-2.5">
@@ -38,12 +41,18 @@ export function PageHeader({
       >
         <BackIcon />
       </button>
-      {titleTo ? (
-        <Link to={titleTo} className="min-w-0 flex-1 rounded-lg py-0.5 hover:bg-foam/60">
+      {identity && titleTo ? (
+        <Link
+          to={titleTo}
+          state={titleToState}
+          className="min-w-0 flex-1 rounded-lg py-0.5 hover:bg-foam/60"
+        >
           {identity}
         </Link>
-      ) : (
+      ) : identity ? (
         <div className="min-w-0 flex-1">{identity}</div>
+      ) : (
+        <div className="min-w-0 flex-1" />
       )}
       {action}
     </header>

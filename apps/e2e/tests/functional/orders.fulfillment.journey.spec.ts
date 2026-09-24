@@ -19,6 +19,15 @@ test.describe('order fulfillment @functional @orders', () => {
     await loginAsRavi(page);
     await page.goto(`/orders/${orderId}`);
     await expect(page.getByTestId('order-dispatch-open')).toBeVisible({ timeout: 15_000 });
+    const linePhoto = page.getByTestId('order-line-photo').first();
+    if ((await linePhoto.getAttribute('data-empty')) !== 'true') {
+      await linePhoto.click();
+      await expect(page.getByTestId('photo-viewer')).toBeVisible();
+      await expect(page).not.toHaveURL(/explore\/products/);
+      await expect(page.getByTestId('photo-viewer-caption')).toBeVisible();
+      await page.getByTestId('photo-viewer-close').click();
+      await expect(page.getByTestId('photo-viewer')).toHaveCount(0);
+    }
     await page.getByTestId('order-dispatch-open').click();
 
     const dispatchSheet = page.getByRole('dialog');

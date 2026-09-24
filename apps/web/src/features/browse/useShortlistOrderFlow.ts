@@ -15,6 +15,7 @@ import {
 } from '@/features/browse/browseShortlist';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
+import { batchConfirmTitle } from '@/features/orders/BatchOrderConfirmSheet';
 import { useToast } from '@/ui/Toast';
 
 function toBatchItems(lines: Array<{ productId: string; quantity: number; note?: string }>) {
@@ -71,6 +72,12 @@ export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[
         name: entry.name,
         images: entry.thumbUrl ? [entry.thumbUrl] : [],
         companyId: entry.companyId,
+        companyName: entry.companyName,
+        categories: entry.categories ?? [],
+        unit: entry.unit ?? null,
+        moq: entry.moq ?? null,
+        rate: entry.rate ?? null,
+        rateMax: entry.rateMax ?? null,
       }) as ProductView,
   );
 }
@@ -81,9 +88,6 @@ export function useShortlistOrderFlow() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [qtyOpen, setQtyOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [result, setResult] = useState<CreateOrdersBatchResult | null>(null);
-  const [linkedMillCount, setLinkedMillCount] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   const batch = useMutation({
@@ -110,11 +114,10 @@ export function useShortlistOrderFlow() {
           .filter((entry) => !failedIds.has(entry.productId))
           .map((entry) => entry.companyId),
       ).size;
-      if (variables.collectionId && payload.orders.length === 1 && millsOnPack > 1) {
-        setLinkedMillCount(millsOnPack);
-      } else {
-        setLinkedMillCount(undefined);
-      }
+      const linkedMillCount =
+        variables.collectionId && payload.orders.length === 1 && millsOnPack > 1
+          ? millsOnPack
+          : undefined;
       if (payload.orders.length > 0) {
         // Empty Selection after a successful order action (designs + collections).
         clearBrowseShortlist();
@@ -137,8 +140,21 @@ export function useShortlistOrderFlow() {
         return;
       }
 
-      setResult(payload);
-      setConfirmOpen(true);
+      const title = batchConfirmTitle(payload, { linkedMillCount });
+      const tone = payload.orders.length === 0 ? 'danger' : 'success';
+      const sole = payload.orders.length === 1 ? payload.orders[0] : null;
+      const chatHref = sole?.threadId
+        ? `/chats/${sole.threadId}`
+        : sole
+          ? `/orders/${sole.id}`
+          : null;
+      showToast(
+        title,
+        tone,
+        chatHref && payload.failures.length === 0
+          ? { action: { label: 'Open chat', to: chatHref } }
+          : undefined,
+      );
     },
     onError: (err, variables) => {
       const inquiry = variables?.intent === OrderIntent.Inquiry;
@@ -165,10 +181,6 @@ export function useShortlistOrderFlow() {
     shortlist,
     qtyOpen,
     setQtyOpen,
-    confirmOpen,
-    setConfirmOpen,
-    result,
-    linkedMillCount,
     error,
     setError,
     sellerIdForQty,

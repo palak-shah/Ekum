@@ -2,6 +2,7 @@ import type {
   AccessRequestView,
   CollectionViewGrantView,
   ExplorePost,
+  FollowAskView,
   OrderView,
   ReturnView,
   ThreadSummary,
@@ -23,6 +24,7 @@ export type HomeNeedKind =
   | 'dispatch'
   | 'review_return'
   | 'access_request'
+  | 'follow_request'
   | 'chat_request'
   | 'collection_view_granted';
 
@@ -44,6 +46,7 @@ const KIND_URGENCY: Record<HomeNeedKind, number> = {
   review_return: 65,
   dispatch: 60,
   access_request: 50,
+  follow_request: 49,
   collection_view_granted: 48,
   chat_request: 45,
 };
@@ -141,6 +144,7 @@ export function buildHomeNeeds(input: {
   orders: OrderView[];
   returns: ReturnView[];
   accessRequests: AccessRequestView[];
+  followAsks?: FollowAskView[];
   chatRequests: ThreadSummary[];
   collectionViewGrants?: CollectionViewGrantView[];
 }): HomeNeedItem[] {
@@ -217,6 +221,17 @@ export function buildHomeNeeds(input: {
     });
   }
 
+  for (const ask of input.followAsks ?? []) {
+    items.push({
+      id: `follow-${ask.company.id}`,
+      kind: 'follow_request',
+      title: `Follow ask · ${ask.company.name}`,
+      subtitle: ask.company.city || null,
+      to: '/network/followers?tab=asked',
+      sortAt: ask.createdAt,
+    });
+  }
+
   for (const thread of input.chatRequests) {
     const name = thread.title ?? thread.counterpart?.name ?? 'Chat';
     items.push({
@@ -264,10 +279,11 @@ export function homeMetrics(input: {
   returns: ReturnView[];
   accessCount: number;
   chatCount: number;
+  followAskCount?: number;
 }) {
   return {
     orders: input.orders.filter(matchesNeeds).length,
-    requests: input.accessCount + input.chatCount,
+    requests: input.accessCount + input.chatCount + (input.followAskCount ?? 0),
     returns: input.returns.filter(sellerNeedsReturnReview).length,
   };
 }

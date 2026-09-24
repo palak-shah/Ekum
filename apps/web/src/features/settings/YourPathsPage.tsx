@@ -5,7 +5,10 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
 import { ListSearchRow } from '@/ui/ListSearchRow';
-import { Card, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { Card, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { PATH_ON_PATHS_SCOPE, SHARE_A_GROUP } from '@/features/orders/iHandleDesk';
+import { TicketPathPick } from '@/features/orders/ticketPathPick';
+import { HELP_BTN_CLASS, QuietHelpPop } from '@/features/orders/quietHelpPop';
 
 function actionErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -16,6 +19,8 @@ export function YourPathsPage() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState('');
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [helpAnchor, setHelpAnchor] = useState<HTMLElement | null>(null);
+  const [pathsHelp, setPathsHelp] = useState(false);
 
   const lanes = useQuery({
     queryKey: ['trade-lanes', q],
@@ -40,14 +45,27 @@ export function YourPathsPage() {
   return (
     <div className="flex flex-col gap-4" data-testid="your-paths-page">
       <PageHeader title="Your paths" />
-      <p className="text-sm text-muted">
-        For each mill and buyer: who the next order is with (Me or the mill), and whether they share
-        one group chat. Changes apply to next orders only.
-      </p>
+      <div className="flex items-start gap-1.5">
+        <p className="text-sm text-muted">
+          For each mill and buyer: who the buyer talks to next, and whether they share a group.
+        </p>
+        <button
+          type="button"
+          data-testid="paths-help"
+          aria-label="What this means"
+          className={`${HELP_BTN_CLASS} mt-0.5 shrink-0`}
+          onClick={(event) => {
+            setHelpAnchor(event.currentTarget);
+            setPathsHelp((open) => !open);
+          }}
+        >
+          ?
+        </button>
+      </div>
 
       <ListSearchRow
         search={
-          <TextInput
+          <SearchInput
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Find a shop"
@@ -75,49 +93,35 @@ export function YourPathsPage() {
                 {row.sellerName} · {row.buyerName}
               </p>
 
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { value: 'me' as const, label: 'With me' },
-                    { value: 'mill' as const, label: row.sellerName },
-                  ] as const
-                ).map((option) => {
-                  const selected = row.ticket === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      data-testid={`path-ticket-${row.id}-${option.value}`}
-                      disabled={busy || selected}
-                      onClick={() => save.mutate({ id: row.id, body: { ticket: option.value } })}
-                      className={cx(
-                        'rounded-xl border px-3 py-2.5 text-left text-sm font-semibold text-ink',
-                        selected
-                          ? 'border-accent bg-accent/5'
-                          : 'border-line bg-surface hover:bg-foam',
-                        busy ? 'opacity-60' : '',
-                      )}
-                    >
-                      <span className="block truncate">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <TicketPathPick
+                ticket={row.ticket}
+                millLabel={row.sellerName}
+                millNames={[]}
+                disabled={busy}
+                onPick={(next) => save.mutate({ id: row.id, body: { ticket: next } })}
+                pickTestId={`path-ticket-${row.id}`}
+                meTestId={`path-ticket-${row.id}-me`}
+                millTestId={`path-ticket-${row.id}-mill`}
+              />
 
               <button
                 type="button"
                 data-testid={`path-reveal-${row.id}`}
-                disabled={busy}
+                disabled={busy || row.sellerCompanyId === row.buyerCompanyId}
                 onClick={() => save.mutate({ id: row.id, body: { reveal: !row.reveal } })}
                 className={cx(
                   'flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-medium text-ink',
                   row.reveal
                     ? 'border-accent bg-accent/5'
                     : 'border-line bg-surface',
-                  busy ? 'opacity-60' : '',
+                  busy || row.sellerCompanyId === row.buyerCompanyId ? 'opacity-60' : '',
                 )}
               >
-                <span>See each other in a group</span>
+                <span>
+                  {row.sellerCompanyId === row.buyerCompanyId
+                    ? 'Same shop — nothing to reveal'
+                    : SHARE_A_GROUP}
+                </span>
                 <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-accent">
                   {row.reveal ? 'On' : 'Off'}
                 </span>
@@ -126,6 +130,17 @@ export function YourPathsPage() {
           );
         })}
       </div>
+
+      <QuietHelpPop
+        open={pathsHelp}
+        onClose={() => setPathsHelp(false)}
+        testId="paths-help-pop"
+        anchor={helpAnchor}
+      >
+        <p className="font-medium">{PATH_ON_PATHS_SCOPE}</p>
+        <p className="mt-1.5">You / mill — who the buyer talks to on the next order.</p>
+        <p className="mt-1.5">Share a group — they meet after you Send the next order.</p>
+      </QuietHelpPop>
     </div>
   );
 }

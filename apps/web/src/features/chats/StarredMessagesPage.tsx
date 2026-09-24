@@ -20,7 +20,7 @@ export function StarredMessagesPage() {
   if (starred.isError) {
     return (
       <>
-        <PageHeader title="Starred" onBack={() => navigate(-1)} />
+        <PageHeader title="Starred" onBack={() => navigate('/chats')} />
         <ErrorState message="Could not load starred messages." />
       </>
     );
@@ -30,7 +30,7 @@ export function StarredMessagesPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <PageHeader title="Starred" onBack={() => navigate(-1)} />
+      <PageHeader title="Starred" onBack={() => navigate('/chats')} />
       {rows.length === 0 ? (
         <EmptyState
           title="No starred messages"

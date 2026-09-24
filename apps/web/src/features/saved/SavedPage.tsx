@@ -33,7 +33,9 @@ import {
   cx,
 } from '@/ui/kit';
 import { CheckIcon } from '@/ui/icons';
+import { catalogSearchMatches } from '@/features/catalog/catalogSearch';
 import { savedAlbumImageCount } from './savedAlbumCount';
+import { savedItemMeta } from './savedItemMeta';
 import { SAVED_QUERY_KEY, useSavedList } from './useSaveToggle';
 
 type Layout = DesignBrowseLayout;
@@ -74,7 +76,21 @@ function addAlbumMany(entries: BrowseAlbumEntry[]) {
   writeBrowseAlbumPick([...byId.values()]);
 }
 
-export function SavedPage() {
+export function SavedPage({
+  embedded = false,
+  hideKindTabs = false,
+  kind,
+  layout: layoutProp,
+  onToggleLayout,
+  searchQuery = '',
+}: {
+  embedded?: boolean;
+  hideKindTabs?: boolean;
+  kind?: Tab;
+  layout?: Layout;
+  onToggleLayout?: () => void;
+  searchQuery?: string;
+}) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -83,17 +99,28 @@ export function SavedPage() {
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const saved = useSavedList();
-  const tab = tabFromSearch(searchParams.get('tab'));
-  const [layout, setLayout] = useState<Layout>(() => readDesignBrowseLayout(companyId));
+  const tab =
+    hideKindTabs || embedded
+      ? (kind ??
+        (searchParams.get('tab') === 'collections' || searchParams.get('kind') === 'collections'
+          ? 'collections'
+          : 'designs'))
+      : tabFromSearch(searchParams.get('tab'));
+  const [localLayout, setLocalLayout] = useState<Layout>(() => readDesignBrowseLayout(companyId));
+  const layout = layoutProp ?? localLayout;
   const [viewer, setViewer] = useState<SavedItemView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
-    setLayout(readDesignBrowseLayout(companyId));
+    setLocalLayout(readDesignBrowseLayout(companyId));
   }, [companyId]);
 
   const toggleLayout = () => {
-    setLayout((prev) => {
+    if (onToggleLayout) {
+      onToggleLayout();
+      return;
+    }
+    setLocalLayout((prev) => {
       const next = prev === 'feed' ? 'grid' : 'feed';
       writeDesignBrowseLayout(companyId, next);
       return next;
@@ -101,6 +128,14 @@ export function SavedPage() {
   };
 
   const setTab = (next: Tab) => {
+    if (embedded) {
+      const nextParams = new URLSearchParams();
+      nextParams.set('tab', 'saved');
+      if (next === 'collections') nextParams.set('kind', 'collections');
+      if (searchParams.get('select') === '1') nextParams.set('select', '1');
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
     setSearchParams(next === 'collections' ? { tab: 'collections' } : {}, { replace: true });
   };
 
@@ -126,9 +161,18 @@ export function SavedPage() {
       showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger'),
   });
 
-  const productItems = (saved.data ?? []).filter((item) => item.kind === 'product');
-  const collectionItems = (saved.data ?? []).filter((item) => item.kind === 'collection');
+  const productItems = (saved.data ?? []).filter(
+    (item) =>
+      item.kind === 'product' &&
+      catalogSearchMatches(searchQuery, item.name, item.sku, item.company.name),
+  );
+  const collectionItems = (saved.data ?? []).filter(
+    (item) =>
+      item.kind === 'collection' &&
+      catalogSearchMatches(searchQuery, item.name, item.company.name),
+  );
   const tabItems = tab === 'designs' ? productItems : collectionItems;
+  const savedSearchActive = Boolean(searchQuery.trim());
   const visibleSavedIds = productItems
     .map((item) => item.productId)
     .filter((id): id is string => Boolean(id));
@@ -141,19 +185,19 @@ export function SavedPage() {
   const selectMode =
     tab === 'collections' ? albumPick.selectMode : shortlist.selectMode;
 
-  const onActivateItem = (item: SavedItemView) => {
-    if (selectMode && item.kind === 'collection') {
+  const onToggleItem = (item: SavedItemView) => {
+    if (item.kind === 'collection') {
       const entry = savedToAlbumEntry(item);
       if (entry) albumPick.toggle(entry);
       return;
     }
+    const entry = savedToEntry(item);
+    if (entry) shortlist.toggle(entry);
+  };
+
+  const onOpenItem = (item: SavedItemView) => {
     if (item.kind === 'collection' && item.collectionId) {
       navigate(`/collections/${item.collectionId}`);
-      return;
-    }
-    if (selectMode && item.kind === 'product') {
-      const entry = savedToEntry(item);
-      if (entry) shortlist.toggle(entry);
       return;
     }
     if (item.kind === 'product') {
@@ -190,42 +234,44 @@ export function SavedPage() {
 
   return (
     <div className={cx('flex flex-col gap-4', floaterClearance && 'pb-[calc(5rem+5.5rem)]')}>
-      <PageHeader
-        title="Saved"
-        subtitle={headerSubtitle}
-        action={
-          showSelectChrome || showLayoutToggle ? (
-            <div className="flex items-center gap-1">
-              {showSelectChrome ? (
-                <button
-                  type="button"
-                  className={cx(
-                    'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
-                    activeSelect.selectMode
-                      ? 'bg-accent text-white'
-                      : 'text-accent hover:bg-accent/5',
-                  )}
-                  onClick={() =>
-                    applySelectingPill(activeSelect.selectMode, activeSelect.count, activeSelect)
-                  }
-                >
-                  {activeSelect.selectMode ? 'Selecting' : 'Select'}
-                </button>
-              ) : null}
-              {showLayoutToggle ? (
-                <button
-                  type="button"
-                  aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                  className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                  onClick={toggleLayout}
-                >
-                  {layout === 'feed' ? 'Grid' : 'Feed'}
-                </button>
-              ) : null}
-            </div>
-          ) : null
-        }
-      />
+      {embedded ? null : (
+        <PageHeader
+          title="Saved"
+          subtitle={headerSubtitle}
+          action={
+            showSelectChrome || showLayoutToggle ? (
+              <div className="flex items-center gap-1">
+                {showSelectChrome ? (
+                  <button
+                    type="button"
+                    className={cx(
+                      'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
+                      activeSelect.selectMode
+                        ? 'bg-accent text-white'
+                        : 'text-accent hover:bg-accent/5',
+                    )}
+                    onClick={() =>
+                      applySelectingPill(activeSelect.selectMode, activeSelect.count, activeSelect)
+                    }
+                  >
+                    {activeSelect.selectMode ? 'Selecting' : 'Select'}
+                  </button>
+                ) : null}
+                {showLayoutToggle ? (
+                  <button
+                    type="button"
+                    aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
+                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
+                    onClick={toggleLayout}
+                  >
+                    {layout === 'feed' ? 'Grid' : 'Feed'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null
+          }
+        />
+      )}
 
       <SelectAllFloat
         open={tab === 'designs' && shortlist.selectMode && visibleSavedIds.length > 0}
@@ -264,6 +310,7 @@ export function SavedPage() {
         />
       ) : (
         <>
+          {hideKindTabs || embedded ? null : (
           <div className="flex gap-2">
             {(['designs', 'collections'] as const).map((value) => (
               <button
@@ -279,6 +326,7 @@ export function SavedPage() {
               </button>
             ))}
           </div>
+          )}
 
           {tabItems.length > 0 ? (
             layout === 'grid' ? (
@@ -296,7 +344,8 @@ export function SavedPage() {
                     }
                     selectMode={selectMode}
                     removing={unsave.isPending}
-                    onOpen={() => onActivateItem(item)}
+                    onOpen={() => onOpenItem(item)}
+                    onToggleSelect={() => onToggleItem(item)}
                     onLongSelect={() => onLongSelectItem(item)}
                     onUnsave={() => unsave.mutate(item.id)}
                   />
@@ -317,7 +366,8 @@ export function SavedPage() {
                     }
                     selectMode={selectMode}
                     removing={unsave.isPending}
-                    onOpen={() => onActivateItem(item)}
+                    onOpen={() => onOpenItem(item)}
+                    onToggleSelect={() => onToggleItem(item)}
                     onLongSelect={() => onLongSelectItem(item)}
                     onUnsave={() => unsave.mutate(item.id)}
                   />
@@ -326,16 +376,28 @@ export function SavedPage() {
             )
           ) : (
             <EmptyState
-              title={tab === 'designs' ? 'No bookmarked designs' : 'No bookmarked collections'}
+              title={
+                savedSearchActive
+                  ? tab === 'designs'
+                    ? 'No designs match'
+                    : 'No collections match'
+                  : tab === 'designs'
+                    ? 'No bookmarked designs'
+                    : 'No bookmarked collections'
+              }
               message={
-                tab === 'designs'
-                  ? 'Bookmark designs from Explore or inside a collection.'
-                  : 'Bookmark a collection from Explore or a collection page.'
+                savedSearchActive
+                  ? 'Try another name.'
+                  : tab === 'designs'
+                    ? 'Bookmark designs from Explore or inside a collection.'
+                    : 'Bookmark a collection from Explore or a collection page.'
               }
               action={
-                <Button variant="secondary" onClick={() => navigate('/explore')}>
-                  Open Explore
-                </Button>
+                savedSearchActive ? undefined : (
+                  <Button variant="secondary" onClick={() => navigate('/explore')}>
+                    Open Explore
+                  </Button>
+                )
               }
             />
           )}
@@ -356,28 +418,10 @@ export function SavedPage() {
   );
 }
 
-function itemMeta(item: SavedItemView): string {
-  const savedBy = item.savedBy?.name?.trim();
-  if (item.kind === 'product') {
-    const bits = [item.company.name];
-    if (item.sku) bits.push(item.sku);
-    bits.push(formatRate(item.rate ?? null, item.unit ?? null));
-    if (savedBy) bits.push(savedBy);
-    return bits.join(' · ');
-  }
-  const bits = [item.company.name];
-  if (item.productCount != null) {
-    bits.push(`${item.productCount} design${item.productCount === 1 ? '' : 's'}`);
-  } else {
-    bits.push('Collection');
-  }
-  if (savedBy) bits.push(savedBy);
-  return bits.join(' · ');
-}
-
 function SavedGridTile({
   item,
   onOpen,
+  onToggleSelect,
   onUnsave,
   onLongSelect,
   selected,
@@ -386,6 +430,7 @@ function SavedGridTile({
 }: {
   item: SavedItemView;
   onOpen: () => void;
+  onToggleSelect?: () => void;
   onUnsave: () => void;
   onLongSelect?: () => void;
   selected: boolean;
@@ -406,13 +451,14 @@ function SavedGridTile({
       <button
         type="button"
         className={cx('block w-full text-left', LONG_PRESS_SURFACE_CLASS)}
-        onClick={onOpen}
+        onClick={() => (selectMode && onToggleSelect ? onToggleSelect() : onOpen())}
         {...longPress}
-      >        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
-        <div className="px-2.5 py-2.5">
-          <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
-          <p className="truncate text-xs text-muted">{itemMeta(item)}</p>
-        </div>
+      >
+        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
+      </button>
+      <button type="button" className="block w-full px-2.5 py-2.5 text-left" onClick={onOpen}>
+        <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+        <p className="truncate text-xs text-muted">{savedItemMeta(item)}</p>
       </button>
       {selectMode ? (
         <span
@@ -444,6 +490,7 @@ function SavedGridTile({
 function SavedFeedRow({
   item,
   onOpen,
+  onToggleSelect,
   onUnsave,
   onLongSelect,
   selected,
@@ -452,6 +499,7 @@ function SavedFeedRow({
 }: {
   item: SavedItemView;
   onOpen: () => void;
+  onToggleSelect?: () => void;
   onUnsave: () => void;
   onLongSelect?: () => void;
   selected: boolean;
@@ -496,7 +544,7 @@ function SavedFeedRow({
           LONG_PRESS_SURFACE_CLASS,
           selected && 'opacity-95',
         )}
-        onClick={onOpen}
+        onClick={() => (selectMode && onToggleSelect ? onToggleSelect() : onOpen())}
         {...longPress}
       >
         <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />

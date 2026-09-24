@@ -13,10 +13,12 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   curateExistingTargets,
   filterCurateTargetsByQuery,
+  findOwnedPackByName,
   mergeCollectionProductIds,
 } from '@/features/browse/curateExisting';
+import { CURATE_ADD_TO_IT, CURATE_NAME_TAKEN } from '@/features/browse/curateCheck';
 import { useToast } from '@/ui/Toast';
-import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
+import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 
 function isHttpUrl(value: string | null | undefined): value is string {
   return Boolean(value && /^https?:\/\//i.test(value));
@@ -52,6 +54,7 @@ export function CurateFromSelectionSheet({
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'new' | 'existing'>('new');
   const [query, setQuery] = useState('');
+  const [sheetError, setSheetError] = useState<string | null>(null);
 
   const owned = useQuery({
     queryKey: ['my-collections'],
@@ -73,11 +76,13 @@ export function CurateFromSelectionSheet({
     setName(defaultName?.trim() ?? '');
     setMode('new');
     setQuery('');
+    setSheetError(null);
   }, [open, defaultName]);
 
   const ids = productIds ?? shortlist.entries.map((entry) => entry.productId);
   const entries = shortlist.entries.filter((entry) => ids.includes(entry.productId));
-  const canSubmit = entries.length >= 1 && Boolean(name.trim());
+  const nameClash = findOwnedPackByName(targets, name);
+  const canSubmit = entries.length >= 1 && Boolean(name.trim()) && !nameClash;
 
   const createDraft = async (opts?: { openPublish?: boolean }) => {
     if (entries.length < 1) {
@@ -86,16 +91,24 @@ export function CurateFromSelectionSheet({
     }
     const packName = name.trim();
     if (!packName) {
-      showToast('Enter a pack name.', 'danger');
+      setSheetError('Enter a pack name.');
+      return;
+    }
+    const existing = findOwnedPackByName(targets, packName);
+    if (existing) {
+      setSheetError(CURATE_NAME_TAKEN);
       return;
     }
     const firstThumb = entries.find((item) => isHttpUrl(item.thumbUrl))?.thumbUrl;
     setSaving(true);
+    setSheetError(null);
+    let createdId: string | undefined;
     try {
       const created = await api.post<CollectionDetailView>('/collections', {
         name: packName,
         ...(firstThumb ? { coverImage: firstThumb } : {}),
       } satisfies CreateCollectionDto);
+      createdId = created.id;
       const detail = await api.put<CollectionDetailView>(`/collections/${created.id}/products`, {
         productIds: entries.map((entry) => entry.productId),
       } satisfies SetCollectionProductsDto);
@@ -112,9 +125,16 @@ export function CurateFromSelectionSheet({
         },
       });
     } catch (err) {
+      if (createdId) {
+        try {
+          await api.del(`/collections/${createdId}`);
+        } catch {
+          // Best-effort — do not leave the trader on an empty named draft.
+        }
+      }
       const message =
         err instanceof ApiError ? err.message : (err as Error).message || 'Could not save pack.';
-      showToast(message, 'danger');
+      setSheetError(message);
     } finally {
       setSaving(false);
     }
@@ -146,11 +166,11 @@ export function CurateFromSelectionSheet({
         navigate(`/catalog/collections/${pack.id}`, { replace: true });
       }
     } catch (err) {
-      const message =
+      setSheetError(
         err instanceof ApiError
           ? err.message
-          : (err as Error).message || 'Could not add to pack.';
-      showToast(message, 'danger');
+          : (err as Error).message || 'Could not add to pack.',
+      );
     } finally {
       setSaving(false);
     }
@@ -171,6 +191,7 @@ export function CurateFromSelectionSheet({
           <p className="text-sm text-muted">
             {entries.length} design{entries.length === 1 ? '' : 's'} · pick a pack to add them
           </p>
+          {sheetError ? <InlineNotice message={sheetError} /> : null}
           {targets.length > 0 ? (
             <TextInput
               value={query}
@@ -225,23 +246,40 @@ export function CurateFromSelectionSheet({
           <Field label="Name">
             <TextInput
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setSheetError(null);
+              }}
               placeholder="e.g. Festive 2026"
               autoComplete="off"
               autoFocus
             />
           </Field>
-          <Button fullWidth disabled={saving || !canSubmit} onClick={() => void createDraft()}>
-            {saving ? 'Saving…' : 'Save draft'}
-          </Button>
-          <Button
-            variant="secondary"
-            fullWidth
-            disabled={saving || !canSubmit}
-            onClick={() => void createDraft({ openPublish: true })}
-          >
-            Publish to Collection
-          </Button>
+          {nameClash ? <InlineNotice message={CURATE_NAME_TAKEN} /> : null}
+          {sheetError && !nameClash ? <InlineNotice message={sheetError} /> : null}
+          {nameClash ? (
+            <Button
+              fullWidth
+              disabled={saving || entries.length < 1}
+              onClick={() => void addToExisting(nameClash)}
+            >
+              {saving ? 'Saving…' : CURATE_ADD_TO_IT}
+            </Button>
+          ) : (
+            <>
+              <Button fullWidth disabled={saving || !canSubmit} onClick={() => void createDraft()}>
+                {saving ? 'Saving…' : 'Save draft'}
+              </Button>
+              <Button
+                variant="secondary"
+                fullWidth
+                disabled={saving || !canSubmit}
+                onClick={() => void createDraft({ openPublish: true })}
+              >
+                Publish to Collection
+              </Button>
+            </>
+          )}
           {owned.isLoading ? null : targets.length > 0 ? (
             <button
               type="button"

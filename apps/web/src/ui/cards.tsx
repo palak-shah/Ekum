@@ -16,6 +16,7 @@ import type {
 import { formatRate, timeAgo } from '@/lib/format';
 import { Avatar, Chip, Tag, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
+import { albumOverflowLabel, collectionMosaicCount } from './albumMosaic';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 function VerificationTag({ verification }: { verification: string }) {
@@ -116,13 +117,17 @@ export function OpportunityCollectionCard({
       </div>
       <button
         type="button"
+        aria-label={selecting ? `Select ${collection.name}` : collection.name}
         className={cx('relative block w-full px-4 text-left', LONG_PRESS_SURFACE_CLASS)}
         onClick={onMediaClick}
         {...longPress}
       >
         <AlbumGrid
           images={collection.previewImages}
-          imageCount={collection.imageCount}
+          imageCount={collectionMosaicCount({
+            productCount: collection.productCount,
+            previewCount: collection.previewImages.length,
+          })}
           alt={collection.name}
         />
         {selectMode ? (
@@ -136,10 +141,15 @@ export function OpportunityCollectionCard({
           </span>
         ) : null}
       </button>
-      <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onMediaClick}>
+      <Link
+        to={`/collections/${collection.id}`}
+        data-testid={`explore-collection-open-${collection.id}`}
+        className="mt-2 block w-full px-4 text-left"
+        onClick={() => onOpen?.()}
+      >
         <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
         <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
-      </button>
+      </Link>
     </article>
   );
 }
@@ -419,11 +429,16 @@ export function OpportunityDesignCard({
       </div>
       <button
         type="button"
+        aria-label={selecting ? `Select ${product.name}` : product.name}
         className={cx('relative block w-full px-4 text-left', LONG_PRESS_SURFACE_CLASS)}
         onClick={onMediaClick}
         {...longPress}
       >
-        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+        <AlbumGrid
+          images={product.images[0] ? [product.images[0]] : []}
+          imageCount={1}
+          alt={product.name}
+        />
         {selectMode ? (
           <span
             className={cx(
@@ -435,10 +450,17 @@ export function OpportunityDesignCard({
           </span>
         ) : null}
       </button>
-      <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onMediaClick}>
+      <Link
+        to={`/explore/products/${product.id}`}
+        data-testid={`explore-design-open-${product.id}`}
+        className="mt-2 block w-full px-4 text-left"
+        onClick={() => onOpen?.()}
+      >
         <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">Design</p>
-      </button>
+        <p className="text-xs font-medium text-muted">
+          {product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design'}
+        </p>
+      </Link>
     </article>
   );
 }
@@ -467,9 +489,19 @@ export function DesignTile({
     else openDesign();
   };
 
-  const body = (
-    <>
-      <div className="relative p-1.5">
+  return (
+    <div
+      className={cx(
+        'overflow-hidden rounded-2xl border bg-surface text-left',
+        selecting && selected ? 'border-accent' : 'border-line',
+      )}
+    >
+      <button
+        type="button"
+        className={cx('relative block w-full p-1.5 text-left', LONG_PRESS_SURFACE_CLASS)}
+        onClick={onTileClick}
+        {...longPress}
+      >
         <AlbumGrid
           images={product.images}
           imageCount={product.images.length}
@@ -485,27 +517,16 @@ export function DesignTile({
             <CheckIcon width={14} height={14} />
           </span>
         ) : null}
-      </div>
-      <div className="px-2.5 pb-2.5">
+      </button>
+      <Link
+        to={`/explore/products/${product.id}`}
+        data-testid={`explore-design-open-${product.id}`}
+        className="block px-2.5 pb-2.5"
+      >
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
         <p className="truncate text-xs text-muted">Design</p>
-      </div>
-    </>
-  );
-
-  return (
-    <button
-      type="button"
-      className={cx(
-        'block w-full overflow-hidden rounded-2xl border bg-surface text-left',
-        LONG_PRESS_SURFACE_CLASS,
-        selecting && selected ? 'border-accent' : 'border-line',
-      )}
-      onClick={onTileClick}
-      {...longPress}
-    >
-      {body}
-    </button>
+      </Link>
+    </div>
   );
 }
 
@@ -541,12 +562,7 @@ export function CollectionTile({
   /** Hide on a company profile shop shelf where the seller is already known. */
   showCompany?: boolean;
 }) {
-  const images =
-    collection.previewImages.length > 0
-      ? collection.previewImages
-      : collection.coverImage
-        ? [collection.coverImage]
-        : [];
+  const images = collection.previewImages;
   return (
     <Link
       to={`/collections/${collection.id}`}
@@ -555,7 +571,10 @@ export function CollectionTile({
       <div className="p-1.5">
         <AlbumGrid
           images={images}
-          imageCount={Math.max(collection.imageCount ?? images.length, images.length)}
+          imageCount={collectionMosaicCount({
+            productCount: collection.productCount,
+            previewCount: images.length,
+          })}
           alt={collection.name}
         />
       </div>
@@ -573,7 +592,7 @@ export function CollectionTile({
 }
 
 export function CollectionListItem({ collection }: { collection: CollectionCard }) {
-  const cover = collection.previewImages[0] ?? collection.coverImage;
+  const cover = collection.previewImages[0] ?? null;
   return (
     <Link
       to={`/collections/${collection.id}`}
@@ -596,7 +615,7 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
  * WhatsApp-style album mosaic: thin gutters, no blank cells.
  * 1 → square; 2 → two equal halves filling the square (no empty cell);
  * 3 → tall left + two stacked right;
- * 4+ → 2×2 with dark +N on the fourth cell when more than 4.
+ * 4+ → 2×2 with dark +N on the fourth cell (leftover after four thumbs).
  */
 export function AlbumGrid({
   images,
@@ -655,22 +674,20 @@ export function AlbumGrid({
     );
   }
 
-  // 4+: equal 2×2; fourth cell shows +N when there are more than 4 images.
-  const showPlus = imageCount > 4;
+  // 4+: equal 2×2; fourth cell shows leftover after four thumbs.
+  const overflow = albumOverflowLabel(imageCount);
   const cells = [images[0], images[1], images[2], images[3] ?? images[2]];
 
   return (
     <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-xl bg-line">
       {cells.map((src, index) => {
-        const isOverflow = index === 3 && showPlus;
+        const isOverflow = index === 3 && overflow;
         return (
           <div key={index} className="relative min-h-0 overflow-hidden bg-foam">
             {src ? <CoverImage src={src} alt="" /> : null}
             {isOverflow ? (
               <div className="absolute inset-0 flex items-center justify-center bg-ink/55">
-                <span className="text-2xl font-bold tracking-tight text-white">
-                  +{imageCount - 3}
-                </span>
+                <span className="text-2xl font-bold tracking-tight text-white">{overflow}</span>
               </div>
             ) : null}
           </div>
@@ -711,7 +728,10 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       <Link to={`/collections/${collection.id}`} className="block px-3">
         <AlbumGrid
           images={collection.previewImages}
-          imageCount={collection.imageCount}
+          imageCount={collectionMosaicCount({
+            productCount: collection.productCount,
+            previewCount: collection.previewImages.length,
+          })}
           alt={collection.name}
         />
       </Link>
@@ -729,11 +749,17 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
     <article className="-mx-4 border-b border-line/80 pb-4">
       <PostHeader company={product.company} postedAt={product.postedAt} />
       <Link to={`/explore/products/${product.id}`} className="block px-3">
-        <AlbumGrid images={product.images} imageCount={product.images.length} alt={product.name} />
+        <AlbumGrid
+          images={product.images[0] ? [product.images[0]] : []}
+          imageCount={1}
+          alt={product.name}
+        />
       </Link>
       <Link to={`/explore/products/${product.id}`} className="mt-2.5 block px-4">
         <p className="text-sm font-bold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">Design</p>
+        <p className="text-xs font-medium text-muted">
+          {product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design'}
+        </p>
       </Link>
     </article>
   );

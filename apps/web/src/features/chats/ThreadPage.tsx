@@ -14,16 +14,34 @@ import type {
   CursorPage,
   MessageReference,
   MessageView,
+  MuteFor,
   OrderView,
   ProductView,
   TeamMemberView,
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
-import { photoUrlsFromMessage, voiceDurationMsFromMessage, documentFromMessage, documentTypeCue } from '@ekum/domain-types';
-import { useCompanyId } from '@/lib/auth';
+import {
+  CHAT_REACTION_EMOJIS,
+  outgoingSeenLabel,
+  activeMentionQuery,
+  insertMentionAt,
+  mentionCandidates,
+  mentionsFromMetadata,
+  mentionsStillInBody,
+  withMentionsMetadata,
+  type MentionCandidate,
+  type MessageMention,
+  photoUrlsFromMessage,
+  quotedPhotoUrl,
+  voiceDurationMsFromMessage,
+  documentFromMessage,
+  documentTypeCue,
+} from '@ekum/domain-types';
+import { useAuth, useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
+import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { timeAgo, formatFileSize } from '@/lib/format';
 import {
@@ -42,6 +60,7 @@ import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
+import { GroupProfileSheet } from '@/features/chats/GroupProfileSheet';
 import { productImagesFromChatReference } from '@/features/chats/productImagesFromChatReference';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import {
@@ -54,12 +73,13 @@ import { formatVoiceDuration, isUsableVoiceClip } from '@/features/voice/voiceCa
 import { useVoiceRecorder } from '@/features/voice/useVoiceRecorder';
 import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
 import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
-import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, SearchInput, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import {
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  CameraIcon,
   CollectionIcon,
   DocumentIcon,
   FilterIcon,
@@ -118,6 +138,10 @@ import { filterByAttachSearch } from './attachShareSearch';
 import { firstUnreadMessageId, unreadDividerLabel } from './threadOpenScroll';
 import { createStickLatch, isNearBottom, scrollListToBottom } from './threadStickScroll';
 import { chatComposerHeightPx } from './chatComposerHeight';
+import { getChatDraft, setChatDraft } from './chatsDrafts';
+import { ChatMuteDurationFlyout } from './ChatMuteDurationFlyout';
+import { ChatMentionPicker } from './ChatMentionPicker';
+import { highlightMentionText } from './chatMentions';
 
 type AttachStep = 'menu' | 'product' | 'collection' | 'order';
 
@@ -129,12 +153,27 @@ export function ThreadPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const refMessageId = searchParams.get('message');
   const companyId = useCompanyId();
-  const { isOwner } = useTeamCaps();
+  const { session } = useAuth();
+  const viewerUserId = session?.user.userId ?? null;
+  const { isOwner, can } = useTeamCaps();
+  const { buying } = useTradePresence();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canForward = (message: MessageView) => canForwardMessage(message);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(() => getChatDraft(id));
+  const [mentionCaret, setMentionCaret] = useState(0);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionLocked, setMentionLocked] = useState(false);
+  const [pendingMentions, setPendingMentions] = useState<MessageMention[]>([]);
+  const [mutePick, setMutePick] = useState(false);
+  const [muteHost, setMuteHost] = useState<{
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+  } | null>(null);
+  const [groupProfileOpen, setGroupProfileOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachStep, setAttachStep] = useState<AttachStep>('menu');
   const [attachQuery, setAttachQuery] = useState('');
@@ -214,6 +253,7 @@ export function ThreadPage() {
   const [editDraft, setEditDraft] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
   const [replyTo, setReplyTo] = useState<MessageView | null>(null);
+  const [replyPhotoIndex, setReplyPhotoIndex] = useState<number | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [forwardProgress, setForwardProgress] = useState<string | null>(null);
@@ -251,6 +291,17 @@ export function ThreadPage() {
     unreadCount: number;
   } | null>(null);
 
+  useEffect(() => {
+    setDraft(getChatDraft(id));
+    setPendingMentions([]);
+    setMentionLocked(false);
+    setMentionIndex(0);
+  }, [id]);
+
+  useEffect(() => {
+    setChatDraft(id, draft);
+  }, [id, draft]);
+
   const listView: ThreadMessageViewScope = searchOpen ? searchView : 'all';
   const listQ = searchOpen ? searchQ : '';
   const messagesQueryKey = ['thread', id, 'messages', listView, listQ] as const;
@@ -258,6 +309,7 @@ export function ThreadPage() {
   const thread = useQuery({
     queryKey: ['thread', id],
     queryFn: () => api.get<ThreadDetail>(`/threads/${id}`),
+    refetchInterval: 4_000,
   });
   /** Search + All + empty query: prompt to type — don't re-list the whole thread. */
   const messagesEnabled =
@@ -309,16 +361,36 @@ export function ThreadPage() {
     return () => window.removeEventListener('resize', place);
   }, [moreOpen]);
 
+  useLayoutEffect(() => {
+    if (!moreOpen || !mutePick) {
+      setMuteHost(null);
+      return;
+    }
+    const box = morePanelRef.current?.getBoundingClientRect();
+    if (box) setMuteHost({ top: box.top, left: box.left, right: box.right, bottom: box.bottom });
+  }, [moreOpen, mutePick, morePos.top, morePos.right]);
+
+  useEffect(() => {
+    if (!moreOpen) setMutePick(false);
+  }, [moreOpen]);
+
   useEffect(() => {
     if (!moreOpen) return;
     const close = () => setMoreOpen(false);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key === 'Escape') {
+        if (mutePick) {
+          setMutePick(false);
+          return;
+        }
+        close();
+      }
     };
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (morePanelRef.current?.contains(target)) return;
       if (moreAnchorRef.current?.contains(target)) return;
+      if ((event.target as Element | null)?.closest?.('[data-testid="chat-mute-flyout"]')) return;
       close();
     };
     document.addEventListener('keydown', onKey);
@@ -329,7 +401,7 @@ export function ThreadPage() {
       document.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('scroll', close, true);
     };
-  }, [moreOpen]);
+  }, [moreOpen, mutePick]);
 
   useEffect(() => {
     setMoreOpen(false);
@@ -608,12 +680,16 @@ export function ThreadPage() {
       referenceId?: string;
       metadata?: Record<string, unknown>;
       replyToMessageId?: string;
+      replyToPhotoIndex?: number;
     }) => api.post<MessageView>(`/threads/${id}/messages`, payload),
     onSuccess: (message) => {
       stickLatch.pin();
       insertMessage(message);
       setDraft('');
+      setPendingMentions([]);
+      setMentionLocked(false);
       setReplyTo(null);
+      setReplyPhotoIndex(null);
       setAttachOpen(false);
       setAttachStep('menu');
       setError(null);
@@ -653,16 +729,6 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not accept.'),
-  });
-
-  const payAct = useMutation({
-    mutationFn: ({ askId, action }: { askId: string; action: 'paid' | 'received' }) =>
-      api.post(`/payment-requests/${askId}/${action}`, {}),
-    onSuccess: () => {
-      refreshMessages();
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-    },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not update payment.'),
   });
 
   const viewRequestAllow = useMutation({
@@ -726,6 +792,50 @@ export function ThreadPage() {
       setError(err instanceof ApiError ? err.message : 'Could not update star.'),
   });
 
+  const pinMessage = useMutation({
+    mutationFn: (messageId: string | null) =>
+      api.patch<ThreadDetail>(`/threads/${id}/pinned-message`, { messageId }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(['thread', id], next);
+      refreshMessages();
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not pin.'),
+  });
+
+  const reactMessage = useMutation({
+    mutationFn: ({
+      messageId,
+      emoji,
+    }: {
+      messageId: string;
+      emoji: (typeof CHAT_REACTION_EMOJIS)[number] | null;
+    }) => api.post<MessageView>(`/threads/${id}/messages/${messageId}/react`, { emoji }),
+    onSuccess: () => refreshMessages(),
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not react.'),
+  });
+
+  const saveGroupProfile = useMutation({
+    mutationFn: (body: { imageUrl?: string | null; blurb?: string | null }) =>
+      api.patch<ThreadDetail>(`/threads/${id}/group-profile`, body),
+    onSuccess: (next) => {
+      queryClient.setQueryData(['thread', id], next);
+      setGroupProfileOpen(false);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not save group.'),
+  });
+
+  const typingPulse = useRef(0);
+  const pulseTyping = (on: boolean) => {
+    if (!id) return;
+    const now = Date.now();
+    if (on && now - typingPulse.current < 2_500) return;
+    typingPulse.current = now;
+    void api.post(`/threads/${id}/typing`, { typing: on }).catch(() => undefined);
+  };
+
   const hideMessage = useMutation({
     mutationFn: (messageId: string) => api.post(`/threads/${id}/messages/${messageId}/hide`, {}),
     onSuccess: () => {
@@ -770,9 +880,11 @@ export function ThreadPage() {
   });
 
   const setAlert = useMutation({
-    mutationFn: (alertLevel: 'all' | 'muted') =>
-      api.patch<ThreadDetail>(`/threads/${id}/alert`, { alertLevel }),
+    mutationFn: (payload: { alertLevel: 'all' | 'muted'; muteFor?: MuteFor }) =>
+      api.patch<ThreadDetail>(`/threads/${id}/alert`, payload),
     onSuccess: () => {
+      setMutePick(false);
+      setMoreOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['thread', id] });
       setError(null);
     },
@@ -947,7 +1059,6 @@ export function ThreadPage() {
     setAttachSendError(null);
     const failed = new Set<string>();
     let first = true;
-    const replyId = replyTo?.id;
 
     for (const refId of orderedIds) {
       try {
@@ -956,6 +1067,7 @@ export function ThreadPage() {
           body?: string;
           referenceId?: string;
           replyToMessageId?: string;
+          replyToPhotoIndex?: number;
         } | null = null;
 
         if (attachStep === 'product') {
@@ -968,7 +1080,7 @@ export function ThreadPage() {
             type: 'product_card',
             referenceId: product.id,
             body: product.name,
-            replyToMessageId: first ? replyId : undefined,
+            ...(first ? replySendFields() : {}),
           };
         } else if (attachStep === 'collection') {
           const collection = (myCollections.data ?? []).find((row) => row.id === refId);
@@ -980,7 +1092,7 @@ export function ThreadPage() {
             type: 'collection_card',
             referenceId: collection.id,
             body: collection.name,
-            replyToMessageId: first ? replyId : undefined,
+            ...(first ? replySendFields() : {}),
           };
         } else if (attachStep === 'order') {
           const order = counterpartOrders.find((row) => row.id === refId);
@@ -992,7 +1104,7 @@ export function ThreadPage() {
             type: 'order_card',
             referenceId: order.id,
             body: order.counterpart.name,
-            replyToMessageId: first ? replyId : undefined,
+            ...(first ? replySendFields() : {}),
           };
         }
 
@@ -1013,6 +1125,7 @@ export function ThreadPage() {
     if (failed.size === 0) {
       stickLatch.pin();
       setReplyTo(null);
+      setReplyPhotoIndex(null);
       setDraft('');
       closeAttachSheet();
       setError(null);
@@ -1029,10 +1142,19 @@ export function ThreadPage() {
     );
   };
 
-  const startReply = (message: MessageView) => {
+  const startReply = (message: MessageView, photoIndex?: number) => {
     setReplyTo(message);
+    setReplyPhotoIndex(photoIndex ?? null);
     queueMicrotask(() => draftInputRef.current?.focus());
   };
+
+  const replySendFields = () =>
+    replyTo
+      ? {
+          replyToMessageId: replyTo.id,
+          ...(replyPhotoIndex != null ? { replyToPhotoIndex: replyPhotoIndex } : {}),
+        }
+      : {};
 
   const highlightMessage = (messageId: string, persist = false) => {
     const root = listRef.current;
@@ -1197,7 +1319,7 @@ export function ThreadPage() {
         type: 'photo',
         body: first,
         metadata: { urls },
-        replyToMessageId: replyTo?.id,
+        ...replySendFields(),
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not upload photo.');
@@ -1254,7 +1376,7 @@ export function ThreadPage() {
             contentType,
             sizeBytes,
           },
-          replyToMessageId: i === 0 ? replyTo?.id : undefined,
+          ...(i === 0 ? replySendFields() : {}),
         });
       }
     } catch (err) {
@@ -1311,7 +1433,7 @@ export function ThreadPage() {
         type: 'voice',
         body: uploaded.url,
         metadata: { durationMs: clip.durationMs, mediaId: uploaded.mediaId },
-        replyToMessageId: replyTo?.id,
+        ...replySendFields(),
       });
       discardPendingVoice();
     } catch (err) {
@@ -1501,13 +1623,66 @@ export function ThreadPage() {
   const counterpartId = detail.counterpart?.id;
   const title = detail.title ?? detail.counterpart?.name ?? 'Conversation';
   const canCompose = detail.state === 'active';
-  const headerSubtitle =
-    detail.type === 'group'
-      ? `${detail.participantCount} businesses`
+  const headerSubtitle = detail.counterpartTyping
+    ? `${detail.counterpart?.name ?? 'They'} typing…`
+    : detail.type === 'group'
+      ? [detail.blurb?.trim(), `${detail.participantCount} businesses`].filter(Boolean).join(' · ')
       : threadVisibilitySubtitle(
           threadVisibilityLabel(detail),
           detail.counterpart?.city,
         );
+  const lastOutgoing = [...ordered].reverse().find((row) => row.mine && !row.deletedForEveryone);
+  const counterpartRead = detail.participants?.find((row) => row.companyId !== companyId)?.lastReadAt;
+  const seenOnLast = outgoingSeenLabel({
+    threadType: detail.type,
+    lastOutgoingCreatedAt: lastOutgoing?.createdAt,
+    counterpartLastReadAt: counterpartRead,
+  });
+
+  const mentionQuery = mentionLocked ? null : activeMentionQuery(draft, mentionCaret);
+  const mentionItems = mentionQuery
+    ? mentionCandidates({
+        people: (detail.people ?? []).map((row) => ({ userId: row.userId, name: row.name })),
+        shops: (detail.participants ?? [])
+          .filter(
+            (row) =>
+              row.companyId !== companyId &&
+              (row.state === 'active' || row.state === 'pending'),
+          )
+          .map((row) => ({ companyId: row.companyId, name: row.company.name })),
+        viewerUserId,
+        query: mentionQuery.query,
+      })
+    : [];
+  const mentionOpen = mentionItems.length > 0;
+  const pickMention = (row: MentionCandidate) => {
+    if (!mentionQuery) return;
+    const next = insertMentionAt(draft, mentionCaret, mentionQuery.start, row.name);
+    setDraft(next.text);
+    setMentionCaret(next.caret);
+    setMentionLocked(false);
+    setMentionIndex(0);
+    setPendingMentions((prev) => {
+      const nextRow: MessageMention = { kind: row.kind, id: row.id, name: row.name };
+      return [...prev.filter((item) => !(item.kind === nextRow.kind && item.id === nextRow.id)), nextRow];
+    });
+    queueMicrotask(() => {
+      const el = draftInputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(next.caret, next.caret);
+    });
+  };
+  const sendText = () => {
+    const body = draft.trim();
+    if (!body || send.isPending) return;
+    send.mutate({
+      type: 'text',
+      body,
+      ...replySendFields(),
+      metadata: withMentionsMetadata(undefined, mentionsStillInBody(body, pendingMentions)),
+    });
+  };
 
   const attachTitle =
     attachStep === 'menu'
@@ -1602,7 +1777,14 @@ export function ThreadPage() {
       <PageHeader
         title={title}
         subtitle={headerSubtitle || undefined}
-        titleTo={counterpartId ? `/company/${counterpartId}` : undefined}
+        titleTo={
+          detail.type === 'group'
+            ? `/chats/${detail.id}/info`
+            : counterpartId
+              ? `/company/${counterpartId}`
+              : undefined
+        }
+        titleToState={detail.type !== 'group' && counterpartId ? { fromChat: true } : undefined}
         onBack={() => discard.tryLeave(() => navigate('/chats'))}
         action={
           <div className="flex items-center gap-0.5">
@@ -1644,6 +1826,20 @@ export function ThreadPage() {
         }
       />
 
+      {detail.pinnedMessage ? (
+        <button
+          type="button"
+          data-testid="pinned-message-banner"
+          className="mb-2 w-full rounded-xl border border-line bg-surface px-3 py-2 text-left"
+          onClick={() => void jumpToMessage(detail.pinnedMessage!.id)}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Pinned</p>
+          <p className="truncate text-sm text-ink">
+            {detail.pinnedMessage.body?.trim() || 'Message'}
+          </p>
+        </button>
+      ) : null}
+
       {moreOpen && typeof document !== 'undefined'
         ? createPortal(
             <>
@@ -1678,14 +1874,35 @@ export function ThreadPage() {
                   role="menuitem"
                   data-testid="thread-mute"
                   disabled={setAlert.isPending}
-                  className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
+                  aria-expanded={detail.alertLevel !== 'muted' && mutePick}
+                  className={cx(
+                    'flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40',
+                    mutePick && detail.alertLevel !== 'muted' ? 'bg-accent/5' : '',
+                  )}
                   onClick={() => {
-                    setMoreOpen(false);
-                    setAlert.mutate(detail.alertLevel === 'muted' ? 'all' : 'muted');
+                    if (detail.alertLevel === 'muted') {
+                      setAlert.mutate({ alertLevel: 'all' });
+                      return;
+                    }
+                    setMutePick((open) => !open);
                   }}
                 >
                   {detail.alertLevel === 'muted' ? 'Unmute' : 'Mute'}
                 </button>
+                {detail.type === 'group' && detail.canManagePeople ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="thread-group-profile"
+                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setGroupProfileOpen(true);
+                    }}
+                  >
+                    Group photo
+                  </button>
+                ) : null}
                 {detail.canManagePeople ? (
                   <button
                     type="button"
@@ -1731,6 +1948,13 @@ export function ThreadPage() {
                   </button>
                 ) : null}
               </div>
+              {mutePick && detail.alertLevel !== 'muted' ? (
+                <ChatMuteDurationFlyout
+                  host={muteHost}
+                  pending={setAlert.isPending}
+                  onPick={(muteFor) => setAlert.mutate({ alertLevel: 'muted', muteFor })}
+                />
+              ) : null}
             </>,
             document.body,
           )
@@ -1740,7 +1964,7 @@ export function ThreadPage() {
         <div data-testid="thread-search-band" className="mb-2 flex shrink-0 flex-col gap-1.5">
           <ListSearchRow
             search={
-              <TextInput
+              <SearchInput
                 ref={searchInputRef}
                 data-testid="thread-search-input"
                 value={searchDraft}
@@ -1758,8 +1982,6 @@ export function ThreadPage() {
                 }}
                 placeholder="Search in chat"
                 aria-label="Search in chat"
-                autoComplete="off"
-                className="w-full"
               />
             }
             action={
@@ -1934,7 +2156,7 @@ export function ThreadPage() {
                   senderLabel={
                     message.mine
                       ? outboundMessageLabel(message)
-                      : (detail.participants.find((row) => row.companyId === message.senderCompanyId)
+                      : (detail.participants?.find((row) => row.companyId === message.senderCompanyId)
                           ?.company.name ??
                         detail.counterpart?.name ??
                         'Business')
@@ -1942,8 +2164,6 @@ export function ThreadPage() {
                   onAcceptQuote={(orderId) => acceptQuote.mutate(orderId)}
                   onAcceptLogged={(orderId) => acceptLogged.mutate(orderId)}
                   accepting={acceptQuote.isPending || acceptLogged.isPending}
-                  onPaymentAction={(askId, action) => payAct.mutate({ askId, action })}
-                  paymentActing={payAct.isPending}
                 onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)}
                 onOpenCollection={(collectionId) => navigate(`/collections/${collectionId}`)}
                 onViewRequestAllow={(requestId) => viewRequestAllow.mutate(requestId)}
@@ -1963,6 +2183,11 @@ export function ThreadPage() {
                   onJumpToReply={
                     message.replyTo?.available !== false && message.replyTo?.id
                       ? () => jumpToMessage(message.replyTo!.id)
+                      : undefined
+                  }
+                  onQuotePhoto={
+                    canCompose && !selecting && canReplyToMessage(message)
+                      ? (index) => startReply(message, index)
                       : undefined
                   }
                   onToggleSelect={
@@ -1997,6 +2222,23 @@ export function ThreadPage() {
                                   starred: !message.starred,
                                 }),
                           starred: Boolean(message.starred),
+                          onPin: message.deletedForEveryone
+                            ? undefined
+                            : () =>
+                                pinMessage.mutate(
+                                  detail.pinnedMessage?.id === message.id ? null : message.id,
+                                ),
+                          pinned: detail.pinnedMessage?.id === message.id,
+                          onReact: message.deletedForEveryone
+                            ? undefined
+                            : (emoji) =>
+                                reactMessage.mutate({
+                                  messageId: message.id,
+                                  emoji:
+                                    message.reactions?.some((row) => row.mine && row.emoji === emoji)
+                                      ? null
+                                      : emoji,
+                                }),
                           onEdit: canEditMessage(message)
                             ? () => {
                                 setEditTarget(message);
@@ -2013,6 +2255,32 @@ export function ThreadPage() {
                       : undefined
                   }
                 />
+                {message.reactions && message.reactions.length > 0 ? (
+                  <div
+                    className={cx(
+                      'mt-0.5 flex flex-wrap gap-1',
+                      message.mine ? 'justify-end' : 'justify-start',
+                    )}
+                  >
+                    {message.reactions.map((row) => (
+                      <span
+                        key={row.emoji}
+                        className={cx(
+                          'rounded-full border px-1.5 py-0.5 text-xs',
+                          row.mine ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+                        )}
+                      >
+                        {row.emoji}
+                        {row.count > 1 ? ` ${row.count}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {seenOnLast && lastOutgoing?.id === message.id ? (
+                  <p className="mt-0.5 text-right text-[11px] text-muted" data-testid="chat-seen">
+                    Seen
+                  </p>
+                ) : null}
               </div>
             ))}
             <div ref={bottomRef} />
@@ -2031,6 +2299,8 @@ export function ThreadPage() {
                       ? 'No designs in this chat'
                       : searchOpen && searchView === 'orders'
                         ? 'No orders in this chat'
+                        : searchOpen && searchView === 'links'
+                          ? 'No links in this chat'
                         : searchOpen && searchView === 'starred'
                           ? 'No starred messages'
                           : searchOpen && searchView === 'all'
@@ -2070,25 +2340,32 @@ export function ThreadPage() {
           className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 bg-canvas px-0 py-2 mb-[calc(4.25rem+env(safe-area-inset-bottom))]"
           onSubmit={(event) => {
             event.preventDefault();
-            if (draft.trim() && !send.isPending) {
-              send.mutate({
-                type: 'text',
-                body: draft.trim(),
-                replyToMessageId: replyTo?.id,
-              });
-            }
+            sendText();
           }}
         >
           {replyTo ? (
             <div className="flex items-start gap-2 rounded-xl bg-foam px-3 py-2">
+              {quotedPhotoUrl(replyTo, replyPhotoIndex) ? (
+                <img
+                  src={toAbsoluteMediaUrl(quotedPhotoUrl(replyTo, replyPhotoIndex)!)}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                  data-testid="reply-quote-thumb"
+                />
+              ) : null}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-accent">Replying to</p>
-                <p className="truncate text-sm text-ink">{replyComposerLabel(replyTo)}</p>
+                <p className="truncate text-sm text-ink">
+                  {replyComposerLabel(replyTo, replyPhotoIndex)}
+                </p>
               </div>
               <button
                 type="button"
                 className="text-sm font-semibold text-muted"
-                onClick={() => setReplyTo(null)}
+                onClick={() => {
+                  setReplyTo(null);
+                  setReplyPhotoIndex(null);
+                }}
               >
                 Clear
               </button>
@@ -2128,6 +2405,14 @@ export function ThreadPage() {
               </button>
             </div>
           ) : (
+          <>
+          {mentionOpen ? (
+            <ChatMentionPicker
+              items={mentionItems}
+              activeIndex={Math.min(mentionIndex, mentionItems.length - 1)}
+              onPick={pickMention}
+            />
+          ) : null}
           <div className="flex min-w-0 flex-1 items-end gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
             <button
               type="button"
@@ -2146,18 +2431,51 @@ export function ThreadPage() {
               className="ekum-no-scrollbar max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-sm leading-5 text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
               placeholder="Message…"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              aria-expanded={mentionOpen}
+              aria-controls={mentionOpen ? 'chat-mention-picker' : undefined}
+              onSelect={(event) => {
+                setMentionCaret(event.currentTarget.selectionStart ?? 0);
+              }}
+              onChange={(event) => {
+                const next = event.target.value;
+                setDraft(next);
+                setMentionCaret(event.target.selectionStart ?? next.length);
+                setMentionLocked(false);
+                setMentionIndex(0);
+                setPendingMentions((prev) => mentionsStillInBody(next, prev));
+                pulseTyping(Boolean(next.trim()));
+              }}
               onKeyDown={(event) => {
+                if (mentionOpen) {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setMentionIndex((index) => (index + 1) % mentionItems.length);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setMentionIndex((index) =>
+                      (index - 1 + mentionItems.length) % mentionItems.length,
+                    );
+                    return;
+                  }
+                  if (event.key === 'Enter' || event.key === 'Tab') {
+                    event.preventDefault();
+                    const row = mentionItems[Math.min(mentionIndex, mentionItems.length - 1)];
+                    if (row) pickMention(row);
+                    return;
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setMentionLocked(true);
+                    return;
+                  }
+                }
                 if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
                   return;
                 }
                 event.preventDefault();
-                if (!draft.trim() || send.isPending) return;
-                send.mutate({
-                  type: 'text',
-                  body: draft.trim(),
-                  replyToMessageId: replyTo?.id,
-                });
+                sendText();
               }}
             />
             {draft.trim() ? (
@@ -2189,6 +2507,7 @@ export function ThreadPage() {
               </button>
             )}
           </div>
+          </>
           )}
         </form>
       ) : null}
@@ -2274,6 +2593,25 @@ export function ThreadPage() {
                   iconClass: 'bg-foam text-muted',
                   onPick: () => openPhotosAttach(),
                 },
+                ...(buying && can('orders')
+                  ? [
+                      {
+                        id: 'photo-order' as const,
+                        label: 'Photo order',
+                        subtitle: 'Order from photos',
+                        Icon: CameraIcon,
+                        iconClass: 'bg-kind-order-soft text-kind-order',
+                        onPick: () => {
+                          closeAttachSheet();
+                          navigate(
+                            counterpartId
+                              ? `/orders/new?seller=${encodeURIComponent(counterpartId)}`
+                              : '/orders/new',
+                          );
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   id: 'document' as const,
                   label: 'Document',
@@ -2549,6 +2887,16 @@ export function ThreadPage() {
         ) : null}
       </Sheet>
 
+      {detail.type === 'group' ? (
+        <GroupProfileSheet
+          open={groupProfileOpen}
+          detail={detail}
+          saving={saveGroupProfile.isPending}
+          onClose={() => setGroupProfileOpen(false)}
+          onSave={(body) => saveGroupProfile.mutate(body)}
+        />
+      ) : null}
+
       <ThreadPeopleSheet
         open={peopleOpen}
         onClose={() => {
@@ -2606,14 +2954,12 @@ function AttachList({
   return (
     <div className="flex flex-col gap-2">
       {!isEmpty ? (
-        <TextInput
+        <SearchInput
           data-testid="attach-search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
-          autoComplete="off"
-          className="w-full"
         />
       ) : null}
       {showSelectChrome ? (
@@ -2680,11 +3026,17 @@ function ReplyQuote({
       : 'border-accent bg-surface text-muted',
     onJump && (mine ? 'hover:bg-white/20 active:bg-white/25' : 'hover:bg-canvas active:bg-canvas'),
   );
+  const thumb = preview.photoUrl ? toAbsoluteMediaUrl(preview.photoUrl) : null;
   const body = (
-    <>
-      <p className={cx('font-bold', mine ? 'text-white' : 'text-accent')}>Reply</p>
-      <p className="truncate">{preview.bodyPreview ?? 'Message'}</p>
-    </>
+    <span className="flex items-center gap-2">
+      {thumb ? (
+        <img src={thumb} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
+      ) : null}
+      <span className="min-w-0 flex-1">
+        <p className={cx('font-bold', mine ? 'text-white' : 'text-accent')}>Reply</p>
+        <p className="truncate">{preview.bodyPreview ?? 'Message'}</p>
+      </span>
+    </span>
   );
   if (!onJump) {
     return <div className={className}>{body}</div>;
@@ -2709,9 +3061,12 @@ type MessageActions = {
   onSelect?: () => void;
   onCopy?: () => void;
   onStar?: () => void;
+  onPin?: () => void;
+  onReact?: (emoji: (typeof CHAT_REACTION_EMOJIS)[number]) => void;
   onEdit?: () => void;
   onDelete?: () => void;
   starred?: boolean;
+  pinned?: boolean;
 };
 
 function MessageChrome({
@@ -2749,6 +3104,8 @@ function MessageChrome({
       actions?.onSelect ||
       actions?.onCopy ||
       actions?.onStar ||
+      actions?.onPin ||
+      actions?.onReact ||
       actions?.onEdit ||
       actions?.onDelete,
   );
@@ -2903,6 +3260,38 @@ function MessageChrome({
                 {actions.starred ? 'Unstar' : 'Star'}
               </button>
             ) : null}
+            {actions?.onPin ? (
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="message-pin"
+                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  run(actions.onPin);
+                }}
+              >
+                {actions.pinned ? 'Unpin message' : 'Pin message'}
+              </button>
+            ) : null}
+            {actions?.onReact ? (
+              <div className="flex gap-1 border-t border-line/70 px-2 py-1.5">
+                {CHAT_REACTION_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="rounded-lg px-2 py-1 text-base hover:bg-foam"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMenuOpen(false);
+                      actions.onReact?.(emoji);
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {actions?.onEdit ? (
               <button
                 type="button"
@@ -2958,8 +3347,6 @@ function TimelineItem({
   onAcceptQuote,
   onAcceptLogged,
   accepting,
-  onPaymentAction,
-  paymentActing,
   onOpenOrder,
   onOpenCollection,
   onViewRequestAllow,
@@ -2976,6 +3363,7 @@ function TimelineItem({
   highlighted = false,
   onJumpToReply,
   onToggleSelect,
+  onQuotePhoto,
   actions,
 }: {
   message: MessageView;
@@ -2986,8 +3374,6 @@ function TimelineItem({
   onAcceptQuote: (orderId: string) => void;
   onAcceptLogged: (orderId: string) => void;
   accepting: boolean;
-  onPaymentAction: (askId: string, action: 'paid' | 'received') => void;
-  paymentActing: boolean;
   onOpenOrder: (orderId: string) => void;
   onOpenCollection?: (collectionId: string) => void;
   onViewRequestAllow?: (requestId: string) => void;
@@ -3004,10 +3390,15 @@ function TimelineItem({
   highlighted?: boolean;
   onJumpToReply?: () => void;
   onToggleSelect?: () => void;
+  onQuotePhoto?: (index: number) => void;
   actions?: MessageActions;
 }) {
   const navigate = useNavigate();
-  const hl = (text: string) => highlightSearchText(text, searchHighlight);
+  const mentions = mentionsFromMetadata(message.metadata);
+  const hl = (text: string) =>
+    searchHighlight
+      ? highlightSearchText(text, searchHighlight)
+      : highlightMentionText(text, mentions, message.mine ? 'mine' : 'theirs');
   const ref = message.reference;
   const facilitator = resolveForwardFacilitator({
     senderCompanyId: message.senderCompanyId,
@@ -3102,7 +3493,11 @@ function TimelineItem({
                 <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
               </div>
             ) : null}
-            <PhotoAlbum urls={photoUrls} interactive={!selecting} />
+            <PhotoAlbum
+              urls={photoUrls}
+              interactive={!selecting}
+              onQuote={onQuotePhoto}
+            />
             <p className="px-3 py-1.5 text-right text-xs text-muted">
               {timeAgo(message.createdAt)}
             </p>
@@ -3214,7 +3609,9 @@ function TimelineItem({
             <InCardActor message={message} label={senderLabel} />
           ) : null}
           {reply ? <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} /> : null}
-          <VoicePlayer src={message.body} durationMs={durationMs} />
+          <div className="min-w-0">
+            <VoicePlayer src={message.body} durationMs={durationMs} />
+          </div>
           <p className="text-right text-xs text-muted">{timeAgo(message.createdAt)}</p>
         </div>
       </MessageChrome>
@@ -3412,7 +3809,6 @@ function TimelineItem({
     };
     const orderId = payMeta.orderId;
     const paid = (ref?.status ?? payMeta.status) === 'paid';
-    const askId = ref?.id;
     const title = paymentCardTitle({
       paid,
       orderLabel: ref?.orderLabel,
@@ -3454,15 +3850,6 @@ function TimelineItem({
             ) : null}
             <p className="mt-1 text-xs font-medium text-accent">View order →</p>
           </button>
-          {!paid && askId && ref?.available && !selecting ? (
-            <Button
-              className="mt-2"
-              disabled={paymentActing}
-              onClick={() => onPaymentAction(askId, message.mine ? 'received' : 'paid')}
-            >
-              {message.mine ? 'Mark received' : 'Paid'}
-            </Button>
-          ) : null}
         </div>
       </MessageChrome>
     );

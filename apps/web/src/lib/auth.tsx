@@ -5,6 +5,7 @@ import { queryClient } from '@/app/queryClient';
 import {
   ApiError,
   api,
+  clearSessionTokens,
   getTokens,
   isDefinitiveAuthFailure,
   onTokenChange,
@@ -57,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (err instanceof ApiError && isDefinitiveAuthFailure(err.statusCode, err.code)) {
         if (getTokens()?.accessToken) {
-          setTokens(null);
+          clearSessionTokens();
         }
         setSession(null);
         setStatus('anonymous');
@@ -66,6 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Transient API/network failure — keep tokens; do not send user to OTP.
       setStatus((prev) => (prev === 'authenticated' ? 'authenticated' : 'degraded'));
     }
+  }, []);
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      // Back/forward cache can show the previous shop after Logout.
+      if (!event.persisted) return;
+      if (getTokens()?.accessToken) return;
+      loadSeq.current += 1;
+      setSession(null);
+      setStatus('anonymous');
+      queryClient.clear();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
   useEffect(() => {
@@ -104,19 +119,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const refreshToken = getTokens()?.refreshToken;
+    loadSeq.current += 1;
+    // Device first — a slow revoke must not leave the old shop on Refresh / next tap.
+    clearSessionTokens();
+    setSession(null);
+    setStatus('anonymous');
+    queryClient.clear();
     if (refreshToken) {
       try {
         await api.publicPost('/auth/logout', { refreshToken });
       } catch {
-        // Best-effort; clear locally regardless.
+        // Best-effort; local session is already gone.
       }
     }
-    loadSeq.current += 1;
-    setTokens(null);
-    setSession(null);
-    setStatus('anonymous');
-    queryClient.clear();
-    setStatus('anonymous');
   }, []);
 
   const refreshSession = useCallback(async () => {

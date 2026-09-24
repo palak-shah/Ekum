@@ -6,6 +6,7 @@ import {
   isNearFit,
   nextIndex,
 } from './photoViewerGesture';
+import { BackIcon } from './icons';
 
 const PINCH_MAX = 4;
 const DOUBLE_TAP_MS = 280;
@@ -27,6 +28,8 @@ export function PhotoViewer({
   onClose,
   /** Optional caption per photo (e.g. design name). */
   captions,
+  /** Optional second line (e.g. qty × rate · SKU on an order). */
+  details,
   /** Optional header action (e.g. View in chat from cross-chat Photos find). */
   headerAction,
 }: {
@@ -36,10 +39,12 @@ export function PhotoViewer({
   onIndex: (index: number) => void;
   onClose: () => void;
   captions?: Array<string | null | undefined>;
+  details?: Array<string | null | undefined>;
   headerAction?: { label: string; onClick: () => void; testId?: string };
 }) {
   const safeIndex = clamp(index, urls.length);
   const caption = captions?.[safeIndex]?.trim() || null;
+  const detail = details?.[safeIndex]?.trim() || null;
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
@@ -225,15 +230,55 @@ export function PhotoViewer({
             style={{ transform: `translate(${panX}px, ${panY}px) scale(${scale})` }}
           />
         ) : null}
-      </div>
-      {caption ? (
-        <div className="shrink-0 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 text-center">
-          <p
-            data-testid="photo-viewer-caption"
-            className="truncate text-sm font-semibold text-white"
+        {urls.length > 1 && isNearFit(scale) && safeIndex > 0 ? (
+          <button
+            type="button"
+            data-testid="photo-viewer-prev"
+            aria-label="Previous photo"
+            className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onIndex(nextIndex(safeIndex, urls.length, 'swipe-prev'));
+            }}
           >
-            {caption}
-          </p>
+            <BackIcon width={22} height={22} aria-hidden />
+          </button>
+        ) : null}
+        {urls.length > 1 && isNearFit(scale) && safeIndex < urls.length - 1 ? (
+          <button
+            type="button"
+            data-testid="photo-viewer-next"
+            aria-label="Next photo"
+            className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onIndex(nextIndex(safeIndex, urls.length, 'swipe-next'));
+            }}
+          >
+            <BackIcon width={22} height={22} className="rotate-180" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+      {caption || detail ? (
+        <div className="shrink-0 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 text-center">
+          {caption ? (
+            <p
+              data-testid="photo-viewer-caption"
+              className="truncate text-sm font-semibold text-white"
+            >
+              {caption}
+            </p>
+          ) : null}
+          {detail ? (
+            <p
+              data-testid="photo-viewer-detail"
+              className="mt-0.5 truncate text-xs text-white/75"
+            >
+              {detail}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="pb-[max(1.5rem,env(safe-area-inset-bottom))]" />

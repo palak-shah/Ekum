@@ -15,6 +15,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
@@ -63,6 +64,8 @@ export function ProductEditorPage() {
   const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
   const [uploading, setUploading] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
   const memory = readCatalogFieldMemory();
   const [form, setForm] = useState({
     name: '',
@@ -145,6 +148,7 @@ export function ProductEditorPage() {
           audienceGroupIds: existing.data.audienceGroupIds ?? [],
           rateVisibility: existing.data.rateVisibility,
           allowForward: existing.data.allowForward !== false,
+          allowDownload: existing.data.allowDownload === true,
         }),
       );
       savedSnapshotRef.current = JSON.stringify({
@@ -171,6 +175,7 @@ export function ProductEditorPage() {
       ...prev,
       rateVisibility: usual.rateVisibility,
       allowForward: usual.allowForward,
+      allowDownload: usual.allowDownload,
       policyHint: null,
     }));
   }, [marketOpen, settings.data, existing.data?.postedToMarketAt]);
@@ -292,6 +297,7 @@ export function ProductEditorPage() {
         audience: publishAudience.audience as PostProductToMarketDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PostProductToMarketDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
+        allowDownload: publishAudience.allowDownload,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
       };
@@ -463,16 +469,33 @@ export function ProductEditorPage() {
         </button>
       ) : (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {imageUrls.map((url) => (
+          {imageUrls.map((url, index) => (
             <div
               key={url}
               className="relative h-36 w-28 shrink-0 overflow-hidden rounded-2xl bg-foam"
             >
-              <img src={url} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
+                data-testid="design-photo-thumb"
+                aria-label={`View photo ${index + 1}`}
+                className="h-full w-full"
+                onClick={() => {
+                  setPhotoIndex(index);
+                  setPhotoOpen(true);
+                }}
+              >
+                <img src={url} alt="" className="h-full w-full object-cover" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove photo ${index + 1}`}
+                data-testid="design-photo-remove"
                 className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-ink/70 text-sm text-white"
-                onClick={() => setImageUrls((prev) => prev.filter((u) => u !== url))}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setImageUrls((prev) => prev.filter((u) => u !== url));
+                  setPhotoOpen(false);
+                }}
               >
                 ×
               </button>
@@ -770,6 +793,14 @@ export function ProductEditorPage() {
           );
           void queryClient.invalidateQueries({ queryKey: ['broadcast-lists'] });
         }}
+      />
+
+      <PhotoViewer
+        open={photoOpen && imageUrls.length > 0}
+        urls={imageUrls}
+        index={photoIndex}
+        onIndex={setPhotoIndex}
+        onClose={() => setPhotoOpen(false)}
       />
     </div>
   );

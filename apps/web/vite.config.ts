@@ -79,7 +79,9 @@ export default defineConfig(({ mode }) => {
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
+      // Register from `useRegisterSW` so we can show New version · Load.
+      injectRegister: false,
       // Keep the SW off during `vite dev` so chat/API responses are never served
       // from a stale Workbox cache while iterating on ThreadPage.
       devOptions: { enabled: false },

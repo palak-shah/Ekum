@@ -16,12 +16,18 @@ import {
   listThreadMessagesQuerySchema,
   listThreadsQuerySchema,
   sendMessageSchema,
+  inboxThreadActionSchema,
   setAlertLevelSchema,
   setThreadMembersSchema,
+  reactMessageSchema,
+  setPinnedMessageSchema,
   setThreadPinnedSchema,
+  setThreadTypingSchema,
   startDirectThreadSchema,
+  updateGroupProfileSchema,
   type AddParticipantsDto,
   type CreateGroupThreadDto,
+  type InboxThreadActionDto,
   type EditMessageDto,
   type ListCrossChatFindQuery,
   type ListThreadMessagesQuery,
@@ -29,8 +35,12 @@ import {
   type SendMessageDto,
   type SetAlertLevelDto,
   type SetThreadMembersDto,
+  type ReactMessageDto,
+  type SetPinnedMessageDto,
   type SetThreadPinnedDto,
+  type SetThreadTypingDto,
   type StartDirectThreadDto,
+  type UpdateGroupProfileDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
@@ -79,6 +89,17 @@ export class ConversationController {
   @HttpCode(200)
   markAllRead(@CurrentCompanyId() companyId: string) {
     return this.threads.markAllRead(companyId);
+  }
+
+  /** Our shop only — Archive / Clear / Delete / Unread / Unarchive. Before `:id`. */
+  @Post('inbox-actions')
+  @HttpCode(200)
+  inboxActions(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(inboxThreadActionSchema)) dto: InboxThreadActionDto,
+  ) {
+    return this.threads.applyInboxActions(companyId, user.role, dto, user.userId);
   }
 
   @Get('unread-count')
@@ -177,6 +198,48 @@ export class ConversationController {
     return this.threads.setAlertLevel(companyId, user.role, id, dto, user.userId);
   }
 
+  @Post(':id/typing')
+  @HttpCode(200)
+  setTyping(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setThreadTypingSchema)) dto: SetThreadTypingDto,
+  ) {
+    return this.threads.setTyping(companyId, user.role, id, dto, user.userId);
+  }
+
+  @Patch(':id/pinned-message')
+  setPinnedMessage(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setPinnedMessageSchema)) dto: SetPinnedMessageDto,
+  ) {
+    return this.threads.setPinnedMessage(companyId, user.role, id, dto, user.userId);
+  }
+
+  @Patch(':id/group-profile')
+  updateGroupProfile(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateGroupProfileSchema)) dto: UpdateGroupProfileDto,
+  ) {
+    return this.threads.updateGroupProfile(companyId, user.role, id, dto, user.userId);
+  }
+
+  @Post(':id/messages/:messageId/react')
+  @HttpCode(200)
+  react(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Body(new ZodValidationPipe(reactMessageSchema)) dto: ReactMessageDto,
+  ) {
+    return this.messages.react(user, id, messageId, dto);
+  }
+
   @Patch(':id/pin')
   setPin(
     @CurrentCompanyId() companyId: string,
@@ -256,4 +319,16 @@ export class ConversationController {
   ) {
     return this.threads.addParticipants(companyId, user.role, id, dto, user.userId);
   }
+
+  @Post(':id/invite-link')
+  @HttpCode(200)
+  inviteLink(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.threads.ensureInviteLink(companyId, user.role, id, user.userId);
+  }
 }
+
+

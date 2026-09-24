@@ -55,3 +55,7 @@ export const COMPACT_QTY_INPUT_CLASS = 'w-20 max-w-20 shrink-0 min-h-10 px-2 tex
  */
 export const COMPACT_SHEET_NUM_INPUT_CLASS =
   'min-h-10 w-full min-w-0 px-1.5 text-center text-sm tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+
+/** Rate pill — extra pad so 4–6 digit rupees are not clipped. */
+export const COMPACT_SHEET_RATE_INPUT_CLASS =
+  'min-h-10 w-full min-w-0 px-2.5 text-center text-sm tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';

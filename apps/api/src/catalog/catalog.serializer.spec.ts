@@ -12,6 +12,7 @@ const baseProduct = {
   description: null,
   moq: null as number | null,
   unit: 'mtr',
+  piecesPerPack: null as number | null,
   categories: ['Sarees'],
   images: [],
   status: 'draft',
@@ -20,6 +21,7 @@ const baseProduct = {
   audienceCompanyIds: [] as string[],
   audienceGroupIds: [] as string[],
   allowForward: true,
+  allowDownload: false,
   postedToMarketAt: null,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-02T00:00:00.000Z'),
@@ -69,6 +71,7 @@ describe('CatalogSerializer', () => {
       audienceCompanyIds: [],
       audienceGroupIds: [],
       allowForward: true,
+      allowDownload: false,
       orderPathPreference: null,
       startsAt: null,
       endsAt: null,
@@ -80,8 +83,10 @@ describe('CatalogSerializer', () => {
     expect(view.productCount).toBe(3);
     expect(view.companyId).toBe('company-1');
     expect(view.categories).toEqual([]);
+    expect(view.memberFind).toEqual([]);
     expect(view.memberShops).toEqual([]);
     expect(view.allowForward).toBe(true);
+    expect(view.allowDownload).toBe(false);
     expect(view.orderPathPreference).toBeNull();
     expect(view.audienceCompanyIds).toEqual([]);
     expect(view.audienceGroupIds).toEqual([]);
@@ -107,6 +112,7 @@ describe('CatalogSerializer', () => {
       audienceCompanyIds: [],
       audienceGroupIds: [],
       allowForward: false,
+      allowDownload: false,
       orderPathPreference: 'handle',
       startsAt: null,
       endsAt: null,
@@ -119,6 +125,7 @@ describe('CatalogSerializer', () => {
     expect(detail.categories).toEqual(['Bedsheet']);
     expect(detail.orderPathPreference).toBeNull();
     expect(detail.products[0]?.name).toBe('Banarasi Silk');
+    expect(detail.memberFind).toEqual(['Banarasi Silk', 'Sarees']);
   });
 
   it('maps member companyName on collection detail products', () => {
@@ -135,6 +142,7 @@ describe('CatalogSerializer', () => {
       audienceCompanyIds: [],
       audienceGroupIds: [],
       allowForward: true,
+      allowDownload: false,
       orderPathPreference: null,
       startsAt: null,
       endsAt: null,

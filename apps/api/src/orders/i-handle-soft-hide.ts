@@ -33,8 +33,11 @@ export function scrubUpstreamNames(
     if (!trimmed) continue;
     next = next.replace(new RegExp(escapeRegExp(trimmed), 'gi'), '').replace(/\s+/g, ' ').trim();
   }
-  // " confirmed" / "dispatched part" left after stripping the shop → prefer clean fallback
+  // "You sent to" / "You held" left after stripping the shop → quiet fallback (buyer soft-hide)
   if (!next || /^(confirmed|dispatched|part shipped)\b/i.test(next)) {
+    return fallback;
+  }
+  if (/^you (sent to|held|resumed)\s*$/i.test(next)) {
     return fallback;
   }
   if (textLeaksUpstreamName(next, upstreamNames)) return fallback;

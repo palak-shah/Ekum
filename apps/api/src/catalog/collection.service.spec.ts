@@ -308,6 +308,50 @@ describe('CollectionService.setProducts', () => {
   });
 });
 
+describe('CollectionService.checkCurateProducts', () => {
+  it('blocks foreign designs the shop cannot discover', async () => {
+    const prisma = {
+      product: {
+        findMany: async () => [
+          {
+            ...foreignPublishedProduct,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+        ],
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const result = await service.checkCurateProducts('company-1', ['foreign-1']);
+    expect(result.allowedProductIds).toEqual([]);
+    expect(result.blocked).toEqual([{ productId: 'foreign-1', code: 'NOT_DISCOVERABLE' }]);
+  });
+
+  it('allows own-shop designs', async () => {
+    const prisma = {
+      product: {
+        findMany: async () => [
+          {
+            ...foreignPublishedProduct,
+            id: 'own-1',
+            companyId: 'company-1',
+          },
+        ],
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const result = await service.checkCurateProducts('company-1', ['own-1']);
+    expect(result.allowedProductIds).toEqual(['own-1']);
+    expect(result.blocked).toEqual([]);
+  });
+});
+
 describe('CollectionService.setStatus hide', () => {
   it('returns a published collection to draft and clears explore activity', async () => {
     const collectionUpdate = vi.fn(async () => ({

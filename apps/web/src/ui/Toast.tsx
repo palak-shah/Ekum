@@ -11,6 +11,7 @@ import {
 import { Outlet, useNavigate } from 'react-router-dom';
 import { cx } from '@/ui/kit';
 import { DebugApiErrorPanel } from '@/ui/DebugApiErrorPanel';
+import { PwaUpdateHost } from '@/lib/pwaUpdate';
 
 type ToastTone = 'success' | 'danger';
 
@@ -43,6 +44,7 @@ type ToastState = {
 export function ToastRoot() {
   return (
     <ToastProvider>
+      <PwaUpdateHost />
       <Outlet />
     </ToastProvider>
   );

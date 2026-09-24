@@ -119,4 +119,23 @@ describe('buildOrderCardCopy', () => {
     const copy = buildOrderCardCopy(msg, msg.reference);
     expect(copy.lines).toContain('Part of Order #A1B2');
   });
+
+  it('splits quoted vs can’t supply from this send, not the whole order', () => {
+    const msg = orderCardMessage({
+      id: 'q1',
+      type: 'rate',
+      metadata: {
+        event: OrderChatEvent.QuoteSent,
+        declinedCount: 1,
+      },
+      reference: orderRef({
+        id: 'ord-1',
+        event: OrderChatEvent.QuoteSent,
+        itemCount: 8,
+        totalLabel: '₹7,000',
+      }),
+    });
+    const copy = buildOrderCardCopy(msg, msg.reference);
+    expect(copy.lines).toContain('7 quoted · 1 can’t supply');
+  });
 });

@@ -8,7 +8,8 @@ export function stashInviteReturn(path: string | null | undefined): void {
       path.startsWith('/r/') ||
       path.startsWith('/o/') ||
       path.startsWith('/s/') ||
-      path.startsWith('/t/')
+      path.startsWith('/t/') ||
+      path.startsWith('/g/')
     )
   )
     return;
@@ -34,7 +35,8 @@ export function peekInviteReturn(): string | null {
       (stored.startsWith('/r/') ||
         stored.startsWith('/o/') ||
         stored.startsWith('/s/') ||
-        stored.startsWith('/t/'))
+        stored.startsWith('/t/') ||
+        stored.startsWith('/g/'))
       ? stored
       : null;
   } catch {
@@ -54,7 +56,8 @@ export function resolveInviteReturn(options: {
     options.from?.startsWith('/r/') ||
     options.from?.startsWith('/o/') ||
     options.from?.startsWith('/s/') ||
-    options.from?.startsWith('/t/')
+    options.from?.startsWith('/t/') ||
+    options.from?.startsWith('/g/')
   ) {
     stashInviteReturn(options.from);
     return options.from;

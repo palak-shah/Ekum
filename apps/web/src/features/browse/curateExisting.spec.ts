@@ -3,6 +3,7 @@ import { CollectionStatus, type CollectionView } from '@ekum/domain-types';
 import {
   curateExistingTargets,
   filterCurateTargetsByQuery,
+  findOwnedPackByName,
   mergeCollectionProductIds,
 } from './curateExisting';
 
@@ -19,6 +20,9 @@ function pack(
     audienceCompanyIds: [],
     audienceGroupIds: [],
     allowForward: true,
+    allowDownload: false,
+    categories: [],
+    memberFind: [],
     orderPathPreference: null,
     productCount: 1,
     photoCount: 1,
@@ -48,6 +52,14 @@ describe('curateExistingTargets', () => {
       pack({ id: 'r', name: 'Beta', status: CollectionStatus.Ready }),
     ]);
     expect(list.map((c) => c.id)).toEqual(['d', 'r', 'p']);
+  });
+});
+
+describe('findOwnedPackByName', () => {
+  it('matches our pack only, ignoring case', () => {
+    const ours = pack({ id: 'd', name: 'Test 12 sep', status: CollectionStatus.Draft });
+    expect(findOwnedPackByName([ours], 'test 12 SEP')?.id).toBe('d');
+    expect(findOwnedPackByName([ours], 'Wedding Edit')).toBeNull();
   });
 });
 

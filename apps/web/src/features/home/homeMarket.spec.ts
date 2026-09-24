@@ -16,6 +16,8 @@ function collectionPost(id: string, companyId: string, postedAt: string): Explor
     collection: {
       id,
       name: `Trader pack ${id}`,
+      categories: [],
+      memberFind: [],
       coverImage: null,
       previewImages: [],
       imageCount: 0,

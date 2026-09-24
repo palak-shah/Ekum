@@ -15,7 +15,7 @@ Start with [Shared concepts](./00-concepts.md) before area docs.
 | Control | Role |
 |---------|------|
 | **Home · Chats · ＋ · Explore · Orders** | Bottom nav (`AppShell`) |
-| **＋ sheet** | Buying: Photo order. Selling: Add designs, New collection. **Invite to connect** (all companies). Find suppliers via **Explore**. Curate from **Your selection** (Trading on). (Broadcast compose hidden for now.) |
+| **＋ sheet** | Selling: Add designs, New collection. Photo order lives on **Orders ＋** and **chat ＋** (not nav ＋). Buy-only nav ＋ opens Orders. Invite lives on **Chats ⋯** and profile / Invites. Curate from **Your selection** (Trading on). |
 | **Bell** | Notifications only — not mirrored on Home |
 | **Avatar → You** | `/more` — catalog, **Saved**, **Network**, team, settings, profile, logout |
 

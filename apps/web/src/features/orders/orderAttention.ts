@@ -4,6 +4,7 @@ import {
   type ReturnView,
   type SampleView,
 } from '@ekum/domain-types';
+import { isIHandleSellingParent, traderIHandleNeedsYou } from '@/features/orders/iHandleDesk';
 
 const COMPLETED = new Set(['dispatched', 'settled', 'delivered', 'declined', 'cancelled']);
 const SAMPLE_PROGRESS = new Set(['requested', 'dispatched']);
@@ -18,6 +19,7 @@ export function buyerCanAcceptQuote(order: OrderView): boolean {
 
 /** Seller still needs to put rates on a requested order. */
 export function sellerNeedsRate(order: OrderView): boolean {
+  if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
     order.status === 'requested' &&
@@ -27,6 +29,7 @@ export function sellerNeedsRate(order: OrderView): boolean {
 
 /** Seller has rates on a request and can confirm the order. */
 export function sellerCanConfirm(order: OrderView): boolean {
+  if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
     order.status === 'requested' &&
@@ -36,6 +39,7 @@ export function sellerCanConfirm(order: OrderView): boolean {
 }
 
 export function sellerNeedsDispatch(order: OrderView): boolean {
+  if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
     (order.status === 'confirmed' || order.status === 'part_shipped') &&
@@ -60,6 +64,7 @@ export function buyerWaitingReturnReview(ret: ReturnView): boolean {
 
 /** Orders that need the signed-in company's action right now. */
 export function matchesNeeds(order: OrderView): boolean {
+  if (isIHandleSellingParent(order)) return traderIHandleNeedsYou(order);
   if (sellerNeedsRate(order) || sellerCanConfirm(order)) return true;
   if (buyerCanAcceptQuote(order)) return true;
   if (sellerNeedsDispatch(order) || order.canSettle) return true;

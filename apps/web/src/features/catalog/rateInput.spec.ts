@@ -50,6 +50,7 @@ describe('sameForAllSummary', () => {
     categories: [],
     rate: '',
     unit: '',
+    piecesPerPack: '',
     moq: '',
     notes: '',
   };
@@ -67,5 +68,12 @@ describe('sameForAllSummary', () => {
         moq: '100',
       }),
     ).toBe('1200-1400 · pc · MOQ 100');
+  });
+
+  it('counts tags so tags-only same-for-all is not empty', () => {
+    expect(sameForAllSummary({ ...empty, categories: ['Festive'] })).toBe('Festive');
+    expect(sameForAllSummary({ ...empty, categories: ['Festive', 'Saree'] })).toBe(
+      'Festive +1',
+    );
   });
 });

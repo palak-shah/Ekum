@@ -80,6 +80,19 @@ export function writeBrowseAlbumPick(entries: BrowseAlbumEntry[]): void {
   emit();
 }
 
+export function addBrowseAlbumPickMany(incoming: BrowseAlbumEntry[]): BrowseAlbumEntry[] {
+  const current = readBrowseAlbumPick();
+  const seen = new Set(current.map((row) => row.collectionId));
+  const next = [...current];
+  for (const entry of incoming) {
+    if (seen.has(entry.collectionId)) continue;
+    seen.add(entry.collectionId);
+    next.push(entry);
+  }
+  writeBrowseAlbumPick(next);
+  return next;
+}
+
 export function toggleBrowseAlbumEntry(entry: BrowseAlbumEntry): BrowseAlbumEntry[] {
   const current = readBrowseAlbumPick();
   const exists = current.some((row) => row.collectionId === entry.collectionId);

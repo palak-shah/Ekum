@@ -17,7 +17,7 @@ export function productStatusLine(
   }
   /** Pack publish marks designs Published without a solo Explore tile. */
   if (!product.postedToMarketAt) {
-    return 'Published · in packs';
+    return 'In packs';
   }
   const who = whoCanSeeLabel(
     {
@@ -28,14 +28,11 @@ export function productStatusLine(
     },
     groups,
   );
-  return who ? `Published · ${who}` : 'Published';
+  return who ? `On Explore · ${who}` : 'On Explore';
 }
 
-/** Glanceable tile: rate · SKU · photos, then status. */
-export function productTileSubtitle(
-  product: ProductView,
-  groups: BuyerGroupName[] = [],
-): string {
+/** Glanceable tile: rate · SKU · photos (status is a separate line). */
+export function productTileSubtitle(product: ProductView): string {
   const bits: string[] = [];
   const rate = formatRate(product.rate, product.unit, product.rateMax);
   if (rate !== 'On request') bits.push(rate);
@@ -43,7 +40,6 @@ export function productTileSubtitle(
   if (product.sku) bits.push(product.sku);
   const photos = product.images.length;
   bits.push(photos === 1 ? '1 photo' : `${photos} photos`);
-  bits.push(productStatusLine(product, groups));
   return bits.join(' · ');
 }
 

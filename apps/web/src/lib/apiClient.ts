@@ -6,6 +6,11 @@ import {
   refreshAuthTokens,
 } from './tokenRefresh';
 import { buildApiErrorLog, logApiError, shouldLogApiError } from './apiErrorLog';
+import {
+  authSessionGeneration,
+  invalidateAuthSessionGeneration,
+  isCurrentAuthSession,
+} from './authSessionGate';
 
 const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3000/api/v1';
@@ -67,6 +72,12 @@ if (typeof window !== 'undefined') {
 
 export function getTokens(): AuthTokens | null {
   return tokens;
+}
+
+/** Wipe tokens and invalidate in-flight refresh so Logout cannot come back. */
+export function clearSessionTokens(options?: { notify?: boolean }): void {
+  invalidateAuthSessionGeneration();
+  setTokens(null, options);
 }
 
 export function setTokens(
@@ -151,9 +162,13 @@ async function fetchRefreshSession(refreshToken: string): Promise<{
 export async function performTokenRefresh(): Promise<AuthSession | null> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
+      const startedAt = authSessionGeneration();
       const result = await refreshAuthTokens(tokens, fetchRefreshSession);
+      if (!isCurrentAuthSession(startedAt)) {
+        return null;
+      }
       if (result.cleared) {
-        setTokens(null);
+        clearSessionTokens();
         return null;
       }
       if (result.session) {

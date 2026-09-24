@@ -6,6 +6,7 @@ import type {
   ConnectionView,
   CreateOrderDto,
   OrderView,
+  PublicCompanyProfile,
 } from '@ekum/domain-types';
 import { OrderKind } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
@@ -23,8 +24,10 @@ import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
-import { QtyStepper, sameForAllChipLabel } from '@/features/orders/QtyStepper';
+import { QtyStepper, SameForAllEditor, sameForAllChipLabel } from '@/features/orders/QtyStepper';
+import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
+import { withPrefillSeller } from './orderBuilderPrefillSeller';
 import { navigateToOrderChat } from './navigateToOrderChat';
 
 interface PhotoLine {
@@ -101,6 +104,11 @@ export function OrderBuilderPage() {
   const connections = useQuery({
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
+  });
+  const prefillShop = useQuery({
+    queryKey: ['company', sellerFromUrl],
+    queryFn: () => api.get<PublicCompanyProfile>(`/companies/${sellerFromUrl}`),
+    enabled: Boolean(sellerFromUrl),
   });
 
   const collection = useQuery({
@@ -355,6 +363,7 @@ export function OrderBuilderPage() {
             note,
             photosCount: photos.length,
             sellerId,
+            sellerFromUrl,
           }) || cameraOpen,
     [
       isStandard,
@@ -374,7 +383,10 @@ export function OrderBuilderPage() {
     return <LoadingBlock label="Loading…" />;
   }
 
-  const sellers = (connections.data ?? []).filter((connection) => connection.status === 'active');
+  const sellers = withPrefillSeller(
+    (connections.data ?? []).filter((connection) => connection.status === 'active'),
+    sellerFromUrl ? prefillShop.data : undefined,
+  );
   const atPhotoLimit = photos.length >= MAX_PHOTO_LINES;
   const cameraSlots = Math.min(CAMERA_BATCH, Math.max(0, MAX_PHOTO_LINES - photos.length));
 
@@ -405,41 +417,23 @@ export function OrderBuilderPage() {
           ) : null}
           {standardLines.length > 1 ? (
             sameOpen ? (
-              <div
-                className="rounded-xl border border-line bg-foam/80 px-3 py-2.5"
-                data-testid="same-for-all-editor"
+              <SameForAllEditor
+                onApply={() => {
+                  applyQtyToAll(String(sameDraft));
+                  setSameOpen(false);
+                }}
+                onCancel={() => {
+                  setSameDraft(Number(bulkQty) || Number(DEFAULT_QTY));
+                  setSameOpen(false);
+                }}
               >
-                <p className="text-[13px] font-semibold text-ink">Same for all</p>
-                <div className="mt-2">
-                  <QtyStepper
-                    value={sameDraft}
-                    aria-label="Same pieces for all designs"
-                    onChange={setSameDraft}
-                  />
-                </div>
-                <div className="mt-2.5 flex items-center gap-4">
-                  <button
-                    type="button"
-                    className="text-[13px] font-bold text-accent"
-                    onClick={() => {
-                      applyQtyToAll(String(sameDraft));
-                      setSameOpen(false);
-                    }}
-                  >
-                    Apply
-                  </button>
-                  <button
-                    type="button"
-                    className="text-[13px] font-bold text-muted"
-                    onClick={() => {
-                      setSameDraft(Number(bulkQty) || Number(DEFAULT_QTY));
-                      setSameOpen(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+                <QtyStepper
+                  autoFocus
+                  value={sameDraft}
+                  aria-label="Same pieces for all designs"
+                  onChange={setSameDraft}
+                />
+              </SameForAllEditor>
             ) : (
               <button
                 type="button"
@@ -457,13 +451,9 @@ export function OrderBuilderPage() {
           <ul
             className="overflow-hidden rounded-xl border border-line bg-surface"
             data-testid="order-builder-lines"
+            {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
           >
             {standardLines.map((line, index) => {
-              const tags = line.categories
-                .map((t) => t.trim())
-                .filter(Boolean)
-                .slice(0, 4)
-                .join(' · ');
               const rate = formatRate(line.rate, line.unit, line.rateMax);
               return (
                 <li
@@ -488,9 +478,6 @@ export function OrderBuilderPage() {
                           <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
                             {line.name}
                           </p>
-                          {tags ? (
-                            <p className="mt-0.5 truncate text-[12px] text-muted">{tags}</p>
-                          ) : null}
                           {rate !== 'On request' ? (
                             <p className="mt-0.5 text-[12px] text-muted">{rate}</p>
                           ) : null}
@@ -513,6 +500,8 @@ export function OrderBuilderPage() {
                       <div className="mt-2">
                         <QtyStepper
                           value={Number(line.quantity) || 1}
+                          chainQty
+                          enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
                           aria-label={`Pieces for ${line.name}`}
                           onChange={(next) =>
                             setStandardLines((prev) =>
@@ -701,17 +690,15 @@ export function OrderBuilderPage() {
             onChange={(event) => void onFiles(event.target.files)}
           />
 
-          {!sellerFromUrl ? (
-            <ConnectionPicker
-              mode="single"
-              label="Supplier"
-              chooseLabel="Choose supplier"
-              connections={sellers}
-              value={sellerId || null}
-              onChange={(id) => setSellerId(id ?? '')}
-              emptyMessage="Connect with a business first, then place an order."
-            />
-          ) : null}
+          <ConnectionPicker
+            mode="single"
+            label="Supplier"
+            chooseLabel="Choose supplier"
+            connections={sellers}
+            value={sellerId || null}
+            onChange={(id) => setSellerId(id ?? '')}
+            emptyMessage="Connect with a business first, then place an order."
+          />
         </div>
       )}
 

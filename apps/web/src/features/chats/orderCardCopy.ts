@@ -227,6 +227,7 @@ export function buildOrderCardCopy(
     lines.push(`Part of ${parentLabel}`);
   }
   if (ref?.itemCount != null) {
+    // Quote cards: itemCount is this send (quoted + newly declined), not order total.
     const declined = asCount(meta?.declinedCount) ?? 0;
     if (isQuote && declined > 0) {
       const quoted = Math.max(0, ref.itemCount - declined);

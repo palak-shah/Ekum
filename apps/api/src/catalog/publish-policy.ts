@@ -5,16 +5,19 @@ import { asTradeDefaults, mergeTradeDefaults } from '../identity/trade-presence'
 export type PublishPolicy = {
   rateVisibility: string;
   allowForward: boolean;
+  allowDownload: boolean;
 };
 
 const PLATFORM: PublishPolicy = {
   rateVisibility: RateVisibility.OnRequest,
   allowForward: true,
+  allowDownload: false,
 };
 
 type PublishDefaultsBlob = {
   rateVisibility?: string;
   allowForward?: boolean;
+  allowDownload?: boolean;
 };
 
 function readCompanyDefaults(tradeDefaults: unknown): PublishPolicy {
@@ -31,6 +34,7 @@ function readCompanyDefaults(tradeDefaults: unknown): PublishPolicy {
         ? blob.rateVisibility
         : PLATFORM.rateVisibility,
     allowForward: blob.allowForward !== false,
+    allowDownload: blob.allowDownload === true,
   };
 }
 
@@ -81,6 +85,7 @@ export async function rememberPublishDefaults(
     publishDefaults: {
       rateVisibility: policy.rateVisibility,
       allowForward: policy.allowForward,
+      allowDownload: policy.allowDownload,
     },
   });
   await prisma.companySettings.upsert({

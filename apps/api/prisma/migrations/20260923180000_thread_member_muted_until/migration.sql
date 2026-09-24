@@ -1,0 +1,1 @@
+ALTER TABLE "ThreadMember" ADD COLUMN IF NOT EXISTS "mutedUntil" TIMESTAMP(3);

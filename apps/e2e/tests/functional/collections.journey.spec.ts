@@ -7,6 +7,14 @@ test.describe('collections journey @functional @collections', () => {
     await page.goto('/collections/seed-col-1');
 
     await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('collection-find')).toHaveCount(0);
+    await page.getByTestId('collection-find-toggle').click();
+    await page.getByTestId('collection-find').fill('Banarasi');
+    await expect(page.getByText('Banarasi Silk Saree').first()).toBeVisible();
+    await page.getByTestId('collection-find').fill('zzzz-no-match');
+    await expect(page.getByText('No designs match.')).toBeVisible();
+    await page.getByTestId('collection-find-toggle').click();
+    await expect(page.getByTestId('collection-find')).toHaveCount(0);
 
     // Enter select via long-press (⋯ no longer has a Select pill).
     const designTile = page.locator('button, a').filter({ has: page.locator('img') }).first();
@@ -15,7 +23,7 @@ test.describe('collections journey @functional @collections', () => {
     await expect(page.getByTestId('select-all-float')).toContainText(/\d+ selected/);
 
     // Order lives on Selection workspace, not the album chrome.
-    await page.getByTestId('selection-workspace-bar').click();
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
     await page.getByTestId('selection-order').click();
     await expect(page.getByRole('button', { name: 'Ask rates' })).toBeVisible();

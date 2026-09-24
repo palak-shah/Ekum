@@ -25,6 +25,7 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { omitCoveredDesignFeedRows } from './omit-covered-design-feed-rows';
 import {
   activeConnectionsForCompanyWhere,
   companyNotBlockedWith,
@@ -44,6 +45,7 @@ import {
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import {
+  interestHitLabel,
   matchesCompanyInterest,
   resolveInterestFromCompany,
   type ResolvedInterest,
@@ -51,6 +53,7 @@ import {
 import { audienceVisibilityOr, curatedSourceExcludeAnd } from '../catalog/audience-visibility';
 import { productAccessibleViaCollection } from '../catalog/product-viewer-access';
 import { compareByMarketRelevance } from './feed-rank';
+import { viewerPackTicket } from '../orders/viewer-pack-ticket';
 import {
   categoryHasSomeWhere,
   cityEqualsWhere,
@@ -176,7 +179,7 @@ export class ExploreService {
         select: { companyLowId: true, companyHighId: true },
       }),
       this.prisma.follow.findMany({
-        where: { followerCompanyId: viewerCompanyId },
+        where: { followerCompanyId: viewerCompanyId, status: 'allowed' },
         select: { followedCompanyId: true },
       }),
       this.prisma.broadcast.findMany({
@@ -197,10 +200,16 @@ export class ExploreService {
       ...networkPage.results,
       ...forYouPage.results.filter((collection) => !networkIds.has(collection.id)),
     ];
-    const opportunityDesigns = [
+    const opportunityDesignsUnfiltered = [
       ...networkDesigns.results,
       ...forYouDesignsRaw.results.filter((product) => !networkDesignIds.has(product.id)),
     ];
+    const coveredByHomePacks = await this.memberProductIdsForCollections(
+      opportunityCollections.map((row) => row.id),
+    );
+    const opportunityDesigns = opportunityDesignsUnfiltered.filter(
+      (product) => !coveredByHomePacks.has(product.id),
+    );
     const publisherIds = [
       ...new Set([
         ...opportunityCollections.map((row) => row.company.id),
@@ -231,17 +240,19 @@ export class ExploreService {
         ),
       );
 
-    const designsFromNetwork = networkDesigns.results.map((product) =>
-      this.toDesignOpportunity(
-        product,
-        interest,
-        connectedIds,
-        followedIds,
-        tradeById.get(product.company.id),
-      ),
-    );
+    const designsFromNetwork = networkDesigns.results
+      .filter((product) => !coveredByHomePacks.has(product.id))
+      .map((product) =>
+        this.toDesignOpportunity(
+          product,
+          interest,
+          connectedIds,
+          followedIds,
+          tradeById.get(product.company.id),
+        ),
+      );
     const designsForYou = forYouDesignsRaw.results
-      .filter((product) => !networkDesignIds.has(product.id))
+      .filter((product) => !networkDesignIds.has(product.id) && !coveredByHomePacks.has(product.id))
       .map((product) =>
         this.toDesignOpportunity(
           product,
@@ -431,7 +442,7 @@ export class ExploreService {
     }
 
     const followed = await this.prisma.follow.findMany({
-      where: { followerCompanyId: viewerCompanyId },
+      where: { followerCompanyId: viewerCompanyId, status: 'allowed' },
       select: { followedCompanyId: true },
     });
     const followedIds = followed.map((row) => row.followedCompanyId);
@@ -501,10 +512,12 @@ export class ExploreService {
           orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
         }),
       ]);
-      const merged = [
-        ...collections.map((row) => this.toCollectionFeedRow(row)),
-        ...products.map((row) => this.toProductFeedRow(row)),
-      ].sort(byPostedAtDesc);
+      const merged = await this.hideDesignsCoveredByPacks(
+        [
+          ...collections.map((row) => this.toCollectionFeedRow(row)),
+          ...products.map((row) => this.toProductFeedRow(row)),
+        ].sort(byPostedAtDesc),
+      );
       const page = pageMerged(merged, query, (row) => row.feedId);
       return toCursorPage(
         page,
@@ -515,7 +528,7 @@ export class ExploreService {
     }
 
     const followed = await this.prisma.follow.findMany({
-      where: { followerCompanyId: viewerCompanyId },
+      where: { followerCompanyId: viewerCompanyId, status: 'allowed' },
       select: { followedCompanyId: true },
     });
     const followedIds = followed.map((row) => row.followedCompanyId);
@@ -576,7 +589,7 @@ export class ExploreService {
           ...[...otherRows].sort((a, b) => compareByMarketRelevance(a, b, interest, city)),
         ];
 
-    const page = pageMerged(merged, query, (row) => row.feedId);
+    const page = pageMerged(await this.hideDesignsCoveredByPacks(merged), query, (row) => row.feedId);
     return toCursorPage(
       page,
       query.limit,
@@ -610,7 +623,7 @@ export class ExploreService {
     }
 
     const followed = await this.prisma.follow.findMany({
-      where: { followerCompanyId: viewerCompanyId },
+      where: { followerCompanyId: viewerCompanyId, status: 'allowed' },
       select: { followedCompanyId: true },
     });
     const followedIds = followed.map((row) => row.followedCompanyId);
@@ -788,7 +801,7 @@ export class ExploreService {
 
     const [followed, connectedRows, rankCtx] = await Promise.all([
       this.prisma.follow.findMany({
-        where: { followerCompanyId: viewerCompanyId },
+        where: { followerCompanyId: viewerCompanyId, status: 'allowed' },
         select: { followedCompanyId: true },
       }),
       this.prisma.connection.findMany({
@@ -907,7 +920,8 @@ export class ExploreService {
             followedCompanyId: collection.companyId,
           },
         },
-      })) != null;
+        select: { status: true },
+      }))?.status === 'allowed';
     const audienceCtx = { connected, following };
     // Forward free: a chat share unlocks the album shell. Designs stay gated —
     // if audience is not enough, products is null and the UI shows Ask (owner).
@@ -995,6 +1009,33 @@ export class ExploreService {
       });
     }
 
+    const millCompanyIds = [
+      ...new Set(
+        collection.products
+          .map((entry) => entry.product.companyId)
+          .filter((sourceId) => sourceId !== collection.companyId),
+      ),
+    ];
+    let viewerTicket: 'me' | 'mill' | null = null;
+    if (!isOwner && millCompanyIds.length > 0) {
+      const lanes = await this.prisma.tradeLane.findMany({
+        where: {
+          traderCompanyId: collection.companyId,
+          buyerCompanyId: viewerCompanyId,
+          sellerCompanyId: { in: millCompanyIds },
+        },
+        select: { sellerCompanyId: true, ticket: true },
+      });
+      viewerTicket = viewerPackTicket({
+        isOwner,
+        millCompanyIds,
+        lanes: lanes.map((lane) => ({
+          sellerCompanyId: lane.sellerCompanyId,
+          ticket: lane.ticket === 'mill' ? 'mill' : 'me',
+        })),
+      });
+    }
+
     const card = this.discovery.toCollectionCard(collection);
     // Locked pack: name + shop for Ask — no cover/design thumbs (or chat open is pointless).
     if (!showProducts) {
@@ -1005,12 +1046,14 @@ export class ExploreService {
         imageCount: 0,
         connected,
         products: null,
+        viewerTicket: null,
       };
     }
     return {
       ...card,
       connected,
       products,
+      viewerTicket,
     };
   }
 
@@ -1059,7 +1102,8 @@ export class ExploreService {
             followedCompanyId: product.companyId,
           },
         },
-      })) != null;
+        select: { status: true },
+      }))?.status === 'allowed';
     const audienceCtx = { connected, following };
     const onMarket =
       Boolean(product.postedToMarketAt) &&
@@ -1341,7 +1385,7 @@ export class ExploreService {
           interest.tags.find((tag) => trade.sellCategories.includes(tag)) ??
           interest.supers.find((superId) => trade.superCategories.includes(superId));
         if (hit) {
-          parts.push(`Matches ${hit}`);
+          parts.push(`Matches ${interestHitLabel(hit)}`);
         }
       }
     }
@@ -1380,7 +1424,7 @@ export class ExploreService {
           interest.tags.find((tag) => trade.sellCategories.includes(tag)) ??
           interest.supers.find((superId) => trade.superCategories.includes(superId));
         if (hit) {
-          parts.push(`Matches ${hit}`);
+          parts.push(`Matches ${interestHitLabel(hit)}`);
         }
       }
     }
@@ -1413,15 +1457,15 @@ export class ExploreService {
       const match = viewerBuy.find((tag) => company.sellCategories.includes(tag));
       const sell = match ?? company.sellCategories.filter(Boolean)[0];
       // Plain: “Sells Sarees” — section title already frames why they’re suggested.
-      if (sell) parts.push(`Sells ${sell}`);
+      if (sell) parts.push(`Sells ${interestHitLabel(sell)}`);
     } else {
       const match = viewerSell.find((tag) => company.buyCategories.includes(tag));
       if (match) {
-        parts.push(`May want your ${match}`);
+        parts.push(`May want your ${interestHitLabel(match)}`);
       } else {
         const buy = company.buyCategories.filter(Boolean)[0];
         // Avoid “May want… · Buys…” double phrasing — one clear clause.
-        parts.push(buy ? `Buys ${buy}` : 'May want what you sell');
+        parts.push(buy ? `Buys ${interestHitLabel(buy)}` : 'May want what you sell');
       }
     }
 
@@ -1432,6 +1476,25 @@ export class ExploreService {
       parts.push(company.city);
     }
     return parts.length > 0 ? parts.slice(0, 2).join(' · ') : null;
+  }
+
+  private async memberProductIdsForCollections(collectionIds: string[]): Promise<Set<string>> {
+    if (collectionIds.length === 0) return new Set();
+    const members = await this.prisma.collectionProduct.findMany({
+      where: { collectionId: { in: collectionIds } },
+      select: { productId: true },
+    });
+    return new Set(members.map((row) => row.productId));
+  }
+
+  /** Pack already shows the design — keep the album, drop the solo tile. */
+  private async hideDesignsCoveredByPacks(rows: FeedRow[]): Promise<FeedRow[]> {
+    const collectionIds = [
+      ...new Set(
+        rows.flatMap((row) => (row.kind === 'collection' && row.collection ? [row.collection.id] : [])),
+      ),
+    ];
+    return omitCoveredDesignFeedRows(rows, await this.memberProductIdsForCollections(collectionIds));
   }
 
   private toCollectionFeedRow(row: CollectionCardRow): FeedRow {

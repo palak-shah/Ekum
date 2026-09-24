@@ -15,6 +15,6 @@ describe('ExploreFeedFollowAction', () => {
 
   it('shows Following… when pending', () => {
     render(<ExploreFeedFollowAction onFollow={() => {}} pending />);
-    expect(screen.getByTestId('explore-feed-follow')).toHaveTextContent('Following…');
+    expect(screen.getByTestId('explore-feed-follow')).toHaveTextContent('Asking…');
   });
 });

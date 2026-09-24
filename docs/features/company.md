@@ -6,26 +6,27 @@ Public shop card for a business (logo, city, about, verification, categories, pu
 
 ## Who uses it
 
-Anyone browsing a business; owners edit via **You → profile / settings**. Members manage people via **You → Team**.
+Anyone browsing a business; owners edit via **You → Edit** or own-shop **Edit**. Members manage people via **Settings → Team**.
 
 ## User flows
 
 ### Public profile (`/company/:id`)
 
-1. Open from Explore, search, chat, or Home.
-2. View about, city, GST verification badge, buy/sell categories.
-3. Browse published collections and designs (2-col grid). Designs: **Select** / long-press → Order / Curate on the sticky bar. Sticky **Select all** / **Clear** for shop designs; **Selecting** with picks → clears shortlist; with none → exits. Collections open the album to pick designs.
-4. When **Connected**: see contact name (and phone only if they opted in) via `/companies/:id/contact`; Message / order as available.
-5. Actions: Follow, Request access, Chat (as available).
+1. Open from Explore, search, chat, or Home. A 1:1 title passes `{ fromChat: true }`.
+2. One hero: logo, city, GST if verified, one-line about, categories. Header keeps the business name (no second title block).
+3. One action row (no wrap, one line each): **Follow** · **Message** · **Share** · **Request** (Follow / **Pending** / Following · Message / **Chat** when a request thread exists · Share · Request / **Asked** after they sent access). Quiet why-line: **Follow = ask to see their new designs. Request access = rates and orders.** Sell-only shops still show Follow. From a 1:1, hide Message / Chat. Own shop: **Edit** · **Share** (no Follow / Request / why-line). Connected: quiet contact name (phone only if opted in). **Curate** on the shop dock needs Trading **and** a put-in-pack grant (or an active Connection with `allowForward`).
+4. **Share** opens a sheet: pick connections and **Find on Ekum**, then post a text chat with the shop name + `/company/:id`. Quiet **Share outside** uses the OS share sheet (WhatsApp etc.); copy is last resort. Outsiders hit login, then the shop.
+5. Shop: **Designs · Collections**. Quiet **Feed / Grid** in the header when the active tab has items (same last-wins choice as Saved, album, My designs; **Ekum default Feed**). **Find** is a header icon (not a permanent field). Tap to **Find designs / Find collections**; close clears. Filters **this tab** in place (design name; packs: name, tags, member name / SKU / notes / tags). Keep the grid until they type — not Explore search. Grid is **2-col**. **Designs** = this seller’s published designs, **once each** — solo Explore posts **and** members of live packs the viewer can see. The same design in many collections is one cell (not N copies). Pack-only designs (no Explore tile) still show here. Design cell = first photo + **name**. No photo → initial on linen. Collection cell = Explore mosaic (`AlbumGrid` of each design’s first photo) + **name** + design count. No pack cover. Tap the photo / mosaic → open, or **toggle select** when Selecting. The **name** always opens the design page or album (even while Selecting). Find is the first page of shop cards until we paginate.
+6. **Select** / long-press on **Designs** and **Collections** adds to the traveling pile (designs → shortlist, collections → album pick). When **this shop** has at least one selected design **or** collection (picked here or on Explore — same `companyId`), hide the tab bar and the floater on this page, and show a dock: **Curate** (Trading on) · **Ask for rates** · **Order**. The dock acts on **this seller’s** lines only. Collections on the dock resolve first (**All designs** / **Choose**, same as Your selection). Other shops stay in the pile. **Clear** unselects every design and collection **on this shop** (this grid, plus any other pick stored as this seller). Select all is the active tab. Own shop: no trade dock. Mixed-seller Order / Bookmark / Share stay on **Your selection**.
 
 ### Own profile (`/settings/profile`)
 
-1. From You / Settings → edit name, city, about, logo, GST, categories, super-categories.
+1. From You **Edit** or own shop **Edit** → `/settings/profile`: name, city, about, logo, GST, categories, super-categories.
 2. Save → reflected on public profile and session company card.
 
 ### Team (`/team`)
 
-1. **You → Team** — every member sees the list (name + Owner / Staff).
+1. **Settings → Team** — every member sees the list (name + Owner / Staff).
 2. With **Team** cap: **Invite** (name + 10-digit) → share `/t/:token`. Edit caps on a row. Remove staff.
 3. Recipient OTP on that phone → Join. Becomes staff if they have **no live** business. After **Remove** (archive) at a prior shop, the same phone may join another shop or create a company. Still live elsewhere → blocked until that shop removes them. Last owner cannot be removed.
 4. **Remove** archives the person (they cannot open chats). Work and their name on your side stay. Internal: “Priya left the team.” Dedup of group chats still counts them. Not a hard delete. Re-invite to **this** shop unarchives the same seat.
@@ -58,3 +59,5 @@ Anyone browsing a business; owners edit via **You → profile / settings**. Memb
 - Web: `apps/web/src/features/company/CompanyProfilePage.tsx`, `apps/web/src/features/settings/ProfilePage.tsx`
 - API: `apps/api/src/identity/company.service.ts`, serializer / contact in `apps/api/src/access/`
 - Contracts: `packages/domain-types/src/company.ts`
+- Completeness shop chrome: `docs/superpowers/reviews/completeness/2026-09-23-company-profile-shop-chrome-completeness.md`
+- Completeness shop dock + Share: `docs/superpowers/reviews/completeness/2026-09-23-company-shop-trade-share-completeness.md`

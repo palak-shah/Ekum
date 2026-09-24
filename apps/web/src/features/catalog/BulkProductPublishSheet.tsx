@@ -82,6 +82,7 @@ export function BulkProductPublishSheet({ open, onClose, productIds, onDone }: P
         audience: publishAudience.audience as PostProductToMarketDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PostProductToMarketDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
+        allowDownload: publishAudience.allowDownload,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
       };

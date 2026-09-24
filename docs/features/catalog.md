@@ -6,15 +6,15 @@ The **design library** is first-class: create, edit, publish (live on Explore fo
 
 ## Who uses it
 
-Sellers (selling enabled). First publish requires consent; then `canPublish` stays on. Entry via **You → My designs & collections** (`/catalog`), Home **My designs** (when selling), or **＋ → Add designs** / **New collection**.
+Sellers (selling enabled). First publish requires consent; then `canPublish` stays on. Entry via **You** (library on the page), Home **My designs** (when selling; `/catalog` opens You), or **＋ → Add designs** / **New collection**.
 
 ## User flows
 
 ### Browse library
 
-1. Open `/catalog` → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
-2. Filters: **Draft / Published / Archived** (no All). Default **Draft**. Tiles show rate · SKU · photo count · status. Pack-only designs (published with the pack, not alone on Explore) show **Published · in packs**.
-3. **PageHeader** with **Back** (like Saved — not a bottom-nav hub). Content chrome: **Designs / Collections** mode pills + quiet **Feed / Grid** in the header (when the tab has items; last choice remembered with album + Saved; **Ekum default Feed**) + **Add** on the tab row. Status **Draft / Published / Archived** on a `FilterRail` of kit `Chip`s — not a second pill row. **Long-press** a tile → floating **Select all** + **Clear** (this filter) → dock: **Publish** (drafts) / **Hide · draft** (published) / **Archive** / **Restore** (archived), plus quiet **To selection**. **To selection** sends **published** picks into traveling Selection and opens **Your selection** (`/selection`) for **Order** (for buyer) · **Curate** · **Bookmark** · **Share**. Drafts and archived cannot go to Selection (toast). Selecting on My designs does **not** auto-fill Selection. Create/edit screens keep **PageHeader** at the top.
+1. Open **You** (or `/catalog`, which lands on You) → **Designs** tab (`?tab=products` default; Collections via `?tab=collections`).
+2. Filters: **Published / Draft / Archived / Saved** on You (no All). Saved is bookmarks, not own archive. Default **Published** (last own-library filter remembered on this device — Saved is not stored). **Find** is a chip-row icon (not a permanent field). Tap to **Find designs / Find collections**; close clears. Filters **this tab** in place (design: name, SKU, notes, tags, pack names; packs: name, description, tags, member shop names, and member name / SKU / notes / tags). Keep the list until they type — not Explore search. Same find text stays when switching Designs ↔ Collections or Saved. Pack photos are real designs: draft pack → **Draft**; after pack publish → **In packs** (own line on the tile). Solo publish → **On Explore · who**. A design in several collections is **one** library row. Designs tab uses the same Draft/Published chip as Collections when you switch tabs. Empty Draft while pack designs are live points at **Show published**. No match: **No designs match** / **No collections match**, not the empty-library line.
+3. On You: **Designs / Collections** mode pills + **Add** (or **Cancel**) as the only trailing action on that row. Quiet **Feed / Grid** is pinned after the status chip rail (when the list has items; last choice remembered with album + Saved; **Ekum default Feed**) — not beside Add. Design photos stay mid-size (**Feed** `h-64`, **Grid** `h-32`) — not full-bleed 3/4 portrait. Status **Published / Draft / Archived / Saved** on a `FilterRail` of kit `Chip`s. **Long-press** a tile → floating **Select all** + **Clear** (this filter) → dock by filter: **Published** = **Order for buyer** (primary) · **Curate** (selling or trading) · **Hide · draft** · **Archive**; **Draft** = **Publish** · **Archive**; **Archived** = **Restore**. Order / Curate send **published** picks into traveling Selection and open the matching sheet (`/selection` with `openOrder` / `openCurate`). Drafts and archived have no trade verbs. Share / Bookmark stay on **Your selection** (mixed piles). Selecting on My designs does **not** auto-fill Selection. Create/edit screens keep **PageHeader** at the top.
 4. Open a design → editor. Back returns to Designs tab. After **Publish** or **Save in Draft** from Add designs batch, app opens **My designs** (Designs tab with **Published** or **Draft** filter) without the leave-without-saving prompt. Add designs photo grid shows a top-right camera button to add more (same as photo order).
 
 ### Batch add designs
@@ -23,7 +23,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 
 ### Edit & publish a design
 
-1. Open design → photos first; **Name**, rate, unit, MOQ; **More details** for SKU / **tags** / notes.
+1. Open design → photos first; **tap a photo** opens PhotoViewer (swipe between shots); **×** removes that photo. **Name**, rate, unit, MOQ; **More details** for SKU / **tags** / notes.
 2. Status line under title (tap → Visibility when published). Sticky dock: **Update** · **Publish** / **Visibility**.
 3. Publish sheet: Who (**Followers** / **Selected** — no Everyone) / rates / forward. First time: consent. Publish = Explore for that audience.
 4. **⋯**: Hide → draft, Archive. Restore from archived.
@@ -33,9 +33,11 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 | Rule | Detail |
 |------|--------|
 | Lifecycle | `draft` → `published` → `archived` |
-| Publish = Explore | Solo **Publish design** sets audience + `postedToMarketAt` (Explore tile). **Publish collection** puts the pack on Explore and marks member designs **Published** in My designs **without** separate Explore design tiles (`postedToMarketAt` stays null — **Published · in packs**). |
+| Publish = Explore | Solo **Publish design** sets audience + `postedToMarketAt` (Explore tile — tile line **On Explore · who**). **Publish collection** puts the pack on Explore and marks member designs **Published** in My designs **without** separate Explore design tiles (`postedToMarketAt` stays null — tile line **In packs**). |
 | First publish | `consentToSell` grants `canPublish` |
 | Rates | Nullable / on request by default; optional `rateMax` for display ranges (`1200–1400`); units from domain `Unit` enum; orders snapshot `rate` only |
+| Pack size | How they sell lives on **each design** (`unit` + `piecesPerPack`: set of 6 vs 10, dozen, box). Shop usual only for *new* photos (Settings + Same for all / Set units). Not one company-wide overwrite of library. Order qty stays pieces. How many each / orders show sold-as + pcs/set when set. |
+| Download | `allowDownload` on design (and pack); buyers cannot export when false. |
 | SKU | Optional on API; batch add assigns a session-unique `EK-` code and sends it so Edit design **Reference / SKU** matches. Server still assigns if omitted elsewhere |
 | Selling presence | Creating products calls `ensureSellingEnabled` |
 | Unpublish | Clears Explore post when design leaves published |
@@ -52,7 +54,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 ## Seed walkthrough
 
 1. As Ravi: **＋ → Add designs** → save drafts → open one → **Publish** → Connections.
-2. Confirm My Catalog tile shows `Published · My followers` (or the audience chosen) and Explore shows the design for an allowed viewer.
+2. Confirm My Catalog tile shows `Published · My followers` (or the audience chosen) and Explore shows the design for an **allowed** follower (pending asks do not see it).
 3. Hide → draft; tile shows Draft (not “not on Explore”).
 
 ## Where it lives

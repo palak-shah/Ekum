@@ -6,6 +6,7 @@ import {
   ShipProgressHint,
   fulfillmentNeedsAttention,
   fulfillmentRowClass,
+  orderLineShowsPending,
 } from './shipProgressLabel';
 
 describe('ShipProgressHint', () => {
@@ -21,6 +22,12 @@ describe('ShipProgressHint', () => {
     render(<ShipProgressHint shipped={100} pending={0} />);
     expect(screen.queryByTestId('ship-progress-pending')).toBeNull();
     expect(screen.getByTestId('ship-progress-hint').textContent).toMatch(/shipped/);
+  });
+
+  it('accents pending when nothing has shipped yet', () => {
+    render(<ShipProgressHint shipped={0} pending={10} />);
+    expect(screen.getByTestId('ship-progress-pending').textContent).toMatch(/pending 10/);
+    expect(screen.getByTestId('ship-progress-pending').className).toMatch(/text-accent/);
   });
 });
 
@@ -40,6 +47,9 @@ describe('fulfillment row highlight', () => {
     expect(fulfillmentNeedsAttention(0)).toBe(false);
     expect(fulfillmentRowClass(50)).toMatch(/bg-accent\/5/);
     expect(fulfillmentRowClass(0)).not.toMatch(/bg-accent\/5/);
+    expect(orderLineShowsPending({ remainingQuantity: 10, lineStatus: 'confirmed' })).toBe(true);
+    expect(orderLineShowsPending({ remainingQuantity: 10, lineStatus: 'open' })).toBe(false);
+    expect(orderLineShowsPending({ remainingQuantity: 0, lineStatus: 'confirmed' })).toBe(false);
   });
 
   it('shows settle summary only when pieces pending', () => {

@@ -28,6 +28,7 @@ function threadStub(membership = activeMembership) {
     membershipOrThrow: async () => membership,
     nudgeArchivedRecipients: async () => [],
     notifyUserIdsForMessage: async () => ({ companyIds: [], userIds: [] }),
+    revealActiveInboxes: async () => undefined,
   } as unknown as ThreadService;
 }
 
@@ -423,6 +424,7 @@ describe('MessageService.list filters', () => {
         },
       },
       messageStar: { findMany: async () => [] },
+      messageReaction: { findMany: async () => [] },
       $queryRaw: async () => [] as { id: string }[],
       product: { findMany: async () => [] },
       collection: { findMany: async () => [] },
@@ -596,6 +598,20 @@ describe('MessageService.listFind', () => {
     const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
     return new MessageService(prisma, threads, serializer, references, events, visibilityStub());
   }
+
+  it('scopes links kind to text with http or www', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = findService(captured);
+    await service.listFind(actor('me'), { kind: 'links', limit: 40 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        {
+          type: MessageType.Text,
+          OR: expect.any(Array),
+        },
+      ]),
+    });
+  });
 
   it('scopes photos kind to photo only across memberships', async () => {
     const captured: { where: unknown } = { where: null };
@@ -837,5 +853,73 @@ describe('MessageService edit / hide / delete / star', () => {
         referenceId: 'ord-other',
       } as SendMessageDto),
     ).rejects.toThrow();
+  });
+
+  it('pings mentioned teammates and other-shop members even when they are muted', async () => {
+    const created = {
+      id: 'm-mention',
+      threadId: 't',
+      senderCompanyId: 'me',
+      type: MessageType.Text,
+      body: 'see @Ravi @Surat Silk House',
+      metadata: {
+        mentions: [
+          { kind: 'user', id: 'u-ravi', name: 'Ravi' },
+          { kind: 'company', id: 'them', name: 'Surat Silk House' },
+        ],
+      },
+      createdAt: new Date(),
+    };
+    const sent: Array<{ recipientUserIds?: string[] }> = [];
+    const mentionEvents = {
+      messageSent: (payload: { recipientUserIds?: string[] }) => {
+        sent.push(payload);
+      },
+    } as unknown as DomainEvents;
+    const prisma = {
+      user: { findUnique: async () => ({ name: 'Meena' }) },
+      threadMember: {
+        findMany: async () => [
+          { userId: 'u-ravi', companyId: 'me' },
+          { userId: 'u-amit', companyId: 'them' },
+        ],
+      },
+      threadParticipant: {
+        findMany: async () => [{ companyId: 'me' }, { companyId: 'them' }],
+      },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          message: { create: async (args: { data: { metadata?: unknown } }) => ({
+            ...created,
+            metadata: args.data.metadata ?? created.metadata,
+          }) },
+          thread: { update: async () => ({}) },
+          threadParticipant: { update: async () => ({}) },
+        }),
+    } as unknown as PrismaService;
+    const threads = {
+      ...threadStub(),
+      notifyUserIdsForMessage: async () => ({ companyIds: ['them'], userIds: [] }),
+    } as unknown as ThreadService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = {
+      resolve: async () => new Map(),
+    } as unknown as ReferenceResolver;
+    const service = new MessageService(
+      prisma,
+      threads,
+      serializer,
+      references,
+      mentionEvents,
+      visibilityStub(),
+    );
+    await service.send(actor('me'), 't', {
+      type: MessageType.Text,
+      body: 'see @Ravi @Surat Silk House',
+      metadata: created.metadata,
+    } as SendMessageDto);
+    expect(sent[0]?.recipientUserIds).toEqual(expect.arrayContaining(['u-ravi', 'u-amit']));
   });
 });

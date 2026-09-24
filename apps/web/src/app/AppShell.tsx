@@ -1,17 +1,23 @@
-import { Suspense, useState, useTransition, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import type { ReferralView } from '@ekum/domain-types';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError } from '@/lib/apiClient';
 import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
-import { shareOpenConnectInvite } from '@/features/referrals/shareOpenConnectInvite';
-import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Sheet, cx } from '@/ui/kit';
 import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
 import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
+import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import {
+  companyIdFromPath,
+  shouldHideAppNav,
+  shopSelectedCount,
+} from '@/features/company/shopTradeDock';
+import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
+import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
+import { YouHeaderMore } from '@/features/settings/YouHeaderMore';
 import {
   BellIcon,
   ChatIcon,
@@ -36,8 +42,9 @@ function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/explore') || pathname.startsWith('/search')) return 'Explore';
   if (pathname.startsWith('/notifications')) return 'Notifications';
   if (pathname.startsWith('/team')) return 'Team';
-  if (pathname.startsWith('/more') || pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
-    // PageHeader owns “You” / nested titles — no conflicting shell “More”.
+  if (pathname === '/more') return 'You';
+  if (pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
+    // Nested settings use PageHeader — hide shell title to avoid a second band.
     return null;
   }
   if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
@@ -63,6 +70,7 @@ function pageOwnsTopChrome(pathname: string): boolean {
   if (pathname.startsWith('/referrals')) return true;
   if (pathname.startsWith('/saved')) return true;
   if (pathname.startsWith('/selection')) return true;
+  if (pathname.startsWith('/settings')) return true;
   if (pathname === '/orders/new' || pathname.startsWith('/orders/new/')) return true;
   if (/^\/orders\/[^/]+/.test(pathname)) return true;
   if (/^\/collections\//.test(pathname)) return true;
@@ -78,11 +86,11 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [inviteSharing, setInviteSharing] = useState(false);
   const [, startTransition] = useTransition();
   const { session } = useAuth();
   const company = useMyCompany();
-  const { showToast } = useToast();
+  const shortlist = useBrowseShortlist();
+  const albumPick = useBrowseAlbumPick();
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
@@ -91,33 +99,24 @@ export function AppShell() {
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
   const ownsTopChrome = pageOwnsTopChrome(location.pathname);
-  const isChatThread = /^\/chats\/[^/]+/.test(location.pathname);
+  const isChatThread =
+    /^\/chats\/[^/]+/.test(location.pathname) && location.pathname !== '/chats/archived';
+  const shopId = companyIdFromPath(location.pathname);
+  const hideAppNav = shouldHideAppNav(location.pathname, {
+    myCompanyId: company.data?.id,
+    thisShopSelectedCount: shopId
+      ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
+      : 0,
+  });
+  const wasOrdersPath = useRef(false);
+
+  useEffect(() => {
+    wasOrdersPath.current = noteOrdersPathChange(location.pathname, wasOrdersPath.current);
+  }, [location.pathname]);
 
   const go = (path: string) => {
     setSheetOpen(false);
     startTransition(() => navigate(path));
-  };
-
-  const onInviteToConnect = async () => {
-    if (inviteSharing) return;
-    setInviteSharing(true);
-    setSheetOpen(false);
-    try {
-      const result = await shareOpenConnectInvite({
-        postReferral: () => api.post<ReferralView>('/referrals', {}),
-        origin: window.location.origin,
-        companyName: company.data?.name ?? '',
-      });
-      if (result === 'copied') showToast('Link copied');
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      showToast(
-        err instanceof ApiError ? err.message : 'Could not share the invite.',
-        'danger',
-      );
-    } finally {
-      setInviteSharing(false);
-    }
   };
 
   return (
@@ -143,6 +142,8 @@ export function AppShell() {
             <span className="min-w-0 flex-1" aria-hidden />
           )}
           <div className="flex shrink-0 items-center gap-0.5">
+            {location.pathname === '/chats' ? <ChatsHeaderMore /> : null}
+            {location.pathname === '/more' ? <YouHeaderMore /> : null}
             <button
               type="button"
               data-testid="notifications-bell"
@@ -181,8 +182,13 @@ export function AppShell() {
             ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
             : ownsTopChrome
               ? // Hide rail like chat — PageHeader pages scroll in main on a mobile shell.
-                'ekum-no-scrollbar min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-0'
-              : 'px-4 pb-28 pt-3',
+                cx(
+                  'ekum-no-scrollbar min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-0',
+                  hideAppNav ? 'pb-8' : 'pb-28',
+                )
+              : hideAppNav
+                ? 'px-4 pb-8 pt-3'
+                : 'px-4 pb-28 pt-3',
         )}
       >
         {/*
@@ -199,7 +205,14 @@ export function AppShell() {
 
       <SelectionWorkspaceBar />
 
-      <nav className="ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-end justify-around border-t border-line px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1">
+      <nav
+        data-testid="app-bottom-nav"
+        hidden={hideAppNav}
+        className={cx(
+          'ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-end justify-around border-t border-line px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1',
+          hideAppNav && 'hidden',
+        )}
+      >
         {NAV.slice(0, 2).map((item) => (
           <NavItem
             key={item.to}
@@ -210,7 +223,15 @@ export function AppShell() {
         <button
           aria-label="Create"
           className="mb-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white"
-          onClick={() => setSheetOpen(true)}
+          onClick={() => {
+            if (selling && can('uploads')) {
+              setSheetOpen(true);
+              return;
+            }
+            if (buying && can('orders')) {
+              navigate('/orders');
+            }
+          }}
         >
           <PlusIcon width={26} height={26} />
         </button>
@@ -221,11 +242,6 @@ export function AppShell() {
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
         <div className="flex flex-col gap-2">
-          {buying && can('orders') ? (
-            <Button variant="secondary" fullWidth onClick={() => go('/orders/new')}>
-              Photo order
-            </Button>
-          ) : null}
           {selling ? (
             <>
               {can('uploads') ? (
@@ -241,14 +257,6 @@ export function AppShell() {
               {/* Curate lives on Your selection (and Saved select) — not a ＋ create action. */}
             </>
           ) : null}
-          <Button
-            variant="secondary"
-            fullWidth
-            disabled={inviteSharing}
-            onClick={() => void onInviteToConnect()}
-          >
-            {inviteSharing ? 'Sharing…' : 'Invite to connect'}
-          </Button>
         </div>
       </Sheet>
     </div>

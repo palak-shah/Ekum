@@ -23,7 +23,7 @@ Meena sees only `#A1B2C3` — **no Related orders box**. Mills see only their su
 | Surface | Trader sees |
 |---------|-------------|
 | Orders list (incl. Find) | **Only** `#A1B2C3`. Role **Trading** (not You sell). Mill shop names after the # (`Surat + Jaipur`). Filter **Type → Trading** (or Find `trading` / `linked`). Find by mill name or mill `#` still opens this row — never a mill subset row. |
-| `#A1B2C3` | Lines **grouped by mill**. Qty + rate with column headers **Qty** / **Rate** before Send. **Send to {shop}** until sent. Then shop + `#D4E5F6` + **Sent**. Page face: **Send quote** only after a mill has quoted (pass rates to Meena). Quoting without asking the mill sits under **Take over** with Open chat · Decline · Ask for payment · Dispatch · Settle · View. **No** Confirm. After mill quotes: **From {shop}** / **To {buyer}** rates. Send quote prefills from mill. After Meena accepts, mill ticket gets Dispatch / Ask for payment; trader still only via Take over. Not Direct-path Take over. |
+| `#A1B2C3` | Lines **grouped by mill**. Qty + rate with column headers **Qty** / **Rate** before Send. **Send to {shop}** until sent. Then shop + `#D4E5F6` + **Sent**. Timeline: **You sent to {shop}**. **Send quote**, Decline · Ask for payment · Dispatch · Settle under **More actions**. Trade **Open chat** is a quiet Parties link (not a CTA). **No** Confirm. After mill quotes: **From {shop}** / **To {buyer}** rates. Send quote prefills from mill. After Meena accepts, mill ticket gets Dispatch / Ask for payment; trader still only via More actions. Not Direct-path **Handle myself**. |
 | Needs you | Lights **Meena’s** row (e.g. Surat quoted). Detail cue: **Send to {mill}** → wait for mill rates → **Send quote to Meena** — not bilateral “quote, confirm lines, or decline”. Status stays **Requested** until Meena accepts. |
 | Timeline | Whole trip, tagged Meena / Surat / Jaipur. |
 
@@ -60,7 +60,7 @@ If held: muted one word under the shop name (`Held`) — **trader only**. Resume
 
 **Meena and the mill do not see Hold.** No chat line, no status on their tickets, no notification. They still talk to the trader as usual. The trader tells them in chat if they should know. Pass simply stops until Resume.
 
-Stops pass on **that** subset only. Take over = existing quote / decline / cancel while held. Not Direct-path **Take over**.
+Stops pass on **that** subset only. More actions = existing quote / decline / cancel while held. Not Direct-path **Handle myself**.
 
 Whole-order freeze: **Later**.
 

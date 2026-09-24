@@ -320,3 +320,102 @@ describe('ThreadService.ensureTradeThread', () => {
     expect(createManyCalls).toBe(2);
   });
 });
+
+describe('ThreadService.applyInboxActions (our shop only)', () => {
+  function makeService() {
+    const hidden: { inboxHiddenAt: Date | null; pinnedAt: Date | null } = {
+      inboxHiddenAt: null,
+      pinnedAt: new Date(),
+    };
+    const hides: Array<{ companyId: string; messageId: string }> = [];
+    const otherHidden = { inboxHiddenAt: null as Date | null };
+    const lastRead: { at: Date | null } = { at: new Date() };
+    const prisma = {
+      threadParticipant: {
+        findUnique: async () => ({
+          id: 'p-me',
+          state: 'active',
+          leftAt: null,
+          thread: { visibility: 'shared' },
+        }),
+        update: async (args: {
+          data: { inboxHiddenAt?: Date | null; pinnedAt?: Date | null; lastReadAt?: Date };
+        }) => {
+          if ('inboxHiddenAt' in args.data) hidden.inboxHiddenAt = args.data.inboxHiddenAt ?? null;
+          if ('pinnedAt' in args.data) hidden.pinnedAt = args.data.pinnedAt ?? null;
+          if (args.data.lastReadAt) lastRead.at = args.data.lastReadAt;
+          return {};
+        },
+      },
+      threadMember: {
+        findUnique: async () => ({
+          state: 'active',
+          companyId: 'me',
+        }),
+      },
+      message: {
+        findMany: async () => [{ id: 'm1' }, { id: 'm2' }],
+        findFirst: async () => ({ createdAt: new Date('2026-09-23T12:00:00.000Z') }),
+      },
+      messageHide: {
+        createMany: async (args: { data: Array<{ companyId: string; messageId: string }> }) => {
+          hides.push(...args.data);
+          return { count: args.data.length };
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new ThreadService(
+      prisma,
+      {} as VisibilityService,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      accessStub(),
+    );
+    return { service, hidden, hides, otherHidden, lastRead };
+  }
+
+  it('archives the row without hiding messages or touching the other shop', async () => {
+    const { service, hidden, hides } = makeService();
+    const result = await service.applyInboxActions(
+      'me',
+      'owner',
+      { action: 'archive', threadIds: ['t1'] },
+      'u1',
+    );
+    expect(result).toEqual({ ok: true, count: 1 });
+    expect(hidden.inboxHiddenAt).toBeInstanceOf(Date);
+    expect(hidden.pinnedAt).toBeNull();
+    expect(hides).toHaveLength(0);
+  });
+
+  it('clears history for our company only', async () => {
+    const { service, hidden, hides } = makeService();
+    await service.applyInboxActions('me', 'owner', { action: 'clear', threadIds: ['t1'] }, 'u1');
+    expect(hidden.inboxHiddenAt).toBeNull();
+    expect(hides).toEqual([
+      { companyId: 'me', messageId: 'm1' },
+      { companyId: 'me', messageId: 'm2' },
+    ]);
+  });
+
+  it('delete hides messages and the row for us', async () => {
+    const { service, hidden, hides } = makeService();
+    await service.applyInboxActions('me', 'owner', { action: 'delete', threadIds: ['t1'] }, 'u1');
+    expect(hidden.inboxHiddenAt).toBeInstanceOf(Date);
+    expect(hides).toHaveLength(2);
+  });
+
+  it('unarchives without hiding messages', async () => {
+    const { service, hidden, hides } = makeService();
+    hidden.inboxHiddenAt = new Date();
+    await service.applyInboxActions('me', 'owner', { action: 'unarchive', threadIds: ['t1'] }, 'u1');
+    expect(hidden.inboxHiddenAt).toBeNull();
+    expect(hides).toHaveLength(0);
+  });
+
+  it('marks unread just before the last inbound message', async () => {
+    const { service, lastRead } = makeService();
+    await service.applyInboxActions('me', 'owner', { action: 'unread', threadIds: ['t1'] }, 'u1');
+    expect(lastRead.at?.toISOString()).toBe('2026-09-23T11:59:59.999Z');
+  });
+});

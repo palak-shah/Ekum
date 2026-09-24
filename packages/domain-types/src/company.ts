@@ -73,6 +73,12 @@ export interface PublicCompanyProfile {
   verification: string;
   categories: string[];
   superCategories: string[];
+  /** Viewer has an allowed follow (omit on own profile). */
+  following?: boolean;
+  /** Viewer asked; not allowed yet. */
+  followPending?: boolean;
+  /** Viewer may put this shop’s designs in a pack (no look/pack label). */
+  canPutInPack?: boolean;
 }
 
 /** A public-safe contact point. Phone is masked unless the business opts in. */

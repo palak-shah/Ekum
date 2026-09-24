@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   EKUM_DEFAULT_DESIGN_BROWSE_LAYOUT,
+  designBrowsePhotoClass,
   readDesignBrowseLayout,
   writeDesignBrowseLayout,
 } from './designBrowseLayout';
@@ -28,6 +29,12 @@ describe('designBrowseLayout', () => {
   it('ignores invalid stored values', () => {
     localStorage.setItem(`ekum.designBrowseLayout.${COMPANY}`, 'mosaic');
     expect(readDesignBrowseLayout(COMPANY)).toBe('feed');
+  });
+
+  it('keeps feed design photos mid-size, not 3/4 portrait', () => {
+    expect(designBrowsePhotoClass('feed')).toContain('h-64');
+    expect(designBrowsePhotoClass('feed')).not.toContain('aspect-[');
+    expect(designBrowsePhotoClass('grid')).toContain('h-32');
   });
 
   it('does not write without companyId', () => {

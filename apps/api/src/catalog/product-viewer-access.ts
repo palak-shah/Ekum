@@ -85,8 +85,8 @@ export async function productAccessibleViaCollection(
             followedCompanyId: collection.companyId,
           },
         },
-        select: { id: true },
-      })) != null;
+        select: { status: true },
+      }))?.status === 'allowed';
     const hasViewGrant =
       (await prisma.collectionViewGrant.findUnique({
         where: {
@@ -187,6 +187,7 @@ export async function loadTradeAudienceCtx(
       where: {
         followerCompanyId: buyerCompanyId,
         followedCompanyId: sellerCompanyId,
+        status: 'allowed',
       },
       select: { id: true },
     }),

@@ -11,17 +11,27 @@ import {
   type AddParticipantsDto,
   type CreateGroupThreadDto,
   type CursorPage,
+  isMuteActive,
+  mutedUntilFrom,
+  type InboxThreadActionDto,
   type ListThreadsQuery,
   type MessageView,
   type SetAlertLevelDto,
   type SetThreadMembersDto,
+  type SetPinnedMessageDto,
   type SetThreadPinnedDto,
+  type SetThreadTypingDto,
   type StartDirectThreadDto,
+  type UpdateGroupProfileDto,
+  isTypingFresh,
   type StartDirectThreadResult,
   type ThreadDetail,
   type ThreadPersonView,
   type ThreadSummary,
+  type GroupInviteLandingView,
+  type GroupInviteLinkView,
 } from '@ekum/domain-types';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { AccessService } from '../access/access.service';
@@ -113,10 +123,11 @@ export class ThreadService {
       const mine = existing.participants.find((p) => p.companyId === actorCompanyId);
       const wasArchived =
         mine && (mine.leftAt || mine.state === ThreadParticipantState.Archived);
-      if (wasArchived) {
+      const wasHidden = Boolean(mine && mine.inboxHiddenAt);
+      if (mine && (wasArchived || wasHidden)) {
         await this.prisma.threadParticipant.update({
           where: { id: mine.id },
-          data: { state: ThreadParticipantState.Active, leftAt: null },
+          data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
         });
       }
       if (viewerUserId) {
@@ -126,7 +137,7 @@ export class ThreadService {
         ]);
       }
       const summary = await this.summaryById(existing.id, actorCompanyId, role, viewerUserId);
-      return { ...summary, opened: wasArchived ? 'restored' : 'existing' };
+      return { ...summary, opened: wasArchived || wasHidden ? 'restored' : 'existing' };
     }
 
     // A first message to a company that has blocked you is silently dropped: the
@@ -233,6 +244,7 @@ export class ThreadService {
       companyId: actorCompanyId,
       state: query.state ?? ThreadParticipantState.Active,
       leftAt: null,
+      inboxHiddenAt: query.inbox === 'hidden' ? { not: null } : null,
       ...(viewerUserId
         ? {
             thread: {
@@ -281,6 +293,11 @@ export class ThreadService {
       const hasMore = matched.length > query.limit;
       const pageRows = hasMore ? matched.slice(0, query.limit) : matched;
       const last = pageRows[pageRows.length - 1];
+      const viewerAlert = await this.viewerAlertLevels(
+        pageRows.map((row) => row.threadId),
+        actorCompanyId,
+        viewerUserId,
+      );
 
       const results = await Promise.all(
         pageRows.map(async (participant) => {
@@ -305,6 +322,7 @@ export class ThreadService {
             mine: participant,
             unreadCount,
             lastMessage,
+            alertLevel: viewerAlert.get(participant.threadId),
             searchHitPreview: deep?.preview ?? null,
             searchHitMessageId: deep?.messageId ?? null,
           });
@@ -329,6 +347,11 @@ export class ThreadService {
     const hasMore = rows.length > query.limit;
     const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
     const last = pageRows[pageRows.length - 1];
+    const viewerAlert = await this.viewerAlertLevels(
+      pageRows.map((row) => row.threadId),
+      actorCompanyId,
+      viewerUserId,
+    );
 
     const results = await Promise.all(
       pageRows.map(async (participant) => {
@@ -342,6 +365,7 @@ export class ThreadService {
           mine: participant,
           unreadCount,
           lastMessage,
+          alertLevel: viewerAlert.get(participant.threadId),
         });
       }),
     );
@@ -382,6 +406,77 @@ export class ThreadService {
   }
 
   /**
+   * WhatsApp-like inbox tidy for our shop only. Does not Leave / Remove group
+   * and does not set participant `archived` (that restores as Requests).
+   */
+  async applyInboxActions(
+    actorCompanyId: string,
+    role: string | null,
+    dto: InboxThreadActionDto,
+    viewerUserId: string | null = null,
+  ): Promise<{ ok: true; count: number }> {
+    const uniqueIds = [...new Set(dto.threadIds)];
+    let count = 0;
+    for (const threadId of uniqueIds) {
+      try {
+        await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+      } catch {
+        continue;
+      }
+      if (dto.action === 'clear' || dto.action === 'delete') {
+        await this.hideAllMessagesForCompany(threadId, actorCompanyId);
+      }
+      if (dto.action === 'archive' || dto.action === 'delete') {
+        await this.prisma.threadParticipant.update({
+          where: { threadId_companyId: { threadId, companyId: actorCompanyId } },
+          data: { inboxHiddenAt: new Date(), pinnedAt: null },
+        });
+      }
+      if (dto.action === 'unarchive') {
+        await this.prisma.threadParticipant.update({
+          where: { threadId_companyId: { threadId, companyId: actorCompanyId } },
+          data: { inboxHiddenAt: null },
+        });
+      }
+      if (dto.action === 'unread') {
+        await this.markUnread(threadId, actorCompanyId);
+      }
+      count += 1;
+    }
+    return { ok: true, count };
+  }
+
+  private async hideAllMessagesForCompany(threadId: string, companyId: string): Promise<void> {
+    const messages = await this.prisma.message.findMany({
+      where: { threadId },
+      select: { id: true },
+    });
+    if (messages.length === 0) return;
+    await this.prisma.messageHide.createMany({
+      data: messages.map((row) => ({ companyId, messageId: row.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  async revealInbox(threadId: string, companyId: string): Promise<void> {
+    await this.prisma.threadParticipant.updateMany({
+      where: { threadId, companyId, inboxHiddenAt: { not: null } },
+      data: { inboxHiddenAt: null },
+    });
+  }
+
+  async revealActiveInboxes(threadId: string): Promise<void> {
+    await this.prisma.threadParticipant.updateMany({
+      where: {
+        threadId,
+        state: ThreadParticipantState.Active,
+        inboxHiddenAt: { not: null },
+      },
+      data: { inboxHiddenAt: null },
+    });
+  }
+
+  /**
    * Total unread messages across Active threads only (not Requests).
    * Used by the bottom-nav Chats badge.
    */
@@ -394,6 +489,7 @@ export class ThreadService {
       companyId: actorCompanyId,
       state: ThreadParticipantState.Active,
       leftAt: null,
+      inboxHiddenAt: null,
       ...(viewerUserId
         ? {
             thread: {
@@ -433,10 +529,11 @@ export class ThreadService {
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    const mutedUntil = dto.alertLevel === 'muted' ? mutedUntilFrom(dto.muteFor) : null;
     if (viewerUserId) {
       await this.prisma.threadMember.updateMany({
         where: { threadId, userId: viewerUserId, companyId: actorCompanyId },
-        data: { alertLevel: dto.alertLevel },
+        data: { alertLevel: dto.alertLevel, mutedUntil },
       });
     } else {
       const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
@@ -482,6 +579,75 @@ export class ThreadService {
         data: { pinnedAt: null },
       });
     }
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
+  }
+
+  async setTyping(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    dto: SetThreadTypingDto,
+    viewerUserId: string | null = null,
+  ): Promise<{ ok: true }> {
+    const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    await this.prisma.threadParticipant.update({
+      where: { id: mine.id },
+      data: { typingAt: dto.typing ? new Date() : null },
+    });
+    return { ok: true };
+  }
+
+  async setPinnedMessage(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    dto: SetPinnedMessageDto,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
+    await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    if (dto.messageId) {
+      const message = await this.prisma.message.findFirst({
+        where: { id: dto.messageId, threadId, deletedForEveryoneAt: null },
+      });
+      if (!message) {
+        throw new BadRequestException({ code: 'NOT_FOUND', message: 'Message not found.' });
+      }
+    }
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: { pinnedMessageId: dto.messageId },
+    });
+    return this.detail(threadId, actorCompanyId, role, viewerUserId);
+  }
+
+  async updateGroupProfile(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    dto: UpdateGroupProfileDto,
+    viewerUserId: string | null = null,
+  ): Promise<ThreadDetail> {
+    const { thread } = await this.loadForViewer(threadId, actorCompanyId, role, viewerUserId);
+    if (thread.type !== ThreadType.Group) {
+      throw new BadRequestException({
+        code: 'NOT_GROUP',
+        message: 'Only a group has a photo, name, and one-line.',
+      });
+    }
+    if (role !== MembershipRole.Owner) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only an owner can change the group.',
+      });
+    }
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
+        ...(dto.blurb !== undefined ? { blurb: dto.blurb } : {}),
+      },
+    });
     return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
@@ -679,6 +845,112 @@ export class ThreadService {
     return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }
 
+  async ensureInviteLink(
+    actorCompanyId: string,
+    role: string | null,
+    threadId: string,
+    viewerUserId: string | null = null,
+  ): Promise<GroupInviteLinkView> {
+    const { thread } = await this.loadForViewer(threadId, actorCompanyId, role, viewerUserId);
+    if (thread.type !== ThreadType.Group) {
+      throw new BadRequestException({
+        code: 'NOT_A_GROUP',
+        message: 'Only a group has a join link.',
+      });
+    }
+    let token = (thread as { inviteToken?: string | null }).inviteToken?.trim() || null;
+    if (!token) {
+      token = randomBytes(16).toString('hex');
+      await this.prisma.thread.update({ where: { id: threadId }, data: { inviteToken: token } });
+    }
+    return { token, path: `/g/${token}` };
+  }
+
+  async resolveGroupInvite(token: string): Promise<GroupInviteLandingView> {
+    const thread = await this.prisma.thread.findFirst({
+      where: { inviteToken: token, type: ThreadType.Group },
+      include: { createdBy: true },
+    });
+    if (!thread) {
+      throw this.notFound();
+    }
+    return {
+      token,
+      title: thread.title?.trim() || 'Group',
+      blurb: thread.blurb,
+      imageUrl: thread.imageUrl,
+      host: {
+        id: thread.createdBy.id,
+        name: thread.createdBy.name,
+        city: thread.createdBy.city,
+        verification: thread.createdBy.verification,
+        logoUrl: thread.createdBy.logoUrl,
+      },
+      alreadyIn: false,
+      threadId: null,
+    };
+  }
+
+  async joinGroupByToken(
+    actorCompanyId: string,
+    role: string | null,
+    token: string,
+    viewerUserId: string | null,
+  ): Promise<ThreadDetail> {
+    const thread = await this.prisma.thread.findFirst({
+      where: { inviteToken: token, type: ThreadType.Group },
+      select: { id: true },
+    });
+    if (!thread) {
+      throw this.notFound();
+    }
+    const mine = await this.prisma.threadParticipant.findUnique({
+      where: { threadId_companyId: { threadId: thread.id, companyId: actorCompanyId } },
+    });
+    if (mine && mine.state !== ThreadParticipantState.Archived && !mine.leftAt) {
+      return this.detail(thread.id, actorCompanyId, role, viewerUserId);
+    }
+    if (mine) {
+      await this.prisma.threadParticipant.update({
+        where: { id: mine.id },
+        data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
+      });
+      await seedOwnersAndStaff(this.prisma, thread.id, actorCompanyId, []);
+      return this.detail(thread.id, actorCompanyId, role, viewerUserId);
+    }
+    const others = await this.prisma.threadParticipant.findMany({
+      where: {
+        threadId: thread.id,
+        companyId: { not: actorCompanyId },
+        state: ThreadParticipantState.Active,
+        leftAt: null,
+      },
+      select: { companyId: true },
+    });
+    let connected = false;
+    for (const row of others) {
+      if (await this.connectedActive(actorCompanyId, row.companyId)) {
+        connected = true;
+        break;
+      }
+    }
+    if (!connected) {
+      throw new BadRequestException({
+        code: 'CONNECTION_REQUIRED',
+        message: 'Connect with a shop in this group first, then join.',
+      });
+    }
+    await this.prisma.threadParticipant.create({
+      data: {
+        threadId: thread.id,
+        companyId: actorCompanyId,
+        state: ThreadParticipantState.Active,
+      },
+    });
+    await seedOwnersAndStaff(this.prisma, thread.id, actorCompanyId, []);
+    return this.detail(thread.id, actorCompanyId, role, viewerUserId);
+  }
+
   async summaryById(
     threadId: string,
     actorCompanyId: string,
@@ -715,12 +987,38 @@ export class ThreadService {
       this.lastMessageView(threadId, actorCompanyId, viewerUserId),
     ]);
     const extras = await this.detailExtras(threadId, actorCompanyId, role, viewerUserId, thread.type);
+    const counterpart = participants.find((row) => row.companyId !== actorCompanyId);
+    const counterpartTyping =
+      thread.type === ThreadType.Direct && isTypingFresh(counterpart?.typingAt ?? null);
+    let pinnedMessage: MessageView | null = null;
+    if (thread.pinnedMessageId) {
+      const pinned = await this.prisma.message.findFirst({
+        where: {
+          id: thread.pinnedMessageId,
+          threadId,
+          deletedForEveryoneAt: null,
+          NOT: { hides: { some: { companyId: actorCompanyId } } },
+        },
+      });
+      if (pinned) {
+        pinnedMessage = this.serializer.toMessageView(
+          pinned,
+          actorCompanyId,
+          viewerUserId,
+          null,
+          null,
+          {},
+        );
+      }
+    }
     return this.serializer.toThreadDetail({
       thread,
       participants,
       mine,
       unreadCount,
       lastMessage,
+      counterpartTyping,
+      pinnedMessage,
       ...extras,
     });
   }
@@ -761,7 +1059,10 @@ export class ThreadService {
     viewerUserId: string | null = null,
   ): Promise<MessageView | null> {
     const recent = await this.prisma.message.findMany({
-      where: { threadId },
+      where: {
+        threadId,
+        NOT: { hides: { some: { companyId: viewerCompanyId } } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 8,
     });
@@ -780,6 +1081,52 @@ export class ThreadService {
     );
   }
 
+  /** Puts the chat back in “needs you” without opening it. */
+  private async markUnread(threadId: string, actorCompanyId: string): Promise<void> {
+    const lastInbound = await this.prisma.message.findFirst({
+      where: {
+        threadId,
+        senderCompanyId: { not: actorCompanyId },
+        NOT: { hides: { some: { companyId: actorCompanyId } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    const lastAny = lastInbound
+      ? null
+      : await this.prisma.message.findFirst({
+          where: {
+            threadId,
+            NOT: { hides: { some: { companyId: actorCompanyId } } },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        });
+    const pivot = lastInbound ?? lastAny;
+    const lastReadAt = pivot ? new Date(pivot.createdAt.getTime() - 1) : new Date(0);
+    await this.prisma.threadParticipant.update({
+      where: { threadId_companyId: { threadId, companyId: actorCompanyId } },
+      data: { lastReadAt },
+    });
+  }
+
+  private async viewerAlertLevels(
+    threadIds: string[],
+    companyId: string,
+    viewerUserId: string | null,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (!viewerUserId || threadIds.length === 0) return out;
+    const rows = await this.prisma.threadMember.findMany({
+      where: { userId: viewerUserId, companyId, threadId: { in: threadIds } },
+      select: { threadId: true, alertLevel: true, mutedUntil: true },
+    });
+    for (const row of rows) {
+      out.set(row.threadId, isMuteActive(row.alertLevel, row.mutedUntil) ? 'muted' : 'all');
+    }
+    return out;
+  }
+
   private unreadCount(
     threadId: string,
     actorCompanyId: string,
@@ -789,6 +1136,7 @@ export class ThreadService {
       where: {
         threadId,
         senderCompanyId: { not: actorCompanyId },
+        NOT: { hides: { some: { companyId: actorCompanyId } } },
         ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
       },
     });
@@ -865,11 +1213,12 @@ export class ThreadService {
         if (
           participant.leftAt ||
           participant.state === ThreadParticipantState.Archived ||
-          participant.state === ThreadParticipantState.Pending
+          participant.state === ThreadParticipantState.Pending ||
+          participant.inboxHiddenAt
         ) {
           await this.prisma.threadParticipant.update({
             where: { id: participant.id },
-            data: { state: ThreadParticipantState.Active, leftAt: null },
+            data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
           });
         }
       }
@@ -934,11 +1283,12 @@ export class ThreadService {
         if (
           participant.leftAt ||
           participant.state === ThreadParticipantState.Archived ||
-          participant.state === ThreadParticipantState.Pending
+          participant.state === ThreadParticipantState.Pending ||
+          participant.inboxHiddenAt
         ) {
           await this.prisma.threadParticipant.update({
             where: { id: participant.id },
-            data: { state: ThreadParticipantState.Active, leftAt: null },
+            data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
           });
         }
       }
@@ -1039,7 +1389,10 @@ export class ThreadService {
         threadId,
         companyId: { in: companyIds },
         state: ThreadMemberState.Active,
-        alertLevel: { not: 'muted' },
+        OR: [
+          { alertLevel: { not: 'muted' } },
+          { mutedUntil: { not: null, lte: new Date() } },
+        ],
       },
       select: { userId: true, companyId: true },
     });
@@ -1096,12 +1449,22 @@ export class ThreadService {
     const mineMember = viewerUserId
       ? peopleRows.find((row) => row.userId === viewerUserId)
       : undefined;
+    let alertLevel = mineMember?.alertLevel ?? 'all';
+    if (mineMember && !isMuteActive(mineMember.alertLevel, mineMember.mutedUntil)) {
+      alertLevel = 'all';
+      if (mineMember.alertLevel === 'muted') {
+        await this.prisma.threadMember.update({
+          where: { id: mineMember.id },
+          data: { alertLevel: 'all', mutedUntil: null },
+        });
+      }
+    }
     return {
       people,
       canLeave,
       canRemoveGroup: type === ThreadType.Group && role === MembershipRole.Owner,
       canManagePeople: role === MembershipRole.Owner,
-      alertLevel: mineMember?.alertLevel ?? 'all',
+      alertLevel,
     };
   }
 

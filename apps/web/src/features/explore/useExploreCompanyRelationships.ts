@@ -22,6 +22,11 @@ export function useExploreCompanyRelationships() {
     queryFn: () => api.get<PublicCompanySummary[]>('/follows/following'),
     staleTime: 60_000,
   });
+  const pendingFollows = useQuery({
+    queryKey: ['follows', 'pending'],
+    queryFn: () => api.get<PublicCompanySummary[]>('/follows/pending'),
+    staleTime: 60_000,
+  });
 
   const connections = useQuery({
     queryKey: ['connections'],
@@ -30,12 +35,13 @@ export function useExploreCompanyRelationships() {
   });
 
   const followingIds = useMemo(() => buildFollowingSet(following.data), [following.data]);
+  const pendingIds = useMemo(() => buildFollowingSet(pendingFollows.data), [pendingFollows.data]);
   const connectedIds = useMemo(() => buildConnectedSet(connections.data), [connections.data]);
 
   const shouldShowFollow = useCallback(
     (companyId: string) =>
-      shouldShowExploreFollow(companyId, ownCompanyId, followingIds, connectedIds),
-    [ownCompanyId, followingIds, connectedIds],
+      shouldShowExploreFollow(companyId, ownCompanyId, followingIds, connectedIds, pendingIds),
+    [ownCompanyId, followingIds, connectedIds, pendingIds],
   );
 
   const followMutation = useMutation({
@@ -45,8 +51,8 @@ export function useExploreCompanyRelationships() {
       setPendingId(companyId);
     },
     onSuccess: (_, { companyName }) => {
-      showToast(`Following ${companyName}`);
-      void queryClient.invalidateQueries({ queryKey: ['follows', 'following'] });
+      showToast(`Asked ${companyName} — they'll see it`);
+      void queryClient.invalidateQueries({ queryKey: ['follows'] });
       void queryClient.invalidateQueries({ queryKey: ['explore', 'home'] });
     },
     onError: (err) => {
@@ -75,6 +81,6 @@ export function useExploreCompanyRelationships() {
     shouldShowFollow,
     follow,
     isFollowPending,
-    isLoading: following.isLoading || connections.isLoading,
+    isLoading: following.isLoading || pendingFollows.isLoading || connections.isLoading,
   };
 }

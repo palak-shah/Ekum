@@ -3,7 +3,6 @@ import { Prisma, type Company } from '@prisma/client';
 import {
   CollectionStatus,
   MembershipRole,
-  ProductStatus,
   type AuthTokens,
   type CollectionCard,
   type CompanyContactPoint,
@@ -20,8 +19,10 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { TokenService } from '../auth/token.service';
 import { CompanySerializer } from '../access/company.serializer';
 import { VisibilityService } from '../access/visibility.service';
+import { collectionMemberFind } from '../catalog/collection-member-find';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
+import { shopPublishedDesignWhere } from './shop-design-list';
 import type { AuthPrincipal } from '../auth/auth.types';
 
 @Injectable()
@@ -179,7 +180,25 @@ export class CompanyService {
     if (!company) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
     }
-    return this.serializer.toPublicProfile(company);
+    const profile = this.serializer.toPublicProfile(company);
+    if (viewerCompanyId === targetId) {
+      return profile;
+    }
+    const follow = await this.prisma.follow.findUnique({
+      where: {
+        followerCompanyId_followedCompanyId: {
+          followerCompanyId: viewerCompanyId,
+          followedCompanyId: targetId,
+        },
+      },
+      select: { status: true, accessKind: true },
+    });
+    return {
+      ...profile,
+      following: follow?.status === 'allowed',
+      followPending: follow?.status === 'pending',
+      canPutInPack: follow?.status === 'allowed' && follow.accessKind === 'pack',
+    };
   }
 
   async getContactPoints(
@@ -217,18 +236,10 @@ export class CompanyService {
     }
 
     const rows = await this.prisma.product.findMany({
-      where: {
-        companyId: targetId,
-        status: ProductStatus.Published,
-        postedToMarketAt: { not: null },
-        OR: [
-          ...audienceVisibilityOr(viewerCompanyId),
-          ...(viewerCompanyId === targetId ? [{ companyId: targetId }] : []),
-        ],
-      },
+      where: shopPublishedDesignWhere(viewerCompanyId, targetId),
       include: { company: true },
       take: query.limit + 1,
-      orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     });
 
@@ -292,6 +303,8 @@ export class CompanyService {
       return {
         id: row.id,
         name: row.name,
+        categories: row.categories ?? [],
+        memberFind: collectionMemberFind(row.products),
         coverImage: row.coverImage,
         previewImages: preview.previewImages,
         imageCount: preview.imageCount,

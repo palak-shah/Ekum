@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  interestHitLabel,
   matchesCompanyInterest,
   resolveInterestFromCompany,
   resolveSuperCategoryId,
@@ -80,5 +81,11 @@ describe('interest-match', () => {
   it('resolves super ids from labels', () => {
     expect(resolveSuperCategoryId('womens_apparel')).toBe('womens_apparel');
     expect(resolveSuperCategoryId("Women's apparel")).toBe('womens_apparel');
+  });
+
+  it('labels interest hits for relevance (BM — no raw enum keys)', () => {
+    expect(interestHitLabel('womens_apparel')).toBe("Women's apparel");
+    expect(interestHitLabel('Sarees')).toBe('Sarees');
+    expect(interestHitLabel('dress_material')).toBe('Dress Material');
   });
 });

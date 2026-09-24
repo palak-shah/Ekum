@@ -5,7 +5,7 @@ import { EXPLORE_BUSINESSES_SEARCH_HREF } from '@/features/explore/exploreDiscov
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
 import { uniqueConnectionsByCompany } from '@/ui/uniqueConnections';
 import { ChevronRightIcon } from '@/ui/icons';
-import { Avatar, Button, Sheet, TextInput, cx } from '@/ui/kit';
+import { Avatar, Button, SearchInput, Sheet, cx } from '@/ui/kit';
 
 type SingleProps = {
   mode: 'single';
@@ -97,7 +97,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
   const list = (
     <div className="flex flex-col gap-2">
       {showBusinessSearch ? (
-        <TextInput
+        <SearchInput
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name or city…"

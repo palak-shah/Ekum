@@ -9,7 +9,7 @@ const album = {
 } as SavedItemView;
 
 describe('savedAlbumImageCount', () => {
-  it('uses productCount so 9 designs show +6 on a 4-thumb mosaic', () => {
+  it('uses productCount so 9 designs show leftover after four thumbs', () => {
     expect(savedAlbumImageCount(album, ['a', 'b', 'c', 'd'])).toBe(9);
   });
 

@@ -1,102 +1,82 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MyCatalogPage } from '@/features/catalog/MyCatalogPage';
+import { CompanyShareSheet } from '@/features/company/CompanyShareSheet';
 import { useAuth } from '@/lib/auth';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
-import { PageHeader } from '@/ui/PageHeader';
-import { Avatar, Button, Card, Tag } from '@/ui/kit';
-import { ChevronRightIcon } from '@/ui/icons';
+import { Avatar, Card, Tag } from '@/ui/kit';
 
+/** You root — title + ⋯ live in AppShell (same band as Chats), not a second PageHeader. */
 export function MorePage() {
   const navigate = useNavigate();
-  const { logout, session } = useAuth();
+  const { session } = useAuth();
   const company = useMyCompany();
-  const { buying, selling, canPublish, trading } = useTradePresence();
-
-  const menu = [
-    ...(selling
-      ? [
-          {
-            to: '/catalog',
-            label: 'My designs & collections',
-            hint: 'Drafts, packs, publish',
-          },
-        ]
-      : []),
-    { to: '/saved', label: 'Saved' },
-    { to: '/starred', label: 'Starred' },
-    { to: '/network', label: 'Network' },
-    { to: '/team', label: 'Team' },
-    ...(trading
-      ? [
-          {
-            to: '/settings/paths',
-            label: 'Your paths',
-            hint: 'Who orders are with · see each other',
-          },
-        ]
-      : []),
-    { to: '/settings', label: 'Settings' },
-    { to: '/settings/profile', label: 'Business profile' },
-  ];
+  const { selling, trading } = useTradePresence();
+  const [shareOpen, setShareOpen] = useState(false);
+  const showLibrary = selling || trading;
+  const companyId = company.data?.id ?? '';
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="You" />
+      <div data-testid="you-identity">
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <Avatar
+              name={company.data?.name ?? 'E'}
+              imageUrl={company.data?.logoUrl}
+              size={56}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-semibold tracking-tight text-ink">
+                {company.data?.name ?? 'Your business'}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {[
+                  company.data?.contactPerson?.trim() || session?.user.name?.trim(),
+                  company.data?.city,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+              <p className="mt-1.5 text-xs font-semibold text-accent">
+                <button
+                  type="button"
+                  data-testid="you-edit"
+                  className="hover:underline"
+                  onClick={() => navigate('/settings/profile')}
+                >
+                  Edit
+                </button>
+                <span className="px-1.5 font-medium text-muted">·</span>
+                <button
+                  type="button"
+                  data-testid="you-share"
+                  className="hover:underline disabled:opacity-45"
+                  disabled={!companyId}
+                  onClick={() => setShareOpen(true)}
+                >
+                  Share
+                </button>
+              </p>
+            </div>
+            {company.data?.verification === 'gst_verified' ? (
+              <Tag tone="success">Verified</Tag>
+            ) : null}
+          </div>
+        </Card>
+      </div>
 
-      <Card className="flex items-center gap-3">
-        <Avatar
-          name={company.data?.name ?? 'E'}
-          imageUrl={company.data?.logoUrl}
-          size={52}
+      <MyCatalogPage embedded catalogTabs={showLibrary} />
+
+      {companyId ? (
+        <CompanyShareSheet
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          companyId={companyId}
+          companyName={company.data?.name ?? 'Your business'}
         />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-ink">
-            {company.data?.name ?? 'Your business'}
-          </p>
-          <p className="truncate text-xs text-muted">
-            {[
-              company.data?.contactPerson?.trim() || session?.user.name?.trim(),
-              company.data?.city,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
-        </div>
-        {company.data?.verification === 'gst_verified' ? <Tag tone="success">Verified</Tag> : null}
-      </Card>
-
-      <div className="flex flex-wrap gap-1.5">
-        {buying ? <Tag tone="info">Buying</Tag> : null}
-        {selling ? <Tag tone="info">Selling</Tag> : null}
-        {canPublish ? <Tag tone="info">Can publish</Tag> : null}
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        {menu.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="flex items-center justify-between border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-foam"
-          >
-            <span className="min-w-0">
-              <span className="block text-sm text-ink">{item.label}</span>
-              {'hint' in item && item.hint ? (
-                <span className="mt-0.5 block text-xs text-muted">{item.hint}</span>
-              ) : null}
-            </span>
-            <ChevronRightIcon className="shrink-0 text-muted" />
-          </Link>
-        ))}
-      </div>
-
-      <Button
-        variant="secondary"
-        onClick={() => {
-          void logout().then(() => navigate('/login', { replace: true }));
-        }}
-      >
-        Log out
-      </Button>
+      ) : null}
     </div>
   );
 }

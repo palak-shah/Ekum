@@ -5,11 +5,12 @@ export function orderBuilderPhotoDirty(input: {
   note: string;
   photosCount: number;
   sellerId: string;
+  sellerFromUrl?: string;
 }): boolean {
   if (input.uploading) return true;
   if (input.note.trim()) return true;
   if (input.photosCount > 0) return true;
-  if (input.sellerId.trim()) return true;
+  if (input.sellerId.trim() && input.sellerId !== (input.sellerFromUrl ?? '')) return true;
   return false;
 }
 

@@ -1,4 +1,5 @@
 import type { SavedItemView } from '@ekum/domain-types';
+import { collectionMosaicCount } from '@/ui/albumMosaic';
 
 /**
  * Mosaic layout uses available preview URLs. productCount only drives +N when
@@ -6,6 +7,8 @@ import type { SavedItemView } from '@ekum/domain-types';
  */
 export function savedAlbumImageCount(item: SavedItemView, images: string[]): number {
   if (item.kind !== 'collection') return images.length;
-  if (images.length < 4) return images.length;
-  return Math.max(item.imageCount ?? 0, item.productCount ?? 0, images.length);
+  return collectionMosaicCount({
+    productCount: item.productCount ?? 0,
+    previewCount: images.length,
+  });
 }

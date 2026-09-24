@@ -664,6 +664,7 @@ export function DesignBatchPage() {
               rateVisibility:
                 publishAudience.rateVisibility as PostProductToMarketDto['rateVisibility'],
               allowForward: publishAudience.allowForward,
+              allowDownload: publishAudience.allowDownload,
               ...publishAudienceDtoFields(publishAudience),
               ...(canPublishAlready ? {} : { consentToSell: true }),
             };

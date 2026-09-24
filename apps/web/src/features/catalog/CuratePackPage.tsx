@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useTradePresence } from '@/lib/tradePresence';
+import { youSavedHref } from '@/features/saved/youSavedHref';
 import { PageHeader } from '@/ui/PageHeader';
 import { LoadingBlock } from '@/ui/kit';
 
@@ -16,7 +17,7 @@ export function CuratePackPage() {
     if (isLoading) return;
     if (!trading) return;
     if (shortlist.count < 1) {
-      navigate('/saved?select=1', { replace: true });
+      navigate(youSavedHref({ select: true }), { replace: true });
     }
   }, [isLoading, trading, shortlist.count, navigate]);
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
   OrderKind,
+  categoryDisplayLabel,
   type AccessRequestView,
   type ExploreProductPreviewView,
   type OrderView,
@@ -22,13 +23,14 @@ import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
-import { Button, Card, ErrorState, LoadingBlock, Tag, cx } from '@/ui/kit';
+import { Button, ErrorState, LoadingBlock, Tag, cx } from '@/ui/kit';
 import { CompanyRow } from '@/ui/cards';
 
 export function ExploreProductPage() {
@@ -179,6 +181,10 @@ export function ExploreProductPage() {
           companyId: data.company.id,
           companyName: data.company.name,
           allowForward: data.allowForward,
+          categories: data.categories ?? [],
+          unit: data.unit ?? null,
+          moq: data.moq ?? null,
+          rate: data.rate ?? null,
         },
       ]);
     }
@@ -191,7 +197,7 @@ export function ExploreProductPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-4', (canTrade || canCurate) && 'pb-[calc(5rem+4.5rem)]')}>
+    <div className={cx('flex flex-col gap-3', (canTrade || canCurate) && 'pb-[calc(5rem+6.5rem)]')}>
       <PageHeader
         title={data.name}
         action={
@@ -207,76 +213,66 @@ export function ExploreProductPage() {
       />
 
       {data.images.length > 0 ? (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1">
-          {data.images.map((image, i) => (
-            <button
-              key={image}
-              type="button"
-              className="shrink-0 overflow-hidden rounded-2xl"
-              aria-label={`View photo ${i + 1}`}
-              onClick={() => {
-                setPhotoIndex(i);
-                setPhotoOpen(true);
-              }}
-            >
-              <img
-                src={image}
-                alt={data.name}
-                className="h-56 w-44 object-cover"
-              />
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          data-testid="design-hero-photo"
+          aria-label="View photos"
+          className="relative -mx-4 h-[min(42vh,22rem)] overflow-hidden bg-linen"
+          onClick={() => {
+            setPhotoIndex(0);
+            setPhotoOpen(true);
+          }}
+        >
+          <img
+            src={toAbsoluteMediaUrl(data.images[0]) || data.images[0]}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+          {data.images.length > 1 ? (
+            <span className="absolute bottom-2 right-2 rounded-full bg-ink/70 px-2 py-0.5 text-[11px] font-semibold text-white">
+              1/{data.images.length}
+            </span>
+          ) : null}
+        </button>
       ) : (
-        <div className="flex h-40 items-center justify-center rounded-2xl bg-foam text-3xl font-bold text-muted">
+        <div className="-mx-4 flex h-[min(42vh,22rem)] items-center justify-center bg-linen text-3xl font-bold text-muted">
           {data.name.charAt(0).toUpperCase()}
         </div>
       )}
 
-      <CompanyRow company={data.company} to={`/company/${data.company.id}`} />
-
-      <Card className="flex flex-col gap-3">
-        {data.visible ? (
-          <>
-            <span className="text-lg font-semibold text-ink">
-              {formatRate(data.rate, data.unit)}
-            </span>
+      {data.visible ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[15px] font-semibold tracking-tight text-ink">
+            {formatRate(data.rate, data.unit)}
             {data.moq != null && data.moq > 0 ? (
-              <p className="text-sm font-medium text-ink">Minimum order · {data.moq} pcs</p>
+              <span className="ml-2 text-sm font-medium text-muted">· min {data.moq} pcs</span>
             ) : null}
-            {notes ? (
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
-                <p className="whitespace-pre-wrap text-sm text-ink">{notes}</p>
-              </div>
-            ) : null}
-            {data.categories && data.categories.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {data.categories.map((category) => (
-                  <Tag key={category}>{category}</Tag>
-                ))}
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-muted">
-              Ask {data.company.name} to see full details and order.
-            </p>
-            {!isOwner ? (
-              <Button
-                onClick={() => requestAccess.mutate(data.company.id)}
-                disabled={requestAccess.isPending}
-              >
-                {requestAccess.isPending ? 'Sending…' : 'Request access'}
-              </Button>
-            ) : null}
-          </div>
-        )}
-        <Link to={`/company/${data.company.id}`} className="text-sm font-bold text-accent">
-          View business →
-        </Link>
-      </Card>
+          </p>
+          {notes ? <p className="whitespace-pre-wrap text-sm text-ink">{notes}</p> : null}
+          {data.categories && data.categories.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {data.categories.map((category) => (
+                <Tag key={category}>{categoryDisplayLabel(category)}</Tag>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted">Ask {data.company.name} to see full details and order.</p>
+          {!isOwner ? (
+            <Button
+              fullWidth
+              onClick={() => requestAccess.mutate(data.company.id)}
+              disabled={requestAccess.isPending}
+            >
+              {requestAccess.isPending ? 'Sending…' : 'Request access'}
+            </Button>
+          ) : null}
+        </div>
+      )}
+
+      <CompanyRow company={data.company} to={`/company/${data.company.id}`} plain />
 
       {canTrade || canCurate ? (
         <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">

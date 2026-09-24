@@ -20,5 +20,12 @@ test.describe('explore long-press select @functional @explore', () => {
     await expect(page).toHaveURL(/\/explore(?:\?|$)/);
     await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('explore-filter')).toBeVisible();
+
+    const open = page
+      .locator('[data-testid^="explore-collection-open-"], [data-testid^="explore-design-open-"]')
+      .first();
+    await expect(open).toBeVisible();
+    await open.click();
+    await expect(page).toHaveURL(/\/(collections|explore\/products)\//, { timeout: 10_000 });
   });
 });

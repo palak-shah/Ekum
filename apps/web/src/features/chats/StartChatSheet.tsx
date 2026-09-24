@@ -12,7 +12,7 @@ import type {
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, Field, InlineNotice, Sheet, TextInput } from '@/ui/kit';
+import { Button, Field, InlineNotice, SearchInput, Sheet, TextInput } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { TeamPersonRow } from '@/features/chats/TeamPersonRow';
 import { directOpenToast } from './directOpenToast';
@@ -342,7 +342,7 @@ export function StartChatSheet({ open, onClose }: Props) {
                 ) : null}
               </div>
               {showTeamSearch ? (
-                <TextInput
+                <SearchInput
                   value={teamQuery}
                   onChange={(e) => setTeamQuery(e.target.value)}
                   placeholder="Search name…"

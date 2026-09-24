@@ -7,6 +7,11 @@ export type BrowseShortlistEntry = {
   companyId: string;
   companyName: string;
   allowForward?: boolean;
+  categories?: string[];
+  unit?: string | null;
+  moq?: number | null;
+  rate?: number | null;
+  rateMax?: number | null;
   /** Curated pack these lines were picked from (I handle → from-pack). */
   sourceCollectionId?: string;
   /** Desk publish allow-to-relist on that pack (Slice B desk chain). */

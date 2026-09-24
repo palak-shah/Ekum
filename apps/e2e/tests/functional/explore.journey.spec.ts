@@ -6,6 +6,14 @@ test.describe('explore journey @functional @explore', () => {
     await loginAsMeena(page);
     await page.goto('/explore');
 
+    await expect(page.getByText('Search supplier, collection or design')).toBeVisible();
+    await page.getByText('Search supplier, collection or design').click();
+    await expect(page.getByLabel('Search')).toHaveAttribute(
+      'placeholder',
+      'Search supplier, collection or design',
+    );
+    await page.getByRole('button', { name: 'Back to Explore' }).click();
+
     await expect(page.getByText(/Wedding Edit|Surat Silk/i).first()).toBeVisible({
       timeout: 15_000,
     });

@@ -222,6 +222,12 @@ export const millPassHoldSchema = z.object({
 });
 export type MillPassHoldDto = z.infer<typeof millPassHoldSchema>;
 
+/** Drop one held mill hop before Send. Omit id to drop every hop still waiting. */
+export const millDeclineSchema = z.object({
+  upstreamOrderId: z.string().min(1).optional(),
+});
+export type MillDeclineDto = z.infer<typeof millDeclineSchema>;
+
 /** Trader flips TradeLane reveal for one mill × buyer on a Manage desk. */
 export const millRevealSchema = z.object({
   upstreamOrderId: z.string().min(1),
@@ -579,7 +585,7 @@ export interface OrderView {
   /** Mill sent rates; trader has not quoted the buyer yet. */
   needsQuotePass?: boolean;
   /** I-handle parent: mill shops (and subset id after Send) for list / Find. */
-  linkedMills?: Array<{ name: string; orderId: string | null }>;
+  linkedMills?: Array<{ name: string; orderId: string | null; held?: boolean }>;
   direction: string;
   /** Times the buyer amended before seller progress. */
   amendCount: number;

@@ -77,12 +77,15 @@ export function PhotoAlbum({
    * don’t open PhotoViewer / steal the tap.
    */
   interactive = true,
+  onQuote,
 }: {
   urls: string[];
   overflowCount?: number;
   size?: 'full' | 'compact' | 'thumb';
   locked?: boolean;
   interactive?: boolean;
+  /** Quote this shot (PhotoViewer header). */
+  onQuote?: (index: number) => void;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Drop blanks so a bad reference never throws through the router error boundary.
@@ -112,6 +115,18 @@ export function PhotoAlbum({
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerIndex(null)}
+        headerAction={
+          onQuote
+            ? {
+                label: 'Quote',
+                testId: 'photo-viewer-quote',
+                onClick: () => {
+                  onQuote(viewerIndex);
+                  setViewerIndex(null);
+                },
+              }
+            : undefined
+        }
       />
     );
 

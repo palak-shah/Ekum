@@ -16,8 +16,15 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Contact person** | The logged-in user’s display name (e.g. Ravi) — distinct from the **business name** (e.g. Surat Silk House). |
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
 | **Trade presence** | `buyingEnabled` / `sellingEnabled` toggles what ＋ and Home emphasize. Creating catalog content turns selling back on. |
+| **Edit** | Manage my business / profile / content. You **Edit** → `/settings/profile`. Not Settings. |
+| **Share** | Share my Ekum identity (chat + OS share). Not a social post. |
+| **Settings** | Configure Ekum. Domain cards only — add a link to a domain or add a domain. Not Edit. |
 
-Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person × company seat. The **company** still trades. **You → Team** invites staff by phone. One **live** membership at a time; after archive, the same phone may join another shop (or create a company). Counterparties see the business name. New chats start with **owners**; staff see a thread only after an owner adds them. Do not label chats Private or Team.
+Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person × company seat. The **company** still trades. **Settings → Team** invites staff by phone. One **live** membership at a time; after archive, the same phone may join another shop (or create a company). Counterparties see the business name. New chats start with **owners**; staff see a thread only after an owner adds them. Do not label chats Private or Team.
+
+## App updates (PWA)
+
+Installed Ekum keeps a service worker. After a deploy, the open tab stays on the old build until they tap **New version · Load**. It never reloads by itself. See [Settings](./settings.md#app-update-installed--pwa).
 
 ## Platform & dual-network companies
 
@@ -37,11 +44,11 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Publish | Same audience model as any publish — **Explore is not supplier-only** |
 | Permission ceiling | Cannot outrun the **original seller’s** audience / **buyers can forward** lock |
 | Forward vs Curate | **Forward** = share someone’s card as-is; **Curate** = assemble into **your** collection then publish (still under source ceiling) |
-| Stories | Viewer sees a company when they **follow or are connected** and it has **published** to feed (own or curated) |
+| Stories | Viewer sees a company when they are an **allowed** follower or are connected and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light **New packs** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** (`I trade on Ekum`) gates Curate + TradeLane. Product default off (QA may treat unset as on). Linking/split in Slice B |
-| Orders | First middle-hop pair: **I handle**, no group. Lane = ticket **Me** / **mill** × **reveal**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when reveal off; group when on. **Desk tools** for mill ops while requested; **Handle myself** when flipping Direct to your desk |
+| Orders | First middle-hop pair: **I handle**, no group. Lane = **Buyer talks to** (You / mill) × **Share a group**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when group Off; group when On. Mill **Send** on the card; **Send quote** / Decline on the desk; **Handle myself** when flipping Direct to your desk |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
 
@@ -49,18 +56,20 @@ See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-mat
 
 ```mermaid
 flowchart LR
-  follow[Follow permissionless]
+  followAsk[Follow ask]
+  followAllow[Follow allowed]
   access[Access request]
   connection[Connection active]
   trade[Chat rates orders]
-  follow --> access
+  followAsk -->|allow look or pack| followAllow
+  followAllow --> access
   access -->|approve| connection
   connection --> trade
 ```
 
 | Mechanism | What it is |
 |-----------|------------|
-| **Follow** | Permissionless. See followed posts on Home / Explore “following”. Does **not** unlock full catalog or trade. |
+| **Follow** | Ask, not instant. Shop **Allows** (look through or put in a pack) or **Denies**. Pending is not a follower — no Followers-audience feed / shop / stories until Allow. Does **not** unlock Connection or trade. Follower never sees the grant type. |
 | **Access request** | Named gate to **Connect** (Network): note + optional referral. Approve / decline → Connection. |
 | **Collection view Ask** | **Ask to see this pack** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not pack/relist). Deny silent. |
 | **Pack / relist Ask** | **Ask to put in my pack** — unlock Curate when pack permission is off. Distinct chat card (“wants to put … in their pack”). Never bare **Ask**. Via **your** pack → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
@@ -108,7 +117,7 @@ When publishing (or updating visibility), the sheet sets:
 |----------|---------------------|
 | Everyone | Legacy API only — not offered on Publish; remaps to Followers in Visibility UI |
 | Connections | Active connections with the seller (API / legacy posts; not offered on new Publish) |
-| Followers | Companies that follow the seller (not necessarily connected) |
+| Followers | Companies the seller **allowed** to follow (not pending asks; not necessarily connected) |
 | Selected | Listed companies / buyer groups |
 
 **Layers (simple):** company usual (last publish remembered in `tradeDefaults.publishDefaults`) → selected buyer-group override(s), **strictest wins** if several → this item’s Publish sheet. Snapshot on `Product.allowForward` / `Collection.allowForward`. `audienceGroupIds` restores which groups were chosen on **Visibility** (expand who later without a second pack). One collection may include many groups (member union); not per-group policies on one card.

@@ -6,6 +6,8 @@ function pack(overrides: Partial<CollectionCard> = {}): CollectionCard {
   return {
     id: 'col1',
     name: 'Wedding Edit',
+    categories: [],
+    memberFind: [],
     coverImage: null,
     previewImages: [],
     imageCount: 0,

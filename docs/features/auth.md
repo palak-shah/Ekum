@@ -11,10 +11,10 @@ Every user before accessing the app.
 ## User flows
 
 1. Open app → `/login` (or land on `/r/:token` / `?invite=` and get sent to login).
-2. Enter phone number → request OTP.
+2. Enter phone number on a **horizontal teal-gradient box** (logo + **Textile trade, organised.** + form, same wash as the badge) → request OTP.
 3. Enter OTP → verify → tokens stored; `GET /auth/me` loads session.
 4. If `needsOnboarding` → `/onboarding`; else → invite return path (`/r/…`) when present, otherwise Home.
-5. Logout from **You** (`/more`) clears the session.
+5. Logout from **You** (`/more`) clears the device **immediately**, then revokes the refresh on the server. OTP is required again. A late token refresh cannot put the old shop back.
 
 ## Business rules
 
@@ -22,6 +22,7 @@ Every user before accessing the app.
 - Session is bearer-token based; web refreshes on 401 via single-flight refresh.
 - **Stay signed in on this device until you log out.** Access JWT is short (default **15 minutes**); refresh rotates quietly with a **10 year** ceiling that **slides** on each successful refresh. OTP is only needed after **You → Logout**, clearing site data, a full DB wipe / migrate reset, or a definitive refresh reject (`INVALID_TOKEN`).
 - Local tokens are cleared only on Logout, definitive refresh failure, or definitive `/auth/me` auth failure — never on network blips or `SESSION_REFRESH_PENDING`.
+- Logout wipes local tokens **before** `POST /auth/logout`, so Refresh or another tap cannot reopen the old shop while revoke is in flight.
 - Multi-tab safe: cross-tab refresh lock on web; API reuses a recently rotated refresh for ~60s so parallel tabs do not log each other out.
 - Transient API/network failures must **not** clear the session or send the user to OTP — the app retries in the background (`degraded` bootstrap state).
 - After company creation, refresh session so the token picks up the new company context.
@@ -45,7 +46,7 @@ Every user before accessing the app.
 ## Automated verification
 
 - API units: `parseDurationMs` (`10y`), config default refresh TTL, `TokenService.rotate` sliding expiry + grace
-- Web units: `tokenRefresh` keeps tokens on transient failure; clears only on `INVALID_TOKEN`
+- Web units: `tokenRefresh` keeps tokens on transient failure; clears only on `INVALID_TOKEN`; Logout beats in-flight refresh (`authSessionGate` / `clearSessionTokens`)
 - Completeness: `docs/superpowers/reviews/completeness/2026-08-31-stay-signed-in-completeness.md`
 - Design: `docs/superpowers/specs/2026-08-31-stay-signed-in-until-logout-design.md`
 

@@ -376,6 +376,10 @@ function openItem(id: string, qty: number, rate: number | null = null) {
   };
 }
 
+function declinedItem(id: string, qty: number) {
+  return { ...openItem(id, qty), lineStatus: OrderLineStatus.Declined };
+}
+
 describe('OrderService.create snapshots', () => {
   it('captures an immutable product snapshot on the order line', async () => {
     const { service, captured } = makeService({
@@ -582,7 +586,8 @@ describe('OrderService quote + accept (partial)', () => {
       body: 'Partial stock',
       metadata: expect.objectContaining({
         partial: true,
-        itemCount: 1,
+        itemCount: 2,
+        declinedCount: 1,
         event: 'quote_sent',
         quoted: true,
       }),
@@ -595,6 +600,67 @@ describe('OrderService quote + accept (partial)', () => {
         summary: 'Quoted — ₹3,000',
       }),
     );
+  });
+
+  it('lets the seller quote a line they had marked Can’t supply', async () => {
+    const { service, captured } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        quotedAt: new Date(),
+        items: [openItem('oi1', 10, 100), declinedItem('oi2', 10)],
+      },
+    });
+    await service.quote('seller', 'u1', 'o1', {
+      items: [
+        { orderItemId: 'oi1', rate: 100, quantity: 10 },
+        { orderItemId: 'oi2', rate: 90, quantity: 10 },
+      ],
+    });
+    expect(captured.itemUpdates.some((u) => u.rate === 90 && u.lineStatus === OrderLineStatus.Open)).toBe(
+      true,
+    );
+  });
+
+  it('counts only this send on a requote after earlier declines', async () => {
+    const { service, captured } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        quotedAt: new Date(),
+        items: [
+          ...Array.from({ length: 8 }, (_, i) => openItem(`oi${i + 1}`, 10)),
+          declinedItem('oi9', 10),
+          declinedItem('oi10', 10),
+        ],
+      },
+    });
+    await service.quote(
+      'seller',
+      'u1',
+      'o1',
+      {
+        items: Array.from({ length: 7 }, (_, i) => ({
+          orderItemId: `oi${i + 1}`,
+          rate: 100,
+          quantity: 10,
+        })),
+      },
+    );
+    // 7 quoted + 1 newly declined (oi8 omitted). Prior oi9/oi10 stay out of the card.
+    expect(captured.messageUpdate ?? captured.messageCreate).toMatchObject({
+      metadata: expect.objectContaining({
+        itemCount: 8,
+        declinedCount: 1,
+        event: 'quote_sent',
+      }),
+    });
   });
 
   it('labels a later Send quote as Quote updated when quotedAt is missing but a quote exists', async () => {

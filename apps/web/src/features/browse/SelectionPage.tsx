@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CollectionPreviewView,
+  CurateCheckView,
   RelistAccessView,
   RelistRequestView,
   SavedItemView,
@@ -10,6 +11,7 @@ import type {
 import { api, ApiError } from '@/lib/apiClient';
 import { useTradePresence } from '@/lib/tradePresence';
 import { pickSelectionLabel, shouldShowAlbumSelectActions } from '@/features/browse/albumSelectModel';
+import { selectionRowHref } from '@/features/browse/selectionRowHref';
 import { clearSelection } from '@/features/browse/clearSelection';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
@@ -22,6 +24,7 @@ import {
   writeBrowseShortlist,
   type BrowseShortlistEntry,
 } from '@/features/browse/browseShortlist';
+import { curateBlockedIdSet } from '@/features/browse/curateCheck';
 import { RELIST_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import {
   curateDefaultPackName,
@@ -36,15 +39,16 @@ import {
 } from '@/features/browse/resumeAfterAlbumPick';
 import {
   resolveSelectionAvailability,
+  selectionListDesignChrome,
   type SelectionAvailability,
 } from '@/features/browse/selectionAvailability';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { packHandlerName } from '@/features/browse/packOrderSource';
 import { entriesAsProducts, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
-import { BatchOrderConfirmSheet } from '@/features/orders/BatchOrderConfirmSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { SAVED_QUERY_KEY } from '@/features/saved/useSaveToggle';
+import { youSavedHref } from '@/features/saved/youSavedHref';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Button, EmptyState, LoadingBlock, cx } from '@/ui/kit';
@@ -99,6 +103,19 @@ export function SelectionPage() {
   const designProductIds = useMemo(
     () => shortlist.entries.map((e) => e.productId),
     [shortlist.entries],
+  );
+
+  const curateCheck = useQuery({
+    queryKey: ['collections', 'curate-check', designProductIds.join('|')],
+    queryFn: () =>
+      api.post<CurateCheckView>('/collections/curate-check', {
+        productIds: designProductIds,
+      }),
+    enabled: trading && designProductIds.length > 0,
+  });
+  const curateBlockedReasons = useMemo(
+    () => curateBlockedIdSet(curateCheck.data?.blocked),
+    [curateCheck.data?.blocked],
   );
 
   const relistAccess = useQuery({
@@ -257,10 +274,15 @@ export function SelectionPage() {
     source: BrowseShortlistEntry[],
     expandedAlbumNames: string[] = [],
   ) => {
-    const { allowed, locked } = partitionRelistableDesigns(source, grantedIds);
+    const visible = source.filter((entry) => !curateBlockedReasons.has(entry.productId));
+    const { allowed, locked } = partitionRelistableDesigns(visible, grantedIds);
     if (allowed.length === 0) {
       showToast(
-        source.length === 0 ? 'Pick at least one design.' : RELIST_LOCKED_TOAST,
+        source.length === 0
+          ? 'Pick at least one design.'
+          : visible.length === 0
+            ? "These designs can't go in a pack."
+            : RELIST_LOCKED_TOAST,
         'danger',
       );
       return;
@@ -334,7 +356,9 @@ export function SelectionPage() {
       void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
       // Leave Selection before clear — otherwise "Nothing selected" fights the success toast.
       const savedTo =
-        albums.length > 0 && designs.length === 0 ? '/saved?tab=collections' : '/saved';
+        albums.length > 0 && designs.length === 0
+          ? youSavedHref({ collections: true })
+          : youSavedHref();
       navigate(savedTo);
       clearSelection();
       showToast(saved === 1 ? 'Bookmarked' : `${saved} bookmarked`, 'success');
@@ -346,7 +370,7 @@ export function SelectionPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-4', total > 0 && 'pb-[calc(5rem+11.5rem)]')}>
+    <div className={cx('flex flex-col gap-4', total > 0 && 'pb-[calc(11.5rem+env(safe-area-inset-bottom))]')}>
       <PageHeader title="Your selection" />
 
       {total < 1 ? (
@@ -379,7 +403,7 @@ export function SelectionPage() {
               return (
                 <SelectionRow
                   key={`c-${row.collectionId}`}
-                  kind="Collection"
+                  href={selectionRowHref('Collection', row.collectionId)}
                   name={row.name}
                   companyName={row.companyName}
                   thumbUrl={row.coverImage}
@@ -409,26 +433,30 @@ export function SelectionPage() {
                 waiting,
                 sourcePackAllowForward: packOpen,
               });
-              const packLocked = Boolean(packReason) && !discoveryUnavailable;
+              const listChrome = selectionListDesignChrome({
+                discoveryUnavailable,
+                availabilityReason: row.availability?.reason,
+                packReason,
+              });
               return (
                 <SelectionRow
                   key={`p-${row.productId}`}
-                  kind="Design"
+                  href={selectionRowHref('Design', row.productId)}
                   name={row.name}
                   companyName={row.companyName}
                   thumbUrl={row.thumbUrl}
                   unavailable={discoveryUnavailable}
-                  packLocked={packLocked}
-                  reason={row.availability?.reason ?? packReason}
+                  packLocked={listChrome.packLocked}
+                  reason={listChrome.reason}
                   askState={
-                    packLocked && !waiting
+                    Boolean(packReason) && !waiting
                       ? askingKey === `p-${row.productId}`
                         ? 'asking'
                         : 'ask'
                       : undefined
                   }
                   onAsk={
-                    packLocked && !waiting
+                    packReason && !waiting
                       ? () => onAskDesign(row.productId, row.sourceCollectionId)
                       : undefined
                   }
@@ -439,7 +467,7 @@ export function SelectionPage() {
           </ul>
 
           {typeof document !== 'undefined' ? (
-            <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-surface px-4 py-3">
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <div className="mx-auto flex max-w-md flex-col gap-2.5">
                 {availableTotal < 1 && !resolving ? (
                   <p className="text-[13px] text-muted">Nothing available to act on</p>
@@ -618,14 +646,9 @@ export function SelectionPage() {
         asking={orderFlow.asking}
         error={orderFlow.error}
         orderGoesToName={packHandlerName(resolving ? shortlist.entries : availableDesigns)}
+        onRemoveProduct={(productId) => shortlist.removeIds([productId])}
         onSendOrder={orderFlow.sendOrder}
         onAskRates={orderFlow.askRates}
-      />
-      <BatchOrderConfirmSheet
-        open={orderFlow.confirmOpen}
-        result={orderFlow.result}
-        linkedMillCount={orderFlow.linkedMillCount}
-        onClose={() => orderFlow.setConfirmOpen(false)}
       />
       <CurateFromSelectionSheet
         open={curateOpen}
@@ -643,7 +666,7 @@ export function SelectionPage() {
 }
 
 function SelectionRow({
-  kind,
+  href,
   name,
   companyName,
   thumbUrl,
@@ -654,7 +677,7 @@ function SelectionRow({
   onAsk,
   onRemove,
 }: {
-  kind: string;
+  href: string;
   name: string;
   companyName: string;
   thumbUrl: string | null;
@@ -666,6 +689,13 @@ function SelectionRow({
   onRemove: () => void;
 }) {
   const faded = Boolean(unavailable || packLocked);
+  const thumb = thumbUrl ? (
+    <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
+  ) : (
+    <span className="flex h-full w-full items-center justify-center bg-foam text-sm font-bold text-muted">
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
   return (
     <li
       className={cx(
@@ -675,17 +705,14 @@ function SelectionRow({
       data-unavailable={unavailable ? 'true' : undefined}
       data-pack-locked={packLocked ? 'true' : undefined}
     >
-      {thumbUrl ? (
-        <img
-          src={thumbUrl}
-          alt=""
-          className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg object-cover"
-        />
-      ) : (
-        <div className="flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
-          {name.slice(0, 1).toUpperCase()}
-        </div>
-      )}
+      <Link
+        to={href}
+        aria-label={`Open ${name}`}
+        data-testid="selection-row-thumb"
+        className="h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-lg"
+      >
+        {thumb}
+      </Link>
       <div className="min-w-0 flex-1 py-0.5">
         <p
           className={cx(
@@ -695,9 +722,9 @@ function SelectionRow({
         >
           {name}
         </p>
-        <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">
-          {kind} · {companyName}
-        </p>
+        {companyName ? (
+          <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">{companyName}</p>
+        ) : null}
         {faded && reason ? (
           <p
             className="mt-1 text-[12px] font-medium text-danger"

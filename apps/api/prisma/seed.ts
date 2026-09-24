@@ -462,15 +462,27 @@ async function main(): Promise<void> {
   // --- Discovery & Trust --------------------------------------------------
   await prisma.follow.upsert({
     where: { followerCompanyId_followedCompanyId: { followerCompanyId: MEENA, followedCompanyId: RAVI } },
-    create: { id: 'seed-follow-1', followerCompanyId: MEENA, followedCompanyId: RAVI },
-    update: {},
+    create: {
+      id: 'seed-follow-1',
+      followerCompanyId: MEENA,
+      followedCompanyId: RAVI,
+      status: 'allowed',
+      accessKind: 'look',
+    },
+    update: { status: 'allowed', accessKind: 'look' },
   });
   await prisma.follow.upsert({
     where: {
       followerCompanyId_followedCompanyId: { followerCompanyId: RAVI, followedCompanyId: KAVITA },
     },
-    create: { id: 'seed-follow-2', followerCompanyId: RAVI, followedCompanyId: KAVITA },
-    update: {},
+    create: {
+      id: 'seed-follow-2',
+      followerCompanyId: RAVI,
+      followedCompanyId: KAVITA,
+      status: 'allowed',
+      accessKind: 'look',
+    },
+    update: { status: 'allowed', accessKind: 'look' },
   });
   {
     const [companyLowId, companyHighId] = RAVI < MEENA ? [RAVI, MEENA] : [MEENA, RAVI];
@@ -829,6 +841,50 @@ async function main(): Promise<void> {
         type: message.type,
         referenceId: message.referenceId,
       },
+    });
+  }
+
+  await prisma.thread.upsert({
+    where: { id: 'seed-group-1' },
+    create: {
+      id: 'seed-group-1',
+      type: ThreadType.Group,
+      title: 'Wedding circle',
+      blurb: 'Rates and pcs for wedding lots',
+      createdByCompanyId: MEENA,
+      lastMessageAt: new Date(),
+    },
+    update: { title: 'Wedding circle', blurb: 'Rates and pcs for wedding lots' },
+  });
+  for (const row of [
+    { id: 'seed-gtp-meena', companyId: MEENA },
+    { id: 'seed-gtp-ravi', companyId: RAVI },
+  ]) {
+    await prisma.threadParticipant.upsert({
+      where: { threadId_companyId: { threadId: 'seed-group-1', companyId: row.companyId } },
+      create: {
+        id: row.id,
+        threadId: 'seed-group-1',
+        companyId: row.companyId,
+        state: ThreadParticipantState.Active,
+      },
+      update: { state: ThreadParticipantState.Active, leftAt: null },
+    });
+  }
+  for (const row of [
+    { id: 'seed-gtm-meena', userId: U_MEENA, companyId: MEENA },
+    { id: 'seed-gtm-ravi', userId: U_RAVI, companyId: RAVI },
+  ]) {
+    await prisma.threadMember.upsert({
+      where: { threadId_userId: { threadId: 'seed-group-1', userId: row.userId } },
+      create: {
+        id: row.id,
+        threadId: 'seed-group-1',
+        userId: row.userId,
+        companyId: row.companyId,
+        state: ThreadMemberState.Active,
+      },
+      update: { state: ThreadMemberState.Active, leftAt: null, companyId: row.companyId },
     });
   }
 

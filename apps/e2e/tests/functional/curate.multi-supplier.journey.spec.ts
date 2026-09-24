@@ -27,11 +27,11 @@ test.describe('multi-supplier curate @functional @trader @collections', () => {
     await page.locator('button').filter({ has: page.locator('img') }).first().click({
       button: 'right',
     });
-    await expect(page.getByTestId('selection-workspace-bar')).toContainText(/2 selected/i, {
+    await expect(page.getByTestId('selection-workspace-bar')).toContainText(/2 in selection/i, {
       timeout: 10_000,
     });
 
-    await page.getByTestId('selection-workspace-bar').click();
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
       timeout: 15_000,
     });

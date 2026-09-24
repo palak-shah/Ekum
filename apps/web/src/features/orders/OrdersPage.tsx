@@ -17,13 +17,19 @@ import { shortOrderLabel } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
-import { Chip, EmptyState, FilterRail, LoadingBlock, StatusPill, TextInput, cx } from '@/ui/kit';
+import { Chip, EmptyState, LoadingBlock, SearchInput, StatusPill, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
 import { orderListLinkedCue, orderListRoleBit } from '@/features/orders/tradeListRole';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
+import {
+  getOrdersDirection,
+  setOrdersDirection,
+  tradeMatchesDirection,
+  type OrdersDirection,
+} from '@/features/orders/ordersDirectionSession';
 import {
   dateFacetFromNeedle,
   emptyFindState,
@@ -36,16 +42,15 @@ import {
 } from './tradeFind';
 import {
   matchesTradeCompleted,
-  matchesTradeNeeds,
   matchesTradePending,
   sortTradePending,
   toTradeItems,
   type TradeListItem,
 } from './tradeList';
+import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
 import { OrdersFilterMenu } from './OrdersFilterMenu';
 import { statusFromParam, tradeMenuFilterSummary } from './ordersFilterConfig';
 
-type Direction = 'all' | 'buying' | 'selling';
 type StatusFilter = 'pending' | 'completed';
 
 function statusFilterFromParam(value: string | null): StatusFilter {
@@ -71,7 +76,7 @@ export function OrdersPage() {
   const statusParam = params.get('status');
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [direction, setDirection] = useState<Direction>('all');
+  const [direction, setDirectionState] = useState<OrdersDirection>(() => getOrdersDirection());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     statusFilterFromParam(filterParam),
   );
@@ -80,8 +85,8 @@ export function OrdersPage() {
     kindFacet: kindFromParam(kindParam),
     statusFacet: statusFromParam(statusParam),
   }));
-  const listStatus = useDeferredValue(statusFilter);
-  const listDirection = useDeferredValue(direction);
+  // Attention tabs filter in-memory — keep chip + list in lockstep (no deferred
+  // lag that flashes EmptyState ↔ rows). Only defer Find typing/server facets.
   const deferredFind = useDeferredValue(find);
 
   useEffect(() => {
@@ -162,18 +167,22 @@ export function OrdersPage() {
   const filtered = useMemo(() => {
     const rows = merged.filter((item) => {
       if (!tradeMatchesFind(item, deferredFind)) return false;
-      if (listDirection !== 'all' && item.direction !== listDirection) return false;
+      if (!tradeMatchesDirection(item.direction, direction)) return false;
       if (findOverridesAttention) return true;
-      if (listStatus === 'pending') return matchesTradePending(item);
+      if (statusFilter === 'pending') return matchesTradePending(item);
       return matchesTradeCompleted(item);
     });
-    if (findOverridesAttention || listStatus !== 'pending') return rows;
+    if (findOverridesAttention || statusFilter !== 'pending') return rows;
     return sortTradePending(rows);
-  }, [merged, deferredFind, listDirection, listStatus, findOverridesAttention]);
+  }, [merged, deferredFind, direction, statusFilter, findOverridesAttention]);
 
-  const showDirection =
-    merged.some((i) => i.direction === 'buying') &&
-    merged.some((i) => i.direction === 'selling');
+  const setDirection = (next: OrdersDirection) => {
+    setOrdersDirection(next);
+    setDirectionState(next);
+  };
+
+  const showDirection = merged.length > 0;
+  const filterChrome = ordersListFilterChrome();
 
   const loading =
     (orders.isPending && !orders.data) ||
@@ -264,13 +273,11 @@ export function OrdersPage() {
       <div className="flex w-full flex-col gap-1.5">
         <ListSearchRow
           search={
-            <TextInput
-              className="w-full"
+            <SearchInput
               value={find.needle}
               onChange={(e) => onFindNeedleChange(e.target.value)}
               placeholder="Name, status, today…"
               aria-label="Search orders, samples, returns"
-              autoComplete="off"
             />
           }
           action={
@@ -327,67 +334,83 @@ export function OrdersPage() {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <FilterRail className={cx('min-w-0 w-full', findOverridesAttention && 'opacity-50')}>
-          {(
-            [
-              ['pending', 'Pending'],
-              ['completed', 'Completed'],
-            ] as const
-          ).map(([value, label]) => (
-            <Chip
-              key={value}
-              active={!findOverridesAttention && statusFilter === value}
-              onClick={() => {
-                setStatusFilter(value);
-                if (findOverridesAttention) {
-                  setFind(emptyFindState());
-                }
-                setSearchParams(
-                  (prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set('filter', value);
-                    if (findOverridesAttention) {
-                      next.delete('kind');
-                      next.delete('status');
-                    }
-                    return next;
-                  },
-                  { replace: true },
-                );
-              }}
-            >
-              {label}
-            </Chip>
-          ))}
-        </FilterRail>
-        {showDirection && ordersListFilterChrome().attentionDirectionLayout === 'stacked' ? (
-          <div
-            className="flex w-full rounded-full border border-line bg-surface p-0.5"
-            role="group"
-            aria-label="Buying or selling"
-          >
+      <div
+        data-testid="orders-list-filters"
+        className={cx('min-w-0', findOverridesAttention && 'opacity-50')}
+      >
+        <div className={filterChrome.rowClass}>
+          <div className="flex min-w-0 gap-1.5" role="group" aria-label="Open or finished">
             {(
               [
-                ['all', 'All'],
-                ['buying', 'Buy'],
-                ['selling', 'Sell'],
+                ['pending', 'Pending'],
+                ['completed', 'Completed'],
               ] as const
             ).map(([value, label]) => (
-              <button
+              <Chip
                 key={value}
-                type="button"
-                onClick={() => setDirection(value)}
-                className={cx(
-                  'min-w-0 flex-1 rounded-full px-2.5 py-1 text-[11px] font-bold tracking-tight',
-                  direction === value ? 'bg-ink text-white' : 'text-muted',
-                )}
+                className={filterChrome.statusChipClass}
+                active={!findOverridesAttention && statusFilter === value}
+                onClick={() => {
+                  if (statusFilter === value && !findOverridesAttention) return;
+                  setStatusFilter(value);
+                  if (findOverridesAttention) {
+                    setFind(emptyFindState());
+                  }
+                  setSearchParams(
+                    (prev) => {
+                      if (
+                        prev.get('filter') === value &&
+                        !findOverridesAttention &&
+                        !prev.get('kind') &&
+                        !prev.get('status')
+                      ) {
+                        return prev;
+                      }
+                      const next = new URLSearchParams(prev);
+                      next.set('filter', value);
+                      if (findOverridesAttention) {
+                        next.delete('kind');
+                        next.delete('status');
+                      }
+                      return next;
+                    },
+                    { replace: true },
+                  );
+                }}
               >
                 {label}
-              </button>
+              </Chip>
             ))}
           </div>
-        ) : null}
+          {showDirection ? (
+            <div
+              className={filterChrome.directionGroupClass}
+              role="group"
+              aria-label="Buy or sell"
+            >
+              {(
+                [
+                  ['all', 'All'],
+                  ['buying', 'Buy'],
+                  ['selling', 'Sell'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  data-testid={`orders-direction-${value}`}
+                  onClick={() => setDirection(value)}
+                  className={cx(
+                    filterChrome.directionBtnClass,
+                    direction === value ? 'bg-ink text-white' : 'text-muted',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {loading ? (
@@ -409,7 +432,7 @@ export function OrdersPage() {
               title={
                 findOverridesAttention
                   ? 'No matches'
-                  : listStatus === 'pending'
+                  : statusFilter === 'pending'
                     ? 'No open orders'
                     : 'No completed orders'
               }
@@ -433,7 +456,7 @@ function TradeRow({
   item: TradeListItem;
   companyId: string | null;
 }) {
-  const needsYou = matchesTradeNeeds(item);
+  const needsLabel = tradeNeedsYouLabel(item);
 
   if (item.kind === 'order') {
     const order = item.order;
@@ -447,12 +470,24 @@ function TradeRow({
     return (
       <Link
         to={`/orders/${order.id}`}
-        className="flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
+        data-needs-you={needsLabel ? 'true' : undefined}
+        className={cx(
+          'flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas',
+          needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
+        )}
       >
         <div className="min-w-0">
           <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">
             {order.counterpart.name}
           </p>
+          {needsLabel ? (
+            <p
+              data-testid="orders-needs-you"
+              className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-accent"
+            >
+              {needsLabel}
+            </p>
+          ) : null}
           <p className="mt-0.5 text-[13px] font-semibold tabular-nums tracking-tight text-slate">
             {idLabel}
             {roleBit ? <span className="font-medium text-muted"> · {roleBit}</span> : null}
@@ -463,7 +498,7 @@ function TradeRow({
             {staff ? ` · ${staff}` : ''}
           </p>
         </div>
-        <TradeRowStatus needsYou={needsYou} status={order.status} />
+        <StatusPill status={order.status} />
       </Link>
     );
   }
@@ -471,15 +506,29 @@ function TradeRow({
   if (item.kind === 'sample') {
     const sample = item.sample;
     return (
-      <div className="flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0">
+      <div
+        data-needs-you={needsLabel ? 'true' : undefined}
+        className={cx(
+          'flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0',
+          needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
+        )}
+      >
         <div className="min-w-0">
           <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{sample.name}</p>
+          {needsLabel ? (
+            <p
+              data-testid="orders-needs-you"
+              className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-accent"
+            >
+              {needsLabel}
+            </p>
+          ) : null}
           <p className="mt-0.5 text-[13px] font-semibold text-slate">Sample</p>
           <p className="mt-0.5 text-[12px] text-muted">
             {sample.counterpart.name} · {timeAgo(sample.createdAt)}
           </p>
         </div>
-        <TradeRowStatus needsYou={needsYou} status={sample.status} />
+        <StatusPill status={sample.status} />
       </div>
     );
   }
@@ -491,44 +540,28 @@ function TradeRow({
   return (
     <Link
       to={`/orders/${ret.orderId}?return=${ret.id}`}
-      className="flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
+      data-needs-you={needsLabel ? 'true' : undefined}
+      className={cx(
+        'flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas',
+        needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
+      )}
     >
       <div className="min-w-0">
         <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{ret.counterpart.name}</p>
+        {needsLabel ? (
+          <p
+            data-testid="orders-needs-you"
+            className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-accent"
+          >
+            {needsLabel}
+          </p>
+        ) : null}
         <p className="mt-0.5 text-[13px] font-semibold text-slate">Return</p>
         <p className="mt-0.5 truncate text-[12px] text-muted">
           {linePreview || `${ret.items.length} designs`} · {timeAgo(ret.createdAt)}
         </p>
       </div>
-      <TradeRowStatus
-        needsYou={needsYou}
-        status={ret.status}
-        label={returnStatusLabel(ret.status)}
-      />
+      <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
     </Link>
-  );
-}
-
-function TradeRowStatus({
-  needsYou,
-  status,
-  label,
-}: {
-  needsYou: boolean;
-  status: string;
-  label?: string;
-}) {
-  return (
-    <div className="flex shrink-0 flex-col items-end gap-1">
-      {needsYou ? (
-        <span
-          data-testid="orders-needs-you"
-          className="text-[11px] font-bold tracking-tight text-accent"
-        >
-          Needs you
-        </span>
-      ) : null}
-      <StatusPill status={status} label={label} />
-    </div>
   );
 }

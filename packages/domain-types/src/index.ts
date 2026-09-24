@@ -9,6 +9,7 @@ export * from './relist-request';
 export * from './settings';
 export * from './discovery';
 export * from './conversation';
+export * from './chat-mentions';
 export * from './chat-membership';
 export * from './orders';
 export * from './order-timeline';

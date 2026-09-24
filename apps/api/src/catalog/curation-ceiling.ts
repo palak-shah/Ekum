@@ -24,6 +24,8 @@ export type AssertProductsCuratableInput = {
   discoverableIds?: Set<string>;
   /** Product ids with a ProductRelistGrant for the curator (Slice B). */
   relistGrantedIds?: Set<string>;
+  /** Foreign owners with look-only follow and no Connection — cannot curate. */
+  lookOnlyOwnerIds?: Set<string>;
 };
 
 export function audienceRank(audience: string): number {
@@ -42,12 +44,25 @@ function isForeign(curatorCompanyId: string, product: CuratableProduct): boolean
 }
 
 export function assertProductsCuratable(input: AssertProductsCuratableInput): void {
-  const { curatorCompanyId, products, publishAudience, discoverableIds, relistGrantedIds } =
-    input;
+  const {
+    curatorCompanyId,
+    products,
+    publishAudience,
+    discoverableIds,
+    relistGrantedIds,
+    lookOnlyOwnerIds,
+  } = input;
 
   for (const product of products) {
     if (!isForeign(curatorCompanyId, product)) {
       continue;
+    }
+
+    if (lookOnlyOwnerIds?.has(product.companyId) === true) {
+      throw new BadRequestException({
+        code: 'FOLLOW_LOOK_ONLY',
+        message: "They haven't allowed putting their designs in a pack.",
+      });
     }
 
     const granted = relistGrantedIds?.has(product.id) === true;

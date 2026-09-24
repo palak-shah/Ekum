@@ -75,7 +75,7 @@ test.describe('Your paths @functional @orders', () => {
 
     await resetTradeLanesToMe(page.request, raviToken2);
 
-    await page.goto('/more');
+    await page.goto('/settings');
     const tryAgain = page.getByRole('button', { name: 'Try again' });
     for (let i = 0; i < 3; i += 1) {
       if (await tryAgain.isVisible().catch(() => false)) {
@@ -85,11 +85,15 @@ test.describe('Your paths @functional @orders', () => {
         break;
       }
     }
-    if (await page.getByRole('heading', { name: 'You' }).isVisible().catch(() => false)) {
+    if (await page.getByRole('heading', { name: 'Settings' }).isVisible().catch(() => false)) {
       await expect(page.getByRole('link', { name: /Your paths/i })).toBeVisible();
       await page.getByRole('link', { name: /Your paths/i }).click();
       await expect(page.getByTestId('your-paths-page')).toBeVisible({ timeout: 15_000 });
+      await page.getByTestId('paths-help').click();
+      await expect(page.getByTestId('paths-help-pop')).toContainText('Next orders only');
       await expect(page.getByTestId(`path-row-${lane!.id}`)).toBeVisible();
+      await expect(page.getByTestId(`path-ticket-${lane!.id}`)).toContainText('You');
+      await page.getByTestId(`path-ticket-${lane!.id}`).click();
       await expect(page.getByTestId(`path-ticket-${lane!.id}-me`)).toBeVisible();
       await expect(page.getByTestId(`path-reveal-${lane!.id}`)).toBeVisible();
     }

@@ -82,6 +82,7 @@ export function BulkCollectionPublishSheet({ open, onClose, collectionIds, onDon
         audience: publishAudience.audience as PublishCollectionDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
+        allowDownload: publishAudience.allowDownload,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
       };

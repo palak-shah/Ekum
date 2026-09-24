@@ -32,4 +32,10 @@ describe('shouldShowExploreFollow', () => {
   it('hides when connected', () => {
     expect(shouldShowExploreFollow('c-conn', 'me', following, connected)).toBe(false);
   });
+
+  it('hides when ask is pending', () => {
+    expect(
+      shouldShowExploreFollow('c-pending', 'me', following, connected, new Set(['c-pending'])),
+    ).toBe(false);
+  });
 });

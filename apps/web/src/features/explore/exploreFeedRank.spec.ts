@@ -13,6 +13,8 @@ function collectionOpportunity(
       id,
       name: id,
       updatedAt,
+      categories: [],
+      memberFind: [],
       coverImage: null,
       productCount: 1,
       allowForward: true,
@@ -62,6 +64,23 @@ describe('exploreFeedRank', () => {
     expect(explorePostTier('Matches Sarees')).toBe(20);
     expect(explorePostTier('Connected')).toBe(10);
     expect(explorePostTier('Surat')).toBe(0);
+  });
+
+  it('keeps a newer follow above an older connected pack', () => {
+    const feed = buildRankedPostFeed(
+      [],
+      [],
+      [
+        collectionOpportunity(
+          'old-connected',
+          'Connected · Matches womens_apparel',
+          '2026-08-07T00:00:00.000Z',
+        ),
+        collectionOpportunity('new-follow', 'In your network', '2026-09-17T00:00:00.000Z'),
+      ],
+      [],
+    );
+    expect(feed.map((row) => row.id)).toEqual(['c:new-follow', 'c:old-connected']);
   });
 
   it('orders feed tiers then recency', () => {

@@ -8,6 +8,10 @@ describe('statusTone order close states', () => {
     expect(statusTone('delivered')).toBe('success');
     expect(statusTone('confirmed')).toBe('progress');
   });
+
+  it('keeps requested readable without accent teal', () => {
+    expect(statusTone('requested')).toBe('open');
+  });
 });
 
 describe('statusLabel order complete', () => {

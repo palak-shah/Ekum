@@ -166,9 +166,9 @@ describe('SavedService.list', () => {
     expect(list[0].images).toHaveLength(2);
     expect(list[1].kind).toBe('collection');
     expect(list[1].name).toBe('Monsoon Pack');
-    expect(list[1].thumbUrl).toBe('https://cdn/pack.jpg');
+    expect(list[1].thumbUrl).toBe('https://cdn/a.jpg');
     expect(list[1].productCount).toBe(5);
-    expect(list[1].images?.[0]).toBe('https://cdn/pack.jpg');
+    expect(list[1].images).toEqual(['https://cdn/a.jpg', 'https://cdn/b.jpg']);
   });
 });
 

@@ -58,6 +58,11 @@ export function homeNeedVisual(item: HomeNeedItem): HomeNeedVisual {
         action: 'Access request',
         party: afterDot ?? partyAfter(item.title, 'Access request · '),
       };
+    case 'follow_request':
+      return {
+        action: 'Follow ask',
+        party: afterDot ?? partyAfter(item.title, 'Follow ask · '),
+      };
     case 'chat_request':
       return {
         action: 'Chat request',

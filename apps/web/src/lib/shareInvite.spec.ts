@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   catalogShareCopy,
+  companyShareCopy,
   inviteShareCopy,
   nativeShareFields,
   shareMessageText,
@@ -36,11 +37,33 @@ describe('nativeShareFields', () => {
   });
 });
 
+describe('companyShareCopy', () => {
+  it('names the shop', () => {
+    expect(companyShareCopy('Surat Silk House')).toEqual({
+      title: 'Surat Silk House on Ekum',
+      text: 'Surat Silk House on Ekum',
+    });
+  });
+});
+
 describe('inviteShareCopy', () => {
   it('names the business for connect invites', () => {
     expect(inviteShareCopy({ kind: 'connect', companyName: 'Jaipur Emporium' })).toEqual({
       title: 'Ekum · Connect with Jaipur Emporium',
       text: 'Jaipur Emporium invites you to connect on Ekum',
+    });
+  });
+
+  it('names the group on a join invite', () => {
+    expect(
+      inviteShareCopy({
+        kind: 'group',
+        companyName: 'Jaipur Emporium',
+        groupName: 'Wedding circle',
+      }),
+    ).toEqual({
+      title: 'Ekum · Join Wedding circle',
+      text: 'Jaipur Emporium invites you to Wedding circle on Ekum',
     });
   });
 
@@ -115,5 +138,18 @@ describe('shareOrCopyInvite', () => {
       title: 'Ekum · Connect with JE',
       text: `JE invites you to connect on Ekum\n${url}`,
     });
+  });
+
+  it('opens the share sheet and does not copy when share succeeds', async () => {
+    const url = 'https://beta.ekum.app/g/tok';
+    const result = await shareOrCopyInvite({
+      url,
+      title: 'Ekum · Join Wedding circle',
+      text: 'JE invites you to Wedding circle on Ekum',
+      preferShareSheet: true,
+    });
+    expect(result).toBe('shared');
+    expect(navigator.share).toHaveBeenCalled();
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
   });
 });

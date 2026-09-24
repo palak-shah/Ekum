@@ -1,15 +1,17 @@
-import { useMemo } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import type { ExploreProductPreviewView } from '@ekum/domain-types';
 import { parseDesignSetIds } from '@/features/browse/designSetPath';
 import {
-  resolveFacilitatorForCatalog,
-  withFacilitatorQuery,
-} from '@/features/browse/forwardAttribution';
+  designSetSlides,
+  designShopLine,
+  firstSlideIndexForProduct,
+} from '@/features/browse/designSetSlides';
 import { api, ApiError } from '@/lib/apiClient';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { EmptyState, ErrorState, LoadingBlock } from '@/ui/kit';
 import { LockIcon } from '@/ui/icons';
 
@@ -26,7 +28,6 @@ export function DesignSetPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const ids = useMemo(() => parseDesignSetIds(params.get('ids')), [params]);
-  const facilitator = params.get('facilitator');
 
   const queries = useQueries({
     queries: ids.map((id) => ({
@@ -38,7 +39,7 @@ export function DesignSetPage() {
   });
 
   const loading = queries.some((q) => q.isLoading);
-  const tiles: SetTile[] = ids.map((id, index) => {
+  const tiles: SetTile[] = useMemo(() => ids.map((id, index) => {
     const q = queries[index];
     if (q?.isSuccess && q.data) {
       if (!q.data.visible) {
@@ -57,27 +58,57 @@ export function DesignSetPage() {
       };
     }
     return { id, status: 'missing' as const };
-  });
+  }), [ids, queries]);
+
+  const visibleCount = tiles.filter((t) => t.status === 'ok').length;
+  const slides = useMemo(() => {
+    const products = tiles
+      .filter((tile): tile is Extract<SetTile, { status: 'ok' }> => tile.status === 'ok')
+      .map((tile) => tile.product);
+    return designSetSlides(
+      products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        images: product.images.map((url) => toAbsoluteMediaUrl(url) || url),
+        companyName: product.company.name,
+      })),
+    );
+  }, [tiles]);
+
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [autoOpened, setAutoOpened] = useState(false);
+
+  useEffect(() => {
+    if (autoOpened || slides.length < 1) return;
+    setViewerIndex(0);
+    setViewerOpen(true);
+    setAutoOpened(true);
+  }, [autoOpened, slides.length]);
+
+  const openAtProduct = (productId: string) => {
+    if (slides.length < 1) return;
+    setViewerIndex(firstSlideIndexForProduct(slides, productId));
+    setViewerOpen(true);
+  };
 
   if (ids.length < 1) {
     return (
-      <div className="flex min-h-full flex-col">
+      <div className="flex min-h-full flex-col bg-canvas" data-testid="design-set-page">
         <PageHeader title="Designs" onBack={() => navigate(-1)} />
-        <EmptyState title="No designs" message="This set has nothing to show." />
+        <EmptyState title="No designs" message="This set has no designs to open." />
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-full flex-col">
+      <div className="flex min-h-full flex-col bg-canvas" data-testid="design-set-page">
         <PageHeader title="Designs" onBack={() => navigate(-1)} />
-        <LoadingBlock label="Opening designs…" />
+        <LoadingBlock />
       </div>
     );
   }
-
-  const visibleCount = tiles.filter((t) => t.status === 'ok').length;
 
   return (
     <div className="flex min-h-full flex-col bg-canvas" data-testid="design-set-page">
@@ -92,18 +123,12 @@ export function DesignSetPage() {
         {tiles.map((tile) => {
           if (tile.status === 'ok') {
             const thumb = tile.product.images[0] ?? null;
-            const path = withFacilitatorQuery(
-              `/explore/products/${tile.product.id}`,
-              resolveFacilitatorForCatalog({
-                catalogKind: 'product',
-                catalogId: tile.product.id,
-                queryFacilitator: facilitator,
-              }),
-            );
+            const shop = designShopLine(tile.product.company.name);
             return (
-              <Link
+              <button
                 key={tile.id}
-                to={path}
+                type="button"
+                onClick={() => openAtProduct(tile.product.id)}
                 className="overflow-hidden rounded-2xl border border-line bg-surface text-left active:opacity-90"
                 data-testid="design-set-tile"
               >
@@ -120,9 +145,9 @@ export function DesignSetPage() {
                 )}
                 <div className="px-2.5 py-2">
                   <p className="truncate text-sm font-semibold text-ink">{tile.product.name}</p>
-                  <p className="text-xs font-semibold text-accent">View design →</p>
+                  {shop ? <p className="truncate text-xs text-muted">{shop}</p> : null}
                 </div>
-              </Link>
+              </button>
             );
           }
 
@@ -154,6 +179,15 @@ export function DesignSetPage() {
           <ErrorState message="None of these designs are open to you." />
         </div>
       ) : null}
+      <PhotoViewer
+        open={viewerOpen && slides.length > 0}
+        urls={slides.map((slide) => slide.url)}
+        index={viewerIndex}
+        onIndex={setViewerIndex}
+        onClose={() => setViewerOpen(false)}
+        captions={slides.map((slide) => slide.caption)}
+        details={slides.map((slide) => slide.detail)}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Trust between companies: **follow** (light), **access request** (named gate), **connection** (trade-ready, **mutual**), plus silent **pause** / **block**. Relationship management lives under **You → Network** (companies, not individual people).
+Trust between companies: **follow** (ask → allow), **access request** (named Connect gate), **connection** (trade-ready, **mutual**), plus silent **pause** / **block**. Relationship management lives under **You → Network** (companies, not individual people).
 
 ## Who uses it
 
@@ -12,9 +12,11 @@ Any company can request / follow; the other Approves. Both use **Network → Con
 
 ### Follow
 
-1. On company / Explore → **Follow** / Unfollow.
-2. Manage lists: **You → Network → Following** / **Followers**.
-3. Followed posts appear on Home Followed and Explore network shelves.
+1. On company / Explore → **Follow** asks (sell-only shops still show Follow). Shop button: Follow · **Pending** · Following. Unfollow cancels a pending ask or ends an allowed follow.
+2. Shop **You → Network → Followers**: chips **Asked** (inbox) and **Following you** (allowed). Decide **Look through** / **Put in a pack** / **Deny**. Deny is silent; they can ask again. Shop can change access later. The follower never sees look vs pack.
+3. **You → Network → Following**: allowed follows only — no grant type.
+4. Allowed follows see Followers-audience posts on Home Followed and Explore. Pending does not.
+5. **Request access** stays a separate Connect path (Network → Requests). Not this flow.
 
 ### Request access (Connect)
 
@@ -44,13 +46,16 @@ When a design/album is locked for Curate, **Ask to put in my pack** → chat All
 
 ### Invites
 
-**Network → Invites** or **＋ → Invite to connect** — see [referrals](./referrals.md).
+**Network → Invites** or **Chats ⋯ → Invite to connect** — see [referrals](./referrals.md).
 
 ## Business rules
 
 | Rule | Detail |
 |------|--------|
-| Follow ≠ Access | Follow is permissionless; does not by itself unlock restricted (connections/selected) posts |
+| Follow ≠ Access | Follow is an ask; Allow does not create a Connection. Restricted (connections/selected) posts stay on those audiences. |
+| Follow pending | Same unique pair; `pending` is not a follower for audience / stories / shop Followers-audience. |
+| Follow access | Shop-facing **Look through** (see Followers posts) vs **Put in a pack** (curate if Trading + `allowForward`). Look-only and not Connected cannot curate that seller. |
+| Home Needs | Incoming follow asks → **Followers · Asked** (`/network/followers?tab=asked`). Separate from access requests. |
 | Catalog visibility | Post **audience** (+ block rules). Connection is **mutual** membership for `connections` / related gates — not required for Everyone. Selected stays Selected. |
 | Open order | Discoverable catalog lines can be ordered without Connection; does **not** auto-create a Network connection |
 | Connection states | `active` · `paused` · `blocked` |
@@ -73,7 +78,7 @@ See [concepts](./00-concepts.md) for the trust ladder diagram.
 
 ## Seed walkthrough
 
-1. Seed: Meena **follows** Ravi; **one** connection **active** Ravi↔Meena.
+1. Seed: Meena **allowed follow** of Ravi (look); **one** connection **active** Ravi↔Meena.
 2. As **Ravi**: Network → Connections — one Meena card (Connected).
 3. As **Meena**: Network → Connections — one Surat Silk House card (Connected).
 4. (Optional QA) Pause as either side → other loses silent visibility; **only the pauser** can Resume.
@@ -81,6 +86,6 @@ See [concepts](./00-concepts.md) for the trust ladder diagram.
 ## Where it lives
 
 - Web: `apps/web/src/features/network/` (Network, Following, Followers, Connections, Requests); `/buyers` redirect
-- API: `apps/api/src/access/`, `discovery/follow.controller.ts`
+- API: `apps/api/src/access/`, `apps/api/src/discovery/follow.controller.ts`
 - Contracts: `packages/domain-types/src/access.ts`
 - Spec: `docs/superpowers/specs/2026-09-12-mutual-connection-design.md`

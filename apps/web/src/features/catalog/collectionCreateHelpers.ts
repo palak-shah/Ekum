@@ -14,7 +14,7 @@ export type CreateGridItem =
   | { kind: 'photo'; localId: string; imageUrl: string; name: string; previewUrl: string }
   | { kind: 'library'; productId: string; imageUrl: string | null; name: string };
 
-/** Cover URL from tagged grid item (photo or library design). */
+/** First design thumb (API fallback only — packs have no cover). */
 export function coverUrlFromGrid(
   items: CreateGridItem[],
   coverKey: string | null,

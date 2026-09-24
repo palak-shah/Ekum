@@ -9,6 +9,12 @@ import type {
 } from '@ekum/domain-types';
 import { MessageType } from '@ekum/domain-types';
 import {
+  catalogShareCanLink,
+  catalogShareCopiedToast,
+  catalogShareInviteText,
+  catalogShareLinkBodies,
+} from '@/features/browse/catalogShareLinkUnits';
+import {
   catalogShareToastLabel,
   dedupeCompanyIds,
   shouldOpenChatAfterCatalogShare,
@@ -34,7 +40,7 @@ export type CatalogShareProductItem = {
 /**
  * Catalogue → chat(s): multi-select companies (Find on Ekum, Clear), then post
  * collection_card / product_card / design_album into each DM. No buyer groups / Broadcast.
- * Quiet 48h link when one album, one design, or 2+ designs.
+ * Quiet 48h link: one door per chat unit (album / design / design album). Mix keeps the row.
  */
 export function CatalogShareSheet({
   open,
@@ -132,41 +138,43 @@ export function CatalogShareSheet({
     },
   });
 
-  const singleCollection = albumItems.length === 1 && designItems.length === 0;
-  const singleProduct = designItems.length === 1 && albumItems.length === 0;
-  const multiDesigns = designItems.length >= 2;
-  const canLink = singleCollection || singleProduct || multiDesigns;
+  const linkBodies = catalogShareLinkBodies({
+    collectionIds: albumItems.map((item) => item.collectionId),
+    productIds: designItems.map((item) => item.productId),
+  });
+  const canLink = catalogShareCanLink({
+    collectionIds: albumItems.map((item) => item.collectionId),
+    productIds: designItems.map((item) => item.productId),
+  });
   const makeLink = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       setError(null);
-      if (singleCollection) {
-        return api.post<ShareLinkView>('/share-links', {
-          collectionId: albumItems[0]!.collectionId,
-        });
+      if (linkBodies.length < 1) throw new Error('Nothing to share');
+      const links: ShareLinkView[] = [];
+      for (const body of linkBodies) {
+        links.push(await api.post<ShareLinkView>('/share-links', body));
       }
-      if (multiDesigns) {
-        return api.post<ShareLinkView>('/share-links', {
-          productIds: designItems.map((item) => item.productId),
-        });
-      }
-      return api.post<ShareLinkView>('/share-links', {
-        productId: designItems[0]!.productId,
-      });
+      return links;
     },
-    onSuccess: async (link) => {
-      const url = `${window.location.origin}${link.path}`;
+    onSuccess: async (links) => {
+      const first = links[0];
+      if (!first) return;
+      const origin = window.location.origin;
+      const urls = links.map((link) => `${origin}${link.path}`);
       const copy = catalogShareCopy({
-        name: link.name,
-        kind: link.kind,
-        companyName: link.companyName,
+        name: first.name,
+        kind: first.kind,
+        companyName: first.companyName,
       });
+      const text = catalogShareInviteText([copy.text], urls);
       try {
         const result = await shareOrCopyInvite({
-          url,
+          url: urls[0]!,
           title: copy.title,
-          text: copy.text,
+          text,
+          copyText: links.length > 1 ? text : undefined,
         });
-        if (result === 'copied') showToast('Link copied · 48 hours');
+        if (result === 'copied') showToast(catalogShareCopiedToast(links.length));
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setError('Could not share the link.');
@@ -239,7 +247,7 @@ export function CatalogShareSheet({
       ) : connections.isLoading ? (
         <LoadingBlock />
       ) : (
-        <div className="flex max-h-[min(24rem,55vh)] flex-col gap-2 overflow-y-auto">
+        <div className="ekum-no-scrollbar flex max-h-[min(24rem,55vh)] flex-col gap-2 overflow-y-auto">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted">
               {selectedCount} selected · posts into chat

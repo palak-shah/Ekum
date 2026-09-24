@@ -5,6 +5,7 @@ import {
   claimVoicePlayback,
   releaseVoicePlayback,
 } from './voicePlayback';
+import { voiceProgressRatio } from './voiceProgress';
 import { cx } from '@/ui/kit';
 
 type Props = {
@@ -13,7 +14,10 @@ type Props = {
   className?: string;
 };
 
-/** Compact play/pause + duration for chat bubbles and order notes. */
+/**
+ * Compact play + progress + duration.
+ * Uses a JS Audio node — never an in-DOM `<audio>` (Android paints native chrome).
+ */
 export function VoicePlayer({ src, durationMs, className }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playingRef = useRef(false);
@@ -42,11 +46,16 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    stopSelf();
+    const audio = new Audio();
+    audio.controls = false;
+    audio.preload = 'metadata';
+    audio.setAttribute('playsinline', 'true');
+    audio.src = playSrc;
+    audioRef.current = audio;
     setFailed(false);
+    setElapsed(0);
+    playingRef.current = false;
+    setPlaying(false);
 
     const onTime = () => setElapsed(audio.currentTime * 1000);
     const onEnd = () => {
@@ -69,7 +78,15 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
       audio.removeEventListener('timeupdate', onTime);
       audio.removeEventListener('ended', onEnd);
       audio.removeEventListener('error', onError);
-      stopSelf();
+      if (!audio.paused) audio.pause();
+      try {
+        audio.removeAttribute('src');
+        audio.load();
+      } catch {
+        /* jsdom has no media load */
+      }
+      if (audioRef.current === audio) audioRef.current = null;
+      releaseVoicePlayback(stopSelf);
     };
   }, [playSrc, stopSelf]);
 
@@ -101,7 +118,6 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
         releaseVoicePlayback(stopSelf);
       })
       .finally(() => {
-        // Ignore a second tap that arrives in the same gesture (mobile ghost click).
         window.setTimeout(() => {
           toggleLockRef.current = false;
         }, 280);
@@ -109,23 +125,18 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
   };
 
   const labelMs = playing ? elapsed : (durationMs ?? elapsed);
+  const fill = voiceProgressRatio(elapsed, durationMs ?? (elapsed > 0 ? elapsed : null));
 
   return (
     <div
+      data-testid="voice-player"
       className={cx(
-        'flex min-w-[10rem] max-w-full items-center gap-2 rounded-2xl border border-line bg-surface px-2.5 py-2',
+        'flex w-full min-w-0 max-w-full items-center gap-2 rounded-xl border border-line bg-surface px-2 py-1.5',
         className,
       )}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <audio
-        ref={audioRef}
-        src={playSrc}
-        preload="metadata"
-        playsInline
-        className="hidden"
-      />
       <button
         type="button"
         aria-label={playing ? 'Pause voice' : 'Play voice'}
@@ -133,36 +144,33 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
         data-card-action
         onClick={toggle}
         onPointerDown={(event) => event.stopPropagation()}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white"
       >
         {playing ? (
           <span className="flex gap-0.5" aria-hidden>
-            <span className="h-3 w-1 rounded-sm bg-white" />
-            <span className="h-3 w-1 rounded-sm bg-white" />
+            <span className="h-3 w-0.5 rounded-sm bg-white" />
+            <span className="h-3 w-0.5 rounded-sm bg-white" />
           </span>
         ) : (
           <span
-            className="ml-0.5 h-0 w-0 border-y-[5px] border-l-[8px] border-y-transparent border-l-white"
+            className="ml-0.5 h-0 w-0 border-y-[4px] border-l-[7px] border-y-transparent border-l-white"
             aria-hidden
           />
         )}
       </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex h-2 items-center gap-0.5" aria-hidden>
-          {Array.from({ length: 16 }).map((_, i) => (
-            <span
-              key={i}
-              className={cx(
-                'w-0.5 rounded-full bg-accent/40',
-                playing && i % 3 === 0 ? 'h-2.5 bg-accent' : 'h-1.5',
-              )}
-            />
-          ))}
-        </div>
-        <p className="mt-0.5 text-[11px] tabular-nums text-muted">
-          {failed ? 'Can’t play' : formatVoiceDuration(labelMs)}
-        </p>
+      <div
+        className="relative h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-line"
+        aria-hidden
+        data-testid="voice-progress"
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-accent"
+          style={{ width: `${Math.round(fill * 100)}%` }}
+        />
       </div>
+      <p className="shrink-0 text-[11px] tabular-nums text-muted">
+        {failed ? 'Can’t play' : formatVoiceDuration(labelMs)}
+      </p>
     </div>
   );
 }

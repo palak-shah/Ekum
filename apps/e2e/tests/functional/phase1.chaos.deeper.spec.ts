@@ -114,11 +114,11 @@ test.describe('phase1 deeper chaos @functional @chaos', () => {
     await assertNoNoise(page, 'orders after abandon new');
 
     await page.goto('/catalog');
-    await expect(page.getByRole('button', { name: 'Designs' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
     await assertNoNoise(page, 'catalog open');
 
-    await page.goto('/more');
-    await expect(page.getByRole('heading', { name: 'You' })).toBeVisible({ timeout: 15_000 });
+    await page.goto('/settings');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('link', { name: /Your paths/i }).click();
     await expect(page.getByTestId('your-paths-page')).toBeVisible({ timeout: 15_000 });
     await assertNoNoise(page, 'your paths');

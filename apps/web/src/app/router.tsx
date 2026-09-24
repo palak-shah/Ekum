@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import type { ComponentType } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { RequireAuth } from './RequireAuth';
 import { NotFoundPage, RouteErrorPage } from './RouteErrorPage';
@@ -60,8 +60,14 @@ const SamplesPage = page(() => import('@/features/orders/SamplesPage'), 'Samples
 const ReturnsPage = page(() => import('@/features/orders/ReturnsPage'), 'ReturnsPage');
 const ChatsPage = page(() => import('@/features/chats/ChatsPage'), 'ChatsPage');
 const ChatFindPage = page(() => import('@/features/chats/ChatFindPage'), 'ChatFindPage');
+const ArchivedChatsPage = page(() => import('@/features/chats/ArchivedChatsPage'), 'ArchivedChatsPage');
 const ThreadPage = page(() => import('@/features/chats/ThreadPage'), 'ThreadPage');
-const MyCatalogPage = page(() => import('@/features/catalog/MyCatalogPage'), 'MyCatalogPage');
+const GroupInfoPage = page(() => import('@/features/chats/GroupInfoPage'), 'GroupInfoPage');
+const GroupInviteLandingPage = page(
+  () => import('@/features/chats/GroupInviteLandingPage'),
+  'GroupInviteLandingPage',
+);
+const CatalogToYou = page(() => import('@/features/catalog/CatalogToYou'), 'CatalogToYou');
 const ProductEditorPage = page(
   () => import('@/features/catalog/ProductEditorPage'),
   'ProductEditorPage',
@@ -105,8 +111,16 @@ const NotificationsPage = page(
 const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
 const YourPathsPage = page(() => import('@/features/settings/YourPathsPage'), 'YourPathsPage');
+const CatalogDefaultsPage = page(
+  () => import('@/features/settings/CatalogDefaultsPage'),
+  'CatalogDefaultsPage',
+);
+const UnitsSettingsPage = page(
+  () => import('@/features/settings/UnitsSettingsPage'),
+  'UnitsSettingsPage',
+);
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
-const SavedPage = page(() => import('@/features/saved/SavedPage'), 'SavedPage');
+const SavedToYou = page(() => import('@/features/saved/SavedToYou'), 'SavedToYou');
 const SelectionPage = page(() => import('@/features/browse/SelectionPage'), 'SelectionPage');
 const StarredMessagesPage = page(
   () => import('@/features/chats/StarredMessagesPage'),
@@ -153,6 +167,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/g/:token',
+        element: (
+          <Suspense fallback={<LoadingBlock label="Opening invite…" />}>
+            <GroupInviteLandingPage />
+          </Suspense>
+        ),
+      },
+      {
         path: '/_visual/chat-trade-cards',
         element: (
           <Suspense fallback={<LoadingBlock label="Loading…" />}>
@@ -193,8 +215,11 @@ export const router = createBrowserRouter([
               { path: 'returns', element: <ReturnsPage /> },
               { path: 'chats', element: <ChatsPage /> },
               { path: 'chats/find', element: <ChatFindPage /> },
+              { path: 'chats/archived', element: <ArchivedChatsPage /> },
+              { path: 'chats/starred', element: <StarredMessagesPage /> },
               { path: 'chats/:id', element: <ThreadPage /> },
-              { path: 'catalog', element: <MyCatalogPage /> },
+              { path: 'chats/:id/info', element: <GroupInfoPage /> },
+              { path: 'catalog', element: <CatalogToYou /> },
               { path: 'catalog/curate', element: <CuratePackPage /> },
               { path: 'catalog/products/new', element: <DesignBatchPage /> },
               { path: 'catalog/products/:id', element: <ProductEditorPage /> },
@@ -214,10 +239,12 @@ export const router = createBrowserRouter([
               { path: 'settings', element: <SettingsPage /> },
               { path: 'settings/profile', element: <ProfilePage /> },
               { path: 'settings/paths', element: <YourPathsPage /> },
+              { path: 'settings/catalog-defaults', element: <CatalogDefaultsPage /> },
+              { path: 'settings/units', element: <UnitsSettingsPage /> },
               { path: 'team', element: <TeamPage /> },
-              { path: 'saved', element: <SavedPage /> },
+              { path: 'saved', element: <SavedToYou /> },
               { path: 'selection', element: <SelectionPage /> },
-              { path: 'starred', element: <StarredMessagesPage /> },
+              { path: 'starred', element: <Navigate to="/chats/starred" replace /> },
               { path: 'more', element: <MorePage /> },
               { path: '*', element: <NotFoundPage /> },
             ],

@@ -22,11 +22,11 @@ async function placeCuratedABPack(page: Page): Promise<string> {
   await page.locator('button').filter({ has: page.locator('img') }).first().click({
     button: 'right',
   });
-  await expect(page.getByTestId('selection-workspace-bar')).toContainText(/2 selected/i, {
+  await expect(page.getByTestId('selection-workspace-bar')).toContainText(/2 in selection/i, {
     timeout: 10_000,
   });
 
-  await page.getByTestId('selection-workspace-bar').click();
+  await page.getByTestId('selection-workspace-view').click();
   await page.getByTestId('selection-curate').click();
   await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible({
     timeout: 15_000,
@@ -170,13 +170,17 @@ test.describe('from-pack multi-supplier @functional @orders @trader', () => {
 
     await loginAsMeena(page);
     await page.goto(`/orders/${parentId}`);
-    await expect(page.getByText('This order is with')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('order-ticket-mill')).toContainText('Mills');
+    await expect(page.getByText('Buyer talks to')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-ticket-pick')).toContainText('You');
+    await page.getByTestId('order-ticket-pick').click();
+    await expect(page.getByTestId('order-ticket-mill')).toContainText('These mills');
     await expect(page.getByTestId('order-ticket-mill-names')).toContainText('Surat Silk House');
     await expect(page.getByTestId('order-ticket-mill-names')).toContainText('Ahmedabad Loom Co');
 
     await page.getByTestId('order-ticket-mill').click();
-    await expect(page.getByTestId('order-ticket-mill')).toBeDisabled({ timeout: 15_000 });
+    await expect(page.getByTestId('order-ticket-pick')).toContainText('These mills', {
+      timeout: 15_000,
+    });
     await expect(page).toHaveURL(new RegExp(`/orders/${parentId}$`));
 
     const traderToken = await accessTokenFromPage(page);

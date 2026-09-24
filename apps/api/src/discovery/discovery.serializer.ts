@@ -8,11 +8,20 @@ import type {
 } from '@ekum/domain-types';
 import { CompanySerializer } from '../access/company.serializer';
 import { collectionPreviewFromRow } from './collection-preview';
+import { collectionMemberFind } from '../catalog/collection-member-find';
 
 type CollectionCardRow = Collection & {
   company: Company;
   _count: { products: number };
-  products?: Array<{ product: { images: string[] } }>;
+  products?: Array<{
+    product: {
+      images: string[];
+      name?: string | null;
+      sku?: string | null;
+      description?: string | null;
+      categories?: string[] | null;
+    };
+  }>;
 };
 type ProductCardRow = Product & { company: Company };
 
@@ -37,6 +46,8 @@ export class DiscoverySerializer {
     return {
       id: collection.id,
       name: collection.name,
+      categories: collection.categories ?? [],
+      memberFind: collectionMemberFind(collection.products),
       coverImage: collection.coverImage,
       previewImages: preview.previewImages,
       imageCount: preview.imageCount,

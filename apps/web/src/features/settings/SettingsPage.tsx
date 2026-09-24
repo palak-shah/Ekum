@@ -10,17 +10,17 @@ import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import {
   Button,
-  Card,
-  EmptyState,
   Field,
   InlineNotice,
   LoadingBlock,
-  SectionHeader,
   Sheet,
   Tag,
   TextInput,
 } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
+import { useTradePresence } from '@/lib/tradePresence';
+import { SettingsDomainCard, SettingsDomainGroup } from '@/features/settings/SettingsDomainCard';
+import { settingsBusinessRoleLinks } from '@/features/settings/youShortcuts';
 
 const emptyAddress = (): UpsertAddressDto => ({
   label: '',
@@ -37,6 +37,7 @@ const emptyFirm = (): UpsertBillingFirmDto => ({
 });
 
 export function SettingsPage() {
+  const { trading, selling } = useTradePresence();
   const queryClient = useQueryClient();
   const [addrOpen, setAddrOpen] = useState(false);
   const [firmOpen, setFirmOpen] = useState(false);
@@ -95,69 +96,85 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader title="Settings" />
 
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Dispatch addresses"
-          action={
-            <button className="text-xs font-medium text-accent" onClick={() => setAddrOpen(true)}>
-              Add
-            </button>
-          }
-        />
-        {addresses.isLoading ? (
-          <LoadingBlock />
-        ) : addresses.data && addresses.data.length > 0 ? (
-          addresses.data.map((address) => (
-            <Card key={address.id} className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold text-ink">{address.label}</p>
-                <p className="text-xs text-muted">
-                  {address.line1}
-                  {address.line2 ? `, ${address.line2}` : ''}, {address.city}
-                  {address.pincode ? ` · ${address.pincode}` : ''}
-                </p>
+      <SettingsDomainGroup title="Business & Roles" testId="settings-domain-business-roles">
+        {settingsBusinessRoleLinks(trading, selling).map((item) => (
+          <SettingsDomainCard key={item.to} to={item.to} title={item.title} hint={item.hint} />
+        ))}
+      </SettingsDomainGroup>
+
+      <section className="flex flex-col gap-1.5" data-testid="settings-domain-dispatch">
+        <div className="flex items-center justify-between gap-3 px-0.5">
+          <h2 className="text-[13px] font-semibold tracking-tight text-ink">Dispatch</h2>
+          <button className="text-xs font-medium text-accent" onClick={() => setAddrOpen(true)}>
+            Add
+          </button>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          {addresses.isLoading ? (
+            <div className="px-3.5 py-3">
+              <LoadingBlock />
+            </div>
+          ) : addresses.data && addresses.data.length > 0 ? (
+            addresses.data.map((address) => (
+              <div
+                key={address.id}
+                className="flex items-start justify-between gap-3 border-b border-line px-3.5 py-3 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{address.label}</p>
+                  <p className="text-xs text-muted">
+                    {address.line1}
+                    {address.line2 ? `, ${address.line2}` : ''}, {address.city}
+                    {address.pincode ? ` · ${address.pincode}` : ''}
+                  </p>
+                </div>
+                {address.isDefault ? <Tag tone="success">Default</Tag> : null}
               </div>
-              {address.isDefault ? <Tag tone="success">Default</Tag> : null}
-            </Card>
-          ))
-        ) : (
-          <EmptyState title="No addresses" message="Add a dispatch address for orders." />
-        )}
+            ))
+          ) : (
+            <p className="px-3.5 py-3 text-sm text-muted">Add a dispatch address for orders.</p>
+          )}
+        </div>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Billing firms"
-          action={
-            <button
-              type="button"
-              data-testid="settings-add-billing-firm"
-              className="text-xs font-medium text-accent"
-              onClick={openAddFirm}
-            >
-              Add
-            </button>
-          }
-        />
-        {billingFirms.isLoading ? (
-          <LoadingBlock />
-        ) : billingFirms.data && billingFirms.data.length > 0 ? (
-          billingFirms.data.map((row) => (
-            <Card key={row.id} className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold text-ink">{row.name}</p>
-                {row.gstNumber ? <p className="text-xs text-muted">GST · {row.gstNumber}</p> : null}
-                {row.addressLine ? <p className="text-xs text-muted">{row.addressLine}</p> : null}
+      <section className="flex flex-col gap-1.5" data-testid="settings-domain-billing">
+        <div className="flex items-center justify-between gap-3 px-0.5">
+          <h2 className="text-[13px] font-semibold tracking-tight text-ink">Billing</h2>
+          <button
+            type="button"
+            data-testid="settings-add-billing-firm"
+            className="text-xs font-medium text-accent"
+            onClick={openAddFirm}
+          >
+            Add
+          </button>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          {billingFirms.isLoading ? (
+            <div className="px-3.5 py-3">
+              <LoadingBlock />
+            </div>
+          ) : billingFirms.data && billingFirms.data.length > 0 ? (
+            billingFirms.data.map((row) => (
+              <div
+                key={row.id}
+                className="flex items-start justify-between gap-3 border-b border-line px-3.5 py-3 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{row.name}</p>
+                  {row.gstNumber ? <p className="text-xs text-muted">GST · {row.gstNumber}</p> : null}
+                  {row.addressLine ? <p className="text-xs text-muted">{row.addressLine}</p> : null}
+                </div>
+                {row.isDefault ? <Tag tone="success">Default</Tag> : null}
               </div>
-              {row.isDefault ? <Tag tone="success">Default</Tag> : null}
-            </Card>
-          ))
-        ) : (
-          <EmptyState title="No billing firms" message="Add the GST firm you invoice under." />
-        )}
+            ))
+          ) : (
+            <p className="px-3.5 py-3 text-sm text-muted">Add the GST firm you invoice under.</p>
+          )}
+        </div>
       </section>
 
       <Sheet open={addrOpen} onClose={() => setAddrOpen(false)} title="New address">

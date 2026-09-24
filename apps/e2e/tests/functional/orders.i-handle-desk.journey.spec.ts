@@ -60,6 +60,7 @@ test.describe('I-handle desk @functional @orders', () => {
 
     await page.goto(`/orders/${created.id}`);
     await expect(page.getByRole('button', { name: /Send to / })).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-testid^="order-mill-decline-"]')).toBeVisible();
     await page.getByRole('button', { name: /Send to / }).click();
     await expect(page.getByText('Sent.')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /Send to / })).toHaveCount(0);

@@ -20,7 +20,6 @@ import {
   OrderStatus,
   OrderTradeMode,
   OrderTrailType,
-  PaymentRequestStatus,
   quoteTrailSummary,
   shortOrderLabel,
   type AmendOrderDto,
@@ -38,6 +37,7 @@ import {
   type OrderView,
   type QuoteOrderDto,
   type MillPassHoldDto,
+  type MillDeclineDto,
   type OrderMillDeskView,
   type MillRevealDto,
   type OrderTicketDto,
@@ -486,6 +486,7 @@ export class OrderService {
 
     for (const [sellerCompanyId, group] of groups) {
       try {
+        if (sellerCompanyId === actorCompanyId) continue;
         await this.upsertTradeLane(
           collection.companyId,
           sellerCompanyId,
@@ -764,24 +765,6 @@ export class OrderService {
       order.status === OrderStatus.Requested &&
       !sellerQuoted &&
       order.items.every((item) => item.lineStatus === OrderLineStatus.Open);
-    const paymentRequests = (
-      await this.prisma.paymentRequest.findMany({
-        where: { orderId: id },
-        orderBy: { createdAt: 'desc' },
-      })
-    ).map((row) => ({
-      id: row.id,
-      orderId: row.orderId,
-      amount: row.amount.toNumber(),
-      note: row.note,
-      noteVoiceUrl: row.noteVoiceUrl,
-      noteVoiceDurationMs: row.noteVoiceDurationMs,
-      instructions: row.instructions,
-      status: row.status,
-      seenAt: row.seenAt ? row.seenAt.toISOString() : null,
-      paidAt: row.paidAt ? row.paidAt.toISOString() : null,
-      createdAt: row.createdAt.toISOString(),
-    }));
     const quoteNoteFields = sellerQuoted
       ? await this.loadQuoteNoteFields(order.id)
       : {
@@ -801,7 +784,8 @@ export class OrderService {
         millDesks.some((desk) => desk.millQuoted && !desk.held) && !sellerQuoted,
       linkedMills: millDesks.map((desk) => ({
         name: desk.sellerName,
-        orderId: desk.upstreamOrderId,
+        orderId: desk.held ? null : desk.upstreamOrderId,
+        held: desk.held,
       })),
       canSendUp,
       canTakeControl,
@@ -831,15 +815,8 @@ export class OrderService {
         order.buyerCompanyId === actorCompanyId &&
         order.status === OrderStatus.Requested &&
         order.createdByCompanyId === order.sellerCompanyId,
-      paymentRequests,
-      canAskPayment:
-        order.sellerCompanyId === actorCompanyId &&
-        (order.status === OrderStatus.Confirmed ||
-          order.status === OrderStatus.PartShipped ||
-          order.status === OrderStatus.Dispatched ||
-          order.status === OrderStatus.Delivered ||
-          order.status === OrderStatus.Settled) &&
-        !paymentRequests.some((ask) => ask.status === PaymentRequestStatus.Open),
+      paymentRequests: [],
+      canAskPayment: false,
       ...quoteNoteFields,
       canSettle:
         order.sellerCompanyId === actorCompanyId &&
@@ -1104,10 +1081,16 @@ export class OrderService {
           message: 'A quote line does not match this order.',
         });
       }
-      if (item.lineStatus === OrderLineStatus.Declined) {
+      if (item.lineStatus === OrderLineStatus.Declined && line.unavailable) {
+        continue;
+      }
+      if (
+        item.lineStatus !== OrderLineStatus.Open &&
+        item.lineStatus !== OrderLineStatus.Declined
+      ) {
         throw new ConflictException({
-          code: 'LINE_DECLINED',
-          message: 'A declined line cannot be quoted again.',
+          code: 'LINE_LOCKED',
+          message: 'This design is already confirmed.',
         });
       }
     }
@@ -1160,6 +1143,9 @@ export class OrderService {
       return sum + (line.rate ?? 0) * qty;
     }, 0);
     const declinedCount = lines.filter((line) => line.unavailable).length;
+    // This send only (quoted + newly declined). Previously declined lines are
+    // omitted from `lines`, so `order.items.length` would overcount quoted.
+    const quoteItemCount = supplyable.length + declinedCount;
     const partial = declinedCount > 0 || supplyable.some((line) => {
       const item = byId.get(line.orderItemId);
       const offered = line.quantity ?? item?.quantity.toNumber() ?? 0;
@@ -1180,7 +1166,7 @@ export class OrderService {
       order.id,
       {
         status: OrderStatus.Requested,
-        itemCount: order.items.length,
+        itemCount: quoteItemCount,
         declinedCount: declinedCount > 0 ? declinedCount : undefined,
         totalLabel: `₹${total.toLocaleString('en-IN')}`,
         validUntil: dto.validUntil ?? null,
@@ -1877,9 +1863,10 @@ export class OrderService {
       where: {
         downstreamOrderId: id,
         upstreamReleasedAt: null,
+        status: OrderStatus.Requested,
         ...(dto.upstreamOrderId ? { id: dto.upstreamOrderId } : {}),
       },
-      include: { items: true },
+      include: { items: true, seller: true },
     });
     if (upstreams.length === 0) {
       throw new BadRequestException({
@@ -1912,6 +1899,14 @@ export class OrderService {
         where: { id: up.id },
         data: { upstreamReleasedAt: now, updatedByUserId: userId },
       });
+      const millName = up.seller?.name?.trim() || 'mill';
+      await this.trail.append({
+        orderId: id,
+        type: OrderTrailType.Updated,
+        actorCompanyId,
+        actorUserId: userId,
+        summary: `You sent to ${millName}`,
+      });
       const lane = await this.upsertTradeLane(
         actorCompanyId,
         up.sellerCompanyId,
@@ -1934,6 +1929,103 @@ export class OrderService {
       await this.announceReleasedUpstream(up.id, actorCompanyId);
     }
 
+    return this.get(actorCompanyId, id);
+  }
+
+  /** Drop one mill hop, or every hop still waiting when id is omitted. */
+  async millDecline(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: MillDeclineDto = {},
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId || order.tradeMode !== OrderTradeMode.Manage) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only you can decline this mill.',
+      });
+    }
+    const ups = await this.prisma.order.findMany({
+      where: {
+        downstreamOrderId: id,
+        upstreamReleasedAt: null,
+        status: OrderStatus.Requested,
+        ...(dto.upstreamOrderId ? { id: dto.upstreamOrderId } : {}),
+      },
+      include: { seller: true, items: true },
+    });
+    if (ups.length === 0) {
+      throw new BadRequestException({
+        code: 'NOT_HELD',
+        message: 'Only a mill still waiting for Send can be declined.',
+      });
+    }
+    const now = new Date();
+    for (const up of ups) {
+      await this.prisma.order.update({
+        where: { id: up.id },
+        data: { status: OrderStatus.Declined, closedAt: now, updatedByUserId: userId },
+      });
+      await this.prisma.orderItem.updateMany({
+        where: { orderId: up.id, lineStatus: OrderLineStatus.Open },
+        data: { lineStatus: OrderLineStatus.Declined },
+      });
+      const productIds = up.items
+        .map((item) => item.productId)
+        .filter((pid): pid is string => Boolean(pid));
+      if (productIds.length > 0) {
+        await this.prisma.orderItem.updateMany({
+          where: {
+            orderId: id,
+            productId: { in: productIds },
+            lineStatus: OrderLineStatus.Open,
+          },
+          data: { lineStatus: OrderLineStatus.Declined },
+        });
+      }
+      await this.trail.append({
+        orderId: id,
+        type: OrderTrailType.Updated,
+        actorCompanyId,
+        actorUserId: userId,
+        summary: `You declined ${up.seller.name}`,
+      });
+    }
+
+    const remainingOpen = await this.prisma.orderItem.count({
+      where: { orderId: id, lineStatus: OrderLineStatus.Open },
+    });
+    if (remainingOpen === 0) {
+      await this.prisma.order.update({
+        where: { id },
+        data: { status: OrderStatus.Declined, closedAt: now, updatedByUserId: userId },
+      });
+      await this.trail.append({
+        orderId: id,
+        type: OrderTrailType.Declined,
+        actorCompanyId,
+        actorUserId: userId,
+        summary: 'Declined',
+      });
+      const orderLabel = shortOrderLabel(id);
+      const actorLabel = order.seller.name;
+      await this.postOrderCard(
+        order.buyerCompanyId,
+        order.sellerCompanyId,
+        actorCompanyId,
+        `${actorLabel} declined`,
+        id,
+        {
+          status: OrderStatus.Declined,
+          itemCount: order.items.length,
+          event: OrderChatEvent.OrderDeclined,
+          orderLabel,
+          actorLabel,
+          actorRole: 'seller',
+        },
+      );
+    }
     return this.get(actorCompanyId, id);
   }
 
@@ -1999,6 +2091,12 @@ export class OrderService {
     });
     if (!up) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Mill lot not found.' });
+    }
+    if (up.sellerCompanyId === order.buyerCompanyId) {
+      throw new BadRequestException({
+        code: 'SAME_SHOP',
+        message: 'Mill and buyer are the same shop — nothing to reveal.',
+      });
     }
     const lane = await this.upsertTradeLane(
       actorCompanyId,
@@ -2803,7 +2901,10 @@ export class OrderService {
           row.sellerCompanyId === actorCompanyId && row.tradeMode === OrderTradeMode.Manage,
       )
       .map((row) => row.id);
-    const byParent = new Map<string, Array<{ name: string; orderId: string | null }>>();
+    const byParent = new Map<
+      string,
+      Array<{ name: string; orderId: string | null; held: boolean }>
+    >();
     if (manageIds.length === 0) return byParent;
     const ups = await this.prisma.order.findMany({
       where: { downstreamOrderId: { in: manageIds } },
@@ -2815,6 +2916,10 @@ export class OrderService {
       list.push({
         name: up.seller.name,
         orderId: up.upstreamReleasedAt ? up.id : null,
+        held:
+          up.upstreamReleasedAt == null &&
+          up.status !== OrderStatus.Declined &&
+          up.status !== OrderStatus.Cancelled,
       });
       byParent.set(up.downstreamOrderId, list);
     }
@@ -2910,7 +3015,10 @@ export class OrderService {
         upstreamOrderId: up.id,
         sellerCompanyId: up.sellerCompanyId,
         sellerName: up.seller.name,
-        held: up.upstreamReleasedAt == null,
+        held:
+          up.upstreamReleasedAt == null &&
+          up.status !== OrderStatus.Declined &&
+          up.status !== OrderStatus.Cancelled,
         passHeld: up.passHeldAt != null,
         reveal,
         revealThreadId:
@@ -3569,6 +3677,7 @@ export class OrderService {
     for (const [sellerCompanyId, items] of groups) {
       try {
         if (parent) {
+          if (sellerCompanyId === parent.buyerCompanyId) continue;
           await this.upsertTradeLane(handlerCompanyId, sellerCompanyId, parent.buyerCompanyId);
         }
         await this.create(
@@ -3595,6 +3704,18 @@ export class OrderService {
     buyerCompanyId: string,
     patch: { reveal?: boolean; ticket?: string } = {},
   ) {
+    if (sellerCompanyId === buyerCompanyId) {
+      // Same shop on both ends — no TradeLane / trio.
+      return {
+        id: '',
+        traderCompanyId,
+        sellerCompanyId,
+        buyerCompanyId,
+        ticket: TradeLaneTicket.Me,
+        reveal: false,
+        groupThreadId: null as string | null,
+      };
+    }
     return this.prisma.tradeLane.upsert({
       where: {
         traderCompanyId_sellerCompanyId_buyerCompanyId: {

@@ -43,6 +43,8 @@ const createProductObjectSchema = z.object({
   /** Optional high end for display ranges (e.g. 1200–1400). Orders use `rate` only. */
   rateMax: z.number().nonnegative().nullable().optional(),
   unit: z.enum(unitValues).optional(),
+  /** Pieces in one set/dozen/box; null clears on update. */
+  piecesPerPack: z.number().int().positive().max(1_000_000).nullable().optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
   images: z
     .array(
@@ -121,6 +123,22 @@ export const setCollectionProductsSchema = z.object({
 });
 export type SetCollectionProductsDto = z.infer<typeof setCollectionProductsSchema>;
 
+/** Which designs this shop may put in a curated pack (same ceiling as set products). */
+export const curateCheckSchema = z.object({
+  productIds: z.array(z.string().min(1)).max(1000),
+});
+export type CurateCheckDto = z.infer<typeof curateCheckSchema>;
+
+export interface CurateCheckBlocked {
+  productId: string;
+  code: string;
+}
+
+export interface CurateCheckView {
+  allowedProductIds: string[];
+  blocked: CurateCheckBlocked[];
+}
+
 /** Audience + rate visibility decided in the publish sheet (not a settings page). */
 export const publishCollectionSchema = z
   .object({
@@ -128,6 +146,8 @@ export const publishCollectionSchema = z
     rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
     /** When false, buyers cannot forward this pack/design beyond the supplier. */
     allowForward: z.boolean().default(true),
+    /** When false, buyers must not download / export design photos. */
+    allowDownload: z.boolean().optional().default(false),
     /** Direct | I handle for orders from this pack; null = Profile default. */
     orderPathPreference: z.enum(orderPathPreferenceValues).nullable().optional(),
     /** Optional single buyer group (legacy / exactly-one convenience). */
@@ -180,6 +200,8 @@ export interface ProductView {
   /** High end when rate is a range; null for single / on request. */
   rateMax: number | null;
   unit: string | null;
+  /** Pieces in one set/dozen/box; null when not set. */
+  piecesPerPack: number | null;
   categories: string[];
   images: string[];
   status: string;
@@ -189,6 +211,12 @@ export interface ProductView {
   /** Buyer group IDs last chosen for selected audience (empty when custom list). */
   audienceGroupIds: string[];
   allowForward: boolean;
+  allowDownload: boolean;
+  /**
+   * Other non-archived packs this design is in (owner library). Empty when
+   * memberships were not loaded.
+   */
+  collectionNames: string[];
   /** ISO time when live on Explore; null when draft/hidden. */
   postedToMarketAt: string | null;
   createdBy: AuditActorView | null;
@@ -210,6 +238,8 @@ export interface CollectionView {
   coverImage: string | null;
   /** Tag labels (search bridge; same shape as Product.categories). */
   categories: string[];
+  /** Member name / SKU / notes / tags for in-list find. */
+  memberFind: string[];
   status: string;
   audience: string;
   rateVisibility: string;
@@ -217,6 +247,7 @@ export interface CollectionView {
   /** Buyer group IDs last chosen for selected audience (empty when custom list). */
   audienceGroupIds: string[];
   allowForward: boolean;
+  allowDownload: boolean;
   /**
    * Direct | I handle for orders from this pack.
    * null = use pack owner Profile default at order time.

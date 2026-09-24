@@ -39,6 +39,7 @@ export class ProductService {
         rate: dto.rate ?? null,
         rateMax: dto.rateMax ?? null,
         unit: dto.unit ?? null,
+        piecesPerPack: dto.piecesPerPack ?? null,
         categories: dto.categories,
         images: dto.images,
         createdByUserId: userId,
@@ -89,6 +90,7 @@ export class ProductService {
         rate: dto.rate,
         ...(dto.rateMax !== undefined ? { rateMax: dto.rateMax } : {}),
         unit: dto.unit,
+        ...(dto.piecesPerPack !== undefined ? { piecesPerPack: dto.piecesPerPack } : {}),
         categories: dto.categories,
         images: dto.images,
         updatedByUserId: userId,
@@ -176,6 +178,7 @@ export class ProductService {
         ? [...new Set(dto.groupIds?.length ? dto.groupIds : dto.groupId ? [dto.groupId] : [])]
         : [];
     const allowForward = dto.allowForward !== false;
+    const allowDownload = dto.allowDownload === true;
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -186,6 +189,7 @@ export class ProductService {
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
+        allowDownload,
         postedToMarketAt: new Date(),
         updatedByUserId: userId,
       },
@@ -194,6 +198,7 @@ export class ProductService {
     await rememberPublishDefaults(this.prisma, companyId, {
       rateVisibility: dto.rateVisibility,
       allowForward,
+      allowDownload,
     });
     return this.serializer.toProductView(product);
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProductStatus } from '@ekum/domain-types';
 import type { ProductView } from '@ekum/domain-types';
-import { productStatusLine } from './productStatusSummary';
+import { productStatusLine, productTileSubtitle } from './productStatusSummary';
 
 function product(partial: Partial<ProductView>): ProductView {
   return {
@@ -14,6 +14,7 @@ function product(partial: Partial<ProductView>): ProductView {
     rate: null,
     rateMax: null,
     unit: 'pc',
+    piecesPerPack: null,
     categories: [],
     images: [],
     status: ProductStatus.Draft,
@@ -22,6 +23,8 @@ function product(partial: Partial<ProductView>): ProductView {
     audienceGroupIds: [],
     rateVisibility: 'on_request',
     allowForward: true,
+    allowDownload: false,
+    collectionNames: [],
     postedToMarketAt: null,
     createdBy: null,
     updatedBy: null,
@@ -40,10 +43,10 @@ describe('productStatusLine', () => {
           postedToMarketAt: null,
         }),
       ),
-    ).toBe('Published · in packs');
+    ).toBe('In packs');
   });
 
-  it('shows audience when on Explore', () => {
+  it('marks a solo Explore post separately from pack-only', () => {
     expect(
       productStatusLine(
         product({
@@ -52,6 +55,21 @@ describe('productStatusLine', () => {
           audience: 'followers',
         }),
       ),
-    ).toMatch(/^Published ·/);
+    ).toMatch(/^On Explore/);
+  });
+});
+
+describe('productTileSubtitle', () => {
+  it('keeps rate SKU photos off the status line', () => {
+    expect(
+      productTileSubtitle(
+        product({
+          status: ProductStatus.Published,
+          postedToMarketAt: null,
+          sku: 'EK-1',
+          images: ['https://example.com/a.jpg'],
+        }),
+      ),
+    ).toBe('On request · EK-1 · 1 photo');
   });
 });

@@ -1,22 +1,16 @@
 /**
- * Builds WhatsApp-album preview fields for a collection card: up to four cell
- * URLs plus the full distinct image count used for the +N overlay.
+ * Collection card mosaic: first photo of each member design (position order).
+ * No pack cover. Extra shots on a design stay on the design, not the collage.
  */
 export function collectionPreviewFromRow(collection: {
-  coverImage: string | null;
+  coverImage?: string | null;
   products?: Array<{ product: { images: string[] } }>;
 }): { previewImages: string[]; imageCount: number } {
   const urls: string[] = [];
-  const push = (url: string | null | undefined) => {
-    if (url && !urls.includes(url)) {
-      urls.push(url);
-    }
-  };
-
-  push(collection.coverImage);
   for (const entry of collection.products ?? []) {
-    for (const image of entry.product.images) {
-      push(image);
+    const first = entry.product.images.find((url) => url?.trim());
+    if (first && !urls.includes(first)) {
+      urls.push(first);
     }
   }
 
@@ -33,6 +27,17 @@ export const collectionCardInclude = {
   products: {
     orderBy: { position: 'asc' as const },
     take: 12,
-    include: { product: { select: { images: true, companyId: true } } },
+    include: {
+      product: {
+        select: {
+          images: true,
+          companyId: true,
+          name: true,
+          sku: true,
+          description: true,
+          categories: true,
+        },
+      },
+    },
   },
 } as const;

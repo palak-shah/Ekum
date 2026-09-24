@@ -10,12 +10,12 @@ Both buyers and sellers. Content depends on trade presence and network.
 
 ## User flows
 
-Home composes data from access requests, orders, returns, pending chat requests, followed feed, and Explore opportunities.
+Home composes data from access requests, follow asks, orders, returns, pending chat requests, followed feed, and Explore opportunities.
 
 | Mode | When | What you see |
 |------|------|----------------|
-| **Needs you** | There are actionable items | Access to approve, chat requests, order/return verbs (Send rate, Confirm, Dispatch, …) |
-| **Followed hero** | Quiet needs + followed posts | Recent posts from companies you follow — **grouped by company** with a count when they posted more than once |
+| **Needs you** | There are actionable items | Access to approve, **follow asks**, chat requests, order/return verbs (Send rate, Confirm, Dispatch, …) |
+| **Followed hero** | Quiet needs + followed posts | Recent posts from companies with an **allowed** follow — **grouped by company** with a count when they posted more than once |
 | **From the market** | Quiet + market signal | Relevance-ranked opportunity posts — **grouped by company** (count when several) |
 | **New packs** | Curated packs received in the last 7 days | Pack name · publisher · day → album; See all → Explore Buying |
 | **Explore businesses** | Empty / cold start | Prompt to discover companies |
@@ -25,7 +25,7 @@ Actions: open the related order, chat, buyer request, collection, or company; ex
 ## Business rules
 
 - **Notifications are not on Home** — use the bell (`/notifications`). Home is action-oriented, not a duplicate alert feed.
-- Needs rows use attention verbs derived from order/return/access/chat state (`homeAttention.ts`).
+- Needs rows use attention verbs derived from order/return/access/follow-ask/chat state (`homeAttention.ts`). Follow ask → `/network/followers?tab=asked` (not Requests).
 - **Order needs group by opposite company + action** (e.g. `38 to dispatch · Jaipur Emporium`), not one row per order.
 - **Attention center (Home composition):** greeting → live “N item(s) need attention” → compact existing metric cards (orders / requests / returns that need you, nonzero only) → the **need list is the hero**. Metrics stay subordinate. Do not use a single oversized KPI tile.
 - **Viewed needs stay hidden** (device-local per company) until that bucket has newer activity. Rows also clear when the underlying work is done.
@@ -63,4 +63,4 @@ Logout and login clear the React Query tenant cache so a new signup never greets
 
 - Web: `apps/web/src/features/home/HomePage.tsx`, `homeAttention.ts`
 - Plan note: `docs/superpowers/plans/2026-08-05-home-needs-you.md`
-- APIs composed: access-requests, orders, returns, threads (`pending`), follows, explore feed
+- APIs composed: access-requests, follow asks, orders, returns, threads (`pending`), follows, explore feed

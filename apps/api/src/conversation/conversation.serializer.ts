@@ -30,6 +30,8 @@ export interface ThreadSummaryInput {
   canRemoveGroup?: boolean;
   canManagePeople?: boolean;
   alertLevel?: string;
+  counterpartTyping?: boolean;
+  pinnedMessage?: ThreadDetail['pinnedMessage'];
 }
 
 @Injectable()
@@ -42,7 +44,10 @@ export class ConversationSerializer {
     viewerUserId: string | null,
     reference: MessageReference | null,
     replyTo: MessageReplyPreview | null = null,
-    extras: { starred?: boolean } = {},
+    extras: {
+      starred?: boolean;
+      reactions?: MessageView['reactions'];
+    } = {},
   ): MessageView {
     const mine = message.senderCompanyId === viewerCompanyId;
     const deletedForEveryone = Boolean(message.deletedForEveryoneAt);
@@ -72,6 +77,7 @@ export class ConversationSerializer {
       editedAt: message.editedAt ? message.editedAt.toISOString() : null,
       deletedForEveryone,
       starred: Boolean(extras.starred),
+      reactions: extras.reactions ?? [],
       canEdit: canEditMessageMeta({
         mine,
         type: message.type,
@@ -108,6 +114,8 @@ export class ConversationSerializer {
       type: thread.type,
       visibility: thread.visibility,
       title: thread.title,
+      imageUrl: 'imageUrl' in thread ? (thread.imageUrl ?? null) : null,
+      blurb: 'blurb' in thread ? (thread.blurb ?? null) : null,
       state: mine.state,
       alertLevel: input.alertLevel ?? mine.alertLevel,
       pinned: Boolean(mine.pinnedAt),
@@ -131,6 +139,8 @@ export class ConversationSerializer {
       canLeave: input.canLeave ?? false,
       canRemoveGroup: input.canRemoveGroup ?? false,
       canManagePeople: input.canManagePeople ?? false,
+      counterpartTyping: Boolean(input.counterpartTyping),
+      pinnedMessage: input.pinnedMessage ?? null,
     };
   }
 }

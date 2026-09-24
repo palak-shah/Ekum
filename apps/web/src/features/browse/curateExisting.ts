@@ -33,6 +33,16 @@ export function curateExistingTargets(collections: CollectionView[]): Collection
     });
 }
 
+/** Exact name match in our shop (case-insensitive). Supplier packs are not in this list. */
+export function findOwnedPackByName(
+  collections: CollectionView[],
+  rawName: string,
+): CollectionView | null {
+  const name = rawName.trim().toLowerCase();
+  if (!name) return null;
+  return collections.find((pack) => pack.name.trim().toLowerCase() === name) ?? null;
+}
+
 export function filterCurateTargetsByQuery(
   collections: CollectionView[],
   query: string,

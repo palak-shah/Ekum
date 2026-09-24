@@ -43,12 +43,15 @@ import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
 import {
-  applySameForAllToForm,
   collectSameForAllDiffIds,
   emptySameForAll,
+  forceSameForAllToForm,
   productFieldsFromMember,
   sameForAllIsEmpty,
   sameForAllSummary,
+  unitAsksPiecesPerSet,
+  sortDiffFirst,
+  unionTags,
   type MemberDesignForm,
   type SameForAllDetails,
 } from './collectionSameForAll';
@@ -61,13 +64,17 @@ import { createPortal } from 'react-dom';
 import { CameraIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
+import { curatedMemberUnavailableReason } from '@/features/collections/curatedMemberAvailability';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { auditLine } from './productStatusSummary';
 import {
   maxPublishAudienceForCuratedPack,
 } from './curationAudienceCeiling';
 import { audienceForPublishSheet } from './publishAudienceOptions';
-import { readCompanyPublishDefaults } from './publishDefaults';
+import {
+  readCompanyPublishDefaults,
+  readCompanySellAsUsual,
+} from './publishDefaults';
 import {
   emptyPublishAudienceState,
   publishAudienceCanSubmit,
@@ -77,7 +84,7 @@ import {
   selectCreatedGroup,
   type PublishAudienceState,
 } from './PublishAudienceFields';
-
+import { CollectionExpandableSection } from './CollectionExpandableSection';
 function toDateInput(iso: string | null | undefined): string {
   if (!iso) return '';
   return iso.slice(0, 10);
@@ -98,6 +105,7 @@ type PendingPhoto = {
   name: string;
   rate: string;
   unit: string;
+  piecesPerPack: string;
   moq: string;
   notes: string;
   categories: string[];
@@ -183,6 +191,7 @@ export function CollectionEditorPage() {
     name: '',
     rate: '',
     unit: Unit.Piece,
+    piecesPerPack: '',
     moq: '',
     notes: '',
     categories: [],
@@ -195,7 +204,9 @@ export function CollectionEditorPage() {
   const [sameForAllDraft, setSameForAllDraft] = useState<SameForAllDetails>(() =>
     emptySameForAll(Unit.Piece),
   );
-  const [sameForAllOpen, setSameForAllOpen] = useState(false);
+  const [sameForAllExpanded, setSameForAllExpanded] = useState(false);
+  const [whoExpanded, setWhoExpanded] = useState(false);
+  const [defaultsPrefillDone, setDefaultsPrefillDone] = useState(false);
   const cameraAppendRef = useRef<CameraAppendTarget | null>(null);
   const [cameraAppend, setCameraAppend] = useState<CameraAppendTarget | null>(null);
   const resumeMemberSheetRef = useRef<MemberSheetState | null>(null);
@@ -217,19 +228,20 @@ export function CollectionEditorPage() {
   const connections = useQuery({
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
-    enabled: publishOpen,
+    enabled: publishOpen || whoExpanded || isCreate,
   });
   const broadcastLists = useQuery({
     queryKey: ['broadcast-lists'],
     queryFn: () => api.get<BroadcastListView[]>('/broadcasts/lists'),
     enabled:
       editing ||
+      isCreate ||
       (publishOpen && publishAudience.audience === PublishAudience.Selected),
   });
   const settings = useQuery({
     queryKey: ['company-settings'],
     queryFn: () => api.get<CompanySettingsView>('/settings'),
-    enabled: publishOpen,
+    enabled: publishOpen || isCreate || editing,
   });
 
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
@@ -304,14 +316,13 @@ export function CollectionEditorPage() {
           name: photo.name,
           rate: photo.rate,
           unit: photo.unit,
+          piecesPerPack: photo.piecesPerPack,
           moq: photo.moq,
           notes: photo.notes,
           categories:
             photo.tagsDirty || photo.categories.length > 0
               ? photo.categories
-              : sameForAll.categories.length > 0
-                ? [...sameForAll.categories]
-                : [...form.categories],
+              : [...form.categories],
         },
       })),
       ...memberDiffSources.map((product) => ({
@@ -320,6 +331,8 @@ export function CollectionEditorPage() {
           name: product.name,
           rate: formatRateInput(product.rate, product.rateMax ?? null),
           unit: product.unit || Unit.Piece,
+          piecesPerPack:
+            product.piecesPerPack != null ? String(product.piecesPerPack) : '',
           moq: product.moq != null ? String(product.moq) : '',
           notes: product.description ?? '',
           categories: product.categories ?? [],
@@ -360,6 +373,7 @@ export function CollectionEditorPage() {
           audienceGroupIds: existing.data.audienceGroupIds ?? [],
           rateVisibility: existing.data.rateVisibility,
           allowForward: existing.data.allowForward !== false,
+          allowDownload: existing.data.allowDownload === true,
         }),
       );
       setStartsAt(toDateInput(existing.data.startsAt));
@@ -376,6 +390,22 @@ export function CollectionEditorPage() {
   }, [existing.data]);
 
   useEffect(() => {
+    if (!isCreate || defaultsPrefillDone || !settings.data) return;
+    const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
+    const sell = readCompanySellAsUsual(settings.data.tradeDefaults);
+    setPublishAudience(emptyPublishAudienceState(usual));
+    const nextSame: SameForAllDetails = {
+      ...emptySameForAll(sell.unit || Unit.Piece),
+      piecesPerPack: sell.piecesPerPack,
+      moq: sell.moq,
+      categories: [],
+    };
+    setSameForAll(nextSame);
+    setSameForAllDraft(nextSame);
+    setDefaultsPrefillDone(true);
+  }, [isCreate, defaultsPrefillDone, settings.data]);
+
+  useEffect(() => {
     if (!publishOpen || !settings.data) return;
     if (existing.data?.status === CollectionStatus.Published) return;
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
@@ -386,6 +416,7 @@ export function CollectionEditorPage() {
         ? RateVisibility.OnRequest
         : usual.rateVisibility,
       allowForward: usual.allowForward,
+      allowDownload: usual.allowDownload,
       policyHint: hasForeignMembers
         ? 'Rates stay on request when this pack includes others’ designs.'
         : null,
@@ -525,6 +556,7 @@ export function CollectionEditorPage() {
         audience: publishAudience.audience as PublishCollectionDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
+        allowDownload: publishAudience.allowDownload,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
         ...schedulePayload(),
@@ -749,11 +781,11 @@ export function CollectionEditorPage() {
       name: nameFromFilename(file.name),
       rate: shared.rate,
       unit: shared.unit || Unit.Piece,
+      piecesPerPack: shared.piecesPerPack,
       moq: shared.moq,
       notes: shared.notes,
-      categories:
-        shared.categories.length > 0 ? [...shared.categories] : [],
-      tagsDirty: shared.categories.length > 0,
+      categories: [],
+      tagsDirty: false,
     }));
     setPendingPhotos((prev) => [...prev, ...stubs]);
     setQuickUploading(true);
@@ -802,19 +834,20 @@ export function CollectionEditorPage() {
           name: nameFromFilename(file.name),
           rate: shared.rate,
           unit: shared.unit || Unit.Piece,
+          piecesPerPack: shared.piecesPerPack,
           moq: shared.moq,
           notes: shared.notes,
-          categories:
-            shared.categories.length > 0 ? [...shared.categories] : [],
+          categories: [],
         });
         const dto: CreateProductDto = {
           name: nameFromFilename(file.name),
           images: [imageUrl],
-          categories: parsed.categories ?? [],
+          categories: [],
           description: parsed.description,
           rate: parsed.rate ?? undefined,
           rateMax: parsed.rateMax ?? undefined,
           unit: parsed.unit as CreateProductDto['unit'],
+          piecesPerPack: parsed.piecesPerPack,
           moq: parsed.moq ?? undefined,
         };
         const product = await api.post<ProductView>('/products', dto);
@@ -876,14 +909,12 @@ export function CollectionEditorPage() {
       } satisfies CreateCollectionDto);
       const createdIds: string[] = [];
       for (const photo of readyCreatePhotos) {
-        const categories =
-          photo.tagsDirty || photo.categories.length > 0
-            ? photo.categories
-            : form.categories;
+        const categories = unionTags(photo.categories, form.categories);
         const fields = productFieldsFromMember({
           name: photo.name,
           rate: photo.rate,
           unit: photo.unit,
+          piecesPerPack: photo.piecesPerPack,
           moq: photo.moq,
           notes: photo.notes,
           categories,
@@ -896,17 +927,18 @@ export function CollectionEditorPage() {
           rate: fields.rate ?? undefined,
           rateMax: fields.rateMax ?? undefined,
           unit: fields.unit as CreateProductDto['unit'],
+          piecesPerPack: fields.piecesPerPack,
           moq: fields.moq ?? undefined,
         } satisfies CreateProductDto);
         createdIds.push(product.id);
       }
-      // Cascade collection tags onto library picks that have no categories yet.
+      // Amend pack tags onto library picks (union — never overwrite).
       for (const productId of libraryPicks) {
         const product = selectableDesigns.find((p) => p.id === productId);
-        if (!product || product.categories.length > 0 || form.categories.length === 0) {
-          continue;
-        }
-        await api.patch(`/products/${productId}`, { categories: form.categories });
+        if (!product || form.categories.length === 0) continue;
+        const nextTags = unionTags(product.categories ?? [], form.categories);
+        if (nextTags.length === (product.categories ?? []).length) continue;
+        await api.patch(`/products/${productId}`, { categories: nextTags });
       }
       const productIds = [...createdIds, ...libraryPicks];
       await api.put<CollectionDetailView>(
@@ -918,6 +950,7 @@ export function CollectionEditorPage() {
           audience: publishAudience.audience,
           rateVisibility: publishAudience.rateVisibility,
           allowForward: publishAudience.allowForward,
+          allowDownload: publishAudience.allowDownload,
           ...publishAudienceDtoFields(publishAudience),
           ...(canPublishAlready ? {} : { consentToSell: true }),
         });
@@ -936,6 +969,7 @@ export function CollectionEditorPage() {
         replace: true,
         state: {
           collectionFilter: opts?.publish ? 'published' : 'draft',
+          productFilter: opts?.publish ? 'published' : 'draft',
         },
       });
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
@@ -1042,6 +1076,8 @@ export function CollectionEditorPage() {
       name: product.name,
       rate: formatRateInput(product.rate, product.rateMax ?? null),
       unit: product.unit || Unit.Piece,
+      piecesPerPack:
+        product.piecesPerPack != null ? String(product.piecesPerPack) : '',
       moq: product.moq != null ? String(product.moq) : '',
       notes: product.description ?? '',
       categories: product.categories ?? [],
@@ -1059,14 +1095,13 @@ export function CollectionEditorPage() {
       name: photo.name,
       rate: photo.rate,
       unit: photo.unit || Unit.Piece,
+      piecesPerPack: photo.piecesPerPack,
       moq: photo.moq,
       notes: photo.notes,
       categories:
         photo.tagsDirty || photo.categories.length > 0
           ? photo.categories
-          : sameForAll.categories.length > 0
-            ? [...sameForAll.categories]
-            : [...form.categories],
+          : [...form.categories],
     });
     setMemberPhotos(
       photo.images
@@ -1080,10 +1115,17 @@ export function CollectionEditorPage() {
   };
 
   const confirmSameForAll = () => {
-    const next = sameForAllDraft;
+    const next = {
+      ...sameForAllDraft,
+      categories: [] as string[],
+      piecesPerPack: unitAsksPiecesPerSet(sameForAllDraft.unit)
+        ? sameForAllDraft.piecesPerPack
+        : '',
+    };
     const skipIds = diffIds;
     setSameForAll(next);
-    setSameForAllOpen(false);
+    setSameForAllDraft(next);
+    setSameForAllExpanded(false);
 
     setPendingPhotos((prev) =>
       prev.map((p) => {
@@ -1091,13 +1133,15 @@ export function CollectionEditorPage() {
         if (sameForAllIsEmpty(next)) return p;
         return {
           ...p,
-          rate: next.rate.trim() ? next.rate : p.rate,
-          unit: next.unit.trim() ? next.unit : p.unit,
-          moq: next.moq.trim() ? next.moq : p.moq,
-          notes: next.notes.trim() ? next.notes : p.notes,
-          categories:
-            next.categories.length > 0 ? [...next.categories] : p.categories,
-          tagsDirty: next.categories.length > 0 ? true : p.tagsDirty,
+          rate: p.rate.trim() ? p.rate : next.rate.trim() ? next.rate : p.rate,
+          unit: p.unit.trim() ? p.unit : next.unit.trim() ? next.unit : p.unit,
+          piecesPerPack: p.piecesPerPack.trim()
+            ? p.piecesPerPack
+            : next.piecesPerPack.trim()
+              ? next.piecesPerPack
+              : p.piecesPerPack,
+          moq: p.moq.trim() ? p.moq : next.moq.trim() ? next.moq : p.moq,
+          notes: p.notes.trim() ? p.notes : next.notes.trim() ? next.notes : p.notes,
         };
       }),
     );
@@ -1132,6 +1176,7 @@ export function CollectionEditorPage() {
                   name: memberForm.name.trim() || p.name,
                   rate: memberForm.rate,
                   unit: memberForm.unit,
+                  piecesPerPack: memberForm.piecesPerPack,
                   moq: memberForm.moq,
                   notes: memberForm.notes,
                   categories: memberForm.categories,
@@ -1173,6 +1218,7 @@ export function CollectionEditorPage() {
           rate: fields.rate,
           rateMax: fields.rateMax,
           unit: fields.unit,
+          piecesPerPack: fields.piecesPerPack ?? null,
           moq: fields.moq ?? null,
           categories: memberForm.categories,
           images: memberPhotos.map((p) => p.url).filter((u) => !u.startsWith('blob:')),
@@ -1191,58 +1237,173 @@ export function CollectionEditorPage() {
 
   const useSameAsAllOnMember = () => {
     if (!memberSheet) return;
-    setMemberForm(applySameForAllToForm(memberForm, sameForAll));
+    const next = forceSameForAllToForm(memberForm, { ...sameForAll, categories: [] });
+    setMemberForm({
+      ...next,
+      categories: unionTags(memberForm.categories, form.categories),
+    });
   };
 
   const sameForAllLine = sameForAllSummary(sameForAll);
+  const whoSummary = (() => {
+    const who =
+      publishAudience.audience === PublishAudience.Selected
+        ? `${publishAudience.audienceCompanies.size} selected`
+        : publishAudience.audience === PublishAudience.Followers
+          ? 'Followers'
+          : publishAudience.audience;
+    const rates =
+      publishAudience.rateVisibility === RateVisibility.Visible ? 'rates on' : 'rates on request';
+    return `${who} · ${rates} · from Settings`;
+  })();
   const albumTip = sameForAllLine
     ? diffIds.size > 0
       ? `New photos use shared details. ${diffIds.size} Diff — library kept its own; tap to change.`
-      : 'New photos use shared details. Library designs keep their own rates and tags.'
-    : 'Tap a design to edit or add photos.';
-  const sameForAllRow = (
-    <button
-      type="button"
-      data-testid="collection-same-for-all"
-      onClick={() => {
-        setSameForAllDraft(sameForAll);
-        setSameForAllOpen(true);
-      }}
-      className={cx(
-        'flex w-full flex-col gap-0.5 rounded-xl border px-3 py-3 text-left',
-        sameForAllLine
-          ? 'border-accent bg-accent/5'
-          : 'border-dashed border-line',
-      )}
-    >
-      <span className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="text-sm font-semibold text-ink">Same for new photos</span>
-          {sameForAllLine ? (
-            <span
-              data-testid="collection-same-for-all-on"
-              className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
-            >
-              On
-            </span>
-          ) : null}
-        </span>
-        <span aria-hidden className="text-muted">
-          ›
-        </span>
-      </span>
-      {sameForAllLine ? (
-        <span className="text-xs text-muted">
-          {sameForAllLine}
-          {diffIds.size > 0 ? ` · ${diffIds.size} Diff` : ''}
-        </span>
-      ) : (
-        <span className="text-xs text-muted">
-          Optional · library designs keep their rates and tags
-        </span>
-      )}
-    </button>
+      : 'New photos use shared details. Library designs keep their own rates.'
+    : 'Tap a design to edit details or tags.';
+  const createAlbumTiles = sortDiffFirst(
+    [
+      ...pendingPhotos.map((photo) => ({
+        id: photo.localId,
+        kind: 'photo' as const,
+        photo,
+      })),
+      ...createLibraryDesigns.map((product) => ({
+        id: product.id,
+        kind: 'library' as const,
+        product,
+      })),
+    ],
+    diffIds,
   );
+  const sameForAllExpandable = (
+    <CollectionExpandableSection
+      title="Same for all designs"
+      summary={
+        sameForAllLine
+          ? `${sameForAllLine}${diffIds.size > 0 ? ` · ${diffIds.size} Diff` : ''}`
+          : 'Rate, unit, notes for new photos'
+      }
+      open={sameForAllExpanded}
+      onToggle={() => {
+        if (sameForAllExpanded) {
+          setSameForAllDraft(sameForAll);
+          setSameForAllExpanded(false);
+          return;
+        }
+        setSameForAllDraft({ ...sameForAll });
+        setSameForAllExpanded(true);
+      }}
+      testId="collection-same-for-all"
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-muted">
+          New photos pick these up. Library designs keep theirs unless you tap a design
+          and Use same as all. Pack tags apply to every design.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Rate">
+            <TextInput
+              value={sameForAllDraft.rate}
+              onChange={(e) =>
+                setSameForAllDraft((prev) => ({ ...prev, rate: e.target.value }))
+              }
+              {...rateFieldInputProps}
+            />
+          </Field>
+          <Field label="Unit">
+            {unitSelect(sameForAllDraft.unit, (unit) =>
+              setSameForAllDraft((prev) => ({
+                ...prev,
+                unit,
+                piecesPerPack: unitAsksPiecesPerSet(unit) ? prev.piecesPerPack : '',
+              })),
+            )}
+          </Field>
+        </div>
+        {unitAsksPiecesPerSet(sameForAllDraft.unit) ? (
+          <Field label="Pieces in one set">
+            <TextInput
+              value={sameForAllDraft.piecesPerPack}
+              onChange={(e) =>
+                setSameForAllDraft((prev) => ({
+                  ...prev,
+                  piecesPerPack: e.target.value,
+                }))
+              }
+              inputMode="numeric"
+              placeholder="e.g. 6"
+            />
+          </Field>
+        ) : null}
+        <Field label="Minimum order">
+          <TextInput
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={sameForAllDraft.moq}
+            onChange={(e) =>
+              setSameForAllDraft((prev) => ({ ...prev, moq: e.target.value }))
+            }
+            placeholder="100 pieces"
+          />
+        </Field>
+        <Field label="Notes">
+          <TextArea
+            value={sameForAllDraft.notes}
+            onChange={(e) =>
+              setSameForAllDraft((prev) => ({ ...prev, notes: e.target.value }))
+            }
+            placeholder="e.g. 44 inch, cotton"
+          />
+        </Field>
+        <Button
+          fullWidth
+          data-testid="collection-same-for-all-done"
+          onClick={() => confirmSameForAll()}
+        >
+          Done
+        </Button>
+      </div>
+    </CollectionExpandableSection>
+  );
+
+  const whoExpandable = (
+    <CollectionExpandableSection
+      title="Who can see this?"
+      summary={whoSummary}
+      open={whoExpanded}
+      onToggle={() => setWhoExpanded((v) => !v)}
+      testId="collection-who"
+    >
+      <PublishAudienceFields
+        state={publishAudience}
+        onChange={(next) => {
+          setError(null);
+          setPublishAudience(next);
+        }}
+        lists={broadcastLists.data ?? []}
+        connections={activeConnections}
+        connectionsLoading={connections.isLoading}
+        tradeDefaults={settings.data?.tradeDefaults}
+        maxAudience={maxCuratedAudience}
+        showConsent={!canPublishAlready}
+        consent={consent}
+        onConsent={setConsent}
+        onCreateGroup={() => setCreateGroupOpen(true)}
+      />
+    </CollectionExpandableSection>
+  );
+
+  const canOpenCreatePublish =
+    !creating && !quickUploading && createMemberCount >= 1 && Boolean(form.name.trim());
+  const canCreatePublish =
+    canOpenCreatePublish &&
+    (canPublishAlready || consent) &&
+    publishAudienceCanSubmit(publishAudience);
+
+  const canCreateDraft =
+    !creating && !quickUploading && createMemberCount >= 1 && Boolean(form.name.trim());
 
   // No early returns above — loading/error are branches so hook order never changes.
   if (editing && existing.isLoading) {
@@ -1262,7 +1423,7 @@ export function CollectionEditorPage() {
   }
 
   return (
-    <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-8')}>
+    <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-52')}>
       <DiscardChangesSheet
         open={discard.confirmOpen}
         onCancel={discard.cancelLeave}
@@ -1330,37 +1491,24 @@ export function CollectionEditorPage() {
 
       {!editing ? (
         <>
-          <p className="text-sm text-muted">First item is the cover.</p>
-          <button
-            type="button"
-            data-testid="collection-add-designs"
-            onClick={openDesignPicker}
-            disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
-            className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-3 text-muted disabled:opacity-40"
-          >
-            <CameraIcon width={32} height={32} />
-            <span className="text-base font-semibold text-ink">
-              {quickUploading ? 'Uploading…' : 'Designs'}
-            </span>
-          </button>
-
-          {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
+          {pendingPhotos.length === 0 && createLibraryDesigns.length === 0 ? (
+            <button
+              type="button"
+              data-testid="collection-add-designs"
+              onClick={openDesignPicker}
+              disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
+              className="flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-3 text-muted disabled:opacity-40"
+            >
+              <CameraIcon width={32} height={32} />
+              <span className="text-base font-semibold text-ink">
+                {quickUploading ? 'Uploading…' : 'Designs'}
+              </span>
+              <span className="text-xs text-muted">Photos or from your library</span>
+            </button>
+          ) : (
             <CappedMediaGrid
-              items={[
-                ...pendingPhotos.map((photo, index) => ({
-                  kind: 'photo' as const,
-                  photo,
-                  index,
-                })),
-                ...createLibraryDesigns.map((product, index) => ({
-                  kind: 'library' as const,
-                  product,
-                  index,
-                })),
-              ]}
-              getKey={(tile) =>
-                tile.kind === 'photo' ? tile.photo.localId : tile.product.id
-              }
+              items={createAlbumTiles}
+              getKey={(tile) => tile.id}
               overflowPreviewUrl={(tile) =>
                 tile.kind === 'photo'
                   ? tile.photo.images[0]?.previewUrl ?? null
@@ -1368,15 +1516,13 @@ export function CollectionEditorPage() {
               }
               renderTile={(tile) => {
                 if (tile.kind === 'photo') {
-                  const { photo, index } = tile;
+                  const { photo } = tile;
                   const isDiff = diffIds.has(photo.localId);
-                  const isCover =
-                    index === 0 && !photo.images.some((img) => img.uploading);
                   return (
                     <div
                       className={cx(
                         'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
-                        isDiff ? 'ring-2 ring-inset ring-accent' : null,
+                        isDiff ? 'bg-accent/10 ring-2 ring-inset ring-accent' : null,
                       )}
                       data-testid={isDiff ? 'collection-diff-tile' : undefined}
                     >
@@ -1395,18 +1541,10 @@ export function CollectionEditorPage() {
                           />
                         ) : null}
                       </button>
-                      {isCover ? (
-                        <span className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
-                          Cover
-                        </span>
-                      ) : null}
                       {isDiff ? (
                         <span
                           data-testid="collection-diff-badge"
-                          className={cx(
-                            'pointer-events-none absolute left-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white',
-                            isCover ? 'top-7' : 'top-1',
-                          )}
+                          className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
                         >
                           Diff
                         </span>
@@ -1427,14 +1565,13 @@ export function CollectionEditorPage() {
                     </div>
                   );
                 }
-                const { product, index } = tile;
-                const isCover = readyCreatePhotos.length === 0 && index === 0;
+                const { product } = tile;
                 const isDiff = diffIds.has(product.id);
                 return (
                   <div
                     className={cx(
                       'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
-                      isDiff ? 'ring-2 ring-inset ring-accent' : null,
+                      isDiff ? 'bg-accent/10 ring-2 ring-inset ring-accent' : null,
                     )}
                     data-testid={isDiff ? 'collection-diff-tile' : undefined}
                   >
@@ -1456,18 +1593,10 @@ export function CollectionEditorPage() {
                         </div>
                       )}
                     </button>
-                    {isCover ? (
-                      <span className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
-                        Cover
-                      </span>
-                    ) : null}
                     {isDiff ? (
                       <span
                         data-testid="collection-diff-badge"
-                        className={cx(
-                          'pointer-events-none absolute left-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white',
-                          isCover ? 'top-7' : 'top-1',
-                        )}
+                        className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
                       >
                         Diff
                       </span>
@@ -1484,62 +1613,50 @@ export function CollectionEditorPage() {
                 );
               }}
             />
+          )}
+
+          {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
+            <button
+              type="button"
+              data-testid="collection-add-designs"
+              onClick={openDesignPicker}
+              disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm font-medium text-muted disabled:opacity-40"
+            >
+              <CameraIcon width={18} height={18} />
+              {quickUploading ? 'Adding…' : 'Add designs'}
+            </button>
           ) : null}
 
-          {(pendingPhotos.length > 0 || createLibraryDesigns.length > 0) && (
-            <p className="text-xs text-muted">{albumTip}</p>
-          )}
-          {sameForAllRow}
-
-          {/* In-flow on create — fixed docks break under ekum-rise (transform containing block). */}
-          <Field label="Name" error={error}>
-            <TextInput
-              value={form.name}
-              onChange={(e) => {
-                setError(null);
-                setForm({ ...form, name: e.target.value });
-              }}
-              placeholder="e.g. Festive 2026"
-              autoComplete="off"
+          <div className="flex flex-col gap-3">
+            <div>
+              <TextInput
+                aria-label="Name"
+                value={form.name}
+                onChange={(e) => {
+                  setError(null);
+                  setForm({ ...form, name: e.target.value });
+                }}
+                placeholder="Name this pack"
+                autoComplete="off"
+              />
+              {error ? (
+                <p className="mt-1.5 text-xs font-medium text-danger">{error}</p>
+              ) : null}
+            </div>
+            <Field label="Description">
+              <TextArea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Optional — what this pack is for"
+              />
+            </Field>
+            <TagsField
+              value={form.categories}
+              onChange={(categories) => setForm({ ...form, categories })}
             />
-          </Field>
-          <Field label="Description">
-            <TextArea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Optional — what this pack is for"
-            />
-          </Field>
-          <TagsField
-            value={form.categories}
-            onChange={(categories) => setForm({ ...form, categories })}
-          />
-          <div className="flex flex-col gap-2">
-            <Button
-              fullWidth
-              disabled={
-                creating ||
-                quickUploading ||
-                createMemberCount < 1 ||
-                !form.name.trim()
-              }
-              onClick={() => setPublishOpen(true)}
-            >
-              Create & Publish
-            </Button>
-            <Button
-              variant="secondary"
-              fullWidth
-              disabled={
-                creating ||
-                quickUploading ||
-                createMemberCount < 1 ||
-                !form.name.trim()
-              }
-              onClick={() => void onCreate()}
-            >
-              {creating && !publishOpen ? 'Saving…' : 'Save in Draft'}
-            </Button>
+            {sameForAllExpandable}
+            {whoExpandable}
           </div>
         </>
       ) : null}
@@ -1590,6 +1707,7 @@ export function CollectionEditorPage() {
               overflowPreviewUrl={(product) => product.images[0] ?? null}
               renderTile={(product) => {
                 const isDiff = diffIds.has(product.id);
+                const ended = curatedMemberUnavailableReason(product.status);
                 return (
                 <div
                   className={cx(
@@ -1609,7 +1727,10 @@ export function CollectionEditorPage() {
                       <img
                         src={product.images[0]}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
+                        className={cx(
+                          'absolute inset-0 h-full w-full object-cover',
+                          ended && 'opacity-45',
+                        )}
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
@@ -1619,6 +1740,14 @@ export function CollectionEditorPage() {
                     <span className="absolute inset-x-0 bottom-0 truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
                       {product.name}
                     </span>
+                    {ended ? (
+                      <span
+                        className="absolute left-1 top-1 z-[1] rounded bg-ink/75 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                        data-testid="collection-member-unavailable"
+                      >
+                        {ended}
+                      </span>
+                    ) : null}
                   </button>
                   {isDiff ? (
                     <span
@@ -1659,7 +1788,7 @@ export function CollectionEditorPage() {
           {selectedProducts.length > 0 ? (
             <p className="text-xs text-muted">{albumTip}</p>
           ) : null}
-          {sameForAllRow}
+          {sameForAllExpandable}
         </div>
       ) : null}
 
@@ -1732,7 +1861,7 @@ export function CollectionEditorPage() {
 
       {editing && existing.data
         ? createPortal(
-            <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
               <div className="mx-auto flex max-w-md flex-col gap-2">
                 <div className="flex gap-2">
                   <Button
@@ -1774,6 +1903,51 @@ export function CollectionEditorPage() {
                     </Button>
                   )}
                 </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {!editing
+        ? createPortal(
+            <div
+              className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+              data-testid="collection-create-dock"
+            >
+              <div className="mx-auto flex max-w-md gap-2">
+                <Button
+                  className="min-w-0 flex-1"
+                  disabled={!canOpenCreatePublish}
+                  onClick={() => {
+                    if (!canCreatePublish) {
+                      setWhoExpanded(true);
+                      setError(
+                        !canPublishAlready && !consent
+                          ? 'Confirm you can sell on Ekum under Who can see this.'
+                          : 'Pick who can see this pack.',
+                      );
+                      showToast(
+                        !canPublishAlready && !consent
+                          ? 'Confirm you can sell on Ekum'
+                          : 'Pick who can see this pack',
+                        'danger',
+                      );
+                      return;
+                    }
+                    void onCreate({ publish: true });
+                  }}
+                >
+                  {creating ? 'Publishing…' : 'Create & Publish'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="min-w-0 flex-1"
+                  disabled={!canCreateDraft}
+                  onClick={() => void onCreate()}
+                >
+                  {creating ? 'Saving…' : 'Save in Draft'}
+                </Button>
               </div>
             </div>,
             document.body,
@@ -1983,9 +2157,7 @@ export function CollectionEditorPage() {
             disabled={
               editing
                 ? !canSubmitPublish || publish.isPending
-                : creating ||
-                  !form.name.trim() ||
-                  !((canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience))
+                : !canCreatePublish
             }
             onClick={() => {
               if (!editing) {
@@ -2111,6 +2283,22 @@ export function CollectionEditorPage() {
               placeholder="Design name"
             />
           </Field>
+          {memberSheet?.kind === 'product'
+            ? (() => {
+                const product =
+                  selectedProducts.find((p) => p.id === memberSheet.productId) ??
+                  createLibraryDesigns.find((p) => p.id === memberSheet.productId) ??
+                  selectableDesigns.find((p) => p.id === memberSheet.productId);
+                const otherPacks = (product?.collectionNames ?? []).filter(
+                  (name) => !editing || !existing.data || name !== existing.data.name,
+                );
+                return otherPacks.length > 0 ? (
+                  <p className="text-xs text-muted" data-testid="collection-also-in">
+                    Also in: {otherPacks.join(' · ')}
+                  </p>
+                ) : null;
+              })()
+            : null}
           <TagsField
             value={memberForm.categories}
             onChange={(categories) => setMemberForm({ ...memberForm, categories })}
@@ -2123,10 +2311,28 @@ export function CollectionEditorPage() {
                 {...rateFieldInputProps}
               />
             </Field>
-            <Field label="Unit">
-              {unitSelect(memberForm.unit, (unit) => setMemberForm({ ...memberForm, unit }))}
+          <Field label="Unit">
+            {unitSelect(memberForm.unit, (unit) =>
+              setMemberForm({
+                ...memberForm,
+                unit,
+                piecesPerPack: unitAsksPiecesPerSet(unit) ? memberForm.piecesPerPack : '',
+              }),
+            )}
+          </Field>
+        </div>
+          {unitAsksPiecesPerSet(memberForm.unit) ? (
+            <Field label="Pieces in one set">
+              <TextInput
+                value={memberForm.piecesPerPack}
+                onChange={(e) =>
+                  setMemberForm({ ...memberForm, piecesPerPack: e.target.value })
+                }
+                inputMode="numeric"
+                placeholder="e.g. 6"
+              />
             </Field>
-          </div>
+          ) : null}
           <Field label="Minimum order">
             <TextInput
               type="number"
@@ -2141,72 +2347,6 @@ export function CollectionEditorPage() {
             <TextArea
               value={memberForm.notes}
               onChange={(e) => setMemberForm({ ...memberForm, notes: e.target.value })}
-              placeholder="e.g. 44 inch, cotton"
-            />
-          </Field>
-        </div>
-      </Sheet>
-
-      <Sheet
-        open={sameForAllOpen}
-        onClose={() => setSameForAllOpen(false)}
-        title="Same for new photos"
-        footer={
-          <Button
-            fullWidth
-            data-testid="collection-same-for-all-done"
-            onClick={() => confirmSameForAll()}
-          >
-            Done
-          </Button>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted">
-            Applies to new camera and gallery photos. Designs you pick from the library keep
-            their rates and tags — Diff marks differences. Tap a design to change one.
-          </p>
-          <TagsField
-            label="Tags"
-            value={sameForAllDraft.categories}
-            onChange={(categories) =>
-              setSameForAllDraft((prev) => ({ ...prev, categories }))
-            }
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Rate">
-              <TextInput
-                value={sameForAllDraft.rate}
-                onChange={(e) =>
-                  setSameForAllDraft((prev) => ({ ...prev, rate: e.target.value }))
-                }
-                {...rateFieldInputProps}
-              />
-            </Field>
-            <Field label="Unit">
-              {unitSelect(sameForAllDraft.unit, (unit) =>
-                setSameForAllDraft((prev) => ({ ...prev, unit })),
-              )}
-            </Field>
-          </div>
-          <Field label="Minimum order">
-            <TextInput
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={sameForAllDraft.moq}
-              onChange={(e) =>
-                setSameForAllDraft((prev) => ({ ...prev, moq: e.target.value }))
-              }
-              placeholder="100 pieces"
-            />
-          </Field>
-          <Field label="Notes">
-            <TextArea
-              value={sameForAllDraft.notes}
-              onChange={(e) =>
-                setSameForAllDraft((prev) => ({ ...prev, notes: e.target.value }))
-              }
               placeholder="e.g. 44 inch, cotton"
             />
           </Field>

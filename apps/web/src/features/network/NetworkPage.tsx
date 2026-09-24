@@ -6,7 +6,7 @@ import { ChevronRightIcon } from '@/ui/icons';
 const BASE_LINKS = [
   { to: '/network/connections', label: 'Connections', hint: 'Businesses you trade with' },
   { to: '/network/following', label: 'Following', hint: 'Businesses you follow' },
-  { to: '/network/followers', label: 'Followers', hint: 'Businesses that follow you' },
+  { to: '/network/followers', label: 'Followers', hint: 'Who asked and who you allowed' },
   { to: '/network/requests', label: 'Requests', hint: 'Access requests to approve' },
   { to: '/referrals', label: 'Invites', hint: 'Share connect-with-me links' },
 ] as const;

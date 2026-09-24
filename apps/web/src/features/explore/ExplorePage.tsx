@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
-  SUPER_CATEGORY_LABEL,
-  SuperCategory,
+  categoryDisplayLabel,
   type CursorPage,
   type ExploreHomeView,
   type ExploreOpportunity,
@@ -11,7 +10,6 @@ import {
   type ExploreBuyerOpportunity,
   type ExploreSupplierCard,
   type ExploreStory,
-  type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
@@ -23,14 +21,8 @@ import {
   OpportunityDesignCard,
   BusinessShopTile,
 } from '@/ui/cards';
-import { Avatar, Button, EmptyState, LoadingBlock, TextInput, cx } from '@/ui/kit';
-import {
-  BackIcon,
-  BookmarkIcon,
-  CheckIcon,
-  ExploreIcon,
-  FilterIcon,
-} from '@/ui/icons';
+import { Avatar, Button, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { BackIcon, FilterIcon, SearchIcon } from '@/ui/icons';
 import { ExploreSearchResults } from './ExploreSearchResults';
 import { exploreFeedFollowTrailing } from './exploreFeedFollowTrailing';
 import { useExploreCompanyRelationships } from './useExploreCompanyRelationships';
@@ -44,59 +36,13 @@ import {
 } from './ExploreFilterMenu';
 import { SUGGEST_CATEGORIES, SUGGEST_CITIES } from '@/lib/suggestData';
 import { useTradePresence } from '@/lib/tradePresence';
-
-const SUPER_IDS = new Set<string>(Object.values(SuperCategory));
-type MixedOpportunity =
-  | { kind: 'collection'; id: string; opportunity: ExploreOpportunity; score: number; at: number }
-  | { kind: 'design'; id: string; opportunity: ExploreDesignOpportunity; score: number; at: number };
-
-function relevanceScore(relevance: string | null | undefined, fromNetwork: boolean): number {
-  let score = fromNetwork ? 1_000 : 0;
-  const line = relevance ?? '';
-  if (line.includes('Connected')) score += 100;
-  if (line.includes('In your network')) score += 80;
-  if (line.includes('Matches')) score += 40;
-  if (line.includes('GST')) score += 10;
-  return score;
-}
-
-function mergeRanked(
-  collections: ExploreOpportunity[],
-  designs: ExploreDesignOpportunity[],
-  fromNetwork: boolean,
-): MixedOpportunity[] {
-  const rows: MixedOpportunity[] = [
-    ...collections.map((opportunity) => ({
-      kind: 'collection' as const,
-      id: `c:${opportunity.collection.id}`,
-      opportunity,
-      score: relevanceScore(opportunity.relevance, fromNetwork),
-      at: Date.parse(opportunity.collection.updatedAt) || 0,
-    })),
-    ...designs.map((opportunity) => ({
-      kind: 'design' as const,
-      id: `d:${opportunity.product.id}`,
-      opportunity,
-      score: relevanceScore(opportunity.relevance, fromNetwork),
-      at: Date.parse(opportunity.product.postedAt) || 0,
-    })),
-  ];
-  // Prefer packs over designs when times tie so a just-published album is not
-  // buried under seed designs with the same network score.
-  return rows.sort(
-    (a, b) =>
-      b.score - a.score ||
-      b.at - a.at ||
-      (a.kind === 'collection' ? 0 : 1) - (b.kind === 'collection' ? 0 : 1),
-  );
-}
+import { buildRankedPostFeed, type MixedOpportunity } from './exploreFeedRank';
+import { loadExploreFeedSeenMap } from './exploreFeedSeen';
+import { EXPLORE_SEARCH_HINT } from './exploreSearchHint';
 
 function optionLabel(value: string): string {
   if (value === 'All') return 'Any category';
-  if (SUPER_IDS.has(value)) {
-    return SUPER_CATEGORY_LABEL[value as SuperCategoryType] ?? value;
-  }
-  return value;
+  return categoryDisplayLabel(value);
 }
 
 function Section({
@@ -177,6 +123,8 @@ function toggleExploreDesign(
     companyId: product.company.id,
     companyName: product.company.name,
     allowForward: product.allowForward,
+    unit: product.unit ?? null,
+    rate: product.rate ?? null,
   });
 }
 
@@ -618,26 +566,34 @@ export function ExplorePage() {
   });
 
   const data = home.data;
-  const networkMixed = useMemo(
-    () => mergeRanked(data?.fromNetwork ?? [], data?.designsFromNetwork ?? [], true),
-    [data?.fromNetwork, data?.designsFromNetwork],
-  );
-  const recommendedMixed = useMemo(
-    () => mergeRanked(data?.forYou ?? [], data?.designsForYou ?? [], false),
-    [data?.forYou, data?.designsForYou],
-  );
-  // Network first, then recommended — one shelf; why-lines carry trust/network.
   const postsForYou = useMemo(
-    () => [...networkMixed, ...recommendedMixed],
-    [networkMixed, recommendedMixed],
+    () =>
+      buildRankedPostFeed(
+        data?.fromNetwork ?? [],
+        data?.designsFromNetwork ?? [],
+        data?.forYou ?? [],
+        data?.designsForYou ?? [],
+        {
+          buyingFeed: tradeSide === 'buying',
+          viewerCompanyId: company.data?.id,
+          seenMap: loadExploreFeedSeenMap(company.data?.id),
+        },
+      ),
+    [data, tradeSide, company.data?.id],
   );
   const collectionsForYou = useMemo(
-    () => [...(data?.fromNetwork ?? []), ...(data?.forYou ?? [])],
-    [data?.fromNetwork, data?.forYou],
+    () =>
+      postsForYou
+        .filter((row) => row.kind === 'collection')
+        .map((row) => row.opportunity),
+    [postsForYou],
   );
   const designsForYou = useMemo(
-    () => [...(data?.designsFromNetwork ?? []), ...(data?.designsForYou ?? [])],
-    [data?.designsFromNetwork, data?.designsForYou],
+    () =>
+      postsForYou
+        .filter((row) => row.kind === 'design')
+        .map((row) => row.opportunity),
+    [postsForYou],
   );
 
   const filteredPosts = useMemo(() => {
@@ -763,12 +719,12 @@ export function ExplorePage() {
             >
               <BackIcon width={20} height={20} />
             </button>
-            <TextInput
+            <SearchInput
               key="explore-search"
               autoFocus
               value={searchTerm}
               onChange={(event) => onSearchTermChange(event.target.value)}
-              placeholder="Company, city, GST…"
+              placeholder={EXPLORE_SEARCH_HINT}
               className="min-w-0 flex-1"
               aria-label="Search"
             />
@@ -780,32 +736,8 @@ export function ExplorePage() {
               onClick={openSearch}
               className="flex min-h-[46px] min-w-0 flex-1 items-center gap-2 rounded-[13px] border border-line bg-surface px-3.5 text-sm font-medium text-muted"
             >
-              <ExploreIcon width={18} height={18} className="shrink-0" />
-              <span className="truncate">Search companies, city, GST…</span>
-            </button>
-            <button
-              type="button"
-              aria-label="Saved"
-              onClick={() => navigate('/saved')}
-              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate hover:bg-foam"
-            >
-              <BookmarkIcon width={20} height={20} />
-            </button>
-            <button
-              type="button"
-              aria-label="Your selection"
-              data-testid="explore-selection"
-              onClick={() => navigate('/selection')}
-              className="relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate hover:bg-foam"
-            >
-              <CheckIcon width={20} height={20} />
-              {shortlist.count + albumPick.count > 0 ? (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
-                  {shortlist.count + albumPick.count > 99
-                    ? '99+'
-                    : shortlist.count + albumPick.count}
-                </span>
-              ) : null}
+              <SearchIcon width={18} height={18} className="shrink-0" />
+              <span className="truncate">{EXPLORE_SEARCH_HINT}</span>
             </button>
             <button
               ref={filterAnchorRef}

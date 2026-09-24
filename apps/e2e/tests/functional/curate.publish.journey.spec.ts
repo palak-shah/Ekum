@@ -15,7 +15,7 @@ test.describe('trader curate publish @functional @trader @collections', () => {
     await page.getByTestId('select-all-float-select-all').click();
     await expect(page.getByTestId('select-all-float')).toContainText(/\d+ selected/);
 
-    await page.getByTestId('selection-workspace-bar').click();
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
       timeout: 15_000,
     });

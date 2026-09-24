@@ -11,11 +11,11 @@ No auto-follow. Connection after approve unlocks **Connections**-audience collec
 
 ## Who uses it
 
-Any company. Entry: **＋ → Invite to connect** (one-tap create + Share) or **You → Invites** (`/referrals`) for list / vouch compose.
+Any company. Entry: **Chats ⋯ → Invite to connect** (one-tap create + Share), shop **Share** / profile, or **You → Invites** (`/referrals`) for list / vouch compose. Not on the **＋** create sheet.
 
 ## User flows
 
-1. **＋ → Invite to connect** — creates an open invite and opens the system share sheet (or copies the link).  
+1. **Chats ⋯ → Invite to connect** — creates an open invite and opens the system share sheet (or copies the link).  
 2. Open `/referrals` — list past links; **Share** (native sheet) or **Copy**.  
 3. **New** (`/referrals/new`) — vouch / note → Share / Copy `/r/:token`.  
 4. Recipient opens link (login / onboarding preserves return path when needed).  
@@ -43,7 +43,7 @@ Any company. Entry: **＋ → Invite to connect** (one-tap create + Share) or **
 
 ## Seed walkthrough
 
-1. Open **＋ → Invite to connect** → create a **Connect with me** link → Share.
+1. Open **Chats ⋯ → Invite to connect** → create a **Connect with me** link → Share.
 2. Open `/r/:token` as another company → Request access → as inviter, approve on **Buyers**.
 3. (Optional) Create a vouch link with a target → request access still requires that seller’s approve.
 

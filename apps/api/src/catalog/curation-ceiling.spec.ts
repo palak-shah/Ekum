@@ -55,6 +55,18 @@ describe('assertProductsCuratable', () => {
     ).not.toThrow();
   });
 
+  it('rejects look-only follow when not connected', () => {
+    expectBadRequest(
+      () =>
+        assertProductsCuratable({
+          curatorCompanyId: 'me',
+          products: [base],
+          lookOnlyOwnerIds: new Set(['other']),
+        }),
+      'FOLLOW_LOOK_ONLY',
+    );
+  });
+
   it('rejects locked forward on foreign product', () => {
     expect(() =>
       assertProductsCuratable({

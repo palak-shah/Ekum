@@ -3,10 +3,12 @@
  * returns, complaints, threads and access requests resolves its colour and
  * label here, so status vocabulary and colour never drift between screens.
  */
-export type StatusTone = 'neutral' | 'info' | 'progress' | 'success' | 'danger' | 'muted';
+export type StatusTone = 'neutral' | 'open' | 'info' | 'progress' | 'success' | 'danger' | 'muted';
 
 const TONE_CLASSES: Record<StatusTone, string> = {
   neutral: 'bg-foam text-slate',
+  /** Open / awaiting — clearer than neutral, quieter than accent info. */
+  open: 'bg-foam text-ink',
   info: 'bg-foam text-accent',
   progress: 'bg-warning-soft text-warning-ink',
   success: 'bg-success-soft text-success-ink',
@@ -15,8 +17,8 @@ const TONE_CLASSES: Record<StatusTone, string> = {
 };
 
 const STATUS_TONE: Record<string, StatusTone> = {
-  // Orders
-  requested: 'info',
+  // Orders — requested: readable ink on foam (not dull slate, not loud accent)
+  requested: 'open',
   confirmed: 'progress',
   part_shipped: 'progress',
   dispatched: 'success',

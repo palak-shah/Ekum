@@ -26,6 +26,7 @@ type Props = {
   onBusyChange?: (busy: boolean) => void;
   rows?: number;
   optional?: boolean;
+  className?: string;
 };
 
 function revokeIfBlob(url: string | null | undefined) {
@@ -40,8 +41,9 @@ export function NoteVoiceField({
   voice,
   onVoiceChange,
   onBusyChange,
-  rows = 3,
+  rows = 2,
   optional = true,
+  className,
 }: Props) {
   const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
@@ -150,6 +152,12 @@ export function NoteVoiceField({
         value={note}
         onChange={(event) => onNoteChange(event.target.value)}
         rows={rows}
+        className={cx(
+          'ekum-no-scrollbar resize-none overflow-y-auto',
+          rows <= 2 &&
+            '!h-[4.25rem] !min-h-[4.25rem] !max-h-[4.25rem]',
+          className,
+        )}
       />
       {voice ? (
         <div className="flex items-start gap-2">

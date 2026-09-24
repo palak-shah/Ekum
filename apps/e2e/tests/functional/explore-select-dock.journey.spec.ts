@@ -29,7 +29,7 @@ test.describe('explore select dock @functional @explore', () => {
     });
     await page.reload();
     await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
-    await page.getByTestId('selection-workspace-bar').getByRole('button').click();
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
     await expect(page.getByTestId('selection-order')).toBeVisible();
     await expect(page.getByTestId('selection-curate')).toBeVisible();

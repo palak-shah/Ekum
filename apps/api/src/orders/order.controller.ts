@@ -12,6 +12,7 @@ import {
   listOrdersQuerySchema,
   quoteOrderSchema,
   millPassHoldSchema,
+  millDeclineSchema,
   millRevealSchema,
   orderTicketSchema,
   sendUpOrderSchema,
@@ -28,6 +29,7 @@ import {
   type ListOrdersQuery,
   type QuoteOrderDto,
   type MillPassHoldDto,
+  type MillDeclineDto,
   type MillRevealDto,
   type OrderTicketDto,
   type SendUpOrderDto,
@@ -229,6 +231,18 @@ export class OrderController {
     @Body(new ZodValidationPipe(sendUpOrderSchema)) dto: SendUpOrderDto,
   ) {
     return this.orders.sendUp(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/mill-decline')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  millDecline(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(millDeclineSchema)) dto: MillDeclineDto,
+  ) {
+    return this.orders.millDecline(companyId, user.userId, id, dto);
   }
 
   @Post(':id/mill-hold')

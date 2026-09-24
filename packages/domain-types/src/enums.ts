@@ -40,7 +40,7 @@ export type MembershipPermission =
   (typeof MembershipPermission)[keyof typeof MembershipPermission];
 export const membershipPermissionValues = values(MembershipPermission);
 
-/** Access is the named, permissioned gate (distinct from permissionless Follow). */
+/** Access is the named Connect gate (distinct from Follow-ask). */
 export const AccessRequestStatus = {
   Pending: 'pending',
   Approved: 'approved',
@@ -407,3 +407,22 @@ export const SUPER_CATEGORY_LABEL: Record<SuperCategory, string> = {
   [SuperCategory.Accessories]: 'Accessories',
   [SuperCategory.Others]: 'Others',
 };
+
+const SUPER_IDS = new Set<string>(Object.values(SuperCategory));
+
+/** Screen copy — never show raw keys like womens_apparel. */
+export function categoryDisplayLabel(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (SUPER_IDS.has(trimmed)) {
+    return SUPER_CATEGORY_LABEL[trimmed as SuperCategory] ?? trimmed;
+  }
+  if (trimmed.includes('_')) {
+    return trimmed
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  }
+  return trimmed;
+}

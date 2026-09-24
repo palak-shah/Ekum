@@ -34,6 +34,16 @@ async function seedSelection(page: import('@playwright/test').Page) {
 }
 
 test.describe('selection workspace @functional @explore', () => {
+  test('thumbnail opens the design', async ({ page }) => {
+    await loginAsRavi(page);
+    await page.goto('/explore');
+    await seedSelection(page);
+    await page.goto('/selection');
+    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await page.getByRole('link', { name: 'Open Design A' }).click();
+    await expect(page).toHaveURL(/\/explore\/products\/seed-prod-1/);
+  });
+
   test('floater and Your selection host Order resolve', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
@@ -44,12 +54,13 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
 
     await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId('selection-workspace-bar').getByText('View')).toBeVisible();
-    await expect(page.getByTestId('explore-selection')).toBeVisible();
+    await expect(page.getByTestId('selection-workspace-order')).toBeVisible();
+    await expect(page.getByTestId('explore-selection')).toHaveCount(0);
 
-    // Verbs are not on Explore — open Selection home.
-    await page.getByTestId('selection-workspace-bar').click();
+    // Count opens the pile; Order on the chip starts the sheet.
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(page.getByTestId('selection-order')).toBeVisible();
     await expect(page.getByTestId('selection-curate')).toBeVisible();
     await expect(page.getByTestId('selection-bookmark')).toBeVisible();
@@ -61,6 +72,18 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByText('Choose designs').first()).toBeVisible();
   });
 
+  test('floater Order opens Your selection and the order sheet', async ({ page }) => {
+    await loginAsRavi(page);
+    await page.goto('/explore');
+    await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
+    await seedSelection(page);
+    await page.reload();
+    await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('selection-workspace-order').click();
+    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Order collections' })).toBeVisible();
+  });
+
   test('Curate on albums opens Use whole pack resolve', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
@@ -69,7 +92,7 @@ test.describe('selection workspace @functional @explore', () => {
     await page.reload();
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByTestId('selection-workspace-bar').click();
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
     await page.getByTestId('selection-curate').click();
     await expect(page.getByRole('heading', { name: 'Curate from collections' })).toBeVisible();
@@ -149,7 +172,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
     await seedSelection(page);
     await page.reload();
-    await page.getByTestId('explore-selection').click();
+    await page.getByTestId('selection-workspace-view').click();
     await expect(page.getByTestId('selection-clear')).toBeVisible();
     await page.getByTestId('selection-clear').click();
     await expect(page.getByText('Nothing selected')).toBeVisible();
@@ -166,8 +189,8 @@ test.describe('selection workspace @functional @explore', () => {
     });
     await expect(page.getByText('Checking availability…')).toHaveCount(0, { timeout: 15_000 });
     await page.getByTestId('selection-bookmark').click();
-    await expect(page).toHaveURL(/\/saved/, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/saved/, { timeout: 15_000 });
+    await expect(page.getByTestId('you-tab-saved')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Nothing selected')).toHaveCount(0);
     await expect(page.getByTestId('app-toast')).toContainText(/bookmarked/i);
   });
@@ -214,10 +237,10 @@ test.describe('selection workspace @functional @explore', () => {
     }
   });
 
-  test('My designs To selection handoff opens Your selection', async ({ page }) => {
+  test('My designs Order for buyer handoff opens Your selection', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/catalog');
-    await expect(page.getByRole('button', { name: 'Designs' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
 
     await page.evaluate(() => {
       sessionStorage.removeItem('ekum:browseShortlist');
@@ -232,19 +255,20 @@ test.describe('selection workspace @functional @explore', () => {
     const gridTile = page.getByTestId('catalog-product-tile').first();
     await expect(gridTile).toBeVisible({ timeout: 15_000 });
     await gridTile.click({ button: 'right' });
-    await expect(page.getByTestId('catalog-to-selection')).toBeVisible({ timeout: 10_000 });
-    await page.getByTestId('catalog-to-selection').click();
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+    await expect(page.getByTestId('catalog-order-for-buyer')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('catalog-curate')).toBeVisible();
+    await page.getByTestId('catalog-order-for-buyer').click();
+    await expect(page).toHaveURL(/\/selection/);
+    await expect(page.getByRole('button', { name: 'Order for buyer' })).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page).toHaveURL(/\/selection/);
   });
 
-  test('My designs To selection toasts when only drafts are picked', async ({ page }) => {
+  test('My designs Draft select offers Publish, not Order for buyer', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/catalog');
-    await expect(page.getByRole('button', { name: 'Designs' })).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Draft' }).click();
+    await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Draft', exact: true }).click();
     const draftTile = page.getByTestId('catalog-product-tile').first();
     if ((await draftTile.count()) === 0) {
       test.skip(true, 'No draft designs in seed for this persona');
@@ -252,10 +276,9 @@ test.describe('selection workspace @functional @explore', () => {
     }
     await expect(draftTile).toBeVisible({ timeout: 15_000 });
     await draftTile.click({ button: 'right' });
-    await expect(page.getByTestId('catalog-to-selection')).toBeVisible({ timeout: 10_000 });
-    await page.getByTestId('catalog-to-selection').click();
-    await expect(page.getByTestId('app-toast')).toContainText(/Publish first|isn’t published/i);
-    await expect(page).toHaveURL(/\/catalog/);
+    await expect(page.getByRole('button', { name: /Publish/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('catalog-order-for-buyer')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/more/);
   });
 
   test('floater hidden on My designs catalog root', async ({ page }) => {
@@ -263,7 +286,7 @@ test.describe('selection workspace @functional @explore', () => {
     await page.goto('/explore');
     await seedSelection(page);
     await page.goto('/catalog');
-    await expect(page.getByRole('button', { name: 'Designs' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
   });
 });

@@ -1,4 +1,4 @@
-import { SuperCategory, SUPER_CATEGORY_LABEL } from '@ekum/domain-types';
+import { SuperCategory, SUPER_CATEGORY_LABEL, categoryDisplayLabel } from '@ekum/domain-types';
 
 export type InterestCompany = {
   sellCategories?: string[] | null;
@@ -57,4 +57,9 @@ export function matchesCompanyInterest(
   if (!useCoarse) return false;
   const supers = company.superCategories ?? [];
   return interest.supers.some((superId) => supers.includes(superId));
+}
+
+/** Relevance “Matches …” clause — never dump raw enum keys like womens_apparel. */
+export function interestHitLabel(hit: string): string {
+  return categoryDisplayLabel(hit);
 }

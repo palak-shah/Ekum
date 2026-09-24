@@ -9,6 +9,7 @@ import type {
   CursorPage,
   ExploreHomeView,
   ExplorePost,
+  FollowAskView,
   OrderView,
   ReturnView,
   ThreadSummary,
@@ -65,6 +66,10 @@ export function HomePage() {
     queryKey: ['access-requests', 'incoming'],
     queryFn: () => api.get<AccessRequestView[]>('/access-requests/incoming'),
   });
+  const followAsks = useQuery({
+    queryKey: ['follows', 'asks'],
+    queryFn: () => api.get<FollowAskView[]>('/follows/asks'),
+  });
   const orders = useQuery({
     queryKey: ['orders', { home: true }],
     queryFn: () => api.get<CursorPage<OrderView>>('/orders', { limit: 50 }),
@@ -99,6 +104,7 @@ export function HomePage() {
   const orderRows = orders.data?.results ?? [];
   const returnRows = returns.data?.results ?? [];
   const accessRequests = incoming.data ?? [];
+  const followAskRows = followAsks.data ?? [];
   const chatRequests = threadRequests.data?.results ?? [];
   const myGrants = useQuery({
     queryKey: ['collection-view-grants', 'mine'],
@@ -115,16 +121,27 @@ export function HomePage() {
         orders: orderRows,
         returns: returnRows,
         accessRequests,
+        followAsks: followAskRows,
         chatRequests,
         collectionViewGrants: grantRows,
       }),
     );
-  }, [orderRows, returnRows, accessRequests, chatRequests, grantRows, companyId, seenVersion]);
+  }, [
+    orderRows,
+    returnRows,
+    accessRequests,
+    followAskRows,
+    chatRequests,
+    grantRows,
+    companyId,
+    seenVersion,
+  ]);
   const metrics = homeMetrics({
     orders: orderRows,
     returns: returnRows,
     accessCount: accessRequests.length,
     chatCount: chatRequests.length,
+    followAskCount: followAskRows.length,
   });
 
   const followedItems = followed.data?.results ?? [];
@@ -138,7 +155,12 @@ export function HomePage() {
       {
         label: 'Requests',
         value: metrics.requests,
-        to: accessRequests.length > 0 ? '/network/requests' : '/chats',
+        to:
+          accessRequests.length > 0
+            ? '/network/requests'
+            : followAskRows.length > 0
+              ? '/network/followers?tab=asked'
+              : '/chats',
       },
       { label: 'Returns', value: metrics.returns, to: '/orders?filter=needs' },
     ] as const
@@ -147,6 +169,7 @@ export function HomePage() {
 
   const stillBootstrapping =
     incoming.isLoading ||
+    followAsks.isLoading ||
     orders.isLoading ||
     returns.isLoading ||
     threadRequests.isLoading ||
@@ -255,34 +278,8 @@ export function HomePage() {
         </div>
       ) : null}
 
-      {packRows.length > 0 ? (
-        <section className="mt-7 flex flex-col gap-2.5">
-          <SectionHeader
-            title="New packs"
-            action={
-              <Link to="/explore?side=buying" className="text-[13px] font-semibold text-accent">
-                See all →
-              </Link>
-            }
-          />
-          {packRows.map((item) => (
-            <Link
-              key={item.id}
-              to={item.to}
-              className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
-                <p className="truncate text-xs text-muted">{item.subtitle}</p>
-              </div>
-              <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
-            </Link>
-          ))}
-        </section>
-      ) : null}
-
       {hasNeeds ? (
-        <section className={`${hasChips || packRows.length > 0 ? 'mt-8' : 'mt-6'} flex flex-col gap-3`}>
+        <section className="mt-6 flex flex-col gap-3">
           <h2 className="px-0.5 text-[15px] font-semibold tracking-tight text-ink">
             Needs your attention
           </h2>
@@ -309,6 +306,32 @@ export function HomePage() {
               See all {needs.length} →
             </button>
           ) : null}
+        </section>
+      ) : null}
+
+      {packRows.length > 0 ? (
+        <section className={`${hasNeeds ? 'mt-8' : 'mt-7'} flex flex-col gap-2.5`}>
+          <SectionHeader
+            title="New packs"
+            action={
+              <Link to="/explore?side=buying" className="text-[13px] font-semibold text-accent">
+                See all →
+              </Link>
+            }
+          />
+          {packRows.map((item) => (
+            <Link
+              key={item.id}
+              to={item.to}
+              className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                <p className="truncate text-xs text-muted">{item.subtitle}</p>
+              </div>
+              <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
+            </Link>
+          ))}
         </section>
       ) : null}
 
@@ -411,7 +434,7 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
         </Link>
         {selling ? (
           <div className="mt-3 flex flex-col gap-2">
-            <Link to="/catalog" className="block text-center text-[15px] font-semibold text-accent">
+            <Link to="/more" className="block text-center text-[15px] font-semibold text-accent">
               My designs
             </Link>
             <Link
@@ -513,6 +536,7 @@ function needIcon(kind: HomeNeedItem['kind']): ComponentType<SVGProps<SVGSVGElem
     case 'review_return':
       return ReturnIcon;
     case 'access_request':
+    case 'follow_request':
       return UserIcon;
     case 'collection_view_granted':
       return CollectionIcon;

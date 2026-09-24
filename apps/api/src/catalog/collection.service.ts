@@ -7,11 +7,13 @@ import {
 import {
   CollectionStatus,
   ConnectionStatus,
+  FollowAccessKind,
   JobType,
   ProductStatus,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
+  type CurateCheckView,
   type ListCatalogQuery,
   type PublishCollectionDto,
   type UpdateCollectionDto,
@@ -43,6 +45,16 @@ import { shouldBumpExploreOnPublish } from './explore-activity-bump';
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
 };
+
+function curateExceptionCode(err: unknown): string {
+  if (err instanceof BadRequestException) {
+    const body = err.getResponse();
+    if (typeof body === 'object' && body && 'code' in body && typeof body.code === 'string') {
+      return body.code;
+    }
+  }
+  return 'INVALID_PRODUCTS';
+}
 
 const listInclude = {
   ...collectionActorInclude,
@@ -257,12 +269,14 @@ export class CollectionService {
     const products = members.map((row) => row.product);
     const discoverableIds = await this.discoverableProductIds(companyId, products);
     const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
+    const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
     assertProductsCuratable({
       curatorCompanyId: companyId,
       products,
       publishAudience: dto.audience,
       discoverableIds,
       relistGrantedIds,
+      lookOnlyOwnerIds,
     });
 
     const rateVisibility = curatedPublishRateVisibility({
@@ -281,6 +295,7 @@ export class CollectionService {
     // inside the pack, but postedToMarketAt stays null (no design-tile flood).
     const memberIds = members.map((row) => row.productId);
     const allowForward = dto.allowForward !== false;
+    const allowDownload = dto.allowDownload === true;
     const now = new Date();
     await this.prisma.product.updateMany({
       where: {
@@ -295,8 +310,14 @@ export class CollectionService {
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
+        allowDownload,
         updatedByUserId: userId,
       },
+    });
+    // Cascade download gate onto all own members (including already published).
+    await this.prisma.product.updateMany({
+      where: { id: { in: memberIds }, companyId },
+      data: { allowDownload, updatedByUserId: userId },
     });
 
     // First publish / widen to Followers·Everyone·Connections resurfaces.
@@ -317,6 +338,7 @@ export class CollectionService {
         audienceCompanyIds,
         audienceGroupIds,
         allowForward,
+        allowDownload,
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),
@@ -327,6 +349,7 @@ export class CollectionService {
     await rememberPublishDefaults(this.prisma, companyId, {
       rateVisibility,
       allowForward,
+      allowDownload,
     });
     const hasForeignMember = products.some((product) => product.companyId !== companyId);
     if (hasForeignMember) {
@@ -418,6 +441,53 @@ export class CollectionService {
     return this.serializer.toCollectionView(collection);
   }
 
+  async checkCurateProducts(companyId: string, productIds: string[]): Promise<CurateCheckView> {
+    const uniqueIds = [...new Set(productIds)];
+    const allowedProductIds: string[] = [];
+    const blocked: CurateCheckView['blocked'] = [];
+    if (uniqueIds.length === 0) {
+      return { allowedProductIds, blocked };
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: uniqueIds } },
+      select: {
+        id: true,
+        companyId: true,
+        audience: true,
+        audienceCompanyIds: true,
+        allowForward: true,
+        status: true,
+        postedToMarketAt: true,
+      },
+    });
+    const found = new Set(products.map((product) => product.id));
+    for (const productId of uniqueIds) {
+      if (!found.has(productId)) {
+        blocked.push({ productId, code: 'INVALID_PRODUCTS' });
+      }
+    }
+
+    const discoverableIds = await this.discoverableProductIds(companyId, products);
+    const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
+    const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
+    for (const product of products) {
+      try {
+        assertProductsCuratable({
+          curatorCompanyId: companyId,
+          products: [product],
+          discoverableIds,
+          relistGrantedIds,
+          lookOnlyOwnerIds,
+        });
+        allowedProductIds.push(product.id);
+      } catch (err) {
+        blocked.push({ productId: product.id, code: curateExceptionCode(err) });
+      }
+    }
+    return { allowedProductIds, blocked };
+  }
+
   /**
    * Replaces the collection's ordered product set. Own-company products are
    * always allowed; foreign products must pass the curation ceiling
@@ -453,11 +523,13 @@ export class CollectionService {
       }
       const discoverableIds = await this.discoverableProductIds(companyId, products);
       const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
+      const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
       assertProductsCuratable({
         curatorCompanyId: companyId,
         products,
         discoverableIds,
         relistGrantedIds,
+        lookOnlyOwnerIds,
       });
     }
 
@@ -539,8 +611,9 @@ export class CollectionService {
         where: {
           followerCompanyId: viewerCompanyId,
           followedCompanyId: { in: ownerIds },
+          status: 'allowed',
         },
-        select: { followedCompanyId: true },
+        select: { followedCompanyId: true, accessKind: true },
       }),
     ]);
 
@@ -572,6 +645,47 @@ export class CollectionService {
     }
 
     return discoverable;
+  }
+
+  /** Allowed look follow and not Connected — cannot curate that seller. */
+  private async lookOnlyOwnerIds(
+    curatorCompanyId: string,
+    products: ProductCeilingRow[],
+  ): Promise<Set<string>> {
+    const ownerIds = [
+      ...new Set(
+        products.filter((p) => p.companyId !== curatorCompanyId).map((p) => p.companyId),
+      ),
+    ];
+    if (ownerIds.length === 0) return new Set();
+
+    const [follows, connections] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: {
+          followerCompanyId: curatorCompanyId,
+          followedCompanyId: { in: ownerIds },
+          status: 'allowed',
+          accessKind: FollowAccessKind.Look,
+        },
+        select: { followedCompanyId: true },
+      }),
+      this.prisma.connection.findMany({
+        where: {
+          status: ConnectionStatus.Active,
+          OR: [
+            { companyLowId: curatorCompanyId, companyHighId: { in: ownerIds } },
+            { companyHighId: curatorCompanyId, companyLowId: { in: ownerIds } },
+          ],
+        },
+        select: { companyLowId: true, companyHighId: true },
+      }),
+    ]);
+    const connected = new Set(
+      connections.map((row) => counterpartCompanyId(curatorCompanyId, row)),
+    );
+    return new Set(
+      follows.map((row) => row.followedCompanyId).filter((id) => !connected.has(id)),
+    );
   }
 
   /** Product ids with a ProductRelistGrant OR open via another company's pack allow. */

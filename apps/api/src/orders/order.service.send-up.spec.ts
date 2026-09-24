@@ -98,6 +98,14 @@ describe('OrderService.sendUp', () => {
     } as unknown as PrismaService;
     const svc = service(prisma);
     await expect(svc.sendUp('trader', 'u1', 'down-1', {})).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'requested',
+          upstreamReleasedAt: null,
+        }),
+      }),
+    );
   });
 
   it('patches qty, releases, and notifies the mill', async () => {
@@ -110,6 +118,7 @@ describe('OrderService.sendUp', () => {
       status: 'requested',
       note: 'For order #DOWN01',
       items: [{ id: 'ui-1', productId: 'p1', quantity: 10 }],
+      seller: { name: 'Ahmedabad Loom Co' },
     };
     const events = { orderCreated: vi.fn() } as unknown as DomainEvents;
     const threads = {
@@ -120,6 +129,7 @@ describe('OrderService.sendUp', () => {
         userIds: [] as string[],
       })),
     } as unknown as ThreadService;
+    const trailAppend = vi.fn(async () => undefined);
     const prisma = {
       order: {
         findUnique: vi
@@ -137,7 +147,7 @@ describe('OrderService.sendUp', () => {
           .mockResolvedValueOnce({
             ...held,
             buyer: { name: 'Ravi' },
-            seller: { name: 'Kavita' },
+            seller: { name: 'Ahmedabad Loom Co' },
             items: held.items,
           }),
         findMany: vi.fn(async () => [held]),
@@ -154,7 +164,16 @@ describe('OrderService.sendUp', () => {
       thread: { update: vi.fn(async () => ({})) },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
-    const svc = service(prisma, { events, threads });
+    const svc = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      { assertCanTrade: async () => undefined } as unknown as TradeAccess,
+      events,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      threads,
+      { append: trailAppend, listForViewer: async () => [], backfillFromOrder: async () => undefined } as unknown as OrderTrailService,
+    );
     vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1', canSendUp: false } as never);
 
     await svc.sendUp('trader', 'u1', 'down-1', {
@@ -171,6 +190,12 @@ describe('OrderService.sendUp', () => {
       expect.objectContaining({
         where: { id: 'up-1' },
         data: expect.objectContaining({ upstreamReleasedAt: expect.any(Date) }),
+      }),
+    );
+    expect(trailAppend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'down-1',
+        summary: 'You sent to Ahmedabad Loom Co',
       }),
     );
     expect(threads.ensureTradeThread).toHaveBeenCalledWith('trader', 'mill');
@@ -367,5 +392,167 @@ describe('OrderService.sendUp', () => {
     const svc = service(prisma, { serializer });
     const view = await svc.get('buyer', down.id);
     expect(view.relatedOrders).toEqual([]);
+  });
+});
+
+describe('OrderService.millDecline', () => {
+  it('declines a held mill hop and those parent lines', async () => {
+    const trailAppend = vi.fn(async () => undefined);
+    const parent = {
+      id: 'down-1',
+      sellerCompanyId: 'trader',
+      buyerCompanyId: 'buyer',
+      facilitatorCompanyId: null,
+      tradeMode: OrderTradeMode.Manage,
+      seller: { name: 'Meena Trading' },
+      items: [{ id: 'pi-1', productId: 'p1' }],
+    };
+    const up = {
+      id: 'up-1',
+      downstreamOrderId: 'down-1',
+      upstreamReleasedAt: null,
+      status: 'requested',
+      seller: { name: 'Ahmedabad Loom Co' },
+      items: [{ id: 'ui-1', productId: 'p1' }],
+    };
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async () => parent),
+        findMany: vi.fn(async () => [up]),
+        update: vi.fn(async () => ({})),
+      },
+      orderItem: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+        count: vi.fn(async () => 1),
+      },
+    } as unknown as PrismaService;
+    const svc = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      { assertCanTrade: async () => undefined } as unknown as TradeAccess,
+      { orderCreated: vi.fn() } as unknown as DomainEvents,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      {
+        ensureTradeThread: vi.fn(async () => 'thread-1'),
+        findDirectThreadId: vi.fn(async () => 'thread-1'),
+        notifyUserIdsForMessage: vi.fn(async () => ({ companyIds: [], userIds: [] })),
+      } as unknown as ThreadService,
+      { append: trailAppend, listForViewer: async () => [], backfillFromOrder: async () => undefined } as unknown as OrderTrailService,
+    );
+    vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1' } as never);
+
+    await svc.millDecline('trader', 'u1', 'down-1', { upstreamOrderId: 'up-1' });
+
+    expect(prisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'up-1' },
+        data: expect.objectContaining({ status: 'declined' }),
+      }),
+    );
+    expect(prisma.orderItem.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ orderId: 'down-1', productId: { in: ['p1'] } }),
+      }),
+    );
+    expect(trailAppend).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: 'You declined Ahmedabad Loom Co' }),
+    );
+    expect(prisma.order.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'down-1' } }),
+    );
+  });
+
+  it('rejects after the mill was already sent', async () => {
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async () => ({
+          id: 'down-1',
+          sellerCompanyId: 'trader',
+          tradeMode: OrderTradeMode.Manage,
+        })),
+        findMany: vi.fn(async () => []),
+      },
+    } as unknown as PrismaService;
+    const svc = service(prisma);
+    await expect(
+      svc.millDecline('trader', 'u1', 'down-1', { upstreamOrderId: 'up-1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('omitting upstreamOrderId declines every held mill', async () => {
+    const trailAppend = vi.fn(async () => undefined);
+    const parent = {
+      id: 'down-1',
+      sellerCompanyId: 'trader',
+      buyerCompanyId: 'buyer',
+      facilitatorCompanyId: null,
+      tradeMode: OrderTradeMode.Manage,
+      seller: { name: 'Meena Trading' },
+      items: [
+        { id: 'pi-1', productId: 'p1' },
+        { id: 'pi-2', productId: 'p2' },
+      ],
+    };
+    const ups = [
+      {
+        id: 'up-1',
+        seller: { name: 'Surat Silk House' },
+        items: [{ id: 'ui-1', productId: 'p1' }],
+      },
+      {
+        id: 'up-2',
+        seller: { name: 'Ahmedabad Loom Co' },
+        items: [{ id: 'ui-2', productId: 'p2' }],
+      },
+    ];
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async () => parent),
+        findMany: vi.fn(async () => ups),
+        update: vi.fn(async () => ({})),
+      },
+      orderItem: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+        count: vi.fn(async () => 1),
+      },
+    } as unknown as PrismaService;
+    const svc = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      { assertCanTrade: async () => undefined } as unknown as TradeAccess,
+      { orderCreated: vi.fn() } as unknown as DomainEvents,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      {
+        ensureTradeThread: vi.fn(async () => 'thread-1'),
+        findDirectThreadId: vi.fn(async () => 'thread-1'),
+        notifyUserIdsForMessage: vi.fn(async () => ({ companyIds: [], userIds: [] })),
+      } as unknown as ThreadService,
+      {
+        append: trailAppend,
+        listForViewer: async () => [],
+        backfillFromOrder: async () => undefined,
+      } as unknown as OrderTrailService,
+    );
+    vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1' } as never);
+
+    await svc.millDecline('trader', 'u1', 'down-1', {});
+
+    expect(prisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'up-1' } }),
+    );
+    expect(prisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'up-2' } }),
+    );
+    expect(prisma.order.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'down-1' } }),
+    );
+    expect(trailAppend).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: 'You declined Surat Silk House' }),
+    );
+    expect(trailAppend).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: 'You declined Ahmedabad Loom Co' }),
+    );
   });
 });

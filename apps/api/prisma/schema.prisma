@@ -49,6 +49,7 @@ model User {
   savedItems         SavedItem[]
   threadMembers      ThreadMember[]
   messageStars       MessageStar[]
+  messageReactions   MessageReaction[]
 }
 
 /// The tenant root. A company may buy, sell, or both — capabilities are data.
@@ -121,6 +122,7 @@ model Company {
   catalogShareLinks CatalogShareLink[]
   messageHides      MessageHide[]
   messageStars      MessageStar[]
+  messageReactions  MessageReaction[]
 }
 
 /// The join between a User and a Company. Modelled many-to-many from day one so
@@ -282,6 +284,8 @@ model Product {
   /** Optional high end for catalog display ranges; orders snapshot `rate` only. */
   rateMax     Decimal? @db.Decimal(12, 2)
   unit        String?
+  /** Pieces in one set/dozen/box when unit is packed; null = not set. */
+  piecesPerPack Int?
   categories  String[] @default([])
   images      String[] @default([])
   status      String   @default("draft") // ProductStatus
@@ -293,6 +297,8 @@ model Product {
   audienceGroupIds    String[]  @default([])
   /** When false, only the owner may share this design into chat; buyers cannot forward. */
   allowForward        Boolean   @default(true)
+  /** When false, buyers must not download / export design photos. */
+  allowDownload       Boolean   @default(false)
   postedToMarketAt    DateTime?
   createdByUserId     String?
   updatedByUserId     String?
@@ -332,6 +338,8 @@ model Collection {
   audienceGroupIds    String[] @default([])
   /** When false, only the owner may share this pack into chat; buyers cannot forward. */
   allowForward        Boolean  @default(true)
+  /** When false, buyers must not download / export designs in this pack. */
+  allowDownload       Boolean  @default(false)
   /** Legacy: unused. Path is TradeLane / Your paths. Kept for DB compatibility. */
   orderPathPreference String?
   /**
@@ -503,6 +511,10 @@ model Follow {
   id                String   @id @default(cuid())
   followerCompanyId String
   followedCompanyId String
+  /// pending | allowed — pending is not a follower for audience.
+  status            String   @default("allowed")
+  /// look | pack — null while pending. Shop-facing only.
+  accessKind        String?
   createdAt         DateTime @default(now())
 
   follower Company @relation("Follower", fields: [followerCompanyId], references: [id], onDelete: Cascade)
@@ -510,6 +522,7 @@ model Follow {
 
   @@unique([followerCompanyId, followedCompanyId])
   @@index([followedCompanyId])
+  @@index([followedCompanyId, status])
 }
 
 // --- Conversation -----------------------------------------------------------
@@ -522,6 +535,14 @@ model Thread {
   type               String   @default("direct") // ThreadType: direct | group
   visibility         String   @default("shared")
   title              String?
+  /** Group avatar (media URL). 1:1 uses the other shop’s logo. */
+  imageUrl           String?
+  /** Group one-line under the title (max 80 in API). */
+  blurb              String?
+  /** One pinned message for everyone on this thread. */
+  pinnedMessageId    String?
+  /** Public join link for groups (`/g/:token`). */
+  inviteToken        String?  @unique
   createdByCompanyId String
   lastMessageAt      DateTime @default(now())
   createdAt          DateTime @default(now())
@@ -546,6 +567,10 @@ model ThreadParticipant {
   /** When set, this chat is pinned for the company (private; sorted above unpinned). */
   pinnedAt   DateTime?
   lastReadAt DateTime?
+  /** Last typing heartbeat from this shop. Stale after ~6s. */
+  typingAt DateTime?
+  /** Our-shop inbox hide (Archive / Delete). Not participant `archived`. Null = in All Chats. */
+  inboxHiddenAt DateTime?
   invitedBy  String?
   joinedAt   DateTime  @default(now())
   leftAt     DateTime?
@@ -556,6 +581,7 @@ model ThreadParticipant {
   @@unique([threadId, companyId])
   @@index([companyId, state])
   @@index([companyId, pinnedAt])
+  @@index([companyId, inboxHiddenAt])
 }
 
 /// A person on a thread. Company row stays for inbox/request/archive.
@@ -566,6 +592,8 @@ model ThreadMember {
   companyId  String
   state      String    @default("active") // ThreadMemberState
   alertLevel String    @default("all") // ThreadAlertLevel
+  /** When set with muted, mute ends at this time. Null + muted = always. */
+  mutedUntil DateTime?
   joinedAt   DateTime  @default(now())
   leftAt     DateTime?
 
@@ -603,6 +631,7 @@ model Message {
   replies Message[] @relation("MessageReplies")
   hides   MessageHide[]
   stars   MessageStar[]
+  reactions MessageReaction[]
 
   @@index([threadId, createdAt])
   @@index([threadId, type, createdAt])
@@ -637,6 +666,23 @@ model MessageStar {
 
   @@unique([userId, messageId])
   @@index([companyId, userId, createdAt])
+}
+
+/** One reaction per shop per message (not per staff). */
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  companyId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, companyId])
+  @@index([messageId])
 }
 
 // --- Orders & Fulfillment ---------------------------------------------------

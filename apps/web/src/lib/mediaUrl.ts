@@ -6,13 +6,13 @@
  * Azure blob URLs (other hosts/paths) are left alone.
  */
 export function toAbsoluteMediaUrl(
-  url: string,
+  url: string | null | undefined,
   origin: string = typeof window !== 'undefined' && window.location?.origin
     ? window.location.origin
     : '',
 ): string {
-  const trimmed = url.trim();
-  if (!trimmed) return trimmed;
+  const trimmed = url?.trim() ?? '';
+  if (!trimmed) return '';
   // Local voice previews and data URLs must not be rewritten onto the page origin.
   if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed;
   try {

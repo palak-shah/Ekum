@@ -18,9 +18,11 @@ export function shouldShowExploreFollow(
   ownCompanyId: string | undefined,
   followingIds: Set<string>,
   connectedIds: Set<string>,
+  pendingIds: Set<string> = new Set(),
 ): boolean {
   if (!companyId || companyId === ownCompanyId) return false;
   if (connectedIds.has(companyId)) return false;
   if (followingIds.has(companyId)) return false;
+  if (pendingIds.has(companyId)) return false;
   return true;
 }

@@ -13,11 +13,13 @@ import {
 import {
   CollectionStatus,
   createCollectionSchema,
+  curateCheckSchema,
   listCatalogQuerySchema,
   publishCollectionSchema,
   setCollectionProductsSchema,
   updateCollectionSchema,
   type CreateCollectionDto,
+  type CurateCheckDto,
   type ListCatalogQuery,
   type PublishCollectionDto,
   type SetCollectionProductsDto,
@@ -66,6 +68,15 @@ export class CollectionController {
     @Body(new ZodValidationPipe(updateCollectionSchema)) dto: UpdateCollectionDto,
   ) {
     return this.collections.update(companyId, user.userId, id, dto);
+  }
+
+  @Post('curate-check')
+  @RequirePermission('uploads')
+  curateCheck(
+    @CurrentCompanyId() companyId: string,
+    @Body(new ZodValidationPipe(curateCheckSchema)) dto: CurateCheckDto,
+  ) {
+    return this.collections.checkCurateProducts(companyId, dto.productIds);
   }
 
   @Put(':id/products')

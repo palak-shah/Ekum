@@ -22,6 +22,7 @@ export type PublishAudienceState = {
   audienceCompanies: Set<string>;
   rateVisibility: string;
   allowForward: boolean;
+  allowDownload: boolean;
   policyHint: string | null;
 };
 
@@ -35,6 +36,7 @@ export function emptyPublishAudienceState(
     audienceCompanies: new Set(),
     rateVisibility: usual?.rateVisibility ?? RateVisibility.OnRequest,
     allowForward: usual?.allowForward !== false,
+    allowDownload: usual?.allowDownload === true,
     policyHint: null,
   };
 }
@@ -46,6 +48,7 @@ export function restorePublishAudienceState(input: {
   audienceGroupIds?: string[];
   rateVisibility: string;
   allowForward: boolean;
+  allowDownload?: boolean;
   maxAudience?: string | null;
 }): PublishAudienceState {
   const groupIds = input.audienceGroupIds ?? [];
@@ -58,6 +61,7 @@ export function restorePublishAudienceState(input: {
     audienceCompanies: new Set(input.audienceCompanyIds ?? []),
     rateVisibility: input.rateVisibility || RateVisibility.OnRequest,
     allowForward: input.allowForward !== false,
+    allowDownload: input.allowDownload === true,
     policyHint: null,
   };
 }
@@ -79,6 +83,7 @@ function applyGroupsToState(
     audienceCompanies: new Set(unionGroupMembers(selected)),
     rateVisibility: policy.rateVisibility,
     allowForward: policy.allowForward,
+    allowDownload: policy.allowDownload,
     policyHint: usedStrictestMerge
       ? 'Using safest settings from selected groups.'
       : selected.length === 1
@@ -178,6 +183,7 @@ export function PublishAudienceFields({
       audienceCompanies: new Set(),
       rateVisibility: usual.rateVisibility,
       allowForward: usual.allowForward,
+      allowDownload: usual.allowDownload,
       policyHint: null,
     });
   };
@@ -192,6 +198,7 @@ export function PublishAudienceFields({
       audienceCompanies: new Set(state.audienceCompanies),
       rateVisibility: usual.rateVisibility,
       allowForward: usual.allowForward,
+      allowDownload: usual.allowDownload,
       policyHint: null,
     });
   };
@@ -384,6 +391,21 @@ export function PublishAudienceFields({
               }
             />
             <span>Buyers can add these designs to their collections</span>
+          </label>
+          <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={state.allowDownload}
+              onChange={(event) =>
+                onChange({
+                  ...state,
+                  allowDownload: event.target.checked,
+                  policyHint: null,
+                })
+              }
+            />
+            <span>Buyers can download these designs</span>
           </label>
           {state.policyHint ? (
             <p className="text-xs text-muted">{state.policyHint}</p>

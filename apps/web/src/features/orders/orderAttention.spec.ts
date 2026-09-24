@@ -74,4 +74,28 @@ describe('orderAttention settle', () => {
   it('needs the trader when a mill quoted and Meena has not', () => {
     expect(matchesNeeds(order({ status: 'requested', needsQuotePass: true }))).toBe(true);
   });
+
+  it('does not need Confirm on an I-handle parent waiting on mills', () => {
+    expect(
+      matchesNeeds(
+        order({
+          status: 'requested',
+          direction: 'selling',
+          linkedMills: [{ name: 'Ahmedabad Loom Co', orderId: 'up1' }],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('needs Send when a mill lot is still held', () => {
+    expect(
+      matchesNeeds(
+        order({
+          status: 'requested',
+          direction: 'selling',
+          linkedMills: [{ name: 'Ahmedabad Loom Co', orderId: null }],
+        }),
+      ),
+    ).toBe(true);
+  });
 });

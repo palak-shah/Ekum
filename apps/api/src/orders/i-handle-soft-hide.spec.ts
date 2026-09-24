@@ -23,6 +23,16 @@ describe('i-handle soft-hide', () => {
     ).toBe('Surat Silk House dispatched');
   });
 
+  it('scrubs trader mill Send / Hold rows for the buyer', () => {
+    expect(scrubUpstreamNames('You sent to Ahmedabad Loom Co', mills, 'Updated')).toBe(
+      'Updated',
+    );
+    expect(scrubUpstreamNames('You held Ahmedabad Loom Co', mills, 'Updated')).toBe('Updated');
+    expect(scrubUpstreamNames('You resumed Ahmedabad Loom Co', mills, 'Updated')).toBe(
+      'Updated',
+    );
+  });
+
   it('leaves trader copy alone', () => {
     expect(
       scrubUpstreamNames('Surat Silk House confirmed', mills, 'Surat Silk House confirmed'),

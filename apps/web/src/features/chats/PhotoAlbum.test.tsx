@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PhotoAlbum } from './PhotoAlbum';
 
 describe('PhotoAlbum overflow (BM-01)', () => {
@@ -103,6 +103,23 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(collage).toHaveAttribute('data-interactive', 'false');
     expect(collage.className).toMatch(/pointer-events-none/);
     await user.click(collage.querySelector('button')!);
+    expect(screen.queryByTestId('photo-viewer')).toBeNull();
+  });
+
+  it('quotes the open shot from the viewer', async () => {
+    const onQuote = vi.fn();
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <PhotoAlbum
+        urls={['https://example.com/a.jpg', 'https://example.com/b.jpg']}
+        onQuote={onQuote}
+      />,
+    );
+    await user.click(screen.getAllByRole('button')[0]!);
+    expect(screen.getByTestId('photo-viewer-quote')).toHaveTextContent('Quote');
+    await user.click(screen.getByTestId('photo-viewer-quote'));
+    expect(onQuote).toHaveBeenCalledWith(0);
     expect(screen.queryByTestId('photo-viewer')).toBeNull();
   });
 });

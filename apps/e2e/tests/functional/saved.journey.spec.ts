@@ -21,7 +21,9 @@ test.describe('saved hub @functional @saved', () => {
     }
 
     await page.goto('/saved');
-    await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible();
+    await expect(page).toHaveURL(/\/more\?.*saved/);
+    await expect(page.getByTestId('you-tab-saved')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Archived' })).toBeVisible();
     await expect(page.getByText(/Banarasi Silk Saree/i).first()).toBeVisible({
       timeout: 15_000,
     });

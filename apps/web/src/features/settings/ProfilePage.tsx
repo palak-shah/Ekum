@@ -256,7 +256,7 @@ export function ProfilePage() {
         />
         <p className="text-xs text-muted">
           Curate packs and stay on shared orders. Leave off if you only buy or sell your own
-          catalog. Paths (Me / mill · see each other) live under You → Your paths.
+          catalog. Paths (Me / mill · see each other) live under Settings → Your paths.
         </p>
       </Card>
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateSavedItemDto, SavedItemView, SavedListView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useToast } from '@/ui/Toast';
+import { youSavedHref } from '@/features/saved/youSavedHref';
 
 export const SAVED_QUERY_KEY = ['saved'] as const;
 
@@ -60,7 +61,9 @@ export function useSaveToggle(target: SaveTarget, copy?: SaveToggleCopy) {
       showToast(copy?.toastSaved ?? 'Bookmarked', 'success', {
         action: {
           label: 'Open',
-          to: target.productId ? '/saved' : '/saved?tab=collections',
+          to: target.productId
+            ? youSavedHref()
+            : youSavedHref({ collections: true }),
         },
       });
     },

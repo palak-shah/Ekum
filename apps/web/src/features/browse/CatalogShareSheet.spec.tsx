@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXPLORE_BUSINESSES_SEARCH_HREF } from '@/features/explore/exploreDiscoveryHref';
 import { CatalogShareSheet } from './CatalogShareSheet';
 import { api, ApiError } from '@/lib/apiClient';
+import { shareOrCopyInvite } from '@/lib/shareInvite';
 import type { ConnectionView } from '@ekum/domain-types';
 
 vi.mock('@/lib/apiClient', async (importOriginal) => {
@@ -148,6 +149,72 @@ describe('CatalogShareSheet multi-select share', () => {
     });
     expect(vi.mocked(api.post).mock.calls.some(([path]) => String(path).includes('/broadcasts'))).toBe(
       false,
+    );
+  });
+
+  it('keeps 48h on 1 collection + 1 design and mints two share-links', async () => {
+    vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
+      if (path !== '/share-links') throw new Error(`unexpected post ${path}`);
+      const payload = body as { collectionId?: string; productId?: string };
+      return {
+        path: payload.collectionId ? '/s/col' : '/s/prod',
+        name: payload.collectionId ? 'Monsoon' : 'A',
+        kind: payload.collectionId ? 'collection' : 'product',
+        companyName: 'Surat Silk House',
+      } as never;
+    });
+    vi.mocked(shareOrCopyInvite).mockResolvedValue('copied');
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') return [jaipur] as never;
+      if (path === '/access-requests/outgoing') return [] as never;
+      if (path === '/settings') {
+        return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
+      }
+      throw new Error(`unexpected get ${path}`);
+    });
+
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CatalogShareSheet
+            open
+            onClose={() => {}}
+            collections={[{ collectionId: 'col1', name: 'Monsoon' }]}
+            products={[{ productId: 'p1', name: 'A' }]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('catalog-share-link')).toHaveTextContent(/Copy a link · 48 hours/i);
+
+    await user.click(screen.getByTestId('catalog-share-link'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/share-links', { collectionId: 'col1' });
+      expect(api.post).toHaveBeenCalledWith('/share-links', { productId: 'p1' });
+    });
+    const shareLinkCalls = vi
+      .mocked(api.post)
+      .mock.calls.filter(([path]) => path === '/share-links');
+    expect(shareLinkCalls.map(([, body]) => body)).toEqual([
+      { collectionId: 'col1' },
+      { productId: 'p1' },
+    ]);
+    expect(shareOrCopyInvite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: `${window.location.origin}/s/col`,
+        copyText: expect.stringContaining(`${window.location.origin}/s/prod`),
+      }),
     );
   });
 

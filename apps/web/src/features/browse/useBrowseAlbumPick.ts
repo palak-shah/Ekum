@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
+  addBrowseAlbumPickMany,
   clearBrowseAlbumPick,
   readBrowseAlbumPick,
   removeBrowseAlbumIds,
@@ -25,6 +26,12 @@ export function useBrowseAlbumPick() {
     [entries],
   );
 
+  const addMany = useCallback((incoming: BrowseAlbumEntry[]) => {
+    const next = addBrowseAlbumPickMany(incoming);
+    setSelectMode(next.length > 0);
+    return next;
+  }, []);
+
   const toggle = useCallback((entry: BrowseAlbumEntry) => {
     const next = toggleBrowseAlbumEntry(entry);
     // Empty pick must leave select mode (Explore: otherwise taps stay select, not open).
@@ -48,6 +55,7 @@ export function useBrowseAlbumPick() {
     collectionIds,
     count: entries.length,
     toggle,
+    addMany,
     removeIds,
     clear,
     selectMode,

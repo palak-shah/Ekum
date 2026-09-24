@@ -14,7 +14,7 @@ import { api } from '@/lib/apiClient';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { Chip, EmptyState, ErrorState, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { Chip, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { timeAgo } from '@/lib/format';
 
 const KIND_LABEL: Record<CrossChatFindKind, string> = {
@@ -22,6 +22,7 @@ const KIND_LABEL: Record<CrossChatFindKind, string> = {
   documents: 'Documents',
   collections: 'Collections',
   designs: 'Designs',
+  links: 'Links',
 };
 
 const EMPTY_COPY: Record<CrossChatFindKind, { title: string; message: string }> = {
@@ -37,6 +38,10 @@ const EMPTY_COPY: Record<CrossChatFindKind, { title: string; message: string }> 
   designs: {
     title: 'No designs in chats yet',
     message: 'Designs shared in chats show up here.',
+  },
+  links: {
+    title: 'No links in chats yet',
+    message: 'Web links from chat text show up here.',
   },
 };
 
@@ -74,6 +79,9 @@ function rowLabel(row: CrossChatFindItemView, kind: CrossChatFindKind): string {
   if (kind === 'documents') {
     const doc = documentFromMessage(msg);
     return doc?.fileName?.trim() || 'Document';
+  }
+  if (kind === 'links') {
+    return msg.body?.trim() || 'Link';
   }
   if (kind === 'collections' || kind === 'designs') {
     return (
@@ -177,7 +185,7 @@ export function ChatFindPage() {
     return (
       <>
         <PageHeader title="In chats" onBack={() => navigate('/chats')} />
-        <EmptyState title="Pick a type" message="Open Photos, Documents, Collections, or Designs from Chats search." />
+        <EmptyState title="Pick a type" message="Open Photos, Documents, Collections, Designs, or Links from Chats search." />
       </>
     );
   }
@@ -204,13 +212,12 @@ export function ChatFindPage() {
         <Chip active onClick={clearKind}>
           {KIND_LABEL[kind]} ×
         </Chip>
-        <TextInput
+        <SearchInput
           className="min-w-0 flex-1"
           value={query}
           onChange={(event) => syncQ(event.target.value)}
           placeholder={`Search ${KIND_LABEL[kind].toLowerCase()}`}
           aria-label={`Search ${KIND_LABEL[kind].toLowerCase()} in chats`}
-          autoComplete="off"
           data-testid="chat-find-search"
         />
       </div>

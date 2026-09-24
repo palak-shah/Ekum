@@ -24,16 +24,16 @@ test.describe('collection creation @functional @media @creation @collections', (
     await loginAsRavi(page);
     await page.goto('/catalog/collections/new');
 
-    await expect(page.getByText(/First item is the cover/i)).toBeVisible();
+    await expect(page.getByTestId('collection-add-designs')).toBeVisible();
     // Direct file input — ContinuousCamera would open on phone viewport.
     await page.locator('input[type="file"]').setInputFiles(sampleJpgTimes(3));
     await expect(page.locator('img[src^="blob:"], img[src*="/media"]')).toHaveCount(3, {
       timeout: 60_000,
     });
-    await expect(page.getByText('Cover').first()).toBeVisible();
+    await expect(page.getByText('Cover')).toHaveCount(0);
 
     await page.getByLabel('Name').fill(name);
-    await page.getByRole('button', { name: 'Save Collection in Draft' }).click();
+    await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
 
     await openDraftCollectionByName(page, name);
@@ -66,7 +66,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByLabel('Name').fill(name);
-    await page.getByRole('button', { name: 'Save Collection in Draft' }).click();
+    await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 45_000 });
 
     await openDraftCollectionByName(page, name);
@@ -83,7 +83,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await expect(page.locator('img[src^="blob:"], img[src*="/media"]').first()).toBeVisible({
       timeout: 45_000,
     });
-    await expect(page.getByText('Cover').first()).toBeVisible();
+    await expect(page.getByText('Cover')).toHaveCount(0);
 
     await page.getByTestId('collection-add-designs').click();
     const fromCamera = page.getByTestId('continuous-camera-designs');
@@ -109,7 +109,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     });
 
     await page.getByLabel('Name').fill(name);
-    await page.getByRole('button', { name: 'Save Collection in Draft' }).click();
+    await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
 
     await openDraftCollectionByName(page, name);
@@ -141,14 +141,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByLabel('Name').fill(name);
-    await page.getByRole('button', { name: 'Create & Publish' }).click();
-
-    const publishSheet = page.getByRole('dialog');
-    await expect(publishSheet.getByRole('heading', { name: 'Create & Publish' })).toBeVisible({
-      timeout: 15_000,
-    });
-    await publishSheet.getByRole('button', { name: 'Everyone', exact: true }).click();
-    await publishSheet.getByRole('button', { name: 'Create & Publish', exact: true }).click();
+    await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText('Published').first()).toBeVisible({ timeout: 45_000 });
     await expect(page).toHaveURL(/\/catalog/);

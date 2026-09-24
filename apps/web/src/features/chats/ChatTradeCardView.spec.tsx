@@ -28,6 +28,7 @@ describe('ChatTradeCard voice note', () => {
       </MemoryRouter>,
     );
     expect(screen.getByTestId('voice-play')).toBeInTheDocument();
+    expect(document.querySelector('audio')).toBeNull();
   });
 
   it('shows the mic player on compact pulses that still carry quote voice', () => {

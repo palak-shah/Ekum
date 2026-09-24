@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Access is the named, permissioned gate (distinct from permissionless Follow).
+ * Access is the named Connect gate (distinct from Follow-ask).
  * The first real enquiry carries intent; approval reveals only what is
  * authorised, never the full catalogue by default.
  */
@@ -44,4 +44,35 @@ export interface PublicCompanySummary {
   city: string;
   verification: string;
   logoUrl: string | null;
+}
+
+export const FollowStatus = {
+  Pending: 'pending',
+  Allowed: 'allowed',
+} as const;
+export type FollowStatus = (typeof FollowStatus)[keyof typeof FollowStatus];
+
+export const FollowAccessKind = {
+  Look: 'look',
+  Pack: 'pack',
+} as const;
+export type FollowAccessKind = (typeof FollowAccessKind)[keyof typeof FollowAccessKind];
+
+/** POST /follows — ask, never auto-allow. */
+export interface FollowAskResult {
+  following: boolean;
+  pending: boolean;
+}
+
+/** Incoming pending follow (shop inbox). */
+export interface FollowAskView {
+  company: PublicCompanySummary;
+  createdAt: string;
+}
+
+/** Allowed follower (shop list; access is shop-facing only). */
+export interface ShopFollowerView {
+  company: PublicCompanySummary;
+  accessKind: FollowAccessKind;
+  createdAt: string;
 }

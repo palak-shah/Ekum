@@ -3,9 +3,27 @@ import {
   applySameForAllToForm,
   collectSameForAllDiffIds,
   emptySameForAll,
+  forceSameForAllToForm,
   memberDiffersFromSameForAll,
   productFieldsFromMember,
+  sortDiffFirst,
+  unionTags,
+  unitAsksPiecesPerSet,
 } from './collectionSameForAll';
+
+describe('unitAsksPiecesPerSet', () => {
+  it('is only for set', () => {
+    expect(unitAsksPiecesPerSet('set')).toBe(true);
+    expect(unitAsksPiecesPerSet('pc')).toBe(false);
+    expect(unitAsksPiecesPerSet('box')).toBe(false);
+  });
+});
+
+describe('unionTags', () => {
+  it('amends only missing tags', () => {
+    expect(unionTags(['Silk', 'Red'], ['silk', 'Wedding'])).toEqual(['Silk', 'Red', 'Wedding']);
+  });
+});
 
 describe('memberDiffersFromSameForAll', () => {
   it('is false when same-for-all is empty', () => {
@@ -15,6 +33,7 @@ describe('memberDiffersFromSameForAll', () => {
           name: 'A',
           rate: '900',
           unit: 'pc',
+          piecesPerPack: '',
           moq: '',
           notes: '',
           categories: [],
@@ -31,6 +50,7 @@ describe('memberDiffersFromSameForAll', () => {
           name: 'A',
           rate: '900',
           unit: 'pc',
+          piecesPerPack: '',
           moq: '100',
           notes: '',
           categories: [],
@@ -53,6 +73,7 @@ describe('collectSameForAllDiffIds', () => {
             name: 'A',
             rate: '900',
             unit: 'pc',
+            piecesPerPack: '',
             moq: '',
             notes: '',
             categories: [],
@@ -70,6 +91,7 @@ describe('collectSameForAllDiffIds', () => {
           name: 'A',
           rate: '1200',
           unit: 'pc',
+          piecesPerPack: '',
           moq: '100',
           notes: '',
           categories: [],
@@ -81,6 +103,7 @@ describe('collectSameForAllDiffIds', () => {
           name: 'B',
           rate: '900',
           unit: 'pc',
+          piecesPerPack: '',
           moq: '100',
           notes: '',
           categories: [],
@@ -91,27 +114,79 @@ describe('collectSameForAllDiffIds', () => {
   });
 });
 
+describe('sortDiffFirst', () => {
+  it('puts Diff ids first', () => {
+    expect(
+      sortDiffFirst(
+        [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+        new Set(['b', 'c']),
+      ).map((x) => x.id),
+    ).toEqual(['b', 'c', 'a']);
+  });
+});
+
 describe('applySameForAllToForm', () => {
-  it('fills only non-empty shared fields', () => {
+  it('does not overwrite existing rate/unit/notes; unions tags', () => {
     expect(
       applySameForAllToForm(
         {
           name: 'Keep',
           rate: '1',
           unit: 'pc',
+          piecesPerPack: '',
           moq: '',
           notes: 'old',
           categories: ['A'],
         },
-        { categories: ['B'], rate: '1200-1400', unit: 'mtr', moq: '50', notes: '' },
+        {
+          categories: ['B'],
+          rate: '1200-1400',
+          unit: 'mtr',
+          piecesPerPack: '6',
+          moq: '50',
+          notes: 'new',
+        },
       ),
     ).toEqual({
       name: 'Keep',
-      rate: '1200-1400',
-      unit: 'mtr',
+      rate: '1',
+      unit: 'pc',
+      piecesPerPack: '6',
       moq: '50',
       notes: 'old',
-      categories: ['B'],
+      categories: ['A', 'B'],
+    });
+  });
+
+  it('forceSameForAll overwrites filled shared fields', () => {
+    expect(
+      forceSameForAllToForm(
+        {
+          name: 'Keep',
+          rate: '1',
+          unit: 'pc',
+          piecesPerPack: '2',
+          moq: '',
+          notes: 'old',
+          categories: ['A'],
+        },
+        {
+          categories: ['B'],
+          rate: '1200',
+          unit: 'mtr',
+          piecesPerPack: '6',
+          moq: '50',
+          notes: '',
+        },
+      ),
+    ).toEqual({
+      name: 'Keep',
+      rate: '1200',
+      unit: 'mtr',
+      piecesPerPack: '6',
+      moq: '50',
+      notes: 'old',
+      categories: ['A', 'B'],
     });
   });
 });
@@ -123,6 +198,7 @@ describe('productFieldsFromMember', () => {
         name: 'X',
         rate: '1200-1400',
         unit: 'pc',
+        piecesPerPack: '6',
         moq: '10',
         notes: 'silk',
         categories: [],
@@ -132,6 +208,7 @@ describe('productFieldsFromMember', () => {
       rate: 1200,
       rateMax: 1400,
       unit: 'pc',
+      piecesPerPack: 6,
       moq: 10,
       categories: undefined,
     });

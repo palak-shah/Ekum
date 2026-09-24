@@ -23,6 +23,30 @@ describe('orderBuilderPhotoDirty', () => {
       }),
     ).toBe(false);
   });
+
+  it('is clean when supplier is only the chat prefill', () => {
+    expect(
+      orderBuilderPhotoDirty({
+        uploading: false,
+        note: '',
+        photosCount: 0,
+        sellerId: 's1',
+        sellerFromUrl: 's1',
+      }),
+    ).toBe(false);
+  });
+
+  it('is dirty when they change the prefilled supplier', () => {
+    expect(
+      orderBuilderPhotoDirty({
+        uploading: false,
+        note: '',
+        photosCount: 0,
+        sellerId: 's2',
+        sellerFromUrl: 's1',
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('orderBuilderStandardDirty', () => {

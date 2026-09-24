@@ -4,7 +4,10 @@ import {
   MessageType,
   OrderChatEvent,
   ProductStatus,
+  ThreadMemberState,
   ThreadParticipantState,
+  mentionsFromMetadata,
+  withMentionsMetadata,
   canDeleteForEveryoneMeta,
   canEditMessageMeta,
   documentFromMessage,
@@ -12,6 +15,8 @@ import {
   designAlbumCaption,
   designAlbumProductIdsFromMessage,
   photoUrlsFromMessage,
+  quotedPhotoUrl,
+  replyPhotoIndexFromMetadata,
   type CrossChatFindItemView,
   type CrossChatFindKind,
   type CursorPage,
@@ -20,6 +25,9 @@ import {
   type MessageReference,
   type MessageReplyPreview,
   type MessageView,
+  CHAT_REACTION_EMOJIS,
+  type ChatReactionEmoji,
+  type ReactMessageDto,
   type SendMessageDto,
   type StarredMessageView,
 } from '@ekum/domain-types';
@@ -36,6 +44,7 @@ import { messageSearchOrClause } from './message-search';
 import { messageVisibleToCompany } from './side-message';
 import { isHeldFromSupplier } from '../orders/orderHold';
 import { scrubOrderMessageView } from '../orders/i-handle-soft-hide';
+import { foldMessageReactions } from './message-reactions';
 
 @Injectable()
 export class MessageService {
@@ -61,7 +70,8 @@ export class MessageService {
       actor.userId,
     );
     await this.validateReference(actorCompanyId, dto);
-    await this.validateReplyTarget(threadId, dto.replyToMessageId);
+    await this.validateReplyTarget(threadId, dto.replyToMessageId, dto.replyToPhotoIndex);
+    const mentionWork = await this.resolveMentions(threadId, actor.userId, actorCompanyId, dto);
 
     const sender = await this.prisma.user.findUnique({
       where: { id: actor.userId },
@@ -77,12 +87,12 @@ export class MessageService {
       dto.type === MessageType.DesignAlbum
         ? designAlbumCaption(designIds.length)
         : (dto.body ?? null);
-    const metadata =
+    const metadata = this.withReplyPhotoIndex(
       dto.type === MessageType.DesignAlbum
         ? { productIds: designIds }
-        : dto.metadata
-          ? (dto.metadata as Prisma.InputJsonValue)
-          : undefined;
+        : mentionWork.metadata,
+      dto.replyToPhotoIndex,
+    );
 
     const now = new Date();
     const message = await this.prisma.$transaction(async (tx) => {
@@ -105,6 +115,7 @@ export class MessageService {
         where: { id: mine.id },
         data: {
           lastReadAt: now,
+          inboxHiddenAt: null,
           ...(mine.state === ThreadParticipantState.Pending
             ? { state: ThreadParticipantState.Active }
             : {}),
@@ -113,8 +124,12 @@ export class MessageService {
       return created;
     });
 
+    await this.threads.revealActiveInboxes(threadId);
     const nudged = await this.threads.nudgeArchivedRecipients(threadId, actorCompanyId);
-    await this.announce(threadId, actorCompanyId, message.id, dto, nudged);
+    await this.announce(threadId, actorCompanyId, message.id, dto, [
+      ...nudged,
+      ...mentionWork.extraUserIds,
+    ]);
 
     const references = await this.references.resolve([message], actorCompanyId);
     const replyMap = await this.replyPreviews([message], actorCompanyId);
@@ -154,11 +169,9 @@ export class MessageService {
     );
     const references = await this.references.resolve(page, actorCompanyId);
     const replyMap = await this.replyPreviews(page, actorCompanyId);
-    const starredIds = await this.starredIdsFor(
-      actor.userId,
-      actorCompanyId,
-      page.map((row) => row.id),
-    );
+    const ids = page.map((row) => row.id);
+    const starredIds = await this.starredIdsFor(actor.userId, actorCompanyId, ids);
+    const reactions = await this.reactionsFor(actorCompanyId, ids);
     const results = page.map((message) =>
       scrubOrderMessageView(
         this.serializer.toMessageView(
@@ -167,7 +180,7 @@ export class MessageService {
           actor.userId,
           references.get(message.id) ?? null,
           replyMap.get(message.id) ?? null,
-          { starred: starredIds.has(message.id) },
+          { starred: starredIds.has(message.id), reactions: reactions.get(message.id) ?? [] },
         ),
       ),
     );
@@ -203,6 +216,15 @@ export class MessageService {
     } else if (view === 'designs') {
       clauses.push({
         type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] },
+      });
+    } else if (view === 'links') {
+      clauses.push({
+        type: MessageType.Text,
+        OR: [
+          { body: { contains: 'http://', mode: 'insensitive' } },
+          { body: { contains: 'https://', mode: 'insensitive' } },
+          { body: { contains: 'www.', mode: 'insensitive' } },
+        ],
       });
     } else if (view === 'orders') {
       clauses.push({
@@ -301,6 +323,114 @@ export class MessageService {
     return new Set(rows.map((row) => row.messageId));
   }
 
+  private async reactionsFor(
+    viewerCompanyId: string,
+    messageIds: string[],
+  ): Promise<Map<string, NonNullable<MessageView['reactions']>>> {
+    if (messageIds.length === 0) return new Map();
+    const table = this.prisma.messageReaction;
+    if (!table) return new Map();
+    const rows = await table.findMany({
+      where: { messageId: { in: messageIds } },
+      select: { messageId: true, emoji: true, companyId: true },
+    });
+    return foldMessageReactions(rows, viewerCompanyId);
+  }
+
+  async react(
+    actor: AuthPrincipal,
+    threadId: string,
+    messageId: string,
+    dto: ReactMessageDto,
+  ): Promise<MessageView> {
+    const actorCompanyId = assertActiveCompany(actor);
+    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
+    const message = await this.loadMessageInThread(threadId, messageId);
+    if (message.deletedForEveryoneAt) {
+      throw new BadRequestException({ code: 'GONE', message: 'This message was deleted.' });
+    }
+    const emoji = dto.emoji;
+    if (emoji == null) {
+      await this.prisma.messageReaction.deleteMany({
+        where: { messageId, companyId: actorCompanyId },
+      });
+      return this.viewOne(actor, message);
+    }
+    if (!(CHAT_REACTION_EMOJIS as readonly string[]).includes(emoji)) {
+      throw new BadRequestException({ code: 'BAD_EMOJI', message: 'That reaction is not allowed.' });
+    }
+    await this.prisma.messageReaction.upsert({
+      where: { messageId_companyId: { messageId, companyId: actorCompanyId } },
+      create: {
+        messageId,
+        companyId: actorCompanyId,
+        userId: actor.userId,
+        emoji: emoji as ChatReactionEmoji,
+      },
+      update: { emoji: emoji as ChatReactionEmoji, userId: actor.userId },
+    });
+    return this.viewOne(actor, message);
+  }
+
+  /** Keep mentions that are on this thread. Mentioned people are pinged even if muted. */
+  private async resolveMentions(
+    threadId: string,
+    actorUserId: string,
+    actorCompanyId: string,
+    dto: SendMessageDto,
+  ): Promise<{ metadata: Prisma.InputJsonValue | undefined; extraUserIds: string[] }> {
+    const raw = mentionsFromMetadata(dto.metadata);
+    const base =
+      dto.metadata && typeof dto.metadata === 'object'
+        ? { ...(dto.metadata as Record<string, unknown>) }
+        : undefined;
+    if (raw.length === 0) {
+      if (base) delete base.mentions;
+      return {
+        metadata: base && Object.keys(base).length ? (base as Prisma.InputJsonValue) : undefined,
+        extraUserIds: [],
+      };
+    }
+    const [members, parties] = await Promise.all([
+      this.prisma.threadMember.findMany({
+        where: { threadId, state: ThreadMemberState.Active },
+        select: { userId: true, companyId: true },
+      }),
+      this.prisma.threadParticipant.findMany({
+        where: {
+          threadId,
+          leftAt: null,
+          state: { in: [ThreadParticipantState.Active, ThreadParticipantState.Pending] },
+        },
+        select: { companyId: true },
+      }),
+    ]);
+    const memberByUser = new Map(members.map((row) => [row.userId, row]));
+    const partyIds = new Set(parties.map((row) => row.companyId));
+    const kept: ReturnType<typeof mentionsFromMetadata> = [];
+    const extra: string[] = [];
+    for (const row of raw) {
+      if (row.kind === 'user') {
+        if (!memberByUser.has(row.id)) continue;
+        kept.push(row);
+        if (row.id !== actorUserId) extra.push(row.id);
+        continue;
+      }
+      if (!partyIds.has(row.id) || row.id === actorCompanyId) continue;
+      kept.push(row);
+      for (const member of members) {
+        if (member.companyId === row.id && member.userId !== actorUserId) {
+          extra.push(member.userId);
+        }
+      }
+    }
+    const next = withMentionsMetadata(base, kept);
+    return {
+      metadata: next ? (next as Prisma.InputJsonValue) : undefined,
+      extraUserIds: [...new Set(extra)],
+    };
+  }
+
   /**
    * Announces a new message to the other active participants so Notifications can
    * project it. Pending recipients (a first message in the requests inbox) are
@@ -330,21 +460,47 @@ export class MessageService {
     });
   }
 
+  private withReplyPhotoIndex(
+    metadata: Prisma.InputJsonValue | undefined,
+    index: number | undefined,
+  ): Prisma.InputJsonValue | undefined {
+    if (index == null) return metadata;
+    const base =
+      metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? { ...(metadata as Record<string, unknown>) }
+        : {};
+    return { ...base, replyToPhotoIndex: index } as Prisma.InputJsonValue;
+  }
+
   private async validateReplyTarget(
     threadId: string,
     replyToMessageId: string | undefined,
+    replyToPhotoIndex?: number,
   ): Promise<void> {
     if (!replyToMessageId) {
       return;
     }
     const parent = await this.prisma.message.findFirst({
       where: { id: replyToMessageId, threadId },
-      select: { id: true },
     });
     if (!parent) {
       throw new BadRequestException({
         code: 'INVALID_REPLY',
         message: 'You can only reply to a message in this chat.',
+      });
+    }
+    if (replyToPhotoIndex == null) return;
+    if (parent.type !== MessageType.Photo) {
+      throw new BadRequestException({
+        code: 'INVALID_REPLY_PHOTO',
+        message: 'You can only quote a photo from a photo message.',
+      });
+    }
+    const urls = photoUrlsFromMessage(parent);
+    if (replyToPhotoIndex >= urls.length) {
+      throw new BadRequestException({
+        code: 'INVALID_REPLY_PHOTO',
+        message: 'That photo is not in this album.',
       });
     }
   }
@@ -389,17 +545,26 @@ export class MessageService {
         continue;
       }
       const reference = parentRefs.get(parent.id) ?? null;
+      const photoIndex = replyPhotoIndexFromMetadata(message.metadata);
+      const photoUrl =
+        parent.type === MessageType.Photo ? quotedPhotoUrl(parent, photoIndex) : null;
       result.set(message.id, {
         id: parent.id,
         type: parent.type,
-        bodyPreview: this.replyBodyPreview(parent, reference),
+        bodyPreview: this.replyBodyPreview(parent, reference, photoIndex),
         available: true,
+        photoIndex,
+        photoUrl,
       });
     }
     return result;
   }
 
-  private replyBodyPreview(message: Message, reference: MessageReference | null): string | null {
+  private replyBodyPreview(
+    message: Message,
+    reference: MessageReference | null,
+    photoIndex: number | null = null,
+  ): string | null {
     if (reference?.name) {
       if (reference.kind === 'collection') {
         return `Collection · ${reference.name}`;
@@ -413,6 +578,7 @@ export class MessageService {
     }
     if (message.type === MessageType.Photo) {
       const count = photoUrlsFromMessage(message).length;
+      if (photoIndex != null && count > 1) return 'Photo';
       return count > 1 ? `${count} photos` : 'Photo';
     }
     if (message.type === MessageType.Voice) {
@@ -757,9 +923,8 @@ export class MessageService {
     query: ListCrossChatFindQuery,
   ): Promise<CursorPage<CrossChatFindItemView>> {
     const actorCompanyId = assertActiveCompany(actor);
-    const type = findKindToMessageType(query.kind);
     const clauses: Prisma.MessageWhereInput[] = [
-      { type: Array.isArray(type) ? { in: type } : type },
+      findKindWhere(query.kind),
       { deletedForEveryoneAt: null },
       { NOT: { hides: { some: { companyId: actorCompanyId } } } },
       {
@@ -821,6 +986,7 @@ export class MessageService {
             references.get(message.id) ?? null,
             null,
             { starred: starredIds.has(message.id) },
+            // reactions filled below if we load them — keep find rows light
           ),
         ),
         threadId: message.threadId,
@@ -846,6 +1012,7 @@ export class MessageService {
     const actorCompanyId = assertActiveCompany(actor);
     const references = await this.references.resolve([message], actorCompanyId);
     const starred = await this.starredIdsFor(actor.userId, actorCompanyId, [message.id]);
+    const reactions = await this.reactionsFor(actorCompanyId, [message.id]);
     return scrubOrderMessageView(
       this.serializer.toMessageView(
         message,
@@ -853,21 +1020,30 @@ export class MessageService {
         actor.userId,
         references.get(message.id) ?? null,
         null,
-        { starred: starred.has(message.id) },
+        { starred: starred.has(message.id), reactions: reactions.get(message.id) ?? [] },
       ),
     );
   }
 }
 
-function findKindToMessageType(kind: CrossChatFindKind): string | string[] {
+function findKindWhere(kind: CrossChatFindKind): Prisma.MessageWhereInput {
   switch (kind) {
     case 'photos':
-      return MessageType.Photo;
+      return { type: MessageType.Photo };
     case 'documents':
-      return MessageType.Document;
+      return { type: MessageType.Document };
     case 'collections':
-      return MessageType.CollectionCard;
+      return { type: MessageType.CollectionCard };
     case 'designs':
-      return [MessageType.ProductCard, MessageType.DesignAlbum];
+      return { type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] } };
+    case 'links':
+      return {
+        type: MessageType.Text,
+        OR: [
+          { body: { contains: 'http://', mode: 'insensitive' } },
+          { body: { contains: 'https://', mode: 'insensitive' } },
+          { body: { contains: 'www.', mode: 'insensitive' } },
+        ],
+      };
   }
 }

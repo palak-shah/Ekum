@@ -219,7 +219,13 @@ export function forwardPayload(message: MessageView): {
   throw new Error('This message cannot be forwarded');
 }
 
-export function replyComposerLabel(message: MessageView): string {
+export function replyComposerLabel(
+  message: MessageView,
+  photoIndex?: number | null,
+): string {
+  if (message.type === 'photo' && photoIndex != null) {
+    return 'Photo';
+  }
   if (message.reference?.name) {
     if (message.reference.kind === 'collection') {
       return `Collection · ${message.reference.name}`;

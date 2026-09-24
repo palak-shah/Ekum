@@ -267,7 +267,7 @@ function CardBody({
             </p>
           ) : null}
           {model.noteVoiceUrl ? (
-            <div className="mt-1">
+            <div className="mt-1 min-w-0">
               <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
             </div>
           ) : null}
@@ -399,7 +399,7 @@ export function ChatTradeCard({
           </p>
         ) : null}
         {model.noteVoiceUrl ? (
-          <div className="mt-1" data-card-action>
+          <div className="mt-1 min-w-0" data-card-action>
             <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
           </div>
         ) : null}

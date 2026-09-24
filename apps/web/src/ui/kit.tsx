@@ -9,7 +9,7 @@ import {
 import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
-import { BackIcon, CloseIcon } from '@/ui/icons';
+import { BackIcon, CloseIcon, SearchIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
@@ -53,12 +53,14 @@ export function Chip({
   onClick,
   className,
   type = 'button',
+  'data-testid': dataTestId,
 }: {
   children: ReactNode;
   active?: boolean;
   onClick?: () => void;
   className?: string;
   type?: 'button' | 'submit';
+  'data-testid'?: string;
 }) {
   const classes = cx(
     'inline-flex h-8 shrink-0 items-center justify-center rounded-lg border px-3 text-[13px] font-semibold tracking-tight transition-colors',
@@ -69,10 +71,14 @@ export function Chip({
   );
   // Span when nested in a Link (no button-in-anchor).
   if (!onClick) {
-    return <span className={classes}>{children}</span>;
+    return (
+      <span className={classes} data-testid={dataTestId}>
+        {children}
+      </span>
+    );
   }
   return (
-    <button type={type} onClick={onClick} className={classes}>
+    <button type={type} onClick={onClick} className={classes} data-testid={dataTestId}>
       {children}
     </button>
   );
@@ -134,6 +140,31 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
         )}
         {...props}
       />
+    );
+  },
+);
+
+/** WhatsApp-style find field: leading search icon, keyboard Enter labeled Search. */
+export const SearchInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function SearchInput({ className, ...props }, ref) {
+    return (
+      <div className={cx('relative min-w-0 w-full', className)}>
+        <SearchIcon
+          width={18}
+          height={18}
+          aria-hidden
+          className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-muted"
+        />
+        <TextInput
+          ref={ref}
+          autoComplete="off"
+          {...props}
+          type="search"
+          enterKeyHint="search"
+          inputMode="search"
+          className="w-full pl-9 pr-3.5 [&::-webkit-search-decoration]:appearance-none"
+        />
+      </div>
     );
   },
 );

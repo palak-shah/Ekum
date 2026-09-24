@@ -100,10 +100,15 @@ export interface CompanyCard {
 export interface CollectionCard {
   id: string;
   name: string;
+  /** Pack tags when present. */
+  categories: string[];
+  /** Member name / SKU / notes / tags (preview include, typically 12). */
+  memberFind: string[];
+  /** Silent first-design thumb (chat/OG). Not a pack cover. */
   coverImage: string | null;
-  /** Up to 4 image URLs for WhatsApp-style album cells. */
+  /** Up to 4 first-photos of member designs. */
   previewImages: string[];
-  /** Total distinct images (cover + products) for the +N overlay. */
+  /** Distinct member-design thumbs (not extra shots). */
   imageCount: number;
   productCount: number;
   status: string;
@@ -250,6 +255,11 @@ export interface UniversalSearchResults {
 export interface CollectionPreviewView extends CollectionCard {
   connected: boolean;
   products: ProductView[] | null;
+  /**
+   * Visitor on a curated pack: Your paths ticket for this buyer × mills.
+   * `me` = order / chat with the pack owner. `mill` = Direct. Null if owner or not curated.
+   */
+  viewerTicket?: 'me' | 'mill' | null;
 }
 
 /** Cross-company product post. `visible=false` means body is gated (connections). */

@@ -1,5 +1,6 @@
 import { PublishAudience } from '@ekum/domain-types';
 import { companyActiveConnectedWith } from '../access/connection-pair';
+import { allowedFollowSome } from '../discovery/follow-access';
 
 type AudienceRow = {
   companyId: string;
@@ -76,7 +77,7 @@ export function audienceVisibilityOr(viewerCompanyId: string): object[] {
     {
       audience: PublishAudience.Followers,
       company: {
-        followers: { some: { followerCompanyId: viewerCompanyId } },
+        followers: allowedFollowSome(viewerCompanyId),
       },
     },
     {

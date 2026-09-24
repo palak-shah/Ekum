@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, TextInput, cx } from '@/ui/kit';
+import { Button, SearchInput, cx } from '@/ui/kit';
 import { BackIcon, CheckIcon, ChevronRightIcon } from '@/ui/icons';
 import {
   allVisibleSelected,
@@ -308,7 +308,7 @@ function FacetList({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <TextInput
+      <SearchInput
         value={query}
         onChange={(event) => onQuery(event.target.value)}
         placeholder={placeholder}

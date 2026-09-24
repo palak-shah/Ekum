@@ -3,6 +3,7 @@ import type { Collection, CollectionProduct, Product, User } from '@prisma/clien
 import type { CollectionDetailView, CollectionView, ProductView } from '@ekum/domain-types';
 import { toAuditActor } from '../common/audit';
 import { collectionPreviewFromRow } from '../discovery/collection-preview';
+import { collectionMemberFind } from './collection-member-find';
 
 type ActorUser = Pick<User, 'id' | 'name'>;
 
@@ -10,6 +11,7 @@ type ProductWithActors = Product & {
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
   company?: { id: string; name: string } | null;
+  collections?: { collection: { name: string; status: string } }[];
 };
 
 type MemberProduct = Product & {
@@ -31,6 +33,10 @@ type CollectionWithProducts = Collection & {
 export const productActorInclude = {
   createdByUser: { select: { id: true, name: true } },
   updatedByUser: { select: { id: true, name: true } },
+  collections: {
+    where: { collection: { status: { not: 'archived' } } },
+    select: { collection: { select: { name: true, status: true } } },
+  },
 } as const;
 
 export const collectionActorInclude = {
@@ -55,6 +61,7 @@ export class CatalogSerializer {
         ? null
         : product.rateMax.toNumber(),
       unit: product.unit,
+      piecesPerPack: product.piecesPerPack ?? null,
       categories: product.categories,
       images: product.images,
       status: product.status,
@@ -63,6 +70,10 @@ export class CatalogSerializer {
       audienceCompanyIds: product.audienceCompanyIds ?? [],
       audienceGroupIds: product.audienceGroupIds ?? [],
       allowForward: product.allowForward !== false,
+      allowDownload: product.allowDownload === true,
+      collectionNames: (product.collections ?? [])
+        .map((row) => row.collection.name.trim())
+        .filter(Boolean),
       postedToMarketAt: product.postedToMarketAt
         ? product.postedToMarketAt.toISOString()
         : null,
@@ -89,12 +100,14 @@ export class CatalogSerializer {
       description: collection.description,
       coverImage: collection.coverImage,
       categories: collection.categories ?? [],
+      memberFind: collectionMemberFind(collection.products),
       status: collection.status,
       audience: collection.audience,
       rateVisibility: collection.rateVisibility,
       audienceCompanyIds: collection.audienceCompanyIds ?? [],
       audienceGroupIds: collection.audienceGroupIds ?? [],
       allowForward: collection.allowForward !== false,
+      allowDownload: collection.allowDownload === true,
       /** Legacy column ignored — path is TradeLane / Your paths. */
       orderPathPreference: null,
       productCount: productCount ?? collection._count?.products ?? collection.products?.length ?? 0,

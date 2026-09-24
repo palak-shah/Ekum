@@ -1,7 +1,7 @@
 # Rate all on quote — design
 
 **Date:** 2026-09-08  
-**Status:** Approved  
+**Status:** Superseded 2026-09-20 — **Same for all** chip, rates only (`docs/superpowers/reviews/completeness/2026-09-20-quote-same-rate-only-completeness.md`)  
 **Completeness:** `docs/superpowers/reviews/completeness/2026-09-08-rate-all-quote-completeness.md`
 
 ## Problem

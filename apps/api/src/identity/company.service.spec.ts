@@ -67,12 +67,8 @@ describe('CompanyService.listPublishedCollections', () => {
     expect(page.results).toHaveLength(1);
     expect(page.results[0]?.name).toBe('Wedding Edit');
     expect(page.results[0]?.productCount).toBe(4);
-    expect(page.results[0]?.previewImages).toEqual([
-      'https://img/cover',
-      'https://img/a',
-      'https://img/b',
-    ]);
-    expect(page.results[0]?.imageCount).toBe(3);
+    expect(page.results[0]?.previewImages).toEqual(['https://img/a', 'https://img/b']);
+    expect(page.results[0]?.imageCount).toBe(2);
     expect(page.nextCursor).toBeNull();
   });
 

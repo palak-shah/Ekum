@@ -48,6 +48,11 @@ function productToShortlistEntry(
     companyId: product.companyId || fallbackCompany.id,
     companyName: product.companyName?.trim() || fallbackCompany.name,
     allowForward: product.allowForward,
+    categories: product.categories ?? [],
+    unit: product.unit ?? null,
+    moq: product.moq ?? null,
+    rate: product.rate ?? null,
+    rateMax: product.rateMax ?? null,
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,

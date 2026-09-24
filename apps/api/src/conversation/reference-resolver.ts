@@ -504,10 +504,10 @@ export class ReferenceResolver {
                 followedCompanyId: ownerId,
               },
             },
-            select: { id: true },
+            select: { status: true },
           }),
         ]);
-        map.set(ownerId, { connected, following: Boolean(following) });
+        map.set(ownerId, { connected, following: following?.status === 'allowed' });
       }),
     );
     return map;

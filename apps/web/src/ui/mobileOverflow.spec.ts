@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   COMPACT_QTY_INPUT_CLASS,
   COMPACT_SHEET_NUM_INPUT_CLASS,
+  COMPACT_SHEET_RATE_INPUT_CLASS,
   FORM_CONTROL_WIDTH_CLASS,
   SHELL_X_CONTAIN_CLASS,
   formControlWidthClass,
@@ -33,6 +34,12 @@ describe('mobileOverflow (BM-07)', () => {
     expect(chrome).not.toMatch(/(?:^|\s)text-base(?:\s|$)/);
     expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('px-1.5');
     expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('appearance-none');
+  });
+
+  it('gives quote rate pills extra pad so digits are not clipped', () => {
+    const chrome = textInputChromeClass(COMPACT_SHEET_RATE_INPUT_CLASS);
+    expect(chrome).not.toContain('px-3.5');
+    expect(COMPACT_SHEET_RATE_INPUT_CLASS).toContain('px-2.5');
   });
 
   it('keeps full kit chrome when no compact overrides', () => {

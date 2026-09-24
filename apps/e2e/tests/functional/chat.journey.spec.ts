@@ -44,6 +44,7 @@ test.describe('chat journey @functional @chat', () => {
     await page.getByTestId('chat-attach').click();
     await expect(page.getByRole('heading', { name: 'Share in chat' })).toBeVisible();
     await expect(page.getByTestId('attach-photos')).toBeVisible();
+    await expect(page.getByTestId('attach-photo-order')).toBeVisible();
     await expect(page.getByTestId('attach-document')).toBeVisible();
     await expect(page.getByTestId('attach-camera')).toHaveCount(0);
     await expect(page.getByTestId('attach-photos')).toContainText('Photos');
@@ -76,6 +77,37 @@ test.describe('chat journey @functional @chat', () => {
         timeout: 15_000,
       });
     }
+  });
+
+  test('photo order from thread keeps that supplier selected and changeable', async ({
+    page,
+  }) => {
+    await loginAsMeena(page);
+    await page.goto('/chats/seed-thread-1');
+    await page.getByTestId('chat-attach').click();
+    await page.getByTestId('attach-photo-order').click();
+    await expect(page).toHaveURL(/\/orders\/new\?seller=seed-company-ravi/);
+    await expect(page.getByRole('heading', { name: 'Photo order' })).toBeVisible();
+    const supplierRow = page.getByRole('button', { name: /Surat Silk House/ });
+    await expect(supplierRow).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Choose supplier' })).toHaveCount(0);
+    await supplierRow.click();
+    await expect(page.getByRole('heading', { name: 'Choose supplier' })).toBeVisible();
+  });
+
+  test('at-sign opens mention pick for the other shop', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/chats/seed-thread-1');
+    await page.getByTestId('chat-composer').click();
+    await page.getByTestId('chat-composer').pressSequentially('@');
+    await expect(page.getByTestId('chat-mention-picker')).toBeVisible();
+    await expect(page.getByTestId('chat-mention-company-seed-company-ravi')).toHaveText(
+      /Surat Silk House/,
+    );
+    await page.getByTestId('chat-mention-company-seed-company-ravi').click();
+    await expect(page.getByTestId('chat-composer')).toHaveValue('@Surat Silk House ');
+    await page.getByTestId('chat-send').click();
+    await expect(page.getByText('@Surat Silk House')).toBeVisible();
   });
 
   test('owner more menu has mute and not Private', async ({ page }) => {
