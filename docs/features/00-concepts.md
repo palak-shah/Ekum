@@ -24,7 +24,7 @@ Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `ord
 
 ## App updates (PWA)
 
-Installed Ekum keeps a service worker. After a deploy, the open tab stays on the old build until they tap **New version · Load**. It never reloads by itself. On iPhone this is still Safari/WebKit — a frozen Safari tab may not show the pill until they return to it or pull to refresh; Home Screen (Add to Home Screen) is the intended shell. See [Settings](./settings.md#app-update-installed--pwa).
+Installed Ekum keeps a service worker. After a deploy, the open screen shows **New version · Load** on its own (poll while visible). It never reloads by itself. See [Settings](./settings.md#app-update-installed--pwa).
 
 ## Platform & dual-network companies
 

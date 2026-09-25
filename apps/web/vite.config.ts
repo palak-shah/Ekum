@@ -82,7 +82,9 @@ export default defineConfig(({ mode }) => {
     {
       name: 'ekum-html-public-origin',
       transformIndexHtml(html) {
-        return html.replaceAll('%VITE_PUBLIC_ORIGIN%', publicOrigin);
+        return html
+          .replaceAll('%VITE_PUBLIC_ORIGIN%', publicOrigin)
+          .replaceAll('%VITE_WEB_BUILD%', webBuildId);
       },
     },
     {
@@ -106,13 +108,27 @@ export default defineConfig(({ mode }) => {
       // The generated Workbox SW precaches the app shell for offline use and
       // imports our push handler so browser push works even when the tab is shut.
       workbox: {
-        navigateFallback: 'index.html',
-        // Chat Document / voice open same-origin `/media/…` as a real navigation
-        // (target=_blank). Without a denylist, Workbox serves index.html and the
-        // browser shows “Failed to load PDF document” (images in <img> still work).
+        // Do not precache the shell — Home Screen would keep serving the old
+        // index.html and never run new update code. Offline uses last NetworkFirst.
+        globIgnores: ['**/index.html', '**/version.json'],
         navigateFallbackDenylist: [/^\/api/, /^\/media/, /^\/version\.json/],
         importScripts: ['push-sw.js'],
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,svg,png,woff2}'],
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'ekum-shell',
+              networkTimeoutSeconds: 4,
+            },
+          },
+          {
+            urlPattern: /\/version\.json$/,
+            handler: 'NetworkOnly',
+          },
+        ],
       },
       manifest: {
         name: 'Ekum',

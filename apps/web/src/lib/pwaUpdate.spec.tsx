@@ -6,6 +6,9 @@ import {
   PWA_UPDATE_MESSAGE,
   PwaUpdateBar,
   WEB_BUILD_VERSION_URL,
+  bindUpdateRechecks,
+  isStandaloneDisplay,
+  notifyIfServiceWorkerWaiting,
   refreshServiceWorker,
   remoteWebBuildIsNewer,
 } from './pwaUpdate';
@@ -58,5 +61,62 @@ describe('remoteWebBuildIsNewer', () => {
       new Response(JSON.stringify({ build: 'same' }), { status: 200 }),
     );
     await expect(remoteWebBuildIsNewer(fetchImpl, 'same')).resolves.toBe(false);
+  });
+});
+
+describe('notifyIfServiceWorkerWaiting', () => {
+  it('fires when a worker is already waiting (Home Screen update)', () => {
+    const onWaiting = vi.fn();
+    const waiting = { state: 'installed', addEventListener: vi.fn() };
+    notifyIfServiceWorkerWaiting(
+      {
+        waiting,
+        installing: null,
+        addEventListener: vi.fn(),
+      } as unknown as ServiceWorkerRegistration,
+      onWaiting,
+    );
+    expect(onWaiting).toHaveBeenCalled();
+  });
+});
+
+describe('bindUpdateRechecks', () => {
+  it('removes listeners and the interval on cleanup', () => {
+    const check = vi.fn();
+    const addDoc = vi.spyOn(document, 'addEventListener');
+    const removeDoc = vi.spyOn(document, 'removeEventListener');
+    const addWin = vi.spyOn(window, 'addEventListener');
+    const removeWin = vi.spyOn(window, 'removeEventListener');
+    const interval = window.setInterval(() => {}, 60_000);
+    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockReturnValue(interval);
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
+
+    const unbind = bindUpdateRechecks(check);
+    expect(addDoc).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+    expect(addWin).toHaveBeenCalledWith('focus', check);
+    expect(addWin).toHaveBeenCalledWith('pageshow', check);
+    expect(addWin).toHaveBeenCalledWith('online', check);
+    expect(setIntervalSpy).toHaveBeenCalled();
+
+    unbind();
+    expect(removeDoc).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+    expect(removeWin).toHaveBeenCalledWith('focus', check);
+    expect(removeWin).toHaveBeenCalledWith('pageshow', check);
+    expect(removeWin).toHaveBeenCalledWith('online', check);
+    expect(clearIntervalSpy).toHaveBeenCalledWith(interval);
+
+    addDoc.mockRestore();
+    removeDoc.mockRestore();
+    addWin.mockRestore();
+    removeWin.mockRestore();
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
+    window.clearInterval(interval);
+  });
+});
+
+describe('isStandaloneDisplay', () => {
+  it('is false in a normal browser tab', () => {
+    expect(isStandaloneDisplay()).toBe(false);
   });
 });

@@ -15,7 +15,7 @@
 |------|------------------|
 | Product Manager | Silent swap leaves a half-old tab; the next screen can miss JS. They stay on the job until they tap **Load**. |
 | UX Designer | Quiet top pill (same language as toast): **New version** + **Load**. No dismiss × — skipping the update is how the app “fails.” |
-| Solution Architect | `registerType: 'prompt'` + `useRegisterSW`. Tap calls `updateServiceWorker(true)`. Check again when the tab is shown, and every 30 minutes. |
+| Solution Architect | `registerType: 'prompt'` + `useRegisterSW`. Tap calls `updateServiceWorker(true)`. Recheck `/api/v1/web-build` every 20s while visible (Safari + Home Screen). |
 
 ---
 
@@ -67,7 +67,7 @@
 
 - Stop silent auto-reload (`prompt`, no injected auto register).
 - Persistent **New version · Load** when a new service worker waits.
-- Recheck on tab visible + every 30 minutes.
+- Recheck every 20s while visible (no pull-to-refresh).
 - Unit tests for the bar; SW itself is off in local Vite.
 
 ## Explicitly deferred / rejected

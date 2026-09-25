@@ -38,10 +38,36 @@
     />
     <meta name="twitter:image" content="%VITE_PUBLIC_ORIGIN%/brand/app-icon-512.png" />
 
+    <meta name="ekum-web-build" content="%VITE_WEB_BUILD%" />
     <title>Ekum</title>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        function ekumCheckWebBuild() {
+          if (document.visibilityState === 'hidden') return;
+          var meta = document.querySelector('meta[name="ekum-web-build"]');
+          var local = meta && meta.getAttribute('content');
+          if (!local || local.indexOf('%VITE_') === 0) return;
+          fetch('/api/v1/web-build', { cache: 'no-store' })
+            .then(function (res) {
+              if (res.ok) return res.json();
+              return fetch('/version.json', { cache: 'no-store' }).then(function (fallback) {
+                return fallback.ok ? fallback.json() : null;
+              });
+            })
+            .then(function (data) {
+              if (!data || !data.build || data.build === local) return;
+              window.dispatchEvent(new CustomEvent('ekum:web-build-stale'));
+            })
+            .catch(function () {});
+        }
+        ekumCheckWebBuild();
+        window.addEventListener('pageshow', ekumCheckWebBuild);
+        window.setInterval(ekumCheckWebBuild, 20000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
