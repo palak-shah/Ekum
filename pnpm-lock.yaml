@@ -181,6 +181,12 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(jsdom@30.0.1)(lightningcss@1.32.0)(supports-color@8.1.1)(terser@5.49.0)
+      workbox-build:
+        specifier: ^7.3.0
+        version: 7.4.1(@types/babel__core@7.20.5)(supports-color@8.1.1)
+      workbox-window:
+        specifier: ^7.3.0
+        version: 7.4.1
 
   packages/config:
     dependencies:
