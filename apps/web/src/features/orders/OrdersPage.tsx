@@ -22,7 +22,7 @@ import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { returnStatusLabel } from '@/lib/status';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
-import { orderListLinkedCue, orderListRoleBit } from '@/features/orders/tradeListRole';
+import { orderListMillCue, orderListRoleBit } from '@/features/orders/tradeListRole';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   getOrdersDirection,
@@ -418,7 +418,7 @@ export function OrdersPage() {
       ) : (
         <div className="min-h-[12rem]">
           {filtered.length > 0 ? (
-            <div className="-mx-4 overflow-hidden bg-surface">
+            <div className="-mx-4 overflow-x-hidden bg-surface">
               {filtered.map((item) => (
                 <TradeRow
                   key={`${item.kind}-${item.id}`}
@@ -466,7 +466,7 @@ function TradeRow({
     const idLabel = shortOrderLabel(order.id, { inquiry: isInquiry });
     const shared = orderViewerIsFacilitator(order, companyId);
     const roleBit = orderListRoleBit(order, shared);
-    const mills = orderListLinkedCue(order.linkedMills);
+    const mills = orderListMillCue(order);
     return (
       <Link
         to={`/orders/${order.id}`}

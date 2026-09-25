@@ -15,3 +15,7 @@ export function albumOverflowLabel(total: number): string | null {
   if (total <= 4) return null;
   return `+${total - 4}`;
 }
+
+export function designCountLabel(count: number): string {
+  return count === 1 ? '1 design' : `${count} designs`;
+}

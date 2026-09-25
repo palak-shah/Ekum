@@ -20,6 +20,22 @@ describe('shouldShowSelectionWorkspaceBar', () => {
     expect(shouldShowSelectionWorkspaceBar('/chats/thread-1', 3)).toBe(false);
   });
 
+  it('hides on order detail so Decline / Send quote stay clear', () => {
+    expect(shouldShowSelectionWorkspaceBar('/orders/cm-order-1', 4)).toBe(false);
+    expect(shouldShowSelectionWorkspaceBar('/orders/new', 4)).toBe(false);
+    expect(shouldShowSelectionWorkspaceBar('/orders', 4)).toBe(true);
+  });
+
+  it('hides when a page dock owns the band (design / pack Ask · Order)', () => {
+    expect(
+      shouldShowSelectionWorkspaceBar('/explore/products/seed-prod-1', 2, {
+        pageDockUp: true,
+      }),
+    ).toBe(false);
+    expect(shouldShowSelectionWorkspaceBar('/explore/products/seed-prod-1', 2)).toBe(true);
+    expect(shouldShowSelectionWorkspaceBar('/collections/seed-col-1', 2)).toBe(true);
+  });
+
   it('hides on selection home and My Catalog root', () => {
     expect(shouldShowSelectionWorkspaceBar('/selection', 2)).toBe(false);
     expect(shouldShowSelectionWorkspaceBar('/catalog', 2)).toBe(false);

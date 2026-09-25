@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ProductStatus } from '@ekum/domain-types';
 import type { ProductView } from '@ekum/domain-types';
-import { productStatusLine, productTileSubtitle } from './productStatusSummary';
+import {
+  joinLabelList,
+  libraryAuditLine,
+  productStatusLine,
+  productTileSubtitle,
+} from './productStatusSummary';
 
 function product(partial: Partial<ProductView>): ProductView {
   return {
@@ -56,6 +61,29 @@ describe('productStatusLine', () => {
         }),
       ),
     ).toMatch(/^On Explore/);
+  });
+});
+
+describe('joinLabelList', () => {
+  it('separates adjacent names', () => {
+    expect(joinLabelList(['suit 1', 'suit 2'])).toBe('suit 1 · suit 2');
+  });
+});
+
+describe('libraryAuditLine', () => {
+  it('is the date only', () => {
+    expect(
+      libraryAuditLine({
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z',
+      }),
+    ).toMatch(/Sep/);
+    expect(
+      libraryAuditLine({
+        createdAt: '2026-09-08T00:00:00.000Z',
+        updatedAt: '2026-09-08T00:00:00.000Z',
+      }),
+    ).not.toContain('·');
   });
 });
 

@@ -43,6 +43,20 @@ export function productTileSubtitle(product: ProductView): string {
   return bits.join(' · ');
 }
 
+export function joinLabelList(labels: readonly string[]): string {
+  return labels
+    .map((label) => label.trim())
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function formatAuditDate(when: string): string {
+  return new Date(when).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 export function auditLine(input: {
   createdAt: string;
   updatedAt?: string;
@@ -55,9 +69,16 @@ export function auditLine(input: {
     null;
   const when = input.updatedAt || input.createdAt;
   if (!who && !when) return null;
-  const date = new Date(when).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-  });
+  const date = formatAuditDate(when);
   return who ? `${who} · ${date}` : date;
+}
+
+/** You library / own editor — date only (sr 23 / 34 / 36). */
+export function libraryAuditLine(input: {
+  createdAt: string;
+  updatedAt?: string;
+}): string | null {
+  const when = input.updatedAt || input.createdAt;
+  if (!when) return null;
+  return formatAuditDate(when);
 }

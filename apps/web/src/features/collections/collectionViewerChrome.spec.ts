@@ -13,10 +13,24 @@ describe('collectionViewerPrimaryAction', () => {
 });
 
 describe('collectionPackTradeDock', () => {
-  it('pins Ask rates / Order for a visitor on a curated pack', () => {
+  it('pins Ask rates / Order for a visitor on a live pack', () => {
     expect(
       collectionPackTradeDock({
-        curatedVisitor: true,
+        visitor: true,
+        live: true,
+        hasProducts: true,
+        selecting: false,
+        resumeContinue: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('pins the dock on an origin pack (not only curated)', () => {
+    expect(
+      collectionPackTradeDock({
+        visitor: true,
+        live: true,
+        hasProducts: true,
         selecting: false,
         resumeContinue: false,
       }),
@@ -26,8 +40,22 @@ describe('collectionPackTradeDock', () => {
   it('yields the band while this album is selecting', () => {
     expect(
       collectionPackTradeDock({
-        curatedVisitor: true,
+        visitor: true,
+        live: true,
+        hasProducts: true,
         selecting: true,
+        resumeContinue: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('hides the dock for the owner', () => {
+    expect(
+      collectionPackTradeDock({
+        visitor: false,
+        live: true,
+        hasProducts: true,
+        selecting: false,
         resumeContinue: false,
       }),
     ).toBe(false);

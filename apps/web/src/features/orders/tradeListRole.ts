@@ -28,6 +28,14 @@ export function orderListLinkedCue(
   return names.join(' + ');
 }
 
+/** Mill shops on the list only for the trader’s Trading (manage + selling) row. */
+export function orderListMillCue(
+  order: Pick<OrderView, 'tradeMode' | 'direction' | 'linkedMills'>,
+): string {
+  if (!isTradingDeskOrder(order)) return '';
+  return orderListLinkedCue(order.linkedMills);
+}
+
 export function linkedMillHaystack(order: Pick<OrderView, 'linkedMills'>): string {
   return (order.linkedMills ?? [])
     .map((mill) => {

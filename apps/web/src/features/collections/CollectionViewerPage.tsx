@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CollectionStatus,
   OrderIntent,
   OrderKind,
   type CollectionPreviewView,
@@ -49,9 +50,11 @@ import {
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
+import { designCountLabel } from '@/ui/albumMosaic';
 import { PageHeader } from '@/ui/PageHeader';
 import { CompanyRow } from '@/ui/cards';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
+import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import {
   collectionPackTradeDock,
   collectionShowHandleCopy,
@@ -234,6 +237,14 @@ export function CollectionViewerPage() {
   const showResumeContinue = Boolean(resumeAfterPick && selectMode);
   const companyId = collection.data?.company.id ?? '';
   const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+  const packTradeDock = collectionPackTradeDock({
+    visitor: !isOwner,
+    live: collection.data?.status === CollectionStatus.Published,
+    hasProducts: products.length > 0,
+    selecting: selectMode,
+    resumeContinue: showResumeContinue,
+  });
+  usePageOwnsBottomBand(packTradeDock);
   const viewGrants = useQuery({
     queryKey: ['collection-view-grants', id],
     queryFn: () => api.get<CollectionViewGrantView[]>(`/collections/${id}/view-grants`),
@@ -461,11 +472,6 @@ export function CollectionViewerPage() {
 
   const data = collection.data;
   const floaterClearance = selectedCount + albumPick.count > 0 || showResumeContinue;
-  const packTradeDock = collectionPackTradeDock({
-    curatedVisitor: Boolean(data.products && isCuratedPack && !isOwner),
-    selecting: selectMode,
-    resumeContinue: showResumeContinue,
-  });
 
   return (
     <div
@@ -477,7 +483,7 @@ export function CollectionViewerPage() {
     >
       <PageHeader
         title={data.name}
-        subtitle={`${data.productCount} designs`}
+        subtitle={designCountLabel(data.productCount)}
         action={
           <div className="flex items-center gap-1">
             {data.products ? (

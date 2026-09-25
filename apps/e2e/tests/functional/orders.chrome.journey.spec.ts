@@ -132,6 +132,15 @@ test.describe('orders chrome @functional @orders', () => {
 
     await confirm.click();
     await expect(page.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    const sheet = page.getByRole('dialog');
+    const sheetConfirm = sheet.getByTestId('order-lines-confirm');
+    const sheetDecline = sheet.getByTestId('order-lines-decline');
+    await expect(sheetConfirm).toBeVisible();
+    await expect(sheetDecline).toBeVisible();
+    const sheetConfirmBox = await sheetConfirm.boundingBox();
+    const sheetDeclineBox = await sheetDecline.boundingBox();
+    expect(sheetConfirmBox && sheetDeclineBox).toBeTruthy();
+    expect(sheetDeclineBox!.x).toBeLessThan(sheetConfirmBox!.x);
   });
 
   test('buyer dock sticks Cancel and Edit', async ({ page }) => {
@@ -150,5 +159,23 @@ test.describe('orders chrome @functional @orders', () => {
     await expect(dock.getByTestId('order-dock-edit')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit order' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Cancel order' })).toHaveCount(0);
+    await expect(page.getByText(/standard/i)).toHaveCount(0);
+    await expect(page.getByTestId('order-ticket-help')).toHaveCount(0);
+  });
+
+  test('last list row clears the nav', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    await page.goto('/orders');
+    const rows = page.locator('a[href^="/orders/"]');
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    const last = rows.last();
+    await last.scrollIntoViewIfNeeded();
+    const lastBox = await last.boundingBox();
+    const nav = page.getByRole('navigation').filter({ has: page.getByRole('link', { name: 'Orders' }) });
+    const navBox = await nav.boundingBox();
+    expect(lastBox).toBeTruthy();
+    expect(navBox).toBeTruthy();
+    expect(lastBox!.y + lastBox!.height).toBeLessThanOrEqual(navBox!.y + 4);
   });
 });

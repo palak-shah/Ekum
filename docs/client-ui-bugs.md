@@ -7,8 +7,8 @@ Say **fix sr N** (and the point if needed). Do not start a fix until then.
 
 | Status | Count |
 |---|---|
-| Done | 4 (sr 8, sr 16, sr 42) |
-| Open | 3 (sr 23, 34, 36 — own name on **your catalogue**) |
+| Done | 8 (sr 8, sr 16, sr 23, sr 34, sr 36, sr 42, sr 47) |
+| Open | 0 |
 | Leaving | Home sr 4 + 5; Saved sr 18 + 20 |
 
 ---
@@ -25,24 +25,19 @@ Own name and Design/Collection · city on Saved cards.
 
 ## Next to fix
 
-### sr 23 — My designs — Designs · Tanmay 4
-**Type:** Bug  
-**What’s wrong:** Your own catalogue shows `Mahesh bhai Patel · 13 Sept`.  
-**What we do:** Date only on your library (no owner name).
-
-### sr 34 — My designs — Collections · Tanmay 1
-**Type:** Bug  
-**What’s wrong:** Same own-name on collection rows.  
-**What we do:** Date only.
-
-### sr 36 — My collection detail · Tanmay 6
-**Type:** Bug  
-**What’s wrong:** Header includes your name.  
-**What we do:** Drop owner name from the header line.
+None in this pass.
 
 ---
 
 ## Done this pass (mark on the sheet)
+
+### sr 23 / 34 / 36 — You library own name
+**Type:** Bug (fixed)  
+Date only on Your designs / collections tiles and the collection editor status line.
+
+### sr 47 · Tanmay 3
+**Type:** Bug (fixed)  
+Order header drops the word **standard**.
 
 ### sr 16 · Tanmay 11
 **Type:** Bug (fixed)  
@@ -75,10 +70,10 @@ One line, one label, or one extra/missing bit of chrome. Say **fix sr N**.
 | **16** | T4 | No verified tick by the supplier in the pack header | Tick beside the shop name |
 | **16** | T9 | No select hint | Quiet line: long-press or tap to select more than one |
 | **17** | T3 | Design popup may omit the shop | Supplier name on the card |
-| **23** | T4 | Own name on My designs | Date only *(already on Next)* |
+| **23** | T4 | Own name on My designs | Date only *(done)* |
 | **31** | T3 | Reshare is a sentence, not a control | On/off, not a statement |
 | **33** | T3 | URL is `/broadcast`, screen is Buyer groups | Rename the route to match |
-| **47** | T3 | Word **standard** where the channel should be | Name the channel or drop the word |
+| **47** | T3 | Word **standard** where the channel should be | Dropped *(done)* |
 | **77** | T2 | Network subtitle about connections / follows / invites | Remove that subtitle (keep the screens) |
 | **88** | T6 | Profile doesn’t say you control who sees collections | One plain line on Business profile |
 | **89** | T1 | Own shop still feels like a stranger (Follow / Request) | Owner: Edit · Share only (Preview as buyer is extra — skip unless you want it) |

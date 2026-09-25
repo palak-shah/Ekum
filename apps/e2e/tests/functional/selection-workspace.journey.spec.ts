@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsRavi } from '../../helpers/persona';
+import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
 async function seedSelection(page: import('@playwright/test').Page) {
   await page.evaluate(() => {
@@ -288,5 +288,26 @@ test.describe('selection workspace @functional @explore', () => {
     await page.goto('/catalog');
     await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+  });
+
+  test('floater hidden on order detail so desk actions stay clear', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    await page.goto('/orders');
+    await seedSelection(page);
+    await page.reload();
+    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 15_000 });
+    const first = page.locator('a[href^="/orders/"]').first();
+    await expect(first).toBeVisible({ timeout: 15_000 });
+    await first.click();
+    await expect(page).toHaveURL(/\/orders\/[^/?]+/, { timeout: 15_000 });
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+    const dock = page.getByTestId('order-action-dock');
+    if ((await dock.count()) > 0) {
+      await expect(dock).toBeVisible();
+      const box = await dock.boundingBox();
+      expect(box).toBeTruthy();
+      expect(box!.height).toBeGreaterThan(20);
+    }
   });
 });

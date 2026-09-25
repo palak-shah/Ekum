@@ -7,6 +7,7 @@ test.describe('collections journey @functional @collections', () => {
     await page.goto('/collections/seed-col-1');
 
     await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('collection-pack-trade-dock')).toBeVisible();
     await expect(page.getByTestId('collection-find')).toHaveCount(0);
     await page.getByTestId('collection-find-toggle').click();
     await page.getByTestId('collection-find').fill('Banarasi');

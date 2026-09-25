@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-25  
+**Updated:** 2026-09-25 (QA ten)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -54,6 +54,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | List tabs Pending / Completed + row Needs you (left accent + verb line) | Works | Unit + Functional | Required | Completeness 2026-09-19-orders-list-tabs; legacy `filter=needs|progress` → Pending |
 | Orders | Buy/Sell is a temporary list filter (not account mode); one compact row | Works | Unit + Functional | Required | Completeness 2026-09-21-orders-buy-sell-temp-filter; in-memory session; reset off `/orders` |
 | Orders | Qty box: delete / replace prefilled 20 (no snap-back) | Works | Unit | Required | Completeness 2026-09-25-qty-stepper-edit; draft is the input value |
+| Orders / Catalog / Collections | QA ten: last-row BM-07, mill names on Trading only, drop standard/?, You date-only, 1 design, origin pack dock, sheet Dismiss, `/collections/new`, Chats aria | Works | Unit + Functional | Required | Completeness 2026-09-25-qa-ten-fixes; Who stays on create page |
 | Orders | Place-order tabular lines (− editable qty + · Same for all chip · Add note) | Works | Unit + Functional | Required | Completeness 2026-09-20-place-order-line-chrome; HowManyEach + Order builder |
 | Orders | Enter/Next on line qty jumps to next line qty | Works | Unit | Required | `orderQtyFocus`; How many each, builder, quote, mill, dispatch, return, edit |
 | Orders | Place confirm = toast (no Done sheet) | Works | Unit | Required | Selection batch success → auto-dismiss toast (+ optional Open chat) |
@@ -169,7 +170,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Shared WhatsApp-style photo viewer (pinch/zoom) | Works | Unit | Required | Completeness 2026-08-21; kit + chat + sheets + Explore design |
 | Catalog | Batch Add designs: SKU thumbs, 1 vs 2+ details, sheet always-open details | Works | Unit + Functional | Required | Completeness 2026-09-02-add-designs; not filename names; no chips |
 | Explore | Select preserves Design+Collection; Order resolves albums; Share/Bookmark keep types | Works | Unit | Required | Completeness 2026-09-03-explore-select-preserve-types; types preserved |
-| Browse | Selection workspace `/selection` + floater; multi-surface; survive logout; unavailable fade; My designs **To selection** (no auto-mirror); published-only traveling Selection | Works | Unit + Functional | Required | Completeness 2026-09-03-selection-workspace + 2026-09-04-own-catalog-handoff; verbs on Your selection; hide nav 2026-09-23; floater Order 2026-09-24; list fade ≠ curate-check 2026-09-24 |
+| Browse | Selection workspace `/selection` + floater; multi-surface; survive logout; unavailable fade; My designs **To selection** (no auto-mirror); published-only traveling Selection | Works | Unit + Functional | Required | Completeness 2026-09-03-selection-workspace + 2026-09-04-own-catalog-handoff; verbs on Your selection; hide nav 2026-09-23; floater Order 2026-09-24; list fade ≠ curate-check 2026-09-24; hide floater on order/design/pack docks 2026-09-25 |
 | Browse | Company shop: this-seller Order · Curate · Ask dock; Share profile (chat + OS); hide nav while dock up | Works | Unit + Functional | Required | Completeness 2026-09-23-company-shop-trade-share; one pile, shop-scoped act |
 | Browse | Company shop Collections: Explore mosaic + name; Select + same dock (resolve albums) | Works | Unit + Functional | Required | Completeness 2026-09-24-company-shop-collections |
 | Browse | Collection mosaic +N = leftover designs (not extra photos) | Works | Unit | Required | Completeness 2026-09-24-collection-mosaic-plus; 5 designs → +1 |

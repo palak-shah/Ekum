@@ -27,7 +27,7 @@ import { collectionMosaicCount } from '@/ui/albumMosaic';
 import { AlbumGrid } from '@/ui/cards';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
-import { auditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
+import { libraryAuditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
 import { BulkProductPublishSheet } from './BulkProductPublishSheet';
 import {
@@ -1002,14 +1002,14 @@ function SellerProductTile({
           </span>
         ) : null}
       </div>
-      <div className={cx('flex flex-col gap-1', feed ? 'p-3' : 'p-2.5')}>
+      <div className={cx('flex min-w-0 flex-col gap-1 overflow-hidden', feed ? 'p-3' : 'p-2.5')}>
         <p className="truncate text-sm font-medium text-ink">{product.name}</p>
         {subtitle ? <p className="truncate text-xs text-muted">{subtitle}</p> : null}
         <p className="truncate text-xs font-medium text-ink" data-testid="catalog-product-status">
           {statusLine}
         </p>
-        {auditLine(product) ? (
-          <p className="text-[11px] text-muted">{auditLine(product)}</p>
+        {libraryAuditLine(product) ? (
+          <p className="text-[11px] text-muted">{libraryAuditLine(product)}</p>
         ) : null}
       </div>
     </>
@@ -1085,7 +1085,7 @@ function SellerCollectionTile({
   const subtitle = sourceLine
     ? `${density} · ${sourceLine} · ${summary.line}`
     : `${density} · ${summary.line}`;
-  const whoWhen = auditLine(collection);
+  const whoWhen = libraryAuditLine(collection);
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const mosaicCount = collectionMosaicCount({
@@ -1111,7 +1111,7 @@ function SellerCollectionTile({
           </span>
         ) : null}
       </div>
-      <div className="flex flex-col gap-1 p-3">
+      <div className="flex min-w-0 flex-col gap-1 overflow-hidden p-3">
         <p className="truncate text-base font-semibold text-ink">{collection.name}</p>
         <p className="line-clamp-2 text-xs text-muted">{subtitle}</p>
         {whoWhen ? <p className="text-[11px] text-muted">{whoWhen}</p> : null}

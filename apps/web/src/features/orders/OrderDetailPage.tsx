@@ -71,15 +71,12 @@ import {
   orderDetailNextCue,
   orderTicketMillLabel,
   orderTicketMillNames,
-  PATH_ON_ORDER_SCOPE,
-  PATH_REVEAL_ON_ORDER_SCOPE,
   quotePrefillFromMills,
   showMillSendAll,
   showOrderParentItemsList,
   showSendQuoteOnDeskFace,
 } from '@/features/orders/iHandleDesk';
 import { TicketPathPick } from '@/features/orders/ticketPathPick';
-import { HELP_BTN_CLASS, QuietHelpPop } from '@/features/orders/quietHelpPop';
 import {
   allReturnLinesSelected,
   clearReturnSelection,
@@ -437,8 +434,6 @@ export function OrderDetailPage() {
   const [linesNote, setLinesNote] = useState('');
   const [linesNoteVoice, setLinesNoteVoice] = useState<NoteVoiceValue>(null);
   const [actionNoteOpen, setActionNoteOpen] = useState<'cancel' | 'decline' | null>(null);
-  const [deskHelp, setDeskHelp] = useState<null | 'ticket' | 'reveal'>(null);
-  const [helpAnchor, setHelpAnchor] = useState<HTMLElement | null>(null);
   const [millDeclineDesk, setMillDeclineDesk] = useState<
     { all: true } | { all?: false; upstreamOrderId: string; sellerName: string } | null
   >(null);
@@ -1075,7 +1070,7 @@ export function OrderDetailPage() {
     <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && 'pb-24')}>
       <PageHeader
         title={`${idLabel} · ${data.counterpart.name}`}
-        subtitle={`${roleSubtitle} · ${data.kind}`}
+        subtitle={roleSubtitle}
         action={
           <div className="flex flex-col items-end gap-0.5">
             <StatusPill status={data.status} />
@@ -1115,20 +1110,6 @@ export function OrderDetailPage() {
             pickTestId="order-ticket-pick"
             meTestId="order-ticket-me"
             millTestId="order-ticket-mill"
-            help={
-              <button
-                type="button"
-                data-testid="order-ticket-help"
-                aria-label="What this means"
-                className={HELP_BTN_CLASS}
-                onClick={(event) => {
-                  setHelpAnchor(event.currentTarget);
-                  setDeskHelp((cur) => (cur === 'ticket' ? null : 'ticket'));
-                }}
-              >
-                ?
-              </button>
-            }
           />
         </Card>
         </div>
@@ -1322,18 +1303,6 @@ export function OrderDetailPage() {
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{revealLabel}</span>
-                      <button
-                        type="button"
-                        data-testid="order-mill-reveal-help"
-                        aria-label="What this means"
-                        className={HELP_BTN_CLASS}
-                        onClick={(event) => {
-                          setHelpAnchor(event.currentTarget);
-                          setDeskHelp((cur) => (cur === 'reveal' ? null : 'reveal'));
-                        }}
-                      >
-                        ?
-                      </button>
                     </div>
                     <button
                       type="button"
@@ -2196,25 +2165,29 @@ export function OrderDetailPage() {
         footer={
           <div className="flex flex-col gap-2">
             {sheetError && linesOpen ? <InlineNotice message={sheetError} /> : null}
-            <Button
-              fullWidth
-              disabled={openItems.length === 0 || linesTally.confirm < 1 || decideLines.isPending}
-              onClick={() => decideLines.mutate('confirm')}
-            >
-              {decideLines.isPending && decideLines.variables === 'confirm'
-                ? 'Saving…'
-                : 'Confirm'}
-            </Button>
-            <Button
-              fullWidth
-              variant="danger"
-              disabled={openItems.length === 0 || decideLines.isPending}
-              onClick={() => decideLines.mutate('decline')}
-            >
-              {decideLines.isPending && decideLines.variables === 'decline'
-                ? 'Saving…'
-                : 'Decline'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                className="!min-h-10 shrink-0 px-2 text-sm"
+                data-testid="order-lines-decline"
+                disabled={openItems.length === 0 || decideLines.isPending}
+                onClick={() => decideLines.mutate('decline')}
+              >
+                {decideLines.isPending && decideLines.variables === 'decline'
+                  ? 'Saving…'
+                  : 'Decline'}
+              </Button>
+              <Button
+                className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                data-testid="order-lines-confirm"
+                disabled={openItems.length === 0 || linesTally.confirm < 1 || decideLines.isPending}
+                onClick={() => decideLines.mutate('confirm')}
+              >
+                {decideLines.isPending && decideLines.variables === 'confirm'
+                  ? 'Saving…'
+                  : 'Confirm'}
+              </Button>
+            </div>
           </div>
         }
       >
@@ -2827,27 +2800,6 @@ export function OrderDetailPage() {
           {sheetError && changeOpen ? <InlineNotice message={sheetError} /> : null}
         </div>
       </Sheet>
-
-      <QuietHelpPop
-        open={deskHelp === 'ticket'}
-        onClose={() => setDeskHelp(null)}
-        testId="order-ticket-help-pop"
-        anchor={helpAnchor}
-      >
-        <p className="font-medium">{PATH_ON_ORDER_SCOPE}</p>
-        <p className="mt-1.5">You — they talk only to you. Mills stay hidden.</p>
-        <p className="mt-1.5">These mills — buyer can see these shops on the order.</p>
-      </QuietHelpPop>
-      <QuietHelpPop
-        open={deskHelp === 'reveal'}
-        onClose={() => setDeskHelp(null)}
-        testId="order-mill-reveal-help-pop"
-        anchor={helpAnchor}
-      >
-        <p className="font-medium">{PATH_REVEAL_ON_ORDER_SCOPE}</p>
-        <p className="mt-1.5">On — they share a group after you Send.</p>
-        <p className="mt-1.5">Off — they only talk to you.</p>
-      </QuietHelpPop>
 
       <ConfirmActionSheet
         open={millDeclineDesk != null}

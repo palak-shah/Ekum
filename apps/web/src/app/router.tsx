@@ -204,6 +204,7 @@ export const router = createBrowserRouter([
               { path: 'explore/products/:id', element: <ExploreProductPage /> },
               { path: 'search', element: <SearchPage /> },
               { path: 'company/:id', element: <CompanyProfilePage /> },
+              { path: 'collections/new', element: <Navigate to="/catalog/collections/new" replace /> },
               { path: 'collections/:id', element: <CollectionViewerPage /> },
               { path: 'designs/set', element: <DesignSetPage /> },
               { path: 'products/:id', element: <ProductDetailPage /> },

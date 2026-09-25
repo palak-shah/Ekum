@@ -33,6 +33,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await expect(page.getByText('Cover')).toHaveCount(0);
 
     await page.getByLabel('Name').fill(name);
+    await expect(page.getByTestId('collection-who')).toBeVisible();
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
 
@@ -147,5 +148,14 @@ test.describe('collection creation @functional @media @creation @collections', (
     await expect(page).toHaveURL(/\/catalog/);
     await page.getByRole('button', { name: 'Published', exact: true }).click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('/collections/new opens create', async ({ page }) => {
+    await loginAsRavi(page);
+    await page.goto('/collections/new');
+    await expect(page).toHaveURL(/\/catalog\/collections\/new/);
+    await expect(page.getByTestId('collection-add-designs')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("isn't available")).toHaveCount(0);
+    await expect(page.getByTestId('collection-who')).toBeVisible();
   });
 });

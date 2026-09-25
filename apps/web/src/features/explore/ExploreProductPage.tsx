@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -137,6 +138,12 @@ export function ExploreProductPage() {
     onError: (error) =>
       setOrderError(error instanceof ApiError ? error.message : 'Could not ask for rates.'),
   });
+
+  const preview = product.data;
+  const previewOwner = Boolean(me.data?.id && preview && me.data.id === preview.company.id);
+  usePageOwnsBottomBand(
+    Boolean(preview?.visible && (!previewOwner || selling || trading)),
+  );
 
   if (product.isLoading) {
     return <LoadingBlock label="Loading design…" />;

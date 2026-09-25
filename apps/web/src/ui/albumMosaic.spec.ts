@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { albumOverflowLabel, collectionMosaicCount } from './albumMosaic';
+import { albumOverflowLabel, collectionMosaicCount, designCountLabel } from './albumMosaic';
 
 describe('collectionMosaicCount', () => {
   it('does not invent cells for fewer than four thumbs', () => {
@@ -8,6 +8,14 @@ describe('collectionMosaicCount', () => {
 
   it('uses design count so five designs are not cover-plus-photos', () => {
     expect(collectionMosaicCount({ productCount: 5, previewCount: 4 })).toBe(5);
+  });
+});
+
+describe('designCountLabel', () => {
+  it('singularizes one design', () => {
+    expect(designCountLabel(1)).toBe('1 design');
+    expect(designCountLabel(0)).toBe('0 designs');
+    expect(designCountLabel(2)).toBe('2 designs');
   });
 });
 

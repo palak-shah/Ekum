@@ -16,7 +16,7 @@ import type {
 import { formatRate, timeAgo } from '@/lib/format';
 import { Avatar, Chip, Tag, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
-import { albumOverflowLabel, collectionMosaicCount } from './albumMosaic';
+import { albumOverflowLabel, collectionMosaicCount, designCountLabel } from './albumMosaic';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 function VerificationTag({ verification }: { verification: string }) {
@@ -148,7 +148,9 @@ export function OpportunityCollectionCard({
         onClick={() => onOpen?.()}
       >
         <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
-        <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
+        <p className="text-xs font-medium text-muted">
+          {designCountLabel(collection.productCount)}
+        </p>
       </Link>
     </article>
   );
@@ -604,7 +606,7 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-ink">{collection.name}</p>
         <p className="truncate text-xs text-muted">{collection.company.name}</p>
-        <p className="text-xs text-muted">{collection.productCount} designs</p>
+        <p className="text-xs text-muted">{designCountLabel(collection.productCount)}</p>
       </div>
       <ChevronRightIcon className="shrink-0 text-muted" />
     </Link>
@@ -737,7 +739,9 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       </Link>
       <Link to={`/collections/${collection.id}`} className="mt-2.5 block px-4">
         <p className="text-sm font-bold tracking-tight text-ink">{collection.name}</p>
-        <p className="text-xs font-medium text-muted">{collection.productCount} designs</p>
+        <p className="text-xs font-medium text-muted">
+          {designCountLabel(collection.productCount)}
+        </p>
       </Link>
     </article>
   );

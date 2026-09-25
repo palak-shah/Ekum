@@ -43,7 +43,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 | Unpublish | Clears Explore post when design leaves published |
 | Unarchive | Archived → draft (`POST /products/:id/unarchive`) |
 | Bulk Select | Same visibility sheet for many drafts → publish each |
-| Staff audit | `createdBy` / `updatedBy` on product views |
+| Staff audit | `createdBy` / `updatedBy` on product views. **You** library tiles and the collection editor status line show the **date only** (no own name). Saved still may show staff. |
 
 ## Edge cases / empty states
 

@@ -302,6 +302,7 @@ function NavItem({
     <NavLink
       to={to}
       end={end}
+      aria-label={label}
       onClick={(event) => {
         // Keep prior screen painted while the next lazy chunk loads (no Suspense flash).
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
@@ -327,7 +328,10 @@ function NavItem({
           >
             <Icon width={22} height={22} />
             {badge != null && badge > 0 ? (
-              <span className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
+              <span
+                aria-hidden
+                className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white"
+              >
                 {badge > 9 ? '9+' : badge}
               </span>
             ) : null}

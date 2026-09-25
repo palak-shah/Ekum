@@ -373,7 +373,7 @@ export function Sheet({
       role="dialog"
       aria-modal="true"
     >
-      <button aria-label="Close" className="absolute inset-0 bg-ink/35" onClick={onClose} />
+      <button aria-label="Dismiss" className="absolute inset-0 bg-ink/35" onClick={onClose} />
       <div
         className={cx(
           'ekum-sheet relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-2xl bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',

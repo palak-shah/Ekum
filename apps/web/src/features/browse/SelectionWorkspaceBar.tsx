@@ -1,6 +1,10 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useSyncExternalStore, useTransition } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  getPageOwnsBottomBand,
+  subscribePageOwnsBottomBand,
+} from '@/features/browse/selectionBottomBand';
 import { shouldShowSelectionWorkspaceBar } from '@/features/browse/selectionWorkspaceBarVisibility';
 import {
   shouldShowShopTradeDock,
@@ -19,7 +23,8 @@ import {
 
 /**
  * Compact floater: count + thumbs open the pile; Order starts the same path
- * as Your selection. Hidden on `/selection`, open chat threads, and My Catalog root.
+ * as Your selection. Hidden on `/selection`, open chat threads, My Catalog root,
+ * and pages that own the band (order desk, design/pack Ask·Order, editors).
  * Hidden while album Pick-designs resume CTA owns the band above nav.
  */
 export function SelectionWorkspaceBar() {
@@ -38,6 +43,7 @@ export function SelectionWorkspaceBar() {
   });
   const total = shortlist.count + albumPick.count;
   const chatsSelecting = useSyncExternalStore(subscribeChatsInboxSelect, getChatsInboxSelecting);
+  const pageDockUp = useSyncExternalStore(subscribePageOwnsBottomBand, getPageOwnsBottomBand);
 
   useEffect(() => {
     if (total > 0) prefetchSelectionPage();
@@ -45,7 +51,8 @@ export function SelectionWorkspaceBar() {
 
   if (typeof document === 'undefined') return null;
   if (readResumeAfterAlbumPick()) return null;
-  if (!shouldShowSelectionWorkspaceBar(location.pathname, total, { shopDockUp })) return null;
+  if (!shouldShowSelectionWorkspaceBar(location.pathname, total, { shopDockUp, pageDockUp }))
+    return null;
   if (location.pathname === '/chats' && chatsSelecting) return null;
 
   const thumbs = [

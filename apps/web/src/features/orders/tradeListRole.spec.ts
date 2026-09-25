@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { linkedMillHaystack, orderListLinkedCue, orderListRoleBit } from './tradeListRole';
+import {
+  linkedMillHaystack,
+  orderListLinkedCue,
+  orderListMillCue,
+  orderListRoleBit,
+} from './tradeListRole';
 
 describe('orderListRoleBit', () => {
   it('marks I-handle sell as Trading', () => {
@@ -20,6 +25,27 @@ describe('orderListRoleBit', () => {
         { name: 'Surat Silk House', orderId: 'abc' },
         { name: 'Jaipur Emporium', orderId: null },
       ]),
+    ).toBe('Surat Silk House + Jaipur Emporium');
+  });
+
+  it('hides mill names unless this is the trader Trading row', () => {
+    const mills = [
+      { name: 'Surat Silk House', orderId: 'abc' },
+      { name: 'Jaipur Emporium', orderId: null },
+    ];
+    expect(
+      orderListMillCue({
+        tradeMode: 'manage',
+        direction: 'buying',
+        linkedMills: mills,
+      }),
+    ).toBe('');
+    expect(
+      orderListMillCue({
+        tradeMode: 'manage',
+        direction: 'selling',
+        linkedMills: mills,
+      }),
     ).toBe('Surat Silk House + Jaipur Emporium');
   });
 

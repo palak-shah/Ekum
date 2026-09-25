@@ -66,7 +66,7 @@ import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { curatedMemberUnavailableReason } from '@/features/collections/curatedMemberAvailability';
 import { collectionStatusSummary } from './collectionStatusSummary';
-import { auditLine } from './productStatusSummary';
+import { libraryAuditLine } from './productStatusSummary';
 import {
   maxPublishAudienceForCuratedPack,
 } from './curationAudienceCeiling';
@@ -1474,12 +1474,12 @@ export function CollectionEditorPage() {
               className="text-left text-sm text-muted"
             >
               {statusSummary.line}
-              {auditLine(existing.data) ? ` · ${auditLine(existing.data)}` : ''}
+              {libraryAuditLine(existing.data) ? ` · ${libraryAuditLine(existing.data)}` : ''}
             </button>
           ) : (
             <p className="text-sm text-muted">
               {statusSummary.line}
-              {auditLine(existing.data) ? ` · ${auditLine(existing.data)}` : ''}
+              {libraryAuditLine(existing.data) ? ` · ${libraryAuditLine(existing.data)}` : ''}
             </p>
           )}
           {ownerSourceLine ? <p className="text-xs text-muted">{ownerSourceLine}</p> : null}
