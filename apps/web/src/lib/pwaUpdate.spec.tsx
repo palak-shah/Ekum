@@ -6,8 +6,11 @@ import {
   PWA_UPDATE_MESSAGE,
   PwaUpdateBar,
   WEB_BUILD_VERSION_URL,
+  WEB_BUILD_STALE_FLAG,
+  applyPwaUpdateLoad,
   bindUpdateRechecks,
   isStandaloneDisplay,
+  peekWebBuildStaleFlag,
   notifyIfServiceWorkerWaiting,
   refreshServiceWorker,
   remoteWebBuildIsNewer,
@@ -112,6 +115,43 @@ describe('bindUpdateRechecks', () => {
     setIntervalSpy.mockRestore();
     clearIntervalSpy.mockRestore();
     window.clearInterval(interval);
+  });
+});
+
+describe('applyPwaUpdateLoad', () => {
+  it('lets the waiting worker reload and does not race location.reload', () => {
+    const updateServiceWorker = vi.fn();
+    const reload = vi.fn();
+    applyPwaUpdateLoad({
+      needRefresh: true,
+      swWaiting: false,
+      updateServiceWorker,
+      reload,
+    });
+    expect(updateServiceWorker).toHaveBeenCalledWith(true);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('reloads the page when only the build id is stale', () => {
+    const updateServiceWorker = vi.fn();
+    const reload = vi.fn();
+    applyPwaUpdateLoad({
+      needRefresh: false,
+      swWaiting: false,
+      updateServiceWorker,
+      reload,
+    });
+    expect(updateServiceWorker).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('peekWebBuildStaleFlag', () => {
+  it('sees a stale signal set before React mounted', () => {
+    const bag = window as Window & { [WEB_BUILD_STALE_FLAG]?: boolean };
+    bag[WEB_BUILD_STALE_FLAG] = true;
+    expect(peekWebBuildStaleFlag()).toBe(true);
+    delete bag[WEB_BUILD_STALE_FLAG];
   });
 });
 

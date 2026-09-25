@@ -59,6 +59,7 @@
             })
             .then(function (data) {
               if (!data || !data.build || data.build === local) return;
+              window.__ekumWebBuildStale = true;
               window.dispatchEvent(new CustomEvent('ekum:web-build-stale'));
             })
             .catch(function () {});

@@ -99,7 +99,7 @@ export default defineConfig(({ mode }) => {
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       // Register from `useRegisterSW` so we can show New version · Load.
       injectRegister: false,
       // Keep the SW off during `vite dev` so chat/API responses are never served
@@ -112,7 +112,9 @@ export default defineConfig(({ mode }) => {
         // index.html and never run new update code. Offline uses last NetworkFirst.
         globIgnores: ['**/index.html', '**/version.json'],
         navigateFallbackDenylist: [/^\/api/, /^\/media/, /^\/version\.json/],
-        importScripts: ['push-sw.js'],
+        skipWaiting: true,
+        clientsClaim: true,
+        importScripts: ['push-sw.js', 'sw-activate-navigate.js'],
         globPatterns: ['**/*.{js,css,svg,png,woff2}'],
         cleanupOutdatedCaches: true,
         runtimeCaching: [

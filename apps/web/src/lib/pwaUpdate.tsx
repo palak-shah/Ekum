@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -7,6 +7,25 @@ export const PWA_UPDATE_ACTION = 'Load';
 /** While Ekum is on screen, notice a deploy without pull-to-refresh. */
 export const PWA_UPDATE_CHECK_MS = 20 * 1000;
 export const WEB_BUILD_STALE_EVENT = 'ekum:web-build-stale';
+export const WEB_BUILD_STALE_FLAG = '__ekumWebBuildStale';
+
+export function peekWebBuildStaleFlag(): boolean {
+  const bag = window as Window & { [WEB_BUILD_STALE_FLAG]?: boolean };
+  return bag[WEB_BUILD_STALE_FLAG] === true;
+}
+
+export function applyPwaUpdateLoad(input: {
+  needRefresh: boolean;
+  swWaiting: boolean;
+  updateServiceWorker: (reloadPage?: boolean) => void;
+  reload: () => void;
+}): void {
+  if (input.needRefresh || input.swWaiting) {
+    input.updateServiceWorker(true);
+    return;
+  }
+  input.reload();
+}
 
 /** Bypass HTTP cache so a new `sw.js` on the server is seen (nginx/CDN). */
 export async function refreshServiceWorker(
@@ -144,7 +163,6 @@ export function PwaUpdateBar({
 export function PwaUpdateHost() {
   const [buildStale, setBuildStale] = useState(false);
   const [swWaiting, setSwWaiting] = useState(false);
-  const unbindSwRechecks = useRef<(() => void) | null>(null);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -153,25 +171,15 @@ export function PwaUpdateHost() {
     onRegisteredSW(swUrl, registration) {
       if (!registration) return;
       notifyIfServiceWorkerWaiting(registration, () => setSwWaiting(true));
-      const check = () => {
-        void refreshServiceWorker(registration, swUrl);
-      };
-      check();
-      unbindSwRechecks.current?.();
-      unbindSwRechecks.current = bindUpdateRechecks(check);
+      // One fetch of sw.js on open — not every 20s, or skipWaiting would
+      // reload the page while they are mid-quote. The pill uses version.json.
+      void refreshServiceWorker(registration, swUrl);
     },
   });
 
-  useEffect(
-    () => () => {
-      unbindSwRechecks.current?.();
-      unbindSwRechecks.current = null;
-    },
-    [],
-  );
-
   useEffect(() => {
     const markStale = () => setBuildStale(true);
+    if (peekWebBuildStaleFlag()) markStale();
     const checkBuild = () => {
       void remoteWebBuildIsNewer().then((newer) => {
         if (newer) markStale();
@@ -204,10 +212,12 @@ export function PwaUpdateHost() {
     <PwaUpdateBar
       open={open}
       onLoad={() => {
-        if (needRefresh || swWaiting) {
-          void updateServiceWorker(true);
-        }
-        window.location.reload();
+        applyPwaUpdateLoad({
+          needRefresh,
+          swWaiting,
+          updateServiceWorker,
+          reload: () => window.location.reload(),
+        });
       }}
     />
   );
