@@ -18,7 +18,9 @@ Every signed-in company owner/operator in Phase 1.
 
 ### App update (installed / PWA)
 
-When a **new web build** is on the server, a quiet top pill appears: **New version** · **Load**. Tap reloads into the new build. The tab does **not** reload by itself (so a half-typed quote or order stays). There is no dismiss — skip is how the old app breaks. An API-only deploy does not show the pill. Local `vite dev` has no service worker, so the pill does not appear there. `sw.js` / `index.html` are not cached (nginx). The tab rechecks on open, when it comes to the front, and every 30 minutes.
+When a **new web image** is on the server, a quiet top pill appears: **New version** · **Load** — in the **Safari tab and the Home Screen icon** (they do not share one frozen page). Tap reloads into the new build. The tab does **not** reload by itself (so a half-typed quote or order stays). There is no dismiss — skip is how the old app breaks. An API-only deploy, or uploading API/source without rebuilding `ekum-web`, does not show the pill. Local `vite dev` has no service worker, so the pill does not appear there. Each surface fetches uncached `/version.json` (and `sw.js`) on open, focus, coming to the front, back online, and every 30 minutes. Needs HTTPS (or localhost).
+
+**iPhone / Safari:** Ekum is a web app, not an App Store binary. A frozen Safari tab or Home Screen app shows the pill when that surface comes to the front (or pull to refresh). **Share → Add to Home Screen** opens without Safari chrome (`apple-mobile-web-app-capable`). A bookmark is still Safari. WhatsApp / iMessage links still open Safari, not the Home Screen icon.
 
 ### Settings (`/settings`)
 

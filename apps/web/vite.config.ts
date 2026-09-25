@@ -58,9 +58,27 @@ export default defineConfig(({ mode }) => {
     rootEnv.VITE_PUBLIC_ORIGIN ||
     'http://localhost:5173'
   ).replace(/\/$/, '');
+  const webBuildId =
+    webEnv.VITE_WEB_BUILD ||
+    rootEnv.EKUM_WEB_BUILD ||
+    process.env.SOURCE_DATE_EPOCH ||
+    new Date().toISOString();
 
   return {
+  define: {
+    'import.meta.env.VITE_WEB_BUILD': JSON.stringify(webBuildId),
+  },
   plugins: [
+    {
+      name: 'ekum-web-build-id',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'version.json',
+          source: JSON.stringify({ build: webBuildId }),
+        });
+      },
+    },
     {
       name: 'ekum-html-public-origin',
       transformIndexHtml(html) {
@@ -92,7 +110,7 @@ export default defineConfig(({ mode }) => {
         // Chat Document / voice open same-origin `/media/…` as a real navigation
         // (target=_blank). Without a denylist, Workbox serves index.html and the
         // browser shows “Failed to load PDF document” (images in <img> still work).
-        navigateFallbackDenylist: [/^\/api/, /^\/media/],
+        navigateFallbackDenylist: [/^\/api/, /^\/media/, /^\/version\.json/],
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },

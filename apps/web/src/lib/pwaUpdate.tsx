@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -5,6 +6,60 @@ export const PWA_UPDATE_MESSAGE = 'New version';
 export const PWA_UPDATE_ACTION = 'Load';
 /** Recheck while a tab stays open for a long session. */
 export const PWA_UPDATE_CHECK_MS = 30 * 60 * 1000;
+
+/** Bypass HTTP cache so a new `sw.js` on the server is seen (nginx/CDN). */
+export async function refreshServiceWorker(
+  registration: Pick<ServiceWorkerRegistration, 'update'>,
+  swUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  try {
+    await fetchImpl(swUrl, { cache: 'no-store' });
+  } catch {
+    // Offline — still ask the browser; it may have a waiting worker.
+  }
+  await registration.update();
+}
+
+export const WEB_BUILD_VERSION_URL = '/version.json';
+
+export function clientWebBuild(): string {
+  return import.meta.env.VITE_WEB_BUILD ?? '';
+}
+
+/** Home Screen and a Safari tab each run this — SW update alone is not enough on iOS. */
+export async function remoteWebBuildIsNewer(
+  fetchImpl: typeof fetch = fetch,
+  localBuild: string = clientWebBuild(),
+): Promise<boolean> {
+  if (!localBuild) return false;
+  try {
+    const res = await fetchImpl(WEB_BUILD_VERSION_URL, { cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { build?: unknown };
+    return typeof data.build === 'string' && data.build.length > 0 && data.build !== localBuild;
+  } catch {
+    return false;
+  }
+}
+
+function bindUpdateRechecks(check: () => void): () => void {
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') check();
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('focus', check);
+  window.addEventListener('pageshow', check);
+  window.addEventListener('online', check);
+  const interval = window.setInterval(check, PWA_UPDATE_CHECK_MS);
+  return () => {
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('focus', check);
+    window.removeEventListener('pageshow', check);
+    window.removeEventListener('online', check);
+    window.clearInterval(interval);
+  };
+}
 
 export function PwaUpdateBar({
   open,
@@ -38,29 +93,39 @@ export function PwaUpdateBar({
 }
 
 export function PwaUpdateHost() {
+  const [buildStale, setBuildStale] = useState(false);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegisteredSW(_url, registration) {
+    immediate: true,
+    onRegisteredSW(swUrl, registration) {
       if (!registration) return;
       const check = () => {
-        void registration.update();
+        void refreshServiceWorker(registration, swUrl);
       };
       check();
-      const onVisible = () => {
-        if (document.visibilityState === 'visible') check();
-      };
-      document.addEventListener('visibilitychange', onVisible);
-      window.setInterval(check, PWA_UPDATE_CHECK_MS);
+      bindUpdateRechecks(check);
     },
   });
 
+  useEffect(() => {
+    const checkBuild = () => {
+      void remoteWebBuildIsNewer().then(setBuildStale);
+    };
+    checkBuild();
+    return bindUpdateRechecks(checkBuild);
+  }, []);
+
   return (
     <PwaUpdateBar
-      open={needRefresh}
+      open={needRefresh || buildStale}
       onLoad={() => {
-        void updateServiceWorker(true);
+        if (needRefresh) {
+          void updateServiceWorker(true);
+          return;
+        }
+        window.location.reload();
       }}
     />
   );
