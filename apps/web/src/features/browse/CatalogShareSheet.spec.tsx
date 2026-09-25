@@ -214,8 +214,61 @@ describe('CatalogShareSheet multi-select share', () => {
       expect.objectContaining({
         url: `${window.location.origin}/s/col`,
         copyText: expect.stringContaining(`${window.location.origin}/s/prod`),
+        preferShareSheet: false,
       }),
     );
+  });
+
+  it('shows minted URLs to select when OS share and clipboard fail', async () => {
+    vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
+      if (path !== '/share-links') throw new Error(`unexpected post ${path}`);
+      const payload = body as { collectionId?: string; productId?: string };
+      return {
+        path: payload.collectionId ? '/s/col' : '/s/prod',
+        name: payload.collectionId ? 'Monsoon' : 'A',
+        kind: payload.collectionId ? 'collection' : 'product',
+        companyName: 'Surat Silk House',
+      } as never;
+    });
+    vi.mocked(shareOrCopyInvite).mockResolvedValue('manual');
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') return [jaipur] as never;
+      if (path === '/access-requests/outgoing') return [] as never;
+      if (path === '/settings') {
+        return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
+      }
+      throw new Error(`unexpected get ${path}`);
+    });
+
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CatalogShareSheet
+            open
+            onClose={() => {}}
+            collections={[{ collectionId: 'col1', name: 'Monsoon' }]}
+            products={[{ productId: 'p1', name: 'A' }]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('catalog-share-link'));
+
+    const box = await screen.findByTestId('catalog-share-ready-copy');
+    const value = (box as HTMLTextAreaElement).value;
+    expect(value).toContain(`${window.location.origin}/s/col`);
+    expect(value).toContain(`${window.location.origin}/s/prod`);
+    expect(screen.queryByText(/Could not share the link/i)).toBeNull();
   });
 
   it('posts 2+ designs as one design_album and offers 48h link', async () => {

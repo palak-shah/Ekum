@@ -8,6 +8,22 @@ export function isDefinitiveAuthFailure(status: number, code?: string): boolean 
   return status === 401 && (code === 'INVALID_TOKEN' || code === 'UNAUTHORIZED');
 }
 
+/** Ask the browser not to evict `localStorage` (WhatsApp-style stay signed in). */
+export async function requestPersistentAuthStorage(
+  storage: Pick<StorageManager, 'persist' | 'persisted'> | undefined = typeof navigator !==
+  'undefined'
+    ? navigator.storage
+    : undefined,
+): Promise<boolean> {
+  if (!storage?.persist) return false;
+  try {
+    if (storage.persisted && (await storage.persisted())) return true;
+    return await storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 export function readStoredTokens(): AuthTokens | null {
   try {
     const raw = localStorage.getItem(TOKEN_STORAGE_KEY);

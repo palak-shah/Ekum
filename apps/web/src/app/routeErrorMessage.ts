@@ -22,3 +22,35 @@ export function routeErrorMessage(error: unknown): string {
   }
   return 'Something went wrong. Try again.';
 }
+
+/** Compact log they can copy or screenshot — not a full stack dump. */
+export function routeErrorDetail(error: unknown): string | null {
+  if (error == null) return null;
+  if (isRouteErrorResponse(error)) {
+    if (error.status === 404) return null;
+    const data =
+      error.data && typeof error.data === 'object' && 'message' in error.data
+        ? String((error.data as { message?: unknown }).message ?? '').trim()
+        : typeof error.data === 'string'
+          ? error.data.trim()
+          : '';
+    const status = `${error.status}${error.statusText ? ` ${error.statusText}` : ''}`.trim();
+    return data ? `${status}: ${data}` : status || null;
+  }
+  if (error instanceof Error) {
+    const head = [error.name, error.message.trim()].filter(Boolean).join(': ');
+    const frames = (error.stack ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith(error.name))
+      .slice(0, 2)
+      .join('\n');
+    return frames ? `${head}\n${frames}` : head || null;
+  }
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}

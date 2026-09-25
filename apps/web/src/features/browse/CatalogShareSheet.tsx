@@ -23,7 +23,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, InlineNotice, LoadingBlock, Sheet } from '@/ui/kit';
+import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextArea } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
@@ -64,11 +64,13 @@ export function CatalogShareSheet({
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [readyInvite, setReadyInvite] = useState<string | null>(null);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setReadyInvite(null);
     setSelectedCompanyIds([]);
   }, [open]);
 
@@ -149,6 +151,7 @@ export function CatalogShareSheet({
   const makeLink = useMutation({
     mutationFn: async () => {
       setError(null);
+      setReadyInvite(null);
       if (linkBodies.length < 1) throw new Error('Nothing to share');
       const links: ShareLinkView[] = [];
       for (const body of linkBodies) {
@@ -173,11 +176,13 @@ export function CatalogShareSheet({
           title: copy.title,
           text,
           copyText: links.length > 1 ? text : undefined,
+          preferShareSheet: canNativeShare(),
         });
         if (result === 'copied') showToast(catalogShareCopiedToast(links.length));
+        if (result === 'manual') setReadyInvite(text);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError('Could not share the link.');
+        setReadyInvite(text);
       }
     },
     onError: (err) => {
@@ -242,6 +247,18 @@ export function CatalogShareSheet({
       }
     >
       {error ? <InlineNotice message={error} className="mb-3" /> : null}
+      {readyInvite ? (
+        <div className="mb-3">
+          <Field label="48-hour links" hint="Select the text and copy.">
+            <TextArea
+              readOnly
+              value={readyInvite}
+              rows={Math.min(8, readyInvite.split('\n').length + 1)}
+              data-testid="catalog-share-ready-copy"
+            />
+          </Field>
+        </div>
+      ) : null}
       {total < 1 ? (
         <p className="text-sm text-muted">Nothing to share.</p>
       ) : connections.isLoading ? (

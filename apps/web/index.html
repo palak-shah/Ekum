@@ -86,30 +86,8 @@
                 if (localStorage.getItem('ekum-hs-reload') === data.build) return;
                 localStorage.setItem('ekum-hs-reload', data.build);
               } catch (e) {}
-              var done = Promise.resolve();
-              if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-                done = navigator.serviceWorker.getRegistrations().then(function (regs) {
-                  return Promise.all(
-                    regs.map(function (reg) {
-                      return reg.unregister();
-                    }),
-                  );
-                });
-              }
-              done
-                .then(function () {
-                  if (!window.caches) return;
-                  return window.caches.keys().then(function (keys) {
-                    return Promise.all(
-                      keys.map(function (key) {
-                        return window.caches.delete(key);
-                      }),
-                    );
-                  });
-                })
-                .then(function () {
-                  window.location.reload();
-                });
+              // Reload only — do not unregister / delete caches (wipes iOS login).
+              window.location.reload();
             })
             .catch(function () {});
         }

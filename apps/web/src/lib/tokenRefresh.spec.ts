@@ -4,8 +4,18 @@ import {
   TOKEN_STORAGE_KEY,
   isDefinitiveAuthFailure,
   refreshAuthTokens,
+  requestPersistentAuthStorage,
   tryAcquireLocalRefreshLock,
 } from './tokenRefresh';
+
+describe('requestPersistentAuthStorage', () => {
+  it('asks the browser to keep the login store', async () => {
+    const persist = vi.fn().mockResolvedValue(true);
+    const persisted = vi.fn().mockResolvedValue(false);
+    await expect(requestPersistentAuthStorage({ persist, persisted })).resolves.toBe(true);
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('isDefinitiveAuthFailure', () => {
   it('treats INVALID_TOKEN 401 as hard auth failure', () => {

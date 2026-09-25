@@ -18,6 +18,8 @@ import {
   notifyIfServiceWorkerWaiting,
   refreshServiceWorker,
   remoteWebBuildIsNewer,
+  checkRemoteWebBuild,
+  applyWebBuildCheck,
 } from './pwaUpdate';
 
 describe('PwaUpdateBar', () => {
@@ -64,10 +66,35 @@ describe('remoteWebBuildIsNewer', () => {
   });
 
   it('is false when the open page already matches the server', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ build: 'same' }), { status: 200 }),
+    const fetchImpl = vi.fn().mockImplementation(
+      async () => new Response(JSON.stringify({ build: 'same' }), { status: 200 }),
     );
     await expect(remoteWebBuildIsNewer(fetchImpl, 'same')).resolves.toBe(false);
+    await expect(checkRemoteWebBuild(fetchImpl, 'same')).resolves.toBe('current');
+  });
+
+  it('is unknown when the check fails — not current', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('offline'));
+    await expect(checkRemoteWebBuild(fetchImpl, 'phone-1')).resolves.toBe('unknown');
+    await expect(remoteWebBuildIsNewer(fetchImpl, 'phone-1')).resolves.toBe(false);
+  });
+});
+
+describe('applyWebBuildCheck', () => {
+  it('does not hide the pill when the check fails', () => {
+    const onStale = vi.fn();
+    const onCurrent = vi.fn();
+    applyWebBuildCheck('unknown', onStale, onCurrent);
+    expect(onStale).not.toHaveBeenCalled();
+    expect(onCurrent).not.toHaveBeenCalled();
+  });
+
+  it('clears the pill only when the server build matches', () => {
+    const onStale = vi.fn();
+    const onCurrent = vi.fn();
+    applyWebBuildCheck('current', onStale, onCurrent);
+    expect(onCurrent).toHaveBeenCalledTimes(1);
+    expect(onStale).not.toHaveBeenCalled();
   });
 });
 
@@ -184,7 +211,7 @@ describe('peekWebBuildStaleFlag', () => {
 });
 
 describe('applyHomeScreenNewBuild', () => {
-  it('drops caches and reloads once for a new build', async () => {
+  it('reloads once for a new build and does not drop caches (keeps login)', async () => {
     const session = { getItem: vi.fn().mockReturnValue(null), setItem: vi.fn() };
     const drop = vi.fn().mockResolvedValue(undefined);
     const reload = vi.fn();
@@ -195,7 +222,7 @@ describe('applyHomeScreenNewBuild', () => {
       reload,
     });
     expect(session.setItem).toHaveBeenCalledWith(HS_RELOAD_KEY, 'b2');
-    expect(drop).toHaveBeenCalled();
+    expect(drop).not.toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 

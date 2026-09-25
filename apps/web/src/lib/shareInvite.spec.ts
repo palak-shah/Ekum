@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
+  canNativeShare,
   catalogShareCopy,
   companyShareCopy,
   inviteShareCopy,
@@ -151,5 +152,52 @@ describe('shareOrCopyInvite', () => {
     expect(result).toBe('shared');
     expect(navigator.share).toHaveBeenCalled();
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it('skips a present share() when preferShareSheet is false', async () => {
+    const result = await shareOrCopyInvite({
+      url: 'https://beta.ekum.app/s/a',
+      title: 't',
+      text: 'x',
+      preferShareSheet: false,
+    });
+    expect(result).toBe('copied');
+    expect(navigator.share).not.toHaveBeenCalled();
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+  });
+
+  it('returns manual when share rejects and clipboard cannot write (BM — embedded browser)', async () => {
+    vi.stubGlobal('navigator', {
+      share: vi.fn(async () => {
+        throw new Error('share unavailable');
+      }),
+      clipboard: {
+        writeText: vi.fn(async () => {
+          throw new Error('denied');
+        }),
+      },
+    });
+    await expect(
+      shareOrCopyInvite({
+        url: 'https://beta.ekum.app/s/a',
+        title: 't',
+        text: 'x\nhttps://beta.ekum.app/s/b',
+        copyText: 'x\nhttps://beta.ekum.app/s/a\nhttps://beta.ekum.app/s/b',
+      }),
+    ).resolves.toBe('manual');
+  });
+});
+
+describe('canNativeShare', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('is false when canShare rejects the payload', () => {
+    vi.stubGlobal('navigator', {
+      share: vi.fn(),
+      canShare: vi.fn(() => false),
+    });
+    expect(canNativeShare()).toBe(false);
   });
 });

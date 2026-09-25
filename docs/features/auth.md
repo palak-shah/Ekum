@@ -20,7 +20,7 @@ Every user before accessing the app.
 
 - Auth is **phone + OTP** (dev builds use a fixed Dev OTP from API config).
 - Session is bearer-token based; web refreshes on 401 via single-flight refresh.
-- **Stay signed in on this device until you log out.** Access JWT is short (default **15 minutes**); refresh rotates quietly with a **10 year** ceiling that **slides** on each successful refresh. OTP is only needed after **You → Logout**, clearing site data, a full DB wipe / migrate reset, or a definitive refresh reject (`INVALID_TOKEN`).
+- **Stay signed in on this device until you log out** (WhatsApp-style). Access JWT is short (default **15 minutes**); refresh rotates quietly with a **10 year** ceiling that **slides** on each successful refresh. OTP is only needed after **You → Logout**, clearing site data, a full DB wipe / migrate reset, or a definitive refresh reject (`INVALID_TOKEN`). A Home Screen “new version” reload must **not** unregister the worker or delete caches — that can wipe `ekum.tokens` on iPhone. On iOS, Safari and the Home Screen icon are **two devices** (separate storage); sign in once on the icon you use every day.
 - Local tokens are cleared only on Logout, definitive refresh failure, or definitive `/auth/me` auth failure — never on network blips or `SESSION_REFRESH_PENDING`.
 - Logout wipes local tokens **before** `POST /auth/logout`, so Refresh or another tap cannot reopen the old shop while revoke is in flight.
 - Multi-tab safe: cross-tab refresh lock on web; API reuses a recently rotated refresh for ~60s so parallel tabs do not log each other out.

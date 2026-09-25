@@ -12,6 +12,7 @@ import {
   performTokenRefresh,
   setTokens,
 } from './apiClient';
+import { requestPersistentAuthStorage } from './tokenRefresh';
 
 interface SessionState {
   user: SessionUser;
@@ -84,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (getTokens()?.refreshToken) void requestPersistentAuthStorage();
     void loadMe();
     // A 401 that fails to refresh clears tokens; reflect that as sign-out.
     return onTokenChange((next) => {
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens(incoming.tokens, { notify: false });
     setSession({ user: incoming.user, needsOnboarding: incoming.needsOnboarding });
     setStatus('authenticated');
+    void requestPersistentAuthStorage();
   }, []);
 
   const logout = useCallback(async () => {

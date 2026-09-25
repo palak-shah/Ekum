@@ -26,6 +26,18 @@ export function nativeShareFields(options: {
   return { title: options.title, text: message, url: options.url };
 }
 
+export type ShareHandoffResult = 'shared' | 'copied' | 'manual';
+
+async function writeClipboard(value: string): Promise<boolean> {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function shareOrCopyInvite(options: {
   url: string;
   title: string;
@@ -33,13 +45,19 @@ export async function shareOrCopyInvite(options: {
   /**
    * Open the OS share sheet when the browser can. Clipboard is only a last
    * resort (desktop / no share targets) — never the first path on a phone.
+   * Pass `false` when `canNativeShare()` is false (embedded browsers often
+   * expose `share()` that always rejects).
    */
   preferShareSheet?: boolean;
   /** When set, clipboard writes this (e.g. several 48h URLs) instead of `url` only. */
   copyText?: string;
-}): Promise<'shared' | 'copied'> {
+}): Promise<ShareHandoffResult> {
   const { url, title, text } = options;
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+  const shouldShare =
+    options.preferShareSheet !== false &&
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function';
+  if (shouldShare) {
     try {
       await navigator.share(nativeShareFields({ title, text, url }));
       return 'shared';
@@ -49,12 +67,19 @@ export async function shareOrCopyInvite(options: {
       }
     }
   }
-  await navigator.clipboard.writeText(options.copyText ?? url);
-  return 'copied';
+  if (await writeClipboard(options.copyText ?? url)) return 'copied';
+  return 'manual';
 }
 
+/** True only when the OS share sheet is likely to accept this payload. */
 export function canNativeShare(): boolean {
-  return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
+  if (typeof navigator.canShare !== 'function') return true;
+  try {
+    return navigator.canShare({ title: 'Ekum', text: 'Ekum' });
+  } catch {
+    return false;
+  }
 }
 
 /** Branded share title/text so the clickable link doesn’t look like random spam. */

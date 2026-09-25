@@ -73,7 +73,8 @@ export async function applyHomeScreenNewBuild(input: {
     (typeof localStorage !== 'undefined' ? localStorage : undefined);
   if (store?.getItem(HS_RELOAD_KEY) === input.remoteBuild) return;
   store?.setItem(HS_RELOAD_KEY, input.remoteBuild);
-  await (input.drop ?? dropControlledWebCaches)();
+  // Do not unregister the worker or delete Cache Storage. On iOS Home Screen
+  // that can reset website data — including `ekum.tokens` — and force OTP again.
   input.reload();
 }
 
@@ -133,16 +134,36 @@ async function readRemoteBuild(
   }
 }
 
+export type WebBuildCheck = 'newer' | 'current' | 'unknown';
+
 /** Home Screen and a Safari tab each run this — SW update alone is not enough on iOS. */
+export async function checkRemoteWebBuild(
+  fetchImpl: typeof fetch = fetch,
+  localBuild: string = clientWebBuild(),
+): Promise<WebBuildCheck> {
+  if (!localBuild) return 'unknown';
+  const remote =
+    (await readRemoteBuild(WEB_BUILD_VERSION_URL, fetchImpl)) ??
+    (await readRemoteBuild(WEB_BUILD_VERSION_URL_FALLBACK, fetchImpl));
+  if (!remote) return 'unknown';
+  return remote !== localBuild ? 'newer' : 'current';
+}
+
 export async function remoteWebBuildIsNewer(
   fetchImpl: typeof fetch = fetch,
   localBuild: string = clientWebBuild(),
 ): Promise<boolean> {
-  if (!localBuild) return false;
-  const remote =
-    (await readRemoteBuild(WEB_BUILD_VERSION_URL, fetchImpl)) ??
-    (await readRemoteBuild(WEB_BUILD_VERSION_URL_FALLBACK, fetchImpl));
-  return Boolean(remote && remote !== localBuild);
+  return (await checkRemoteWebBuild(fetchImpl, localBuild)) === 'newer';
+}
+
+/** Hide the pill only when the server says this page already matches. */
+export function applyWebBuildCheck(
+  result: WebBuildCheck,
+  onStale: () => void,
+  onCurrent: () => void,
+): void {
+  if (result === 'newer') onStale();
+  else if (result === 'current') onCurrent();
 }
 
 export function isStandaloneDisplay(): boolean {
@@ -239,9 +260,8 @@ export function PwaUpdateHost() {
     };
     if (peekWebBuildStaleFlag()) markStale();
     const checkBuild = () => {
-      void remoteWebBuildIsNewer().then((newer) => {
-        if (newer) markStale();
-        else markCurrent();
+      void checkRemoteWebBuild().then((result) => {
+        applyWebBuildCheck(result, markStale, markCurrent);
       });
     };
     const tryHomeScreenApply = () => {

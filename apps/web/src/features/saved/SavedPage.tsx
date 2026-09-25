@@ -561,7 +561,7 @@ function SavedFeedRow({
       </button>
       <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onOpen}>
         <p className="text-sm font-semibold tracking-tight text-ink">{item.name}</p>
-        <p className="text-xs font-medium text-muted">{itemMeta(item)}</p>
+        <p className="text-xs font-medium text-muted">{savedItemMeta(item)}</p>
       </button>
     </article>
   );
@@ -612,7 +612,7 @@ function SavedPhotosSheet({
       }
     >
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-medium text-muted">{itemMeta(item)}</p>
+        <p className="text-xs font-medium text-muted">{savedItemMeta(item)}</p>
         {current ? (
           <button
             type="button"
