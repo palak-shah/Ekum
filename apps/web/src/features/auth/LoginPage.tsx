@@ -86,12 +86,12 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]">
-      <div className="ekum-rise flex flex-1 flex-col justify-center">
+      <div className="flex flex-1 flex-col justify-center">
         <div className={LOGIN_PANEL}>
         <div className="-mt-1 flex flex-col items-center gap-2">
           <BrandMark size="login" />
           <p className="text-center text-sm font-medium tracking-tight text-white/90">
-            Textile trade, organised.
+            Textile trade, organised. · reload check
           </p>
         </div>
 
@@ -116,9 +116,10 @@ export function LoginPage() {
             <Field label="Mobile number" error={error}>
               <TextInput
                 type="tel"
-                inputMode="numeric"
-                autoFocus
+                inputMode="tel"
+                name="tel"
                 autoComplete="tel"
+                enterKeyHint="done"
                 placeholder="+91 98765 43210"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}

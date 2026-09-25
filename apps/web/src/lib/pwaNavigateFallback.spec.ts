@@ -15,4 +15,13 @@ describe('PWA navigateFallbackDenylist (chat PDF open)', () => {
     expect(viteConfig).toContain('/^\\/media/');
     expect(viteConfig).toContain('/^\\/api/');
   });
+
+  it('waits for Load — no autoUpdate / skipWaiting (mid-quote)', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const viteConfig = readFileSync(join(here, '../../vite.config.ts'), 'utf8');
+    expect(viteConfig).toContain("registerType: 'prompt'");
+    expect(viteConfig).not.toContain("registerType: 'autoUpdate'");
+    expect(viteConfig).not.toContain('skipWaiting: true');
+    expect(viteConfig).not.toContain('clientsClaim: true');
+  });
 });

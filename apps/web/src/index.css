@@ -127,6 +127,14 @@ body {
   display: none;
 }
 
+/* iOS PWA: a parent user-select:none can swallow keystrokes unless fields opt in. */
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Long-press select surfaces — no iOS Safari link preview / callout. */
 .ekum-long-press-surface {
   -webkit-touch-callout: none;

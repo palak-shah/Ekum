@@ -39,7 +39,7 @@
     <meta name="twitter:image" content="%VITE_PUBLIC_ORIGIN%/brand/app-icon-512.png" />
 
     <meta name="ekum-web-build" content="%VITE_WEB_BUILD%" />
-    <title>Ekum</title>
+    <title>Ekum · reload check</title>
   </head>
   <body>
     <div id="root"></div>
@@ -61,6 +61,51 @@
               if (!data || !data.build || data.build === local) return;
               window.__ekumWebBuildStale = true;
               window.dispatchEvent(new CustomEvent('ekum:web-build-stale'));
+              var home =
+                window.navigator.standalone === true ||
+                (window.matchMedia &&
+                  window.matchMedia('(display-mode: standalone)').matches);
+              if (!home) return;
+              var path = window.location.pathname;
+              if (path === '/login' || path === '/onboarding') return;
+              var ae = document.activeElement;
+              if (
+                ae &&
+                (ae.tagName === 'INPUT' ||
+                  ae.tagName === 'TEXTAREA' ||
+                  ae.tagName === 'SELECT' ||
+                  ae.isContentEditable)
+              ) {
+                return;
+              }
+              try {
+                if (localStorage.getItem('ekum-hs-reload') === data.build) return;
+                localStorage.setItem('ekum-hs-reload', data.build);
+              } catch (e) {}
+              var done = Promise.resolve();
+              if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+                done = navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(
+                    regs.map(function (reg) {
+                      return reg.unregister();
+                    }),
+                  );
+                });
+              }
+              done
+                .then(function () {
+                  if (!window.caches) return;
+                  return window.caches.keys().then(function (keys) {
+                    return Promise.all(
+                      keys.map(function (key) {
+                        return window.caches.delete(key);
+                      }),
+                    );
+                  });
+                })
+                .then(function () {
+                  window.location.reload();
+                });
             })
             .catch(function () {});
         }

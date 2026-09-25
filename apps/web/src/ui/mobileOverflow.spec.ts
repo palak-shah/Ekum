@@ -47,5 +47,6 @@ describe('mobileOverflow (BM-07)', () => {
     expect(chrome).toContain('px-3.5');
     expect(chrome).toContain('min-h-12');
     expect(chrome).toContain('text-base');
+    expect(chrome).toContain('select-text');
   });
 });

@@ -7,7 +7,10 @@ import {
   PwaUpdateBar,
   WEB_BUILD_VERSION_URL,
   WEB_BUILD_STALE_FLAG,
+  applyHomeScreenNewBuild,
   applyPwaUpdateLoad,
+  homeScreenReloadBlocked,
+  HS_RELOAD_KEY,
   bindUpdateRechecks,
   isStandaloneDisplay,
   peekWebBuildStaleFlag,
@@ -152,6 +155,66 @@ describe('peekWebBuildStaleFlag', () => {
     bag[WEB_BUILD_STALE_FLAG] = true;
     expect(peekWebBuildStaleFlag()).toBe(true);
     delete bag[WEB_BUILD_STALE_FLAG];
+  });
+});
+
+describe('applyHomeScreenNewBuild', () => {
+  it('drops caches and reloads once for a new build', async () => {
+    const session = { getItem: vi.fn().mockReturnValue(null), setItem: vi.fn() };
+    const drop = vi.fn().mockResolvedValue(undefined);
+    const reload = vi.fn();
+    await applyHomeScreenNewBuild({
+      remoteBuild: 'b2',
+      session,
+      drop,
+      reload,
+    });
+    expect(session.setItem).toHaveBeenCalledWith(HS_RELOAD_KEY, 'b2');
+    expect(drop).toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not loop if this build was already applied', async () => {
+    const session = { getItem: vi.fn().mockReturnValue('b2'), setItem: vi.fn() };
+    const drop = vi.fn();
+    const reload = vi.fn();
+    await applyHomeScreenNewBuild({
+      remoteBuild: 'b2',
+      session,
+      drop,
+      reload,
+    });
+    expect(drop).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('does not reload on login or while a field is focused', async () => {
+    const store = { getItem: vi.fn().mockReturnValue(null), setItem: vi.fn() };
+    const drop = vi.fn();
+    const reload = vi.fn();
+    await applyHomeScreenNewBuild({
+      remoteBuild: 'b3',
+      store,
+      drop,
+      reload,
+      blocked: true,
+    });
+    expect(store.setItem).not.toHaveBeenCalled();
+    expect(drop).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe('homeScreenReloadBlocked', () => {
+  it('blocks OTP and login paths', () => {
+    expect(homeScreenReloadBlocked({ pathname: '/login', active: document.body })).toBe(true);
+    expect(homeScreenReloadBlocked({ pathname: '/onboarding', active: document.body })).toBe(true);
+    expect(homeScreenReloadBlocked({ pathname: '/', active: document.body })).toBe(false);
+  });
+
+  it('blocks while they are typing in a field', () => {
+    const input = document.createElement('input');
+    expect(homeScreenReloadBlocked({ pathname: '/', active: input })).toBe(true);
   });
 });
 

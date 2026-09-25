@@ -99,8 +99,9 @@ export default defineConfig(({ mode }) => {
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // Register from `useRegisterSW` so we can show New version · Load.
+      // Never skipWaiting here — that reloads mid-quote. Load calls updateServiceWorker(true).
       injectRegister: false,
       // Keep the SW off during `vite dev` so chat/API responses are never served
       // from a stale Workbox cache while iterating on ThreadPage.
@@ -112,9 +113,7 @@ export default defineConfig(({ mode }) => {
         // index.html and never run new update code. Offline uses last NetworkFirst.
         globIgnores: ['**/index.html', '**/version.json'],
         navigateFallbackDenylist: [/^\/api/, /^\/media/, /^\/version\.json/],
-        skipWaiting: true,
-        clientsClaim: true,
-        importScripts: ['push-sw.js', 'sw-activate-navigate.js'],
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,svg,png,woff2}'],
         cleanupOutdatedCaches: true,
         runtimeCaching: [

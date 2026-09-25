@@ -40,7 +40,7 @@ export function textInputChromeClass(className?: string): string {
     'rounded-xl border border-line bg-surface',
     !hasPad ? 'px-3.5' : '',
     !hasText ? 'text-base' : '',
-    'font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+    'select-text font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
   ]
     .filter(Boolean)
     .join(' ');

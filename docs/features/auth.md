@@ -11,7 +11,7 @@ Every user before accessing the app.
 ## User flows
 
 1. Open app → `/login` (or land on `/r/:token` / `?invite=` and get sent to login).
-2. Enter phone number on a **horizontal teal-gradient box** (logo + **Textile trade, organised.** + form, same wash as the badge) → request OTP.
+2. Enter phone number on a **horizontal teal-gradient box** (logo + **Textile trade, organised.** + form, same wash as the badge) → request OTP. The field is a normal **tel** input (phone keypad). It does **not** autofocus on first paint — iOS Home Screen often takes focus without accepting keys. Continue stays disabled until 10 characters.
 3. Enter OTP → verify → tokens stored; `GET /auth/me` loads session.
 4. If `needsOnboarding` → `/onboarding`; else → invite return path (`/r/…`) when present, otherwise Home.
 5. Logout from **You** (`/more`) clears the device **immediately**, then revokes the refresh on the server. OTP is required again. A late token refresh cannot put the old shop back.

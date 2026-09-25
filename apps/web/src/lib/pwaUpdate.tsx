@@ -14,6 +14,60 @@ export function peekWebBuildStaleFlag(): boolean {
   return bag[WEB_BUILD_STALE_FLAG] === true;
 }
 
+export const HS_RELOAD_KEY = 'ekum-hs-reload';
+
+const AUTH_PATHS = new Set(['/login', '/onboarding']);
+
+/** Silent Home Screen reload must not steal the OTP field. */
+export function homeScreenReloadBlocked(input?: {
+  pathname?: string;
+  active?: Element | null;
+}): boolean {
+  const path = input?.pathname ?? (typeof location !== 'undefined' ? location.pathname : '');
+  if (AUTH_PATHS.has(path)) return true;
+  const el = input?.active ?? (typeof document !== 'undefined' ? document.activeElement : null);
+  if (!el || el === document.body || el === document.documentElement) return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return Boolean((el as HTMLElement).isContentEditable);
+}
+
+export async function dropControlledWebCaches(
+  serviceWorker = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined,
+  cacheStore = typeof window !== 'undefined' ? window.caches : undefined,
+): Promise<void> {
+  if (serviceWorker?.getRegistrations) {
+    const regs = await serviceWorker.getRegistrations();
+    await Promise.all(regs.map((registration) => registration.unregister()));
+  }
+  if (cacheStore?.keys) {
+    const keys = await cacheStore.keys();
+    await Promise.all(keys.map((key) => cacheStore.delete(key)));
+  }
+}
+
+/** Home Screen has no Safari refresh — drop the worker cache and reload once. */
+export async function applyHomeScreenNewBuild(input: {
+  remoteBuild: string;
+  store?: Pick<Storage, 'getItem' | 'setItem'>;
+  session?: Pick<Storage, 'getItem' | 'setItem'>;
+  reload: () => void;
+  drop?: () => Promise<void>;
+  blocked?: boolean;
+}): Promise<void> {
+  if (!input.remoteBuild) return;
+  const blocked = input.blocked ?? homeScreenReloadBlocked();
+  if (blocked) return;
+  const store =
+    input.store ??
+    input.session ??
+    (typeof localStorage !== 'undefined' ? localStorage : undefined);
+  if (store?.getItem(HS_RELOAD_KEY) === input.remoteBuild) return;
+  store?.setItem(HS_RELOAD_KEY, input.remoteBuild);
+  await (input.drop ?? dropControlledWebCaches)();
+  input.reload();
+}
+
 export function applyPwaUpdateLoad(input: {
   needRefresh: boolean;
   swWaiting: boolean;
@@ -185,9 +239,28 @@ export function PwaUpdateHost() {
         if (newer) markStale();
       });
     };
+    const tryHomeScreenApply = () => {
+      if (!isStandaloneDisplay()) return;
+      void (async () => {
+        const remote =
+          (await readRemoteBuild(WEB_BUILD_VERSION_URL, fetch)) ??
+          (await readRemoteBuild(WEB_BUILD_VERSION_URL_FALLBACK, fetch));
+        const local = clientWebBuild();
+        if (remote && local && remote !== local) {
+          await applyHomeScreenNewBuild({
+            remoteBuild: remote,
+            reload: () => window.location.reload(),
+          });
+        }
+      })();
+    };
     checkBuild();
+    tryHomeScreenApply();
     window.addEventListener(WEB_BUILD_STALE_EVENT, markStale);
-    const unbind = bindUpdateRechecks(checkBuild);
+    const unbind = bindUpdateRechecks(() => {
+      checkBuild();
+      tryHomeScreenApply();
+    });
     return () => {
       window.removeEventListener(WEB_BUILD_STALE_EVENT, markStale);
       unbind();

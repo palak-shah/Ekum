@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-25 (QA ten)  
+**Updated:** 2026-09-25 (login phone type)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -12,6 +12,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Notifications | Accuracy: tap mark-read, badge scope, who/what copy, deep links + push path | Works | Unit + Functional | Required | Completeness 2026-09-14-notifications-accuracy; return→order; SW `url` |
 | Auth | Stay signed in until Logout (10y sliding refresh) | Works | Unit-only | Required | Completeness 2026-08-31-stay-signed-in; OTP only Logout / wipe / INVALID_TOKEN; local clear before revoke |
 | Auth | Login logo + tagline + form in one horizontal teal-gradient box | Works | Visual | Optional | Completeness 2026-09-24-login-teal-form-box; tagline “Textile trade, organised.” |
+| Auth | Login mobile field accepts typing on iOS Home Screen | Works | Unit | Required | Completeness 2026-09-25-login-phone-type; no page-load autofocus; HS reload skips login / focused fields |
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
 | Chat | In-thread search scopes + stepper | Works | Functional | Required | Green 2026-08-24: All/Photos/Collections/Designs/Orders |
 | Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |
@@ -188,7 +189,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Catalog design upload | Works | Untested | Future | |
 | Media | Top-level Media tab | Rejected | — | Reject | |
 | Media | Upload failure UX | Partial | Untested | Recommended | |
-| Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; chunk-404 recovery Later |
+| Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
 | You / Settings | You: identity + library; Edit ≠ Share ≠ Settings; Settings domain cards (Business & Roles · Dispatch · Billing) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-identity-settings-domains + you-profile-settings + you-chrome-pairs; `/catalog` → You |
 | You / Shop | Find designs / collections in place (You library + shop) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-shop-catalog-search; on-demand icon 2026-09-24-collection-on-demand-find; shop first page only (G-001 Later) |
 | Collections | Album / list find (tags, design name, notes, SKU; not a permanent bar) | Works | Unit + Functional | Required | Completeness 2026-09-24-collection-on-demand-find |
