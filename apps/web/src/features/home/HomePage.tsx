@@ -243,12 +243,6 @@ export function HomePage() {
         <h1 className="text-[1.55rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </h1>
-        <p
-          className="rounded-lg bg-tangerine/15 px-2.5 py-1.5 text-sm font-semibold text-warning-ink"
-          data-testid="reload-check-banner"
-        >
-          Reload check · 25 Sep · if you see this, Load worked
-        </p>
         {hasNeeds ? (
           <p className="text-[15px] font-medium leading-snug text-accent">
             {needs.length === 1

@@ -91,7 +91,7 @@ export function LoginPage() {
         <div className="-mt-1 flex flex-col items-center gap-2">
           <BrandMark size="login" />
           <p className="text-center text-sm font-medium tracking-tight text-white/90">
-            Textile trade, organised. · reload check
+            Textile trade, organised.
           </p>
         </div>
 

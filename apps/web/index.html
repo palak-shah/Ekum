@@ -39,7 +39,7 @@
     <meta name="twitter:image" content="%VITE_PUBLIC_ORIGIN%/brand/app-icon-512.png" />
 
     <meta name="ekum-web-build" content="%VITE_WEB_BUILD%" />
-    <title>Ekum · reload check</title>
+    <title>Ekum</title>
   </head>
   <body>
     <div id="root"></div>
@@ -58,7 +58,11 @@
               });
             })
             .then(function (data) {
-              if (!data || !data.build || data.build === local) return;
+              if (!data || !data.build) return;
+              if (data.build === local) {
+                window.__ekumWebBuildStale = false;
+                return;
+              }
               window.__ekumWebBuildStale = true;
               window.dispatchEvent(new CustomEvent('ekum:web-build-stale'));
               var home =

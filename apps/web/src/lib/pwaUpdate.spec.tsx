@@ -14,6 +14,7 @@ import {
   bindUpdateRechecks,
   isStandaloneDisplay,
   peekWebBuildStaleFlag,
+  setWebBuildStaleFlag,
   notifyIfServiceWorkerWaiting,
   refreshServiceWorker,
   remoteWebBuildIsNewer,
@@ -74,6 +75,10 @@ describe('notifyIfServiceWorkerWaiting', () => {
   it('fires when a worker is already waiting (Home Screen update)', () => {
     const onWaiting = vi.fn();
     const waiting = { state: 'installed', addEventListener: vi.fn() };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { controller: {} },
+    });
     notifyIfServiceWorkerWaiting(
       {
         waiting,
@@ -83,6 +88,23 @@ describe('notifyIfServiceWorkerWaiting', () => {
       onWaiting,
     );
     expect(onWaiting).toHaveBeenCalled();
+  });
+
+  it('does not treat a controlling worker as a new version', () => {
+    const onWaiting = vi.fn();
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { controller: null },
+    });
+    notifyIfServiceWorkerWaiting(
+      {
+        waiting: { state: 'installed', addEventListener: vi.fn() },
+        installing: null,
+        addEventListener: vi.fn(),
+      } as unknown as ServiceWorkerRegistration,
+      onWaiting,
+    );
+    expect(onWaiting).not.toHaveBeenCalled();
   });
 });
 
@@ -133,6 +155,7 @@ describe('applyPwaUpdateLoad', () => {
     });
     expect(updateServiceWorker).toHaveBeenCalledWith(true);
     expect(reload).not.toHaveBeenCalled();
+    expect(peekWebBuildStaleFlag()).toBe(false);
   });
 
   it('reloads the page when only the build id is stale', () => {
@@ -154,6 +177,8 @@ describe('peekWebBuildStaleFlag', () => {
     const bag = window as Window & { [WEB_BUILD_STALE_FLAG]?: boolean };
     bag[WEB_BUILD_STALE_FLAG] = true;
     expect(peekWebBuildStaleFlag()).toBe(true);
+    setWebBuildStaleFlag(false);
+    expect(peekWebBuildStaleFlag()).toBe(false);
     delete bag[WEB_BUILD_STALE_FLAG];
   });
 });

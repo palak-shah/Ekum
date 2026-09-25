@@ -10,8 +10,17 @@ export const WEB_BUILD_STALE_EVENT = 'ekum:web-build-stale';
 export const WEB_BUILD_STALE_FLAG = '__ekumWebBuildStale';
 
 export function peekWebBuildStaleFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    (window as Window & { [WEB_BUILD_STALE_FLAG]?: boolean })[WEB_BUILD_STALE_FLAG] === true
+  );
+}
+
+export function setWebBuildStaleFlag(stale: boolean): void {
+  if (typeof window === 'undefined') return;
   const bag = window as Window & { [WEB_BUILD_STALE_FLAG]?: boolean };
-  return bag[WEB_BUILD_STALE_FLAG] === true;
+  if (stale) bag[WEB_BUILD_STALE_FLAG] = true;
+  else delete bag[WEB_BUILD_STALE_FLAG];
 }
 
 export const HS_RELOAD_KEY = 'ekum-hs-reload';
@@ -75,9 +84,11 @@ export function applyPwaUpdateLoad(input: {
   reload: () => void;
 }): void {
   if (input.needRefresh || input.swWaiting) {
+    setWebBuildStaleFlag(false);
     input.updateServiceWorker(true);
     return;
   }
+  setWebBuildStaleFlag(false);
   input.reload();
 }
 
@@ -141,26 +152,12 @@ export function isStandaloneDisplay(): boolean {
   return Boolean(window.matchMedia?.('(display-mode: standalone)')?.matches);
 }
 
+/** A waiting worker means a *new* build is ready — not the one already in charge. */
 export function notifyIfServiceWorkerWaiting(
   registration: ServiceWorkerRegistration,
   onWaiting: () => void,
 ): void {
-  if (registration.waiting) onWaiting();
-  const track = (worker: ServiceWorker | null) => {
-    if (!worker) return;
-    const onState = () => {
-      if (worker.state === 'installed' && navigator.serviceWorker?.controller) {
-        onWaiting();
-      }
-    };
-    worker.addEventListener('statechange', onState);
-    onState();
-  };
-  track(registration.installing);
-  track(registration.waiting);
-  registration.addEventListener('updatefound', () => {
-    track(registration.installing);
-  });
+  if (registration.waiting && navigator.serviceWorker?.controller) onWaiting();
 }
 
 export function bindUpdateRechecks(check: () => void): () => void {
@@ -232,11 +229,19 @@ export function PwaUpdateHost() {
   });
 
   useEffect(() => {
-    const markStale = () => setBuildStale(true);
+    const markStale = () => {
+      setWebBuildStaleFlag(true);
+      setBuildStale(true);
+    };
+    const markCurrent = () => {
+      setWebBuildStaleFlag(false);
+      setBuildStale(false);
+    };
     if (peekWebBuildStaleFlag()) markStale();
     const checkBuild = () => {
       void remoteWebBuildIsNewer().then((newer) => {
         if (newer) markStale();
+        else markCurrent();
       });
     };
     const tryHomeScreenApply = () => {
@@ -264,18 +269,6 @@ export function PwaUpdateHost() {
     return () => {
       window.removeEventListener(WEB_BUILD_STALE_EVENT, markStale);
       unbind();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
-    const onControllerChange = () => setSwWaiting(true);
-    void navigator.serviceWorker.ready.then(() => {
-      if (!navigator.serviceWorker.controller) return;
-      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-    });
-    return () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);
 
