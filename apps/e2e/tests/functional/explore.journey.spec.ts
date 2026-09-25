@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsMeena } from '../../helpers/persona';
+import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
 test.describe('explore journey @functional @explore', () => {
   test('browse seeded content, dismiss filter, open collection', async ({ page }) => {
@@ -35,5 +35,20 @@ test.describe('explore journey @functional @explore', () => {
       await page.getByText(/Wedding Edit/i).first().click();
     }
     await expect(page).toHaveURL(/\/collections\//, { timeout: 10_000 });
+  });
+
+  test('design Ask / Order dock is visitor-only (owner never sees it)', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/explore/products/seed-prod-1');
+    await expect(page.getByTestId('explore-product-trade-dock')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Ask for rates' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Order' })).toBeVisible();
+
+    await loginAsRavi(page);
+    await page.goto('/explore/products/seed-prod-1');
+    await expect(page.getByRole('heading', { name: /Banarasi/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('explore-product-trade-dock')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Ask for rates' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Order' })).toHaveCount(0);
   });
 });

@@ -47,6 +47,7 @@ export function PwaUpdateHost() {
       const check = () => {
         void registration.update();
       };
+      check();
       const onVisible = () => {
         if (document.visibilityState === 'visible') check();
       };

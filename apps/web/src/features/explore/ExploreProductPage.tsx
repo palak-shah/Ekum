@@ -27,12 +27,12 @@ import { formatRate } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useMyCompany } from '@/lib/queries';
-import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { useToast } from '@/ui/Toast';
 import { Button, ErrorState, LoadingBlock, Tag, cx } from '@/ui/kit';
 import { CompanyRow } from '@/ui/cards';
+import { exploreProductTradeDock } from './exploreProductChrome';
 
 export function ExploreProductPage() {
   const { id = '' } = useParams();
@@ -53,7 +53,6 @@ export function ExploreProductPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const me = useMyCompany();
-  const { selling, trading } = useTradePresence();
   const shortlist = useBrowseShortlist();
   const [qtyOpen, setQtyOpen] = useState(false);
   const [curateOpen, setCurateOpen] = useState(false);
@@ -142,7 +141,10 @@ export function ExploreProductPage() {
   const preview = product.data;
   const previewOwner = Boolean(me.data?.id && preview && me.data.id === preview.company.id);
   usePageOwnsBottomBand(
-    Boolean(preview?.visible && (!previewOwner || selling || trading)),
+    exploreProductTradeDock({
+      visitor: !previewOwner,
+      visible: Boolean(preview?.visible),
+    }),
   );
 
   if (product.isLoading) {
@@ -160,8 +162,8 @@ export function ExploreProductPage() {
   const data = product.data;
   const notes = data.description?.trim();
   const isOwner = Boolean(me.data?.id && me.data.id === data.company.id);
-  const canTrade = data.visible && (!isOwner || selling || trading);
-  const canCurate = data.visible && !isOwner;
+  const canTrade = exploreProductTradeDock({ visitor: !isOwner, visible: data.visible });
+  const canCurate = canTrade;
   const orderProduct = {
     id: data.id,
     name: data.name,
@@ -282,7 +284,10 @@ export function ExploreProductPage() {
       <CompanyRow company={data.company} to={`/company/${data.company.id}`} plain />
 
       {canTrade || canCurate ? (
-        <div className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur">
+        <div
+          data-testid="explore-product-trade-dock"
+          className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur"
+        >
           {canCurate ? (
             <Button variant="secondary" fullWidth onClick={openCurate}>
               Curate

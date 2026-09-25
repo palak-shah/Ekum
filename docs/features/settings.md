@@ -18,7 +18,7 @@ Every signed-in company owner/operator in Phase 1.
 
 ### App update (installed / PWA)
 
-When a new build is on the server, a quiet top pill appears: **New version** · **Load**. Tap reloads into the new build. The tab does **not** reload by itself (so a half-typed quote or order stays). There is no dismiss — skip is how the old app breaks. Local `vite dev` has no service worker, so the pill does not appear there.
+When a **new web build** is on the server, a quiet top pill appears: **New version** · **Load**. Tap reloads into the new build. The tab does **not** reload by itself (so a half-typed quote or order stays). There is no dismiss — skip is how the old app breaks. An API-only deploy does not show the pill. Local `vite dev` has no service worker, so the pill does not appear there. `sw.js` / `index.html` are not cached (nginx). The tab rechecks on open, when it comes to the front, and every 30 minutes.
 
 ### Settings (`/settings`)
 
