@@ -24,7 +24,7 @@
 1. **Existing patterns?** Route error page + kit Field / TextArea / Button.  
 2. **Duplicates another feature?** Debug API panel stays `ekum.debug` only.  
 3. **Should reuse an existing workflow?** Copy button like share fallback.  
-4. **Naming matches the app?** “Send this to Ekum” — not “stack trace”.
+4. **Naming matches the app?** “What broke” — not “stack trace”, not a send action.
 
 **Philosophy conflict?** No
 

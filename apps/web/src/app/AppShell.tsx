@@ -16,6 +16,7 @@ import {
   shopSelectedCount,
 } from '@/features/company/shopTradeDock';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
+import { createFabIntent } from './createFabIntent';
 import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
 import { YouHeaderMore } from '@/features/settings/YouHeaderMore';
 import {
@@ -96,6 +97,12 @@ export function AppShell() {
   const chatUnreadCount = chatUnread.data?.count ?? 0;
   const { buying, selling } = useTradePresence();
   const { can } = useTeamCaps();
+  const fabIntent = createFabIntent({
+    selling,
+    buying,
+    canUploads: can('uploads'),
+    canOrders: can('orders'),
+  });
   const title = shellTitle(location.pathname);
   const isHome = location.pathname === '/';
   const ownsTopChrome = pageOwnsTopChrome(location.pathname);
@@ -221,17 +228,11 @@ export function AppShell() {
           />
         ))}
         <button
+          type="button"
+          data-testid="app-create-fab"
           aria-label="Create"
           className="mb-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white"
-          onClick={() => {
-            if (selling && can('uploads')) {
-              setSheetOpen(true);
-              return;
-            }
-            if (buying && can('orders')) {
-              navigate('/orders');
-            }
-          }}
+          onClick={() => setSheetOpen(true)}
         >
           <PlusIcon width={26} height={26} />
         </button>
@@ -242,21 +243,24 @@ export function AppShell() {
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
         <div className="flex flex-col gap-2">
-          {selling ? (
+          {fabIntent === 'new-sheet' ? (
             <>
-              {can('uploads') ? (
-                <>
-                  <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
-                    Add designs
-                  </Button>
-                  <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
-                    New collection
-                  </Button>
-                </>
-              ) : null}
-              {/* Curate lives on Your selection (and Saved select) — not a ＋ create action. */}
+              <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
+                Add designs
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
+                New collection
+              </Button>
             </>
-          ) : null}
+          ) : fabIntent === 'orders' ? (
+            <Button variant="secondary" fullWidth onClick={() => go('/orders')}>
+              Orders
+            </Button>
+          ) : (
+            <p className="text-sm text-muted">
+              This login cannot add designs or start an order from here. Ask the owner on Team.
+            </p>
+          )}
         </div>
       </Sheet>
     </div>

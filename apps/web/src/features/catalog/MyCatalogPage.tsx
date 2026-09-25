@@ -612,7 +612,7 @@ export function MyCatalogPage({
             />
           </div>
         ) : null}
-        {youSaved ? null : selecting ? (
+        {selecting && !youSaved ? (
           <button
             type="button"
             className="ml-auto text-sm font-semibold text-accent"

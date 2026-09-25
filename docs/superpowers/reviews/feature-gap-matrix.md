@@ -13,7 +13,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Auth | Stay signed in until Logout (10y sliding refresh) | Works | Unit-only | Required | Completeness 2026-08-31-stay-signed-in; OTP only Logout / wipe / INVALID_TOKEN; HS update must not drop caches (wipes iOS tokens) |
 | Auth | Login logo + tagline + form in one horizontal teal-gradient box | Works | Visual | Optional | Completeness 2026-09-24-login-teal-form-box; tagline “Textile trade, organised.” |
 | Auth | Login mobile field accepts typing on iOS Home Screen | Works | Unit | Required | Completeness 2026-09-25-login-phone-type; no page-load autofocus; HS reload skips login / focused fields |
-| Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; Send this to Ekum |
+| Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; What broke + Copy |
+| Platform | Nav ＋ never a dead tap | Works | Unit | Required | Completeness 2026-09-25-create-fab-dead-tap; You ＋ stays on Saved |
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
 | Chat | In-thread search scopes + stepper | Works | Functional | Required | Green 2026-08-24: All/Photos/Collections/Designs/Orders |
 | Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |

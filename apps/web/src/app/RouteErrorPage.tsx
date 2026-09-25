@@ -31,7 +31,7 @@ function RouteErrorView({
       <div className="flex flex-1 flex-col justify-center gap-4 py-8">
         <ErrorState message={message} />
         {detail ? (
-          <Field label="Send this to Ekum" hint="Copy or screenshot — this is the real error.">
+          <Field label="What broke" hint="Copy this if you need help. Nothing is sent by itself.">
             <TextArea
               readOnly
               value={detail}
