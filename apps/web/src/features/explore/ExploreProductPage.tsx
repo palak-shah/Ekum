@@ -284,7 +284,6 @@ export function ExploreProductPage() {
       <CompanyRow
         company={data.company}
         to={isOwner ? undefined : `/company/${data.company.id}`}
-        relevance={isOwner ? 'Your design' : undefined}
         plain
       />
 

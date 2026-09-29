@@ -36,7 +36,11 @@ import { VisibilityService } from '../access/visibility.service';
 import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
 import { ThreadService } from './thread.service';
 import { ConversationSerializer } from './conversation.serializer';
-import { ReferenceResolver } from './reference-resolver';
+import {
+  COMPLAINT_CARD_SELECT,
+  complaintMessageSnapshot,
+  ReferenceResolver,
+} from './reference-resolver';
 import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { assertActiveCompany } from '../auth/require-permission';
@@ -87,10 +91,26 @@ export class MessageService {
       dto.type === MessageType.DesignAlbum
         ? designAlbumCaption(designIds.length)
         : (dto.body ?? null);
+    const complaintSnap =
+      dto.type === MessageType.Complaint && dto.referenceId
+        ? complaintMessageSnapshot(
+            await this.prisma.complaint.findUnique({
+              where: { id: dto.referenceId },
+              select: COMPLAINT_CARD_SELECT,
+            }),
+          )
+        : {};
+    const mentionMeta =
+      mentionWork.metadata && typeof mentionWork.metadata === 'object'
+        ? (mentionWork.metadata as Record<string, unknown>)
+        : {};
+    const mergedMeta = { ...mentionMeta, ...complaintSnap };
     const metadata = this.withReplyPhotoIndex(
       dto.type === MessageType.DesignAlbum
         ? { productIds: designIds }
-        : mentionWork.metadata,
+        : Object.keys(mergedMeta).length > 0
+          ? mergedMeta
+          : mentionWork.metadata,
       dto.replyToPhotoIndex,
     );
 
@@ -226,6 +246,8 @@ export class MessageService {
           { body: { contains: 'www.', mode: 'insensitive' } },
         ],
       });
+    } else if (view === 'complaints') {
+      clauses.push({ type: MessageType.Complaint });
     } else if (view === 'orders') {
       clauses.push({
         OR: [
@@ -670,6 +692,20 @@ export class MessageService {
       if (isHeldFromSupplier(order, actorCompanyId)) {
         throw this.invalidReference();
       }
+    } else if (dto.type === MessageType.Complaint) {
+      const complaint = await this.prisma.complaint.findFirst({
+        where: {
+          id: dto.referenceId,
+          OR: [
+            { raisedByCompanyId: actorCompanyId },
+            { againstCompanyId: actorCompanyId },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!complaint) {
+        throw this.invalidReference();
+      }
     }
   }
 
@@ -1036,6 +1072,8 @@ function findKindWhere(kind: CrossChatFindKind): Prisma.MessageWhereInput {
       return { type: MessageType.CollectionCard };
     case 'designs':
       return { type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] } };
+    case 'complaints':
+      return { type: MessageType.Complaint };
     case 'links':
       return {
         type: MessageType.Text,

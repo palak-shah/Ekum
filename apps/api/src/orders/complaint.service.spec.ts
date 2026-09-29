@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ComplaintStatus } from '@ekum/domain-types';
 import { ComplaintService } from './complaint.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
@@ -26,7 +31,11 @@ describe('ComplaintService', () => {
     } as unknown as OrderSerializer;
     const service = new ComplaintService(prisma, serializer);
 
-    await service.create('buyer', { orderId: 'ord-1', subject: 'Wrong colour' });
+    await service.create('buyer', {
+      againstCompanyId: 'seller',
+      orderId: 'ord-1',
+      subject: 'Wrong colour',
+    });
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -52,7 +61,11 @@ describe('ComplaintService', () => {
       toComplaintView: (r: unknown) => r,
     } as unknown as OrderSerializer);
     await expect(
-      service.create('stranger', { orderId: 'ord-1', subject: 'X' }),
+      service.create('stranger', {
+        againstCompanyId: 'seller',
+        orderId: 'ord-1',
+        subject: 'X',
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -100,6 +113,51 @@ describe('ComplaintService', () => {
         data: expect.objectContaining({ status: ComplaintStatus.Resolved }),
       }),
     );
+  });
+
+  it('creates without an order against the named shop', async () => {
+    const create = vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+      id: 'cmp-2',
+      ...data,
+    }));
+    const prisma = {
+      complaint: { create },
+    } as unknown as PrismaService;
+    const service = new ComplaintService(prisma, {
+      toComplaintView: (row: unknown) => row,
+    } as unknown as OrderSerializer);
+    await service.create('buyer', { againstCompanyId: 'seller', subject: 'Late lot' });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: null,
+          againstCompanyId: 'seller',
+          images: [],
+        }),
+      }),
+    );
+  });
+
+  it('rejects an order that is not with the named shop', async () => {
+    const prisma = {
+      order: {
+        findUnique: async () => ({
+          id: 'ord-1',
+          buyerCompanyId: 'buyer',
+          sellerCompanyId: 'other',
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new ComplaintService(prisma, {
+      toComplaintView: (r: unknown) => r,
+    } as unknown as OrderSerializer);
+    await expect(
+      service.create('buyer', {
+        againstCompanyId: 'seller',
+        orderId: 'ord-1',
+        subject: 'X',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects resolving an already resolved complaint', async () => {

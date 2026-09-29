@@ -162,7 +162,7 @@ export type ExplorePost =
 /** Company-led collection opportunity for Explore sections. */
 export interface ExploreOpportunity {
   collection: CollectionCard;
-  /** One sparse line: Connected · GST verified · Matches Sarees (or city). */
+  /** Ranking only. Not shown as the shop subtitle. */
   relevance: string | null;
 }
 

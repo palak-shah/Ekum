@@ -45,6 +45,8 @@ import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
+import { GstTick, isGstVerified } from '@/ui/GstTick';
+import { shopIdentityLine, shopSellCategories } from '@/ui/shopIdentity';
 import { Avatar, Button, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
@@ -318,6 +320,7 @@ export function CompanyProfilePage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={company.name}
+        titleEnd={isGstVerified(company.verification) ? <GstTick /> : null}
         action={
           <div className="flex items-center gap-0.5">
             {hasShop ? (
@@ -369,12 +372,9 @@ export function CompanyProfilePage() {
               {contact.role ? ` ${contact.role}` : ''}
             </p>
           ) : null}
-          <p className="text-sm text-muted">{company.city}</p>
-          {company.verification === 'gst_verified' ? (
-            <div className="mt-1">
-              <Tag tone="success">GST verified</Tag>
-            </div>
-          ) : null}
+          <p className="text-sm text-muted" data-testid="shop-identity">
+            {shopIdentityLine(company.city, shopSellCategories(company)) || company.city}
+          </p>
           {company.about ? <p className="mt-2 text-sm text-ink">{company.about}</p> : null}
           {company.categories.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5">

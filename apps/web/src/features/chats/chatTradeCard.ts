@@ -6,7 +6,7 @@ import {
 import { inCardSenderLine } from './messagePreview';
 import { buildOrderCardCopy, type OrderCardCopy } from './orderCardCopy';
 
-export type ChatTradeCardKind = 'order' | 'quote' | 'collection' | 'design' | 'designs';
+export type ChatTradeCardKind = 'order' | 'quote' | 'collection' | 'design' | 'designs' | 'complaint';
 
 export type ChatTradeCardActionStyle = 'link' | 'primary' | 'solid';
 
@@ -30,6 +30,8 @@ export interface ChatTradeCardModel {
   details: string[];
   thumbs: string[];
   thumbOverflow?: number;
+  /** PhotoViewer captions aligned with `thumbs` (design names). */
+  thumbCaptions?: Array<string | null>;
   /** Gated catalog teaser — blur thumbs; no PhotoViewer. */
   imagesLocked?: boolean;
   action?: ChatTradeCardAction;
@@ -105,6 +107,44 @@ export function isRedundantActionDetail(detail: string, primary: string): boolea
     }
   }
   return false;
+}
+
+function complaintMeta(message: MessageView): Record<string, unknown> {
+  return message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
+    ? (message.metadata as Record<string, unknown>)
+    : {};
+}
+
+/** Complaint cards never show Order # / Inquiry # — designs + date, or nothing. */
+export function complaintCardOrderLine(label: string | null | undefined): string | null {
+  const text = label?.trim() || '';
+  if (!text) return null;
+  if (/^(Order|Inquiry)\s+#/i.test(text)) return null;
+  return text;
+}
+
+export function complaintCardFromMessage(
+  message: MessageView,
+  ref: MessageReference | null | undefined,
+): { orderLine: string | null; detail: string; images: string[]; productIds: string[] } {
+  const meta = complaintMeta(message);
+  const orderLine = complaintCardOrderLine(ref?.orderLabel ?? null)
+    ?? complaintCardOrderLine(typeof meta.orderLabel === 'string' ? meta.orderLabel : null);
+  const detail = (ref?.detail?.trim() || (typeof meta.detail === 'string' ? meta.detail.trim() : '')) || '';
+  const metaImages = Array.isArray(meta.images)
+    ? meta.images.filter((url): url is string => typeof url === 'string' && Boolean(url.trim()))
+    : [];
+  const refImages = [
+    ...(ref?.images ?? []),
+    ref?.image,
+    ...metaImages,
+  ].filter((url): url is string => Boolean(url?.trim()));
+  const images = [...new Set(refImages)];
+  const metaIds = Array.isArray(meta.productIds)
+    ? meta.productIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
+    : [];
+  const productIds = ref?.productIds && ref.productIds.length > 0 ? ref.productIds : metaIds;
+  return { orderLine, detail, images, productIds };
 }
 
 function resolveThumbs(ref: MessageReference | null | undefined): {
@@ -408,6 +448,36 @@ export function buildChatTradeCard(
   }
   if (message.type === 'design_album') {
     return buildDesignSetTradeCard(message, ref, senderLabel, options.actions);
+  }
+  if (message.type === 'complaint') {
+    const card = complaintCardFromMessage(message, ref);
+    const { thumbs, overflow } = resolveThumbs({
+      ...ref,
+      images: card.images,
+      image: card.images[0] ?? ref?.image ?? null,
+    } as MessageReference);
+    const thumbCaptions = thumbs.map((url) => {
+      const hit = ref?.designItems?.find((item) => item.image === url);
+      return hit?.name?.trim() || null;
+    });
+    return {
+      kind: 'complaint',
+      primary: ref?.name?.trim() || message.body?.trim() || 'Complaint',
+      who: catalogWhoLine(message, senderLabel, ref),
+      details: card.orderLine ? [card.orderLine] : [],
+      note: card.detail || undefined,
+      thumbs,
+      thumbOverflow: overflow,
+      thumbCaptions,
+      action:
+        card.productIds.length > 0 && options.actions?.designsPath
+          ? { label: 'View designs →', to: options.actions.designsPath, style: 'link' }
+          : undefined,
+      createdAt: message.createdAt,
+      mine: message.mine,
+      variant: 'bubble',
+      orderId: undefined,
+    };
   }
   return null;
 }

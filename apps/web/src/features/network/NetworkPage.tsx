@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { I_SEE_THEIRS, THEY_SEE_MINE } from './networkSeeLabels';
@@ -16,6 +16,7 @@ const TRADE_LINKS = [
 ] as const;
 
 export function NetworkPage() {
+  const navigate = useNavigate();
   const { selling, canPublish } = useTradePresence();
 
   const links = [
@@ -34,10 +35,7 @@ export function NetworkPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Network" />
-      <p className="text-sm text-muted">
-        Who you trade with, who sees collections, and invites between businesses.
-      </p>
+      <PageHeader title="Network" onBack={() => navigate('/more')} />
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         {links.map((item) => (
           <Link

@@ -45,6 +45,7 @@ export function kindToneForChatKind(kind: ChatObjectKind | string | null | undef
     case 'order':
     case 'quote':
     case 'payment':
+    case 'complaint':
       return 'order';
     case 'collection':
       return 'collection';
@@ -62,6 +63,8 @@ export function kindToneForMessageType(type: string | null | undefined): KindTon
     case 'order_card':
     case 'rate':
     case 'payment_card':
+    case 'complaint':
+    case 'complaints':
       return 'order';
     case 'collection_card':
     case 'collections':

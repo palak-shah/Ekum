@@ -50,8 +50,9 @@ export class ReferenceResolver {
       ...this.orderLineSystemIds(messages),
     ];
     const paymentIds = this.idsFor(messages, MessageType.PaymentCard);
+    const complaintIds = this.idsFor(messages, MessageType.Complaint);
 
-    const [products, collections, orders, payments] = await Promise.all([
+    const [products, collections, orders, payments, complaints] = await Promise.all([
       uniqueProductIds.length
         ? this.prisma.product.findMany({
             where: { id: { in: uniqueProductIds } },
@@ -126,12 +127,19 @@ export class ReferenceResolver {
             },
           })
         : Promise.resolve([]),
+      complaintIds.length
+        ? this.prisma.complaint.findMany({
+            where: { id: { in: complaintIds } },
+            select: COMPLAINT_CARD_SELECT,
+          })
+        : Promise.resolve([]),
     ]);
 
     const productById = new Map(products.map((product) => [product.id, product]));
     const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
     const orderById = new Map(orders.map((order) => [order.id, order]));
     const paymentById = new Map(payments.map((row) => [row.id, row]));
+    const complaintById = new Map(complaints.map((row) => [row.id, row]));
 
     const audienceCtxByOwner = await this.audienceContextByOwner(viewerCompanyId, [
       ...products.map((row) => row.companyId),
@@ -282,6 +290,22 @@ export class ReferenceResolver {
           status,
           totalLabel: amountLabel,
           orderLabel: resolvedOrderLabel,
+        });
+      } else if (message.type === MessageType.Complaint) {
+        const row = complaintById.get(message.referenceId);
+        const media = complaintCardMedia(row);
+        references.set(message.id, {
+          kind: 'complaint',
+          id: message.referenceId,
+          name: row?.subject ?? message.body?.trim() ?? 'Complaint',
+          image: media.images[0] ?? null,
+          images: media.images.length > 0 ? media.images : null,
+          detail: row?.detail?.trim() || null,
+          productIds: media.productIds.length > 0 ? media.productIds : null,
+          designItems: media.designItems.length > 0 ? media.designItems : null,
+          itemCount: media.images.length > 0 ? media.images.length : null,
+          available: Boolean(row),
+          orderLabel: complaintCardOrderLine(complaintAttachedOrderCue(row?.order)),
         });
       } else if (
         message.type === MessageType.OrderCard ||
@@ -542,4 +566,131 @@ export class ReferenceResolver {
       .filter((message) => this.isOrderLineSystem(message))
       .map((message) => message.referenceId as string);
   }
+}
+
+export const COMPLAINT_CARD_SELECT = {
+  id: true,
+  subject: true,
+  detail: true,
+  images: true,
+  orderId: true,
+  order: {
+    select: {
+      createdAt: true,
+      items: {
+        select: {
+          name: true,
+          image: true,
+          images: true,
+          productId: true,
+        },
+      },
+    },
+  },
+} as const;
+
+type ComplaintOrderLine = {
+  name: string | null;
+  image?: string | null;
+  images?: string[] | null;
+  productId?: string | null;
+};
+
+type ComplaintOrderCue = {
+  createdAt: Date;
+  items: ComplaintOrderLine[];
+};
+
+/** Form photos first, then attached order design shots (unique). */
+export function complaintCardMedia(
+  row:
+    | {
+        images?: string[] | null;
+        order?: ComplaintOrderCue | null;
+      }
+    | null
+    | undefined,
+): {
+  images: string[];
+  productIds: string[];
+  designItems: Array<{ id: string; name: string; image: string | null }>;
+} {
+  const form = (row?.images ?? []).map((url) => url.trim()).filter(Boolean);
+  const designItems: Array<{ id: string; name: string; image: string | null }> = [];
+  const productIds: string[] = [];
+  const orderImages: string[] = [];
+  for (const item of row?.order?.items ?? []) {
+    const urls =
+      item.images && item.images.length > 0
+        ? item.images.filter((url): url is string => Boolean(url?.trim()))
+        : item.image
+          ? [item.image]
+          : [];
+    const image = urls[0] ?? null;
+    const productId = item.productId?.trim();
+    if (productId) {
+      productIds.push(productId);
+      designItems.push({
+        id: productId,
+        name: item.name?.trim() || 'Design',
+        image,
+      });
+    }
+    for (const url of urls) {
+      if (url && !orderImages.includes(url)) orderImages.push(url);
+    }
+  }
+  const images = [...form];
+  for (const url of orderImages) {
+    if (!images.includes(url)) images.push(url);
+  }
+  return { images, productIds, designItems };
+}
+
+/** Drop frozen Order # / Inquiry # — complaint cards name designs + date. */
+export function complaintCardOrderLine(label: string | null | undefined): string | null {
+  const text = label?.trim() || '';
+  if (!text) return null;
+  if (/^(Order|Inquiry)\s+#/i.test(text)) return null;
+  return text;
+}
+
+export function complaintMessageSnapshot(row: {
+  detail?: string | null;
+  images?: string[] | null;
+  order?: ComplaintOrderCue | null;
+} | null): Record<string, unknown> {
+  if (!row) return {};
+  const media = complaintCardMedia(row);
+  const orderLabel = complaintCardOrderLine(complaintAttachedOrderCue(row.order));
+  const detail = row.detail?.trim() || '';
+  return {
+    ...(detail ? { detail } : {}),
+    ...(orderLabel ? { orderLabel } : {}),
+    ...(media.images.length > 0 ? { images: media.images } : {}),
+    ...(media.productIds.length > 0 ? { productIds: media.productIds } : {}),
+  };
+}
+
+/** Visible cue on a complaint card — designs and date, not the hash. */
+export function complaintAttachedOrderCue(
+  order: ComplaintOrderCue | null | undefined,
+): string | null {
+  if (!order) return null;
+  const names = order.items.map((item) => item.name?.trim()).filter(Boolean) as string[];
+  const shown = names.slice(0, 2);
+  const extra = names.length - shown.length;
+  const designs =
+    shown.length === 0
+      ? order.items.length > 0
+        ? `${order.items.length} design${order.items.length === 1 ? '' : 's'}`
+        : 'This order'
+      : extra > 0
+        ? `${shown.join(' · ')} +${extra}`
+        : shown.join(' · ');
+  const when = order.createdAt.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  });
+  return `${designs} · ${when}`;
 }

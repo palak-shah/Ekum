@@ -29,6 +29,7 @@ describe('CompanySerializer contact protection', () => {
     const summary = serializer.toPublicSummary(company);
     expect(JSON.stringify(profile)).not.toMatch(/phone/i);
     expect(JSON.stringify(summary)).not.toMatch(/phone/i);
+    expect(summary.sellCategories).toEqual(['Sarees']);
   });
 
   const membership = (over: Partial<CompanyMembership>) =>

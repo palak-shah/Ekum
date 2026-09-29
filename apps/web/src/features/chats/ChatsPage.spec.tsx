@@ -243,6 +243,10 @@ describe('ChatsPage In chats find', () => {
     expect(screen.getByTestId('chats-find-collections')).toBeInTheDocument();
     expect(screen.getByTestId('chats-find-designs')).toBeInTheDocument();
     expect(screen.getByTestId('chats-find-links')).toHaveAttribute('href', '/chats/find?kind=links');
+    expect(screen.getByTestId('chats-find-complaints')).toHaveAttribute(
+      'href',
+      '/chats/find?kind=complaints',
+    );
     expect(screen.queryByText('Orders')).toBeNull();
   });
 

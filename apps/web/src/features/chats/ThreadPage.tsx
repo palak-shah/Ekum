@@ -89,6 +89,7 @@ import {
   MoreHorizontalIcon,
   PlusIcon,
   ProductIcon,
+  ReturnIcon,
   SearchIcon,
   SendIcon,
 } from '@/ui/icons';
@@ -114,6 +115,7 @@ import {
 import { designSetPath } from '@/features/browse/designSetPath';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { ThreadForwardDock } from '@/features/chats/ThreadForwardDock';
+import { ThreadJumpToLatest } from '@/features/chats/ThreadJumpToLatest';
 import { ThreadSearchFilterMenu } from '@/features/chats/ThreadSearchFilterMenu';
 import {
   dedupeOrderThreadMessages,
@@ -129,6 +131,7 @@ import { MSG_BUBBLE_CLASS, messageChromeBubblePad, resolveMessageLongPress } fro
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
+import { ChatComplaintSheet } from './ChatComplaintSheet';
 import {
   highlightSearchText,
   searchHitIdsNewestFirst,
@@ -137,7 +140,12 @@ import {
 } from './threadMessageSearch';
 import { filterByAttachSearch } from './attachShareSearch';
 import { firstUnreadMessageId, unreadDividerLabel } from './threadOpenScroll';
-import { createStickLatch, isNearBottom, scrollListToBottom } from './threadStickScroll';
+import {
+  createStickLatch,
+  isNearBottom,
+  scrollListToBottom,
+  shouldShowJumpToLatest,
+} from './threadStickScroll';
 import { chatComposerHeightPx } from './chatComposerHeight';
 import { getChatDraft, setChatDraft } from './chatsDrafts';
 import { chatsInboxHref } from './chatsInboxFilter';
@@ -182,6 +190,7 @@ export function ThreadPage() {
   const [attachSelectedIds, setAttachSelectedIds] = useState<Set<string>>(() => new Set());
   const [attachSending, setAttachSending] = useState(false);
   const [attachSendError, setAttachSendError] = useState<string | null>(null);
+  const [complaintOpen, setComplaintOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<Set<string>>(() => new Set());
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -279,6 +288,7 @@ export function ThreadPage() {
   const highlightTimer = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const [awayFromEnd, setAwayFromEnd] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
   const documentRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLTextAreaElement>(null);
@@ -516,9 +526,30 @@ export function ThreadPage() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         stickLatch.endProgrammatic();
+        syncAwayFromEnd();
       });
     });
   };
+
+  const syncAwayFromEnd = () => {
+    const list = listRef.current;
+    if (!list) {
+      setAwayFromEnd(false);
+      return;
+    }
+    setAwayFromEnd(shouldShowJumpToLatest(list));
+  };
+
+  const jumpToLatest = () => {
+    stickLatch.pin();
+    setAwayFromEnd(false);
+    pinToBottom();
+  };
+
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(() => syncAwayFromEnd());
+    return () => cancelAnimationFrame(frame);
+  }, [id, lastMessageId, ordered.length, messages.isSuccess]);
 
   // One-shot open position (unread divider or newest). Independent of poll ticks.
   useEffect(() => {
@@ -537,7 +568,10 @@ export function ThreadPage() {
         pendingBottomScroll.current?.cancel();
         stickLatch.beginProgrammatic();
         target.scrollIntoView({ block: 'start' });
-        requestAnimationFrame(() => stickLatch.endProgrammatic());
+        requestAnimationFrame(() => {
+          stickLatch.endProgrammatic();
+          syncAwayFromEnd();
+        });
         openScrollDone.current = true;
         return;
       }
@@ -624,6 +658,7 @@ export function ThreadPage() {
         wheelArmed = false;
         stickLatch.setUserDriven(false);
       }
+      syncAwayFromEnd();
     };
 
     list.addEventListener('scroll', onScroll, { passive: true });
@@ -2097,10 +2132,12 @@ export function ThreadPage() {
         </div>
       ) : null}
 
+      <div className="relative min-h-0 flex-1 overflow-hidden">
       <div
         ref={listRef}
+        data-testid="thread-message-list"
         className={cx(
-          'ekum-no-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain',
+          'ekum-no-scrollbar absolute inset-0 space-y-2.5 overflow-y-auto overscroll-contain',
           canCompose ? 'pb-3' : 'pb-[calc(5rem+env(safe-area-inset-bottom))]',
         )}
       >
@@ -2331,6 +2368,8 @@ export function ThreadPage() {
                       ? 'No designs in this chat'
                       : searchOpen && searchView === 'orders'
                         ? 'No orders in this chat'
+                        : searchOpen && searchView === 'complaints'
+                          ? 'No complaints in this chat'
                         : searchOpen && searchView === 'links'
                           ? 'No links in this chat'
                         : searchOpen && searchView === 'starred'
@@ -2342,6 +2381,11 @@ export function ThreadPage() {
                               : 'Say hello.'}
           </p>
         )}
+      </div>
+      <ThreadJumpToLatest
+        visible={awayFromEnd && !selecting && ordered.length > 0}
+        onJump={jumpToLatest}
+      />
       </div>
 
       {error ? (
@@ -2663,7 +2707,22 @@ export function ThreadPage() {
                   iconClass: 'bg-kind-order-soft text-kind-order',
                   onPick: () => goAttachStep('order'),
                 },
-              ] as const
+                ...(detail.type !== 'group' && counterpartId
+                  ? [
+                      {
+                        id: 'complaint' as const,
+                        label: 'Complaint',
+                        subtitle: 'About this shop',
+                        Icon: ReturnIcon,
+                        iconClass: 'bg-kind-order-soft text-kind-order',
+                        onPick: () => {
+                          closeAttachSheet();
+                          setComplaintOpen(true);
+                        },
+                      },
+                    ]
+                  : []),
+              ]
             ).map(({ id, label, subtitle, Icon, iconClass, onPick }) => (
               <button
                 key={id}
@@ -2865,6 +2924,16 @@ export function ThreadPage() {
           </p>
         ) : null}
       </Sheet>
+
+      {detail.type !== 'group' && counterpartId && id ? (
+        <ChatComplaintSheet
+          open={complaintOpen}
+          onClose={() => setComplaintOpen(false)}
+          threadId={id}
+          shopName={detail.counterpart?.name?.trim() || 'this shop'}
+          againstCompanyId={counterpartId}
+        />
+      ) : null}
 
       <Sheet
         open={forwardQueue.length > 0}
@@ -3461,11 +3530,20 @@ function TimelineItem({
           sharePath,
         )
       : undefined;
+  const metaProductIds = Array.isArray(meta?.productIds)
+    ? meta.productIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
+    : [];
+  const designIds =
+    ref?.productIds && ref.productIds.length > 0
+      ? ref.productIds
+      : ref?.designItems && ref.designItems.length > 0
+        ? ref.designItems.map((d) => d.id)
+        : metaProductIds;
   const designsPath =
-    message.type === 'design_album' && ref?.available
-      ? designSetPath(ref.productIds ?? ref.designItems?.map((d) => d.id) ?? [], {
-          facilitator,
-        })
+    (message.type === 'design_album' || message.type === 'complaint') &&
+    designIds.length > 0 &&
+    (message.type === 'complaint' || ref?.available)
+      ? designSetPath(designIds, { facilitator })
       : undefined;
   const orderGoesTo = catalogOrderGoesToLine({
     path: sharePath,
@@ -3485,6 +3563,7 @@ function TimelineItem({
     message.type === 'product_card' ||
     message.type === 'design_album' ||
     message.type === 'payment_card' ||
+    message.type === 'complaint' ||
     isLegacyOrderNotice;
   const isOrderLikeCard =
     message.type === 'order_card' || message.type === 'rate' || isLegacyOrderNotice;

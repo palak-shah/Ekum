@@ -222,3 +222,28 @@ describe('ChatTradeCard direction surface rule', () => {
     expect(accept.className).toMatch(/text-white/);
   });
 });
+
+describe('ChatTradeCard complaint', () => {
+  it('shows More and opens the photo viewer on tap', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup();
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'complaint',
+            primary: 'Late lot',
+            details: ['Navy satin · 29 Sep'],
+            note: 'Qty short',
+            thumbs: ['https://img/a.jpg', 'https://img/navy.jpg'],
+            thumbCaptions: [null, 'Navy satin'],
+            noteVoiceUrl: null,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Qty short')).toBeInTheDocument();
+    expect(screen.getByText('Navy satin · 29 Sep')).toBeInTheDocument();
+    await user.click(screen.getByTestId('chat-trade-card'));
+    expect(screen.getByTestId('photo-viewer')).toBeInTheDocument();
+  });
+});

@@ -491,9 +491,11 @@ export type EscalateReturnDto = z.infer<typeof escalateReturnSchema>;
 // --- Complaints -------------------------------------------------------------
 
 export const createComplaintSchema = z.object({
-  orderId: z.string().min(1),
+  againstCompanyId: z.string().min(1),
+  orderId: z.string().min(1).optional(),
   subject: z.string().trim().min(1).max(160),
   detail: z.string().trim().max(2000).optional(),
+  images: z.array(z.string().trim().min(1).max(500)).max(9).optional(),
 });
 export type CreateComplaintDto = z.infer<typeof createComplaintSchema>;
 
@@ -713,10 +715,11 @@ export interface ReturnView {
 
 export interface ComplaintView {
   id: string;
-  orderId: string;
+  orderId: string | null;
   status: string;
   subject: string;
   detail: string | null;
+  images: string[];
   response: string | null;
   raisedByCompanyId: string;
   againstCompanyId: string;

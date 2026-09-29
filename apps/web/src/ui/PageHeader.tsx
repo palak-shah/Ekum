@@ -9,6 +9,7 @@ import { BackIcon } from './icons';
 export function PageHeader({
   title,
   subtitle,
+  titleEnd,
   titleTo,
   titleToState,
   action,
@@ -17,6 +18,8 @@ export function PageHeader({
 }: {
   title?: string;
   subtitle?: string;
+  /** Quiet mark after the title (GST tick). */
+  titleEnd?: ReactNode;
   /** When set, title + subtitle navigate here (e.g. company profile). */
   titleTo?: string;
   titleToState?: object;
@@ -29,7 +32,10 @@ export function PageHeader({
   const showTitle = Boolean(title?.trim());
   const identity = showTitle ? (
     <>
-      <h1 className="truncate text-[17px] font-semibold tracking-tight text-ink">{title}</h1>
+      <div className="flex min-w-0 items-center gap-1">
+        <h1 className="truncate text-[17px] font-semibold tracking-tight text-ink">{title}</h1>
+        {titleEnd}
+      </div>
       {subtitle ? <p className="truncate text-xs font-medium text-muted">{subtitle}</p> : null}
     </>
   ) : null;

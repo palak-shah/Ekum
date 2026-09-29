@@ -3,6 +3,7 @@ import {
   createStickLatch,
   isNearBottom,
   scrollListToBottom,
+  shouldShowJumpToLatest,
 } from './threadStickScroll';
 
 describe('isNearBottom', () => {
@@ -16,6 +17,26 @@ describe('isNearBottom', () => {
     expect(
       isNearBottom({ scrollHeight: 1000, scrollTop: 200, clientHeight: 100 }),
     ).toBe(false);
+  });
+});
+
+describe('shouldShowJumpToLatest', () => {
+  it('is hidden when the list does not overflow', () => {
+    expect(
+      shouldShowJumpToLatest({ scrollHeight: 200, scrollTop: 0, clientHeight: 200 }),
+    ).toBe(false);
+  });
+
+  it('is hidden at the newest messages', () => {
+    expect(
+      shouldShowJumpToLatest({ scrollHeight: 1000, scrollTop: 920, clientHeight: 100 }),
+    ).toBe(false);
+  });
+
+  it('is shown when reading older messages', () => {
+    expect(
+      shouldShowJumpToLatest({ scrollHeight: 1000, scrollTop: 200, clientHeight: 100 }),
+    ).toBe(true);
   });
 });
 

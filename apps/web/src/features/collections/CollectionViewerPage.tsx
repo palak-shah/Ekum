@@ -50,8 +50,8 @@ import {
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
-import { designCountLabel } from '@/ui/albumMosaic';
 import { PageHeader } from '@/ui/PageHeader';
+import { designCardShopLine, packHeaderSubtitle } from './packHeaderSubtitle';
 import { CompanyRow } from '@/ui/cards';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
@@ -483,7 +483,7 @@ export function CollectionViewerPage() {
     >
       <PageHeader
         title={data.name}
-        subtitle={designCountLabel(data.productCount)}
+        subtitle={packHeaderSubtitle(data.productCount, data.products ?? [])}
         action={
           <div className="flex items-center gap-1">
             {data.products ? (
@@ -639,7 +639,6 @@ export function CollectionViewerPage() {
       <CompanyRow
         company={data.company}
         to={isOwner ? undefined : `/company/${data.company.id}`}
-        relevance={isOwner ? 'Your collection' : undefined}
       />
       {ownerSourceLine ? (
         <p className="px-0.5 text-xs text-muted">{ownerSourceLine}</p>
@@ -663,7 +662,8 @@ export function CollectionViewerPage() {
                   product={product}
                   selected={shortlist.productIds.has(product.id)}
                   selectMode={selectMode}
-                  showOrigin={isOwner && product.companyId !== data.company.id}
+                  shopName={product.companyName ?? data.company.name}
+                  curatedFrom={isOwner && product.companyId !== data.company.id}
                   unavailableReason={curatedMemberUnavailableReason(product.status)}
                   onActivate={() => onDesignActivate(product)}
                   onOpen={() => openViewer(product, 0)}
@@ -680,7 +680,8 @@ export function CollectionViewerPage() {
                   product={product}
                   selected={shortlist.productIds.has(product.id)}
                   selectMode={selectMode}
-                  showOrigin={isOwner && product.companyId !== data.company.id}
+                  shopName={product.companyName ?? data.company.name}
+                  curatedFrom={isOwner && product.companyId !== data.company.id}
                   unavailableReason={curatedMemberUnavailableReason(product.status)}
                   onActivate={() => onDesignActivate(product)}
                   onOpen={() => openViewer(product, 0)}
@@ -841,6 +842,11 @@ export function CollectionViewerPage() {
 
       <ProductPhotosSheet
         product={viewerProduct}
+        shopName={
+          viewerProduct
+            ? (viewerProduct.companyName ?? data.company.name)
+            : null
+        }
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerProduct(null)}
@@ -898,7 +904,8 @@ function DesignTile({
   selected,
   selectMode,
   variant,
-  showOrigin = false,
+  shopName,
+  curatedFrom = false,
   unavailableReason,
   onActivate,
   onOpen,
@@ -908,7 +915,8 @@ function DesignTile({
   selected: boolean;
   selectMode: boolean;
   variant: 'feed' | 'grid';
-  showOrigin?: boolean;
+  shopName?: string | null;
+  curatedFrom?: boolean;
   unavailableReason?: string;
   onActivate: () => void;
   onOpen?: () => void;
@@ -917,10 +925,7 @@ function DesignTile({
   const image = product.images[0] ?? null;
   const extraPhotos = Math.max(0, product.images.length - 1);
   const meta = [product.sku, formatRate(product.rate, product.unit, product.rateMax)].filter(Boolean).join(' · ');
-  const origin =
-    showOrigin && product.companyName?.trim()
-      ? `From ${product.companyName.trim()}`
-      : null;
+  const shopLine = designCardShopLine(shopName ?? product.companyName, curatedFrom);
   const longPress = useLongPress(onLongSelect);
 
   return (
@@ -985,7 +990,7 @@ function DesignTile({
         )}
       >
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
-        {origin ? <p className="truncate text-xs text-muted">{origin}</p> : null}
+        {shopLine ? <p className="truncate text-xs text-muted">{shopLine}</p> : null}
         {meta ? <p className="truncate text-xs text-muted">{meta}</p> : null}
       </button>
     </div>
@@ -994,6 +999,7 @@ function DesignTile({
 
 function ProductPhotosSheet({
   product,
+  shopName,
   index,
   onIndex,
   onClose,
@@ -1002,6 +1008,7 @@ function ProductPhotosSheet({
   onToggleSelect,
 }: {
   product: ProductView | null;
+  shopName?: string | null;
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
@@ -1037,6 +1044,11 @@ function ProductPhotosSheet({
         }
       >
         <div className="flex flex-col gap-3">
+          {designCardShopLine(shopName ?? product.companyName) ? (
+            <p className="text-sm font-medium text-ink">
+              {designCardShopLine(shopName ?? product.companyName)}
+            </p>
+          ) : null}
           {product.sku ? <p className="text-xs font-medium text-muted">SKU {product.sku}</p> : null}
           {current ? (
             <button

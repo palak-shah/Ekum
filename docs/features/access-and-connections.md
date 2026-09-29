@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Trust between companies: **follow** (ask → allow), **access request** (named Connect gate), **connection** (trade-ready, **mutual**), plus silent **block**. Relationship management lives under **You → Network** (companies, not individual people). Hub order: **I see theirs** · **They see mine** · **Buyer groups** (if you publish) · **Connections** · **Invites**. Chat noise is **Mute**.
+Trust between companies: **follow** (ask → allow), **access request** (named Connect gate), **connection** (trade-ready, **mutual**), plus silent **block**. Relationship management lives under **You → Network** (companies, not individual people). Hub is one PageHeader (**Back · Network**) plus list rows (hints on each row) — no shell title and no sentence under the title. Hub order: **I see theirs** · **They see mine** · **Buyer groups** (if you publish) · **Connections** · **Invites**. Chat noise is **Mute**.
 
 ## Who uses it
 

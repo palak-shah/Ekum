@@ -40,6 +40,9 @@ export function canForwardMessage(message: MessageView): boolean {
   if (message.type === 'order_card' || message.type === 'rate') {
     return Boolean(message.reference?.id && message.reference.available);
   }
+  if (message.type === 'complaint') {
+    return Boolean(message.reference?.id && message.reference.available);
+  }
   return false;
 }
 
@@ -56,6 +59,7 @@ export function canReplyToMessage(message: MessageView): boolean {
     'order_card',
     'rate',
     'payment_card',
+    'complaint',
   ].includes(message.type);
 }
 
@@ -99,6 +103,9 @@ export function copyTextForMessage(message: MessageView): string | null {
   }
   if (message.type === 'payment_card') {
     return name || message.reference?.totalLabel || 'Payment';
+  }
+  if (message.type === 'complaint') {
+    return name || 'Complaint';
   }
   return null;
 }
@@ -214,6 +221,17 @@ export function forwardPayload(message: MessageView): {
       type: message.type === 'rate' ? MessageType.Rate : MessageType.OrderCard,
       referenceId,
       body: message.reference.name ?? undefined,
+    };
+  }
+  if (message.type === 'complaint') {
+    const referenceId = message.reference?.id;
+    if (!referenceId || !message.reference?.available) {
+      throw new Error('Nothing to forward');
+    }
+    return {
+      type: MessageType.Complaint,
+      referenceId,
+      body: message.reference.name ?? message.body ?? undefined,
     };
   }
   throw new Error('This message cannot be forwarded');

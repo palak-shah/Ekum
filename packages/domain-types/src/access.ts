@@ -44,6 +44,8 @@ export interface PublicCompanySummary {
   city: string;
   verification: string;
   logoUrl: string | null;
+  /** What they sell — shop identity line. Omit/empty when unknown. */
+  sellCategories?: string[];
 }
 
 export const FollowStatus = {

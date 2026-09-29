@@ -37,6 +37,9 @@ describe('NetworkPage', () => {
     expect(screen.queryByText('Following')).toBeNull();
     expect(screen.queryByText('Followers')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Requests' })).toBeNull();
+    expect(
+      screen.queryByText(/Who you trade with, who sees collections/),
+    ).toBeNull();
     expect(linkHrefs()).toEqual([
       '/network/following',
       '/network/followers',

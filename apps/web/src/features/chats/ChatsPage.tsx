@@ -64,6 +64,7 @@ const IN_CHATS: { kind: string; label: string }[] = [
   { kind: 'collections', label: 'Collections' },
   { kind: 'designs', label: 'Designs' },
   { kind: 'links', label: 'Links' },
+  { kind: 'complaints', label: 'Complaints' },
 ];
 
 export function ChatsPage() {

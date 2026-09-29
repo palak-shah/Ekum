@@ -27,7 +27,7 @@ Actions: open the related order, chat, buyer request, collection, or company; ex
 - **Notifications are not on Home** — use the bell (`/notifications`). Home is action-oriented, not a duplicate alert feed.
 - Needs rows use attention verbs derived from order/return/follow-ask/chat state (`homeAttention.ts`). Follow ask → `/network/followers?tab=asked` (Asked chip on They see mine). Chat request → that thread. Home **Requests** chip → `/chats?inbox=requests`.
 - **Order needs group by opposite company + action** (e.g. `38 to dispatch · Jaipur Emporium`), not one row per order.
-- **Attention center (Home composition):** greeting → live “N item(s) need attention” → compact existing metric cards (orders / requests / returns that need you, nonzero only) → the **need list is the hero**. Metrics stay subordinate. Do not use a single oversized KPI tile.
+- **Attention center (Home composition):** sticky shell title **Home** (same band as Chats / Explore / Orders; bell + You on the right) → greeting → live “N item(s) need attention” → compact existing metric cards (orders / requests / returns that need you, nonzero only) → the **need list is the hero**. Metrics stay subordinate. Do not use a single oversized KPI tile.
 - **Viewed needs stay hidden** (device-local per company) until that bucket has newer activity. Rows also clear when the underlying work is done.
 - Blocked / invisible companies never appear in followed or market previews (server visibility).
 - Buying vs selling toggles influence which empty prompts and metrics feel relevant, but Needs still surfaces anything that requires the company.

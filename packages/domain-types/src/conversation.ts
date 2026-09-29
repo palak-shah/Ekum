@@ -23,6 +23,7 @@ const cardTypes = [
   MessageType.CollectionCard,
   MessageType.OrderCard,
   MessageType.Rate,
+  MessageType.Complaint,
 ] as const;
 const needsBodyTypes = [
   MessageType.Text,
@@ -336,6 +337,7 @@ export const crossChatFindKindValues = [
   'collections',
   'designs',
   'links',
+  'complaints',
 ] as const;
 export type CrossChatFindKind = (typeof crossChatFindKindValues)[number];
 
@@ -362,6 +364,7 @@ export const threadMessageViewValues = [
   'collections',
   'designs',
   'orders',
+  'complaints',
   'starred',
   'links',
   /** @deprecated Use `photos` — kept for older clients. */
@@ -515,7 +518,7 @@ export interface ThreadCloneConflict {
 // --- View models ------------------------------------------------------------
 
 export interface MessageReference {
-  kind: 'product' | 'collection' | 'order' | 'rate' | 'payment' | 'designs';
+  kind: 'product' | 'collection' | 'order' | 'rate' | 'payment' | 'designs' | 'complaint';
   id: string;
   name: string | null;
   image: string | null;
@@ -525,6 +528,8 @@ export interface MessageReference {
    * Designs album: one thumb per design (ordered).
    */
   images?: string[] | null;
+  /** Complaint form **More** (qty, dates…). */
+  detail?: string | null;
   /** design_album: ordered product ids. */
   productIds?: string[] | null;
   /** design_album: per-design name + thumb (not photo-only). */

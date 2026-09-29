@@ -7,6 +7,14 @@ export function isNearBottom(
   return list.scrollHeight - list.scrollTop - list.clientHeight < threshold;
 }
 
+/** WhatsApp jump-to-end: only when the list can scroll and the trader is not at newest. */
+export function shouldShowJumpToLatest(
+  list: Pick<HTMLDivElement, 'scrollHeight' | 'scrollTop' | 'clientHeight'>,
+): boolean {
+  if (list.scrollHeight - list.clientHeight < 24) return false;
+  return !isNearBottom(list);
+}
+
 export type BottomScrollHandle = { cancel: () => void };
 
 /**

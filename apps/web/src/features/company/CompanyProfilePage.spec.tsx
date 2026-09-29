@@ -163,6 +163,15 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByText('+919800000001')).toBeNull();
   });
 
+  it('puts a GST tick by the name and city with category under it', async () => {
+    renderPage(false);
+    expect(await screen.findByRole('heading', { name: 'Surat Silk House' })).toBeInTheDocument();
+    expect(screen.getByTestId('gst-tick')).toHaveAttribute('aria-label', 'GST verified');
+    expect(screen.getByTestId('shop-identity').textContent).toMatch(/Surat/);
+    expect(screen.getByTestId('shop-identity').textContent).toMatch(/Silk/);
+    expect(screen.queryByText('GST verified')).toBeNull();
+  });
+
   it('shows the design name on the shop grid', async () => {
     renderPage(false);
     expect(await screen.findByTestId('company-shop-grid')).toBeInTheDocument();
@@ -222,7 +231,7 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByTestId('company-follow')).toBeNull();
   });
 
-  it('opens the trade dock for this shopâ€™s picks only', async () => {
+  it('opens the trade dock for this shops picks only', async () => {
     writeBrowseShortlist([
       {
         productId: 'other',
@@ -282,7 +291,7 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByTestId('company-shop-dock')).toBeNull();
   });
 
-  it('opens the trade dock when this shopâ€™s collection is selected', async () => {
+  it('opens the trade dock when this shops collection is selected', async () => {
     writeBrowseAlbumPick([
       {
         collectionId: 'col1',

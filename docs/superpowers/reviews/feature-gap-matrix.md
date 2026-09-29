@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-28 (Chats Requests is the only access Approve desk)  
+**Updated:** 2026-09-29 (Network one header)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -17,8 +17,10 @@ Verification: Functional · Regression · Unit-only · Untested
 | Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; What broke + Copy |
 | Platform | Nav ＋ never a dead tap | Works | Unit | Required | Completeness 2026-09-25-create-fab-dead-tap; 2026-09-28 skip New sheet; You ＋ stays on Saved |
 | Platform | Kit density: 40px Button/input, 28px Chip, 40×40 list square | Works | Unit | Required | Completeness 2026-09-26-kit-density; qty thumbs + nav ＋ stay 48px |
-| Explore | Feed chrome tightness (Stories + post header, not mosaic) | Works | Unit | Required | Follow-on to kit-density; `cards.exploreDensity.spec.ts` |
+| Explore | Shop header: GST tick, city · cats, See new packs, date under post | Works | Unit | Required | Completeness 2026-09-29-explore-shop-header-chrome; CSV sr 8 T4 · 9/10 T1+T3 · 16 T4 |
+| Explore | Pack header rate band; design card / popup shop name | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 16 T3 · 17 T3 |
 | Catalog | Nav ＋ has no Add designs (You Add only) | Works | Unit-only | Required | Completeness 2026-09-25-nav-plus-no-add-designs |
+| Chat | Thread down-arrow to latest (WhatsApp) | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-jump-latest |
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
 | Chat | In-thread search scopes + stepper | Works | Functional | Required | Green 2026-08-24: All/Photos/Collections/Designs/Orders |
 | Chat | Thread list `view`/`q` API + index | Works | Unit + Functional | Required | Restored WIP 2026-08-11; Completeness thread-message-filters |
@@ -30,6 +32,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
 | Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Back keeps chip 2026-09-29-chats-inbox-chip-back |
+| Chat | 1:1 ＋ Complaint form (photos optional) + In chats / thread filter | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-complaint-form; card shows More + order designs; tap PhotoViewer |
 | Chat | No-photo avatars use name colours (WhatsApp-like) | Works | Unit | Required | Completeness 2026-09-28-chat-avatar-colors; kit Avatar |
 | Chat | Requests inbox (unconnected + connect invite) | Works | Functional + Unit | Required | Approve / Ignore; see-packs Allow; `/chats?inbox=requests`; Completeness 2026-09-28-chats-requests-fold-access |
 | Chat | See-packs ask: see + share checkboxes, compact Allow / Decline | Works | Unit | Required | Completeness 2026-09-28-follow-ask-share-checkbox; see default on, share off → pack |
@@ -125,6 +128,9 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Vanity likes ranking | Rejected | — | Reject | |
 | Team | Invite staff + five caps + owner-only chat | Works | Unit | Required | You → Team; `/t/:token` join; staff seed +919800000004 |
 | Team | Join after archive (same phone → new shop / create company) | Works | Unit | Required | Completeness 2026-09-09-team-join-after-archive; live seat still blocks |
+| Network | Hub has no lecture under the title | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 77 T2 |
+| Network | One header: Back · Network (no shell duplicate) | Works | Unit | Required | Completeness 2026-09-29-network-one-header |
+| Company | Business profile lecture: you choose who sees collections | Rejected | — | Reject | Product: no line on `/settings/profile`; CSV sr 88 T6 |
 | Network | I see theirs / They see mine lists | Works | Unit + Functional | Required | Completeness 2026-09-28-network-see-theirs-mine; hub order 2026-09-29-network-hub-order; routes still following/followers |
 | Network | Follow-ask extra gate (look / pack / deny) | Works | Unit + Functional | Required | Completeness 2026-09-24-follow-ask; They see mine Instagram list + search + revoke 2026-09-28-they-see-mine-instagram-list; Stop keeps Stopped 2026-09-28-they-see-mine-stopped; Asked inline + chip 2026-09-28-they-see-mine-asked-inline |
 | Company | Shop profile chrome (hero + 2-col photos) | Works | Unit + Functional | Required | Completeness 2026-09-23-company-profile-shop-chrome; no names on cells; no collection cover |

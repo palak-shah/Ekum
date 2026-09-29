@@ -5,6 +5,7 @@ import {
   DocumentIcon,
   ImageIcon,
   ProductIcon,
+  ReturnIcon,
 } from '@/ui/icons';
 import { kindToneClasses } from '@/lib/kindTone';
 
@@ -23,6 +24,8 @@ export function chatMediaKindChrome(kind: string): { Icon: IconComponent; badge:
       return { Icon: CollectionIcon, badge: kindToneClasses('collection').badge };
     case 'links':
       return { Icon: ChatIcon, badge: 'bg-foam text-muted' };
+    case 'complaints':
+      return { Icon: ReturnIcon, badge: kindToneClasses('order').badge };
     default:
       return { Icon: DocumentIcon, badge: 'bg-linen text-muted' };
   }

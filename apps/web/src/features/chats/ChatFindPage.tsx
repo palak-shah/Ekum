@@ -23,6 +23,7 @@ const KIND_LABEL: Record<CrossChatFindKind, string> = {
   collections: 'Collections',
   designs: 'Designs',
   links: 'Links',
+  complaints: 'Complaints',
 };
 
 const EMPTY_COPY: Record<CrossChatFindKind, { title: string; message: string }> = {
@@ -42,6 +43,10 @@ const EMPTY_COPY: Record<CrossChatFindKind, { title: string; message: string }> 
   links: {
     title: 'No links in chats yet',
     message: 'Web links from chat text show up here.',
+  },
+  complaints: {
+    title: 'No complaints in chats yet',
+    message: 'Complaints you raise in a chat show up here.',
   },
 };
 
@@ -82,6 +87,9 @@ function rowLabel(row: CrossChatFindItemView, kind: CrossChatFindKind): string {
   }
   if (kind === 'links') {
     return msg.body?.trim() || 'Link';
+  }
+  if (kind === 'complaints') {
+    return msg.reference?.name?.trim() || msg.body?.trim() || 'Complaint';
   }
   if (kind === 'collections' || kind === 'designs') {
     return (
@@ -185,7 +193,7 @@ export function ChatFindPage() {
     return (
       <>
         <PageHeader title="In chats" onBack={() => navigate('/chats')} />
-        <EmptyState title="Pick a type" message="Open Photos, Documents, Collections, Designs, or Links from Chats search." />
+        <EmptyState title="Pick a type" message="Open Photos, Documents, Collections, Designs, Links, or Complaints from Chats search." />
       </>
     );
   }

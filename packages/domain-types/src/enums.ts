@@ -294,6 +294,7 @@ export const MessageType = {
   Rate: 'rate',
   System: 'system',
   PaymentCard: 'payment_card',
+  Complaint: 'complaint',
 } as const;
 export type MessageType = (typeof MessageType)[keyof typeof MessageType];
 export const messageTypeValues = values(MessageType);

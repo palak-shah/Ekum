@@ -916,14 +916,15 @@ model ReturnItem {
   @@index([returnId])
 }
 
-/// A complaint against the counterpart on an order.
+/// A complaint against another shop (optional shared order).
 model Complaint {
   id                String    @id @default(cuid())
-  orderId           String
+  orderId           String?
   raisedByCompanyId String
   againstCompanyId  String
   subject           String
   detail            String?
+  images            String[]
   status            String    @default("open") // ComplaintStatus
   response          String?
   respondedAt       DateTime?
@@ -931,7 +932,7 @@ model Complaint {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([raisedByCompanyId])

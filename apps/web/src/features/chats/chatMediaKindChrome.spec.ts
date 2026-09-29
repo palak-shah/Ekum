@@ -8,6 +8,7 @@ describe('chatMediaKindChrome', () => {
     expect(chatMediaKindChrome('documents').Icon).toBe(DocumentIcon);
     expect(chatMediaKindChrome('designs').Icon).toBe(ProductIcon);
     expect(chatMediaKindChrome('collections').Icon).toBe(CollectionIcon);
+    expect(chatMediaKindChrome('complaints').badge).toContain('kind-order');
   });
 
   it('tints design clay and collection steel', () => {

@@ -84,7 +84,7 @@ Redirects to `/orders?kind=sample` (deep link only — not in You menu). Future:
 
 ### Returns (`/returns`)
 
-Redirects to `/orders?kind=return`. Within return window after **settled** (or legacy deliver) → buyer picks designs/qty (**default all = full return**) → **Select all** / **Clear** on the raise sheet → living **order** card becomes **Order #… Returned** (optional note + **View order →**; no separate return card) → seller approve / partial / decline on the order (chat card unchanged) → resolve. Escalate creates a **complaint**.
+Redirects to `/orders?kind=return`. Within return window after **settled** (or legacy deliver) → buyer picks designs/qty (**default all = full return**) → **Select all** / **Clear** on the raise sheet → living **order** card becomes **Order #… Returned** (optional note + **View order →**; no separate return card) → seller approve / partial / decline on the order (chat card unchanged) → resolve. Trader escalate of a return is an **upstream return**, not this card. A **complaint** is raised from **1:1 chat ＋** (subject, optional photos, optional **Attach order** (designs / date, not the hash)) against that shop — listed under In chats / thread **Complaints**.
 
 ## Business rules
 

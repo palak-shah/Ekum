@@ -20,6 +20,7 @@ export type ChatObjectKind =
   | 'product'
   | 'collection'
   | 'order'
+  | 'complaint'
   | 'quote'
   | 'return'
   | 'document'
@@ -44,6 +45,8 @@ export function chatTypeMeta(type: string | undefined | null): ChatTypeMeta {
       return { kind: 'collection', label: 'Collection', Icon: CollectionIcon };
     case 'order_card':
       return { kind: 'order', label: 'Order', Icon: OrdersIcon };
+    case 'complaint':
+      return { kind: 'complaint', label: 'Complaint', Icon: ReturnIcon };
     case 'rate':
       return { kind: 'quote', label: 'Quote', Icon: QuoteIcon };
     case 'photo':
@@ -152,6 +155,9 @@ export function messagePreviewText(message: MessageView | null | undefined): str
       break;
     case 'design_album':
       core = name || message.body?.trim() || 'Designs';
+      break;
+    case 'complaint':
+      core = name || 'Complaint';
       break;
     case 'payment_card':
       core = name || 'Payment';

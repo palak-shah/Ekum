@@ -282,6 +282,7 @@ export class OrderSerializer {
       status: complaint.status,
       subject: complaint.subject,
       detail: complaint.detail,
+      images: complaint.images ?? [],
       response: complaint.response,
       raisedByCompanyId: complaint.raisedByCompanyId,
       againstCompanyId: complaint.againstCompanyId,

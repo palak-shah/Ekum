@@ -226,9 +226,9 @@ export function HomePage() {
   return (
     <div className="flex flex-col">
       <header className="flex flex-col gap-2">
-        <h1 className="text-[1.55rem] font-semibold leading-tight tracking-[-0.03em] text-ink">
+        <p className="text-[15px] font-medium leading-snug text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
-        </h1>
+        </p>
         {hasNeeds ? (
           <p className="text-[15px] font-medium leading-snug text-accent">
             {needs.length === 1

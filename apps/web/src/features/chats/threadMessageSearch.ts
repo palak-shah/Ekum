@@ -8,6 +8,7 @@ export type ThreadMessageViewScope =
   | 'collections'
   | 'designs'
   | 'orders'
+  | 'complaints'
   | 'starred'
   | 'links'
   | 'media';
@@ -22,6 +23,7 @@ export const THREAD_SEARCH_SCOPE_OPTIONS: Array<{
   { id: 'collections', label: 'Collections' },
   { id: 'designs', label: 'Designs' },
   { id: 'orders', label: 'Orders' },
+  { id: 'complaints', label: 'Complaints' },
   { id: 'starred', label: 'Starred' },
   { id: 'links', label: 'Links' },
 ];

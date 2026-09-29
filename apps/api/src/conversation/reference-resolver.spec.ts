@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '@prisma/client';
 import { MessageType } from '@ekum/domain-types';
-import { ReferenceResolver } from './reference-resolver';
+import {
+  complaintAttachedOrderCue,
+  complaintCardMedia,
+  complaintCardOrderLine,
+  complaintMessageSnapshot,
+  ReferenceResolver,
+} from './reference-resolver';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { VisibilityService } from '../access/visibility.service';
 
@@ -713,6 +719,104 @@ describe('ReferenceResolver payment cards', () => {
     expect(reference?.status).toBe('paid');
     expect(reference?.totalLabel).toBe('₹5,700');
     expect(reference?.available).toBe(true);
+  });
+
+  it('merges complaint photos with attached order design shots', () => {
+    const media = complaintCardMedia({
+      images: ['https://img/form.jpg'],
+      order: {
+        createdAt: new Date('2026-09-29T12:00:00.000Z'),
+        items: [
+          {
+            name: 'Navy satin',
+            image: 'https://img/navy.jpg',
+            images: ['https://img/navy.jpg'],
+            productId: 'p-navy',
+          },
+        ],
+      },
+    });
+    expect(media.images).toEqual(['https://img/form.jpg', 'https://img/navy.jpg']);
+    expect(media.productIds).toEqual(['p-navy']);
+    expect(media.designItems[0]?.name).toBe('Navy satin');
+  });
+
+  it('labels a complaint order by designs and date, not the hash', async () => {
+    expect(
+      complaintAttachedOrderCue({
+        createdAt: new Date('2026-09-29T12:00:00.000Z'),
+        items: [{ name: 'Navy satin' }, { name: 'Gold border' }, { name: 'Print' }],
+      }),
+    ).toMatch(/^Navy satin · Gold border \+1 · /);
+    expect(
+      complaintAttachedOrderCue({
+        createdAt: new Date('2026-09-29T12:00:00.000Z'),
+        items: [{ name: 'Navy satin' }],
+      }),
+    ).not.toMatch(/Order #/);
+
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: { findMany: async () => [] },
+      paymentRequest: { findMany: async () => [] },
+      follow: { findUnique: async () => null },
+      collectionViewGrant: { findMany: async () => [] },
+      complaint: {
+        findMany: async () => [
+          {
+            id: 'cmp-1',
+            subject: 'Late lot',
+            detail: 'Qty short',
+            images: ['https://img/form.jpg'],
+            orderId: 'ord-hidden-hash',
+            order: {
+              createdAt: new Date('2026-09-29T12:00:00.000Z'),
+              items: [
+                {
+                  name: 'Navy satin',
+                  image: 'https://img/navy.jpg',
+                  images: ['https://img/navy.jpg'],
+                  productId: 'p-navy',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
+    const references = await resolver.resolve([
+      message({
+        id: 'm-cmp',
+        type: MessageType.Complaint,
+        referenceId: 'cmp-1',
+        body: 'Late lot',
+      }),
+    ]);
+    expect(references.get('m-cmp')?.orderLabel).toMatch(/Navy satin/);
+    expect(references.get('m-cmp')?.orderLabel).not.toMatch(/Order #/);
+    expect(references.get('m-cmp')?.detail).toBe('Qty short');
+    expect(references.get('m-cmp')?.images).toEqual([
+      'https://img/form.jpg',
+      'https://img/navy.jpg',
+    ]);
+    expect(references.get('m-cmp')?.productIds).toEqual(['p-navy']);
+  });
+
+  it('never keeps an Order # as the complaint cue', () => {
+    expect(complaintCardOrderLine('Order #RUTW')).toBeNull();
+    expect(complaintCardOrderLine('Navy satin · 29 Sep')).toBe('Navy satin · 29 Sep');
+    expect(
+      complaintMessageSnapshot({
+        detail: 'Need 20 more pieces',
+        images: [],
+        order: {
+          createdAt: new Date('2026-09-29T12:00:00.000Z'),
+          items: [{ name: 'Grey', image: 'https://img/g.jpg', productId: 'p-g' }],
+        },
+      }).detail,
+    ).toBe('Need 20 more pieces');
   });
 });
 

@@ -18,6 +18,7 @@ import {
 } from '@/features/company/shopTradeDock';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
 import { createFabHref, createFabIntent, CREATE_FAB_EXPLAIN } from './createFabIntent';
+import { pageOwnsTopChrome, shellTitle } from './shellTitle';
 import { useToast } from '@/ui/Toast';
 import {
   chatsInboxHref,
@@ -44,50 +45,6 @@ const NAV = [
   { to: '/explore', label: 'Explore', Icon: ExploreIcon, end: false },
   { to: '/orders', label: 'Orders', Icon: OrdersIcon, end: false },
 ] as const;
-
-function shellTitle(pathname: string): string | null {
-  if (pathname === '/') return null;
-  if (pathname.startsWith('/chats')) return pathname === '/chats' ? 'Chats' : null;
-  if (pathname.startsWith('/orders')) return pathname === '/orders' ? 'Orders' : null;
-  if (pathname.startsWith('/explore') || pathname.startsWith('/search')) return 'Explore';
-  if (pathname.startsWith('/notifications')) return 'Notifications';
-  if (pathname.startsWith('/team')) return 'Team';
-  if (pathname === '/more') return 'You';
-  if (pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
-    // Nested settings use PageHeader — hide shell title to avoid a second band.
-    return null;
-  }
-  if (pathname.startsWith('/buyers') || pathname.startsWith('/network')) return 'Network';
-  if (pathname.startsWith('/following') || pathname.startsWith('/followers')) return 'Network';
-  // Create/edit under /catalog/* use PageHeader; list is also PageHeader (like Saved).
-  if (pathname.startsWith('/catalog')) return null;
-  if (pathname.startsWith('/company')) return 'Business';
-  if (pathname.startsWith('/collections')) return 'Collection';
-  if (pathname.startsWith('/products')) return 'Design';
-  if (pathname.startsWith('/broadcast')) return 'Buyer groups';
-  if (pathname.startsWith('/referrals')) return 'Invites';
-  return null;
-}
-
-/**
- * Detail / create flows use PageHeader (back + title). Hiding the shell band
- * keeps that header flush to the top — same real estate rule as a chat thread.
- */
-function pageOwnsTopChrome(pathname: string): boolean {
-  if (/^\/chats\/[^/]+/.test(pathname)) return true;
-  if (pathname === '/catalog' || pathname.startsWith('/catalog/')) return true;
-  if (pathname.startsWith('/broadcast')) return true;
-  if (pathname.startsWith('/referrals')) return true;
-  if (pathname.startsWith('/saved')) return true;
-  if (pathname.startsWith('/selection')) return true;
-  if (pathname.startsWith('/settings')) return true;
-  if (pathname === '/orders/new' || pathname.startsWith('/orders/new/')) return true;
-  if (/^\/orders\/[^/]+/.test(pathname)) return true;
-  if (/^\/collections\//.test(pathname)) return true;
-  if (/^\/products\//.test(pathname)) return true;
-  if (/^\/company\//.test(pathname)) return true;
-  return false;
-}
 
 /**
  * Mobile-first shell: quiet header (no brand mark), glass bottom nav, elevated ＋.
@@ -158,13 +115,11 @@ export function AppShell() {
         <header
           className={cx(
             'sticky top-0 z-20 flex items-center border-b border-line bg-canvas px-4 py-2.5',
-            isHome || title ? 'justify-between' : 'justify-end',
+            title ? 'justify-between' : 'justify-end',
           )}
         >
           {title ? (
             <h1 className="text-[1.375rem] font-semibold tracking-[-0.03em] text-ink">{title}</h1>
-          ) : isHome ? (
-            <span className="min-w-0 flex-1" aria-hidden />
           ) : (
             <span className="min-w-0 flex-1" aria-hidden />
           )}

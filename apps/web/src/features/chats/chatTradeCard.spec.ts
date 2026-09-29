@@ -254,4 +254,59 @@ describe('buildChatTradeCard dispatcher', () => {
       buildChatTradeCard(textMessage({ id: 't1', type: 'text', body: 'hi', mine: false }), null, 'You'),
     ).toBeNull();
   });
+
+  it('builds a complaint card from subject, More, and attached design thumbs', () => {
+    const card = buildChatTradeCard(
+      textMessage({ id: 'c1', type: 'complaint', body: 'Late lot', mine: true }),
+      {
+        kind: 'complaint',
+        id: 'cmp-1',
+        name: 'Late lot',
+        image: 'https://img/a.jpg',
+        images: ['https://img/a.jpg', 'https://img/navy.jpg'],
+        detail: 'Qty short on 29 Sep',
+        available: true,
+        orderLabel: 'Navy satin · 29 Sep',
+        productIds: ['p-navy'],
+        designItems: [{ id: 'p-navy', name: 'Navy satin', image: 'https://img/navy.jpg' }],
+      },
+      'You',
+      { actions: { designsPath: '/designs/set?ids=p-navy' } },
+    );
+    expect(card?.kind).toBe('complaint');
+    expect(card?.primary).toBe('Late lot');
+    expect(card?.details).toEqual(['Navy satin · 29 Sep']);
+    expect(card?.note).toBe('Qty short on 29 Sep');
+    expect(card?.thumbs).toEqual(['https://img/a.jpg', 'https://img/navy.jpg']);
+    expect(card?.thumbCaptions).toEqual([null, 'Navy satin']);
+    expect(card?.action?.label).toBe('View designs →');
+  });
+
+  it('drops Order # on a complaint and uses More + thumbs from metadata', () => {
+    const card = buildChatTradeCard(
+      {
+        ...textMessage({ id: 'c2', type: 'complaint', body: 'Short qty on grey', mine: false }),
+        metadata: {
+          detail: 'Need 20 more pieces',
+          orderLabel: 'Grey · 29 Sep',
+          images: ['https://img/grey.jpg'],
+          productIds: ['p-grey'],
+        },
+      },
+      {
+        kind: 'complaint',
+        id: 'cmp-2',
+        name: 'Short qty on grey',
+        image: null,
+        available: true,
+        orderLabel: 'Order #RUTW',
+      },
+      'You',
+      { actions: { designsPath: '/designs/set?ids=p-grey' } },
+    );
+    expect(card?.details).toEqual(['Grey · 29 Sep']);
+    expect(card?.note).toBe('Need 20 more pieces');
+    expect(card?.thumbs).toEqual(['https://img/grey.jpg']);
+    expect(card?.action?.label).toBe('View designs →');
+  });
 });

@@ -461,6 +461,18 @@ describe('MessageService.list filters', () => {
     });
   });
 
+  it('scopes complaints to complaint', async () => {
+    const captured: { where: unknown } = { where: null };
+    const service = listService(captured);
+    await service.list(actor('me'), 't', { view: 'complaints', limit: 20 });
+    expect(captured.where).toMatchObject({
+      AND: expect.arrayContaining([
+        { threadId: 't' },
+        { type: MessageType.Complaint },
+      ]),
+    });
+  });
+
   it('scopes collections to collection_card', async () => {
     const captured: { where: unknown } = { where: null };
     const service = listService(captured);
@@ -653,6 +665,12 @@ describe('MessageService.listFind', () => {
 
     const capturedDesigns: { where: unknown } = { where: null };
     await findService(capturedDesigns).listFind(actor('me'), { kind: 'designs', limit: 40 });
+
+    const capturedComplaints: { where: unknown } = { where: null };
+    await findService(capturedComplaints).listFind(actor('me'), { kind: 'complaints', limit: 40 });
+    expect(capturedComplaints.where).toMatchObject({
+      AND: expect.arrayContaining([{ type: MessageType.Complaint }]),
+    });
     expect(capturedDesigns.where).toMatchObject({
       AND: expect.arrayContaining([
         { type: { in: [MessageType.ProductCard, MessageType.DesignAlbum] } },

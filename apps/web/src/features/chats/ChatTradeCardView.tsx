@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { timeAgo } from '@/lib/format';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { cx } from '@/ui/kit';
 import { KindIconBadge } from './KindIconBadge';
 import { PhotoAlbum } from './PhotoAlbum';
@@ -14,6 +16,7 @@ function typeKeyForKind(kind: ChatTradeCardModel['kind']): string {
   if (kind === 'quote') return 'rate';
   if (kind === 'collection') return 'collection_card';
   if (kind === 'designs') return 'design_album';
+  if (kind === 'complaint') return 'complaint';
   return 'product_card';
 }
 
@@ -225,7 +228,10 @@ function CardBody({
     <div className="flex flex-col">
       <div className={cx('flex gap-2.5 px-2.5 py-2', hasThumbs ? 'items-start' : 'items-stretch')}>
         {hasThumbs ? (
-          <div className="shrink-0 pt-0.5">
+          <div
+            className="shrink-0 pt-0.5"
+            {...(model.kind === 'complaint' ? { 'data-card-action': true } : {})}
+          >
             <PhotoAlbum
               urls={model.thumbs}
               overflowCount={model.thumbOverflow ?? 0}
@@ -345,8 +351,32 @@ export function ChatTradeCard({
   onOpen?: () => void;
   selecting?: boolean;
 }) {
-  const open = onOpen && !selecting ? onOpen : undefined;
+  const [albumIndex, setAlbumIndex] = useState<number | null>(null);
+  const albumUrls = model.thumbs.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean);
+  const openAlbum = () => {
+    if (albumUrls.length === 0) return;
+    setAlbumIndex(0);
+  };
+  const open =
+    selecting
+      ? undefined
+      : model.kind === 'complaint' && albumUrls.length > 0
+        ? openAlbum
+        : onOpen
+          ? onOpen
+          : undefined;
   const chrome = directionChrome(model.mine);
+  const album =
+    albumIndex === null || albumUrls.length === 0 ? null : (
+      <PhotoViewer
+        open
+        urls={albumUrls}
+        index={albumIndex}
+        onIndex={setAlbumIndex}
+        onClose={() => setAlbumIndex(null)}
+        captions={model.thumbCaptions}
+      />
+    );
 
   if (model.variant === 'pulse') {
     // Never use a native <button> shell — Tailwind preflight sets
@@ -408,6 +438,7 @@ export function ChatTradeCard({
       </>
     );
     return (
+      <>
       <div
         role={open ? 'button' : undefined}
         tabIndex={open ? 0 : undefined}
@@ -437,10 +468,13 @@ export function ChatTradeCard({
       >
         {body}
       </div>
+      {album}
+    </>
     );
   }
 
   return (
+    <>
     <div
       role={open ? 'button' : undefined}
       tabIndex={open ? 0 : undefined}
@@ -482,5 +516,7 @@ export function ChatTradeCard({
       />
       <CardBody model={model} highlight={highlight} chrome={chrome} />
     </div>
+    {album}
+    </>
   );
 }

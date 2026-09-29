@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -21,23 +22,41 @@ export class ComplaintService {
   ) {}
 
   async create(actorCompanyId: string, dto: CreateComplaintDto): Promise<ComplaintView> {
-    const order = await this.prisma.order.findUnique({ where: { id: dto.orderId } });
-    if (
-      !order ||
-      (order.buyerCompanyId !== actorCompanyId && order.sellerCompanyId !== actorCompanyId)
-    ) {
-      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
+    if (dto.againstCompanyId === actorCompanyId) {
+      throw new BadRequestException({
+        code: 'INVALID',
+        message: 'Pick the other shop.',
+      });
     }
-    const against =
-      order.buyerCompanyId === actorCompanyId ? order.sellerCompanyId : order.buyerCompanyId;
+
+    let orderId: string | null = null;
+    if (dto.orderId) {
+      const order = await this.prisma.order.findUnique({ where: { id: dto.orderId } });
+      if (
+        !order ||
+        (order.buyerCompanyId !== actorCompanyId && order.sellerCompanyId !== actorCompanyId)
+      ) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
+      }
+      const other =
+        order.buyerCompanyId === actorCompanyId ? order.sellerCompanyId : order.buyerCompanyId;
+      if (other !== dto.againstCompanyId) {
+        throw new BadRequestException({
+          code: 'INVALID',
+          message: 'That order is not with this shop.',
+        });
+      }
+      orderId = order.id;
+    }
 
     const complaint = await this.prisma.complaint.create({
       data: {
-        orderId: order.id,
+        orderId,
         raisedByCompanyId: actorCompanyId,
-        againstCompanyId: against,
+        againstCompanyId: dto.againstCompanyId,
         subject: dto.subject,
         detail: dto.detail ?? null,
+        images: dto.images ?? [],
         status: ComplaintStatus.Open,
       },
     });

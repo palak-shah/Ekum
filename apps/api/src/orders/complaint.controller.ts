@@ -9,6 +9,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import { ComplaintService } from './complaint.service';
 
+/** Chat ＋ complaint form posts here; order is optional. */
 @Controller({ path: 'complaints', version: '1' })
 export class ComplaintController {
   constructor(private readonly complaints: ComplaintService) {}

@@ -41,6 +41,7 @@ export class CompanySerializer {
       city: company.city,
       verification: company.verification,
       logoUrl: company.logoUrl,
+      sellCategories: company.sellCategories,
     };
   }
 

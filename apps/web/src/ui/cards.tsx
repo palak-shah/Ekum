@@ -14,8 +14,10 @@ import type {
   PublicCompanySummary,
 } from '@ekum/domain-types';
 import { formatRate, timeAgo } from '@/lib/format';
-import { Avatar, Chip, Tag, cx } from './kit';
+import { Avatar, Chip, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
+import { GstTick, isGstVerified } from './GstTick';
+import { shopIdentityLine, shopSellCategories } from './shopIdentity';
 import { albumOverflowLabel, collectionMosaicCount, designCountLabel } from './albumMosaic';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
@@ -27,35 +29,71 @@ export const EXPLORE_POST_MEDIA_INSET_CLASS = EXPLORE_POST_INSET_CLASS;
 export const EXPLORE_POST_HEADER_CLASS = `flex items-center gap-2.5 ${EXPLORE_POST_INSET_CLASS} py-1.5`;
 export const EXPLORE_POST_AVATAR = 36;
 
-function VerificationTag({ verification }: { verification: string }) {
-  if (verification === 'gst_verified') {
-    return <Tag tone="success">GST verified</Tag>;
-  }
-  return null;
+function ShopName({
+  name,
+  verification,
+  className,
+}: {
+  name: string;
+  verification: string;
+  className?: string;
+}) {
+  return (
+    <p className={cx('flex min-w-0 items-center gap-1', className)}>
+      <span className="truncate">{name}</span>
+      {isGstVerified(verification) ? <GstTick /> : null}
+    </p>
+  );
+}
+
+function ShopPostHeader({
+  company,
+  to,
+  trailing,
+  nameClassName = 'text-[15px] font-bold tracking-tight text-ink',
+}: {
+  company: PublicCompanySummary | CompanyCard;
+  to: string;
+  trailing?: ReactNode;
+  nameClassName?: string;
+}) {
+  const identity = shopIdentityLine(company.city, shopSellCategories(company));
+  return (
+    <div className={EXPLORE_POST_HEADER_CLASS}>
+      <Link to={to} className="shrink-0">
+        <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
+      </Link>
+      <Link to={to} className="min-w-0 flex-1">
+        <ShopName name={company.name} verification={company.verification} className={nameClassName} />
+        {identity ? <p className="truncate text-xs font-medium text-muted">{identity}</p> : null}
+      </Link>
+      {trailing}
+    </div>
+  );
 }
 
 export function CompanyRow({
   company,
   to,
-  relevance,
   plain = false,
 }: {
   company: PublicCompanySummary | CompanyCard;
   to?: string;
-  /** Sparse trust / relevance line; falls back to city. */
-  relevance?: string | null;
   /** Flat list row (Explore sections) instead of a padded card. */
   plain?: boolean;
 }) {
-  const subtitle = relevance?.trim() || company.city;
+  const subtitle = shopIdentityLine(company.city, shopSellCategories(company));
   const inner = (
     <div className="flex items-center gap-3">
       <Avatar name={company.name} imageUrl={company.logoUrl} size={plain ? 40 : undefined} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
-        <p className="truncate text-xs font-medium text-muted">{subtitle}</p>
+        <ShopName
+          name={company.name}
+          verification={company.verification}
+          className="text-sm font-bold tracking-tight text-ink"
+        />
+        {subtitle ? <p className="truncate text-xs font-medium text-muted">{subtitle}</p> : null}
       </div>
-      {!relevance && <VerificationTag verification={company.verification} />}
       {to && !plain ? <ChevronRightIcon className="text-muted" /> : null}
     </div>
   );
@@ -91,7 +129,7 @@ export function OpportunityCollectionCard({
   /** Follow control or other header trailing chrome (replaces posted time when set). */
   headerTrailing?: ReactNode;
 }) {
-  const { collection, relevance } = opportunity;
+  const { collection } = opportunity;
   const company = collection.company;
   const when = postedWhen(collection.updatedAt);
   const navigate = useNavigate();
@@ -108,21 +146,11 @@ export function OpportunityCollectionCard({
   };
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <div className={EXPLORE_POST_HEADER_CLASS}>
-        <Link to={`/company/${company.id}`} className="shrink-0">
-          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
-        </Link>
-        <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
-          <p className="truncate text-xs font-medium text-muted">
-            {relevance?.trim() || company.city}
-          </p>
-        </Link>
-        {headerTrailing ??
-          (when ? (
-            <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-          ) : null)}
-      </div>
+      <ShopPostHeader
+        company={company}
+        to={`/company/${company.id}`}
+        trailing={headerTrailing}
+      />
       <button
         type="button"
         aria-label={selecting ? `Select ${collection.name}` : collection.name}
@@ -157,7 +185,7 @@ export function OpportunityCollectionCard({
       >
         <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
         <p className="text-xs font-medium text-muted">
-          {designCountLabel(collection.productCount)}
+          {[designCountLabel(collection.productCount), when].filter(Boolean).join(' · ')}
         </p>
       </Link>
     </article>
@@ -175,7 +203,6 @@ export function OpportunityCompanyRow({
     <CompanyRow
       company={opportunity.company}
       to={`/company/${opportunity.company.id}`}
-      relevance={opportunity.relevance}
       plain={plain}
     />
   );
@@ -205,7 +232,6 @@ function postedWhen(iso: string | null | undefined): string {
  */
 export function OpportunityBusinessCard({
   company,
-  relevance,
   previewImages = [],
   designCount = 0,
   collectionCount = 0,
@@ -213,14 +239,13 @@ export function OpportunityBusinessCard({
   intentSide = 'sell',
 }: {
   company: BusinessCardModel['company'];
-  relevance: string | null;
+  relevance?: string | null;
   previewImages?: string[];
   designCount?: number;
   collectionCount?: number;
   latestPostedAt?: string | null;
   intentSide?: 'buy' | 'sell';
 }) {
-  const why = relevance?.trim() || company.city;
   const intentCats = (
     intentSide === 'buy' ? company.buyCategories : company.sellCategories
   ).filter(Boolean);
@@ -239,20 +264,7 @@ export function OpportunityBusinessCard({
 
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <div className={EXPLORE_POST_HEADER_CLASS}>
-        <Link to={shopTo} className="shrink-0">
-          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
-        </Link>
-        <Link to={shopTo} className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
-          <p className="truncate text-xs font-medium text-muted">{why}</p>
-        </Link>
-        {when ? (
-          <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-        ) : (
-          <VerificationTag verification={company.verification} />
-        )}
-      </div>
+      <ShopPostHeader company={company} to={shopTo} />
       <Link to={shopTo} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         {hasShopVisual ? (
           <>
@@ -262,6 +274,7 @@ export function OpportunityBusinessCard({
                 {catalogLine ? (
                   <p className="text-sm font-semibold tracking-tight text-ink">{catalogLine}</p>
                 ) : null}
+                {when ? <p className="text-xs font-medium text-muted">{when}</p> : null}
                 <BusinessIntentLine intentSide={intentSide} categories={intentCats} />
               </div>
               <span className="shrink-0 pt-0.5 text-xs font-bold text-accent">View shop →</span>
@@ -282,15 +295,14 @@ export function OpportunityBusinessCard({
 /** Compact grid tile for the Businesses directory — one cover, no collage count. */
 export function BusinessShopTile({
   company,
-  relevance,
   previewImages = [],
 }: {
   company: BusinessCardModel['company'];
-  relevance: string | null;
+  relevance?: string | null;
   previewImages?: string[];
 }) {
   const cover = previewImages[0] ?? null;
-  const why = relevance?.trim() || company.city;
+  const identity = shopIdentityLine(company.city, shopSellCategories(company));
   return (
     <Link
       to={`/company/${company.id}`}
@@ -306,8 +318,12 @@ export function BusinessShopTile({
         )}
       </div>
       <div className="px-2.5 py-2.5">
-        <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
-        <p className="truncate text-xs text-muted">{why}</p>
+        <ShopName
+          name={company.name}
+          verification={company.verification}
+          className="text-sm font-semibold text-ink"
+        />
+        {identity ? <p className="truncate text-xs text-muted">{identity}</p> : null}
       </div>
     </Link>
   );
@@ -404,7 +420,7 @@ export function OpportunityDesignCard({
   onOpen?: () => void;
   headerTrailing?: ReactNode;
 }) {
-  const { product, relevance } = opportunity;
+  const { product } = opportunity;
   const company = product.company;
   const when = postedWhen(product.postedAt);
   const navigate = useNavigate();
@@ -422,21 +438,11 @@ export function OpportunityDesignCard({
 
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <div className={EXPLORE_POST_HEADER_CLASS}>
-        <Link to={`/company/${company.id}`} className="shrink-0">
-          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
-        </Link>
-        <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
-          <p className="truncate text-xs font-medium text-muted">
-            {relevance?.trim() || company.city}
-          </p>
-        </Link>
-        {headerTrailing ??
-          (when ? (
-            <span className="shrink-0 text-xs font-medium text-muted">{when}</span>
-          ) : null)}
-      </div>
+      <ShopPostHeader
+        company={company}
+        to={`/company/${company.id}`}
+        trailing={headerTrailing}
+      />
       <button
         type="button"
         aria-label={selecting ? `Select ${product.name}` : product.name}
@@ -468,7 +474,12 @@ export function OpportunityDesignCard({
       >
         <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
         <p className="text-xs font-medium text-muted">
-          {product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design'}
+          {[
+            product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design',
+            when,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </Link>
     </article>
@@ -709,24 +720,15 @@ export function AlbumGrid({
 
 function PostHeader({
   company,
-  postedAt,
 }: {
   company: PublicCompanySummary;
-  postedAt: string;
 }) {
   return (
-    <div className={EXPLORE_POST_HEADER_CLASS}>
-      <Link to={`/company/${company.id}`} className="shrink-0">
-        <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
-      </Link>
-      <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
-        <p className="truncate text-xs font-medium text-muted">
-          {company.city}
-          {postedAt ? ` · ${timeAgo(postedAt)}` : null}
-        </p>
-      </Link>
-    </div>
+    <ShopPostHeader
+      company={company}
+      to={`/company/${company.id}`}
+      nameClassName="text-sm font-bold tracking-tight text-ink"
+    />
   );
 }
 
@@ -734,7 +736,7 @@ function PostHeader({
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <PostHeader company={collection.company} postedAt={collection.updatedAt} />
+      <PostHeader company={collection.company} />
       <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={collection.previewImages}
@@ -748,7 +750,9 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       <Link to={`/collections/${collection.id}`} className={cx('mt-1.5 block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <p className="text-sm font-bold tracking-tight text-ink">{collection.name}</p>
         <p className="text-xs font-medium text-muted">
-          {designCountLabel(collection.productCount)}
+          {[designCountLabel(collection.productCount), postedWhen(collection.updatedAt)]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </Link>
     </article>
@@ -759,7 +763,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
 export function ProductPost({ product }: { product: ExploreProductCard }) {
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <PostHeader company={product.company} postedAt={product.postedAt} />
+      <PostHeader company={product.company} />
       <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={product.images[0] ? [product.images[0]] : []}
@@ -770,7 +774,12 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
       <Link to={`/explore/products/${product.id}`} className={cx('mt-1.5 block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <p className="text-sm font-bold tracking-tight text-ink">{product.name}</p>
         <p className="text-xs font-medium text-muted">
-          {product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design'}
+          {[
+            product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design',
+            postedWhen(product.postedAt),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </Link>
     </article>
@@ -797,6 +806,11 @@ export function ProductTile({
       </div>
       <div className="p-2.5">
         <p className="truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
+        {'company' in product && product.company?.name ? (
+          <p className="truncate text-xs font-medium text-muted">{product.company.name}</p>
+        ) : 'companyName' in product && product.companyName?.trim() ? (
+          <p className="truncate text-xs font-medium text-muted">{product.companyName.trim()}</p>
+        ) : null}
         <p className="text-xs font-medium text-muted">{formatRate(product.rate, product.unit, product.rateMax)}</p>
       </div>
     </div>
