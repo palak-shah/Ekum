@@ -306,6 +306,7 @@ export class ReferenceResolver {
           itemCount: media.images.length > 0 ? media.images.length : null,
           available: Boolean(row),
           orderLabel: complaintCardOrderLine(complaintAttachedOrderCue(row?.order)),
+          orderId: row?.orderId ?? null,
         });
       } else if (
         message.type === MessageType.OrderCard ||
@@ -658,15 +659,18 @@ export function complaintCardOrderLine(label: string | null | undefined): string
 export function complaintMessageSnapshot(row: {
   detail?: string | null;
   images?: string[] | null;
+  orderId?: string | null;
   order?: ComplaintOrderCue | null;
 } | null): Record<string, unknown> {
   if (!row) return {};
   const media = complaintCardMedia(row);
   const orderLabel = complaintCardOrderLine(complaintAttachedOrderCue(row.order));
   const detail = row.detail?.trim() || '';
+  const orderId = row.orderId?.trim() || '';
   return {
     ...(detail ? { detail } : {}),
     ...(orderLabel ? { orderLabel } : {}),
+    ...(orderId ? { orderId } : {}),
     ...(media.images.length > 0 ? { images: media.images } : {}),
     ...(media.productIds.length > 0 ? { productIds: media.productIds } : {}),
   };

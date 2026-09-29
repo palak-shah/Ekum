@@ -32,7 +32,6 @@ function renderSheet() {
         open
         onClose={() => undefined}
         threadId="t1"
-        shopName="Surat Silk House"
         againstCompanyId="shop-1"
       />
     </QueryClientProvider>,
@@ -46,7 +45,7 @@ describe('ChatComplaintSheet', () => {
 
   it('keeps Send off until What\'s wrong is filled, with Add photos as a link', async () => {
     renderSheet();
-    expect(screen.getByText(/About Surat Silk House/)).toBeInTheDocument();
+    expect(screen.queryByText(/About Surat Silk House/)).toBeNull();
     expect(screen.getByTestId('complaint-send')).toBeDisabled();
     const photos = screen.getByTestId('complaint-add-photos');
     expect(photos.tagName).toBe('BUTTON');

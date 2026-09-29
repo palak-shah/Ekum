@@ -802,6 +802,7 @@ describe('ReferenceResolver payment cards', () => {
       'https://img/navy.jpg',
     ]);
     expect(references.get('m-cmp')?.productIds).toEqual(['p-navy']);
+    expect(references.get('m-cmp')?.orderId).toBe('ord-hidden-hash');
   });
 
   it('never keeps an Order # as the complaint cue', () => {

@@ -126,11 +126,13 @@ export function complaintCardOrderLine(label: string | null | undefined): string
 export function complaintCardFromMessage(
   message: MessageView,
   ref: MessageReference | null | undefined,
-): { orderLine: string | null; detail: string; images: string[]; productIds: string[] } {
+): { orderLine: string | null; detail: string; images: string[]; productIds: string[]; orderId: string | null } {
   const meta = complaintMeta(message);
   const orderLine = complaintCardOrderLine(ref?.orderLabel ?? null)
     ?? complaintCardOrderLine(typeof meta.orderLabel === 'string' ? meta.orderLabel : null);
   const detail = (ref?.detail?.trim() || (typeof meta.detail === 'string' ? meta.detail.trim() : '')) || '';
+  const orderId =
+    (ref?.orderId?.trim() || (typeof meta.orderId === 'string' ? meta.orderId.trim() : '')) || null;
   const metaImages = Array.isArray(meta.images)
     ? meta.images.filter((url): url is string => typeof url === 'string' && Boolean(url.trim()))
     : [];
@@ -144,7 +146,7 @@ export function complaintCardFromMessage(
     ? meta.productIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
     : [];
   const productIds = ref?.productIds && ref.productIds.length > 0 ? ref.productIds : metaIds;
-  return { orderLine, detail, images, productIds };
+  return { orderLine, detail, images, productIds, orderId };
 }
 
 function resolveThumbs(ref: MessageReference | null | undefined): {
@@ -463,20 +465,20 @@ export function buildChatTradeCard(
     return {
       kind: 'complaint',
       primary: ref?.name?.trim() || message.body?.trim() || 'Complaint',
-      who: catalogWhoLine(message, senderLabel, ref),
+      who: message.mine ? inCardSenderLine(message, senderLabel) : null,
       details: card.orderLine ? [card.orderLine] : [],
       note: card.detail || undefined,
       thumbs,
       thumbOverflow: overflow,
       thumbCaptions,
       action:
-        card.productIds.length > 0 && options.actions?.designsPath
-          ? { label: 'View designs →', to: options.actions.designsPath, style: 'link' }
+        card.orderId && options.actions?.openOrder
+          ? { label: 'View order →', onClick: options.actions.openOrder, style: 'link' }
           : undefined,
       createdAt: message.createdAt,
       mine: message.mine,
       variant: 'bubble',
-      orderId: undefined,
+      orderId: card.orderId ?? undefined,
     };
   }
   return null;

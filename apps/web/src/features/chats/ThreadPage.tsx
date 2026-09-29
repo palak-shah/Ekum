@@ -2930,7 +2930,6 @@ export function ThreadPage() {
           open={complaintOpen}
           onClose={() => setComplaintOpen(false)}
           threadId={id}
-          shopName={detail.counterpart?.name?.trim() || 'this shop'}
           againstCompanyId={counterpartId}
         />
       ) : null}
@@ -3540,11 +3539,15 @@ function TimelineItem({
         ? ref.designItems.map((d) => d.id)
         : metaProductIds;
   const designsPath =
-    (message.type === 'design_album' || message.type === 'complaint') &&
-    designIds.length > 0 &&
-    (message.type === 'complaint' || ref?.available)
+    message.type === 'design_album' && ref?.available && designIds.length > 0
       ? designSetPath(designIds, { facilitator })
       : undefined;
+  const complaintOrderId =
+    message.type === 'complaint'
+      ? (ref?.orderId?.trim() ||
+          (typeof meta?.orderId === 'string' ? meta.orderId.trim() : '') ||
+          null)
+      : null;
   const orderGoesTo = catalogOrderGoesToLine({
     path: sharePath,
     ownerName: ref?.ownerCompanyName,
@@ -4027,7 +4030,11 @@ function TimelineItem({
   }
 
   const openOrder =
-    isOrderLikeCard && ref?.available && ref.id ? () => onOpenOrder(ref.id) : undefined;
+    isOrderLikeCard && ref?.available && ref.id
+      ? () => onOpenOrder(ref.id)
+      : complaintOrderId
+        ? () => onOpenOrder(complaintOrderId)
+        : undefined;
   const quoteAccept =
     message.type === 'rate' &&
     !message.mine &&

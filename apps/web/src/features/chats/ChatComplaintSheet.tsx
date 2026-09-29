@@ -51,13 +51,11 @@ export function ChatComplaintSheet({
   open,
   onClose,
   threadId,
-  shopName,
   againstCompanyId,
 }: {
   open: boolean;
   onClose: () => void;
   threadId: string;
-  shopName: string;
   againstCompanyId: string;
 }) {
   const queryClient = useQueryClient();
@@ -171,6 +169,7 @@ export function ChatComplaintSheet({
         metadata: {
           ...(detail.trim() ? { detail: detail.trim() } : {}),
           ...(orderLine ? { orderLabel: orderLine } : {}),
+          ...(orderId ? { orderId } : {}),
           ...(thumbs.length > 0 ? { images: thumbs } : {}),
           ...(productIds.length > 0 ? { productIds } : {}),
         },
@@ -210,7 +209,6 @@ export function ChatComplaintSheet({
         }
       >
         <div className="flex flex-col gap-4 pb-8">
-          <p className="text-[13px] text-muted">About {shopName}</p>
           <Field label="What's wrong" required>
             <TextInput
               data-testid="complaint-subject"

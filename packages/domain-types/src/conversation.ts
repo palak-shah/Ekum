@@ -570,6 +570,8 @@ export interface MessageReference {
   eventLabel?: string | null;
   /** Frozen order label from metadata, e.g. Order #X16Y. */
   orderLabel?: string | null;
+  /** Complaint: attached ticket id (View order). */
+  orderId?: string | null;
   /** Frozen actor display from metadata (company name at send time). */
   actorLabel?: string | null;
   /**

@@ -268,18 +268,21 @@ describe('buildChatTradeCard dispatcher', () => {
         available: true,
         orderLabel: 'Navy satin · 29 Sep',
         productIds: ['p-navy'],
+        orderId: 'ord-navy',
         designItems: [{ id: 'p-navy', name: 'Navy satin', image: 'https://img/navy.jpg' }],
       },
       'You',
-      { actions: { designsPath: '/designs/set?ids=p-navy' } },
+      { actions: { openOrder: () => undefined, designsPath: '/designs/set?ids=p-navy' } },
     );
     expect(card?.kind).toBe('complaint');
+    expect(card?.who).toBeNull();
     expect(card?.primary).toBe('Late lot');
     expect(card?.details).toEqual(['Navy satin · 29 Sep']);
     expect(card?.note).toBe('Qty short on 29 Sep');
     expect(card?.thumbs).toEqual(['https://img/a.jpg', 'https://img/navy.jpg']);
     expect(card?.thumbCaptions).toEqual([null, 'Navy satin']);
-    expect(card?.action?.label).toBe('View designs →');
+    expect(card?.action?.label).toBe('View order →');
+    expect(card?.action?.to).toBeUndefined();
   });
 
   it('drops Order # on a complaint and uses More + thumbs from metadata', () => {
@@ -291,6 +294,7 @@ describe('buildChatTradeCard dispatcher', () => {
           orderLabel: 'Grey · 29 Sep',
           images: ['https://img/grey.jpg'],
           productIds: ['p-grey'],
+          orderId: 'ord-grey',
         },
       },
       {
@@ -302,11 +306,22 @@ describe('buildChatTradeCard dispatcher', () => {
         orderLabel: 'Order #RUTW',
       },
       'You',
-      { actions: { designsPath: '/designs/set?ids=p-grey' } },
+      { actions: { openOrder: () => undefined, designsPath: '/designs/set?ids=p-grey' } },
     );
+    expect(card?.who).toBeNull();
     expect(card?.details).toEqual(['Grey · 29 Sep']);
     expect(card?.note).toBe('Need 20 more pieces');
     expect(card?.thumbs).toEqual(['https://img/grey.jpg']);
-    expect(card?.action?.label).toBe('View designs →');
+    expect(card?.action?.label).toBe('View order →');
+  });
+
+  it('has no View designs and no View order when no ticket is attached', () => {
+    const card = buildChatTradeCard(
+      textMessage({ id: 'c3', type: 'complaint', body: 'Late', mine: true }),
+      { kind: 'complaint', id: 'cmp-3', name: 'Late', image: null, available: true },
+      'You',
+      { actions: { designsPath: '/designs/set?ids=p1', openOrder: () => undefined } },
+    );
+    expect(card?.action).toBeUndefined();
   });
 });
