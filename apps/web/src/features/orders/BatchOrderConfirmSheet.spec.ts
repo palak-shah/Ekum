@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OrderIntent, type CreateOrdersBatchResult } from '@ekum/domain-types';
-import { batchConfirmTitle } from './BatchOrderConfirmSheet';
+import { batchConfirmTitle, batchSuccessLeave } from './BatchOrderConfirmSheet';
 
 function result(orders: number, failures = 0): CreateOrdersBatchResult {
   return {
@@ -30,5 +30,32 @@ describe('batchConfirmTitle', () => {
 
   it('keeps single bilateral Place simple', () => {
     expect(batchConfirmTitle(result(1))).toBe('1 order placed');
+  });
+});
+
+describe('batchSuccessLeave', () => {
+  it('opens the one placed order', () => {
+    expect(batchSuccessLeave(result(1))).toEqual({
+      kind: 'order',
+      order: expect.objectContaining({ id: 'o0' }),
+    });
+  });
+
+  it('opens the first ticket when several shops placed', () => {
+    expect(batchSuccessLeave(result(2))).toEqual({
+      kind: 'order',
+      order: expect.objectContaining({ id: 'o0' }),
+    });
+  });
+
+  it('opens the ticket that landed when some lines failed', () => {
+    expect(batchSuccessLeave(result(1, 1))).toEqual({
+      kind: 'order',
+      order: expect.objectContaining({ id: 'o0' }),
+    });
+  });
+
+  it('stays when nothing placed', () => {
+    expect(batchSuccessLeave(result(0, 1))).toBeNull();
   });
 });

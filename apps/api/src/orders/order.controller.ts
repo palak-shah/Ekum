@@ -42,12 +42,16 @@ import type { AuthPrincipal } from '../auth/auth.types';
 import { RequirePermission } from '../auth/require-permission';
 import { OrderService } from './order.service';
 import { BuyForBuyerService } from './buy-for-buyer.service';
+import { SampleService } from './sample.service';
+import { ReturnService } from './return.service';
 
 @Controller({ path: 'orders', version: '1' })
 export class OrderController {
   constructor(
     private readonly orders: OrderService,
     private readonly forBuyer: BuyForBuyerService,
+    private readonly samples: SampleService,
+    private readonly returns: ReturnService,
   ) {}
 
   @Post()
@@ -110,6 +114,16 @@ export class OrderController {
     @Query(new ZodValidationPipe(listOrdersQuerySchema)) query: ListOrdersQuery,
   ) {
     return this.orders.list(companyId, query);
+  }
+
+  @Get('needs-you-count')
+  async needsYouCount(@CurrentCompanyId() companyId: string) {
+    const [orders, samples, returns] = await Promise.all([
+      this.orders.needsYouCount(companyId),
+      this.samples.needsYouCount(companyId),
+      this.returns.needsYouCount(companyId),
+    ]);
+    return { count: orders + samples + returns };
   }
 
   @Get(':id')

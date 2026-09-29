@@ -281,7 +281,12 @@ export function ExploreProductPage() {
         </div>
       )}
 
-      <CompanyRow company={data.company} to={`/company/${data.company.id}`} plain />
+      <CompanyRow
+        company={data.company}
+        to={isOwner ? undefined : `/company/${data.company.id}`}
+        relevance={isOwner ? 'Your design' : undefined}
+        plain
+      />
 
       {canTrade || canCurate ? (
         <div

@@ -21,11 +21,27 @@ import {
   type GroupMediaKind,
 } from './groupInfoTabs';
 
-const EMPTY: Record<GroupMediaKind, { title: string; message: string }> = {
-  photos: { title: 'No photos yet', message: 'Photos shared in this group show up here.' },
-  documents: { title: 'No documents yet', message: 'PDFs and files shared here show up here.' },
-  designs: { title: 'No designs yet', message: 'Designs shared in this group show up here.' },
-  collections: { title: 'No collections yet', message: 'Packs shared in this group show up here.' },
+const EMPTY: Record<GroupMediaKind, { title: string; group: string; chat: string }> = {
+  photos: {
+    title: 'No photos yet',
+    group: 'Photos shared in this group show up here.',
+    chat: 'Photos shared in this chat show up here.',
+  },
+  documents: {
+    title: 'No documents yet',
+    group: 'PDFs and files shared here show up here.',
+    chat: 'PDFs and files shared here show up here.',
+  },
+  designs: {
+    title: 'No designs yet',
+    group: 'Designs shared in this group show up here.',
+    chat: 'Designs shared in this chat show up here.',
+  },
+  collections: {
+    title: 'No collections yet',
+    group: 'Packs shared in this group show up here.',
+    chat: 'Packs shared in this chat show up here.',
+  },
 };
 
 type PhotoCell = { key: string; url: string; messageId: string; createdAt: string };
@@ -60,10 +76,12 @@ export function GroupInfoMediaPanel({
   threadId,
   kind,
   onPickKind,
+  inGroup = true,
 }: {
   threadId: string;
   kind: GroupMediaKind | null;
   onPickKind: (kind: GroupMediaKind | null) => void;
+  inGroup?: boolean;
 }) {
   const navigate = useNavigate();
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -138,7 +156,10 @@ export function GroupInfoMediaPanel({
     );
   }
 
-  const empty = EMPTY[kind];
+  const empty = {
+    title: EMPTY[kind].title,
+    message: inGroup ? EMPTY[kind].group : EMPTY[kind].chat,
+  };
   const viewerCell =
     viewerIndex != null && viewerIndex >= 0 && viewerIndex < photoCells.length
       ? photoCells[viewerIndex]

@@ -109,7 +109,7 @@ describe('ConnectionService.applyOwnerAction', () => {
     await expect(service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor)).rejects.toThrow();
   });
 
-  it('allows either side to pause an active connection', async () => {
+  it('refuses pause — Block is the door', async () => {
     const { service, update } = setup({
       id: 'conn-1',
       companyLowId: 'co-a',
@@ -117,12 +117,8 @@ describe('ConnectionService.applyOwnerAction', () => {
       status: ConnectionStatus.Active,
       statusSetByCompanyId: null,
     });
-    await service.applyOwnerAction('co-a', 'conn-1', 'pause', actor);
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { status: ConnectionStatus.Paused, statusSetByCompanyId: 'co-a' },
-      }),
-    );
+    await expect(service.applyOwnerAction('co-a', 'conn-1', 'pause', actor)).rejects.toThrow();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('allows only the pauser to resume', async () => {
@@ -232,6 +228,7 @@ describe('ConnectionService.list silent masking', () => {
     expect(result.map((view) => view.id)).toEqual(['blocked-by-me', 'paused-by-me', 'active']);
     expect(result.find((view) => view.id === 'blocked-by-me')?.canUnblock).toBe(true);
     expect(result.find((view) => view.id === 'paused-by-me')?.canResume).toBe(true);
-    expect(result.find((view) => view.id === 'active')?.canPause).toBe(true);
+    expect(result.find((view) => view.id === 'active')?.canPause).toBe(false);
+    expect(result.find((view) => view.id === 'active')?.canBlock).toBe(true);
   });
 });

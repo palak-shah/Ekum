@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MyCatalogPage } from '@/features/catalog/MyCatalogPage';
-import { CompanyShareSheet } from '@/features/company/CompanyShareSheet';
 import { useAuth } from '@/lib/auth';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
@@ -13,9 +11,7 @@ export function MorePage() {
   const { session } = useAuth();
   const company = useMyCompany();
   const { selling, trading } = useTradePresence();
-  const [shareOpen, setShareOpen] = useState(false);
   const showLibrary = selling || trading;
-  const companyId = company.data?.id ?? '';
 
   return (
     <div className="flex flex-col gap-4">
@@ -39,24 +35,14 @@ export function MorePage() {
                   .filter(Boolean)
                   .join(' · ')}
               </p>
-              <p className="mt-1.5 text-xs font-semibold text-accent">
+              <p className="mt-2 flex flex-wrap gap-1.5">
                 <button
                   type="button"
                   data-testid="you-edit"
-                  className="hover:underline"
+                  className="inline-flex h-7 items-center rounded-lg border border-accent bg-surface px-2 text-[12px] font-semibold tracking-tight text-accent hover:bg-accent/5"
                   onClick={() => navigate('/settings/profile')}
                 >
-                  Edit
-                </button>
-                <span className="px-1.5 font-medium text-muted">·</span>
-                <button
-                  type="button"
-                  data-testid="you-share"
-                  className="hover:underline disabled:opacity-45"
-                  disabled={!companyId}
-                  onClick={() => setShareOpen(true)}
-                >
-                  Share
+                  Edit profile
                 </button>
               </p>
             </div>
@@ -68,15 +54,6 @@ export function MorePage() {
       </div>
 
       <MyCatalogPage embedded catalogTabs={showLibrary} />
-
-      {companyId ? (
-        <CompanyShareSheet
-          open={shareOpen}
-          onClose={() => setShareOpen(false)}
-          companyId={companyId}
-          companyName={company.data?.name ?? 'Your business'}
-        />
-      ) : null}
     </div>
   );
 }

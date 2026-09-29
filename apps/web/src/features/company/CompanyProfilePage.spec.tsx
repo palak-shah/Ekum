@@ -124,14 +124,43 @@ describe('CompanyProfilePage shop chrome', () => {
     });
   });
 
-  it('hides Message when opened from a 1:1', async () => {
+  it('keeps Message when opened from a 1:1', async () => {
     renderPage(true);
     expect(await screen.findByTestId('company-follow')).toBeInTheDocument();
-    expect(screen.queryByTestId('company-message')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Request' })).toBeInTheDocument();
-    expect(screen.getByTestId('company-follow-hint')).toHaveTextContent(
-      'Follow = ask to see their new designs. Request access = rates and orders.',
-    );
+    expect(screen.getByTestId('company-message')).toHaveTextContent('Message');
+    expect(screen.queryByTestId('company-request')).toBeNull();
+    expect(screen.getByTestId('company-follow')).toHaveTextContent('See new packs');
+    expect(screen.getByTestId('company-follow-hint')).toHaveTextContent('Message');
+    expect(screen.getByTestId('company-share')).toHaveAttribute('aria-label', 'Share');
+  });
+
+  it('shows Message when not connected', async () => {
+    renderPage(false);
+    expect(await screen.findByTestId('company-message')).toHaveTextContent('Message');
+  });
+
+  it('shows Chat when connected', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/companies/seed-company-ravi') return { ...company, connected: true };
+      if (path === '/connections') {
+        return [{ id: 'cn1', status: 'active', company }];
+      }
+      if (path === '/follows/following') return [];
+      if (path === '/companies/seed-company-ravi/collections') {
+        return { results: [], nextCursor: null };
+      }
+      if (path === '/companies/seed-company-ravi/designs') {
+        return { results: [], nextCursor: null };
+      }
+      if (path === '/companies/seed-company-ravi/contact') {
+        return [{ name: 'Ravi', role: 'Owner', phone: '+919800000001' }];
+      }
+      return [];
+    });
+    renderPage(false);
+    expect(await screen.findByTestId('company-message')).toHaveTextContent('Chat');
+    expect(await screen.findByTestId('company-contact')).toHaveTextContent('Ravi Owner');
+    expect(screen.queryByText('+919800000001')).toBeNull();
   });
 
   it('shows the design name on the shop grid', async () => {
@@ -156,9 +185,9 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByText('Design', { exact: true })).toBeNull();
   });
 
-  it('shows Share on the action row', async () => {
+  it('shows Share in the header', async () => {
     renderPage(false);
-    expect(await screen.findByTestId('company-share')).toBeInTheDocument();
+    expect(await screen.findByTestId('company-share')).toHaveAttribute('aria-label', 'Share');
     expect(screen.queryByTestId('company-edit')).toBeNull();
   });
 

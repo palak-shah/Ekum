@@ -120,30 +120,33 @@ export function OnboardingPage() {
           void submit();
         }}
       >
-        <Field label="Business name">
+        <Field label="Business name" required>
           <TextInput
             autoFocus
+            required
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Surat Silk House"
           />
         </Field>
-        <Field label="Contact person">
+        <Field label="Contact person" required>
           <TextInput
+            required
             value={contactPerson}
             onChange={(event) => setContactPerson(event.target.value)}
             placeholder="Ravi"
           />
         </Field>
-        <Field label="City">
+        <Field label="City" required>
           <SuggestInput
             kind="city"
+            required
             value={city}
             onChange={setCity}
             placeholder="Surat"
           />
         </Field>
-        <Field label="What do you deal in?" hint="Select all that apply." error={error}>
+        <Field label="What do you deal in?" required hint="Select all that apply." error={error}>
           <div className="flex flex-wrap gap-2">
             {SUPER_OPTIONS.map((value) => {
               const on = superCategories.includes(value);

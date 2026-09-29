@@ -88,13 +88,13 @@ export function GroupInviteLandingPage() {
     <InviteShell>
       <p className="text-xs font-semibold text-accent">Ekum</p>
       <div className="flex flex-col items-center gap-2 pt-2">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam text-lg font-semibold text-muted">
-          {photo ? (
+        {photo ? (
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam">
             <img src={photo} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <Avatar name={view.title} size={80} />
-          )}
-        </div>
+          </div>
+        ) : (
+          <Avatar name={view.title} size={80} />
+        )}
         <h1 className="text-center text-xl font-semibold tracking-tight text-ink">{view.title}</h1>
         {view.blurb ? <p className="text-center text-sm text-muted">{view.blurb}</p> : null}
         <p className="text-center text-sm text-muted">From {view.host.name}</p>

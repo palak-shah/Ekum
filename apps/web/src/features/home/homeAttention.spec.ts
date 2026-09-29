@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OrderView } from '@ekum/domain-types';
+import type { OrderView, ThreadSummary } from '@ekum/domain-types';
 import { buildHomeNeeds, needTitle } from './homeAttention';
 
 function order(
@@ -47,7 +47,6 @@ describe('buildHomeNeeds', () => {
     const needs = buildHomeNeeds({
       orders,
       returns: [],
-      accessRequests: [],
       chatRequests: [],
     });
     expect(needs).toHaveLength(1);
@@ -69,7 +68,6 @@ describe('buildHomeNeeds', () => {
     const needs = buildHomeNeeds({
       orders,
       returns: [],
-      accessRequests: [],
       chatRequests: [],
     });
     expect(needs.map((item) => item.kind).sort()).toEqual(['confirm_order', 'dispatch']);
@@ -82,7 +80,6 @@ describe('buildHomeNeeds', () => {
     const needs = buildHomeNeeds({
       orders: [order('solo', { status: 'confirmed', direction: 'selling' })],
       returns: [],
-      accessRequests: [],
       chatRequests: [],
     });
     expect(needs[0]?.to).toBe('/orders/solo');
@@ -93,7 +90,6 @@ describe('buildHomeNeeds', () => {
     const needs = buildHomeNeeds({
       orders: [],
       returns: [],
-      accessRequests: [],
       followAsks: [
         {
           company: {
@@ -112,6 +108,38 @@ describe('buildHomeNeeds', () => {
     expect(needs[0]?.kind).toBe('follow_request');
     expect(needs[0]?.title).toBe('Follow ask · Ahmedabad Loom Co');
     expect(needs[0]?.to).toBe('/network/followers?tab=asked');
+  });
+
+  it('sends chat requests to the thread, not Network Requests', () => {
+    const chat: ThreadSummary = {
+      id: 'th-1',
+      type: 'direct',
+      visibility: 'shared',
+      title: 'Ahmedabad Loom Co',
+      state: 'pending',
+      alertLevel: 'all',
+      pinned: false,
+      unreadCount: 1,
+      lastMessage: null,
+      lastMessageAt: '2026-09-28T10:00:00.000Z',
+      counterpart: {
+        id: 'c-ask',
+        name: 'Ahmedabad Loom Co',
+        city: 'Ahmedabad',
+        logoUrl: null,
+        verification: 'none',
+      },
+      participantCount: 2,
+    };
+    const needs = buildHomeNeeds({
+      orders: [],
+      returns: [],
+      chatRequests: [chat],
+    });
+    expect(needs).toHaveLength(1);
+    expect(needs[0]?.kind).toBe('chat_request');
+    expect(needs[0]?.to).toBe('/chats/th-1');
+    expect(needs.some((row) => row.kind === 'access_request')).toBe(false);
   });
 });
 

@@ -3,6 +3,8 @@ import { Prisma, type Company } from '@prisma/client';
 import {
   CollectionStatus,
   MembershipRole,
+  ThreadParticipantState,
+  ThreadType,
   type AuthTokens,
   type CollectionCard,
   type CompanyContactPoint,
@@ -184,20 +186,43 @@ export class CompanyService {
     if (viewerCompanyId === targetId) {
       return profile;
     }
-    const follow = await this.prisma.follow.findUnique({
-      where: {
-        followerCompanyId_followedCompanyId: {
-          followerCompanyId: viewerCompanyId,
-          followedCompanyId: targetId,
+    const [follow, connected, liveChat] = await Promise.all([
+      this.prisma.follow.findUnique({
+        where: {
+          followerCompanyId_followedCompanyId: {
+            followerCompanyId: viewerCompanyId,
+            followedCompanyId: targetId,
+          },
         },
-      },
-      select: { status: true, accessKind: true },
-    });
+        select: { status: true, accessKind: true },
+      }),
+      this.visibility.isActiveConnection(viewerCompanyId, targetId),
+      this.prisma.thread.findFirst({
+        where: {
+          type: ThreadType.Direct,
+          AND: [
+            {
+              participants: {
+                some: { companyId: viewerCompanyId, state: ThreadParticipantState.Active },
+              },
+            },
+            {
+              participants: {
+                some: { companyId: targetId, state: ThreadParticipantState.Active },
+              },
+            },
+          ],
+        },
+        select: { id: true },
+      }),
+    ]);
     return {
       ...profile,
       following: follow?.status === 'allowed',
       followPending: follow?.status === 'pending',
       canPutInPack: follow?.status === 'allowed' && follow.accessKind === 'pack',
+      connected,
+      hasChat: Boolean(liveChat),
     };
   }
 

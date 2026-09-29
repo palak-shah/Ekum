@@ -4,6 +4,7 @@ import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { ApiError } from '@/lib/apiClient';
 import { TextInput, cx } from '@/ui/kit';
 import { CameraIcon } from '@/ui/icons';
+import { avatarTone } from '@/ui/avatarTone';
 import { commitGroupBlurb, commitGroupTitle } from './groupIdentity';
 
 export function GroupIdentityHero({
@@ -37,6 +38,11 @@ export function GroupIdentityHero({
   const [lineDraft, setLineDraft] = useState(blurb);
   const photo = toAbsoluteMediaUrl(imageUrl);
   const initial = (title || 'G').slice(0, 1).toUpperCase();
+  const circleClass =
+    'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-lg font-semibold';
+  const circleStyle = photo
+    ? undefined
+    : { backgroundColor: avatarTone(title || 'G'), color: '#fff' };
 
   const openName = () => {
     setNameDraft(title);
@@ -71,7 +77,8 @@ export function GroupIdentityHero({
             data-testid="group-info-photo"
             aria-label="Add photo"
             disabled={busy || photoBusy}
-            className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam text-lg font-semibold text-muted"
+            className={cx(circleClass, photo ? 'border border-line bg-foam text-muted' : '')}
+            style={circleStyle}
             onClick={pickPhoto}
           >
             {photo ? (
@@ -81,7 +88,10 @@ export function GroupIdentityHero({
             )}
           </button>
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam text-lg font-semibold text-muted">
+          <div
+            className={cx(circleClass, photo ? 'border border-line bg-foam text-muted' : '')}
+            style={circleStyle}
+          >
             {photo ? (
               <img src={photo} alt="" className="h-full w-full object-cover" />
             ) : (

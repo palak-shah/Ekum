@@ -1,15 +1,16 @@
 import { useDeferredValue, useEffect, useState, useSyncExternalStore } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type CursorPage, type MuteFor, type ThreadSummary } from '@ekum/domain-types';
+import { type CursorPage, type FollowAskView, type MuteFor, type ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { useTeamCaps } from '@/lib/teamCaps';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
-import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { ChevronRightIcon, PlusIcon } from '@/ui/icons';
+import { Avatar, Button, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
+import { ListSearchRow } from '@/ui/ListSearchRow';
+import { ChevronRightIcon } from '@/ui/icons';
+import { subscribeChatsNewChat } from './chatsNewChat';
 import { chatMediaKindChrome } from './chatMediaKindChrome';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { StartChatSheet } from './StartChatSheet';
 import { ChatsInboxDock } from './ChatsInboxDock';
@@ -21,22 +22,34 @@ import {
   subscribeChatsInboxSelect,
 } from './chatsInboxSelect';
 import { useToast } from '@/ui/Toast';
+import { SEE_PACKS_ASK_LINE } from '@/features/company/seePacksCopy';
+import { FollowAskDecideRow } from '@/features/chats/FollowAskDecideRow';
+import {
+  type ChatsInboxChip,
+  chatsInboxChipBadge,
+  chatsInboxChipCount,
+  chatsInboxEmptyCopy,
+  chatsInboxFromSearch,
+  filterActiveInbox,
+  rememberChatsInbox,
+} from './chatsInboxFilter';
 
-type Tab = 'active' | 'requests';
 type InboxAction = 'archive' | 'clear' | 'delete' | 'unread';
 
-const TAB_LABEL: Record<Tab, string> = {
-  active: 'All Chats',
-  requests: 'Requests Received',
+const CHIP_LABEL: Record<ChatsInboxChip, string> = {
+  all: 'All',
+  unread: 'Unread',
+  groups: 'Groups',
+  requests: 'Requests',
 };
 
-function useInboxThreads(tab: Tab, q: string | undefined, live: boolean) {
+function useInboxThreads(inbox: 'active' | 'requests', q: string | undefined, live: boolean) {
   return useQuery({
-    queryKey: ['threads', { tab, q }],
+    queryKey: ['threads', { tab: inbox, q }],
     queryFn: () =>
       api.get<CursorPage<ThreadSummary>>('/threads', {
         limit: 40,
-        state: tab === 'requests' ? 'pending' : 'active',
+        state: inbox === 'requests' ? 'pending' : 'active',
         ...(q ? { q } : {}),
       }),
     refetchInterval: live ? 12_000 : false,
@@ -56,14 +69,15 @@ const IN_CHATS: { kind: string; label: string }[] = [
 export function ChatsPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { can } = useTeamCaps();
-  const canChat = can('chats');
-  const [tab, setTab] = useState<Tab>('active');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [chip, setChip] = useState<ChatsInboxChip>(() => chatsInboxFromSearch(searchParams.toString()));
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const deferredQuery = useDeferredValue(query.trim());
   const [startOpen, setStartOpen] = useState(false);
   const selecting = useSyncExternalStore(subscribeChatsInboxSelect, getChatsInboxSelecting);
+
+  useEffect(() => subscribeChatsNewChat(() => setStartOpen(true)), []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirm, setConfirm] = useState<'clear' | 'delete' | 'exit' | null>(null);
   const [confirmIds, setConfirmIds] = useState<string[]>([]);
@@ -75,25 +89,44 @@ export function ChatsPage() {
   } | null>(null);
   useEffect(() => {
     if (selecting) {
-      setTab('active');
+      setChip('all');
       setSearchFocused(false);
       setQuery('');
-    } else {
-      setSelectedIds(new Set());
-      setConfirm(null);
-      setConfirmIds([]);
-      setMenuThread(null);
-      setMenuAnchor(null);
+      return;
     }
-  }, [selecting]);
+    const nextChip = chatsInboxFromSearch(searchParams.toString());
+    setChip(nextChip);
+    rememberChatsInbox(nextChip);
+    setSelectedIds(new Set());
+    setConfirm(null);
+    setConfirmIds([]);
+    setMenuThread(null);
+    setMenuAnchor(null);
+  }, [selecting, searchParams]);
 
   // Keep both inboxes warm so All / Requests never swap through a loader or the other list.
   const q = deferredQuery || undefined;
   const live = !deferredQuery && !selecting;
-  const activeInbox = useInboxThreads('active', q, live && tab === 'active');
-  const requestInbox = useInboxThreads('requests', q, live && tab === 'requests');
-  const threads = tab === 'requests' ? requestInbox : activeInbox;
-  const list = threads.data?.results ?? [];
+  const activeInbox = useInboxThreads('active', q, live);
+  const requestInbox = useInboxThreads('requests', q, live);
+  const asks = useQuery({
+    queryKey: ['follows', 'asks'],
+    queryFn: () => api.get<FollowAskView[]>('/follows/asks'),
+  });
+  const decideAsk = useMutation({
+    mutationFn: (payload: { followerCompanyId: string; decision: 'look' | 'pack' | 'deny' }) =>
+      api.post('/follows/decide', payload),
+    onSuccess: () => {
+      invalidateFollowCatalog(queryClient);
+    },
+    onError: (err) =>
+      showToast(err instanceof ApiError ? err.message : 'Could not update this ask.', 'danger'),
+  });
+  const threads = chip === 'requests' ? requestInbox : activeInbox;
+  const list =
+    chip === 'requests'
+      ? (requestInbox.data?.results ?? [])
+      : filterActiveInbox(activeInbox.data?.results ?? [], chip);
   const visibleIds = list.map((row) => row.id);
   const selectState = selectAllState(visibleIds, selectedIds);
   const searching = Boolean(deferredQuery);
@@ -194,7 +227,7 @@ export function ChatsPage() {
     inboxAct.isPending || pinRow.isPending || muteRow.isPending || exitGroup.isPending;
 
   return (
-    <div className={cx('flex flex-col gap-4', selecting && selectedIds.size > 0 && 'pb-28')}>
+    <div className={cx('flex flex-col gap-2.5', selecting && selectedIds.size > 0 && 'pb-28')}>
       {selecting ? (
         <SelectAllFloat
           open
@@ -207,6 +240,7 @@ export function ChatsPage() {
         <ListSearchRow
           search={
             <SearchInput
+              compact
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onFocus={() => setSearchFocused(true)}
@@ -217,13 +251,6 @@ export function ChatsPage() {
               aria-label="Search chats"
               data-testid="chats-search"
             />
-          }
-          action={
-            canChat ? (
-              <ListSquareButton aria-label="New chat" onClick={() => setStartOpen(true)}>
-                <PlusIcon width={20} height={20} />
-              </ListSquareButton>
-            ) : undefined
           }
         />
       )}
@@ -239,17 +266,17 @@ export function ChatsPage() {
                   <Link
                     to={`/chats/find?kind=${item.kind}`}
                     data-testid={`chats-find-${item.kind}`}
-                    className="flex items-center gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas"
+                    className="flex items-center gap-2.5 border-b border-line/70 px-4 py-2 last:border-b-0 hover:bg-canvas active:bg-canvas"
                   >
                     <span
                       className={cx(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
                         badge,
                       )}
                     >
                       <Icon width={20} height={20} aria-hidden />
                     </span>
-                    <span className="min-w-0 flex-1 text-[15px] font-semibold text-ink">{item.label}</span>
+                    <span className="min-w-0 flex-1 text-[14px] font-semibold text-ink">{item.label}</span>
                     <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
                   </Link>
                 </li>
@@ -260,23 +287,45 @@ export function ChatsPage() {
       ) : (
         <>
           {selecting ? null : (
-            <div className="flex rounded-xl bg-linen p-0.5" role="tablist" aria-label="Chat lists">
-              {(['active', 'requests'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === value}
-                  onClick={() => setTab(value)}
-                  className={cx(
-                    'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-semibold tracking-tight',
-                    tab === value ? 'bg-surface text-ink shadow-[var(--shadow-soft)]' : 'text-muted',
-                  )}
-                >
-                  {TAB_LABEL[value]}
-                </button>
-              ))}
-            </div>
+            <FilterRail className="gap-1.5">
+              {(['all', 'unread', 'groups', 'requests'] as const).map((value) => {
+                const badge = chatsInboxChipBadge(
+                  chatsInboxChipCount(value, {
+                    active: activeInbox.data?.results ?? [],
+                    pendingCount: requestInbox.data?.results.length ?? 0,
+                    askCount: asks.data?.length ?? 0,
+                  }),
+                );
+                return (
+                  <Chip
+                    key={value}
+                    compact
+                    active={chip === value}
+                    onClick={() => {
+                      setChip(value);
+                      const next = new URLSearchParams(searchParams);
+                      if (value === 'all') next.delete('inbox');
+                      else next.set('inbox', value);
+                      setSearchParams(next, { replace: true });
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {CHIP_LABEL[value]}
+                      {badge ? (
+                        <span
+                          className={cx(
+                            'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
+                            chip === value ? 'bg-white/25 text-white' : 'bg-accent text-white',
+                          )}
+                        >
+                          {badge}
+                        </span>
+                      ) : null}
+                    </span>
+                  </Chip>
+                );
+              })}
+            </FilterRail>
           )}
 
           {threads.isLoading && !threads.data ? (
@@ -286,19 +335,46 @@ export function ChatsPage() {
               message="Could not load chats."
               onRetry={() => void threads.refetch()}
             />
-          ) : list.length > 0 ? (
+          ) : list.length > 0 || (chip === 'requests' && (asks.data?.length ?? 0) > 0) ? (
             <div className="-mx-4 overflow-hidden bg-surface">
+              {chip === 'requests'
+                ? (asks.data ?? []).map((ask) => (
+                    <div
+                      key={ask.company.id}
+                      className="flex flex-col gap-1.5 border-b border-line/70 px-4 py-2"
+                      data-testid={`chats-see-packs-ask-${ask.company.id}`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} size={36} />
+                        <div className="min-w-0">
+                          <p className="truncate text-[15px] font-semibold text-ink">{ask.company.name}</p>
+                          <p className="text-[12px] text-muted">{SEE_PACKS_ASK_LINE}</p>
+                        </div>
+                      </div>
+                      <FollowAskDecideRow
+                        disabled={decideAsk.isPending}
+                        onAllow={(decision) =>
+                          decideAsk.mutate({ followerCompanyId: ask.company.id, decision })
+                        }
+                        onDecline={() =>
+                          decideAsk.mutate({ followerCompanyId: ask.company.id, decision: 'deny' })
+                        }
+                      />
+                    </div>
+                  ))
+                : null}
               {list.map((thread) => (
                 <InboxThreadRow
                   key={thread.id}
                   thread={thread}
                   selecting={selecting}
                   selected={selectedIds.has(thread.id) || menuThread?.id === thread.id}
-                  canMenu={tab === 'active' && !selecting}
+                  canMenu={!selecting}
                   onMenu={(rect) => {
                     setMenuThread(thread);
                     setMenuAnchor(rect);
                   }}
+                  onArchive={() => run('archive', [thread.id])}
                   onToggle={() => {
                     setSelectedIds((prev) => {
                       const next = new Set(prev);
@@ -312,22 +388,10 @@ export function ChatsPage() {
             </div>
           ) : (
             <EmptyState
-              title={
-                searching
-                  ? 'No matches'
-                  : tab === 'requests'
-                    ? 'No requests received'
-                    : 'No chats yet'
-              }
-              message={
-                searching
-                  ? 'Try another name, order, or message.'
-                  : tab === 'requests'
-                    ? 'Messages from businesses you don’t know yet land here.'
-                    : 'Find a business to start chatting.'
-              }
+              title={chatsInboxEmptyCopy(chip, searching).title}
+              message={chatsInboxEmptyCopy(chip, searching).message}
               action={
-                !searching && tab === 'active' && !selecting ? (
+                !searching && chip === 'all' && !selecting ? (
                   <div className="flex flex-col items-center gap-2">
                     <button
                       type="button"
@@ -391,6 +455,30 @@ export function ChatsPage() {
           onClear={() => askConfirm('clear', [menuThread.id])}
           onDelete={() => askConfirm('delete', [menuThread.id])}
           onExitGroup={() => askConfirm('exit', [menuThread.id])}
+          onBlock={
+            menuThread.counterpart
+              ? () => {
+                  const id = menuThread.id;
+                  const companyId = menuThread.counterpart!.id;
+                  setMenuThread(null);
+                  setMenuAnchor(null);
+                  void (async () => {
+                    try {
+                      await api.post(`/connections/company/${companyId}/block`, {});
+                      await api.post(`/threads/${id}/decline`, {});
+                      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+                      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+                      showToast('Blocked');
+                    } catch (err) {
+                      showToast(
+                        err instanceof ApiError ? err.message : 'Could not block this shop.',
+                        'danger',
+                      );
+                    }
+                  })();
+                }
+              : undefined
+          }
         />
       ) : null}
 

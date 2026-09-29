@@ -48,7 +48,7 @@ describe('productStatusLine', () => {
           postedToMarketAt: null,
         }),
       ),
-    ).toBe('In packs');
+    ).toBe('In your packs');
   });
 
   it('marks a solo Explore post separately from pack-only', () => {

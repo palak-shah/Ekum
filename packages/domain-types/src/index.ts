@@ -12,6 +12,7 @@ export * from './conversation';
 export * from './chat-mentions';
 export * from './chat-membership';
 export * from './orders';
+export * from './trade-needs-you';
 export * from './order-timeline';
 export * from './order-trail';
 export * from './order-events';

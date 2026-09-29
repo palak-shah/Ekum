@@ -34,6 +34,7 @@ import {
   type DeclineOrderDto,
   type DispatchDto,
   type ListOrdersQuery,
+  matchesOrderNeedsYou,
   type OrderView,
   type QuoteOrderDto,
   type MillPassHoldDto,
@@ -738,6 +739,23 @@ export class OrderService {
         linkedMills: linkedByParent.get(row.id) ?? [],
       };
     });
+  }
+
+  /** Bottom-nav Orders badge — same Needs you rows as the list. */
+  async needsYouCount(actorCompanyId: string): Promise<number> {
+    let cursor: string | undefined;
+    let count = 0;
+    for (;;) {
+      const page = await this.list(actorCompanyId, {
+        limit: 100,
+        sort: 'newest',
+        ...(cursor ? { cursor } : {}),
+      });
+      count += page.results.filter((row) => matchesOrderNeedsYou(row)).length;
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    return count;
   }
 
   async get(actorCompanyId: string, id: string): Promise<OrderView> {

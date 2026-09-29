@@ -61,6 +61,7 @@ test.describe('orders chrome @functional @orders', () => {
     await page.goto('/explore/products/seed-prod-1');
     await page.getByRole('button', { name: 'Order' }).click();
     await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('how-many-share')).toBeVisible();
     await expect(page.getByTestId('how-many-facts')).toContainText('Piece');
     const qty = page.getByRole('group', { name: /Pieces for/i }).getByRole('textbox');
     await expect(qty).toHaveValue('20');

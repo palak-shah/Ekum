@@ -10,7 +10,7 @@ Every company. Open via header **bell** → `/notifications`.
 
 ## User flows
 
-1. Tap bell (badge = unread count for **this viewer**).
+1. Tap bell (badge = **exact** unread count for **this viewer** — not 9+).
 2. Browse list → tap a row → that item is **marked read**, then the app opens the related order / chat / pack / company / broadcast.
 3. **Mark all read**, **Delete** one (×), **Clear read**, or **Clear all**.
 4. Adjust preferences (types / push) where settings expose them.

@@ -25,6 +25,7 @@ export function ChatsInboxRowMenu({
   onClear,
   onDelete,
   onExitGroup,
+  onBlock,
 }: {
   isGroup: boolean;
   pinned: boolean;
@@ -42,6 +43,7 @@ export function ChatsInboxRowMenu({
   onClear: () => void;
   onDelete: () => void;
   onExitGroup: () => void;
+  onBlock?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [mutePick, setMutePick] = useState(false);
@@ -116,18 +118,6 @@ export function ChatsInboxRowMenu({
         <button type="button" role="menuitem" data-testid="chats-row-pin" disabled={pending} className={ITEM} onClick={onPin}>
           {pinned ? 'Unpin chat' : 'Pin chat'}
         </button>
-        {!unread && onUnread ? (
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="chats-row-unread"
-            disabled={pending}
-            className={cx(ITEM, 'border-t border-line/70')}
-            onClick={onUnread}
-          >
-            Mark as unread
-          </button>
-        ) : null}
         <button
           type="button"
           role="menuitem"
@@ -145,6 +135,18 @@ export function ChatsInboxRowMenu({
         >
           {muted ? 'Unmute' : 'Mute'}
         </button>
+        {!unread && onUnread ? (
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="chats-row-unread"
+            disabled={pending}
+            className={cx(ITEM, 'border-t border-line/70')}
+            onClick={onUnread}
+          >
+            Mark as unread
+          </button>
+        ) : null}
         <button
           type="button"
           role="menuitem"
@@ -188,6 +190,18 @@ export function ChatsInboxRowMenu({
             Delete chat
           </button>
         )}
+        {onBlock ? (
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="chats-row-block"
+            disabled={pending}
+            className={cx(ITEM, 'border-t border-line/70 text-danger')}
+            onClick={onBlock}
+          >
+            Block
+          </button>
+        ) : null}
       </div>
       {mutePick && !muted && onPickMute ? (
         <ChatMuteDurationFlyout

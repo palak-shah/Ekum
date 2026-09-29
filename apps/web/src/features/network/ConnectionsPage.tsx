@@ -19,21 +19,14 @@ export function ConnectionsPage() {
   });
 
   const connectionAction = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'pause' | 'resume' | 'block' | 'unblock' }) =>
+    mutationFn: ({ id, action }: { id: string; action: 'resume' | 'block' | 'unblock' }) =>
       api.post(`/connections/${id}/${action}`, {}),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['connections'] }),
   });
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Connections"
-        action={
-          <Link to="/network/requests" className="text-sm font-medium text-accent">
-            Requests
-          </Link>
-        }
-      />
+      <PageHeader title="Connections" />
       {connections.isLoading ? (
         <LoadingBlock />
       ) : connections.data && connections.data.length > 0 ? (
@@ -63,7 +56,7 @@ export function ConnectionsPage() {
       ) : (
         <EmptyState
           title="No connections yet"
-          message="Approve access requests or invite suppliers and buyers to connect."
+          message="Approve first chats in Chats → Requests, or invite suppliers and buyers to connect."
         />
       )}
     </div>
@@ -75,7 +68,7 @@ function ConnectionActions({
   onAction,
 }: {
   connection: ConnectionView;
-  onAction: (action: 'pause' | 'resume' | 'block' | 'unblock') => void;
+  onAction: (action: 'resume' | 'block' | 'unblock') => void;
 }) {
   if (connection.canUnblock) {
     return (
@@ -91,28 +84,15 @@ function ConnectionActions({
       </button>
     );
   }
-  if (connection.canPause || connection.canBlock) {
+  if (connection.canBlock) {
     return (
-      <div className="flex flex-col items-end gap-1">
-        {connection.canPause ? (
-          <button
-            type="button"
-            className="text-xs font-medium text-muted"
-            onClick={() => onAction('pause')}
-          >
-            Pause
-          </button>
-        ) : null}
-        {connection.canBlock ? (
-          <button
-            type="button"
-            className="text-xs font-medium text-danger"
-            onClick={() => onAction('block')}
-          >
-            Block
-          </button>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        className="text-xs font-medium text-danger"
+        onClick={() => onAction('block')}
+      >
+        Block
+      </button>
     );
   }
   return null;

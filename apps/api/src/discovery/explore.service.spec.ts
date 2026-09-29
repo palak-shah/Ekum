@@ -21,7 +21,7 @@ function makeService(
   const prisma = {
     collection: { findUnique: async () => collectionRow },
     follow: {
-      findUnique: async () => (opts?.following ? { id: 'f1' } : null),
+      findUnique: async () => (opts?.following ? { status: 'allowed' } : null),
     },
     message: {
       findFirst: async () => (opts?.sharedInChat ? { id: 'm1' } : null),
@@ -33,6 +33,7 @@ function makeService(
       findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
         (where.id.in ?? []).map((id) => ({ id, name: id })),
     },
+    tradeLane: { findMany: async () => [] },
   } as unknown as PrismaService;
   const visibilityService = {
     isBlocked: async () => visibility.blocked ?? false,
@@ -238,6 +239,17 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const service = makeService(
       { ...publishedCollection, audience: 'followers' },
       { blocked: false, connected: false },
+      { sharedInChat: false, following: false },
+    );
+    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('404s a Followers pack after unfollow even when Connected', async () => {
+    const service = makeService(
+      { ...publishedCollection, audience: 'followers' },
+      { blocked: false, connected: true },
       { sharedInChat: false, following: false },
     );
     await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(

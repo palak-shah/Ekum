@@ -79,6 +79,51 @@ describe('FollowService.follow', () => {
     });
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('re-asks by turning stopped back to pending', async () => {
+    const update = vi.fn(async () => ({}));
+    const create = vi.fn(async () => ({}));
+    const prisma = {
+      company: { findUnique: async () => ({ id: 'target' }) },
+      follow: {
+        findUnique: async () => ({ id: 'f-stop', status: 'stopped' }),
+        create,
+        update,
+      },
+    } as unknown as PrismaService;
+    const visibility = { isBlocked: async () => false } as unknown as VisibilityService;
+    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer);
+    await expect(service.follow('me', 'target')).resolves.toEqual({
+      following: false,
+      pending: true,
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f-stop' },
+      data: { status: 'pending', accessKind: null },
+    });
+  });
+});
+
+describe('FollowService.unfollow', () => {
+  it('deletes the follow row', async () => {
+    const deleteMany = vi.fn(async () => ({ count: 1 }));
+    const prisma = {
+      follow: { deleteMany },
+    } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      {} as DiscoverySerializer,
+    );
+    await expect(service.unfollow('me', 'shop')).resolves.toEqual({
+      following: false,
+      pending: false,
+    });
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { followerCompanyId: 'me', followedCompanyId: 'shop' },
+    });
+  });
 });
 
 describe('FollowService.decide', () => {
@@ -105,7 +150,7 @@ describe('FollowService.decide', () => {
     expect(update).toHaveBeenCalled();
   });
 
-  it('denies by deleting the row', async () => {
+  it('denies a pending ask by deleting the row', async () => {
     const del = vi.fn(async () => ({}));
     const prisma = {
       follow: {
@@ -126,5 +171,104 @@ describe('FollowService.decide', () => {
     );
     await expect(service.decide('shop', 'me', 'deny')).resolves.toEqual({ ok: true });
     expect(del).toHaveBeenCalledWith({ where: { id: 'f1' } });
+  });
+
+  it('stops an allowed follow without deleting the row', async () => {
+    const update = vi.fn(async () => ({}));
+    const del = vi.fn(async () => ({}));
+    const prisma = {
+      follow: {
+        findUnique: async () => ({
+          id: 'f2',
+          status: 'allowed',
+          followerCompanyId: 'me',
+          followedCompanyId: 'shop',
+        }),
+        delete: del,
+        update,
+      },
+    } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      {} as DiscoverySerializer,
+    );
+    await expect(service.decide('shop', 'me', 'deny')).resolves.toEqual({ ok: true });
+    expect(del).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f2' },
+      data: { status: 'stopped', accessKind: null },
+    });
+  });
+
+  it('allows look again from stopped', async () => {
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      follow: {
+        findUnique: async () => ({
+          id: 'f3',
+          status: 'stopped',
+          followerCompanyId: 'me',
+          followedCompanyId: 'shop',
+        }),
+        update,
+        delete: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      {} as DiscoverySerializer,
+    );
+    await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f3' },
+      data: { status: 'allowed', accessKind: 'look' },
+    });
+  });
+});
+
+describe('FollowService.listFollowers', () => {
+  it('includes stopped shops on They see mine', async () => {
+    const findMany = vi.fn(async () => [
+      {
+        accessKind: null,
+        status: 'stopped',
+        createdAt: new Date('2026-09-28T00:00:00.000Z'),
+        follower: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', verification: 'none', logoUrl: null, sellCategories: [], buyCategories: [] },
+      },
+    ]);
+    const toCompanyCard = vi.fn((company: { id: string }) => ({
+      id: company.id,
+      name: 'Jaipur Emporium',
+      city: 'Jaipur',
+      verification: 'none',
+      logoUrl: null,
+    }));
+    const prisma = { follow: { findMany } } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      { toCompanyCard } as unknown as DiscoverySerializer,
+    );
+    await expect(service.listFollowers('shop')).resolves.toEqual([
+      {
+        company: {
+          id: 'c1',
+          name: 'Jaipur Emporium',
+          city: 'Jaipur',
+          verification: 'none',
+          logoUrl: null,
+        },
+        accessKind: 'look',
+        stopped: true,
+        createdAt: '2026-09-28T00:00:00.000Z',
+      },
+    ]);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { followedCompanyId: 'shop', status: { in: ['allowed', 'stopped'] } },
+      }),
+    );
   });
 });

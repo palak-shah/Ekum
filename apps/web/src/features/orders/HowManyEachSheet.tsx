@@ -27,6 +27,7 @@ import {
   howManyGalleryUrls,
   howManyPhotoUrls,
 } from '@/features/orders/howManySheetPhotos';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { OrderForBuyerSheet } from './OrderForBuyerSheet';
 
 export type HowManyLine = {
@@ -71,6 +72,7 @@ export function HowManyEachSheet({
   onAskRates,
   orderGoesToName,
   onRemoveProduct,
+  onShared,
 }: {
   open: boolean;
   onClose: () => void;
@@ -84,6 +86,8 @@ export function HowManyEachSheet({
   orderGoesToName?: string | null;
   /** × also updates traveling Selection (sr 42). */
   onRemoveProduct?: (productId: string) => void;
+  /** After chat Share — Selection empties the pile. */
+  onShared?: () => void;
 }) {
   const { selling, trading } = useTradePresence();
   const me = useMyCompany();
@@ -111,6 +115,7 @@ export function HowManyEachSheet({
 
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [buyerOpen, setBuyerOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [sharedQty, setSharedQty] = useState(20);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -136,6 +141,7 @@ export function HowManyEachSheet({
     setSameOpen(false);
     setPhotoOpen(false);
     setBuyerOpen(false);
+    setShareOpen(false);
     setInviteUrl(null);
   }, [open, qtyKey, productKey]);
 
@@ -215,27 +221,63 @@ export function HowManyEachSheet({
     );
   }
 
+  const canShare = activeProducts.length > 0;
+  const shareDisabled = busy || !canShare;
+  const shareButton = (
+    <Button
+      className="min-w-0 flex-1"
+      disabled={shareDisabled}
+      data-testid="how-many-share"
+      onClick={() => setShareOpen(true)}
+    >
+      Share
+    </Button>
+  );
+
   const decideFooter = (
     <div className="flex flex-col gap-2">
       {showPlaceOrderAsk ? (
+        <div className="flex gap-2">
+          <Button
+            className="min-w-0 flex-1"
+            disabled={busy || !canShare}
+            onClick={() => {
+              rememberQty(qtyKey, sharedQty);
+              onSendOrder(payload());
+            }}
+          >
+            {submitting ? 'Sending…' : 'Place Order'}
+          </Button>
+          {shareButton}
+        </div>
+      ) : canOrderForBuyer ? (
+        <div className="flex gap-2">
+          <Button
+            className="min-w-0 flex-1"
+            disabled={busy || !canShare}
+            onClick={() => setBuyerOpen(true)}
+          >
+            Order for buyer
+          </Button>
+          {shareButton}
+        </div>
+      ) : (
         <Button
           fullWidth
-          disabled={busy || activeProducts.length === 0}
-          onClick={() => {
-            rememberQty(qtyKey, sharedQty);
-            onSendOrder(payload());
-          }}
+          disabled={shareDisabled}
+          data-testid="how-many-share"
+          onClick={() => setShareOpen(true)}
         >
-          {submitting ? 'Sending…' : 'Place Order'}
+          Share
         </Button>
-      ) : null}
-      {showPlaceOrderAsk || canOrderForBuyer ? (
-        <div className="grid grid-cols-2 gap-2">
-          {showPlaceOrderAsk ? (
+      )}
+      {showPlaceOrderAsk ? (
+        canOrderForBuyer ? (
+          <div className="grid grid-cols-2 gap-2">
             <Button
               variant="secondary"
               fullWidth
-              disabled={busy || activeProducts.length === 0}
+              disabled={busy || !canShare}
               onClick={() => {
                 rememberQty(qtyKey, sharedQty);
                 onAskRates(payload());
@@ -243,19 +285,28 @@ export function HowManyEachSheet({
             >
               {asking ? 'Opening…' : 'Ask rates'}
             </Button>
-          ) : null}
-          {canOrderForBuyer ? (
             <Button
               variant="secondary"
               fullWidth
-              className={!showPlaceOrderAsk ? 'col-span-2' : undefined}
-              disabled={busy || activeProducts.length === 0}
+              disabled={busy || !canShare}
               onClick={() => setBuyerOpen(true)}
             >
               Order for buyer
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <Button
+            variant="secondary"
+            fullWidth
+            disabled={busy || !canShare}
+            onClick={() => {
+              rememberQty(qtyKey, sharedQty);
+              onAskRates(payload());
+            }}
+          >
+            {asking ? 'Opening…' : 'Ask rates'}
+          </Button>
+        )
       ) : null}
     </div>
   );
@@ -438,6 +489,21 @@ export function HowManyEachSheet({
         onClose={() => setPhotoOpen(false)}
         captions={photoCaptions}
         details={photoDetails}
+      />
+
+      <CatalogShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        products={activeProducts.map((product) => ({
+          productId: product.id,
+          name: product.name,
+          image: product.images[0] ?? null,
+        }))}
+        onShared={() => {
+          setShareOpen(false);
+          onShared?.();
+          onClose();
+        }}
       />
 
       <OrderForBuyerSheet

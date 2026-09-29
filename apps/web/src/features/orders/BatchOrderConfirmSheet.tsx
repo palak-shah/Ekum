@@ -1,4 +1,4 @@
-import { OrderIntent, type CreateOrdersBatchResult } from '@ekum/domain-types';
+import { OrderIntent, type CreateOrdersBatchResult, type OrderView } from '@ekum/domain-types';
 
 function batchIsInquiry(result: CreateOrdersBatchResult): boolean {
   return (
@@ -33,4 +33,12 @@ export function batchConfirmTitle(
   return inquiry
     ? `${placed} rate requests sent`
     : `${placed} separate chats · one per shop`;
+}
+
+/** After Place, open a ticket — never dump on the Orders list (Needs you buries the new one). */
+export function batchSuccessLeave(
+  result: CreateOrdersBatchResult,
+): { kind: 'order'; order: OrderView } | null {
+  if (result.orders.length === 0) return null;
+  return { kind: 'order', order: result.orders[0]! };
 }

@@ -1,3 +1,4 @@
+import type { Company } from '@prisma/client';
 import {
   BadRequestException,
   ForbiddenException,
@@ -43,6 +44,13 @@ export class FollowService {
     if (existing?.status === FollowStatus.Pending) {
       return { following: false, pending: true };
     }
+    if (existing?.status === FollowStatus.Stopped) {
+      await this.prisma.follow.update({
+        where: { id: existing.id },
+        data: { status: FollowStatus.Pending, accessKind: null },
+      });
+      return { following: false, pending: true };
+    }
 
     await this.prisma.follow.create({
       data: {
@@ -83,18 +91,14 @@ export class FollowService {
 
   async listFollowers(companyId: string): Promise<ShopFollowerView[]> {
     const follows = await this.prisma.follow.findMany({
-      where: { followedCompanyId: companyId, status: FollowStatus.Allowed },
+      where: {
+        followedCompanyId: companyId,
+        status: { in: [FollowStatus.Allowed, FollowStatus.Stopped] },
+      },
       orderBy: { createdAt: 'desc' },
       include: { follower: true },
     });
-    return follows.map((follow) => ({
-      company: this.serializer.toCompanyCard(follow.follower),
-      accessKind:
-        follow.accessKind === FollowAccessKind.Pack
-          ? FollowAccessKind.Pack
-          : FollowAccessKind.Look,
-      createdAt: follow.createdAt.toISOString(),
-    }));
+    return follows.map((follow) => this.toFollowerView(follow));
   }
 
   async listAsks(companyId: string): Promise<FollowAskView[]> {
@@ -129,13 +133,27 @@ export class FollowService {
         },
       },
     });
-    if (!row || row.status !== FollowStatus.Pending) {
+    if (!row) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Ask not found.' });
     }
 
     if (decision === 'deny') {
-      await this.prisma.follow.delete({ where: { id: row.id } });
+      if (row.status === FollowStatus.Pending) {
+        await this.prisma.follow.delete({ where: { id: row.id } });
+        return { ok: true };
+      }
+      if (row.status !== FollowStatus.Allowed) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Ask not found.' });
+      }
+      await this.prisma.follow.update({
+        where: { id: row.id },
+        data: { status: FollowStatus.Stopped, accessKind: null },
+      });
       return { ok: true };
+    }
+
+    if (row.status !== FollowStatus.Pending && row.status !== FollowStatus.Stopped) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Ask not found.' });
     }
 
     await this.prisma.follow.update({
@@ -176,13 +194,23 @@ export class FollowService {
       },
       include: { follower: true },
     });
+    return this.toFollowerView(updated);
+  }
+
+  private toFollowerView(follow: {
+    accessKind: string | null;
+    status: string;
+    createdAt: Date;
+    follower: Company;
+  }): ShopFollowerView {
     return {
-      company: this.serializer.toCompanyCard(updated.follower),
+      company: this.serializer.toCompanyCard(follow.follower),
       accessKind:
-        updated.accessKind === FollowAccessKind.Pack
+        follow.accessKind === FollowAccessKind.Pack
           ? FollowAccessKind.Pack
           : FollowAccessKind.Look,
-      createdAt: updated.createdAt.toISOString(),
+      stopped: follow.status === FollowStatus.Stopped,
+      createdAt: follow.createdAt.toISOString(),
     };
   }
 }

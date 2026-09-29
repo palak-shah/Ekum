@@ -70,6 +70,13 @@ export class ConnectionService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Connection not found.' });
     }
 
+    if (action === 'pause') {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Pause is not used. Block this business instead.',
+      });
+    }
+
     if (!ALLOWED_FROM[action].includes(connection.status)) {
       throw new ConflictException({
         code: 'INVALID_TRANSITION',
@@ -129,7 +136,7 @@ export class ConnectionService {
       company: this.serializer.toPublicSummary(other),
       status: connection.status,
       createdAt: connection.createdAt.toISOString(),
-      canPause: connection.status === ConnectionStatus.Active,
+      canPause: false,
       canResume: connection.status === ConnectionStatus.Paused && isActor,
       canBlock: connection.status === ConnectionStatus.Active,
       canUnblock: connection.status === ConnectionStatus.Blocked && isActor,

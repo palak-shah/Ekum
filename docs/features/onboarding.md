@@ -11,7 +11,7 @@ Users who verified OTP but have no company membership yet.
 ## User flows
 
 1. Land on `/onboarding` after login when `needsOnboarding` is true.
-2. Enter **business name**, **contact person**, **city**, and at least one **super-category** (Men’s / Women’s apparel, Home furnishing, Accessories, Others).
+2. Enter **business name**, **contact person**, **city**, and at least one **What do you deal in?** type (Men’s / Women’s apparel, Home furnishing, Accessories, Others). Those four labels show **\*** — required.
 3. Optional: about, GST, fine buy/sell categories (also editable later on profile).
 4. Submit → `POST /companies` → refresh session → Home.
 

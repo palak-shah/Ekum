@@ -1,7 +1,7 @@
 /**
  * Demo/dev seed mirroring the clickable prototype: two businesses (a Surat
  * supplier and a Jaipur retailer), a published collection, a permissionless
- * follow, an approved connection, four orders (two bilateral, one I-handle
+ * follow (Followers-audience catalog), approved connections, four orders (two bilateral, one I-handle
  * pair), a direct thread with a shared card, and a couple of notifications.
  *
  * Idempotent: every row uses a stable `seed-*` id and is upserted, so running it
@@ -315,7 +315,7 @@ async function main(): Promise<void> {
         ...product,
         companyId: RAVI,
         status: ProductStatus.Published,
-        audience: PublishAudience.Everyone,
+        audience: PublishAudience.Followers,
         allowForward: true,
         postedToMarketAt: postedAt,
       },
@@ -324,7 +324,7 @@ async function main(): Promise<void> {
         status: ProductStatus.Published,
         images: product.images,
         categories: product.categories,
-        audience: PublishAudience.Everyone,
+        audience: PublishAudience.Followers,
         allowForward: true,
         postedToMarketAt: postedAt,
       },
@@ -345,14 +345,14 @@ async function main(): Promise<void> {
       description: 'Hand-picked bridal and festive designs.',
       coverImage: img.wedding,
       status: CollectionStatus.Published,
-      audience: PublishAudience.Everyone,
+      audience: PublishAudience.Followers,
       allowForward: true,
       exploreActivityAt: postedAt,
     },
     update: {
       status: CollectionStatus.Published,
       coverImage: img.wedding,
-      audience: PublishAudience.Everyone,
+      audience: PublishAudience.Followers,
       allowForward: true,
       exploreActivityAt: postedAt,
     },
@@ -407,7 +407,7 @@ async function main(): Promise<void> {
         ...product,
         companyId: KAVITA,
         status: ProductStatus.Published,
-        audience: PublishAudience.Everyone,
+        audience: PublishAudience.Followers,
         allowForward: true,
         postedToMarketAt: postedAt,
       },
@@ -417,7 +417,7 @@ async function main(): Promise<void> {
         images: product.images,
         categories: product.categories,
         companyId: KAVITA,
-        audience: PublishAudience.Everyone,
+        audience: PublishAudience.Followers,
         allowForward: true,
         postedToMarketAt: postedAt,
       },
@@ -432,14 +432,14 @@ async function main(): Promise<void> {
       description: 'Fresh grey and lining for garment houses.',
       coverImage: img.millot,
       status: CollectionStatus.Published,
-      audience: PublishAudience.Everyone,
+      audience: PublishAudience.Followers,
       allowForward: true,
       exploreActivityAt: postedAt,
     },
     update: {
       status: CollectionStatus.Published,
       coverImage: img.millot,
-      audience: PublishAudience.Everyone,
+      audience: PublishAudience.Followers,
       allowForward: true,
       exploreActivityAt: postedAt,
     },
@@ -490,6 +490,20 @@ async function main(): Promise<void> {
       where: { companyLowId_companyHighId: { companyLowId, companyHighId } },
       create: {
         id: 'seed-conn-1',
+        companyLowId,
+        companyHighId,
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
+      },
+      update: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
+    });
+  }
+  {
+    const [companyLowId, companyHighId] = RAVI < KAVITA ? [RAVI, KAVITA] : [KAVITA, RAVI];
+    await prisma.connection.upsert({
+      where: { companyLowId_companyHighId: { companyLowId, companyHighId } },
+      create: {
+        id: 'seed-conn-ravi-kavita',
         companyLowId,
         companyHighId,
         status: ConnectionStatus.Active,

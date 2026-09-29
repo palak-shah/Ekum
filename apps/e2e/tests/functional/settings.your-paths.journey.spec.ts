@@ -103,6 +103,7 @@ test.describe('Your paths @functional @orders', () => {
       timeout: 15_000,
     });
     await expect(page.getByText('When buyers order from what I share')).toHaveCount(0);
-    await expect(page.getByText('I trade on Ekum')).toBeVisible();
+    await expect(page.getByText('I trade on Ekum')).toHaveCount(0);
+    await expect(page.getByText('Trade on Ekum')).toHaveCount(0);
   });
 });

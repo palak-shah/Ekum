@@ -27,3 +27,12 @@ export function useChatUnreadCount() {
     refetchInterval: 30_000,
   });
 }
+
+/** Orders list Needs you — bottom-nav Orders badge. */
+export function useOrdersNeedsYouCount() {
+  return useQuery({
+    queryKey: ['orders', 'needs-you-count'],
+    queryFn: () => api.get<{ count: number }>('/orders/needs-you-count'),
+    refetchInterval: 30_000,
+  });
+}

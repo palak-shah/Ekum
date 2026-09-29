@@ -21,7 +21,8 @@ describe('YouHeaderMore', () => {
     );
     expect(screen.queryByRole('menuitem', { name: 'Settings' })).toBeNull();
     await user.click(screen.getByTestId('you-more'));
-    expect(screen.getByTestId('you-more-menu')).toHaveAttribute('role', 'menu');
+    expect(screen.getByTestId('you-more-menu')).toHaveClass('w-64');
+    expect(screen.getByTestId('you-more-logout')).toHaveClass('text-danger');
     expect(screen.getByTestId('you-more-network')).toBeInTheDocument();
     expect(screen.getByTestId('you-more-settings')).toBeInTheDocument();
     expect(screen.getByTestId('you-more-logout')).toBeInTheDocument();

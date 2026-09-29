@@ -31,7 +31,7 @@ export interface ConnectionView {
   company: PublicCompanySummary;
   status: string;
   createdAt: string;
-  /** Current company may pause (active only). */
+  /** Always false — Pause was dropped; use Block. */
   canPause: boolean;
   canResume: boolean;
   canBlock: boolean;
@@ -49,6 +49,7 @@ export interface PublicCompanySummary {
 export const FollowStatus = {
   Pending: 'pending',
   Allowed: 'allowed',
+  Stopped: 'stopped',
 } as const;
 export type FollowStatus = (typeof FollowStatus)[keyof typeof FollowStatus];
 
@@ -70,9 +71,10 @@ export interface FollowAskView {
   createdAt: string;
 }
 
-/** Allowed follower (shop list; access is shop-facing only). */
+/** Shop list: allowed now, or stopped (still shown; they cannot see packs). */
 export interface ShopFollowerView {
   company: PublicCompanySummary;
   accessKind: FollowAccessKind;
+  stopped: boolean;
   createdAt: string;
 }

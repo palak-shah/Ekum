@@ -17,7 +17,7 @@ export function productStatusLine(
   }
   /** Pack publish marks designs Published without a solo Explore tile. */
   if (!product.postedToMarketAt) {
-    return 'In packs';
+    return 'In your packs';
   }
   const who = whoCanSeeLabel(
     {

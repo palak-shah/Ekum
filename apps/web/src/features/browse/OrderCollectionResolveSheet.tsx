@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CollectionPreviewView, ProductView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { Button, InlineNotice, Sheet, cx } from '@/ui/kit';
+import { useToast } from '@/ui/Toast';
 import type { BrowseAlbumEntry } from './browseAlbumPick';
 import type { BrowseShortlistEntry } from './browseShortlist';
 import {
@@ -94,6 +95,7 @@ export function OrderCollectionResolveSheet({
   intent?: CollectionResolveIntent;
 }) {
   const copy = RESOLVE_COPY[intent];
+  const { showToast } = useToast();
   /** Curate never expands or opens pack-locked albums. */
   const resolveAlbums = useMemo(
     () =>
@@ -113,7 +115,10 @@ export function OrderCollectionResolveSheet({
     setChoices(next);
     setError(null);
     setBusy(false);
-  }, [open, resolveAlbums]);
+    // Only when the sheet opens — a new albums array every parent render
+    // must not wipe Continue errors or cancel Preparing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const setChoice = (collectionId: string, choice: OrderAlbumChoice) => {
     setChoices((prev) => ({ ...prev, [collectionId]: choice }));
@@ -140,11 +145,18 @@ export function OrderCollectionResolveSheet({
           `/explore/collections/${album.collectionId}`,
         );
         const products = preview.products;
-        if (!products || products.length === 0) {
+        if (products == null) {
+          // Locked pack (Followers without Seeing packs, etc.) — open it, don’t
+          // pretend it has no designs.
+          if (!navigateToCollectionId) navigateToCollectionId = album.collectionId;
+          else remainingAlbums.push(album);
+          continue;
+        }
+        if (products.length === 0) {
           throw new ApiError({
             statusCode: 400,
             code: 'COLLECTION_EMPTY',
-            message: `Open ${album.name} to pick designs — designs aren’t listed here yet.`,
+            message: `${album.name} has no designs.`,
             details: null,
           });
         }
@@ -177,7 +189,10 @@ export function OrderCollectionResolveSheet({
 
       onResolved({ shortlist, remainingAlbums, navigateToCollectionId, expandedAlbumNames });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not open those collections.');
+      const message =
+        err instanceof ApiError ? err.message : 'Could not open those collections.';
+      setError(message);
+      showToast(message, 'danger');
     } finally {
       setBusy(false);
     }
@@ -205,6 +220,7 @@ export function OrderCollectionResolveSheet({
     >
       <div className="flex flex-col gap-4 pb-1" data-testid="collection-resolve-sheet">
         <p className="text-[15px] leading-relaxed text-muted">{summary}</p>
+        {error ? <InlineNotice message={error} /> : null}
         {resolveAlbums.map((album) => {
           const choice = choices[album.collectionId] ?? 'all';
           return (
@@ -257,7 +273,6 @@ export function OrderCollectionResolveSheet({
             </div>
           );
         })}
-        {error ? <InlineNotice message={error} /> : null}
       </div>
     </Sheet>
   );

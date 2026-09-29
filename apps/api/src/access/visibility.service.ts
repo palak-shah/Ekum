@@ -18,6 +18,13 @@ export class VisibilityService {
     if (viewerCompanyId === ownerCompanyId) {
       return true;
     }
+    return this.isActiveConnection(viewerCompanyId, ownerCompanyId);
+  }
+
+  async isActiveConnection(viewerCompanyId: string, ownerCompanyId: string): Promise<boolean> {
+    if (viewerCompanyId === ownerCompanyId) {
+      return false;
+    }
     const connection = await this.findConnection(viewerCompanyId, ownerCompanyId);
     return connection?.status === ConnectionStatus.Active;
   }

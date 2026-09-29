@@ -73,7 +73,7 @@ export function YourPathsPage() {
             data-testid="paths-search"
           />
         }
-        action={<span className="h-[46px] w-[46px] shrink-0" aria-hidden />}
+        action={<span className="h-10 w-10 shrink-0" aria-hidden />}
       />
 
       {lanes.isLoading ? <LoadingBlock /> : null}

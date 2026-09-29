@@ -84,7 +84,7 @@ function ExpandableNotes({
       onChange={(e) => onChange(e.target.value)}
       className={cx(
         'w-full resize-none overflow-hidden rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
-        expand ? 'min-h-24' : 'min-h-[46px]',
+        expand ? 'min-h-24' : 'min-h-10',
       )}
     />
   );

@@ -3,14 +3,27 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { ConnectionService } from './connection.service';
+import { AccessService } from './access.service';
 
 @Controller({ path: 'connections', version: '1' })
 export class ConnectionController {
-  constructor(private readonly connections: ConnectionService) {}
+  constructor(
+    private readonly connections: ConnectionService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   list(@CurrentCompanyId() companyId: string) {
     return this.connections.list(companyId);
+  }
+
+  @Post('company/:companyId/block')
+  blockCompany(
+    @CurrentCompanyId() companyId: string,
+    @Param('companyId') counterpartId: string,
+    @CurrentUser() actor: AuthPrincipal,
+  ) {
+    return this.access.blockCounterpart(companyId, counterpartId, actor);
   }
 
   @Post(':id/pause')

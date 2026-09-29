@@ -9,7 +9,7 @@ import { CompanySerializer } from './company.serializer';
 
 /**
  * Access & Trust. The most architecturally central domain: it owns the access
- * gate, the connection state machine (with silent pause/block), the shared
+ * gate, the connection state machine (silent block), the shared
  * VisibilityService, and the contact-safe CompanySerializer. Other domains
  * depend on the exported services rather than reimplementing visibility.
  */

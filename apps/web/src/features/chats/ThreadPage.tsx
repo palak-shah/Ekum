@@ -121,6 +121,7 @@ import {
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
+import { showGroupSenderThumb } from './groupSenderThumb';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
@@ -139,6 +140,7 @@ import { firstUnreadMessageId, unreadDividerLabel } from './threadOpenScroll';
 import { createStickLatch, isNearBottom, scrollListToBottom } from './threadStickScroll';
 import { chatComposerHeightPx } from './chatComposerHeight';
 import { getChatDraft, setChatDraft } from './chatsDrafts';
+import { chatsInboxHref } from './chatsInboxFilter';
 import { ChatMuteDurationFlyout } from './ChatMuteDurationFlyout';
 import { ChatMentionPicker } from './ChatMentionPicker';
 import { highlightMentionText } from './chatMentions';
@@ -708,7 +710,7 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['connections'] });
       void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
       if (action === 'decline') {
-        navigate('/chats');
+        navigate(chatsInboxHref());
       }
     },
   });
@@ -896,7 +898,7 @@ export function ThreadPage() {
     onSuccess: () => {
       setConfirmAction(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      navigate('/chats');
+      navigate(chatsInboxHref());
     },
     onError: (err) => {
       setConfirmAction(null);
@@ -909,7 +911,7 @@ export function ThreadPage() {
     onSuccess: () => {
       setConfirmAction(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      navigate('/chats');
+      navigate(chatsInboxHref());
     },
     onError: (err) => {
       setConfirmAction(null);
@@ -1785,7 +1787,7 @@ export function ThreadPage() {
               : undefined
         }
         titleToState={detail.type !== 'group' && counterpartId ? { fromChat: true } : undefined}
-        onBack={() => discard.tryLeave(() => navigate('/chats'))}
+        onBack={() => discard.tryLeave(() => navigate(chatsInboxHref()))}
         action={
           <div className="flex items-center gap-0.5">
             <button
@@ -2077,11 +2079,11 @@ export function ThreadPage() {
       {detail.state === 'pending' ? (
         <div className="mt-0 flex shrink-0 flex-col gap-3 rounded-2xl border border-warning-soft bg-warning-soft p-3.5">
           <p className="text-sm font-medium text-warning-ink">
-            They can’t see your replies until you open this chat.
+            They can’t see your replies until you approve this chat.
           </p>
           <div className="flex gap-2">
             <Button fullWidth onClick={() => decide.mutate('accept')} disabled={decide.isPending}>
-              Open chat
+              Approve
             </Button>
             <Button
               fullWidth
@@ -2133,7 +2135,17 @@ export function ThreadPage() {
               </div>
             ) : null}
             {ordered.map((message) => (
-              <div key={message.id}>
+              <div
+                key={message.id}
+                className={
+                  showGroupSenderThumb({
+                    isGroup: detail.type === 'group',
+                    incoming: !message.mine,
+                  })
+                    ? 'flex items-end gap-1.5'
+                    : undefined
+                }
+              >
                 {firstUnreadId === message.id && openVisit && openVisit.unreadCount > 0 ? (
                   <div
                     className="mb-2.5 flex items-center gap-2 py-1"
@@ -2147,6 +2159,26 @@ export function ThreadPage() {
                     </span>
                     <span className="h-px flex-1 bg-line" />
                   </div>
+                ) : null}
+                {showGroupSenderThumb({
+                  isGroup: detail.type === 'group',
+                  incoming: !message.mine,
+                }) ? (
+                  <Avatar
+                    name={
+                      detail.participants?.find((row) => row.companyId === message.senderCompanyId)
+                        ?.company.name ??
+                      detail.counterpart?.name ??
+                      'Business'
+                    }
+                    imageUrl={
+                      detail.participants?.find((row) => row.companyId === message.senderCompanyId)
+                        ?.company.logoUrl ??
+                      detail.counterpart?.logoUrl ??
+                      null
+                    }
+                    size={28}
+                  />
                 ) : null}
                 <TimelineItem
                   message={message}

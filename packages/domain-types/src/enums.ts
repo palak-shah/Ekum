@@ -49,7 +49,7 @@ export const AccessRequestStatus = {
 export type AccessRequestStatus = (typeof AccessRequestStatus)[keyof typeof AccessRequestStatus];
 export const accessRequestStatusValues = values(AccessRequestStatus);
 
-/** The ongoing connection state once access is approved. Pause/block are silent. */
+/** The ongoing connection state once access is approved. Block is silent. Paused is leftover. */
 export const ConnectionStatus = {
   Active: 'active',
   Paused: 'paused',

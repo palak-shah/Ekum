@@ -62,6 +62,7 @@ describe('ThreadService.accept / decline', () => {
     } as unknown as ConversationSerializer;
     const access = {
       approveIncomingFromCounterpartIfPending: approveIncoming,
+      ensureActiveConnection: vi.fn(async () => undefined),
     } as unknown as AccessService;
     const service = new ThreadService(
       prisma,

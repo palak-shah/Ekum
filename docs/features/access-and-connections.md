@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Trust between companies: **follow** (ask → allow), **access request** (named Connect gate), **connection** (trade-ready, **mutual**), plus silent **pause** / **block**. Relationship management lives under **You → Network** (companies, not individual people).
+Trust between companies: **follow** (ask → allow), **access request** (named Connect gate), **connection** (trade-ready, **mutual**), plus silent **block**. Relationship management lives under **You → Network** (companies, not individual people). Hub order: **I see theirs** · **They see mine** · **Buyer groups** (if you publish) · **Connections** · **Invites**. Chat noise is **Mute**.
 
 ## Who uses it
 
@@ -12,16 +12,16 @@ Any company can request / follow; the other Approves. Both use **Network → Con
 
 ### Follow
 
-1. On company / Explore → **Follow** asks (sell-only shops still show Follow). Shop button: Follow · **Pending** · Following. Unfollow cancels a pending ask or ends an allowed follow.
-2. Shop **You → Network → Followers**: chips **Asked** (inbox) and **Following you** (allowed). Decide **Look through** / **Put in a pack** / **Deny**. Deny is silent; they can ask again. Shop can change access later. The follower never sees look vs pack.
-3. **You → Network → Following**: allowed follows only — no grant type.
+1. On company / Explore → **See new packs** asks (same Follow API; sell-only shops still show it). Shop button: See new packs · **Asked to see packs** · **Seeing packs**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone (not on Publish) stays public.
+2. Shop **You → Network → They see mine**: one list. **Find** filters name/city. Pending asks sit **on top, newest first**, with Allow / Decline — not a tap-through screen. When asks exist, chips **All** | **Asked · N** (All = asks + who already sees you / Stopped). Home Needs `/network/followers?tab=asked` selects the Asked chip. Each allowed card has **See** / **Share** and quiet **Stop**. Stop keeps the card as **Stopped**. Tick See or Share to let them in again. **Decline** still clears the ask. The other shop never sees look vs pack. Chats **Requests** still has the same Allow / Decline for a new ask. If they ask again while Stopped, they return to the top as Asked.
+3. **You → Network → I see theirs**: allowed follows only — no grant type. Row action **Stop seeing**.
 4. Allowed follows see Followers-audience posts on Home Followed and Explore. Pending does not.
-5. **Request access** stays a separate Connect path (Network → Requests). Not this flow.
+5. **Request access** (invite / Find on Ekum) is Connect — not Follow. Approve lives on **Chats → Requests**, not a Network list.
 
 ### Request access (Connect)
 
 1. On company profile or **Find on Ekum** → Request access. Note is prefilled…  
-2. Other business sees incoming on **Network → Requests** and Home Needs → Approve or Decline → **one mutual Connection** (no second approve). Same Connection if they **Open chat** on the access-request thread in Chats → Requests.
+2. Sending it opens a pending chat. The other business Approves or Ignores on **Chats → Requests** (or Home Needs → that chat) → **one mutual Connection**. There is no Network Requests desk.
 
 ### Ask to see a pack (not Connect, not put in pack)
 
@@ -41,8 +41,8 @@ When a design/album is locked for Curate, **Ask to put in my pack** → chat All
 
 1. **You → Network → Connections** — `GET /connections` lists **one card per Connected company**.
 2. Label: **Connected** (no “They buy from you” / “You buy from them”).
-3. **Either** side may Pause or Block while Connected. **Only the company that Paused/Blocked** may Resume/Unblock.
-4. Legacy `/buyers` redirects to **Network → Requests**.
+3. **Either** side may **Block** while Connected. **Only the company that Blocked** may Unblock. No Pause — Mute the chat if you still trade. Old paused rows still show **Resume**.
+4. Legacy `/buyers` and `/network/requests` redirect to **Chats → Requests** (`/chats?inbox=requests`).
 
 ### Invites
 
@@ -54,15 +54,15 @@ When a design/album is locked for Curate, **Ask to put in my pack** → chat All
 |------|--------|
 | Follow ≠ Access | Follow is an ask; Allow does not create a Connection. Restricted (connections/selected) posts stay on those audiences. |
 | Follow pending | Same unique pair; `pending` is not a follower for audience / stories / shop Followers-audience. |
-| Follow access | Shop-facing **Look through** (see Followers posts) vs **Put in a pack** (curate if Trading + `allowForward`). Look-only and not Connected cannot curate that seller. |
-| Home Needs | Incoming follow asks → **Followers · Asked** (`/network/followers?tab=asked`). Separate from access requests. |
+| Follow access | Shop-facing **They can see** (see Followers posts) vs **They can share** (put in their pack if Trading + `allowForward`). Look-only and not Connected cannot curate that seller. |
+| Home Needs | Incoming follow asks → **They see mine** Asked chip (`/network/followers?tab=asked`). Incoming Connect / first chat → **Chats → Requests** (pending thread). |
 | Catalog visibility | Post **audience** (+ block rules). Connection is **mutual** membership for `connections` / related gates — not required for Everyone. Selected stays Selected. |
 | Open order | Discoverable catalog lines can be ordered without Connection; does **not** auto-create a Network connection |
-| Connection states | `active` · `paused` · `blocked` |
-| Silent pause/block | Other party is not notified and **does not see** the connection row; they lose Connection catalog access |
+| Connection states | `active` · `paused` (legacy only) · `blocked` |
+| Silent block | Other party is not notified and **does not see** the connection row; they lose Connection catalog access. Shop 404. |
 | Approve vs block | Approving **never** reactivates a block — the **blocker** must Unblock first |
-| List masking | `active`: both see the card. `paused`/`blocked`: only the actor who set status sees the card (Resume/Unblock) |
-| Actor | Pause/Block record who acted; only that company can clear |
+| List masking | `active`: both see the card. `blocked` (and leftover `paused`): only the actor who set status sees the card |
+| Actor | Block records who acted; only that company can Unblock |
 | Mutual | One unordered pair after Approve — not two directional owner/viewer edges |
 | Design | [Mutual connection](../superpowers/specs/2026-09-12-mutual-connection-design.md) |
 
@@ -78,14 +78,14 @@ See [concepts](./00-concepts.md) for the trust ladder diagram.
 
 ## Seed walkthrough
 
-1. Seed: Meena **allowed follow** of Ravi (look); **one** connection **active** Ravi↔Meena.
+1. Seed: Meena **allowed follow** of Ravi (look); Ravi **allowed follow** of Kavita; **active** connections Ravi↔Meena and Ravi↔Kavita. Seeded shop catalogs are **Followers** (not Everyone) so Seeing packs off hides those packs.
 2. As **Ravi**: Network → Connections — one Meena card (Connected).
 3. As **Meena**: Network → Connections — one Surat Silk House card (Connected).
-4. (Optional QA) Pause as either side → other loses silent visibility; **only the pauser** can Resume.
+4. (Optional QA) Block as either side → other loses the shop (404); **only the blocker** can Unblock.
 
 ## Where it lives
 
-- Web: `apps/web/src/features/network/` (Network, Following, Followers, Connections, Requests); `/buyers` redirect
+- Web: `apps/web/src/features/network/` (Network, I see theirs, They see mine, Connections); `/network/requests` and `/buyers` → Chats Requests
 - API: `apps/api/src/access/`, `apps/api/src/discovery/follow.controller.ts`
 - Contracts: `packages/domain-types/src/access.ts`
 - Spec: `docs/superpowers/specs/2026-09-12-mutual-connection-design.md`

@@ -12,7 +12,7 @@ test.describe('mutual connections @functional @network', () => {
     expect(await jaipur.count()).toBe(1);
     await expect(page.getByText('Connected').first()).toBeVisible();
     await expect(page.getByText(/They buy from you|You buy from them/i)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Block' }).first()).toBeVisible();
 
     await loginAsMeena(page);

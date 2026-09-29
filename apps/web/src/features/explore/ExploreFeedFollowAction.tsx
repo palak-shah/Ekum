@@ -17,7 +17,7 @@ export function ExploreFeedFollowAction({ onFollow, pending = false }: Props) {
       className="shrink-0 text-xs font-bold text-accent disabled:opacity-45"
       data-testid="explore-feed-follow"
     >
-      {pending ? 'Asking…' : 'Follow'}
+      {pending ? 'Asking…' : 'See new packs'}
     </button>
   );
 }

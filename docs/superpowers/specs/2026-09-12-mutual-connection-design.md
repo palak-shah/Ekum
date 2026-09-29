@@ -28,7 +28,7 @@ After **Request access → Approve**, traders see **one** Connected business —
 ### Connect
 
 1. Company A → Request access on B (profile / Find on Ekum / invite redeem).  
-2. B Approves (Network → Requests / Home Needs) or Declines.  
+2. B Approves (Chats → Requests / Home Needs → that chat) or Ignores.  
 3. On Approve → **one** Connection between A and B, status `active`.  
 4. Both lists show the other once: name · Connected · Pause / Block.
 

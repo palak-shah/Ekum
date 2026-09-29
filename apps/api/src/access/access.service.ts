@@ -170,6 +170,80 @@ export class AccessService {
     return true;
   }
 
+  /** First Message Approve with no access row still creates a mutual Connection. */
+  async ensureActiveConnection(
+    actorCompanyId: string,
+    counterpartCompanyId: string,
+    actor: AuthPrincipal,
+  ): Promise<void> {
+    if (actor.companyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'COMPANY_MISMATCH',
+        message: 'Switch to the business that owns this chat.',
+      });
+    }
+    const pair = connectionPairWhere(actorCompanyId, counterpartCompanyId);
+    const existing = await this.prisma.connection.findUnique({
+      where: { companyLowId_companyHighId: pair },
+    });
+    if (existing?.status === ConnectionStatus.Blocked) {
+      throw new ConflictException({
+        code: 'CONNECTION_BLOCKED',
+        message: 'This business is blocked. Unblock it before approving.',
+      });
+    }
+    if (existing?.status === ConnectionStatus.Active) return;
+    await this.prisma.connection.upsert({
+      where: { companyLowId_companyHighId: pair },
+      create: {
+        companyLowId: pair.companyLowId,
+        companyHighId: pair.companyHighId,
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
+      },
+      update: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
+    });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      actorCompanyId: actor.companyId,
+      action: 'connection.approved_from_chat',
+      targetType: 'connection',
+      targetId: `${pair.companyLowId}:${pair.companyHighId}`,
+    });
+  }
+
+  /** Block a company from a message request even when no Active connection exists. */
+  async blockCounterpart(
+    actorCompanyId: string,
+    counterpartCompanyId: string,
+    actor: AuthPrincipal,
+  ): Promise<void> {
+    if (actor.companyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'COMPANY_MISMATCH',
+        message: 'Switch to the business that owns this chat.',
+      });
+    }
+    const pair = connectionPairWhere(actorCompanyId, counterpartCompanyId);
+    await this.prisma.connection.upsert({
+      where: { companyLowId_companyHighId: pair },
+      create: {
+        companyLowId: pair.companyLowId,
+        companyHighId: pair.companyHighId,
+        status: ConnectionStatus.Blocked,
+        statusSetByCompanyId: actorCompanyId,
+      },
+      update: { status: ConnectionStatus.Blocked, statusSetByCompanyId: actorCompanyId },
+    });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      actorCompanyId: actorCompanyId,
+      action: 'connection.block',
+      targetType: 'connection',
+      targetId: `${pair.companyLowId}:${pair.companyHighId}`,
+    });
+  }
+
   private async finalizeApprove(
     request: { id: string; requesterCompanyId: string; targetCompanyId: string },
     actor: AuthPrincipal,

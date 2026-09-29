@@ -64,6 +64,18 @@ export class SampleService {
     );
   }
 
+  async needsYouCount(actorCompanyId: string): Promise<number> {
+    const [send, receive] = await Promise.all([
+      this.prisma.sample.count({
+        where: { sellerCompanyId: actorCompanyId, status: SampleStatus.Requested },
+      }),
+      this.prisma.sample.count({
+        where: { buyerCompanyId: actorCompanyId, status: SampleStatus.Dispatched },
+      }),
+    ]);
+    return send + receive;
+  }
+
   async get(actorCompanyId: string, id: string): Promise<SampleView> {
     const sample = await this.loadForParty(id, actorCompanyId);
     return this.serializer.toSampleView(sample, actorCompanyId);

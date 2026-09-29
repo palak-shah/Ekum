@@ -1,10 +1,13 @@
 import {
   isOrderTerminalClosed,
+  matchesOrderNeedsYou,
+  matchesReturnNeedsYou,
+  matchesSampleNeedsYou,
   type OrderView,
   type ReturnView,
   type SampleView,
 } from '@ekum/domain-types';
-import { isIHandleSellingParent, traderIHandleNeedsYou } from '@/features/orders/iHandleDesk';
+import { isIHandleSellingParent } from '@/features/orders/iHandleDesk';
 
 const COMPLETED = new Set(['dispatched', 'settled', 'delivered', 'declined', 'cancelled']);
 const SAMPLE_PROGRESS = new Set(['requested', 'dispatched']);
@@ -64,12 +67,7 @@ export function buyerWaitingReturnReview(ret: ReturnView): boolean {
 
 /** Orders that need the signed-in company's action right now. */
 export function matchesNeeds(order: OrderView): boolean {
-  if (isIHandleSellingParent(order)) return traderIHandleNeedsYou(order);
-  if (sellerNeedsRate(order) || sellerCanConfirm(order)) return true;
-  if (buyerCanAcceptQuote(order)) return true;
-  if (sellerNeedsDispatch(order) || order.canSettle) return true;
-  if (order.needsQuotePass) return true;
-  return false;
+  return matchesOrderNeedsYou(order);
 }
 
 /** Open trade that is not finished — includes waiting on the other party. */
@@ -91,9 +89,7 @@ export function matchesCompleted(order: OrderView): boolean {
 }
 
 export function matchesSampleNeeds(sample: SampleView): boolean {
-  if (sample.direction === 'selling' && sample.status === 'requested') return true;
-  if (sample.direction === 'buying' && sample.status === 'dispatched') return true;
-  return false;
+  return matchesSampleNeedsYou(sample);
 }
 
 export function matchesSampleProgress(sample: SampleView): boolean {
@@ -105,7 +101,7 @@ export function matchesSampleCompleted(sample: SampleView): boolean {
 }
 
 export function matchesReturnNeeds(ret: ReturnView): boolean {
-  return sellerNeedsReturnReview(ret) || buyerWaitingReturnReview(ret);
+  return matchesReturnNeedsYou(ret);
 }
 
 export function matchesReturnProgress(ret: ReturnView): boolean {

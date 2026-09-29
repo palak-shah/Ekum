@@ -3,7 +3,6 @@ import { useAuth, useCompanyId } from '@/lib/auth';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type {
-  AccessRequestView,
   CollectionViewGrantView,
   CompanyCard,
   CursorPage,
@@ -43,6 +42,7 @@ import {
   homePostTitle,
   type HomePostGroup,
 } from './homeMarket';
+import { CHATS_REQUESTS_HREF } from '@/features/chats/chatsInboxFilter';
 
 const PREVIEW_LIMIT = 8;
 const FOLLOWED_PREVIEW = 5;
@@ -62,10 +62,6 @@ export function HomePage() {
   const [showAllNeeds, setShowAllNeeds] = useState(false);
   const [seenVersion, setSeenVersion] = useState(0);
 
-  const incoming = useQuery({
-    queryKey: ['access-requests', 'incoming'],
-    queryFn: () => api.get<AccessRequestView[]>('/access-requests/incoming'),
-  });
   const followAsks = useQuery({
     queryKey: ['follows', 'asks'],
     queryFn: () => api.get<FollowAskView[]>('/follows/asks'),
@@ -103,7 +99,6 @@ export function HomePage() {
 
   const orderRows = orders.data?.results ?? [];
   const returnRows = returns.data?.results ?? [];
-  const accessRequests = incoming.data ?? [];
   const followAskRows = followAsks.data ?? [];
   const chatRequests = threadRequests.data?.results ?? [];
   const myGrants = useQuery({
@@ -120,7 +115,6 @@ export function HomePage() {
       buildHomeNeeds({
         orders: orderRows,
         returns: returnRows,
-        accessRequests,
         followAsks: followAskRows,
         chatRequests,
         collectionViewGrants: grantRows,
@@ -129,7 +123,6 @@ export function HomePage() {
   }, [
     orderRows,
     returnRows,
-    accessRequests,
     followAskRows,
     chatRequests,
     grantRows,
@@ -139,7 +132,6 @@ export function HomePage() {
   const metrics = homeMetrics({
     orders: orderRows,
     returns: returnRows,
-    accessCount: accessRequests.length,
     chatCount: chatRequests.length,
     followAskCount: followAskRows.length,
   });
@@ -155,12 +147,7 @@ export function HomePage() {
       {
         label: 'Requests',
         value: metrics.requests,
-        to:
-          accessRequests.length > 0
-            ? '/network/requests'
-            : followAskRows.length > 0
-              ? '/network/followers?tab=asked'
-              : '/chats',
+        to: CHATS_REQUESTS_HREF,
       },
       { label: 'Returns', value: metrics.returns, to: '/orders?filter=needs' },
     ] as const
@@ -168,7 +155,6 @@ export function HomePage() {
   const hasChips = chipEntries.length > 0;
 
   const stillBootstrapping =
-    incoming.isLoading ||
     followAsks.isLoading ||
     orders.isLoading ||
     returns.isLoading ||

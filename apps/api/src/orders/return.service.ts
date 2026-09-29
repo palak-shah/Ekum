@@ -68,6 +68,15 @@ export class ReturnService {
     );
   }
 
+  async needsYouCount(actorCompanyId: string): Promise<number> {
+    return this.prisma.return.count({
+      where: {
+        status: ReturnStatus.Requested,
+        OR: [{ buyerCompanyId: actorCompanyId }, { sellerCompanyId: actorCompanyId }],
+      },
+    });
+  }
+
   async create(actorCompanyId: string, dto: CreateReturnDto): Promise<ReturnView> {
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },

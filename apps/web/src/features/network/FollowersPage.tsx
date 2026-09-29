@@ -1,18 +1,41 @@
-import { useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FollowAskView, ShopFollowerView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
-import { Avatar, Button, Card, Chip, EmptyState, FilterRail, LoadingBlock, Sheet } from '@/ui/kit';
-import { followAccessLabel, followersInboxTabFromSearch } from './followersInbox';
+import {
+  Avatar,
+  Card,
+  Chip,
+  EmptyState,
+  FilterRail,
+  LoadingBlock,
+  SearchInput,
+} from '@/ui/kit';
+import { ListSearchRow } from '@/ui/ListSearchRow';
+import { FollowAskDecideRow, FollowGrantChecks } from '@/features/chats/FollowAskDecideRow';
+import { type FollowAskGrants } from '@/features/chats/followAskDecide';
+import {
+  filterTheySeeMine,
+  followersInboxTabFromSearch,
+  sortAsksNewestFirst,
+} from './followersInbox';
+import { invalidateFollowCatalog } from './invalidateFollowCatalog';
+import { THEY_SEE_MINE } from './networkSeeLabels';
+
+function grantsFromRow(row: ShopFollowerView): FollowAskGrants {
+  if (row.stopped) return { see: false, share: false };
+  return { see: true, share: row.accessKind === 'pack' };
+}
 
 export function FollowersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [accessFor, setAccessFor] = useState<ShopFollowerView | null>(null);
+  const [listSearch, setListSearch] = useState('');
+  const deferredSearch = useDeferredValue(listSearch);
   const asks = useQuery({
     queryKey: ['follows', 'asks'],
     queryFn: () => api.get<FollowAskView[]>('/follows/asks'),
@@ -23,15 +46,18 @@ export function FollowersPage() {
   });
 
   const askedCount = asks.data?.length ?? 0;
-  const tab = followersInboxTabFromSearch(searchParams.toString(), askedCount);
-  const setTab = (next: 'asked' | 'following') => {
-    setSearchParams(next === 'asked' ? { tab: 'asked' } : { tab: 'following' }, { replace: true });
-  };
+  const askedOnly = followersInboxTabFromSearch(searchParams.toString()) === 'asked';
+  const visibleAsks = useMemo(
+    () => sortAsksNewestFirst(filterTheySeeMine(asks.data ?? [], deferredSearch)),
+    [asks.data, deferredSearch],
+  );
+  const visibleFollowers = useMemo(
+    () => filterTheySeeMine(followers.data ?? [], deferredSearch),
+    [followers.data, deferredSearch],
+  );
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['follows'] });
-    void queryClient.invalidateQueries({ queryKey: ['explore'] });
-    void queryClient.invalidateQueries({ queryKey: ['company'] });
+    invalidateFollowCatalog(queryClient);
   };
 
   const decide = useMutation({
@@ -47,146 +73,169 @@ export function FollowersPage() {
       api.patch(`/follows/${payload.followerCompanyId}/access`, {
         accessKind: payload.accessKind,
       }),
-    onSuccess: () => {
-      setAccessFor(null);
-      invalidate();
-    },
+    onSuccess: invalidate,
     onError: (err) =>
-      showToast(err instanceof ApiError ? err.message : 'Could not change access.', 'danger'),
+      showToast(
+        err instanceof ApiError ? err.message : 'Could not change what they can do.',
+        'danger',
+      ),
   });
 
-  return (
-    <div className="flex flex-col gap-4 pb-24">
-      <PageHeader title="Followers" />
-      <FilterRail>
-        <Chip active={tab === 'asked'} onClick={() => setTab('asked')}>
-          Asked{askedCount > 0 ? ` · ${askedCount}` : ''}
-        </Chip>
-        <Chip active={tab === 'following'} onClick={() => setTab('following')}>
-          Following you
-        </Chip>
-      </FilterRail>
+  const showChips = askedCount > 0 || askedOnly;
+  const listLoading = askedOnly ? asks.isLoading : asks.isLoading || followers.isLoading;
+  const hasVisibleAsks = visibleAsks.length > 0;
+  const hasVisibleFollowers = !askedOnly && visibleFollowers.length > 0;
+  const typed = deferredSearch.trim().length > 0;
+  const emptyMatch =
+    typed && !hasVisibleAsks && (askedOnly || !hasVisibleFollowers);
+  const emptyAll =
+    !typed &&
+    !hasVisibleAsks &&
+    !hasVisibleFollowers &&
+    !(askedOnly ? asks.data?.length : (asks.data?.length ?? 0) + (followers.data?.length ?? 0));
 
-      {tab === 'asked' ? (
-        asks.isLoading ? (
-          <LoadingBlock />
-        ) : asks.data && asks.data.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {asks.data.map((ask) => (
-              <Card key={ask.company.id} className="flex flex-col gap-3">
-                <div data-testid="follow-ask-row" className="flex flex-col gap-3">
-                  <Link
-                    to={`/company/${ask.company.id}`}
-                    className="flex min-w-0 items-center gap-3"
-                  >
-                    <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink">{ask.company.name}</p>
-                      <p className="truncate text-xs text-muted">{ask.company.city}</p>
-                    </div>
-                  </Link>
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      fullWidth
-                      disabled={decide.isPending}
-                      onClick={() =>
-                        decide.mutate({ followerCompanyId: ask.company.id, decision: 'look' })
-                      }
-                    >
-                      Look through
-                    </Button>
-                    <Button
-                      fullWidth
-                      variant="secondary"
-                      disabled={decide.isPending}
-                      onClick={() =>
-                        decide.mutate({ followerCompanyId: ask.company.id, decision: 'pack' })
-                      }
-                    >
-                      Put in a pack
-                    </Button>
-                    <Button
-                      fullWidth
-                      variant="ghost"
-                      disabled={decide.isPending}
-                      onClick={() =>
-                        decide.mutate({ followerCompanyId: ask.company.id, decision: 'deny' })
-                      }
-                    >
-                      Deny
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            title="No asks"
-            message="When a business asks to follow you, they show up here."
+  return (
+    <div className="flex flex-col gap-4 pb-36">
+      <PageHeader title={THEY_SEE_MINE.title} />
+      <ListSearchRow
+        search={
+          <SearchInput
+            data-testid="they-see-mine-search"
+            aria-label="Find businesses"
+            placeholder="Find businesses"
+            value={listSearch}
+            onChange={(event) => setListSearch(event.target.value)}
           />
-        )
-      ) : followers.isLoading ? (
+        }
+      />
+      {showChips ? (
+        <FilterRail>
+          <Chip
+            compact
+            active={!askedOnly}
+            onClick={() => setSearchParams({}, { replace: true })}
+          >
+            All
+          </Chip>
+          <Chip
+            compact
+            active={askedOnly}
+            data-testid="they-see-mine-asked"
+            onClick={() => setSearchParams({ tab: 'asked' }, { replace: true })}
+          >
+            Asked{askedCount > 0 ? ` · ${askedCount}` : ''}
+          </Chip>
+        </FilterRail>
+      ) : null}
+
+      {listLoading ? (
         <LoadingBlock />
-      ) : followers.data && followers.data.length > 0 ? (
+      ) : (
         <div className="flex flex-col gap-2">
-          {followers.data.map((row) => (
-            <Card key={row.company.id} className="flex items-center gap-3">
-              <Link
-                to={`/company/${row.company.id}`}
-                className="flex min-w-0 flex-1 items-center gap-3"
-              >
-                <Avatar name={row.company.name} imageUrl={row.company.logoUrl} />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{row.company.name}</p>
-                  <p className="truncate text-xs text-muted">
-                    {row.company.city} · {followAccessLabel(row.accessKind)}
-                  </p>
-                </div>
-              </Link>
-              <Button variant="secondary" onClick={() => setAccessFor(row)}>
-                Change
-              </Button>
+          {visibleAsks.map((ask) => (
+            <Card key={ask.company.id} className="!p-3 flex flex-col gap-2">
+              <div data-testid="follow-ask-row" className="flex flex-col gap-2">
+                <Link
+                  to={`/company/${ask.company.id}`}
+                  className="flex min-w-0 items-center gap-2.5"
+                >
+                  <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">{ask.company.name}</p>
+                    <p className="truncate text-xs text-muted">{ask.company.city}</p>
+                  </div>
+                </Link>
+                <FollowAskDecideRow
+                  disabled={decide.isPending}
+                  onAllow={(decision) =>
+                    decide.mutate({ followerCompanyId: ask.company.id, decision })
+                  }
+                  onDecline={() =>
+                    decide.mutate({ followerCompanyId: ask.company.id, decision: 'deny' })
+                  }
+                />
+              </div>
             </Card>
           ))}
+          {!askedOnly
+            ? visibleFollowers.map((row) => (
+                <div key={row.company.id} data-testid={`follow-allowed-row-${row.company.id}`}>
+                  <Card className="!p-3 flex items-center gap-2.5">
+                    <Link
+                      to={`/company/${row.company.id}`}
+                      className="flex min-w-0 flex-1 items-center gap-2.5"
+                    >
+                      <Avatar name={row.company.name} imageUrl={row.company.logoUrl} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink">{row.company.name}</p>
+                        <p className="truncate text-xs text-muted">{row.company.city}</p>
+                      </div>
+                    </Link>
+                    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+                      <FollowGrantChecks
+                        compact
+                        grants={grantsFromRow(row)}
+                        disabled={changeAccess.isPending || decide.isPending}
+                        locked={row.stopped ? [] : ['see']}
+                        testIdPrefix={`follow-allowed-grant-${row.company.id}`}
+                        onToggle={(id) => {
+                          if (row.stopped) {
+                            if (id !== 'see' && id !== 'share') return;
+                            decide.mutate({
+                              followerCompanyId: row.company.id,
+                              decision: id === 'share' ? 'pack' : 'look',
+                            });
+                            return;
+                          }
+                          if (id !== 'share') return;
+                          changeAccess.mutate({
+                            followerCompanyId: row.company.id,
+                            accessKind: row.accessKind === 'pack' ? 'look' : 'pack',
+                          });
+                        }}
+                      />
+                      {row.stopped ? (
+                        <span className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-medium text-muted">
+                          Stopped
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label="Stop them seeing"
+                          className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-medium text-muted disabled:opacity-45"
+                          disabled={decide.isPending}
+                          onClick={() =>
+                            decide.mutate(
+                              { followerCompanyId: row.company.id, decision: 'deny' },
+                              { onSuccess: () => showToast('Stopped them seeing.') },
+                            )
+                          }
+                        >
+                          Stop
+                        </button>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+              ))
+            : null}
+          {emptyMatch ? (
+            <EmptyState title="No businesses match" message="Try another name or city." />
+          ) : null}
+          {askedOnly && !typed && !hasVisibleAsks && !asks.isLoading ? (
+            <EmptyState
+              title="No asks"
+              message="When a business asks to see your collections, they show up here."
+            />
+          ) : null}
+          {!askedOnly && emptyAll ? (
+            <EmptyState
+              title="No one yet"
+              message="Businesses you allow to see your collections show up here."
+            />
+          ) : null}
         </div>
-      ) : (
-        <EmptyState
-          title="No followers yet"
-          message="Businesses you allow to follow you show up here."
-        />
       )}
-
-      <Sheet open={Boolean(accessFor)} onClose={() => setAccessFor(null)} title="Access">
-        {accessFor ? (
-          <div className="flex flex-col gap-2 pb-4">
-            <p className="text-sm text-muted">{accessFor.company.name}</p>
-            {(['look', 'pack'] as const).map((kind) => {
-              const selected = accessFor.accessKind === kind;
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={changeAccess.isPending}
-                  onClick={() =>
-                    changeAccess.mutate({
-                      followerCompanyId: accessFor.company.id,
-                      accessKind: kind,
-                    })
-                  }
-                  className={
-                    selected
-                      ? 'rounded-2xl border border-accent bg-accent/5 px-4 py-3 text-left text-sm font-semibold text-ink'
-                      : 'rounded-2xl border border-line bg-surface px-4 py-3 text-left text-sm font-semibold text-ink'
-                  }
-                >
-                  {followAccessLabel(kind)}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-      </Sheet>
     </div>
   );
 }

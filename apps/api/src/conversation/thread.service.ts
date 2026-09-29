@@ -674,11 +674,14 @@ export class ThreadService {
     if (mine.thread.type === ThreadType.Direct) {
       const counterpartId = await this.directCounterpartCompanyId(threadId, actorCompanyId);
       if (counterpartId) {
-        await this.access.approveIncomingFromCounterpartIfPending(
+        const granted = await this.access.approveIncomingFromCounterpartIfPending(
           actorCompanyId,
           counterpartId,
           actor,
         );
+        if (!granted) {
+          await this.access.ensureActiveConnection(actorCompanyId, counterpartId, actor);
+        }
       }
     }
     return this.detail(threadId, actorCompanyId, role, actor.userId);

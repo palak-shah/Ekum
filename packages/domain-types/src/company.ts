@@ -79,6 +79,10 @@ export interface PublicCompanyProfile {
   followPending?: boolean;
   /** Viewer may put this shop’s designs in a pack (no look/pack label). */
   canPutInPack?: boolean;
+  /** Viewer has an active Connection with this shop. */
+  connected?: boolean;
+  /** Viewer already has an active 1:1 with this shop (not a pending request). */
+  hasChat?: boolean;
 }
 
 /** A public-safe contact point. Phone is masked unless the business opts in. */

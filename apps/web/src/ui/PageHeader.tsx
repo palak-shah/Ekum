@@ -12,6 +12,7 @@ export function PageHeader({
   titleTo,
   titleToState,
   action,
+  below,
   onBack,
 }: {
   title?: string;
@@ -20,6 +21,8 @@ export function PageHeader({
   titleTo?: string;
   titleToState?: object;
   action?: ReactNode;
+  /** Opens under the header actions (e.g. Find field under the search icon). */
+  below?: ReactNode;
   onBack?: () => void;
 }) {
   const navigate = useNavigate();
@@ -32,29 +35,32 @@ export function PageHeader({
   ) : null;
 
   return (
-    <header className="sticky top-0 z-30 -mx-4 mb-3 flex shrink-0 items-center gap-2 border-b border-line bg-canvas px-4 py-2.5">
-      <button
-        aria-label="Back"
-        data-testid="page-header-back"
-        className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"
-        onClick={() => (onBack ? onBack() : navigate(-1))}
-      >
-        <BackIcon />
-      </button>
-      {identity && titleTo ? (
-        <Link
-          to={titleTo}
-          state={titleToState}
-          className="min-w-0 flex-1 rounded-lg py-0.5 hover:bg-foam/60"
+    <header className="sticky top-0 z-30 -mx-4 mb-3 shrink-0 border-b border-line bg-canvas">
+      <div className="flex items-center gap-2 px-4 py-2.5">
+        <button
+          aria-label="Back"
+          data-testid="page-header-back"
+          className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"
+          onClick={() => (onBack ? onBack() : navigate(-1))}
         >
-          {identity}
-        </Link>
-      ) : identity ? (
-        <div className="min-w-0 flex-1">{identity}</div>
-      ) : (
-        <div className="min-w-0 flex-1" />
-      )}
-      {action}
+          <BackIcon />
+        </button>
+        {identity && titleTo ? (
+          <Link
+            to={titleTo}
+            state={titleToState}
+            className="min-w-0 flex-1 rounded-lg py-0.5 hover:bg-foam/60"
+          >
+            {identity}
+          </Link>
+        ) : identity ? (
+          <div className="min-w-0 flex-1">{identity}</div>
+        ) : (
+          <div className="min-w-0 flex-1" />
+        )}
+        {action}
+      </div>
+      {below ? <div className="px-4 pb-2.5">{below}</div> : null}
     </header>
   );
 }

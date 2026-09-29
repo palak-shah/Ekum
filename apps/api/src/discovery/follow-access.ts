@@ -1,6 +1,7 @@
 export const FollowStatus = {
   Pending: 'pending',
   Allowed: 'allowed',
+  Stopped: 'stopped',
 } as const;
 
 export const FollowAccessKind = {

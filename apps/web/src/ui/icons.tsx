@@ -109,6 +109,15 @@ export const SearchIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Share shop / catalog (header). */
+export const ShareIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12 3v12" />
+    <path d="m8 7 4-4 4 4" />
+    <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+  </Icon>
+);
+
 export const CameraIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />

@@ -22,7 +22,6 @@ import { Button, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchI
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { CheckIcon, PlusIcon } from '@/ui/icons';
-import { ListSquareButton } from '@/ui/ListSearchRow';
 import { collectionMosaicCount } from '@/ui/albumMosaic';
 import { AlbumGrid } from '@/ui/cards';
 import { collectionStatusSummary } from './collectionStatusSummary';
@@ -30,6 +29,7 @@ import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { libraryAuditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
 import { BulkProductPublishSheet } from './BulkProductPublishSheet';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import {
   readBrowseAlbumPick,
   writeBrowseAlbumPick,
@@ -235,6 +235,7 @@ export function MyCatalogPage({
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const deferredListSearch = useDeferredValue(listSearch);
@@ -389,6 +390,26 @@ export function MyCatalogPage({
           .filter((c) => c.status === CollectionStatus.Published)
           .map((c) => c.id)
       : selectedProducts.filter((p) => p.status === ProductStatus.Published).map((p) => p.id);
+  const shareCollections =
+    tab === 'collections'
+      ? selectedCollections
+          .filter((c) => c.status === CollectionStatus.Published)
+          .map((c) => ({
+            collectionId: c.id,
+            name: c.name,
+            image: c.coverImage,
+          }))
+      : [];
+  const shareProducts =
+    tab === 'products'
+      ? selectedProducts
+          .filter((p) => p.status === ProductStatus.Published)
+          .map((p) => ({
+            productId: p.id,
+            name: p.name,
+            image: p.images[0] ?? null,
+          }))
+      : [];
   const restorableIds =
     tab === 'collections'
       ? selectedCollections
@@ -413,6 +434,7 @@ export function MyCatalogPage({
   const exitSelect = () => {
     setSelecting(false);
     setSelectedIds(new Set());
+    setShareOpen(false);
   };
 
   const toggleSelected = (id: string) => {
@@ -566,12 +588,13 @@ export function MyCatalogPage({
         />
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         {embedded || catalogTabs ? (
           <div
-            className="flex min-h-12 min-w-0 flex-1 rounded-xl bg-linen p-0.5"
+            className="flex w-fit gap-4"
             role="tablist"
-            aria-label="Published content"
+            aria-label="Library"
+            data-testid="you-library-kind-tabs"
           >
             {(['products', 'collections'] as const).map((value) => (
               <button
@@ -582,8 +605,10 @@ export function MyCatalogPage({
                 data-testid={value === 'products' ? 'you-tab-designs' : 'you-tab-collections'}
                 onClick={() => setTab(value)}
                 className={cx(
-                  'min-h-11 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-semibold tracking-tight',
-                  tab === value ? 'bg-surface text-ink shadow-[var(--shadow-soft)]' : 'text-muted',
+                  'h-10 border-b-2 px-0.5 text-[15px] tracking-tight',
+                  tab === value
+                    ? 'border-accent font-bold text-ink'
+                    : 'border-transparent font-medium text-muted',
                 )}
               >
                 {value === 'products' ? 'Designs' : 'Collections'}
@@ -621,18 +646,25 @@ export function MyCatalogPage({
             Cancel
           </button>
         ) : catalogTabs ? (
-          <ListSquareButton
+          <button
+            type="button"
             data-testid="you-library-add"
             aria-label="Add"
             onClick={() => setPostOpen(true)}
+            className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_2px_8px_rgba(15,76,71,0.35)] hover:bg-accent-dark"
           >
             <PlusIcon width={20} height={20} />
-          </ListSquareButton>
+          </button>
         ) : null}
       </div>
 
       {catalogTabs || !embedded ? (
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2"
+          role="group"
+          aria-label="In this library"
+          data-testid="you-library-status-filters"
+        >
         <FilterRail className="min-w-0 flex-1">
           {(tab === 'collections' ? COLLECTION_FILTERS : PRODUCT_FILTERS).map((item) => {
             const active =
@@ -838,27 +870,26 @@ export function MyCatalogPage({
             <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
               <div className="mx-auto flex max-w-md flex-col gap-2">
                 {hideableIds.length > 0 ? (
-                  <Button
-                    fullWidth
-                    disabled={busy}
-                    data-testid="catalog-order-for-buyer"
-                    onClick={() => sendToSelection('order')}
-                  >
-                    Order for buyer
-                  </Button>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
-                  {hideableIds.length > 0 && canCurateOwn ? (
+                  <div className="flex gap-2">
                     <Button
-                      variant="secondary"
                       className="min-w-0 flex-1"
                       disabled={busy}
-                      data-testid="catalog-curate"
-                      onClick={() => sendToSelection('curate')}
+                      data-testid="catalog-order-for-buyer"
+                      onClick={() => sendToSelection('order')}
                     >
-                      Curate
+                      Order for buyer
                     </Button>
-                  ) : null}
+                    <Button
+                      className="min-w-0 flex-1"
+                      disabled={busy}
+                      data-testid="catalog-share"
+                      onClick={() => setShareOpen(true)}
+                    >
+                      Share
+                    </Button>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
                   {restorableIds.length > 0 ? (
                     <Button
                       variant="secondary"
@@ -889,6 +920,17 @@ export function MyCatalogPage({
                       {bulkArchive.isPending ? 'Archiving…' : `Archive ${archivableIds.length}`}
                     </Button>
                   ) : null}
+                  {hideableIds.length > 0 && canCurateOwn ? (
+                    <Button
+                      variant="secondary"
+                      className="min-w-0 flex-1"
+                      disabled={busy}
+                      data-testid="catalog-curate"
+                      onClick={() => sendToSelection('curate')}
+                    >
+                      Curate
+                    </Button>
+                  ) : null}
                   {publishableIds.length > 0 ? (
                     <Button
                       className="min-w-0 flex-1"
@@ -906,6 +948,17 @@ export function MyCatalogPage({
         : null}
         </>
       )}
+
+      <CatalogShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        collections={shareCollections}
+        products={shareProducts}
+        onShared={() => {
+          setShareOpen(false);
+          exitSelect();
+        }}
+      />
 
       {tab === 'collections' ? (
         <BulkCollectionPublishSheet

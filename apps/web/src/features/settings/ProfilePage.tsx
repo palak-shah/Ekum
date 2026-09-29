@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
   SuperCategory,
-  type CompanySettingsView,
   type OwnCompanyProfile,
   type SuperCategory as SuperCategoryType,
   type UpdateCompanyDto,
@@ -12,7 +11,6 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { uploadImage } from '@/lib/mediaUpload';
 import { useMyCompany } from '@/lib/queries';
-import { resolveTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
@@ -96,8 +94,6 @@ export function ProfilePage() {
     }));
   };
 
-  const presence = resolveTradePresence(company.data);
-
   const save = useMutation({
     mutationFn: () => {
       const dto: UpdateCompanyDto = {
@@ -119,20 +115,6 @@ export function ProfilePage() {
       showToast('Profile saved.');
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
-  });
-
-  const setTradeSide = useMutation({
-    mutationFn: (patch: {
-      buyingEnabled?: boolean;
-      sellingEnabled?: boolean;
-      tradingEnabled?: boolean;
-    }) => api.put<CompanySettingsView>('/settings', patch),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
-      void queryClient.invalidateQueries({ queryKey: ['settings'] });
-    },
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : 'Could not update trade options.'),
   });
 
   const setLogo = useMutation({
@@ -220,44 +202,6 @@ export function ProfilePage() {
         ) : (
           <Tag>Unverified</Tag>
         )}
-      </Card>
-
-      <Card className="flex flex-col gap-3">
-        <div>
-          <p className="text-sm font-semibold text-ink">Trade on Ekum</p>
-          <p className="mt-1 text-xs text-muted">
-            One account can buy, sell, and trade. Turn a side off if you do not need it. Creating a
-            design turns selling back on.
-          </p>
-        </div>
-        <TradeToggle
-          label="I buy on Ekum"
-          on={presence.buying}
-          disabled={setTradeSide.isPending || (presence.buying && !presence.selling)}
-          onToggle={() => {
-            if (presence.buying && !presence.selling) return;
-            setTradeSide.mutate({ buyingEnabled: !presence.buying });
-          }}
-        />
-        <TradeToggle
-          label="I sell on Ekum"
-          on={presence.selling}
-          disabled={setTradeSide.isPending || (presence.selling && !presence.buying)}
-          onToggle={() => {
-            if (presence.selling && !presence.buying) return;
-            setTradeSide.mutate({ sellingEnabled: !presence.selling });
-          }}
-        />
-        <TradeToggle
-          label="I trade on Ekum"
-          on={presence.trading}
-          disabled={setTradeSide.isPending}
-          onToggle={() => setTradeSide.mutate({ tradingEnabled: !presence.trading })}
-        />
-        <p className="text-xs text-muted">
-          Curate packs and stay on shared orders. Leave off if you only buy or sell your own
-          catalog. Paths (Me / mill · see each other) live under Settings → Your paths.
-        </p>
       </Card>
 
       <Field label="Business name">
@@ -352,45 +296,5 @@ export function ProfilePage() {
         {save.isPending ? 'Saving…' : 'Save profile'}
       </Button>
     </div>
-  );
-}
-
-function TradeToggle({
-  label,
-  on,
-  disabled,
-  onToggle,
-}: {
-  label: string;
-  on: boolean;
-  disabled?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onToggle}
-      className={cx(
-        'flex items-center justify-between rounded-xl border px-3.5 py-3 text-left transition-colors',
-        on ? 'border-accent bg-foam' : 'border-line bg-surface',
-        disabled && 'opacity-50',
-      )}
-    >
-      <span className="text-sm font-medium text-ink">{label}</span>
-      <span
-        className={cx(
-          'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-          on ? 'bg-accent' : 'bg-line',
-        )}
-      >
-        <span
-          className={cx(
-            'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-            on ? 'left-5' : 'left-0.5',
-          )}
-        />
-      </span>
-    </button>
   );
 }

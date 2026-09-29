@@ -77,4 +77,20 @@ describe('SelectAllFloat', () => {
     expect(bar.className).toMatch(/sticky/);
     expect(bar.className).toMatch(/top-\[3\.25rem\]/);
   });
+
+  it('can sit as a pill under Selecting', () => {
+    render(
+      <SelectAllFloat
+        layout="pill"
+        open
+        count={0}
+        allSelected={false}
+        onSelectAll={() => {}}
+        onClear={() => {}}
+      />,
+    );
+    const bar = screen.getByTestId('select-all-float');
+    expect(bar.className).toMatch(/rounded-full/);
+    expect(bar.className).not.toMatch(/sticky/);
+  });
 });

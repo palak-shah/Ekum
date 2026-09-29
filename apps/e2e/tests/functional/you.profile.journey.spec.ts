@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginAsRavi } from '../../helpers/persona';
 
 test.describe('You profile @functional @settings', () => {
-  test('You has Edit, Share, and library; Settings has Team and Your paths', async ({
+  test('You has Edit, header Share, and library; Settings has Team and Your paths', async ({
     page,
   }) => {
     await loginAsRavi(page);
@@ -10,9 +10,13 @@ test.describe('You profile @functional @settings', () => {
     await expect(page.getByRole('heading', { name: 'You' })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('you-more')).toBeVisible();
     await expect(page.getByTestId('page-header-back')).toHaveCount(0);
-    await expect(page.getByTestId('you-edit')).toBeVisible();
-    await expect(page.getByTestId('you-share')).toBeVisible();
+    await expect(page.getByTestId('you-edit')).toHaveText('Edit profile');
+    await expect(page.getByTestId('you-share')).toHaveAttribute('aria-label', 'Share');
     await expect(page.getByTestId('you-tab-designs')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Designs' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: 'Collections' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Published' })).toHaveCount(0);
+    await expect(page.getByTestId('you-library-status-filters').getByRole('button', { name: 'Published' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Archived' })).toBeVisible();
     await expect(page.getByTestId('you-tab-saved')).toBeVisible();
     await expect(page.getByTestId('you-library-search')).toHaveCount(0);
@@ -29,6 +33,10 @@ test.describe('You profile @functional @settings', () => {
     await expect(page.getByRole('heading', { name: /Business profile/i })).toBeVisible({
       timeout: 10_000,
     });
+    await expect(page.getByText('Trade on Ekum')).toHaveCount(0);
+    await expect(page.getByText('I buy on Ekum')).toHaveCount(0);
+    await expect(page.getByText('I sell on Ekum')).toHaveCount(0);
+    await expect(page.getByText('I trade on Ekum')).toHaveCount(0);
 
     await page.goto('/catalog?tab=products');
     await expect(page).toHaveURL(/\/more/);

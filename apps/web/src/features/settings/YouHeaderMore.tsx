@@ -7,7 +7,7 @@ import { cx } from '@/ui/kit';
 import { MoreHorizontalIcon } from '@/ui/icons';
 
 const ITEM =
-  'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70';
+  'flex w-full px-4 py-3 text-left text-[15px] font-semibold tracking-tight text-ink hover:bg-foam/70';
 
 /** You shell ⋯ — Network, Settings, Log out (same band as Chats ⋯). */
 export function YouHeaderMore() {
@@ -89,7 +89,7 @@ export function YouHeaderMore() {
                 ref={panelRef}
                 role="menu"
                 data-testid="you-more-menu"
-                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
+                className="fixed z-[61] w-64 overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
                 style={{ top: pos.top, right: pos.right }}
               >
                 {youShortcutItems().map((item, index) => (
@@ -111,7 +111,7 @@ export function YouHeaderMore() {
                   type="button"
                   role="menuitem"
                   data-testid="you-more-logout"
-                  className={cx(ITEM, 'border-t border-line/70')}
+                  className={cx(ITEM, 'border-t border-line/70 text-danger')}
                   onClick={() => {
                     setOpen(false);
                     onLogout();

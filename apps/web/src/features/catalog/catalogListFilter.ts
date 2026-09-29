@@ -71,7 +71,7 @@ export function uniqueById<T extends { id: string }>(rows: T[]): T[] {
   return next;
 }
 
-/** Draft Designs looks empty when pack photos already went Published (In packs / On Explore). */
+/** Draft Designs looks empty when pack photos already went Published (In your packs / On Explore). */
 export function publishedDesignsElsewhereHint(publishedCount: number): string | null {
   if (publishedCount < 1) return null;
   return publishedCount === 1

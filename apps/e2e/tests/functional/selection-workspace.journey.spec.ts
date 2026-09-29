@@ -195,6 +195,40 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByTestId('app-toast')).toContainText(/bookmarked/i);
   });
 
+  test('Place Order opens the chat instead of empty Selection', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/explore');
+    await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => {
+      sessionStorage.setItem(
+        'ekum:browseShortlist',
+        JSON.stringify([
+          {
+            productId: 'seed-prod-1',
+            name: 'Design A',
+            thumbUrl: null,
+            companyId: 'seed-company-kavita',
+            companyName: 'Ahmedabad Loom Co',
+            allowForward: true,
+          },
+        ]),
+      );
+      sessionStorage.removeItem('ekum:browseAlbumPick');
+    });
+    await page.goto('/selection');
+    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('Checking availability…')).toHaveCount(0, { timeout: 15_000 });
+    await page.getByTestId('selection-order').click();
+    await expect(page.getByRole('button', { name: 'Place Order' })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Place Order' }).click();
+    await expect(page).not.toHaveURL(/\/selection/, { timeout: 20_000 });
+    await expect(page.getByText('Nothing selected')).toHaveCount(0);
+    await expect(page.getByTestId('app-toast')).toContainText(/order placed/i);
+    await expect(page).toHaveURL(/\/(chats|orders)\//);
+  });
+
   test('unavailable rows stay with a reason (never silent drop)', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
@@ -256,6 +290,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(gridTile).toBeVisible({ timeout: 15_000 });
     await gridTile.click({ button: 'right' });
     await expect(page.getByTestId('catalog-order-for-buyer')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('catalog-share')).toBeVisible();
     await expect(page.getByTestId('catalog-curate')).toBeVisible();
     await page.getByTestId('catalog-order-for-buyer').click();
     await expect(page).toHaveURL(/\/selection/);

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginAsMeena } from '../../helpers/persona';
 
 test.describe('company profile shop chrome @functional @network', () => {
-  test('1:1 title opens shop without Message; design cells show names', async ({
+  test('1:1 title opens shop with Message; design cells show names', async ({
     page,
   }) => {
     await loginAsMeena(page);
@@ -10,7 +10,7 @@ test.describe('company profile shop chrome @functional @network', () => {
     await page.getByRole('link', { name: /Surat Silk House/ }).click();
     await expect(page).toHaveURL(/\/company\/seed-company-ravi/);
     await expect(page.getByTestId('company-follow')).toBeVisible();
-    await expect(page.getByTestId('company-message')).toHaveCount(0);
+    await expect(page.getByTestId('company-message')).toBeVisible();
     await expect(page.getByTestId('company-shop-grid')).toBeVisible();
     await expect(page.getByText('Banarasi Silk Saree').first()).toBeVisible();
     await expect(page.getByTestId('company-shop-search')).toHaveCount(0);

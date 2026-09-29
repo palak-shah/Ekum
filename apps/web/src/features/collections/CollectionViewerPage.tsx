@@ -636,7 +636,11 @@ export function CollectionViewerPage() {
           )
         : null}
 
-      <CompanyRow company={data.company} to={`/company/${data.company.id}`} />
+      <CompanyRow
+        company={data.company}
+        to={isOwner ? undefined : `/company/${data.company.id}`}
+        relevance={isOwner ? 'Your collection' : undefined}
+      />
       {ownerSourceLine ? (
         <p className="px-0.5 text-xs text-muted">{ownerSourceLine}</p>
       ) : null}

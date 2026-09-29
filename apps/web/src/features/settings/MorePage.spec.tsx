@@ -33,10 +33,6 @@ vi.mock('@/features/catalog/MyCatalogPage', () => ({
     embedded ? <div data-testid="you-library">Library</div> : null,
 }));
 
-vi.mock('@/features/company/CompanyShareSheet', () => ({
-  CompanyShareSheet: () => null,
-}));
-
 describe('MorePage', () => {
   it('shows identity and library without a second title band', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -48,8 +44,8 @@ describe('MorePage', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('you-identity')).toHaveTextContent('Surat Silk House');
-    expect(screen.getByTestId('you-edit')).toBeInTheDocument();
-    expect(screen.getByTestId('you-share')).toBeInTheDocument();
+    expect(screen.getByTestId('you-edit')).toHaveTextContent('Edit profile');
+    expect(screen.queryByTestId('you-share')).toBeNull();
     expect(screen.queryByText(/Followers/i)).toBeNull();
     expect(screen.getByTestId('you-library')).toBeInTheDocument();
     expect(screen.queryByText('Buying')).toBeNull();

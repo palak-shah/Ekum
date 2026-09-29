@@ -1,22 +1,25 @@
 import { Link } from 'react-router-dom';
 import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
+import { I_SEE_THEIRS, THEY_SEE_MINE } from './networkSeeLabels';
 import { ChevronRightIcon } from '@/ui/icons';
 
-const BASE_LINKS = [
+/** You → Network: see-packs first, then groups, then trade + invites. */
+const SEE_LINKS = [
+  { to: '/network/following', label: I_SEE_THEIRS.title, hint: I_SEE_THEIRS.hint },
+  { to: '/network/followers', label: THEY_SEE_MINE.title, hint: THEY_SEE_MINE.hint },
+] as const;
+
+const TRADE_LINKS = [
   { to: '/network/connections', label: 'Connections', hint: 'Businesses you trade with' },
-  { to: '/network/following', label: 'Following', hint: 'Businesses you follow' },
-  { to: '/network/followers', label: 'Followers', hint: 'Who asked and who you allowed' },
-  { to: '/network/requests', label: 'Requests', hint: 'Access requests to approve' },
   { to: '/referrals', label: 'Invites', hint: 'Share connect-with-me links' },
 ] as const;
 
-/** You → Network: one entry to relationship lists (companies, not people). */
 export function NetworkPage() {
   const { selling, canPublish } = useTradePresence();
 
   const links = [
-    ...BASE_LINKS.slice(0, 1),
+    ...SEE_LINKS,
     ...(selling && canPublish
       ? [
           {
@@ -26,14 +29,14 @@ export function NetworkPage() {
           },
         ]
       : []),
-    ...BASE_LINKS.slice(1),
+    ...TRADE_LINKS,
   ];
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Network" />
       <p className="text-sm text-muted">
-        Manage connections, follows, and invites between businesses.
+        Who you trade with, who sees collections, and invites between businesses.
       </p>
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         {links.map((item) => (

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatsPage } from './ChatsPage';
+import { chatsInboxHref, rememberChatsInbox } from './chatsInboxFilter';
 import { requestChatsInboxSelect, setChatsInboxSelecting } from './chatsInboxSelect';
 import { resetChatDrafts, setChatDraft } from './chatsDrafts';
 import { api } from '@/lib/apiClient';
@@ -25,11 +26,11 @@ vi.mock('@/ui/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
-function renderPage() {
+function renderPage(path = '/chats') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>
         <ChatsPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -39,6 +40,7 @@ function renderPage() {
 describe('ChatsPage tabs', () => {
   beforeEach(() => {
     setChatsInboxSelecting(false);
+    rememberChatsInbox('all');
   });
 
   it('does not put ⋯ beside All Chats / Requests', async () => {
@@ -62,15 +64,16 @@ describe('ChatsPage tabs', () => {
     });
     renderPage();
 
-    expect(await screen.findByRole('tab', { name: 'All Chats' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Requests Received' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Requests/ })).toBeInTheDocument();
     expect(screen.queryByTestId('chats-more')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
   });
 
   it('switches All Chats ↔ Requests without flashing a loader or the other list', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.get).mockImplementation(async (_path, query) => {
+    vi.mocked(api.get).mockImplementation(async (path, query) => {
+      if (path === '/follows/asks') return [];
       const pending = (query as { state?: string } | undefined)?.state === 'pending';
       return {
         results: [
@@ -106,15 +109,116 @@ describe('ChatsPage tabs', () => {
       ),
     );
 
-    await user.click(screen.getByRole('tab', { name: 'Requests Received' }));
+    await user.click(screen.getByRole('button', { name: /Requests/ }));
     expect(screen.queryByText('Loading…')).toBeNull();
     expect(screen.queryByText('Surat Silk')).toBeNull();
     expect(screen.getByText('New mill')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: 'All Chats' }));
+    await user.click(screen.getByRole('button', { name: /^All$/ }));
     expect(screen.queryByText('Loading…')).toBeNull();
     expect(screen.queryByText('New mill')).toBeNull();
     expect(screen.getByText('Surat Silk')).toBeInTheDocument();
+  });
+
+  it('opens Requests from ?inbox=requests', async () => {
+    vi.mocked(api.get).mockImplementation(async (path, query) => {
+      if (path === '/follows/asks') return [];
+      const pending = (query as { state?: string } | undefined)?.state === 'pending';
+      return {
+        results: [
+          {
+            id: pending ? 'r1' : 't1',
+            type: 'direct',
+            visibility: 'trade',
+            title: pending ? 'New mill' : 'Surat Silk',
+            state: pending ? 'pending' : 'active',
+            alertLevel: 'all',
+            pinned: false,
+            unreadCount: 0,
+            lastMessage: null,
+            lastMessageAt: new Date().toISOString(),
+            counterpart: {
+              id: pending ? 'c2' : 'c1',
+              name: pending ? 'New mill' : 'Surat Silk',
+              logoUrl: null,
+            },
+            participantCount: 2,
+          },
+        ],
+        nextCursor: null,
+      };
+    });
+    renderPage('/chats?inbox=requests');
+    expect(await screen.findByText('New mill')).toBeInTheDocument();
+    expect(screen.queryByText('Surat Silk')).toBeNull();
+  });
+
+  it('remembers Groups so Back from a thread stays on Groups', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path, query) => {
+      if (path === '/follows/asks') return [];
+      const pending = (query as { state?: string } | undefined)?.state === 'pending';
+      return {
+        results: pending
+          ? []
+          : [
+              {
+                id: 'g1',
+                type: 'group',
+                visibility: 'trade',
+                title: 'Wedding circle',
+                state: 'active',
+                alertLevel: 'all',
+                pinned: false,
+                unreadCount: 0,
+                lastMessage: null,
+                lastMessageAt: new Date().toISOString(),
+                counterpart: null,
+                participantCount: 3,
+              },
+            ],
+        nextCursor: null,
+      };
+    });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /Groups/ }));
+    expect(chatsInboxHref()).toBe('/chats?inbox=groups');
+    expect(await screen.findByText('Wedding circle')).toBeInTheDocument();
+  });
+
+  it('shows plain words on See new packs asks', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path, query) => {
+      if (path === '/follows/asks') {
+        return [
+          {
+            company: {
+              id: 'c-ask',
+              name: 'Ahmedabad Loom Co',
+              city: 'Ahmedabad',
+              logoUrl: null,
+              verification: 'none',
+            },
+            createdAt: '2026-09-24T00:00:00.000Z',
+          },
+        ];
+      }
+      const pending = (query as { state?: string } | undefined)?.state === 'pending';
+      return { results: pending ? [] : [], nextCursor: null };
+    });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /Requests/ }));
+    expect(await screen.findByText('Wants to see your new packs')).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'They can see my collections' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('checkbox', { name: 'They can share my collections' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'They can see' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'They can share' })).toBeNull();
   });
 });
 
@@ -298,6 +402,19 @@ describe('ChatsPage inbox select', () => {
     });
     renderPage();
     fireEvent.contextMenu(await screen.findByTestId('chats-row-t1'));
+    expect(
+      within(screen.getByTestId('chats-row-menu'))
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      'Pin chat',
+      'Mute',
+      'Mark as unread',
+      'Archive',
+      'Clear chat',
+      'Delete chat',
+      'Block',
+    ]);
     await user.click(screen.getByTestId('chats-row-unread'));
     expect(api.post).toHaveBeenCalledWith('/threads/inbox-actions', {
       action: 'unread',

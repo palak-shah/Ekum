@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { useTradePresence } from '@/lib/tradePresence';
@@ -34,13 +34,7 @@ export function CuratePackPage() {
     return (
       <div className="flex flex-col gap-4">
         <PageHeader title="Curate pack" onBack={() => navigate(-1)} />
-        <p className="text-sm text-muted">
-          Turn on <span className="font-semibold text-ink">I trade on Ekum</span> in Profile to
-          curate packs.
-        </p>
-        <Link to="/profile" className="text-sm font-bold text-accent">
-          Open Profile
-        </Link>
+        <p className="text-sm text-muted">This shop is not set up to curate packs.</p>
       </div>
     );
   }

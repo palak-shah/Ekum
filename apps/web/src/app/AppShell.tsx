@@ -1,11 +1,12 @@
-import { Suspense, useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useSyncExternalStore, useTransition, type ReactNode } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { useChatUnreadCount, useMyCompany, useUnreadCount } from '@/lib/queries';
+import { useChatUnreadCount, useMyCompany, useOrdersNeedsYouCount, useUnreadCount } from '@/lib/queries';
+import { ordersNavAriaLabel, tabCountBadge, tabCountLabel } from './navCountBadge';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
-import { Avatar, Button, Sheet, cx } from '@/ui/kit';
+import { Avatar, cx } from '@/ui/kit';
 import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
 import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
@@ -16,9 +17,17 @@ import {
   shopSelectedCount,
 } from '@/features/company/shopTradeDock';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
-import { createFabIntent } from './createFabIntent';
+import { createFabHref, createFabIntent, CREATE_FAB_EXPLAIN } from './createFabIntent';
+import { useToast } from '@/ui/Toast';
+import {
+  chatsInboxHref,
+  getRememberedChatsInbox,
+  subscribeRememberedChatsInbox,
+} from '@/features/chats/chatsInboxFilter';
 import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
+import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
 import { YouHeaderMore } from '@/features/settings/YouHeaderMore';
+import { YouHeaderShare } from '@/features/settings/YouHeaderShare';
 import {
   BellIcon,
   ChatIcon,
@@ -86,7 +95,7 @@ function pageOwnsTopChrome(pathname: string): boolean {
 export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const { showToast } = useToast();
   const [, startTransition] = useTransition();
   const { session } = useAuth();
   const company = useMyCompany();
@@ -95,6 +104,8 @@ export function AppShell() {
   const unread = useUnreadCount();
   const chatUnread = useChatUnreadCount();
   const chatUnreadCount = chatUnread.data?.count ?? 0;
+  const ordersNeedsYou = useOrdersNeedsYouCount();
+  const ordersNeedsYouCount = ordersNeedsYou.data?.count ?? 0;
   const { buying, selling } = useTradePresence();
   const { can } = useTeamCaps();
   const fabIntent = createFabIntent({
@@ -109,6 +120,11 @@ export function AppShell() {
   const isChatThread =
     /^\/chats\/[^/]+/.test(location.pathname) && location.pathname !== '/chats/archived';
   const shopId = companyIdFromPath(location.pathname);
+  const chatsInbox = useSyncExternalStore(
+    subscribeRememberedChatsInbox,
+    getRememberedChatsInbox,
+    getRememberedChatsInbox,
+  );
   const hideAppNav = shouldHideAppNav(location.pathname, {
     myCompanyId: company.data?.id,
     thisShopSelectedCount: shopId
@@ -121,9 +137,13 @@ export function AppShell() {
     wasOrdersPath.current = noteOrdersPathChange(location.pathname, wasOrdersPath.current);
   }, [location.pathname]);
 
-  const go = (path: string) => {
-    setSheetOpen(false);
-    startTransition(() => navigate(path));
+  const onCreate = () => {
+    const href = createFabHref(fabIntent);
+    if (href) {
+      navigate(href);
+      return;
+    }
+    showToast(CREATE_FAB_EXPLAIN, 'danger');
   };
 
   return (
@@ -149,34 +169,48 @@ export function AppShell() {
             <span className="min-w-0 flex-1" aria-hidden />
           )}
           <div className="flex shrink-0 items-center gap-0.5">
-            {location.pathname === '/chats' ? <ChatsHeaderMore /> : null}
-            {location.pathname === '/more' ? <YouHeaderMore /> : null}
-            <button
-              type="button"
-              data-testid="notifications-bell"
-              aria-label="Notifications"
-              className="relative rounded-full p-2 text-slate hover:bg-foam"
-              onClick={() => startTransition(() => navigate('/notifications'))}
-            >
-              <BellIcon />
-              {unread.data && unread.data.count > 0 ? (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
-                  {unread.data.count > 9 ? '9+' : unread.data.count}
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              aria-label="Profile and settings"
-              className="rounded-full p-0.5"
-              onClick={() => startTransition(() => navigate('/more'))}
-            >
-              <Avatar
-                name={company.data?.name ?? session?.user.name ?? 'E'}
-                imageUrl={company.data?.logoUrl}
-                size={36}
-              />
-            </button>
+            {location.pathname === '/chats' ? (
+              <>
+                <ChatsHeaderMore />
+                <ChatsHeaderNew />
+              </>
+            ) : null}
+            {location.pathname === '/more' ? (
+              <>
+                <YouHeaderShare />
+                <YouHeaderMore />
+              </>
+            ) : null}
+            {isHome ? (
+              <>
+                <button
+                  type="button"
+                  data-testid="notifications-bell"
+                  aria-label="Notifications"
+                  className="relative rounded-full p-2 text-slate hover:bg-foam"
+                  onClick={() => startTransition(() => navigate('/notifications'))}
+                >
+                  <BellIcon />
+                  {unread.data && unread.data.count > 0 ? (
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
+                      {tabCountLabel(unread.data.count)}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Profile and settings"
+                  className="rounded-full p-0.5"
+                  onClick={() => startTransition(() => navigate('/more'))}
+                >
+                  <Avatar
+                    name={company.data?.name ?? session?.user.name ?? 'E'}
+                    imageUrl={company.data?.logoUrl}
+                    size={36}
+                  />
+                </button>
+              </>
+            ) : null}
           </div>
         </header>
       ) : null}
@@ -222,8 +256,9 @@ export function AppShell() {
       >
         {NAV.slice(0, 2).map((item) => (
           <NavItem
-            key={item.to}
+            key={item.label}
             {...item}
+            to={item.label === 'Chats' ? chatsInboxHref(chatsInbox) : item.to}
             badge={item.to === '/chats' && chatUnreadCount > 0 ? chatUnreadCount : undefined}
           />
         ))}
@@ -232,37 +267,21 @@ export function AppShell() {
           data-testid="app-create-fab"
           aria-label="Create"
           className="mb-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white"
-          onClick={() => setSheetOpen(true)}
+          onClick={onCreate}
         >
           <PlusIcon width={26} height={26} />
         </button>
         {NAV.slice(2).map((item) => (
-          <NavItem key={item.to} {...item} />
+          <NavItem
+            key={item.to}
+            {...item}
+            badge={item.to === '/orders' ? tabCountBadge(ordersNeedsYouCount) : undefined}
+            ariaLabel={
+              item.to === '/orders' ? ordersNavAriaLabel(ordersNeedsYouCount) : undefined
+            }
+          />
         ))}
       </nav>
-
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New">
-        <div className="flex flex-col gap-2">
-          {fabIntent === 'new-sheet' ? (
-            <>
-              <Button variant="secondary" fullWidth onClick={() => go('/catalog/products/new')}>
-                Add designs
-              </Button>
-              <Button variant="secondary" fullWidth onClick={() => go('/catalog/collections/new')}>
-                New collection
-              </Button>
-            </>
-          ) : fabIntent === 'orders' ? (
-            <Button variant="secondary" fullWidth onClick={() => go('/orders')}>
-              Orders
-            </Button>
-          ) : (
-            <p className="text-sm text-muted">
-              This login cannot add designs or start an order from here. Ask the owner on Team.
-            </p>
-          )}
-        </div>
-      </Sheet>
     </div>
   );
 }
@@ -292,13 +311,15 @@ function NavItem({
   Icon,
   end,
   badge,
+  ariaLabel,
 }: {
   to: string;
   label: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   end: boolean;
-  /** Teal count pill (chat unread) — not the orange notification style. */
+  /** Teal count pill (chat unread / orders Need you) — not the orange notification style. */
   badge?: number;
+  ariaLabel?: string;
 }) {
   const navigate = useNavigate();
   const [, startTransition] = useTransition();
@@ -306,7 +327,7 @@ function NavItem({
     <NavLink
       to={to}
       end={end}
-      aria-label={label}
+      aria-label={ariaLabel ?? label}
       onClick={(event) => {
         // Keep prior screen painted while the next lazy chunk loads (no Suspense flash).
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
@@ -336,7 +357,7 @@ function NavItem({
                 aria-hidden
                 className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white"
               >
-                {badge > 9 ? '9+' : badge}
+                {tabCountLabel(badge)}
               </span>
             ) : null}
           </span>

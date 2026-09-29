@@ -15,7 +15,7 @@ Start with [Shared concepts](./00-concepts.md) before area docs.
 | Control | Role |
 |---------|------|
 | **Home · Chats · ＋ · Explore · Orders** | Bottom nav (`AppShell`) |
-| **＋ sheet** | Selling: Add designs, New collection. Photo order lives on **Orders ＋** and **chat ＋** (not nav ＋). Buy-only nav ＋ opens Orders. Invite lives on **Chats ⋯** and profile / Invites. Curate from **Your selection** (Trading on). |
+| **＋** | Selling + upload: opens **New collection** (no sheet). Add designs lives on **You** (My designs / collections **Add**). Photo order lives on **Orders ＋** and **chat ＋** (not nav ＋). Buy-only ＋ opens Orders. No cap → why-line toast. Invite lives on **Chats ⋯** and profile / Invites. Curate from **Your selection** (Trading on). |
 | **Bell** | Notifications only — not mirrored on Home |
 | **Avatar → You** | `/more` — catalog, **Saved**, **Network**, team, settings, profile, logout |
 
@@ -44,7 +44,7 @@ Seed includes published designs + “Wedding Edit 2026”, peer fabric catalog f
 | [Saved & Curate pack](./saved.md) | Reference shortlist; multi-supplier curated packs |
 | [Explore & search](./explore.md) | Discovery feed |
 | [Company profile](./company.md) | Public shop & own profile |
-| [Access & connections](./access-and-connections.md) | Network hub, follow, access, pause, block |
+| [Access & connections](./access-and-connections.md) | Network hub, follow, access, block |
 | [Chat](./chat.md) | Threads & cards |
 | [Orders, samples, returns](./orders.md) | Trade lifecycle |
 | [Broadcast](./broadcast.md) | Message buyers |

@@ -83,8 +83,8 @@ export function ExploreSearchResults({
   const showInitialLoading = results.isPending && !results.data;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex gap-4 border-b border-line px-0.5">
+    <div className="flex flex-col gap-2.5">
+      <div className="flex gap-3 border-b border-line px-0.5">
         {FILTERS.map((item) => (
           <button
             key={item.value}

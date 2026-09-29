@@ -9,6 +9,7 @@ import {
 import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
+import { avatarTone } from '@/ui/avatarTone';
 import { BackIcon, CloseIcon, SearchIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
@@ -36,7 +37,7 @@ export function Button({ variant = 'primary', fullWidth, className, ...props }: 
   return (
     <button
       className={cx(
-        'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold tracking-tight transition-colors disabled:cursor-not-allowed',
+        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-semibold tracking-tight transition-colors disabled:cursor-not-allowed',
         BUTTON_VARIANT[variant],
         fullWidth && 'w-full',
         className,
@@ -53,6 +54,7 @@ export function Chip({
   onClick,
   className,
   type = 'button',
+  compact = true,
   'data-testid': dataTestId,
 }: {
   children: ReactNode;
@@ -60,10 +62,12 @@ export function Chip({
   onClick?: () => void;
   className?: string;
   type?: 'button' | 'submit';
+  compact?: boolean;
   'data-testid'?: string;
 }) {
   const classes = cx(
-    'inline-flex h-8 shrink-0 items-center justify-center rounded-lg border px-3 text-[13px] font-semibold tracking-tight transition-colors',
+    'inline-flex shrink-0 items-center justify-center rounded-lg border font-semibold tracking-tight transition-colors',
+    compact ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]',
     active
       ? 'border-accent bg-accent text-white'
       : 'border-line bg-surface text-slate hover:border-accent',
@@ -110,13 +114,23 @@ interface FieldProps {
   label: string;
   hint?: string;
   error?: string | null;
+  /** Shows a red * on the label so required is obvious before submit. */
+  required?: boolean;
   children: ReactNode;
 }
 
-export function Field({ label, hint, error, children }: FieldProps) {
+export function Field({ label, hint, error, required, children }: FieldProps) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-semibold text-ink">{label}</span>
+      <span className="text-sm font-semibold text-ink">
+        {label}
+        {required ? (
+          <span className="text-danger" aria-hidden>
+            {' '}
+            *
+          </span>
+        ) : null}
+      </span>
       {children}
       {error ? (
         <span className="text-xs font-medium text-danger">{error}</span>
@@ -145,13 +159,15 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
 );
 
 /** WhatsApp-style find field: leading search icon, keyboard Enter labeled Search. */
-export const SearchInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function SearchInput({ className, ...props }, ref) {
+export const SearchInput = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement> & { compact?: boolean }
+>(function SearchInput({ className, compact: _compact, ...props }, ref) {
     return (
       <div className={cx('relative min-w-0 w-full', className)}>
         <SearchIcon
-          width={18}
-          height={18}
+          width={16}
+          height={16}
           aria-hidden
           className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-muted"
         />
@@ -218,7 +234,7 @@ export function Tag({ children, tone = 'neutral' }: { children: ReactNode; tone?
 export function Avatar({
   name,
   imageUrl,
-  size = 40,
+  size = 36,
 }: {
   name: string;
   imageUrl?: string | null;
@@ -240,8 +256,8 @@ export function Avatar({
   }
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full bg-accent font-bold text-white"
-      style={{ width: size, height: size, fontSize: size * 0.36 }}
+      className="flex shrink-0 items-center justify-center rounded-full font-bold text-white"
+      style={{ width: size, height: size, fontSize: size * 0.36, backgroundColor: avatarTone(name) }}
     >
       {initials(name) || '?'}
     </span>
@@ -354,7 +370,7 @@ export function Sheet({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Previous step in this sheet. Same 46×46 square as Close; does not dismiss. */
+  /** Previous step in this sheet. Same 40×40 square as Close; does not dismiss. */
   onBack?: () => void;
   backTestId?: string;
   title?: string;

@@ -46,5 +46,17 @@ test.describe('chat group info @functional @chat', () => {
     await expect(page.getByTestId('group-info-mute')).toBeVisible();
     await expect(page.getByTestId('group-info-pin')).toBeVisible();
   });
+
+  test('Back from a group keeps the Groups chip', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/chats');
+    await page.getByRole('button', { name: /Groups/ }).click();
+    await expect(page).toHaveURL(/inbox=groups/);
+    await page.getByTestId('chats-row-seed-group-1').click();
+    await expect(page).toHaveURL(/\/chats\/seed-group-1/);
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page).toHaveURL(/inbox=groups/);
+    await expect(page.getByTestId('chats-row-seed-group-1')).toBeVisible();
+  });
 });
 

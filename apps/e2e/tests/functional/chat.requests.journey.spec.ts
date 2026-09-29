@@ -18,17 +18,17 @@ test.describe('chat requests inbox @functional @chat', () => {
     await page.goto(`/chats/${thread.id}`);
     await expect(page.getByText(opener)).toBeVisible({ timeout: 15_000 });
 
-    const openChat = page.getByRole('button', { name: 'Open chat' });
-    if (await openChat.isVisible({ timeout: 3000 }).catch(() => false)) {
+    const approve = page.getByRole('button', { name: 'Approve' });
+    if (await approve.isVisible({ timeout: 3000 }).catch(() => false)) {
       await page.goto('/chats');
-      await page.getByRole('button', { name: 'Requests Received' }).click();
+      await page.getByRole('button', { name: 'Requests' }).click();
       await expect(page.getByRole('link', { name: /Jaipur Emporium/i }).first()).toBeVisible({
         timeout: 15_000,
       });
 
       await page.goto(`/chats/${thread.id}`);
-      await openChat.click();
-      await expect(page.getByText(/can't see your replies until you open/i)).toHaveCount(0, {
+      await approve.click();
+      await expect(page.getByText(/can't see your replies until you approve/i)).toHaveCount(0, {
         timeout: 15_000,
       });
     }

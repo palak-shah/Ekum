@@ -1,14 +1,14 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cx } from '@/lib/cx';
 
-/** Shared list chrome: search flexes; one 46×46 trailing square (Explore filter / Chats·Orders +). */
+/** Shared list chrome: search flexes; one 40×40 trailing square (Explore filter / Orders +). */
 export function ListSearchRow({
   search,
   action,
   className,
 }: {
   search: ReactNode;
-  action: ReactNode;
+  action?: ReactNode;
   className?: string;
 }) {
   return (
@@ -20,7 +20,7 @@ export function ListSearchRow({
 }
 
 const listSquareButtonBase =
-  'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition-colors';
+  'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors';
 
 export const listSquareButtonClass = cx(
   listSquareButtonBase,

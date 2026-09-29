@@ -15,7 +15,8 @@ import {
 } from '@/features/browse/browseShortlist';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
-import { batchConfirmTitle } from '@/features/orders/BatchOrderConfirmSheet';
+import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
+import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useToast } from '@/ui/Toast';
 
 function toBatchItems(lines: Array<{ productId: string; quantity: number; note?: string }>) {
@@ -128,33 +129,13 @@ export function useShortlistOrderFlow() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
 
-      const inquiry = variables.intent === OrderIntent.Inquiry;
-      if (inquiry && payload.orders.length === 1 && payload.failures.length === 0) {
-        const order = payload.orders[0]!;
-        showToast('Rate request sent');
-        if (order.threadId) {
-          navigate(`/chats/${order.threadId}`);
-          return;
-        }
-        navigate(`/orders/${order.id}`);
-        return;
-      }
-
       const title = batchConfirmTitle(payload, { linkedMillCount });
       const tone = payload.orders.length === 0 ? 'danger' : 'success';
-      const sole = payload.orders.length === 1 ? payload.orders[0] : null;
-      const chatHref = sole?.threadId
-        ? `/chats/${sole.threadId}`
-        : sole
-          ? `/orders/${sole.id}`
-          : null;
-      showToast(
-        title,
-        tone,
-        chatHref && payload.failures.length === 0
-          ? { action: { label: 'Open chat', to: chatHref } }
-          : undefined,
-      );
+      const leave = batchSuccessLeave(payload);
+      showToast(title, tone);
+      if (leave?.kind === 'order') {
+        void navigateToOrderChat(navigate, queryClient, leave.order, { replace: true });
+      }
     },
     onError: (err, variables) => {
       const inquiry = variables?.intent === OrderIntent.Inquiry;

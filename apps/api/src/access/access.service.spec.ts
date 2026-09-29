@@ -104,6 +104,32 @@ describe('AccessService.approve', () => {
       service.approveIncomingFromCounterpartIfPending('owner', 'viewer', wrongActor),
     ).rejects.toThrow(/Switch to the business/);
   });
+
+  it('ensureActiveConnection upserts when there is no access row', async () => {
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      connection: { findUnique: async () => null, upsert },
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
+    await service.ensureActiveConnection('owner', 'viewer', actor);
+    expect(upsert).toHaveBeenCalled();
+  });
+
+  it('blockCounterpart upserts a blocked pair', async () => {
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      connection: { upsert },
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
+    await service.blockCounterpart('owner', 'viewer', actor);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ status: ConnectionStatus.Blocked }),
+      }),
+    );
+  });
 });
 
 describe('AccessService.createRequest', () => {

@@ -7,6 +7,7 @@ import type {
   MuteFor,
   TeamMemberView,
   ThreadDetail,
+  ThreadPersonView,
   UpdateGroupProfileDto,
 } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
@@ -21,6 +22,7 @@ import { Avatar, Button, ErrorState, LoadingBlock, SearchInput, Sheet, cx } from
 import { PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
+import { chatsInboxHref } from './chatsInboxFilter';
 import { GroupIdentityHero } from './GroupIdentityHero';
 import { ThreadPeopleSheet } from './ThreadPeopleSheet';
 import { ChatMuteDurationFlyout } from './ChatMuteDurationFlyout';
@@ -37,6 +39,76 @@ import {
 
 const SETTING =
   'flex w-full px-3.5 py-3 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
+
+function ChatYourTeam({
+  teamRows,
+  canManage,
+  removePending,
+  onAdd,
+  onRemove,
+}: {
+  teamRows: ThreadPersonView[];
+  canManage: boolean;
+  removePending: boolean;
+  onAdd: () => void;
+  onRemove: (userId: string) => void;
+}) {
+  return (
+    <section data-testid="group-info-team-list">
+      <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
+        <h2 className="text-sm font-semibold tracking-tight text-ink">Your team</h2>
+        {canManage ? (
+          <button
+            type="button"
+            data-testid="group-info-team-add"
+            className="text-[13px] font-semibold text-accent"
+            onClick={onAdd}
+          >
+            Add
+          </button>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-1">
+        {teamRows.length === 0 ? (
+          <p className="px-1 py-3 text-sm text-muted">Add people from your shop.</p>
+        ) : (
+          teamRows.map((person) => {
+            const canTakeOff = canManage && person.role !== 'owner';
+            return (
+              <div
+                key={person.userId}
+                data-testid={`group-info-person-${person.userId}`}
+                className="flex items-center gap-3 rounded-2xl px-2 py-2"
+              >
+                <Avatar name={person.name} size={48} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold tracking-tight text-ink">
+                    {person.name}
+                  </span>
+                  {person.role === 'owner' ? (
+                    <span className="block truncate text-xs text-muted">Owner</span>
+                  ) : null}
+                </span>
+                {canTakeOff ? (
+                  <button
+                    type="button"
+                    data-testid={`group-info-person-remove-${person.userId}`}
+                    aria-label={`Take ${person.name} off this chat`}
+                    disabled={removePending}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center text-lg font-semibold text-muted hover:text-ink disabled:opacity-40"
+                    onClick={() => onRemove(person.userId)}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
 
 export function GroupInfoPage() {
   const { id = '' } = useParams();
@@ -158,7 +230,7 @@ export function GroupInfoPage() {
     onSuccess: () => {
       setConfirm(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      navigate('/chats');
+      navigate(chatsInboxHref());
     },
     onError: (err) => {
       setConfirm(null);
@@ -171,7 +243,7 @@ export function GroupInfoPage() {
     onSuccess: () => {
       setConfirm(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      navigate('/chats');
+      navigate(chatsInboxHref());
     },
     onError: (err) => {
       setConfirm(null);
@@ -223,18 +295,23 @@ export function GroupInfoPage() {
   );
 
   if (thread.isLoading) {
-    return <LoadingBlock label="Opening group…" />;
+    return <LoadingBlock label="Opening…" />;
   }
   if (thread.isError || !thread.data) {
     return (
       <>
-        <PageHeader title="Group" onBack={() => navigate(`/chats/${id}`)} />
-        <ErrorState message="This group isn't available." />
+        <PageHeader title="Chat" onBack={() => navigate(`/chats/${id}`)} />
+        <ErrorState message="This chat isn't available." />
       </>
     );
   }
 
   const detail = thread.data;
+  if (detail.type === 'direct' && detail.counterpart?.id) {
+    return (
+      <Navigate to={`/company/${detail.counterpart.id}`} replace state={{ fromChat: true }} />
+    );
+  }
   if (detail.type !== 'group') {
     return <Navigate to={`/chats/${id}`} replace />;
   }
@@ -366,60 +443,15 @@ export function GroupInfoPage() {
               )}
             </div>
             {!searching && (teamRows.length > 0 || detail.canManagePeople) ? (
-              <section className="mt-6" data-testid="group-info-team-list">
-                <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-                  <h2 className="text-sm font-semibold tracking-tight text-ink">Your team</h2>
-                  {detail.canManagePeople ? (
-                    <button
-                      type="button"
-                      data-testid="group-info-team-add"
-                      className="text-[13px] font-semibold text-accent"
-                      onClick={() => setPeopleOpen(true)}
-                    >
-                      Add
-                    </button>
-                  ) : null}
-                </div>
-                <div className="flex flex-col gap-1">
-                  {teamRows.length === 0 ? (
-                    <p className="px-1 py-3 text-sm text-muted">Add people from your shop.</p>
-                  ) : (
-                    teamRows.map((person) => {
-                      const canTakeOff =
-                        Boolean(detail.canManagePeople) && person.role !== 'owner';
-                      return (
-                        <div
-                          key={person.userId}
-                          data-testid={`group-info-person-${person.userId}`}
-                          className="flex items-center gap-3 rounded-2xl px-2 py-2"
-                        >
-                          <Avatar name={person.name} size={48} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold tracking-tight text-ink">
-                              {person.name}
-                            </span>
-                            {person.role === 'owner' ? (
-                              <span className="block truncate text-xs text-muted">Owner</span>
-                            ) : null}
-                          </span>
-                          {canTakeOff ? (
-                            <button
-                              type="button"
-                              data-testid={`group-info-person-remove-${person.userId}`}
-                              aria-label={`Take ${person.name} off this chat`}
-                              disabled={removeMember.isPending}
-                              className="flex h-11 w-11 shrink-0 items-center justify-center text-lg font-semibold text-muted hover:text-ink disabled:opacity-40"
-                              onClick={() => removeMember.mutate(person.userId)}
-                            >
-                              ×
-                            </button>
-                          ) : null}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
+              <div className="mt-6">
+                <ChatYourTeam
+                  teamRows={teamRows}
+                  canManage={Boolean(detail.canManagePeople)}
+                  removePending={removeMember.isPending}
+                  onAdd={() => setPeopleOpen(true)}
+                  onRemove={(userId) => removeMember.mutate(userId)}
+                />
+              </div>
             ) : null}
           </>
         ) : null}

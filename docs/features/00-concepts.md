@@ -15,7 +15,7 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Company account** | The trading entity. Product pitch is one company, no “are you a buyer or seller?” role enum. |
 | **Contact person** | The logged-in user’s display name (e.g. Ravi) — distinct from the **business name** (e.g. Surat Silk House). |
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
-| **Trade presence** | `buyingEnabled` / `sellingEnabled` toggles what ＋ and Home emphasize. Creating catalog content turns selling back on. |
+| **Trade presence** | `buyingEnabled` / `sellingEnabled` still shape ＋ and Home. Not shown on You or Edit. Creating catalog content turns selling back on. |
 | **Edit** | Manage my business / profile / content. You **Edit** → `/settings/profile`. Not Settings. |
 | **Share** | Share my Ekum identity (chat + OS share). Not a social post. |
 | **Settings** | Configure Ekum. Domain cards only — add a link to a domain or add a domain. Not Edit. |
@@ -47,7 +47,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Stories | Viewer sees a company when they are an **allowed** follower or are connected and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light **New packs** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
-| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** (`I trade on Ekum`) gates Curate + TradeLane. Product default off (QA may treat unset as on). Linking/split in Slice B |
+| Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** gates Curate + TradeLane (not a Profile switch). Product default off (QA may treat unset as on). Linking/split in Slice B |
 | Orders | First middle-hop pair: **I handle**, no group. Lane = **Buyer talks to** (You / mill) × **Share a group**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when group Off; group when On. Mill **Send** on the card; **Send quote** / Decline on the desk; **Handle myself** when flipping Direct to your desk |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
@@ -69,13 +69,14 @@ flowchart LR
 
 | Mechanism | What it is |
 |-----------|------------|
-| **Follow** | Ask, not instant. Shop **Allows** (look through or put in a pack) or **Denies**. Pending is not a follower — no Followers-audience feed / shop / stories until Allow. Does **not** unlock Connection or trade. Follower never sees the grant type. |
-| **Access request** | Named gate to **Connect** (Network): note + optional referral. Approve / decline → Connection. |
+| **See new packs** | Shop ask (was Follow). Pending is **Asked to see packs** (tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Pack share is a later checkbox / Followers Change. Allowed is **Seeing packs** — tap off deletes the follow. No Followers feed or Followers shop packs after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. |
+| **Message** | First shop chat. Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. No shop **Request** button. |
+| **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). |
 | **Collection view Ask** | **Ask to see this pack** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not pack/relist). Deny silent. |
 | **Pack / relist Ask** | **Ask to put in my pack** — unlock Curate when pack permission is off. Distinct chat card (“wants to put … in their pack”). Never bare **Ask**. Via **your** pack → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
-| **Connection** | After approve: **one mutual pair** (`active`) — both companies are Connected. Each can see the other’s published shop content that Connection unlocks (Connections-audience included; Selected stays Selected). **Either** side can **pause** or **block** (silent to the other). **Only the company that paused/blocked can resume/unblock.** |
-| **Block / pause** | Other party is not told and does not see the connection row. API returns **404** (not 403) where relevant. Approve never reactivates a block — the **blocker** must **unblock** first. |
+| **Connection** | After approve: **one mutual pair** (`active`) — both companies are Connected. Each can see the other’s published shop content that Connection unlocks (Connections-audience included; Selected stays Selected). **Either** side can **block** (silent). **Only the company that blocked can unblock.** Chat noise is **Mute**, not a Connection pause. |
+| **Block** | Other party is not told and does not see the connection row. Shop/API **404** where relevant. Approve never reactivates a block — the **blocker** must **unblock** first. |
 
 ## Catalog lifecycle
 
@@ -138,6 +139,20 @@ When publishing (or updating visibility), the sheet sets:
 **Platform kind colors** (object type, not status): **Order** teal (brand accent) · **Collection** steel · **Design** clay. Shared via `kindTone` / CSS `--color-kind-*`. Status colors (success / danger / tangerine) stay separate.
 
 See [Catalog](./catalog.md) and [Collections](./collections.md).
+
+## Chrome density
+
+Everyday kit is **WhatsApp-tight**, not 48px everywhere:
+
+| Control | Size |
+|---------|------|
+| `Button` / `TextInput` / `SearchInput` | 40px tall. Field type stays **16px** (iOS must not zoom). |
+| `Chip` | 28px |
+| List square (search trailing / sheet Close) | 40×40 |
+| Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px** |
+| Nav ＋ / camera shutter | Stay 48px |
+
+Page gaps and one-off list rows may still be roomier until a later pass.
 
 ## Where it lives
 

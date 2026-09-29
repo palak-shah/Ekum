@@ -19,6 +19,14 @@ import { CheckIcon, ChevronRightIcon } from './icons';
 import { albumOverflowLabel, collectionMosaicCount, designCountLabel } from './albumMosaic';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
+/** Explore feed chrome — same tightness as Chats rows. */
+export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 border-b border-line/70 pb-2.5';
+export const EXPLORE_POST_INSET_CLASS = 'px-4';
+/** Mosaic + pack name share the page gutter with the header (not under the avatar). */
+export const EXPLORE_POST_MEDIA_INSET_CLASS = EXPLORE_POST_INSET_CLASS;
+export const EXPLORE_POST_HEADER_CLASS = `flex items-center gap-2.5 ${EXPLORE_POST_INSET_CLASS} py-1.5`;
+export const EXPLORE_POST_AVATAR = 36;
+
 function VerificationTag({ verification }: { verification: string }) {
   if (verification === 'gst_verified') {
     return <Tag tone="success">GST verified</Tag>;
@@ -99,10 +107,10 @@ export function OpportunityCollectionCard({
     else openAlbum();
   };
   return (
-    <article className="-mx-4 border-b border-line/70 pb-3.5">
-      <div className="flex items-center gap-3 px-4 py-2.5">
+    <article className={EXPLORE_POST_ARTICLE_CLASS}>
+      <div className={EXPLORE_POST_HEADER_CLASS}>
         <Link to={`/company/${company.id}`} className="shrink-0">
-          <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
         </Link>
         <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
@@ -118,7 +126,7 @@ export function OpportunityCollectionCard({
       <button
         type="button"
         aria-label={selecting ? `Select ${collection.name}` : collection.name}
-        className={cx('relative block w-full px-4 text-left', LONG_PRESS_SURFACE_CLASS)}
+        className={cx('relative block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS, LONG_PRESS_SURFACE_CLASS)}
         onClick={onMediaClick}
         {...longPress}
       >
@@ -144,7 +152,7 @@ export function OpportunityCollectionCard({
       <Link
         to={`/collections/${collection.id}`}
         data-testid={`explore-collection-open-${collection.id}`}
-        className="mt-2 block w-full px-4 text-left"
+        className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
         onClick={() => onOpen?.()}
       >
         <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
@@ -230,10 +238,10 @@ export function OpportunityBusinessCard({
     .join(' · ');
 
   return (
-    <article className="-mx-4 border-b border-line/70 pb-3.5">
-      <div className="flex items-center gap-3 px-4 py-2.5">
+    <article className={EXPLORE_POST_ARTICLE_CLASS}>
+      <div className={EXPLORE_POST_HEADER_CLASS}>
         <Link to={shopTo} className="shrink-0">
-          <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
         </Link>
         <Link to={shopTo} className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
@@ -245,11 +253,11 @@ export function OpportunityBusinessCard({
           <VerificationTag verification={company.verification} />
         )}
       </div>
-      <Link to={shopTo} className="block px-4">
+      <Link to={shopTo} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         {hasShopVisual ? (
           <>
             <AlbumGrid images={previews} imageCount={imageCount} alt={company.name} />
-            <div className="mt-2 flex items-start justify-between gap-3">
+            <div className="mt-1.5 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 {catalogLine ? (
                   <p className="text-sm font-semibold tracking-tight text-ink">{catalogLine}</p>
@@ -339,8 +347,8 @@ function BusinessIntentCard({
   const heading = intentSide === 'buy' ? 'Looking for' : 'Sells';
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-[var(--shadow-soft)]">
-      <Avatar name={company.name} imageUrl={company.logoUrl} size={56} />
+    <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface p-2.5">
+      <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{heading}</p>
         {cats.length > 0 ? (
@@ -413,10 +421,10 @@ export function OpportunityDesignCard({
   };
 
   return (
-    <article className="-mx-4 border-b border-line/70 pb-3.5">
-      <div className="flex items-center gap-3 px-4 py-2.5">
+    <article className={EXPLORE_POST_ARTICLE_CLASS}>
+      <div className={EXPLORE_POST_HEADER_CLASS}>
         <Link to={`/company/${company.id}`} className="shrink-0">
-          <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
         </Link>
         <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight text-ink">{company.name}</p>
@@ -432,7 +440,7 @@ export function OpportunityDesignCard({
       <button
         type="button"
         aria-label={selecting ? `Select ${product.name}` : product.name}
-        className={cx('relative block w-full px-4 text-left', LONG_PRESS_SURFACE_CLASS)}
+        className={cx('relative block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS, LONG_PRESS_SURFACE_CLASS)}
         onClick={onMediaClick}
         {...longPress}
       >
@@ -455,7 +463,7 @@ export function OpportunityDesignCard({
       <Link
         to={`/explore/products/${product.id}`}
         data-testid={`explore-design-open-${product.id}`}
-        className="mt-2 block w-full px-4 text-left"
+        className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
         onClick={() => onOpen?.()}
       >
         <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
@@ -707,9 +715,9 @@ function PostHeader({
   postedAt: string;
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className={EXPLORE_POST_HEADER_CLASS}>
       <Link to={`/company/${company.id}`} className="shrink-0">
-        <Avatar name={company.name} imageUrl={company.logoUrl} size={40} />
+        <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
       </Link>
       <Link to={`/company/${company.id}`} className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold tracking-tight text-ink">{company.name}</p>
@@ -725,9 +733,9 @@ function PostHeader({
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
   return (
-    <article className="-mx-4 border-b border-line/80 pb-4">
+    <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <PostHeader company={collection.company} postedAt={collection.updatedAt} />
-      <Link to={`/collections/${collection.id}`} className="block px-3">
+      <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={collection.previewImages}
           imageCount={collectionMosaicCount({
@@ -737,7 +745,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
           alt={collection.name}
         />
       </Link>
-      <Link to={`/collections/${collection.id}`} className="mt-2.5 block px-4">
+      <Link to={`/collections/${collection.id}`} className={cx('mt-1.5 block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <p className="text-sm font-bold tracking-tight text-ink">{collection.name}</p>
         <p className="text-xs font-medium text-muted">
           {designCountLabel(collection.productCount)}
@@ -750,16 +758,16 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
 /** Single-design Explore post. */
 export function ProductPost({ product }: { product: ExploreProductCard }) {
   return (
-    <article className="-mx-4 border-b border-line/80 pb-4">
+    <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <PostHeader company={product.company} postedAt={product.postedAt} />
-      <Link to={`/explore/products/${product.id}`} className="block px-3">
+      <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={product.images[0] ? [product.images[0]] : []}
           imageCount={1}
           alt={product.name}
         />
       </Link>
-      <Link to={`/explore/products/${product.id}`} className="mt-2.5 block px-4">
+      <Link to={`/explore/products/${product.id}`} className={cx('mt-1.5 block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <p className="text-sm font-bold tracking-tight text-ink">{product.name}</p>
         <p className="text-xs font-medium text-muted">
           {product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design'}

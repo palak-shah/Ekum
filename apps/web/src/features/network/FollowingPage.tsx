@@ -5,6 +5,8 @@ import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, EmptyState, LoadingBlock } from '@/ui/kit';
+import { invalidateFollowCatalog } from './invalidateFollowCatalog';
+import { I_SEE_THEIRS } from './networkSeeLabels';
 
 export function FollowingPage() {
   const queryClient = useQueryClient();
@@ -17,16 +19,16 @@ export function FollowingPage() {
   const unfollow = useMutation({
     mutationFn: (companyId: string) => api.del<{ following: false }>(`/follows/${companyId}`),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['follows', 'following'] });
-      showToast('Unfollowed');
+      invalidateFollowCatalog(queryClient);
+      showToast('Stopped seeing');
     },
     onError: (err) =>
-      showToast(err instanceof ApiError ? err.message : 'Could not unfollow.', 'danger'),
+      showToast(err instanceof ApiError ? err.message : 'Could not stop seeing.', 'danger'),
   });
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Following" />
+      <PageHeader title={I_SEE_THEIRS.title} />
       {following.isLoading ? (
         <LoadingBlock />
       ) : following.data && following.data.length > 0 ? (
@@ -45,15 +47,15 @@ export function FollowingPage() {
                 disabled={unfollow.isPending}
                 onClick={() => unfollow.mutate(company.id)}
               >
-                Unfollow
+                Stop seeing
               </Button>
             </Card>
           ))}
         </div>
       ) : (
         <EmptyState
-          title="Not following anyone yet"
-          message="Follow businesses from Explore or a company profile to see their posts."
+          title="None yet"
+          message="See new packs on Explore or a shop to add businesses here."
         />
       )}
     </div>

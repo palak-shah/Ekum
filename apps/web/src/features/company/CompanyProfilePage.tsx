@@ -1,10 +1,9 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
   OrderKind,
-  type AccessRequestView,
   type CollectionCard,
   type CompanyContactPoint,
   type ConnectionView,
@@ -17,16 +16,14 @@ import {
   categoryDisplayLabel,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { SEE_PACKS_HINT, seePacksShopLabel, shopWriteLabel } from './seePacksCopy';
+import { ShareIcon } from '@/ui/icons';
 import { useCompanyId } from '@/lib/auth';
 import {
   readDesignBrowseLayout,
   writeDesignBrowseLayout,
   type DesignBrowseLayout,
 } from '@/lib/designBrowseLayout';
-import {
-  DEFAULT_ACCESS_REQUEST_NOTE,
-  resolveAccessRequestNote,
-} from '@/lib/accessRequestNote';
 import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import { writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
@@ -48,12 +45,13 @@ import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
-import { Avatar, Button, ErrorState, Field, LoadingBlock, SearchInput, Sheet, Tag, TextArea, cx } from '@/ui/kit';
+import { Avatar, Button, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
+import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
 import { CompanyShareSheet } from './CompanyShareSheet';
 import { ShopCollectionCell, ShopPhotoCell, ShopPhotoGrid } from './ShopPhotoGrid';
-import { companyOpenedFromChat, shopCollectionPhoto, shopDesignPhoto } from './shopPhoto';
+import { shopCollectionPhoto, shopDesignPhoto } from './shopPhoto';
 import {
   shouldShowShopTradeDock,
   shopAlbumEntries,
@@ -92,24 +90,21 @@ function toShopAlbumEntry(collection: CollectionCard, shopCompanyId: string): Br
 
 export function CompanyProfilePage() {
   const { id = '' } = useParams();
-  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const myCompanyId = useCompanyId();
   const isOwn = Boolean(id) && id === myCompanyId;
-  const fromChat = companyOpenedFromChat(location.state);
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const { trading } = useTradePresence();
   const { showToast } = useToast();
-  const [gateOpen, setGateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
+  const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [curateOpen, setCurateOpen] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  const [note, setNote] = useState(DEFAULT_ACCESS_REQUEST_NOTE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<ShopTab>('designs');
@@ -133,10 +128,6 @@ export function CompanyProfilePage() {
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
   });
-  const outgoing = useQuery({
-    queryKey: ['access-requests', 'outgoing'],
-    queryFn: () => api.get<AccessRequestView[]>('/access-requests/outgoing'),
-  });
   const following = useQuery({
     queryKey: ['follows', 'following'],
     queryFn: () => api.get<PublicCompanySummary[]>('/follows/following'),
@@ -155,10 +146,9 @@ export function CompanyProfilePage() {
   });
 
   const connection = connections.data?.find((item) => item.company.id === id);
-  const isConnected = connection?.status === 'active';
-  const pendingRequest = outgoing.data?.find(
-    (item) => item.company.id === id && item.status === 'pending',
-  );
+  const isConnected =
+    profile.data?.connected === true || connection?.status === 'active';
+  const alreadyTalks = isConnected || profile.data?.hasChat === true;
   const isFollowing =
     profile.data?.following === true ||
     (following.data?.some((item) => item.id === id) ?? false);
@@ -225,7 +215,7 @@ export function CompanyProfilePage() {
     });
   };
   const floaterClearance = !shopDockUp && shortlist.count + albumPick.count > 0;
-  const showMessage = !isOwn && !fromChat;
+  const showMessage = !isOwn;
   const lookOnlyFollow =
     !isConnected &&
     (isFollowPending || (isFollowing && profile.data?.canPutInPack !== true));
@@ -250,39 +240,14 @@ export function CompanyProfilePage() {
     setShopTab(designs.length > 0 ? 'designs' : 'collections');
   }, [shopReady, id, designs.length]);
 
-  const refreshAfterAccess = () => {
-    void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
-    void queryClient.invalidateQueries({ queryKey: ['connections'] });
-    void queryClient.invalidateQueries({ queryKey: ['threads'] });
-  };
-
   const toggleFollow = useMutation({
     mutationFn: () =>
       isFollowing || isFollowPending
         ? api.del(`/follows/${id}`)
         : api.post('/follows', { companyId: id }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
-      void queryClient.invalidateQueries({ queryKey: ['company', id] });
-      void queryClient.invalidateQueries({ queryKey: ['explore', 'home'] });
+      invalidateFollowCatalog(queryClient);
     },
-  });
-
-  const requestAccess = useMutation({
-    mutationFn: () =>
-      api.post<AccessRequestView>('/access-requests', {
-        targetCompanyId: id,
-        note: resolveAccessRequestNote(note),
-      }),
-    onSuccess: () => {
-      setGateOpen(false);
-      setNote(DEFAULT_ACCESS_REQUEST_NOTE);
-      setActionError(null);
-      setSuccessNote('Request sent — they will see it in chat.');
-      refreshAfterAccess();
-    },
-    onError: (error) =>
-      setActionError(error instanceof ApiError ? error.message : 'Could not send request.'),
   });
 
   const startChat = useMutation({
@@ -313,6 +278,7 @@ export function CompanyProfilePage() {
       }),
     onSuccess: (order, input) => {
       setQtyOpen(false);
+      setQtyEntries(null);
       setOrderError(null);
       shortlist.removeIds(input.lines.map((line) => line.productId));
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -369,40 +335,40 @@ export function CompanyProfilePage() {
                 }}
               />
             ) : null}
-            {tabHasItems ? (
-              <button
-                type="button"
-                data-testid="company-shop-layout-toggle"
-                aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                onClick={toggleLayout}
-              >
-                {layout === 'feed' ? 'Grid' : 'Feed'}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              data-testid="company-share"
+              aria-label="Share"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam hover:text-ink"
+              onClick={() => setShareOpen(true)}
+            >
+              <ShareIcon width={18} height={18} />
+            </button>
           </div>
         }
-      />
-
-      <SelectAllFloat
-        open={shopSelectAllOpen}
-        count={thisShopCount}
-        allSelected={selectAll.allSelected}
-        onSelectAll={() => {
-          if (shopTab === 'designs') {
-            shortlist.addMany(visibleDesigns.map((product) => toShopShortlistEntry(product, id)));
-            return;
-          }
-          albumPick.addMany(
-            visibleCollections.map((collection) => toShopAlbumEntry(collection, id)),
-          );
-        }}
-        onClear={clearThisShop}
+        below={
+          searchOpen ? (
+            <SearchInput
+              data-testid="company-shop-search"
+              aria-label={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
+              placeholder={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
+              value={listSearch}
+              onChange={(event) => setListSearch(event.target.value)}
+              autoFocus
+            />
+          ) : null
+        }
       />
 
       <div className="flex items-start gap-4">
         <Avatar name={company.name} imageUrl={company.logoUrl} size={88} />
         <div className="min-w-0 flex-1 pt-1">
+          {isConnected && !isOwn && contact ? (
+            <p className="truncate text-sm font-medium text-ink" data-testid="company-contact">
+              {contact.name}
+              {contact.role ? ` ${contact.role}` : ''}
+            </p>
+          ) : null}
           <p className="text-sm text-muted">{company.city}</p>
           {company.verification === 'gst_verified' ? (
             <div className="mt-1">
@@ -420,106 +386,52 @@ export function CompanyProfilePage() {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
         {!isOwn ? (
-          <Button
-            variant="secondary"
-            className="min-h-9 min-w-0 flex-1 whitespace-nowrap px-2 text-xs font-semibold"
+          <button
+            type="button"
             data-testid="company-follow"
             onClick={() => toggleFollow.mutate()}
             disabled={toggleFollow.isPending}
+            className={cx(
+              shopActionClass,
+              isFollowing && !isFollowPending
+                ? 'bg-accent text-white disabled:opacity-45'
+                : 'bg-foam text-ink disabled:opacity-45',
+            )}
           >
             {toggleFollow.isPending
               ? 'Updating…'
-              : isFollowing
-                ? 'Following'
-                : isFollowPending
-                  ? 'Pending'
-                  : 'Follow'}
-          </Button>
+              : seePacksShopLabel({ pending: isFollowPending, allowed: isFollowing })}
+          </button>
         ) : null}
         {showMessage ? (
-          <Button
-            variant="secondary"
-            className="min-h-9 min-w-0 flex-1 whitespace-nowrap px-2 text-xs font-semibold"
+          <button
+            type="button"
             data-testid="company-message"
             onClick={() => startChat.mutate()}
             disabled={startChat.isPending}
+            className={cx(shopActionClass, 'bg-foam text-ink disabled:opacity-45')}
           >
-            {startChat.isPending ? 'Opening…' : pendingRequest ? 'Chat' : 'Message'}
-          </Button>
+            {startChat.isPending ? 'Opening…' : shopWriteLabel(alreadyTalks)}
+          </button>
         ) : null}
         {isOwn ? (
-          <Button
-            variant="secondary"
-            className="min-h-9 min-w-0 flex-1 whitespace-nowrap px-2 text-xs font-semibold"
+          <button
+            type="button"
             data-testid="company-edit"
             onClick={() => navigate('/settings/profile')}
+            className={cx(shopActionClass, 'flex-none bg-foam text-ink')}
           >
-            Edit
-          </Button>
-        ) : null}
-        <Button
-          variant="secondary"
-          className="min-h-9 min-w-0 flex-1 whitespace-nowrap px-2 text-xs font-semibold"
-          data-testid="company-share"
-          onClick={() => setShareOpen(true)}
-        >
-          Share
-        </Button>
-        {!isOwn && !isConnected ? (
-          pendingRequest ? (
-            <Button
-              variant="secondary"
-              className="min-h-9 min-w-0 flex-1 whitespace-nowrap px-2 text-xs font-semibold"
-              disabled
-            >
-              Asked
-            </Button>
-          ) : (
-            <Button
-              className="min-h-9 min-w-0 flex-1 whitespace-nowrap px-2 text-xs font-semibold"
-              data-testid="company-request"
-              onClick={() => {
-                setNote(DEFAULT_ACCESS_REQUEST_NOTE);
-                setGateOpen(true);
-              }}
-            >
-              Request
-            </Button>
-          )
+            Edit profile
+          </button>
         ) : null}
       </div>
 
       {!isOwn ? (
         <p className="text-xs text-muted" data-testid="company-follow-hint">
-          Follow = ask to see their new designs. Request access = rates and orders.
+          {SEE_PACKS_HINT}
         </p>
-      ) : null}
-
-      {isConnected && !isOwn ? (
-        <div className="min-w-0" data-testid="company-contact">
-          {contacts.isLoading ? (
-            <p className="text-xs text-muted">Loading contact…</p>
-          ) : contact ? (
-            <>
-              <p className="truncate text-sm text-ink">
-                {contact.name}
-                {contact.role ? (
-                  <span className="font-normal text-muted"> · {contact.role}</span>
-                ) : null}
-              </p>
-              {contact.phone ? (
-                <a
-                  href={`tel:${contact.phone.replace(/\s+/g, '')}`}
-                  className="truncate text-sm font-medium text-accent"
-                >
-                  {contact.phone}
-                </a>
-              ) : null}
-            </>
-          ) : null}
-        </div>
       ) : null}
 
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
@@ -535,59 +447,87 @@ export function CompanyProfilePage() {
             floaterClearance && 'pb-[calc(5rem+5.5rem)]',
           )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex gap-2">
-              {(
-                [
-                  ['designs', 'Designs', designs.length],
-                  ['collections', 'Collections', collections.length],
-                ] as const
-              ).map(([value, label, count]) => (
-                <button
-                  key={value}
-                  type="button"
-                  data-testid={`company-shop-tab-${value}`}
-                  onClick={() => setShopTab(value)}
-                  className={cx(
-                    'rounded-full px-3.5 py-1.5 text-sm font-medium',
-                    shopTab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
-                  )}
-                >
-                  {label}
-                  {count > 0 ? ` · ${count}` : ''}
-                </button>
-              ))}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex gap-2">
+                {(
+                  [
+                    ['designs', 'Designs', designs.length],
+                    ['collections', 'Collections', collections.length],
+                  ] as const
+                ).map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    data-testid={`company-shop-tab-${value}`}
+                    onClick={() => setShopTab(value)}
+                    className={cx(
+                      'rounded-full px-3.5 py-1.5 text-sm font-medium',
+                      shopTab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
+                    )}
+                  >
+                    {label}
+                    {count > 0 ? ` · ${count}` : ''}
+                  </button>
+                ))}
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                {tabHasItems ? (
+                  <button
+                    type="button"
+                    data-testid="company-shop-layout-toggle"
+                    aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
+                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
+                    onClick={toggleLayout}
+                  >
+                    {layout === 'feed' ? 'Grid' : 'Feed'}
+                  </button>
+                ) : null}
+                {canSelect ? (
+                  <button
+                    type="button"
+                    className={cx(
+                      'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                      selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                    )}
+                    onClick={() =>
+                      applySelectingPill(selecting, thisShopCount, {
+                        clear: clearThisShop,
+                        setSelectMode: (on) => {
+                          shortlist.setSelectMode(on);
+                          albumPick.setSelectMode(on);
+                        },
+                      })
+                    }
+                  >
+                    {selecting ? 'Selecting' : 'Select'}
+                  </button>
+                ) : null}
+              </div>
             </div>
-            {canSelect ? (
-              <button
-                type="button"
-                className={cx(
-                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
-                  selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                )}
-                onClick={() =>
-                  applySelectingPill(selecting, thisShopCount, {
-                    clear: clearThisShop,
-                    setSelectMode: (on) => {
-                      shortlist.setSelectMode(on);
-                      albumPick.setSelectMode(on);
-                    },
-                  })
-                }
-              >
-                {selecting ? 'Selecting' : 'Select'}
-              </button>
+            {shopSelectAllOpen ? (
+              <div className="flex justify-end">
+                <SelectAllFloat
+                  layout="pill"
+                  open
+                  count={thisShopCount}
+                  allSelected={selectAll.allSelected}
+                  onSelectAll={() => {
+                    if (shopTab === 'designs') {
+                      shortlist.addMany(
+                        visibleDesigns.map((product) => toShopShortlistEntry(product, id)),
+                      );
+                      return;
+                    }
+                    albumPick.addMany(
+                      visibleCollections.map((collection) => toShopAlbumEntry(collection, id)),
+                    );
+                  }}
+                  onClear={clearThisShop}
+                />
+              </div>
             ) : null}
           </div>
-          {hasShop && searchOpen ? (
-            <SearchInput
-              data-testid="company-shop-search"
-              aria-label={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
-              placeholder={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
-              value={listSearch}
-              onChange={(event) => setListSearch(event.target.value)}
-            />
-          ) : null}
           {hasShop ? (
             shopTab === 'designs' ? (
               visibleDesigns.length > 0 ? (
@@ -702,6 +642,7 @@ export function CompanyProfilePage() {
             return;
           }
           clearResumeAfterAlbumPick();
+          setQtyEntries(nextShortlist);
           setQtyOpen(true);
         }}
       />
@@ -732,9 +673,12 @@ export function CompanyProfilePage() {
 
       <HowManyEachSheet
         open={qtyOpen}
-        onClose={() => setQtyOpen(false)}
+        onClose={() => {
+          setQtyOpen(false);
+          setQtyEntries(null);
+        }}
         sellerId={id}
-        products={entriesAsProducts(shopEntries)}
+        products={entriesAsProducts(qtyEntries ?? shopEntries)}
         submitting={placeShopOrder.isPending && placeShopOrder.variables?.intent !== OrderIntent.Inquiry}
         asking={placeShopOrder.isPending && placeShopOrder.variables?.intent === OrderIntent.Inquiry}
         error={orderError}
@@ -762,37 +706,13 @@ export function CompanyProfilePage() {
         companyName={company.name}
       />
 
-      <Sheet
-        open={gateOpen}
-        onClose={() => {
-          setGateOpen(false);
-          setNote(DEFAULT_ACCESS_REQUEST_NOTE);
-        }}
-        title={`Request access · ${company.name}`}
-      >
-        <div className="flex flex-col gap-3">
-          <Field
-            label="Add a note"
-            hint="Tap to write your own. Leave empty to send the default."
-            error={actionError}
-          >
-            <TextArea
-              value={note}
-              onFocus={() => {
-                if (note === DEFAULT_ACCESS_REQUEST_NOTE) setNote('');
-              }}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={DEFAULT_ACCESS_REQUEST_NOTE}
-            />
-          </Field>
-          <Button fullWidth onClick={() => requestAccess.mutate()} disabled={requestAccess.isPending}>
-            {requestAccess.isPending ? 'Sending…' : 'Send request'}
-          </Button>
-        </div>
-      </Sheet>
     </div>
   );
 }
+
+/** Compact shop actions — Instagram / WhatsApp density, not kit min-h-12. */
+const shopActionClass =
+  'inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-2.5 text-[13px] font-semibold tracking-tight';
 
 function pickPrimaryContact(contacts: CompanyContactPoint[]): CompanyContactPoint | null {
   if (contacts.length === 0) return null;

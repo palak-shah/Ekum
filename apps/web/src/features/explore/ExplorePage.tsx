@@ -22,6 +22,7 @@ import {
   BusinessShopTile,
 } from '@/ui/cards';
 import { Avatar, Button, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { ListSquareButton, listSquareButtonClass } from '@/ui/ListSearchRow';
 import { BackIcon, FilterIcon, SearchIcon } from '@/ui/icons';
 import { ExploreSearchResults } from './ExploreSearchResults';
 import { exploreFeedFollowTrailing } from './exploreFeedFollowTrailing';
@@ -61,7 +62,7 @@ function Section({
     <section className="flex flex-col gap-2.5">
       {title || action ? (
         <div className="flex items-baseline justify-between gap-3 px-0.5">
-          {title ? <h2 className="text-[15px] font-bold tracking-tight text-ink">{title}</h2> : null}
+          {title ? <h2 className="text-[13px] font-semibold tracking-tight text-ink">{title}</h2> : null}
           {action}
         </div>
       ) : null}
@@ -327,7 +328,7 @@ function SupplierDirectory({
   return (
     <section className="flex flex-col gap-2.5">
       <div className="px-0.5">
-        <h2 className="text-[15px] font-bold tracking-tight text-ink">Suppliers on Explore</h2>
+        <h2 className="text-[13px] font-semibold tracking-tight text-ink">Suppliers on Explore</h2>
         <p className="text-xs font-medium text-muted">
           Companies with published designs or collections
         </p>
@@ -400,7 +401,7 @@ function StoriesRail({
               key={story.company.id}
               type="button"
               onClick={() => onSelect(story.company.id)}
-              className="flex w-[60px] shrink-0 flex-col items-center gap-1"
+              className="flex w-[52px] shrink-0 flex-col items-center gap-0.5"
             >
               <span
                 className={cx(
@@ -409,7 +410,7 @@ function StoriesRail({
                 )}
               >
                 <span className="block rounded-full bg-canvas p-[2px]">
-                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={44} />
+                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={36} />
                 </span>
               </span>
               <span className="w-full truncate text-center text-[10px] font-medium leading-tight text-ink">
@@ -704,7 +705,7 @@ export function ExplorePage() {
     <div
       className={cx(
         'flex flex-col',
-        storyCompanyId ? 'gap-2.5' : 'gap-4',
+        'gap-2.5',
         (shortlist.count > 0 || albumPick.count > 0) && 'pb-[calc(5rem+5.5rem)]',
       )}
     >
@@ -715,7 +716,7 @@ export function ExplorePage() {
               type="button"
               aria-label="Back to Explore"
               onClick={closeSearch}
-              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border border-line bg-surface text-slate hover:bg-foam"
+              className={cx(listSquareButtonClass, 'text-slate')}
             >
               <BackIcon width={20} height={20} />
             </button>
@@ -734,28 +735,22 @@ export function ExplorePage() {
             <button
               type="button"
               onClick={openSearch}
-              className="flex min-h-[46px] min-w-0 flex-1 items-center gap-2 rounded-[13px] border border-line bg-surface px-3.5 text-sm font-medium text-muted"
+              className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3.5 text-sm font-medium text-muted"
             >
-              <SearchIcon width={18} height={18} className="shrink-0" />
+              <SearchIcon width={16} height={16} className="shrink-0" />
               <span className="truncate">{EXPLORE_SEARCH_HINT}</span>
             </button>
-            <button
+            <ListSquareButton
               ref={filterAnchorRef}
-              type="button"
               data-testid="explore-filter"
               aria-label="Filter"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
+              active={filterActive || menuOpen}
               onClick={() => setMenuOpen((open) => !open)}
-              className={cx(
-                'flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] border transition-colors',
-                filterActive || menuOpen
-                  ? 'border-accent bg-accent text-white'
-                  : 'border-line bg-surface text-slate hover:bg-foam',
-              )}
             >
               <FilterIcon width={20} height={20} />
-            </button>
+            </ListSquareButton>
 
             <ExploreFilterMenu
               open={menuOpen}
@@ -789,7 +784,7 @@ export function ExplorePage() {
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex min-h-11 items-center text-xs font-bold tracking-tight text-accent"
+            className="inline-flex min-h-8 items-center text-xs font-bold tracking-tight text-accent"
           >
             Clear
           </button>
@@ -834,7 +829,7 @@ export function ExplorePage() {
           }
         />
       ) : (
-        <div className={cx('flex flex-col', storyCompanyId ? 'gap-3' : 'gap-7')}>
+        <div className="flex flex-col gap-2.5">
           {!searchFocused && tradeSide !== 'selling' ? (
             storyCompanyId ? (
               <StoryFilterChip
@@ -872,7 +867,7 @@ export function ExplorePage() {
             ) : (
               <EmptyState
                 title="No posts from other businesses yet"
-                message="Follow suppliers you buy from — new packs and designs show up here."
+                message="See new packs from shops you buy from — they show up here when they allow."
               />
             )
           ) : null}

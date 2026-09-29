@@ -36,7 +36,7 @@ export function textInputChromeClass(className?: string): string {
   const hasText = TEXT_SIZE_TOKEN.test(src);
   return [
     formControlWidthClass(className),
-    !hasMinH ? 'min-h-12' : '',
+    !hasMinH ? 'min-h-10' : '',
     'rounded-xl border border-line bg-surface',
     !hasPad ? 'px-3.5' : '',
     !hasText ? 'text-base' : '',

@@ -10,6 +10,7 @@ describe('ExploreFeedFollowAction', () => {
     render(<ExploreFeedFollowAction onFollow={onFollow} />);
 
     await user.click(screen.getByTestId('explore-feed-follow'));
+    expect(screen.getByRole('button', { name: 'See new packs' })).toBeInTheDocument();
     expect(onFollow).toHaveBeenCalledOnce();
   });
 

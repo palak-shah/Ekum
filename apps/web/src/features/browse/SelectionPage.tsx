@@ -76,9 +76,14 @@ export function SelectionPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
+  const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [savingPick, setSavingPick] = useState(false);
   const [askingKey, setAskingKey] = useState<string | null>(null);
   const [waitingAlbumIds, setWaitingAlbumIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (!orderFlow.qtyOpen) setQtyEntries(null);
+  }, [orderFlow.qtyOpen]);
 
   const total = shortlist.count + albumPick.count;
   const availabilityKey = useMemo(
@@ -573,6 +578,7 @@ export function SelectionPage() {
             return;
           }
           clearResumeAfterAlbumPick();
+          setQtyEntries(nextShortlist);
           orderFlow.setQtyOpen(true);
         }}
       />
@@ -631,7 +637,10 @@ export function SelectionPage() {
       />
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
-        onClose={() => orderFlow.setQtyOpen(false)}
+        onClose={() => {
+          orderFlow.setQtyOpen(false);
+          setQtyEntries(null);
+        }}
         sellerId={
           availableDesigns.length === 0
             ? 'multi'
@@ -641,7 +650,9 @@ export function SelectionPage() {
                 ? availableDesigns[0]!.companyId
                 : 'multi'
         }
-        products={entriesAsProducts(resolving ? shortlist.entries : availableDesigns)}
+        products={entriesAsProducts(
+          qtyEntries ?? (resolving ? shortlist.entries : availableDesigns),
+        )}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
@@ -649,6 +660,7 @@ export function SelectionPage() {
         onRemoveProduct={(productId) => shortlist.removeIds([productId])}
         onSendOrder={orderFlow.sendOrder}
         onAskRates={orderFlow.askRates}
+        onShared={() => clearSelection()}
       />
       <CurateFromSelectionSheet
         open={curateOpen}

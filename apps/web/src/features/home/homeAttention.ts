@@ -1,5 +1,4 @@
 import type {
-  AccessRequestView,
   CollectionViewGrantView,
   ExplorePost,
   FollowAskView,
@@ -143,7 +142,6 @@ function ordersListLink(counterpartName: string): string {
 export function buildHomeNeeds(input: {
   orders: OrderView[];
   returns: ReturnView[];
-  accessRequests: AccessRequestView[];
   followAsks?: FollowAskView[];
   chatRequests: ThreadSummary[];
   collectionViewGrants?: CollectionViewGrantView[];
@@ -210,17 +208,6 @@ export function buildHomeNeeds(input: {
     });
   }
 
-  for (const request of input.accessRequests) {
-    items.push({
-      id: `access-${request.id}`,
-      kind: 'access_request',
-      title: `Access request · ${request.company.name}`,
-      subtitle: request.company.city || null,
-      to: '/network/requests',
-      sortAt: request.createdAt,
-    });
-  }
-
   for (const ask of input.followAsks ?? []) {
     items.push({
       id: `follow-${ask.company.id}`,
@@ -277,13 +264,12 @@ export function buildHomeNeeds(input: {
 export function homeMetrics(input: {
   orders: OrderView[];
   returns: ReturnView[];
-  accessCount: number;
   chatCount: number;
   followAskCount?: number;
 }) {
   return {
     orders: input.orders.filter(matchesNeeds).length,
-    requests: input.accessCount + input.chatCount + (input.followAskCount ?? 0),
+    requests: input.chatCount + (input.followAskCount ?? 0),
     returns: input.returns.filter(sellerNeedsReturnReview).length,
   };
 }

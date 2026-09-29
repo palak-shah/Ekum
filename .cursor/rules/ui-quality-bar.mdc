@@ -12,7 +12,10 @@ Ekum is for busy textile traders. **Clutter-free, fewer taps, never get lost.**
 - **One job per screen.** Create/edit/browse/decide — don’t stack CMS controls on an album.
 - **Decisions at the moment they matter.** Who / rates / schedule belong on **Publish**, not on every draft edit scroll.
 - **Library pickers and long lists open as sheets**, not endless inline grids under the form.
-- **No accidental destructive taps.** Remove via explicit ×; tap means view/edit only when we add that later.
+- **No accidental destructive taps.** Remove via explicit ×; tap means view/edit only when we add that later. Rare / severe actions (Block, Delete) sit **last** in menus — not first.
+- **Tiny placement is the product.** Menu order, which chip you return to, first vs last button — these feel small and change trust. Don’t ship the first order that compiles.
+- **Chat chrome:** WhatsApp has already paid for that thinking. Use it as the default for list menus, back-from-thread, and ⋯ order unless Ekum already has a clearer rule. Copy the *judgment* (everyday first, rare last), not Lock / Favourites / lists.
+- **1:1 chat:** name → shop. Team is ⋯. **Media is search + filter** in the thread — do not add a Media page or ⋯ Media.
 - **Challenge feature creep.** Prefer cutting a control over adding a “helpful” second path. If two ways exist, keep the shorter one.
 - **Success metric:** a first-time seller can create and publish a pack without hunting menus or re-learning the app.
 
@@ -54,9 +57,9 @@ Before calling any screen with a fixed or sticky bar done (select bars, composer
 
 Reuse before inventing:
 
-- **List chrome:** search + one trailing 46×46 square (`ListSearchRow` / Explore filter / Orders·Chats `+`).
+- **List chrome:** search + one trailing 40×40 square (`ListSearchRow` / Explore filter / Orders `+`). Kit Button / TextInput are 40px; Chip is 28px. Type in fields stays 16px (iOS zoom).
 - **Selection:** tappable rows with `border-accent bg-accent/5` + quiet Selected/Add/Return/Skip — **not** native checkboxes (except rare secondary toggles like quote “Can’t supply”). See `ConnectionPicker`, return sheet, HowManyEach thumbs.
-- **Design lines:** `h-12 w-12` thumb (or initial) + name + compact qty `TextInput` (HowManyEach, dispatch, return).
+- **Design lines:** `h-12 w-12` thumb (or initial) + name + compact qty `TextInput` (HowManyEach, dispatch, return) — keep 48px thumbs; do not shrink with kit chrome.
 - **Sheets / CTAs:** kit `Sheet`, full-width primary `Button`, `Field` + `TextInput`/`TextArea`.
 - **Errors:** in-sheet `InlineNotice`; page CTAs → danger toast (`z-[90]`). Never bury errors behind an open sheet.
 - **Status:** `StatusPill` + shared `status.ts` labels (use `returnStatusLabel` for returns).
@@ -77,4 +80,4 @@ Treat unasked one-offs as a **blocking design bug**, not polish.
 
 ## When in doubt
 
-Non-technical textile wholesalers: **plain words, one job per screen, no chrome that fights the content.** Prefer matching a nearby screen over a clever new pattern. Quantities are usually **dozens/hundreds of pieces** — prefer large, tappable piece counts and “same for all”, not tiny retail-style chips (10/15/20).
+Non-technical textile wholesalers: **plain words, one job per screen, no chrome that fights the content.** Prefer matching a nearby screen over a clever new pattern. Quantities are usually **dozens/hundreds of pieces** — prefer large, tappable piece counts and “same for all”, not tiny retail-style chips (10/15/20). When placing a control, ask whether a trader’s thumb hits the everyday job first.

@@ -511,7 +511,7 @@ model Follow {
   id                String   @id @default(cuid())
   followerCompanyId String
   followedCompanyId String
-  /// pending | allowed — pending is not a follower for audience.
+  /// pending | allowed | stopped — only allowed is a follower for audience.
   status            String   @default("allowed")
   /// look | pack — null while pending. Shop-facing only.
   accessKind        String?

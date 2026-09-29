@@ -4,6 +4,7 @@ import type { ConnectionView, PublicCompanySummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
+import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
 import {
   buildConnectedSet,
   buildFollowingSet,
@@ -52,8 +53,7 @@ export function useExploreCompanyRelationships() {
     },
     onSuccess: (_, { companyName }) => {
       showToast(`Asked ${companyName} — they'll see it`);
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
-      void queryClient.invalidateQueries({ queryKey: ['explore', 'home'] });
+      invalidateFollowCatalog(queryClient);
     },
     onError: (err) => {
       showToast(err instanceof ApiError ? err.message : 'Could not follow.', 'danger');
