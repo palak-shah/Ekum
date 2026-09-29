@@ -43,6 +43,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
+import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
 import { timeAgo, formatFileSize } from '@/lib/format';
 import {
   classifyChatDocumentFile,
@@ -407,11 +408,15 @@ export function ThreadPage() {
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', close, true);
+    const onScroll = (event: Event) => {
+      if (isViewportChromeScroll(event)) return;
+      close();
+    };
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [moreOpen, mutePick]);
 

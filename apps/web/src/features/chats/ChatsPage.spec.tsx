@@ -288,6 +288,18 @@ describe('ChatsPage inbox select', () => {
     });
   });
 
+  it('reveals More and Archive on a left swipe', async () => {
+    renderPage();
+    const row = await screen.findByTestId('chats-row-t1');
+    Object.defineProperty(row, 'setPointerCapture', { value: vi.fn() });
+    fireEvent.pointerDown(row, { clientX: 220, clientY: 40, pointerId: 1 });
+    fireEvent.pointerMove(row, { clientX: 80, clientY: 44, pointerId: 1 });
+    fireEvent.pointerUp(row, { pointerId: 1 });
+    expect(row.style.transform).toBe('translateX(-148px)');
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+  });
+
   it('selects rows with accent (no checkbox) and archives our shop only', async () => {
     const user = userEvent.setup();
     requestChatsInboxSelect();

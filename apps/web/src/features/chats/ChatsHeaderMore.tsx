@@ -9,6 +9,7 @@ import { shareOpenConnectInvite } from '@/features/referrals/shareOpenConnectInv
 import { useToast } from '@/ui/Toast';
 import { cx } from '@/ui/kit';
 import { MoreHorizontalIcon } from '@/ui/icons';
+import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
 import {
   getChatsInboxSelecting,
   requestChatsInboxSelect,
@@ -76,11 +77,15 @@ export function ChatsHeaderMore() {
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', close, true);
+    const onScroll = (event: Event) => {
+      if (isViewportChromeScroll(event)) return;
+      close();
+    };
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 

@@ -5,6 +5,7 @@ import { youShortcutItems } from '@/features/settings/youShortcuts';
 import { useAuth } from '@/lib/auth';
 import { cx } from '@/ui/kit';
 import { MoreHorizontalIcon } from '@/ui/icons';
+import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
 
 const ITEM =
   'flex w-full px-4 py-3 text-left text-[15px] font-semibold tracking-tight text-ink hover:bg-foam/70';
@@ -47,11 +48,15 @@ export function YouHeaderMore() {
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', close, true);
+    const onScroll = (event: Event) => {
+      if (isViewportChromeScroll(event)) return;
+      close();
+    };
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 

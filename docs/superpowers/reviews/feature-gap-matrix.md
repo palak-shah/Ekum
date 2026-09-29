@@ -31,7 +31,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Cross-chat find (Photos / Documents / Collections / Designs) | Works | Unit + Functional | Required | Completeness 2026-09-13-chats-cross-find; Orders on Orders tab only; `/chats/find` |
 | Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
-| Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Back keeps chip 2026-09-29-chats-inbox-chip-back |
+| Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Android left-swipe More/Archive; theme-color white |
 | Chat | 1:1 ＋ Complaint form (photos optional) + In chats / thread filter | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-complaint-form; View order if attached (2026-09-29-complaint-view-order); never View designs |
 | Chat | No-photo avatars use name colours (WhatsApp-like) | Works | Unit | Required | Completeness 2026-09-28-chat-avatar-colors; kit Avatar |
 | Chat | Requests inbox (unconnected + connect invite) | Works | Functional + Unit | Required | Approve / Ignore; see-packs Allow; `/chats?inbox=requests`; Completeness 2026-09-28-chats-requests-fold-access |

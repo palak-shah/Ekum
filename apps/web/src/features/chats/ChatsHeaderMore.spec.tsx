@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -70,5 +70,16 @@ describe('ChatsHeaderMore', () => {
     expect(screen.queryByTestId('chats-more')).toBeNull();
     await user.click(screen.getByTestId('chats-select-cancel'));
     expect(screen.getByTestId('chats-more')).toBeInTheDocument();
+  });
+
+  it('does not close ⋯ when Android chrome fires a document scroll', async () => {
+    const user = userEvent.setup();
+    renderMore();
+    await user.click(screen.getByTestId('chats-more'));
+    expect(screen.getByTestId('chats-more-menu')).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    expect(screen.getByTestId('chats-more-menu')).toBeInTheDocument();
   });
 });

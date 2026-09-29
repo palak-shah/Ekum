@@ -135,7 +135,7 @@ export default defineConfig(({ mode }) => {
         name: 'Ekum',
         short_name: 'Ekum',
         description: 'B2B textile trade, organised.',
-        theme_color: '#2b2b2b',
+        theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',

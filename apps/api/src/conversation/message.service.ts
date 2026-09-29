@@ -105,14 +105,13 @@ export class MessageService {
         ? (mentionWork.metadata as Record<string, unknown>)
         : {};
     const mergedMeta = { ...mentionMeta, ...complaintSnap };
-    const metadata = this.withReplyPhotoIndex(
-      dto.type === MessageType.DesignAlbum
-        ? { productIds: designIds }
-        : Object.keys(mergedMeta).length > 0
-          ? mergedMeta
-          : mentionWork.metadata,
-      dto.replyToPhotoIndex,
-    );
+    let rawMeta: Prisma.InputJsonValue | undefined = mentionWork.metadata;
+    if (dto.type === MessageType.DesignAlbum) {
+      rawMeta = { productIds: designIds };
+    } else if (Object.keys(mergedMeta).length > 0) {
+      rawMeta = mergedMeta as Prisma.InputJsonValue;
+    }
+    const metadata = this.withReplyPhotoIndex(rawMeta, dto.replyToPhotoIndex);
 
     const now = new Date();
     const message = await this.prisma.$transaction(async (tx) => {

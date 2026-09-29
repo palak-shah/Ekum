@@ -9,7 +9,11 @@ import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
 import { inboxObjectLabel, inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
 import { getChatDraft, subscribeChatDrafts } from './chatsDrafts';
-import { INBOX_SWIPE_MAX_PX, inboxSwipeReveal, inboxSwipeShouldOpen } from './inboxRowSwipe';
+import {
+  inboxSwipeAxis,
+  inboxSwipeReveal,
+  inboxSwipeSettle,
+} from './inboxRowSwipe';
 
 export function InboxThreadRow({
   thread,
@@ -99,8 +103,17 @@ export function InboxThreadRow({
   );
   const rowRef = useRef<HTMLAnchorElement>(null);
   const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
+  const dragXRef = useRef(0);
+  const axisRef = useRef<'x' | 'y' | null>(null);
+  const didSwipeRef = useRef(false);
   const [dragX, setDragX] = useState(0);
   const reveal = inboxSwipeReveal(dragX);
+
+  const setDrag = (next: number) => {
+    dragXRef.current = next;
+    setDragX(next);
+  };
   const longPress = useLongPress(
     canMenu
       ? () => {
@@ -130,7 +143,7 @@ export function InboxThreadRow({
   };
 
   return (
-    <div className="relative overflow-hidden" data-testid={`chats-swipe-${thread.id}`}>
+    <div className="relative overflow-hidden touch-pan-y" data-testid={`chats-swipe-${thread.id}`}>
       <div className="absolute inset-y-0 right-0 z-0 flex">
         <button
           type="button"
@@ -157,30 +170,63 @@ export function InboxThreadRow({
         ref={rowRef}
         to={to}
         data-testid={`chats-row-${thread.id}`}
-        className={cx(rowClass, 'relative z-[1] bg-surface')}
+        className={cx(rowClass, 'relative z-[1] touch-pan-y bg-surface')}
         style={{ transform: `translateX(${-reveal}px)` }}
         onPointerDown={(event) => {
           startX.current = event.clientX;
+          startY.current = event.clientY;
+          axisRef.current = null;
+          didSwipeRef.current = false;
           longPress.onPointerDown();
         }}
         onPointerMove={(event) => {
-          if (startX.current == null) return;
-          const next = event.clientX - startX.current;
-          setDragX(next);
-          if (Math.abs(next) > 12) longPress.onPointerCancel();
+          if (startX.current == null || startY.current == null) return;
+          const dx = event.clientX - startX.current;
+          const dy = event.clientY - startY.current;
+          if (axisRef.current == null) {
+            axisRef.current = inboxSwipeAxis(dx, dy);
+            if (axisRef.current === 'x') {
+              try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+              } catch {
+                /* capture is optional on desktop */
+              }
+              longPress.onPointerCancel();
+            }
+          }
+          if (axisRef.current !== 'x') return;
+          didSwipeRef.current = true;
+          event.preventDefault();
+          setDrag(dx);
         }}
         onPointerUp={() => {
-          setDragX(inboxSwipeShouldOpen(dragX) ? -INBOX_SWIPE_MAX_PX : 0);
+          if (axisRef.current === 'x') {
+            setDrag(inboxSwipeSettle(dragXRef.current));
+          }
           startX.current = null;
+          startY.current = null;
+          axisRef.current = null;
           longPress.onPointerUp();
         }}
         onPointerLeave={longPress.onPointerLeave}
         onPointerCancel={() => {
           startX.current = null;
+          startY.current = null;
+          axisRef.current = null;
+          setDrag(0);
           longPress.onPointerCancel();
         }}
         onContextMenu={longPress.onContextMenu}
-        onClickCapture={longPress.onClickCapture}
+        onClickCapture={(event) => {
+          if (didSwipeRef.current || reveal > 8) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!didSwipeRef.current) setDrag(0);
+            didSwipeRef.current = false;
+            return;
+          }
+          longPress.onClickCapture(event);
+        }}
       >
         {body}
       </Link>
