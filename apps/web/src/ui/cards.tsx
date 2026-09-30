@@ -18,7 +18,13 @@ import { Avatar, Chip, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
 import { shopIdentityLine, shopSellCategories } from './shopIdentity';
-import { albumOverflowLabel, collectionMosaicCount, designCountLabel } from './albumMosaic';
+import {
+  albumMediaAspectClass,
+  albumOverflowLabel,
+  collectionMosaicCount,
+  designCountLabel,
+  packFeedDetailLine,
+} from './albumMosaic';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 /** Explore feed chrome — same tightness as Chats rows. */
@@ -52,7 +58,15 @@ function ShopPostHeader({
   trailing,
   nameClassName = 'text-[15px] font-bold tracking-tight text-ink',
 }: {
-  company: PublicCompanySummary | CompanyCard;
+  company: PublicCompanySummary | CompanyCard | {
+    id: string;
+    name: string;
+    city: string;
+    logoUrl: string | null;
+    verification: string;
+    sellCategories?: string[];
+    categories?: string[];
+  };
   to: string;
   trailing?: ReactNode;
   nameClassName?: string;
@@ -144,6 +158,7 @@ export function OpportunityCollectionCard({
     if (selecting) onToggleSelect();
     else openAlbum();
   };
+  const detail = packFeedDetailLine({ tags: collection.categories });
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
@@ -187,6 +202,7 @@ export function OpportunityCollectionCard({
         <p className="text-xs font-medium text-muted">
           {[designCountLabel(collection.productCount), when].filter(Boolean).join(' · ')}
         </p>
+        {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
       </Link>
     </article>
   );
@@ -216,6 +232,11 @@ type BusinessCardModel = {
   collectionCount: number;
   latestPostedAt?: string | null;
 };
+
+/** Relative time for Explore / library feed cards — “2d ago”, “just now”, or a short date. */
+export function explorePostedWhen(iso: string | null | undefined): string {
+  return postedWhen(iso);
+}
 
 /** Relative time for Explore cards — “2d ago”, “just now”, or a short date. */
 function postedWhen(iso: string | null | undefined): string {
@@ -558,7 +579,7 @@ function CoverImage({ src, alt, className }: { src: string | null; alt: string; 
       <img
         src={src}
         alt={alt}
-        className={cx('h-full w-full object-cover', className)}
+        className={cx('h-full w-full object-cover object-center', className)}
         loading="lazy"
       />
     );
@@ -642,16 +663,20 @@ export function AlbumGrid({
   images,
   imageCount,
   alt,
+  frame = 'square',
 }: {
   images: string[];
   imageCount: number;
   alt: string;
+  /** `feed` = 4∶5 for one photo (light top/bottom crop). Mosaic stays square. */
+  frame?: 'square' | 'feed';
 }) {
   // Layout from available thumbs only — never invent empty cells from productCount.
   const count = images.length;
+  const aspect = albumMediaAspectClass(count, frame);
   if (count <= 0) {
     return (
-      <div className="aspect-square overflow-hidden rounded-xl bg-foam">
+      <div className={cx(aspect, 'overflow-hidden rounded-xl bg-foam')}>
         <CoverImage src={null} alt={alt} />
       </div>
     );
@@ -659,7 +684,7 @@ export function AlbumGrid({
 
   if (count === 1) {
     return (
-      <div className="aspect-square overflow-hidden rounded-xl">
+      <div className={cx(aspect, 'overflow-hidden rounded-xl')}>
         <CoverImage src={images[0] ?? null} alt={alt} />
       </div>
     );
@@ -718,6 +743,82 @@ export function AlbumGrid({
   );
 }
 
+/** You / shop Feed — same inset mosaic + caption as Explore (no shop header). */
+export function CatalogFeedPost({
+  name,
+  meta,
+  detail,
+  href,
+  images,
+  imageCount,
+  company,
+  companyTo,
+  selected = false,
+  selectMode = false,
+  onMediaClick,
+  onLongSelect,
+  mediaTestId,
+  openTestId,
+}: {
+  name: string;
+  meta?: string;
+  detail?: string;
+  href: string;
+  images: string[];
+  imageCount: number;
+  company?: Parameters<typeof ShopPostHeader>[0]['company'];
+  companyTo?: string;
+  selected?: boolean;
+  selectMode?: boolean;
+  onMediaClick: () => void;
+  onLongSelect?: () => void;
+  mediaTestId?: string;
+  openTestId?: string;
+}) {
+  const longPress = useLongPress(onLongSelect);
+  const shopTo = companyTo ?? (company ? `/company/${company.id}` : undefined);
+  return (
+    <article className={EXPLORE_POST_ARTICLE_CLASS}>
+      {company && shopTo ? (
+        <ShopPostHeader company={company} to={shopTo} />
+      ) : null}
+      <button
+        type="button"
+        aria-label={selectMode ? `Select ${name}` : name}
+        data-testid={mediaTestId}
+        className={cx(
+          'relative block w-full text-left',
+          EXPLORE_POST_MEDIA_INSET_CLASS,
+          LONG_PRESS_SURFACE_CLASS,
+        )}
+        onClick={onMediaClick}
+        {...longPress}
+      >
+        <AlbumGrid images={images} imageCount={imageCount} alt={name} frame="feed" />
+        {selectMode ? (
+          <span
+            className={cx(
+              'absolute left-6 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+            )}
+          >
+            <CheckIcon width={14} height={14} />
+          </span>
+        ) : null}
+      </button>
+      <Link
+        to={href}
+        data-testid={openTestId}
+        className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
+      >
+        <p className="text-sm font-semibold tracking-tight text-ink">{name}</p>
+        {meta ? <p className="text-xs font-medium text-muted">{meta}</p> : null}
+        {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
+      </Link>
+    </article>
+  );
+}
+
 function PostHeader({
   company,
 }: {
@@ -734,6 +835,7 @@ function PostHeader({
 
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
+  const detail = packFeedDetailLine({ tags: collection.categories });
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <PostHeader company={collection.company} />
@@ -754,6 +856,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
             .filter(Boolean)
             .join(' · ')}
         </p>
+        {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
       </Link>
     </article>
   );

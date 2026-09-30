@@ -6,11 +6,23 @@ import type { PrismaService } from '../core/prisma/prisma.service';
 import type { ThreadService } from '../conversation/thread.service';
 import type { DomainEvents } from '../events/events.module';
 import type { OrderSerializer } from './order.serializer';
+import type { OrderService } from './order.service';
+import { OrderKind, OrderIntent, OrderTradeMode } from '@ekum/domain-types';
 
 function serializer() {
   return {
     toOrderView: (order: { id: string }) => ({ id: order.id }),
   } as unknown as OrderSerializer;
+}
+
+function connectedPrisma(extra: Record<string, unknown> = {}) {
+  return {
+    connection: {
+      findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+    },
+    tradeLane: { findUnique: vi.fn(async () => null) },
+    ...extra,
+  };
 }
 
 describe('BuyForBuyerService', () => {
@@ -24,6 +36,7 @@ describe('BuyForBuyerService', () => {
       {} as ThreadService,
       {} as DomainEvents,
       serializer(),
+      { create: vi.fn() } as unknown as OrderService,
     );
     await expect(
       svc.create('seller', 'u1', {
@@ -33,7 +46,54 @@ describe('BuyForBuyerService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('lets a trader log someone else’s design for a buyer', async () => {
+  it('lets a trader log mill designs as I-handle when no path is set', async () => {
+    const create = vi.fn(async () => ({ id: 'o-handle' }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Surat', name: 'House' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'p1',
+            name: 'Silk',
+            sku: 'S1',
+            rate: 100,
+            unit: 'pc',
+            images: ['a.jpg'],
+            companyId: 'mill',
+          },
+        ]),
+      },
+      ...connectedPrisma(),
+    } as unknown as PrismaService;
+    const svc = new BuyForBuyerService(
+      prisma,
+      {} as ThreadService,
+      {} as DomainEvents,
+      serializer(),
+      { create } as unknown as OrderService,
+    );
+    const result = await svc.create('trader', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [{ productId: 'p1', quantity: 20 }],
+    });
+    expect(result.order.id).toBe('o-handle');
+    expect(create).toHaveBeenCalledWith(
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'trader',
+        orderPathPreference: 'handle',
+        items: [{ productId: 'p1', quantity: 20, rate: undefined }],
+      }),
+      expect.objectContaining({
+        onBehalfBuyerCompanyId: 'buyer',
+        tradeMode: OrderTradeMode.Manage,
+      }),
+    );
+  });
+
+  it('logs mill designs Direct when Your paths is mill', async () => {
+    const create = vi.fn(async () => ({ id: 'o-direct' }));
     const prisma = {
       company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Surat', name: 'House' })) },
       product: {
@@ -50,33 +110,35 @@ describe('BuyForBuyerService', () => {
         ]),
       },
       connection: {
-        findFirst: vi
-          .fn()
-          .mockResolvedValueOnce(null)
-          .mockResolvedValueOnce({ id: 'c1', status: ConnectionStatus.Active }),
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
       },
-      order: {
-        create: vi.fn(async () => ({
-          id: 'o1',
-          status: OrderStatus.Requested,
-          buyerCompanyId: 'buyer',
-          sellerCompanyId: 'trader',
-          items: [{ id: 'i1' }],
-          buyer: { name: 'Shop' },
-          seller: { name: 'House' },
-        })),
-      },
-      message: { create: vi.fn(async () => ({ id: 'm1' })) },
-      thread: { update: vi.fn(async () => ({})) },
+      tradeLane: { findUnique: vi.fn(async () => ({ ticket: 'mill' })) },
     } as unknown as PrismaService;
-    const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
-    const events = { orderCreated: vi.fn() } as unknown as DomainEvents;
-    const svc = new BuyForBuyerService(prisma, threads, events, serializer());
-    const result = await svc.create('trader', 'u1', {
+    const svc = new BuyForBuyerService(
+      prisma,
+      {} as ThreadService,
+      {} as DomainEvents,
+      serializer(),
+      { create } as unknown as OrderService,
+    );
+    await svc.create('trader', 'u1', {
       buyerCompanyId: 'buyer',
       items: [{ productId: 'p1', quantity: 20 }],
     });
-    expect(result.order.id).toBe('o1');
+    expect(create).toHaveBeenCalledWith(
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'mill',
+        facilitatorCompanyId: 'trader',
+        kind: OrderKind.Standard,
+        intent: OrderIntent.Order,
+      }),
+      expect.objectContaining({
+        onBehalfBuyerCompanyId: 'buyer',
+        tradeMode: OrderTradeMode.Direct,
+      }),
+    );
   });
 
   it('creates a ticket for a connected buyer', async () => {
@@ -97,10 +159,7 @@ describe('BuyForBuyerService', () => {
       },
       collectionProduct: { findMany: vi.fn(async () => []) },
       connection: {
-        findFirst: vi
-          .fn()
-          .mockResolvedValueOnce(null)
-          .mockResolvedValueOnce({ id: 'c1', status: ConnectionStatus.Active }),
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
       },
       order: {
         create: vi.fn(async () => ({
@@ -118,7 +177,9 @@ describe('BuyForBuyerService', () => {
     } as unknown as PrismaService;
     const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
     const events = { orderCreated: vi.fn() } as unknown as DomainEvents;
-    const svc = new BuyForBuyerService(prisma, threads, events, serializer());
+    const svc = new BuyForBuyerService(prisma, threads, events, serializer(), {
+      create: vi.fn(),
+    } as unknown as OrderService);
     const result = await svc.create('seller', 'u1', {
       buyerCompanyId: 'buyer',
       items: [{ productId: 'p1', quantity: 20 }],
@@ -166,7 +227,9 @@ describe('BuyForBuyerService', () => {
     } as unknown as PrismaService;
     const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
     const events = { orderCreated: vi.fn() } as unknown as DomainEvents;
-    const svc = new BuyForBuyerService(prisma, threads, events, serializer());
+    const svc = new BuyForBuyerService(prisma, threads, events, serializer(), {
+      create: vi.fn(),
+    } as unknown as OrderService);
     const result = await svc.create('seller', 'u1', {
       buyerName: 'Ramesh',
       buyerPhone: '9876543210',
@@ -196,6 +259,7 @@ describe('BuyForBuyerService', () => {
       {} as ThreadService,
       {} as DomainEvents,
       serializer(),
+      { create: vi.fn() } as unknown as OrderService,
     );
     await expect(svc.acceptLogged('seller', 'o1')).rejects.toBeInstanceOf(ForbiddenException);
   });

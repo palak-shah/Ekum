@@ -15,7 +15,7 @@ export function youLibraryTabFromSearch(
   params: URLSearchParams,
 ): 'products' | 'collections' {
   if (params.get('tab') === 'saved') {
-    return params.get('kind') === 'collections' ? 'collections' : 'products';
+    return params.get('kind') === 'products' ? 'products' : 'collections';
   }
-  return params.get('tab') === 'collections' ? 'collections' : 'products';
+  return params.get('tab') === 'products' ? 'products' : 'collections';
 }

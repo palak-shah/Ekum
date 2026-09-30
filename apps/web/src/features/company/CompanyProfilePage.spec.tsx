@@ -79,6 +79,7 @@ describe('CompanyProfilePage shop chrome', () => {
   beforeEach(() => {
     clearBrowseShortlist();
     clearBrowseAlbumPick();
+    localStorage.removeItem('ekum.designBrowseLayout.seed-company-meena');
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/companies/seed-company-ravi') return company;
       if (path === '/connections') return [];
@@ -166,14 +167,17 @@ describe('CompanyProfilePage shop chrome', () => {
   it('puts a GST tick by the name and city with category under it', async () => {
     renderPage(false);
     expect(await screen.findByRole('heading', { name: 'Surat Silk House' })).toBeInTheDocument();
-    expect(screen.getByTestId('gst-tick')).toHaveAttribute('aria-label', 'GST verified');
+    expect(screen.getAllByTestId('gst-tick')[0]).toHaveAttribute('aria-label', 'GST verified');
     expect(screen.getByTestId('shop-identity').textContent).toMatch(/Surat/);
     expect(screen.getByTestId('shop-identity').textContent).toMatch(/Silk/);
     expect(screen.queryByText('GST verified')).toBeNull();
   });
 
   it('shows the design name on the shop grid', async () => {
+    const user = userEvent.setup();
     renderPage(false);
+    expect(await screen.findByTestId('company-shop-tab-collections')).toBeInTheDocument();
+    await user.click(screen.getByTestId('company-shop-tab-designs'));
     expect(await screen.findByTestId('company-shop-grid')).toBeInTheDocument();
     expect(screen.getByTestId('company-shop-layout-toggle')).toHaveAttribute(
       'aria-label',
@@ -231,7 +235,7 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByTestId('company-follow')).toBeNull();
   });
 
-  it('opens the trade dock for this shops picks only', async () => {
+  it('opens the trade dock for this shopÂs picks only', async () => {
     writeBrowseShortlist([
       {
         productId: 'other',
@@ -268,7 +272,8 @@ describe('CompanyProfilePage shop chrome', () => {
       '/collections/col1',
     );
     expect(screen.getByText('Wedding Edit')).toBeInTheDocument();
-    expect(screen.getByText('4 designs')).toBeInTheDocument();
+    expect(screen.getByText(/4 designs/)).toBeInTheDocument();
+    expect(screen.getAllByText('Surat Silk House').length).toBeGreaterThan(1);
   });
 
   it('Clear unselects a collection on this shop even if stored under another company', async () => {
@@ -291,7 +296,7 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByTestId('company-shop-dock')).toBeNull();
   });
 
-  it('opens the trade dock when this shops collection is selected', async () => {
+  it('opens the trade dock when this shopÂs collection is selected', async () => {
     writeBrowseAlbumPick([
       {
         collectionId: 'col1',

@@ -40,9 +40,10 @@ export function GroupIdentityHero({
   const initial = (title || 'G').slice(0, 1).toUpperCase();
   const circleClass =
     'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-lg font-semibold';
+  const tone = avatarTone(title || 'G');
   const circleStyle = photo
     ? undefined
-    : { backgroundColor: avatarTone(title || 'G'), color: '#fff' };
+    : { backgroundColor: tone.bg, color: tone.ink };
 
   const openName = () => {
     setNameDraft(title);

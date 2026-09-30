@@ -203,14 +203,7 @@ describe('iHandleDesk', () => {
         hasRemaining: false,
         canSettle: false,
       }),
-    ).toEqual({
-      kind: 'buy',
-      cancel: false,
-      edit: false,
-      acceptQuote: false,
-      acceptLogged: false,
-      raiseReturn: true,
-    });
+    ).toEqual({ kind: 'none' });
     expect(
       orderActionDock({
         isSeller: true,
@@ -286,6 +279,23 @@ describe('iHandleDesk', () => {
     );
     expect(showSellerConfirmOnDesk([])).toBe(true);
     expect(showSellerConfirmOnDesk(undefined)).toBe(true);
+    expect(
+      orderActionDock({
+        isSeller: true,
+        status: 'requested',
+        sendQuote: true,
+        createdBySeller: true,
+        openForDispatch: false,
+        hasRemaining: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'requested',
+      sendOrder: false,
+      sendQuote: true,
+      confirm: false,
+      quoted: false,
+    });
   });
 
   it('does not fold trader actions under More actions', () => {

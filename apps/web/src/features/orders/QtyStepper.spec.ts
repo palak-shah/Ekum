@@ -16,7 +16,8 @@ describe('parseQtyDraft', () => {
 });
 
 describe('sameForAllChipLabel', () => {
-  it('shows last applied qty on the idle chip', () => {
+  it('is blank until a count exists, then shows last applied qty', () => {
+    expect(sameForAllChipLabel(null)).toBe('Same for all');
     expect(sameForAllChipLabel(200)).toBe('Same for all · 200');
   });
 });

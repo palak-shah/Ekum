@@ -1,13 +1,12 @@
 import type { BuyerGroupName } from './collectionStatusSummary';
-import { whoCanSeeLabel } from './collectionStatusSummary';
 import type { ProductView } from '@ekum/domain-types';
 import { ProductStatus } from '@ekum/domain-types';
 import { formatRate } from '@/lib/format';
 
-/** One-line current truth for design tiles and Edit design. */
+/** Draft / pack-only / archived only — not On Explore or who can see. */
 export function productStatusLine(
   product: ProductView,
-  groups: BuyerGroupName[] = [],
+  _groups: BuyerGroupName[] = [],
 ): string {
   if (product.status === ProductStatus.Archived) {
     return 'Archived';
@@ -19,24 +18,14 @@ export function productStatusLine(
   if (!product.postedToMarketAt) {
     return 'In your packs';
   }
-  const who = whoCanSeeLabel(
-    {
-      status: product.status,
-      audience: product.audience,
-      audienceCompanyIds: product.audienceCompanyIds,
-      audienceGroupIds: product.audienceGroupIds,
-    },
-    groups,
-  );
-  return who ? `On Explore · ${who}` : 'On Explore';
+  return '';
 }
 
 /** Glanceable tile: rate · SKU · photos (status is a separate line). */
 export function productTileSubtitle(product: ProductView): string {
   const bits: string[] = [];
   const rate = formatRate(product.rate, product.unit, product.rateMax);
-  if (rate !== 'On request') bits.push(rate);
-  else if (product.rate == null) bits.push('On request');
+  bits.push(rate === 'On request' || product.rate == null ? 'Price on request' : rate);
   if (product.sku) bits.push(product.sku);
   const photos = product.images.length;
   bits.push(photos === 1 ? '1 photo' : `${photos} photos`);

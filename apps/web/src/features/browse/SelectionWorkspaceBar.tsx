@@ -3,7 +3,9 @@ import { useEffect, useSyncExternalStore, useTransition } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getPageOwnsBottomBand,
+  getPageSelecting,
   subscribePageOwnsBottomBand,
+  subscribePageSelecting,
 } from '@/features/browse/selectionBottomBand';
 import { shouldShowSelectionWorkspaceBar } from '@/features/browse/selectionWorkspaceBarVisibility';
 import {
@@ -16,16 +18,11 @@ import { prefetchSelectionPage } from '@/features/browse/prefetchSelectionPage';
 import { readResumeAfterAlbumPick } from '@/features/browse/resumeAfterAlbumPick';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import {
-  getChatsInboxSelecting,
-  subscribeChatsInboxSelect,
-} from '@/features/chats/chatsInboxSelect';
 
 /**
  * Compact floater: count + thumbs open the pile; Order starts the same path
- * as Your selection. Hidden on `/selection`, open chat threads, My Catalog root,
- * and pages that own the band (order desk, design/pack Ask·Order, editors).
- * Hidden while album Pick-designs resume CTA owns the band above nav.
+ * as Your selection. Only Explore, another shop (no shop dock), and a design /
+ * pack while Selecting. Hidden while album Pick-designs resume CTA owns the band.
  */
 export function SelectionWorkspaceBar() {
   const navigate = useNavigate();
@@ -35,15 +32,16 @@ export function SelectionWorkspaceBar() {
   const albumPick = useBrowseAlbumPick();
   const me = useMyCompany();
   const shopId = companyIdFromPath(location.pathname);
+  const ownShop = Boolean(shopId && me.data?.id && shopId === me.data.id);
   const shopDockUp = shouldShowShopTradeDock({
-    isOwn: Boolean(shopId && me.data?.id && shopId === me.data.id),
+    isOwn: ownShop,
     shopSelectedCount: shopId
       ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
       : 0,
   });
   const total = shortlist.count + albumPick.count;
-  const chatsSelecting = useSyncExternalStore(subscribeChatsInboxSelect, getChatsInboxSelecting);
   const pageDockUp = useSyncExternalStore(subscribePageOwnsBottomBand, getPageOwnsBottomBand);
+  const pageSelecting = useSyncExternalStore(subscribePageSelecting, getPageSelecting);
 
   useEffect(() => {
     if (total > 0) prefetchSelectionPage();
@@ -51,9 +49,15 @@ export function SelectionWorkspaceBar() {
 
   if (typeof document === 'undefined') return null;
   if (readResumeAfterAlbumPick()) return null;
-  if (!shouldShowSelectionWorkspaceBar(location.pathname, total, { shopDockUp, pageDockUp }))
+  if (
+    !shouldShowSelectionWorkspaceBar(location.pathname, total, {
+      shopDockUp,
+      pageDockUp,
+      ownShop,
+      pageSelecting,
+    })
+  )
     return null;
-  if (location.pathname === '/chats' && chatsSelecting) return null;
 
   const thumbs = [
     ...albumPick.entries.slice(0, 2).map((entry) => ({

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-**You** (`/more`) is **identity + published presence** (card **Edit profile**; header **Share** icon) and the design library (**Designs · Collections**; **Published / Draft / Archived / Saved**). No follower / like counts. Shell title is **You** (same top band as Chats); **Share** icon then **⋯** (**Network**, **Settings**, **Log out**). **Settings** is **configure Ekum** (domain cards — not Edit). Today: **Business & Roles** (Team, Your paths when trading, **Catalog defaults**, **Units** when selling/trading), **Dispatch**, **Billing**. Samples and returns live on the **Orders** tab only (filter by type).
+**You** (`/more`) is **identity + published presence** (name card) and the design library (**Collections · Designs**; published list; **Draft / Archived / Saved** in Find). No follower / like counts. Shell title is **You** (same top band as Chats) with **Back** → Home — no ⋯, no shop **Share**. Account (**Profile**, **Network**, **My Collections**, **My Designs**, **Settings**, **Log out**) is the **Home** avatar menu. **Settings** is **configure Ekum** (domain cards — not Edit). Today: **Business & Roles** (Team, Your paths when trading, **Catalog defaults**, **Units** when selling/trading), **Dispatch**, **Billing**. Samples and returns live on the **Orders** tab only (filter by type).
 
 ## Who uses it
 
@@ -12,9 +12,9 @@ Every signed-in company owner/operator in Phase 1.
 
 ### You (`/more`)
 
-1. Avatar → You. Shell title is **You** (same top band as Chats / Orders — no second Back header). Business name is the primary line; person · city under it. **Edit profile** is the one outline pill under the name. **Share** is a header icon (same as a shop — not a second pill). **Edit profile** = `/settings/profile`. **Share** = share this shop (Ekum chats + OS share). **Buying / Selling / Can publish** are not shown on You or Edit. Creating a design still turns selling on. Verified stays on the card when GST-verified.
-2. Shell **Share** then **⋯**: Network, Settings, **Log out**. Menu is a wide panel (not a squeezed chip); each row is full width; **Log out** is danger-coloured. Do not put Edit or Share in ⋯.
-3. Selling or trading: **Designs · Collections** as parent underline tabs (same treatment as Explore search kind tabs — not chips, not a beige well) + trailing filled teal **＋** (40×40, same depth as Chats header ＋). Status chips **Published / Draft / Archived / Saved** sit under that selected tab; **Find** + **Feed / Grid** pin on the chip row. Buyers: no library tabs (Saved still uses the same find). `/catalog` and `/saved` open You. Team and Your paths are under Settings. Own pack/design pages say **Your collection** / **Your design** on the shop row (not a chevron into your own shop). Pack-only designs on You say **In your packs**.
+1. Home avatar (logo or initials) opens **Profile · Network · My Collections · My Designs · Settings · Log out**. **Profile** = `/settings/profile`. **My Designs** / **My Collections** = You. You’s shell title is **You** with **Back** (left, same chevron as PageHeader) → **Home** (`/`) — not a second PageHeader. Business name is the primary line; person · city under it. No **Edit profile** pill. Shop **Share** lives on **Business profile** (header icon, same sheet as a shop) — not on You. Hidden while editing. **Buying / Selling / Can publish** are not shown on You or Edit. Creating a design still turns selling on. Verified stays on the card when GST-verified.
+2. You has no ⋯. Account is Home avatar (wide panel; **Log out** last, danger). Do not put Share in that menu.
+3. Selling or trading: **Collections · Designs** as parent underline tabs (Collections is the rest tab; Home **My Designs** uses `?tab=products`) (same treatment as Explore search kind tabs — not chips, not a beige well) + **Find** + **Feed / Grid** + trailing filled teal **＋** (40×40, same depth as Chats header ＋). **Collections Feed** is the Explore pack post (your shop row → mosaic → name → **N designs · date**; tags and From only when they exist). Draft / Archived use status · date. **Draft / Archived / Saved** stay in the Find **filter menu**. Buyers: no library tabs (Saved still uses the same find). `/catalog` and `/saved` open You. Team and Your paths are under Settings. Own pack/design pages say **Your collection** / **Your design** on the shop row (not a chevron into your own shop). Pack-only designs on You say **In your packs**.
 
 ### App update (installed / PWA)
 
@@ -29,7 +29,7 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 1. Domain groups (compact `SettingsDomainCard`, not KPI tiles): **Business & Roles** — **Team** → `/team`; **Your paths** → `/settings/paths` when Trading is on; when selling or trading — **Catalog defaults** → `/settings/catalog-defaults` (usual Who / Show rates / curate / download · design sell-as unit / pcs-in-set / MOQ — **not** rate or notes); **Units** → `/settings/units` (receive↔deliver conversions, e.g. 1 yard = n metres).
 2. **Dispatch** and **Billing** stay on this page — **Add** (sheet). First billing firm is saved as Default.
 3. New configuration joins an existing domain or adds one domain card. No empty Account / Privacy / Notifications blocks. Return policy / notification type mutes are not on this page yet.
-4. **Edit profile** on You → `/settings/profile` (see [company](./company.md)).
+4. Home avatar **Profile** → `/settings/profile` **view** (see [company](./company.md)). Header **Share** (shop card to chats + OS). **Edit profile** unlocks fields; CTA **Update**; tab bar hidden while editing; Share hides in edit.
 5. Path (**Buyer talks to** · **Share a group**) is **Your paths**, not Profile. New middle-hop pair always starts **You**, group **Off** (see [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md)). Trade presence flags still exist on the company; Edit does not show buy / sell / trade switches.  
 6. **Your paths** (`/settings/paths`): search + list. Why-line + **?** — **next orders only** (open tickets stay). Each card is mill · buyer, then a closed **Buyer talks to** pick (You / mill shop) and **Share a group** On/Off (tap saves). Needs trading on the shop (not a Profile switch). Empty until a first middle-hop pair exists.
 7. **Catalog defaults** / **Units** store in `CompanySettings.tradeDefaults` (`publishDefaults`, `sellAsUsual`, `unitConversions`). New collection expandables prefill Who and sell-as (unit / pcs / MOQ). Rate and notes are set on the pack or design, not in Settings.
@@ -45,18 +45,18 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 
 ## Edge cases / empty states
 
-- Selling off → ＋ does not open New collection (Orders if they buy). Add designs is on You, not nav ＋.
+- Selling off → ＋ does not open the Collection sheet (Orders if they buy). Add designs is on You, not nav ＋.
 - Buying off → no Photo order on **Orders ＋** / **chat ＋**.
 - Empty address book → prompt to add before checkout-like flows that need it.
 
 ## Seed walkthrough
 
 1. As **Ravi**: You shows the designs library; Settings → Team / Your paths / addresses.
-2. As **Meena**: You → **Edit profile**; confirm business name Jaipur Emporium. Orders → filter **Return** to see returns.
+2. As **Meena**: Home avatar → **Profile**; confirm business name Jaipur Emporium. Orders → filter **Return** to see returns.
 3. Toggle buying off briefly → ＋ loses buyer actions → restore.
 
 ## Where it lives
 
-- Web: `apps/web/src/features/settings/` (`MorePage`, `SettingsPage`, `SettingsDomainCard`, `ProfilePage`, `YourPathsPage`, `CatalogDefaultsPage`, `UnitsSettingsPage`), catalog library on You, `apps/web/src/lib/tradePresence.ts`. **Your paths** at `/settings/paths`; **Catalog defaults** / **Units** when selling or trading. PWA update pill: `apps/web/src/lib/pwaUpdate.tsx` (prompt, not auto-reload).
+- Web: `apps/web/src/features/settings/` (`MorePage`, `SettingsPage`, `SettingsDomainCard`, `ProfilePage`, `YourPathsPage`, `CatalogDefaultsPage`, `UnitsSettingsPage`), catalog library on You, Home avatar menu `apps/web/src/features/home/HomeAccountMenu.tsx`, `apps/web/src/lib/tradePresence.ts`. **Your paths** at `/settings/paths`; **Catalog defaults** / **Units** when selling or trading. PWA update pill: `apps/web/src/lib/pwaUpdate.tsx` (prompt, not auto-reload).
 - API: `GET/PATCH /trade-lanes`, company patch in identity
 - Contracts: `packages/domain-types` TradeLaneView + update schema

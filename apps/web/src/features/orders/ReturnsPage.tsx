@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 
-/** Returns live on the Orders list — Find kind=return. */
+/** Returns are out of the product — old links land on Orders. */
 export function ReturnsPage() {
-  return <Navigate to="/orders?kind=return" replace />;
+  return <Navigate to="/orders" replace />;
 }

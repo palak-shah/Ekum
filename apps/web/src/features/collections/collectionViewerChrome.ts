@@ -22,6 +22,15 @@ export function collectionPackTradeDock(input: {
   );
 }
 
+/** Pack Description sits above designs for anyone who can open the album. */
+export function collectionShowPackNote(description?: string | null): boolean {
+  return Boolean(description?.trim());
+}
+
+export function noteBlockOverflows(scrollHeight: number, clientHeight: number): boolean {
+  return scrollHeight > clientHeight + 1;
+}
+
 /** “Order goes to trader · they send mill lots” — Your paths ticket me only (sr 16). */
 export function collectionShowHandleCopy(input: {
   curatedVisitor: boolean;

@@ -28,4 +28,18 @@ test.describe('explore long-press select @functional @explore', () => {
     await open.click();
     await expect(page).toHaveURL(/\/(collections|explore\/products)\//, { timeout: 10_000 });
   });
+
+  test('Select starts pick without a long-press', async ({ page }) => {
+    await loginAsRavi(page);
+    await page.goto('/explore');
+    await expect(page.getByTestId('explore-select')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('explore-select').click();
+    await expect(page.getByTestId('explore-select')).toHaveText('Selecting');
+
+    const media = page.locator('.ekum-long-press-surface').first();
+    await expect(media).toBeVisible();
+    await media.click();
+    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/explore(?:\?|$)/);
+  });
 });

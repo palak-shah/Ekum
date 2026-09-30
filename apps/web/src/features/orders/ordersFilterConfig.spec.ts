@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   TRADE_FILTER_STATUSES,
+  TRADE_FILTER_TYPES,
+  statusFitsTab,
+  statusFromParam,
+  tabForTradeStatus,
   tradeKindLabel,
   tradeMenuFilterSummary,
   tradeStatusLabel,
+  tradeStatusesForTab,
 } from './ordersFilterConfig';
 
 describe('tradeMenuFilterSummary', () => {
@@ -45,6 +50,42 @@ describe('tradeStatusLabel', () => {
     expect(TRADE_FILTER_STATUSES.some((row) => row.status === 'delivered')).toBe(false);
     expect(TRADE_FILTER_STATUSES.some((row) => row.status === 'dispatched')).toBe(true);
   });
+
+  it('offers only the six order statuses — no return/sample words', () => {
+    expect(TRADE_FILTER_STATUSES.map((row) => row.status)).toEqual([
+      'requested',
+      'confirmed',
+      'part_shipped',
+      'dispatched',
+      'settled',
+      'cancelled',
+    ]);
+    for (const extra of ['received', 'approved', 'resolved', 'declined', 'converted']) {
+      expect(TRADE_FILTER_STATUSES.some((row) => row.status === extra)).toBe(false);
+    }
+  });
+});
+
+describe('tradeStatusesForTab', () => {
+  it('splits statuses by Pending / Completed', () => {
+    expect(tradeStatusesForTab('pending').map((row) => row.status)).toEqual([
+      'requested',
+      'confirmed',
+      'part_shipped',
+    ]);
+    expect(tradeStatusesForTab('completed').map((row) => row.status)).toEqual([
+      'dispatched',
+      'settled',
+      'cancelled',
+    ]);
+  });
+
+  it('does not treat return tokens as a tab status', () => {
+    expect(statusFromParam('received')).toBeNull();
+    expect(tabForTradeStatus('declined')).toBeNull();
+    expect(statusFitsTab('requested', 'pending')).toBe(true);
+    expect(statusFitsTab('dispatched', 'pending')).toBe(false);
+  });
 });
 
 describe('tradeKindLabel', () => {
@@ -54,7 +95,7 @@ describe('tradeKindLabel', () => {
 
   it('returns label for known kind', () => {
     expect(tradeKindLabel('sample')).toBe('Sample');
-    expect(tradeKindLabel('trading')).toBe('Trading');
+    expect(TRADE_FILTER_TYPES.map((row) => row.kind)).toEqual(['order', 'sample']);
   });
 });
 

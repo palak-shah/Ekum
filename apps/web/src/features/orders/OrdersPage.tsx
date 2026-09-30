@@ -10,19 +10,14 @@ import { useQuery } from '@tanstack/react-query';
 import type {
   CursorPage,
   OrderView,
-  ReturnView,
   SampleView,
 } from '@ekum/domain-types';
-import { shortOrderLabel } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { timeAgo } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
-import { Chip, EmptyState, LoadingBlock, SearchInput, StatusPill, cx } from '@/ui/kit';
+import { Avatar, Chip, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
-import { returnStatusLabel } from '@/lib/status';
-import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
-import { orderListMillCue, orderListRoleBit } from '@/features/orders/tradeListRole';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   getOrdersDirection,
@@ -48,8 +43,14 @@ import {
   type TradeListItem,
 } from './tradeList';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
+import { tradeListFacts, tradeListPreview, tradeListWhen } from './tradeListPreview';
 import { OrdersFilterMenu } from './OrdersFilterMenu';
-import { statusFromParam, tradeMenuFilterSummary } from './ordersFilterConfig';
+import {
+  statusFitsTab,
+  statusFromParam,
+  tabForTradeStatus,
+  tradeMenuFilterSummary,
+} from './ordersFilterConfig';
 
 type StatusFilter = 'pending' | 'completed';
 
@@ -61,7 +62,7 @@ function statusFilterFromParam(value: string | null): StatusFilter {
 }
 
 function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
-  if (value === 'sample' || value === 'return' || value === 'order' || value === 'trading') {
+  if (value === 'sample' || value === 'order' || value === 'trading') {
     return value;
   }
   return null;
@@ -90,6 +91,11 @@ export function OrdersPage() {
   const deferredFind = useDeferredValue(find);
 
   useEffect(() => {
+    const fromStatus = tabForTradeStatus(statusFromParam(statusParam) ?? '');
+    if (fromStatus) {
+      setStatusFilter(fromStatus);
+      return;
+    }
     if (
       filterParam === 'pending' ||
       filterParam === 'needs' ||
@@ -98,7 +104,7 @@ export function OrdersPage() {
     ) {
       setStatusFilter(statusFilterFromParam(filterParam));
     }
-  }, [filterParam]);
+  }, [filterParam, statusParam]);
 
   useEffect(() => {
     const next = kindFromParam(kindParam);
@@ -137,24 +143,14 @@ export function OrdersPage() {
     queryKey: ['samples', { list: true }],
     queryFn: () => api.get<CursorPage<SampleView>>('/samples', { limit: 50 }),
   });
-  const returns = useQuery({
-    queryKey: ['returns', { list: true }],
-    queryFn: () => api.get<CursorPage<ReturnView>>('/returns', { limit: 50 }),
-  });
 
   const merged = useMemo(
-    () =>
-      toTradeItems(
-        orders.data?.results ?? [],
-        samples.data?.results ?? [],
-        returns.data?.results ?? [],
-      ),
-    [orders.data, samples.data, returns.data],
+    () => toTradeItems(orders.data?.results ?? [], samples.data?.results ?? [], []),
+    [orders.data, samples.data],
   );
 
   const findOverridesAttention =
     Boolean(deferredFind.kindFacet) ||
-    Boolean(deferredFind.statusFacet) ||
     Boolean(deferredFind.dateFacet) ||
     Boolean(dateFacetFromNeedle(deferredFind.needle)) ||
     deferredFind.needle.trim().length > 0;
@@ -186,8 +182,7 @@ export function OrdersPage() {
 
   const loading =
     (orders.isPending && !orders.data) ||
-    (samples.isPending && !samples.data) ||
-    (returns.isPending && !returns.data);
+    (samples.isPending && !samples.data);
 
   const syncFindParams = (statusFacet: string | null, kindFacet: TradeKindFacet | null) => {
     setSearchParams(
@@ -212,9 +207,22 @@ export function OrdersPage() {
   };
 
   const setStatusFacet = (status: string | null) => {
+    const tab = status ? (tabForTradeStatus(status) ?? statusFilter) : statusFilter;
+    if (tab !== statusFilter) setStatusFilter(tab);
     setFind((prev) => {
       const next = { ...prev, statusFacet: status, needle: '' };
-      syncFindParams(status, prev.kindFacet);
+      setSearchParams(
+        (params) => {
+          const nextParams = new URLSearchParams(params);
+          nextParams.set('filter', tab);
+          if (status) nextParams.set('status', status);
+          else nextParams.delete('status');
+          if (!prev.kindFacet || prev.kindFacet === 'order') nextParams.delete('kind');
+          else nextParams.set('kind', prev.kindFacet);
+          return nextParams;
+        },
+        { replace: true },
+      );
       return next;
     });
   };
@@ -277,7 +285,7 @@ export function OrdersPage() {
               value={find.needle}
               onChange={(e) => onFindNeedleChange(e.target.value)}
               placeholder="Name, status, today…"
-              aria-label="Search orders, samples, returns"
+              aria-label="Search orders and samples"
             />
           }
           action={
@@ -314,6 +322,7 @@ export function OrdersPage() {
           anchorRef={filterAnchorRef}
           statusFacet={find.statusFacet}
           kindFacet={find.kindFacet}
+          attentionTab={statusFilter}
           onStatus={setStatusFacet}
           onKind={setKindFacet}
           onClearAll={clearMenuFilters}
@@ -355,6 +364,12 @@ export function OrdersPage() {
                   setStatusFilter(value);
                   if (findOverridesAttention) {
                     setFind(emptyFindState());
+                  } else {
+                    setFind((prev) =>
+                      statusFitsTab(prev.statusFacet, value)
+                        ? prev
+                        : { ...prev, statusFacet: null },
+                    );
                   }
                   setSearchParams(
                     (prev) => {
@@ -362,7 +377,7 @@ export function OrdersPage() {
                         prev.get('filter') === value &&
                         !findOverridesAttention &&
                         !prev.get('kind') &&
-                        !prev.get('status')
+                        statusFitsTab(prev.get('status'), value)
                       ) {
                         return prev;
                       }
@@ -370,6 +385,8 @@ export function OrdersPage() {
                       next.set('filter', value);
                       if (findOverridesAttention) {
                         next.delete('kind');
+                        next.delete('status');
+                      } else if (!statusFitsTab(prev.get('status'), value)) {
                         next.delete('status');
                       }
                       return next;
@@ -439,7 +456,7 @@ export function OrdersPage() {
               message={
                 findOverridesAttention
                   ? 'Try another find, or clear filters.'
-                  : 'Orders, samples, and returns show up here.'
+                  : 'Orders and samples show up here.'
               }
             />
           )}
@@ -456,112 +473,68 @@ function TradeRow({
   item: TradeListItem;
   companyId: string | null;
 }) {
+  if (item.kind === 'return') return null;
+
   const needsLabel = tradeNeedsYouLabel(item);
-
-  if (item.kind === 'order') {
-    const order = item.order;
-    const staff =
-      order.updatedBy?.name?.trim() || order.createdBy?.name?.trim() || null;
-    const isInquiry = order.intent === 'inquiry';
-    const idLabel = shortOrderLabel(order.id, { inquiry: isInquiry });
-    const shared = orderViewerIsFacilitator(order, companyId);
-    const roleBit = orderListRoleBit(order, shared);
-    const mills = orderListMillCue(order);
-    return (
-      <Link
-        to={`/orders/${order.id}`}
-        data-needs-you={needsLabel ? 'true' : undefined}
-        className={cx(
-          'flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas',
-          needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
-        )}
-      >
-        <div className="min-w-0">
-          <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">
-            {order.counterpart.name}
+  const { preview, accent } = tradeListPreview(item, companyId);
+  const facts = tradeListFacts(item);
+  const when = timeAgo(tradeListWhen(item));
+  const name =
+    item.kind === 'order' ? item.order.counterpart.name : item.sample.counterpart.name;
+  const logoUrl =
+    item.kind === 'order' ? item.order.counterpart.logoUrl : item.sample.counterpart.logoUrl;
+  const rowClass = cx(
+    'flex w-full items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0',
+    needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
+    item.kind === 'order' && 'hover:bg-canvas active:bg-canvas text-left',
+  );
+  const body = (
+    <>
+      <Avatar name={name} imageUrl={logoUrl} size={48} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="min-w-0 truncate text-[15px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+            {name}
           </p>
-          {needsLabel ? (
-            <p
-              data-testid="orders-needs-you"
-              className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-accent"
-            >
-              {needsLabel}
-            </p>
-          ) : null}
-          <p className="mt-0.5 text-[13px] font-semibold tabular-nums tracking-tight text-slate">
-            {idLabel}
-            {roleBit ? <span className="font-medium text-muted"> · {roleBit}</span> : null}
-            {mills ? <span className="font-medium text-muted"> · {mills}</span> : null}
-          </p>
-          <p className="mt-0.5 text-[12px] text-muted">
-            {order.items.length} {order.items.length === 1 ? 'item' : 'items'} · {timeAgo(order.createdAt)}
-            {staff ? ` · ${staff}` : ''}
-          </p>
+          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted">{when}</span>
         </div>
-        <StatusPill status={order.status} />
-      </Link>
-    );
-  }
-
-  if (item.kind === 'sample') {
-    const sample = item.sample;
-    return (
-      <div
-        data-needs-you={needsLabel ? 'true' : undefined}
-        className={cx(
-          'flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0',
-          needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
-        )}
-      >
-        <div className="min-w-0">
-          <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{sample.name}</p>
-          {needsLabel ? (
-            <p
-              data-testid="orders-needs-you"
-              className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-accent"
-            >
-              {needsLabel}
-            </p>
-          ) : null}
-          <p className="mt-0.5 text-[13px] font-semibold text-slate">Sample</p>
-          <p className="mt-0.5 text-[12px] text-muted">
-            {sample.counterpart.name} · {timeAgo(sample.createdAt)}
-          </p>
-        </div>
-        <StatusPill status={sample.status} />
-      </div>
-    );
-  }
-
-  const ret = item.ret;
-  const linePreview = ret.items
-    .map((line) => `${line.name} × ${line.requestedQuantity}`)
-    .join(' · ');
-  return (
-    <Link
-      to={`/orders/${ret.orderId}?return=${ret.id}`}
-      data-needs-you={needsLabel ? 'true' : undefined}
-      className={cx(
-        'flex items-start justify-between gap-3 border-b border-line/70 px-4 py-3.5 last:border-b-0 hover:bg-canvas active:bg-canvas',
-        needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
-      )}
-    >
-      <div className="min-w-0">
-        <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{ret.counterpart.name}</p>
-        {needsLabel ? (
+        <p
+          data-testid={needsLabel ? 'orders-needs-you' : undefined}
+          className={cx(
+            'min-w-0 truncate text-[13px] leading-snug',
+            accent ? 'font-semibold tracking-tight text-accent' : 'font-normal text-muted',
+          )}
+        >
+          {preview}
+        </p>
+        {facts ? (
           <p
-            data-testid="orders-needs-you"
-            className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-accent"
+            data-testid="trade-list-facts"
+            className="min-w-0 truncate text-[11px] font-medium leading-snug text-muted"
           >
-            {needsLabel}
+            {facts}
           </p>
         ) : null}
-        <p className="mt-0.5 text-[13px] font-semibold text-slate">Return</p>
-        <p className="mt-0.5 truncate text-[12px] text-muted">
-          {linePreview || `${ret.items.length} designs`} · {timeAgo(ret.createdAt)}
-        </p>
       </div>
-      <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
+    </>
+  );
+
+  if (item.kind === 'sample') {
+    return (
+      <div data-needs-you={needsLabel ? 'true' : undefined} className={rowClass}>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to={`/orders/${item.order.id}`}
+      data-testid="trade-list-row"
+      data-needs-you={needsLabel ? 'true' : undefined}
+      className={rowClass}
+    >
+      {body}
     </Link>
   );
 }

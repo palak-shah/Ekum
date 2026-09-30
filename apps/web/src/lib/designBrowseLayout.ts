@@ -1,14 +1,14 @@
 export type DesignBrowseLayout = 'feed' | 'grid';
 
-/** You / album design photos — readable fabric, not full-bleed 3/4 portrait. */
+/** Grid thumbs stay compact. Feed uses CatalogFeedPost 4∶5, not this. */
 export function designBrowsePhotoClass(
   layout: DesignBrowseLayout,
   kind: 'img' | 'placeholder' = 'img',
 ): string {
   if (layout === 'feed') {
     return kind === 'img'
-      ? 'h-64 w-full object-cover'
-      : 'flex h-64 w-full items-center justify-center bg-foam text-3xl font-bold text-muted';
+      ? 'aspect-[4/5] w-full object-cover object-center'
+      : 'flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted';
   }
   return kind === 'img'
     ? 'h-32 w-full object-cover'

@@ -3,7 +3,7 @@ import { CompanyShareSheet } from '@/features/company/CompanyShareSheet';
 import { useMyCompany } from '@/lib/queries';
 import { ShareIcon } from '@/ui/icons';
 
-/** You title-row Share — same icon chrome as a shop header. */
+/** Business profile header Share — same icon + sheet as a shop. */
 export function YouHeaderShare() {
   const company = useMyCompany();
   const [open, setOpen] = useState(false);

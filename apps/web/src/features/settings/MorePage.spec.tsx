@@ -44,14 +44,15 @@ describe('MorePage', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('you-identity')).toHaveTextContent('Surat Silk House');
-    expect(screen.getByTestId('you-edit')).toHaveTextContent('Edit profile');
+    expect(screen.queryByTestId('you-edit')).toBeNull();
+    expect(screen.queryByText('Edit profile')).toBeNull();
     expect(screen.queryByTestId('you-share')).toBeNull();
     expect(screen.queryByText(/Followers/i)).toBeNull();
     expect(screen.getByTestId('you-library')).toBeInTheDocument();
     expect(screen.queryByText('Buying')).toBeNull();
     expect(screen.queryByText('Selling')).toBeNull();
     expect(screen.queryByText('Can publish')).toBeNull();
-    // Title + ⋯ live in AppShell — not a PageHeader on this page.
+    // Title + Back live in AppShell — not a PageHeader on this page.
     expect(screen.queryByRole('heading', { name: 'You' })).toBeNull();
     expect(screen.queryByTestId('you-more')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull();

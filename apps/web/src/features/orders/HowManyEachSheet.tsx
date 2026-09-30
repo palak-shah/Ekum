@@ -20,6 +20,7 @@ import { useToast } from '@/ui/Toast';
 import { Button, InlineNotice, Sheet, TextArea, cx } from '@/ui/kit';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
+import { readRememberedQty, rememberQty } from '@/features/orders/qtyEachMemory';
 import {
   galleryIndexForProduct,
   howManyGalleryCaptions,
@@ -35,30 +36,6 @@ export type HowManyLine = {
   quantity: number;
   note?: string;
 };
-
-function qtyMemoryKey(sellerId: string) {
-  return `ekum:qty-each:${sellerId}`;
-}
-
-function readRememberedQty(sellerId: string): number {
-  if (!sellerId || typeof localStorage === 'undefined') return 20;
-  try {
-    const raw = localStorage.getItem(qtyMemoryKey(sellerId));
-    const n = raw ? Number(raw) : NaN;
-    return Number.isFinite(n) && n > 0 ? n : 20;
-  } catch {
-    return 20;
-  }
-}
-
-function rememberQty(sellerId: string, qty: number) {
-  if (!sellerId || typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(qtyMemoryKey(sellerId), String(qty));
-  } catch {
-    // ignore
-  }
-}
 
 export function HowManyEachSheet({
   open,
@@ -116,13 +93,13 @@ export function HowManyEachSheet({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [buyerOpen, setBuyerOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [sharedQty, setSharedQty] = useState(20);
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [sharedQty, setSharedQty] = useState<number | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, number | null>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
   const [removed, setRemoved] = useState<Set<string>>(() => new Set());
   const [sameOpen, setSameOpen] = useState(false);
-  const [sameDraft, setSameDraft] = useState(20);
+  const [sameDraft, setSameDraft] = useState<number | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
 
@@ -154,18 +131,25 @@ export function HowManyEachSheet({
     () =>
       activeProducts.map((product) => ({
         product,
-        quantity: overrides[product.id] ?? sharedQty,
+        quantity: Object.prototype.hasOwnProperty.call(overrides, product.id)
+          ? overrides[product.id]
+          : sharedQty,
         note: notes[product.id]?.trim() || undefined,
       })),
     [activeProducts, overrides, sharedQty, notes],
   );
 
-  const applyShared = (qty: number) => {
-    if (qty <= 0) return;
+  const persistQty = (qty: number) => {
+    rememberQty(qtyKey, qty);
+  };
+
+  const applyShared = (qty: number | null) => {
+    if (qty == null || qty <= 0) return;
     setSharedQty(qty);
     setSameDraft(qty);
     setOverrides({});
     setSameOpen(false);
+    persistQty(qty);
   };
 
   const cancelSame = () => {
@@ -174,11 +158,19 @@ export function HowManyEachSheet({
   };
 
   const payload = (): HowManyLine[] =>
-    lines.map((line) => ({
-      productId: line.product.id,
-      quantity: line.quantity,
-      ...(line.note ? { note: line.note } : {}),
-    }));
+    lines.flatMap((line) =>
+      line.quantity != null && line.quantity >= 1
+        ? [
+            {
+              productId: line.product.id,
+              quantity: line.quantity,
+              ...(line.note ? { note: line.note } : {}),
+            },
+          ]
+        : [],
+    );
+
+  const canPlace = lines.length > 0 && lines.every((line) => line.quantity != null && line.quantity >= 1);
 
   const busy = Boolean(submitting || asking);
   const splitBanner = sellerId === 'multi' ? howManySplitBanner(activeProducts) : null;
@@ -240,9 +232,10 @@ export function HowManyEachSheet({
         <div className="flex gap-2">
           <Button
             className="min-w-0 flex-1"
-            disabled={busy || !canShare}
+            disabled={busy || !canShare || !canPlace}
             onClick={() => {
-              rememberQty(qtyKey, sharedQty);
+              const qty = lines[0]?.quantity;
+              if (qty != null) persistQty(qty);
               onSendOrder(payload());
             }}
           >
@@ -254,7 +247,7 @@ export function HowManyEachSheet({
         <div className="flex gap-2">
           <Button
             className="min-w-0 flex-1"
-            disabled={busy || !canShare}
+            disabled={busy || !canShare || !canPlace}
             onClick={() => setBuyerOpen(true)}
           >
             Order for buyer
@@ -277,9 +270,10 @@ export function HowManyEachSheet({
             <Button
               variant="secondary"
               fullWidth
-              disabled={busy || !canShare}
+              disabled={busy || !canShare || !canPlace}
               onClick={() => {
-                rememberQty(qtyKey, sharedQty);
+                const qty = lines[0]?.quantity;
+                if (qty != null) persistQty(qty);
                 onAskRates(payload());
               }}
             >
@@ -288,7 +282,7 @@ export function HowManyEachSheet({
             <Button
               variant="secondary"
               fullWidth
-              disabled={busy || !canShare}
+              disabled={busy || !canShare || !canPlace}
               onClick={() => setBuyerOpen(true)}
             >
               Order for buyer
@@ -298,9 +292,10 @@ export function HowManyEachSheet({
           <Button
             variant="secondary"
             fullWidth
-            disabled={busy || !canShare}
+            disabled={busy || !canShare || !canPlace}
             onClick={() => {
-              rememberQty(qtyKey, sharedQty);
+              const qty = lines[0]?.quantity;
+              if (qty != null) persistQty(qty);
               onAskRates(payload());
             }}
           >
@@ -331,7 +326,7 @@ export function HowManyEachSheet({
           {activeProducts.length > 1 ? (
             sameOpen ? (
               <SameForAllEditor
-                disabled={busy}
+                disabled={busy || sameDraft == null || sameDraft <= 0}
                 onApply={() => applyShared(sameDraft)}
                 onCancel={cancelSame}
               >
@@ -350,7 +345,7 @@ export function HowManyEachSheet({
                 data-testid="same-for-all-chip"
                 className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink disabled:opacity-45"
                 onClick={() => {
-                  setSameDraft(sharedQty);
+                  setSameDraft(null);
                   setSameOpen(true);
                 }}
               >
@@ -453,9 +448,10 @@ export function HowManyEachSheet({
                       chainQty
                       enterKeyHint={index === lines.length - 1 ? 'done' : 'next'}
                       aria-label={`Pieces for ${product.name}`}
-                      onChange={(next) =>
-                        setOverrides((prev) => ({ ...prev, [product.id]: next }))
-                      }
+                      onChange={(next) => {
+                        setOverrides((prev) => ({ ...prev, [product.id]: next }));
+                        if (next != null) persistQty(next);
+                      }}
                     />
                     {canRemove ? (
                       <button

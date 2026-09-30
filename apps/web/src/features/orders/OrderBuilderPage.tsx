@@ -24,8 +24,9 @@ import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
-import { QtyStepper, SameForAllEditor, sameForAllChipLabel } from '@/features/orders/QtyStepper';
+import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from '@/features/orders/QtyStepper';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
+import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
 import { withPrefillSeller } from './orderBuilderPrefillSeller';
 import { navigateToOrderChat } from './navigateToOrderChat';
@@ -53,7 +54,6 @@ interface StandardLine {
 
 /** Wholesale-scale presets — traders usually think in 50s / 100s, not singles. */
 const QTY_PRESETS = ['50', '100', '200', '500', '1000'] as const;
-const DEFAULT_QTY = '100';
 /** Matches API `createOrderSchema` items.max(200). */
 const MAX_PHOTO_LINES = 200;
 const CAMERA_BATCH = 30;
@@ -86,10 +86,10 @@ export function OrderBuilderPage() {
   const [standardLines, setStandardLines] = useState<StandardLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [bulkQty, setBulkQty] = useState(DEFAULT_QTY);
+  const [bulkQty, setBulkQty] = useState('');
   const [bulkDraft, setBulkDraft] = useState('');
   const [sameOpen, setSameOpen] = useState(false);
-  const [sameDraft, setSameDraft] = useState(Number(DEFAULT_QTY));
+  const [sameDraft, setSameDraft] = useState<number | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
   const [editPhotoId, setEditPhotoId] = useState<string | null>(null);
@@ -121,6 +121,7 @@ export function OrderBuilderPage() {
     const selected = new Set(productIds);
     const rows = (collection.data?.products ?? []).filter((product) => selected.has(product.id));
     if (rows.length > 0) {
+      const seedQty = rememberedQtyLabel(readRememberedQty(sellerId || sellerFromUrl));
       setStandardLines(
         rows.map((product) => ({
           productId: product.id,
@@ -130,18 +131,18 @@ export function OrderBuilderPage() {
           rateMax: product.rateMax ?? null,
           unit: product.unit,
           categories: product.categories ?? [],
-          quantity: DEFAULT_QTY,
+          quantity: seedQty,
           note: '',
           noteOpen: false,
         })),
       );
-      setInitialQuantities(Object.fromEntries(rows.map((product) => [product.id, DEFAULT_QTY])));
-      setBulkQty(DEFAULT_QTY);
+      setInitialQuantities(Object.fromEntries(rows.map((product) => [product.id, seedQty])));
+      setBulkQty(seedQty);
       setBulkDraft('');
-      setSameDraft(Number(DEFAULT_QTY));
+      setSameDraft(parseQtyDraft(seedQty));
       setSameOpen(false);
     }
-  }, [collection.data, productIds.join(',')]);
+  }, [collection.data, productIds.join(','), sellerId, sellerFromUrl]);
 
   const applyQtyToAll = (qty: string) => {
     const cleaned = qty.trim().replace(/[^\d]/g, '');
@@ -153,6 +154,7 @@ export function OrderBuilderPage() {
     }
     setBulkQty(cleaned);
     setBulkDraft(isQtyPreset(cleaned) ? '' : cleaned);
+    rememberQty(sellerId || sellerFromUrl, Number(cleaned));
   };
 
   const commitBulkDraft = () => {
@@ -187,7 +189,7 @@ export function OrderBuilderPage() {
             noteVoiceDurationMs: noteVoice?.durationMs,
             items: standardLines.map((line) => ({
               productId: line.productId,
-              quantity: Number(line.quantity) || 1,
+              quantity: Number(line.quantity),
               images: [],
               ...(line.note.trim() ? { note: line.note.trim() } : {}),
             })),
@@ -200,7 +202,7 @@ export function OrderBuilderPage() {
             noteVoiceDurationMs: noteVoice?.durationMs,
             items: photos.map((line, index) => ({
               name: `Photo ${index + 1}`,
-              quantity: Number(line.quantity) || 1,
+              quantity: Number(line.quantity),
               images: [toAbsoluteMediaUrl(line.imageUrl)],
             })),
           };
@@ -277,7 +279,7 @@ export function OrderBuilderPage() {
             id,
             previewUrl,
             imageUrl: '',
-            quantity: bulkQty || DEFAULT_QTY,
+            quantity: bulkQty,
             uploading: true,
           },
         ]);
@@ -418,12 +420,13 @@ export function OrderBuilderPage() {
           {standardLines.length > 1 ? (
             sameOpen ? (
               <SameForAllEditor
+                disabled={sameDraft == null || sameDraft <= 0}
                 onApply={() => {
                   applyQtyToAll(String(sameDraft));
                   setSameOpen(false);
                 }}
                 onCancel={() => {
-                  setSameDraft(Number(bulkQty) || Number(DEFAULT_QTY));
+                  setSameDraft(parseQtyDraft(bulkQty));
                   setSameOpen(false);
                 }}
               >
@@ -440,11 +443,11 @@ export function OrderBuilderPage() {
                 data-testid="same-for-all-chip"
                 className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink"
                 onClick={() => {
-                  setSameDraft(Number(bulkQty) || Number(DEFAULT_QTY));
+                  setSameDraft(null);
                   setSameOpen(true);
                 }}
               >
-                {sameForAllChipLabel(Number(bulkQty) || Number(DEFAULT_QTY))}
+                {sameForAllChipLabel(parseQtyDraft(bulkQty))}
               </button>
             )
           ) : null}
@@ -499,19 +502,20 @@ export function OrderBuilderPage() {
                       </div>
                       <div className="mt-2">
                         <QtyStepper
-                          value={Number(line.quantity) || 1}
+                          value={parseQtyDraft(line.quantity)}
                           chainQty
                           enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
                           aria-label={`Pieces for ${line.name}`}
-                          onChange={(next) =>
+                          onChange={(next) => {
+                            if (next != null) rememberQty(sellerId || sellerFromUrl, next);
                             setStandardLines((prev) =>
                               prev.map((item) =>
                                 item.productId === line.productId
-                                  ? { ...item, quantity: String(next) }
+                                  ? { ...item, quantity: next == null ? '' : String(next) }
                                   : item,
                               ),
-                            )
-                          }
+                            );
+                          }}
                         />
                       </div>
                       {line.noteOpen ? (

@@ -1,5 +1,3 @@
-const DEFAULT_QTY = '100';
-
 export function orderBuilderPhotoDirty(input: {
   uploading: boolean;
   note: string;
@@ -26,7 +24,7 @@ export function orderBuilderStandardDirty(input: {
   if (input.note.trim()) return true;
   if (!input.sellerFromUrl && input.sellerId.trim()) return true;
   for (const line of input.lines) {
-    const initial = input.initialQuantities[line.productId] ?? DEFAULT_QTY;
+    const initial = input.initialQuantities[line.productId] ?? '';
     if (line.quantity !== initial) return true;
   }
   return false;

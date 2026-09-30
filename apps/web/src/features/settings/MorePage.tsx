@@ -1,13 +1,11 @@
-import { useNavigate } from 'react-router-dom';
 import { MyCatalogPage } from '@/features/catalog/MyCatalogPage';
 import { useAuth } from '@/lib/auth';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { Avatar, Card, Tag } from '@/ui/kit';
 
-/** You root — title + ⋯ live in AppShell (same band as Chats), not a second PageHeader. */
+/** You root — title + Back (Home) live in AppShell, not a second PageHeader. */
 export function MorePage() {
-  const navigate = useNavigate();
   const { session } = useAuth();
   const company = useMyCompany();
   const { selling, trading } = useTradePresence();
@@ -34,16 +32,6 @@ export function MorePage() {
                 ]
                   .filter(Boolean)
                   .join(' · ')}
-              </p>
-              <p className="mt-2 flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  data-testid="you-edit"
-                  className="inline-flex h-7 items-center rounded-lg border border-accent bg-surface px-2 text-[12px] font-semibold tracking-tight text-accent hover:bg-accent/5"
-                  onClick={() => navigate('/settings/profile')}
-                >
-                  Edit profile
-                </button>
               </p>
             </div>
             {company.data?.verification === 'gst_verified' ? (

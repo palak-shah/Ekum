@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { pickYouLibraryFilter } from '../../helpers/youLibrary';
 
 async function seedSelection(page: import('@playwright/test').Page) {
   await page.evaluate(() => {
@@ -190,7 +191,10 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByText('Checking availability…')).toHaveCount(0, { timeout: 15_000 });
     await page.getByTestId('selection-bookmark').click();
     await expect(page).toHaveURL(/saved/, { timeout: 15_000 });
-    await expect(page.getByTestId('you-tab-saved')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('you-library-filter')).toHaveAttribute('data-filter-active', 'true', {
+      timeout: 15_000,
+    });
+    await expect(page.getByText(/Showing\s+Saved/)).toBeVisible();
     await expect(page.getByText('Nothing selected')).toHaveCount(0);
     await expect(page.getByTestId('app-toast')).toContainText(/bookmarked/i);
   });
@@ -255,20 +259,20 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByText('Gone design')).toBeVisible();
   });
 
-  test('chip shows on Chats list and hides on an open thread', async ({ page }) => {
+  test('chip stays on Explore and hides on Home, Chats, and Orders', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
     await seedSelection(page);
-    await page.goto('/chats');
+    await page.reload();
     await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
 
-    // Open first thread if present; otherwise skip thread assertion.
-    const threadLink = page.locator('a[href^="/chats/"]').first();
-    if (await threadLink.count()) {
-      await threadLink.click();
-      await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
-    }
+    await page.goto('/');
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+    await page.goto('/chats');
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+    await page.goto('/orders');
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
   });
 
   test('My designs Order for buyer handoff opens Your selection', async ({ page }) => {
@@ -303,7 +307,7 @@ test.describe('selection workspace @functional @explore', () => {
     await loginAsRavi(page);
     await page.goto('/catalog');
     await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Draft', exact: true }).click();
+    await pickYouLibraryFilter(page, 'Draft');
     const draftTile = page.getByTestId('catalog-product-tile').first();
     if ((await draftTile.count()) === 0) {
       test.skip(true, 'No draft designs in seed for this persona');
@@ -331,7 +335,7 @@ test.describe('selection workspace @functional @explore', () => {
     await page.goto('/orders');
     await seedSelection(page);
     await page.reload();
-    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
     const first = page.locator('a[href^="/orders/"]').first();
     await expect(first).toBeVisible({ timeout: 15_000 });
     await first.click();

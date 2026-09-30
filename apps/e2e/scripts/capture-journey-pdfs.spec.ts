@@ -323,19 +323,7 @@ test.describe('demo journey PDFs', () => {
 
       await loginAs(page, PHONES.ravi);
       await softGoto(page, '/orders');
-      const filter = page.getByTestId('orders-filter');
-      if (await filter.isVisible().catch(() => false)) {
-        await filter.click();
-        const typeOpen = page.getByTestId('orders-filter-open-type');
-        if (await typeOpen.isVisible().catch(() => false)) {
-          await typeOpen.click();
-          await page.getByTestId('orders-filter-type-trading').click();
-          await settle(page, 800);
-        } else {
-          await page.keyboard.press('Escape');
-        }
-      }
-      await shot(page, dir, shots, '06-orders-trading.png', 'Trading filter', 'I-handle tickets the trader manages for buyers.');
+      await shot(page, dir, shots, '06-orders-trading.png', 'Orders', 'I-handle tickets sit in the same list (row says Trading).');
 
       await softGoto(page, `/orders/${created.id}`);
       await settle(page, 1200);

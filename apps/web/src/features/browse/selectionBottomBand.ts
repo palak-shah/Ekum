@@ -25,3 +25,29 @@ export function usePageOwnsBottomBand(owns: boolean): void {
     return () => setPageOwnsBottomBand(false);
   }, [owns]);
 }
+
+let pageSelecting = false;
+const selectingListeners = new Set<() => void>();
+
+export function getPageSelecting(): boolean {
+  return pageSelecting;
+}
+
+export function subscribePageSelecting(onStoreChange: () => void): () => void {
+  selectingListeners.add(onStoreChange);
+  return () => selectingListeners.delete(onStoreChange);
+}
+
+export function setPageSelecting(next: boolean): void {
+  if (pageSelecting === next) return;
+  pageSelecting = next;
+  for (const notify of selectingListeners) notify();
+}
+
+/** Design / pack: floater only while this page is Selecting. */
+export function usePageSelecting(selecting: boolean): void {
+  useEffect(() => {
+    setPageSelecting(selecting);
+    return () => setPageSelecting(false);
+  }, [selecting]);
+}

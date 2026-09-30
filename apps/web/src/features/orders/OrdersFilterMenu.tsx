@@ -4,10 +4,11 @@ import { cx } from '@/ui/kit';
 import { BackIcon, CheckIcon, ChevronRightIcon } from '@/ui/icons';
 import type { TradeKindFacet } from './tradeFind';
 import {
-  TRADE_FILTER_STATUSES,
   TRADE_FILTER_TYPES,
   tradeKindLabel,
   tradeStatusLabel,
+  tradeStatusesForTab,
+  type OrdersAttentionTab,
 } from './ordersFilterConfig';
 
 type MenuView = 'root' | 'status' | 'type';
@@ -18,6 +19,7 @@ export function OrdersFilterMenu({
   anchorRef,
   statusFacet,
   kindFacet,
+  attentionTab,
   onStatus,
   onKind,
   onClearAll,
@@ -27,6 +29,7 @@ export function OrdersFilterMenu({
   anchorRef: RefObject<HTMLElement | null>;
   statusFacet: string | null;
   kindFacet: TradeKindFacet | null;
+  attentionTab: OrdersAttentionTab;
   onStatus: (status: string | null) => void;
   onKind: (kind: TradeKindFacet | null) => void;
   onClearAll: () => void;
@@ -136,7 +139,7 @@ export function OrdersFilterMenu({
           <div className="flex max-h-[min(70vh,28rem)] flex-col">
             <SubHeader title="Select Status" onBack={() => setView('root')} />
             <ul className="min-h-0 overflow-y-auto py-1">
-              {TRADE_FILTER_STATUSES.map((row) => {
+              {tradeStatusesForTab(attentionTab).map((row) => {
                 const active = statusFacet === row.status;
                 return (
                   <li key={row.status}>

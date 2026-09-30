@@ -23,6 +23,10 @@ export function parseQtyDraft(raw: string): number | null {
  * `enterKeyHint="done"` shows Done on mobile keyboards; with a parent <form>,
  * Enter/Done typically submits (Apply).
  */
+function qtyDraft(value: number | null): string {
+  return value != null && value > 0 ? String(value) : '';
+}
+
 export function QtyStepper({
   value,
   onChange,
@@ -33,8 +37,8 @@ export function QtyStepper({
   autoFocus = false,
   'aria-label': ariaLabel = 'Pieces',
 }: {
-  value: number;
-  onChange: (next: number) => void;
+  value: number | null;
+  onChange: (next: number | null) => void;
   disabled?: boolean;
   step?: number;
   /** Mobile keyboard action label — `done` ≈ Enter on many devices. */
@@ -46,16 +50,14 @@ export function QtyStepper({
   'aria-label'?: string;
 }) {
   const [focused, setFocused] = useState(false);
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(qtyDraft(value));
 
   useEffect(() => {
-    if (!focused) setDraft(String(value));
+    if (!focused) setDraft(qtyDraft(value));
   }, [value, focused]);
 
   const commitDraft = () => {
-    const parsed = parseQtyDraft(draft);
-    if (parsed != null) onChange(parsed);
-    else setDraft(String(value));
+    onChange(parseQtyDraft(draft));
   };
 
   return (
@@ -63,9 +65,9 @@ export function QtyStepper({
       <button
         type="button"
         className={STEPPER_BTN}
-        disabled={disabled || value <= 1}
+        disabled={disabled || value == null || value <= 1}
         aria-label="Decrease pieces"
-        onClick={() => onChange(Math.max(1, value - step))}
+        onClick={() => onChange(Math.max(1, (value ?? 1) - step))}
       >
         −
       </button>
@@ -82,7 +84,7 @@ export function QtyStepper({
         {...(chainQty ? { [ORDER_QTY_ATTR]: '' } : {})}
         onFocus={(event) => {
           setFocused(true);
-          setDraft(String(value));
+          setDraft(qtyDraft(value));
           event.currentTarget.select();
         }}
         onBlur={() => {
@@ -92,8 +94,7 @@ export function QtyStepper({
         onChange={(event) => {
           const raw = event.target.value;
           setDraft(raw);
-          const parsed = parseQtyDraft(raw);
-          if (parsed != null) onChange(parsed);
+          onChange(parseQtyDraft(raw));
         }}
         onKeyDown={(event) => {
           if (event.key !== 'Enter') return;
@@ -106,7 +107,7 @@ export function QtyStepper({
         className={STEPPER_BTN}
         disabled={disabled}
         aria-label="Increase pieces"
-        onClick={() => onChange(Math.min(1_000_000, value + step))}
+        onClick={() => onChange(Math.min(1_000_000, (value ?? 0) + step))}
       >
         +
       </button>
@@ -114,7 +115,8 @@ export function QtyStepper({
   );
 }
 
-export function sameForAllChipLabel(appliedQty: number): string {
+export function sameForAllChipLabel(appliedQty: number | null | undefined): string {
+  if (appliedQty == null || appliedQty <= 0) return 'Same for all';
   return `Same for all · ${appliedQty}`;
 }
 

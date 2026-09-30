@@ -31,9 +31,9 @@ describe('designBrowseLayout', () => {
     expect(readDesignBrowseLayout(COMPANY)).toBe('feed');
   });
 
-  it('keeps feed design photos mid-size, not 3/4 portrait', () => {
-    expect(designBrowsePhotoClass('feed')).toContain('h-64');
-    expect(designBrowsePhotoClass('feed')).not.toContain('aspect-[');
+  it('uses 4/5 for leftover feed thumbs so prints lose little top/bottom', () => {
+    expect(designBrowsePhotoClass('feed')).toContain('aspect-[4/5]');
+    expect(designBrowsePhotoClass('feed')).not.toContain('h-64');
     expect(designBrowsePhotoClass('grid')).toContain('h-32');
   });
 

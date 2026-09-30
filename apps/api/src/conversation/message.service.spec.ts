@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
-import { MessageType, type SendMessageDto } from '@ekum/domain-types';
+import { MessageType, ProductStatus, type SendMessageDto } from '@ekum/domain-types';
 import { MessageService } from './message.service';
 import type { AuthPrincipal } from '../auth/auth.types';
 import type { PrismaService } from '../core/prisma/prisma.service';
@@ -291,6 +291,132 @@ describe('MessageService.send', () => {
       body: 'Kavita pack',
     } as SendMessageDto;
     await expect(service.send(actor('ravi'), 't2', dto)).resolves.toMatchObject({ id: 'm1' });
+  });
+
+  it('allows sharing published pack-only designs with no Explore tile', async () => {
+    const created = {
+      id: 'm1',
+      threadId: 't2',
+      senderCompanyId: 'ravi',
+      type: MessageType.DesignAlbum,
+      body: null,
+      referenceId: null,
+      metadata: { productIds: ['p1', 'p2'] },
+      createdAt: new Date(),
+    };
+    const prisma = {
+      product: {
+        findFirst: async ({ where }: { where: { id: string } }) => ({
+          id: where.id,
+          companyId: 'kavita',
+          status: ProductStatus.Published,
+        }),
+      },
+      message: { findFirst: async () => null },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          message: { create: async () => created },
+          thread: { update: async () => ({}) },
+          threadParticipant: { update: async () => ({}) },
+        }),
+      threadParticipant: { findMany: async () => [] },
+      user: { findUnique: async () => ({ name: 'Ravi' }) },
+    } as unknown as PrismaService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = {
+      resolve: async () => new Map([['m1', { kind: 'designs', id: 'm1', name: 'Designs' }]]),
+    } as unknown as ReferenceResolver;
+    const service = new MessageService(
+      prisma,
+      threadStub(),
+      serializer,
+      references,
+      events,
+      visibilityStub(),
+    );
+    const dto = {
+      type: MessageType.DesignAlbum,
+      metadata: { productIds: ['p1', 'p2'] },
+    } as SendMessageDto;
+    await expect(service.send(actor('ravi'), 't2', dto)).resolves.toMatchObject({ id: 'm1' });
+  });
+
+  it('stores replyToProductId when quoting a design in a set', async () => {
+    let stored: unknown;
+    const prisma = {
+      message: {
+        findFirst: async () => ({
+          id: 'album',
+          threadId: 't',
+          type: MessageType.DesignAlbum,
+          metadata: { productIds: ['p1', 'p2'] },
+        }),
+      },
+      user: { findUnique: async () => ({ name: 'Ravi' }) },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          message: {
+            create: async (args: { data: { metadata?: unknown } }) => {
+              stored = args.data.metadata;
+              return { id: 'reply', threadId: 't', type: MessageType.Text };
+            },
+          },
+          thread: { update: async () => ({}) },
+          threadParticipant: { update: async () => ({}) },
+        }),
+      threadParticipant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const service = new MessageService(
+      prisma,
+      threadStub(),
+      serializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
+      events,
+      visibilityStub(),
+    );
+    await expect(
+      service.send(actor('me'), 't', {
+        type: MessageType.Text,
+        body: 'rate on this?',
+        replyToMessageId: 'album',
+        replyToProductId: 'p2',
+      } as SendMessageDto),
+    ).resolves.toMatchObject({ id: 'reply' });
+    expect(stored).toMatchObject({ replyToProductId: 'p2' });
+  });
+
+  it('rejects quoting a design that is not in the set', async () => {
+    const prisma = {
+      message: {
+        findFirst: async () => ({
+          id: 'album',
+          threadId: 't',
+          type: MessageType.DesignAlbum,
+          metadata: { productIds: ['p1', 'p2'] },
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new MessageService(
+      prisma,
+      threadStub(),
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      events,
+      visibilityStub(),
+    );
+    await expect(
+      service.send(actor('me'), 't', {
+        type: MessageType.Text,
+        body: 'this one?',
+        replyToMessageId: 'album',
+        replyToProductId: 'p9',
+      } as SendMessageDto),
+    ).rejects.toThrow();
   });
 
   it('rejects chat-share when the catalog owner has blocked the sender', async () => {

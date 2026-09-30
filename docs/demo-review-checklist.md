@@ -122,7 +122,7 @@ Log out on both browsers (**You → Log out**), then log in again.
 
 **Kavita or Ravi**
 
-- [ ] **You → Add** for designs; **＋** opens New collection (no extra New sheet)
+- [ ] **You → Add** for designs; **＋** Collection sheet: create new or You Collections
 - [ ] Publish with audience (Everyone / connections / selected)
 
 **Meena**

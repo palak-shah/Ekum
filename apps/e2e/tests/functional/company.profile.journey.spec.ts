@@ -11,6 +11,8 @@ test.describe('company profile shop chrome @functional @network', () => {
     await expect(page).toHaveURL(/\/company\/seed-company-ravi/);
     await expect(page.getByTestId('company-follow')).toBeVisible();
     await expect(page.getByTestId('company-message')).toBeVisible();
+    await expect(page.getByTestId('company-shop-tab-collections')).toBeVisible();
+    await page.getByTestId('company-shop-tab-designs').click();
     await expect(page.getByTestId('company-shop-grid')).toBeVisible();
     await expect(page.getByText('Banarasi Silk Saree').first()).toBeVisible();
     await expect(page.getByTestId('company-shop-search')).toHaveCount(0);
@@ -27,6 +29,7 @@ test.describe('company profile shop chrome @functional @network', () => {
   test('Select on shop shows Order dock and hides tab bar', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/company/seed-company-ravi');
+    await page.getByTestId('company-shop-tab-designs').click();
     await expect(page.getByTestId('company-shop-grid')).toBeVisible();
     await page.getByRole('button', { name: 'Select' }).click();
     await page.getByTestId(/company-shop-design-/).first().click();

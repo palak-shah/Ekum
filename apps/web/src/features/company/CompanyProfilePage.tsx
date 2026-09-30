@@ -109,7 +109,7 @@ export function CompanyProfilePage() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
-  const [shopTab, setShopTab] = useState<ShopTab>('designs');
+  const [shopTab, setShopTab] = useState<ShopTab>('collections');
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const deferredListSearch = useDeferredValue(listSearch);
@@ -216,7 +216,8 @@ export function CompanyProfilePage() {
       return next;
     });
   };
-  const floaterClearance = !shopDockUp && shortlist.count + albumPick.count > 0;
+  const floaterClearance =
+    !isOwn && !shopDockUp && shortlist.count + albumPick.count > 0;
   const showMessage = !isOwn;
   const lookOnlyFollow =
     !isConnected &&
@@ -239,7 +240,7 @@ export function CompanyProfilePage() {
   useEffect(() => {
     if (!shopReady || shopTabSeededFor.current === id) return;
     shopTabSeededFor.current = id;
-    setShopTab(designs.length > 0 ? 'designs' : 'collections');
+    setShopTab('collections');
   }, [shopReady, id, designs.length]);
 
   const toggleFollow = useMutation({
@@ -420,7 +421,7 @@ export function CompanyProfilePage() {
           <button
             type="button"
             data-testid="company-edit"
-            onClick={() => navigate('/settings/profile')}
+            onClick={() => navigate('/settings/profile?edit=1')}
             className={cx(shopActionClass, 'flex-none bg-foam text-ink')}
           >
             Edit profile
@@ -452,8 +453,8 @@ export function CompanyProfilePage() {
               <div className="flex gap-2">
                 {(
                   [
-                    ['designs', 'Designs', designs.length],
                     ['collections', 'Collections', collections.length],
+                    ['designs', 'Designs', designs.length],
                   ] as const
                 ).map(([value, label, count]) => (
                   <button
@@ -539,6 +540,7 @@ export function CompanyProfilePage() {
                       label={product.name}
                       to={`/explore/products/${product.id}`}
                       showName
+                      layout={layout}
                       testId={`company-shop-design-${product.id}`}
                       selected={shortlist.productIds.has(product.id)}
                       selectMode={selecting}
@@ -558,6 +560,7 @@ export function CompanyProfilePage() {
                   <ShopCollectionCell
                     key={collection.id}
                     collection={collection}
+                    layout={layout}
                     selected={albumPick.collectionIds.has(collection.id)}
                     selectMode={selecting}
                     onLongSelect={() => toggleCollection(collection)}

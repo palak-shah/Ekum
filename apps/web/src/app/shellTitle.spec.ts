@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pageOwnsTopChrome, shellTitle } from './shellTitle';
+import { pageOwnsTopChrome, shellShowsHomeBack, shellTitle } from './shellTitle';
 
 describe('shellTitle', () => {
   it('labels Home like the other tab roots', () => {
@@ -12,6 +12,12 @@ describe('shellTitle', () => {
   it('leaves thread and catalog chrome to PageHeader', () => {
     expect(shellTitle('/chats/abc')).toBeNull();
     expect(shellTitle('/catalog')).toBeNull();
+  });
+
+  it('puts Home Back on You only', () => {
+    expect(shellShowsHomeBack('/more')).toBe(true);
+    expect(shellShowsHomeBack('/')).toBe(false);
+    expect(shellShowsHomeBack('/chats')).toBe(false);
   });
 
   it('lets Network PageHeader own the top band (no second Network title)', () => {

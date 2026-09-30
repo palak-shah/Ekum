@@ -1,5 +1,6 @@
 import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { isOwnProfileEditing } from '@/features/settings/profileEdit';
 
 export function shopShortlistEntries(
   entries: BrowseShortlistEntry[],
@@ -48,8 +49,9 @@ export function shouldShowShopTradeDock(options: {
 /** Hide Home · Chats · ＋ · Explore · Orders when a focused job owns the bottom. */
 export function shouldHideAppNav(
   pathname: string,
-  options: { myCompanyId?: string | null; thisShopSelectedCount: number },
+  options: { myCompanyId?: string | null; thisShopSelectedCount: number; search?: string },
 ): boolean {
+  if (isOwnProfileEditing(pathname, options.search)) return true;
   if (pathname === '/selection' || pathname.startsWith('/selection/')) return true;
   if (
     pathname === '/catalog/collections/new' ||

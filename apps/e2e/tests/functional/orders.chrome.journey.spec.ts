@@ -59,17 +59,55 @@ test.describe('orders chrome @functional @orders', () => {
   test('How many each uses editable qty stepper', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/explore/products/seed-prod-1');
+    await page.evaluate(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('ekum:qty-each:')) localStorage.removeItem(key);
+      }
+    });
     await page.getByRole('button', { name: 'Order' }).click();
     await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('how-many-share')).toBeVisible();
     await expect(page.getByTestId('how-many-facts')).toContainText('Piece');
     const qty = page.getByRole('group', { name: /Pieces for/i }).getByRole('textbox');
-    await expect(qty).toHaveValue('20');
-    await qty.click();
-    await page.keyboard.press('Backspace');
     await expect(qty).toHaveValue('');
+    await expect(page.getByRole('button', { name: 'Place Order' })).toBeDisabled();
+    await qty.click();
     await qty.pressSequentially('15');
     await expect(qty).toHaveValue('15');
+    await expect(page.getByRole('button', { name: 'Place Order' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Close' }).click();
+    await page.getByRole('button', { name: 'Order' }).click();
+    await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByRole('group', { name: /Pieces for/i }).getByRole('textbox'),
+    ).toHaveValue('15');
+  });
+
+  test('filter status list follows Pending and has no extra statuses', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/orders');
+
+    await page.getByTestId('orders-filter').click();
+    await page.getByTestId('orders-filter-open-status').click();
+    await expect(page.getByTestId('orders-filter-status-requested')).toBeVisible();
+    await expect(page.getByTestId('orders-filter-status-confirmed')).toBeVisible();
+    await expect(page.getByTestId('orders-filter-status-part_shipped')).toBeVisible();
+    await expect(page.getByTestId('orders-filter-status-dispatched')).toHaveCount(0);
+    await expect(page.getByTestId('orders-filter-status-received')).toHaveCount(0);
+    await expect(page.getByTestId('orders-filter-status-approved')).toHaveCount(0);
+    await expect(page.getByTestId('orders-filter-status-declined')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('orders-filter-menu')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Completed' }).click();
+    await page.getByTestId('orders-filter').click();
+    await page.getByTestId('orders-filter-open-status').click();
+    await expect(page.getByTestId('orders-filter-status-dispatched')).toBeVisible();
+    await expect(page.getByTestId('orders-filter-status-settled')).toBeVisible();
+    await expect(page.getByTestId('orders-filter-status-cancelled')).toBeVisible();
+    await expect(page.getByTestId('orders-filter-status-requested')).toHaveCount(0);
+    await expect(page.getByTestId('orders-filter-status-received')).toHaveCount(0);
   });
 
   test('filter menu selects type and dismisses on Escape', async ({ page }) => {
@@ -80,6 +118,8 @@ test.describe('orders chrome @functional @orders', () => {
     await expect(page.getByTestId('orders-filter-menu')).toBeVisible();
 
     await page.getByTestId('orders-filter-open-type').click();
+    await expect(page.getByTestId('orders-filter-type-trading')).toHaveCount(0);
+    await expect(page.getByTestId('orders-filter-type-return')).toHaveCount(0);
     await page.getByTestId('orders-filter-type-sample').click();
 
     await expect(page).toHaveURL(/kind=sample/, { timeout: 10_000 });
@@ -95,10 +135,11 @@ test.describe('orders chrome @functional @orders', () => {
     await expect(page).toHaveURL(/\/orders\?kind=sample/, { timeout: 10_000 });
   });
 
-  test('Returns shortcut redirects to filtered orders list', async ({ page }) => {
+  test('Returns shortcut opens Orders', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/returns');
-    await expect(page).toHaveURL(/\/orders\?kind=return/, { timeout: 10_000 });
+    await expect(page).toHaveURL(/\/orders(?:\?|$)/, { timeout: 10_000 });
+    await expect(page).not.toHaveURL(/kind=return/);
   });
 
   test('seller dock Confirm sits between Decline and Send quote', async ({ page }) => {
@@ -115,6 +156,7 @@ test.describe('orders chrome @functional @orders', () => {
     await page.goto(`/orders/${order.id}`);
     const dock = page.getByTestId('order-action-dock');
     await expect(dock).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(page.getByRole('button', { name: 'Confirm all open' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Confirm / decline lines' })).toHaveCount(0);
 
@@ -156,12 +198,34 @@ test.describe('orders chrome @functional @orders', () => {
     await page.goto(`/orders/${order.id}`);
     const dock = page.getByTestId('order-action-dock');
     await expect(dock).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(dock.getByTestId('order-dock-cancel')).toBeVisible();
     await expect(dock.getByTestId('order-dock-edit')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit order' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Cancel order' })).toHaveCount(0);
     await expect(page.getByText(/standard/i)).toHaveCount(0);
     await expect(page.getByTestId('order-ticket-help')).toHaveCount(0);
+  });
+
+  test('list row opens the ticket; Needs you preview when seller must act', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      items: [{ productId: 'seed-prod-1', quantity: 20 }],
+    });
+
+    await loginAsRavi(page);
+    await page.goto('/orders');
+    const row = page.locator(`a[data-testid="trade-list-row"][href="/orders/${order.id}"]`);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await expect(row.getByTestId('orders-needs-you')).toBeVisible();
+    await expect(row.getByTestId('trade-list-facts')).toContainText(/Order #/);
+    await expect(row.getByTestId('trade-list-facts')).toContainText(/1 design/);
+    await row.click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${order.id}`), { timeout: 10_000 });
   });
 
   test('last list row clears the nav', async ({ page }) => {

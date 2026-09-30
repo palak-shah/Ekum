@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   collectionPackTradeDock,
   collectionShowHandleCopy,
+  collectionShowPackNote,
   collectionViewerPrimaryAction,
+  noteBlockOverflows,
 } from './collectionViewerChrome';
 
 describe('collectionViewerPrimaryAction', () => {
@@ -59,6 +61,18 @@ describe('collectionPackTradeDock', () => {
         resumeContinue: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe('collectionShowPackNote', () => {
+  it('shows a filled pack note on the album, including our own', () => {
+    expect(collectionShowPackNote('Festive sets.')).toBe(true);
+    expect(collectionShowPackNote('  ')).toBe(false);
+  });
+
+  it('flags overflow so View more can sit on the last clamped line', () => {
+    expect(noteBlockOverflows(120, 80)).toBe(true);
+    expect(noteBlockOverflows(80, 80)).toBe(false);
   });
 });
 

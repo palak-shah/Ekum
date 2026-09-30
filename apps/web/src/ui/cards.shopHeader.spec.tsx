@@ -9,7 +9,7 @@ const opportunity: ExploreOpportunity = {
   collection: {
     id: 'col1',
     name: 'Wedding Edit',
-    categories: [],
+    categories: ['Sarees'],
     memberFind: [],
     coverImage: null,
     previewImages: [],

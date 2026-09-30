@@ -128,13 +128,13 @@ describe('nextOrderAction', () => {
     ).toBe('Part shipped — waiting on Surat Silk House for the rest');
   });
 
-  it('tells the buyer dispatched is complete for returns', () => {
+  it('tells the buyer dispatched is complete', () => {
     expect(
       nextOrderAction({
         status: 'dispatched',
         direction: 'buying',
       }),
-    ).toBe('Dispatched — raise a return if needed');
+    ).toBe('Dispatched · complete');
   });
 });
 

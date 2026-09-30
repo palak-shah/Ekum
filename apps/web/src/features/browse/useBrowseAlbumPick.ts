@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { createArmedSelectFlag } from './armedSelectFlag';
 import {
   addBrowseAlbumPickMany,
   clearBrowseAlbumPick,
@@ -9,16 +10,23 @@ import {
   type BrowseAlbumEntry,
 } from './browseAlbumPick';
 
+const selectArm = createArmedSelectFlag();
+
+export function resetBrowseAlbumPickSelectMode() {
+  selectArm.set(false);
+}
+
 export function useBrowseAlbumPick() {
   const entries = useSyncExternalStore(
     subscribeBrowseAlbumPick,
     readBrowseAlbumPick,
     () => [] as BrowseAlbumEntry[],
   );
-  const [selectMode, setSelectMode] = useState(() => readBrowseAlbumPick().length > 0);
+  const armed = useSyncExternalStore(selectArm.subscribe, selectArm.get, () => false);
+  const selectMode = entries.length > 0 || armed;
 
   useEffect(() => {
-    if (entries.length > 0) setSelectMode(true);
+    if (entries.length > 0) selectArm.set(true);
   }, [entries.length]);
 
   const collectionIds = useMemo(
@@ -26,28 +34,32 @@ export function useBrowseAlbumPick() {
     [entries],
   );
 
+  const setSelectMode = useCallback((on: boolean) => {
+    selectArm.set(on);
+  }, []);
+
   const addMany = useCallback((incoming: BrowseAlbumEntry[]) => {
     const next = addBrowseAlbumPickMany(incoming);
-    setSelectMode(next.length > 0);
+    selectArm.set(next.length > 0);
     return next;
   }, []);
 
   const toggle = useCallback((entry: BrowseAlbumEntry) => {
     const next = toggleBrowseAlbumEntry(entry);
     // Empty pick must leave select mode (Explore: otherwise taps stay select, not open).
-    setSelectMode(next.length > 0);
+    selectArm.set(next.length > 0);
     return next;
   }, []);
 
   const removeIds = useCallback((ids: string[]) => {
     const next = removeBrowseAlbumIds(ids);
-    setSelectMode(next.length > 0);
+    selectArm.set(next.length > 0);
     return next;
   }, []);
 
   const clear = useCallback(() => {
     clearBrowseAlbumPick();
-    setSelectMode(false);
+    selectArm.set(false);
   }, []);
 
   return {

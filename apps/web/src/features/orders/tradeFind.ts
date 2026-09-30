@@ -31,40 +31,29 @@ export type TradeSuggestion = {
   | { type: 'text'; value: string }
 );
 
-/** Primary statuses shown on empty focus (order lifecycle). */
+/** Statuses shown in Find — same six as the filter menu. */
 const PRIMARY_STATUS_LABELS = [
   'Requested',
   'Confirmed',
+  'Part shipped',
   'Dispatched',
   'Settled',
-] as const;
-
-const MORE_STATUS_LABELS = [
-  'Received',
-  'Approved',
-  'Resolved',
-  'Declined',
   'Cancelled',
-  'Converted',
-  'Delivered',
 ] as const;
 
-const ALL_STATUS_LABELS = [...PRIMARY_STATUS_LABELS, ...MORE_STATUS_LABELS];
+const ALL_STATUS_LABELS = PRIMARY_STATUS_LABELS;
 
 const KIND_LABELS: { label: string; kind: TradeKindFacet }[] = [
   { label: 'Sample', kind: 'sample' },
-  { label: 'Return', kind: 'return' },
   { label: 'Order', kind: 'order' },
-  { label: 'Trading', kind: 'trading' },
 ];
 
-/** Type words in Find (Trading also accepts linked). */
+/** Type words in Find — same as Select Type. */
 export function kindFacetFromNeedle(raw: string): TradeKindFacet | null {
   const word = raw.trim().toLowerCase();
-  if (word === 'sample' || word === 'return' || word === 'order' || word === 'trading') {
+  if (word === 'sample' || word === 'order') {
     return word;
   }
-  if (word === 'linked' || word === 'linked order' || word === 'i handle') return 'trading';
   return null;
 }
 
@@ -326,16 +315,6 @@ export function buildTradeSuggestions(
     }
   }
 
-  if (lower.length >= 3 && 'linked'.startsWith(lower)) {
-    push('kind:trading', {
-      type: 'kind',
-      group: 'type',
-      hint: 'Type',
-      label: 'Trading',
-      kind: 'trading',
-    });
-  }
-
   for (const k of KIND_LABELS) {
     if (k.label.toLowerCase().startsWith(lower) || k.kind.startsWith(lower)) {
       push(`kind:${k.kind}`, {
@@ -359,16 +338,6 @@ export function buildTradeSuggestions(
       });
     }
   }
-  if ('partially_approved'.startsWith(lower) || 'partial'.startsWith(lower)) {
-    push('status:partially_approved', {
-      type: 'status',
-      group: 'status',
-      hint: 'Status',
-      label: 'Partially approved',
-      status: 'partially_approved',
-    });
-  }
-
   for (const item of items) {
     if (item.kind === 'order') {
       const name = item.order.counterpart.name.trim();

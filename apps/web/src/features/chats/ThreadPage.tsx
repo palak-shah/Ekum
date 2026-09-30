@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   useInfiniteQuery,
   useMutation,
@@ -33,7 +33,6 @@ import {
   type MentionCandidate,
   type MessageMention,
   photoUrlsFromMessage,
-  quotedPhotoUrl,
   voiceDurationMsFromMessage,
   documentFromMessage,
   documentTypeCue,
@@ -105,6 +104,7 @@ import {
   copyTextForMessage,
   forwardPayload,
   replyComposerLabel,
+  quotedComposerThumbUrl,
 } from './chatMessageActions';
 import {
   resolveForwardFacilitator,
@@ -113,7 +113,7 @@ import {
   catalogOrderGoesToLine,
   rememberCatalogHandlerName,
 } from '@/features/browse/forwardAttribution';
-import { designSetPath } from '@/features/browse/designSetPath';
+import { designSetPath, parseQuoteDesignNavState } from '@/features/browse/designSetPath';
 import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { ThreadForwardDock } from '@/features/chats/ThreadForwardDock';
 import { ThreadJumpToLatest } from '@/features/chats/ThreadJumpToLatest';
@@ -170,6 +170,7 @@ export function ThreadPage() {
   const { buying } = useTradePresence();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const canForward = (message: MessageView) => canForwardMessage(message);
   const [draft, setDraft] = useState(() => getChatDraft(id));
@@ -266,6 +267,7 @@ export function ThreadPage() {
   const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
   const [replyTo, setReplyTo] = useState<MessageView | null>(null);
   const [replyPhotoIndex, setReplyPhotoIndex] = useState<number | null>(null);
+  const [replyProductId, setReplyProductId] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [forwardProgress, setForwardProgress] = useState<string | null>(null);
@@ -723,6 +725,7 @@ export function ThreadPage() {
       metadata?: Record<string, unknown>;
       replyToMessageId?: string;
       replyToPhotoIndex?: number;
+      replyToProductId?: string;
     }) => api.post<MessageView>(`/threads/${id}/messages`, payload),
     onSuccess: (message) => {
       stickLatch.pin();
@@ -732,6 +735,7 @@ export function ThreadPage() {
       setMentionLocked(false);
       setReplyTo(null);
       setReplyPhotoIndex(null);
+      setReplyProductId(null);
       setAttachOpen(false);
       setAttachStep('menu');
       setError(null);
@@ -1110,6 +1114,7 @@ export function ThreadPage() {
           referenceId?: string;
           replyToMessageId?: string;
           replyToPhotoIndex?: number;
+          replyToProductId?: string;
         } | null = null;
 
         if (attachStep === 'product') {
@@ -1168,6 +1173,7 @@ export function ThreadPage() {
       stickLatch.pin();
       setReplyTo(null);
       setReplyPhotoIndex(null);
+      setReplyProductId(null);
       setDraft('');
       closeAttachSheet();
       setError(null);
@@ -1184,9 +1190,10 @@ export function ThreadPage() {
     );
   };
 
-  const startReply = (message: MessageView, photoIndex?: number) => {
+  const startReply = (message: MessageView, photoIndex?: number, productId?: string) => {
     setReplyTo(message);
     setReplyPhotoIndex(photoIndex ?? null);
+    setReplyProductId(productId ?? null);
     queueMicrotask(() => draftInputRef.current?.focus());
   };
 
@@ -1195,8 +1202,18 @@ export function ThreadPage() {
       ? {
           replyToMessageId: replyTo.id,
           ...(replyPhotoIndex != null ? { replyToPhotoIndex: replyPhotoIndex } : {}),
+          ...(replyProductId ? { replyToProductId: replyProductId } : {}),
         }
       : {};
+
+  useEffect(() => {
+    const quote = parseQuoteDesignNavState(location.state);
+    if (!quote) return;
+    const parent = ordered.find((message) => message.id === quote.messageId);
+    if (!parent || parent.type !== 'design_album') return;
+    startReply(parent, undefined, quote.productId);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: {} });
+  }, [location.state, location.pathname, location.search, navigate, ordered]);
 
   const highlightMessage = (messageId: string, persist = false) => {
     const root = listRef.current;
@@ -2224,6 +2241,7 @@ export function ThreadPage() {
                 ) : null}
                 <TimelineItem
                   message={message}
+                  threadId={id}
                   primaryAcceptQuoteId={primaryAcceptQuoteId}
                   viewerCompanyId={companyId}
                   searchHighlight={searchOpen ? searchQ : ''}
@@ -2426,9 +2444,11 @@ export function ThreadPage() {
         >
           {replyTo ? (
             <div className="flex items-start gap-2 rounded-xl bg-foam px-3 py-2">
-              {quotedPhotoUrl(replyTo, replyPhotoIndex) ? (
+              {quotedComposerThumbUrl(replyTo, replyPhotoIndex, replyProductId) ? (
                 <img
-                  src={toAbsoluteMediaUrl(quotedPhotoUrl(replyTo, replyPhotoIndex)!)}
+                  src={toAbsoluteMediaUrl(
+                    quotedComposerThumbUrl(replyTo, replyPhotoIndex, replyProductId)!,
+                  )}
                   alt=""
                   className="h-10 w-10 shrink-0 rounded-lg object-cover"
                   data-testid="reply-quote-thumb"
@@ -2437,7 +2457,7 @@ export function ThreadPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-accent">Replying to</p>
                 <p className="truncate text-sm text-ink">
-                  {replyComposerLabel(replyTo, replyPhotoIndex)}
+                  {replyComposerLabel(replyTo, replyPhotoIndex, replyProductId)}
                 </p>
               </div>
               <button
@@ -2446,6 +2466,7 @@ export function ThreadPage() {
                 onClick={() => {
                   setReplyTo(null);
                   setReplyPhotoIndex(null);
+                  setReplyProductId(null);
                 }}
               >
                 Clear
@@ -3445,6 +3466,7 @@ function MessageChrome({
 
 function TimelineItem({
   message,
+  threadId,
   primaryAcceptQuoteId,
   viewerCompanyId,
   searchHighlight = '',
@@ -3472,6 +3494,7 @@ function TimelineItem({
   actions,
 }: {
   message: MessageView;
+  threadId: string;
   primaryAcceptQuoteId: string | null;
   viewerCompanyId: string | null;
   searchHighlight?: string;
@@ -3545,7 +3568,7 @@ function TimelineItem({
         : metaProductIds;
   const designsPath =
     message.type === 'design_album' && ref?.available && designIds.length > 0
-      ? designSetPath(designIds, { facilitator })
+      ? designSetPath(designIds, { facilitator, threadId, messageId: message.id })
       : undefined;
   const complaintOrderId =
     message.type === 'complaint'

@@ -1,16 +1,18 @@
-/** Mid tones with white initials — WhatsApp-like, not all one brand teal. */
-export const AVATAR_TONES = [
-  '#E17076',
-  '#7BC862',
-  '#E5A84B',
-  '#65AADD',
-  '#A695E7',
-  '#EE7AAE',
-  '#6EC9CB',
-  '#F0785A',
-] as const;
+/** Pale wash + matching ink — current WhatsApp initials, not loud mid-tone discs. */
+export type AvatarTone = { bg: string; ink: string };
 
-export function avatarTone(name: string): string {
+export const AVATAR_TONES: readonly AvatarTone[] = [
+  { bg: '#FDE8EC', ink: '#C45B6A' },
+  { bg: '#E8F5E4', ink: '#5A8F4E' },
+  { bg: '#FFF6E0', ink: '#B08A3A' },
+  { bg: '#E8F3FC', ink: '#5B8FB8' },
+  { bg: '#F0EBFB', ink: '#7A6BA8' },
+  { bg: '#FCE8F2', ink: '#B86B8A' },
+  { bg: '#E5F5F5', ink: '#4A8A8C' },
+  { bg: '#FDEDE6', ink: '#C46A4A' },
+];
+
+export function avatarTone(name: string): AvatarTone {
   const key = name.trim() || '?';
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {

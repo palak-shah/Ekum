@@ -254,10 +254,17 @@ export function Avatar({
       />
     );
   }
+  const tone = avatarTone(name);
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full font-bold text-white"
-      style={{ width: size, height: size, fontSize: size * 0.36, backgroundColor: avatarTone(name) }}
+      className="flex shrink-0 items-center justify-center rounded-full font-bold"
+      style={{
+        width: size,
+        height: size,
+        fontSize: size * 0.36,
+        backgroundColor: tone.bg,
+        color: tone.ink,
+      }}
     >
       {initials(name) || '?'}
     </span>

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAsRavi } from '../../helpers/persona';
+import { pickYouLibraryFilter } from '../../helpers/youLibrary';
 import { SAMPLE_JPG, sampleJpgTimes } from '../../helpers/fixtures';
 
 test.describe('add designs creation @functional @media @creation @catalog', () => {
@@ -39,7 +40,7 @@ test.describe('add designs creation @functional @media @creation @catalog', () =
     await expect(page.getByText('Designs saved').first()).toBeVisible({ timeout: 45_000 });
     await expect(page).toHaveURL(/\/catalog/, { timeout: 20_000 });
 
-    await page.getByRole('button', { name: 'Draft', exact: true }).click();
+    await pickYouLibraryFilter(page, 'Draft');
 
     const tile = page.getByTestId('catalog-product-tile').filter({ hasText: sku });
     await expect(tile).toBeVisible({ timeout: 20_000 });
@@ -73,7 +74,7 @@ test.describe('add designs creation @functional @media @creation @catalog', () =
     await expect(page.getByText('Designs saved').first()).toBeVisible({ timeout: 60_000 });
     await expect(page).toHaveURL(/\/catalog/);
 
-    await page.getByRole('button', { name: 'Draft', exact: true }).click();
+    await pickYouLibraryFilter(page, 'Draft');
     await expect(
       page.getByTestId('catalog-product-tile').filter({ hasText: firstSku }),
     ).toBeVisible({ timeout: 20_000 });

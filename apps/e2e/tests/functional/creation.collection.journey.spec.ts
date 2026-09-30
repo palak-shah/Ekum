@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { loginAsRavi } from '../../helpers/persona';
+import { pickYouLibraryFilter } from '../../helpers/youLibrary';
 import { SAMPLE_JPG, sampleJpgTimes } from '../../helpers/fixtures';
 
 async function openDraftCollectionByName(page: import('@playwright/test').Page, name: string) {
   await expect(page).toHaveURL(/\/catalog/, { timeout: 20_000 });
-  await page.getByRole('button', { name: 'Draft', exact: true }).click();
+  await pickYouLibraryFilter(page, 'Draft');
   const tile = page.getByRole('button').filter({ hasText: name }).first();
   await expect(tile).toBeVisible({ timeout: 20_000 });
   await tile.click();

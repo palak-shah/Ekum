@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { CollectionCard } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { AlbumGrid } from '@/ui/cards';
+import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { collectionMosaicCount, packFeedCaption, packFeedDetailLine } from '@/ui/albumMosaic';
 import { CheckIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from '@/ui/useLongPress';
-import { collectionMosaicCount } from '@/ui/albumMosaic';
 import { shopCollectionPreviewImages } from './shopPhoto';
 
 export function ShopPhotoCell({
@@ -19,6 +19,7 @@ export function ShopPhotoCell({
   onToggleSelect,
   testId,
   showName = false,
+  layout = 'grid',
 }: {
   src: string | null;
   label: string;
@@ -29,12 +30,12 @@ export function ShopPhotoCell({
   onToggleSelect?: () => void;
   testId?: string;
   showName?: boolean;
+  layout?: 'feed' | 'grid';
 }) {
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
   const url = toAbsoluteMediaUrl(src);
   const selecting = Boolean(selectMode && onToggleSelect);
-
   const onActivate = () => {
     if (isLongPressActivateSuppressed()) return;
     if (selecting) {
@@ -43,6 +44,22 @@ export function ShopPhotoCell({
     }
     if (to) navigate(to);
   };
+  if (layout === 'feed') {
+    return (
+      <CatalogFeedPost
+        name={label}
+        href={to ?? '#'}
+        images={url ? [url] : []}
+        imageCount={1}
+        selected={selected}
+        selectMode={selectMode}
+        onMediaClick={onActivate}
+        onLongSelect={onLongSelect}
+        mediaTestId={testId}
+        openTestId={testId ? `${testId}-open` : undefined}
+      />
+    );
+  }
 
   const photo = (
     <button
@@ -112,12 +129,14 @@ export function ShopCollectionCell({
   selectMode = false,
   onLongSelect,
   onToggleSelect,
+  layout = 'grid',
 }: {
   collection: CollectionCard;
   selected?: boolean;
   selectMode?: boolean;
   onLongSelect?: () => void;
   onToggleSelect?: () => void;
+  layout?: 'feed' | 'grid';
 }) {
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
@@ -134,6 +153,32 @@ export function ShopCollectionCell({
     }
     navigate(`/collections/${collection.id}`);
   };
+  if (layout === 'feed') {
+    return (
+      <CatalogFeedPost
+        name={collection.name}
+        meta={packFeedCaption({
+          live: true,
+          productCount: collection.productCount,
+          when: explorePostedWhen(collection.updatedAt),
+        })}
+        detail={packFeedDetailLine({ tags: collection.categories })}
+        href={`/collections/${collection.id}`}
+        images={images.map((url) => toAbsoluteMediaUrl(url)).filter((url): url is string => Boolean(url))}
+        imageCount={collectionMosaicCount({
+          productCount: collection.productCount,
+          previewCount: images.length,
+        })}
+        company={collection.company}
+        selected={selected}
+        selectMode={selectMode}
+        onMediaClick={onMosaic}
+        onLongSelect={onLongSelect}
+        mediaTestId={`company-shop-collection-${collection.id}`}
+        openTestId={`company-shop-collection-open-${collection.id}`}
+      />
+    );
+  }
 
   return (
     <div
@@ -193,8 +238,7 @@ export function ShopPhotoGrid({
   return (
     <div
       className={cx(
-        '-mx-4 bg-line',
-        layout === 'feed' ? 'flex flex-col gap-px' : 'grid grid-cols-2 gap-px',
+        layout === 'feed' ? 'flex flex-col' : '-mx-4 grid grid-cols-2 gap-px bg-line',
       )}
       data-testid="company-shop-grid"
       data-layout={layout}

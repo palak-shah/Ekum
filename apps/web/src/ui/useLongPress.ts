@@ -33,6 +33,7 @@ export function useLongPress(onLongPress?: () => void, ms = 420) {
       clear();
       timer.current = window.setTimeout(() => {
         timer.current = null;
+        if (fired.current) return;
         fired.current = true;
         markLongPressFired();
         onLongPress();
@@ -42,8 +43,10 @@ export function useLongPress(onLongPress?: () => void, ms = 420) {
     onPointerLeave: clear,
     onPointerCancel: clear,
     onContextMenu: (event: MouseEvent) => {
-      if (!onLongPress) return;
       event.preventDefault();
+      if (!onLongPress) return;
+      clear();
+      if (fired.current || isLongPressActivateSuppressed()) return;
       fired.current = true;
       markLongPressFired();
       onLongPress();

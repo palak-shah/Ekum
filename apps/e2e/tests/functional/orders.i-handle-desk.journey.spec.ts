@@ -51,12 +51,8 @@ test.describe('I-handle desk @functional @orders', () => {
     expect(tradingRows.results.every((row) => row.tradeMode === 'manage')).toBe(true);
 
     await page.goto('/orders');
-    await page.getByTestId('orders-filter').click();
-    await page.getByTestId('orders-filter-open-type').click();
-    await page.getByTestId('orders-filter-type-trading').click();
-    await expect(page).toHaveURL(/kind=trading/, { timeout: 10_000 });
-    await expect(page.getByText(/Showing/)).toContainText('Trading');
-    await expect(page.getByText(/Trading/).first()).toBeVisible();
+    await expect(page.locator(`a[href="/orders/${created.id}"]`)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Trading').first()).toBeVisible();
 
     await page.goto(`/orders/${created.id}`);
     await expect(page.getByRole('button', { name: /Send to / })).toBeVisible({ timeout: 15_000 });

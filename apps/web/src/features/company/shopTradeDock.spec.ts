@@ -126,6 +126,16 @@ describe('shouldHideAppNav', () => {
       shouldHideAppNav('/catalog/collections/abc', { thisShopSelectedCount: 0 }),
     ).toBe(true);
   });
+
+  it('hides on own profile only while editing', () => {
+    expect(shouldHideAppNav('/settings/profile', { thisShopSelectedCount: 0 })).toBe(false);
+    expect(
+      shouldHideAppNav('/settings/profile', { thisShopSelectedCount: 0, search: '?edit=1' }),
+    ).toBe(true);
+    expect(
+      shouldHideAppNav('/settings/profile', { thisShopSelectedCount: 0, search: '?focus=sell' }),
+    ).toBe(true);
+  });
 });
 
 describe('companyIdFromPath', () => {

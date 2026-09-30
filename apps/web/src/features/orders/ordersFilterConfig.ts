@@ -1,18 +1,25 @@
 import type { TradeKindFacet } from './tradeFind';
 
-/** Statuses in the Orders filter menu (single-select). */
-export const TRADE_FILTER_STATUSES: ReadonlyArray<{ label: string; status: string }> = [
+export type OrdersAttentionTab = 'pending' | 'completed';
+
+/** Pending chip — open trade. */
+export const TRADE_FILTER_PENDING_STATUSES: ReadonlyArray<{ label: string; status: string }> = [
   { label: 'Requested', status: 'requested' },
   { label: 'Confirmed', status: 'confirmed' },
   { label: 'Part shipped', status: 'part_shipped' },
-  { label: 'Dispatched · complete', status: 'dispatched' },
-  { label: 'Settled · complete', status: 'settled' },
-  // Legacy `delivered` still matches Find/API; not offered as a primary filter.
-  { label: 'Received', status: 'received' },
-  { label: 'Approved', status: 'approved' },
-  { label: 'Resolved', status: 'resolved' },
-  { label: 'Declined', status: 'declined' },
+];
+
+/** Completed chip — finished trade. */
+export const TRADE_FILTER_COMPLETED_STATUSES: ReadonlyArray<{ label: string; status: string }> = [
+  { label: 'Dispatched', status: 'dispatched' },
+  { label: 'Settled', status: 'settled' },
   { label: 'Cancelled', status: 'cancelled' },
+];
+
+/** Statuses in the Orders filter menu (single-select, scoped by tab). */
+export const TRADE_FILTER_STATUSES: ReadonlyArray<{ label: string; status: string }> = [
+  ...TRADE_FILTER_PENDING_STATUSES,
+  ...TRADE_FILTER_COMPLETED_STATUSES,
 ];
 
 /** Legacy status still filterable via URL / Find, not in the menu list above. */
@@ -22,10 +29,26 @@ export const TRADE_FILTER_LEGACY_STATUSES: ReadonlyArray<{ label: string; status
 
 export const TRADE_FILTER_TYPES: ReadonlyArray<{ label: string; kind: TradeKindFacet }> = [
   { label: 'Order', kind: 'order' },
-  { label: 'Trading', kind: 'trading' },
   { label: 'Sample', kind: 'sample' },
-  { label: 'Return', kind: 'return' },
 ];
+
+export function tradeStatusesForTab(
+  tab: OrdersAttentionTab,
+): ReadonlyArray<{ label: string; status: string }> {
+  return tab === 'pending' ? TRADE_FILTER_PENDING_STATUSES : TRADE_FILTER_COMPLETED_STATUSES;
+}
+
+export function tabForTradeStatus(status: string): OrdersAttentionTab | null {
+  if (TRADE_FILTER_PENDING_STATUSES.some((row) => row.status === status)) return 'pending';
+  if (TRADE_FILTER_COMPLETED_STATUSES.some((row) => row.status === status)) return 'completed';
+  if (TRADE_FILTER_LEGACY_STATUSES.some((row) => row.status === status)) return 'completed';
+  return null;
+}
+
+export function statusFitsTab(status: string | null, tab: OrdersAttentionTab): boolean {
+  if (!status) return true;
+  return tabForTradeStatus(status) === tab;
+}
 
 export function statusFromParam(value: string | null): string | null {
   if (!value) return null;
@@ -41,7 +64,6 @@ export function tradeMenuFilterSummary(input: {
 }): string {
   const parts: string[] = [];
   if (input.kindFacet === 'sample') parts.push('Sample');
-  else if (input.kindFacet === 'return') parts.push('Return');
   else if (input.kindFacet === 'trading') parts.push('Trading');
   else if (input.kindFacet === 'order') parts.push('Order');
   if (input.statusFacet) {

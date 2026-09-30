@@ -1037,10 +1037,12 @@ export class ExploreService {
     }
 
     const card = this.discovery.toCollectionCard(collection);
+    const description = collection.description?.trim() || null;
     // Locked pack: name + shop for Ask — no cover/design thumbs (or chat open is pointless).
     if (!showProducts) {
       return {
         ...card,
+        description,
         coverImage: null,
         previewImages: [],
         imageCount: 0,
@@ -1051,6 +1053,7 @@ export class ExploreService {
     }
     return {
       ...card,
+      description,
       connected,
       products,
       viewerTicket,

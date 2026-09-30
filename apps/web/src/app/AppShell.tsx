@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useSyncExternalStore, useTransition, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore, useTransition, type ReactNode } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
@@ -6,7 +6,7 @@ import { useChatUnreadCount, useMyCompany, useOrdersNeedsYouCount, useUnreadCoun
 import { ordersNavAriaLabel, tabCountBadge, tabCountLabel } from './navCountBadge';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
-import { Avatar, cx } from '@/ui/kit';
+import { cx } from '@/ui/kit';
 import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
 import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
@@ -17,8 +17,13 @@ import {
   shopSelectedCount,
 } from '@/features/company/shopTradeDock';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
+import {
+  getOrderActionDockNavVisible,
+  subscribeOrderActionDockNav,
+} from '@/features/orders/orderActionDockNav';
+import { CreateCollectionFabSheet } from './CreateCollectionFabSheet';
 import { createFabHref, createFabIntent, CREATE_FAB_EXPLAIN } from './createFabIntent';
-import { pageOwnsTopChrome, shellTitle } from './shellTitle';
+import { pageOwnsTopChrome, shellShowsHomeBack, shellTitle } from './shellTitle';
 import { useToast } from '@/ui/Toast';
 import {
   chatsInboxHref,
@@ -27,9 +32,9 @@ import {
 } from '@/features/chats/chatsInboxFilter';
 import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
 import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
-import { YouHeaderMore } from '@/features/settings/YouHeaderMore';
-import { YouHeaderShare } from '@/features/settings/YouHeaderShare';
+import { HomeAccountMenu } from '@/features/home/HomeAccountMenu';
 import {
+  BackIcon,
   BellIcon,
   ChatIcon,
   ExploreIcon,
@@ -54,6 +59,7 @@ export function AppShell() {
   const location = useLocation();
   const { showToast } = useToast();
   const [, startTransition] = useTransition();
+  const [createOpen, setCreateOpen] = useState(false);
   const { session } = useAuth();
   const company = useMyCompany();
   const shortlist = useBrowseShortlist();
@@ -72,6 +78,7 @@ export function AppShell() {
     canOrders: can('orders'),
   });
   const title = shellTitle(location.pathname);
+  const showHomeBack = shellShowsHomeBack(location.pathname);
   const isHome = location.pathname === '/';
   const ownsTopChrome = pageOwnsTopChrome(location.pathname);
   const isChatThread =
@@ -82,12 +89,19 @@ export function AppShell() {
     getRememberedChatsInbox,
     getRememberedChatsInbox,
   );
-  const hideAppNav = shouldHideAppNav(location.pathname, {
-    myCompanyId: company.data?.id,
-    thisShopSelectedCount: shopId
-      ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
-      : 0,
-  });
+  const orderDockHidesNav = useSyncExternalStore(
+    subscribeOrderActionDockNav,
+    getOrderActionDockNavVisible,
+    getOrderActionDockNavVisible,
+  );
+  const hideAppNav =
+    shouldHideAppNav(location.pathname, {
+      myCompanyId: company.data?.id,
+      thisShopSelectedCount: shopId
+        ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
+        : 0,
+      search: location.search,
+    }) || orderDockHidesNav;
   const wasOrdersPath = useRef(false);
 
   useEffect(() => {
@@ -95,6 +109,10 @@ export function AppShell() {
   }, [location.pathname]);
 
   const onCreate = () => {
+    if (fabIntent === 'collection') {
+      setCreateOpen(true);
+      return;
+    }
     const href = createFabHref(fabIntent);
     if (href) {
       navigate(href);
@@ -118,22 +136,31 @@ export function AppShell() {
             title ? 'justify-between' : 'justify-end',
           )}
         >
-          {title ? (
-            <h1 className="text-[1.375rem] font-semibold tracking-[-0.03em] text-ink">{title}</h1>
-          ) : (
-            <span className="min-w-0 flex-1" aria-hidden />
-          )}
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">
+            {showHomeBack ? (
+              <button
+                type="button"
+                aria-label="Back"
+                data-testid="you-back-home"
+                className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"
+                onClick={() => navigate('/')}
+              >
+                <BackIcon />
+              </button>
+            ) : null}
+            {title ? (
+              <h1 className="truncate text-[1.375rem] font-semibold tracking-[-0.03em] text-ink">
+                {title}
+              </h1>
+            ) : (
+              <span className="min-w-0 flex-1" aria-hidden />
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-0.5">
             {location.pathname === '/chats' ? (
               <>
                 <ChatsHeaderMore />
                 <ChatsHeaderNew />
-              </>
-            ) : null}
-            {location.pathname === '/more' ? (
-              <>
-                <YouHeaderShare />
-                <YouHeaderMore />
               </>
             ) : null}
             {isHome ? (
@@ -152,18 +179,10 @@ export function AppShell() {
                     </span>
                   ) : null}
                 </button>
-                <button
-                  type="button"
-                  aria-label="Profile and settings"
-                  className="rounded-full p-0.5"
-                  onClick={() => startTransition(() => navigate('/more'))}
-                >
-                  <Avatar
-                    name={company.data?.name ?? session?.user.name ?? 'E'}
-                    imageUrl={company.data?.logoUrl}
-                    size={36}
-                  />
-                </button>
+                <HomeAccountMenu
+                  name={company.data?.name ?? session?.user.name ?? 'E'}
+                  imageUrl={company.data?.logoUrl}
+                />
               </>
             ) : null}
           </div>
@@ -200,6 +219,12 @@ export function AppShell() {
       </main>
 
       <SelectionWorkspaceBar />
+
+      <CreateCollectionFabSheet
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onPick={(href) => navigate(href)}
+      />
 
       <nav
         data-testid="app-bottom-nav"

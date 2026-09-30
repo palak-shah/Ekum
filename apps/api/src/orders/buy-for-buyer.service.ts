@@ -27,6 +27,9 @@ import { DomainEvents } from '../events/events.module';
 import { randomToken } from '../common/crypto.util';
 import { connectionPairWhere } from '../access/connection-pair';
 import { OrderSerializer } from './order.serializer';
+import { OrderService } from './order.service';
+import { groupForBuyerLines } from './for-buyer-groups';
+import { effectivePathFromLane } from './trade-lane';
 import { phoneDigits, phoneVariants } from './order-invite-claim';
 
 const INVITE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -48,6 +51,7 @@ export class BuyForBuyerService {
     private readonly threads: ThreadService,
     private readonly events: DomainEvents,
     private readonly serializer: OrderSerializer,
+    private readonly orders: OrderService,
   ) {}
 
   async create(
@@ -73,76 +77,139 @@ export class BuyForBuyerService {
     const byId = new Map(products.map((row) => [row.id, row]));
 
     const buyer = await this.resolveBuyer(actorCompanyId, seller.city, dto);
-    const items = dto.items.map((item) => {
-      const product = byId.get(item.productId)!;
-      return {
-        productId: product.id,
-        name: product.name,
-        sku: product.sku,
-        rate: item.rate ?? product.rate,
-        unit: product.unit,
-        image: product.images[0] ?? null,
-        images: product.images,
-        quantity: item.quantity,
-        requestedQuantity: item.quantity,
-        lineStatus: OrderLineStatus.Open,
-      };
-    });
+    const grouped = groupForBuyerLines(dto.items, products, actorCompanyId);
 
-    const order = await this.prisma.order.create({
-      data: {
-        kind: OrderKind.Standard,
-        intent: OrderIntent.Order,
-        status: OrderStatus.Requested,
-        tradeMode: OrderTradeMode.Bilateral,
-        buyerCompanyId: buyer.companyId,
-        sellerCompanyId: actorCompanyId,
-        createdByCompanyId: actorCompanyId,
-        createdByUserId: userId,
-        updatedByUserId: userId,
-        note: dto.note ?? null,
-        items: { create: items },
-      },
-      include: ORDER_INCLUDE,
-    });
+    let first: OrderView | null = null;
+    let inviteOrderId: string | null = null;
 
-    const threadId = await this.threads.ensureTradeThread(buyer.companyId, actorCompanyId);
-    const orderLabel = shortOrderLabel(order.id);
-    await this.prisma.message.create({
-      data: {
-        threadId,
-        senderCompanyId: actorCompanyId,
-        type: MessageType.OrderCard,
-        body: `${seller.name} logged an order`,
-        referenceId: order.id,
-        metadata: {
-          status: order.status,
-          itemCount: order.items.length,
-          event: OrderChatEvent.OrderRequested,
-          orderLabel,
-          actorLabel: seller.name,
-          actorRole: 'seller',
-          createdBySeller: true,
+    if (grouped.own.length > 0) {
+      const ownItems = grouped.own.map((item) => {
+        const product = byId.get(item.productId)!;
+        return {
+          productId: product.id,
+          name: product.name,
+          sku: product.sku,
+          rate: item.rate ?? product.rate,
+          unit: product.unit,
+          image: product.images[0] ?? null,
+          images: product.images,
+          quantity: item.quantity,
+          requestedQuantity: item.quantity,
+          lineStatus: OrderLineStatus.Open,
+        };
+      });
+      const order = await this.prisma.order.create({
+        data: {
+          kind: OrderKind.Standard,
+          intent: OrderIntent.Order,
+          status: OrderStatus.Requested,
+          tradeMode: OrderTradeMode.Bilateral,
+          buyerCompanyId: buyer.companyId,
+          sellerCompanyId: actorCompanyId,
+          createdByCompanyId: actorCompanyId,
+          createdByUserId: userId,
+          updatedByUserId: userId,
+          note: dto.note ?? null,
+          items: { create: ownItems },
         },
-      },
-    });
-    await this.prisma.thread.update({
-      where: { id: threadId },
-      data: { lastMessageAt: new Date() },
-    });
+        include: ORDER_INCLUDE,
+      });
 
-    this.events.orderCreated({
-      orderId: order.id,
-      buyerCompanyId: order.buyerCompanyId,
-      sellerCompanyId: order.sellerCompanyId,
-    });
+      const threadId = await this.threads.ensureTradeThread(buyer.companyId, actorCompanyId);
+      const orderLabel = shortOrderLabel(order.id);
+      await this.prisma.message.create({
+        data: {
+          threadId,
+          senderCompanyId: actorCompanyId,
+          type: MessageType.OrderCard,
+          body: `${seller.name} logged an order`,
+          referenceId: order.id,
+          metadata: {
+            status: order.status,
+            itemCount: order.items.length,
+            event: OrderChatEvent.OrderRequested,
+            orderLabel,
+            actorLabel: seller.name,
+            actorRole: 'seller',
+            createdBySeller: true,
+          },
+        },
+      });
+      await this.prisma.thread.update({
+        where: { id: threadId },
+        data: { lastMessageAt: new Date() },
+      });
+
+      this.events.orderCreated({
+        orderId: order.id,
+        buyerCompanyId: order.buyerCompanyId,
+        sellerCompanyId: order.sellerCompanyId,
+      });
+      first = this.serializer.toOrderView(order, actorCompanyId, threadId);
+      inviteOrderId = order.id;
+    }
+
+    for (const [millId, millItems] of grouped.byMill) {
+      const path = await this.pathForPair(actorCompanyId, millId, buyer.companyId);
+      const hopItems = millItems.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        rate: item.rate,
+      }));
+      const view =
+        path === 'direct'
+          ? await this.orders.create(
+              actorCompanyId,
+              userId,
+              {
+                sellerCompanyId: millId,
+                kind: OrderKind.Standard,
+                intent: OrderIntent.Order,
+                note: dto.note,
+                facilitatorCompanyId: actorCompanyId,
+                items: hopItems,
+              },
+              {
+                onBehalfBuyerCompanyId: buyer.companyId,
+                skipLanePlace: true,
+                tradeMode: OrderTradeMode.Direct,
+                facilitatorCompanyId: actorCompanyId,
+              },
+            )
+          : await this.orders.create(
+              actorCompanyId,
+              userId,
+              {
+                sellerCompanyId: actorCompanyId,
+                kind: OrderKind.Standard,
+                intent: OrderIntent.Order,
+                orderPathPreference: 'handle',
+                note: dto.note,
+                items: hopItems,
+              },
+              {
+                onBehalfBuyerCompanyId: buyer.companyId,
+                skipLanePlace: true,
+                allowForeignProducts: true,
+                tradeMode: OrderTradeMode.Manage,
+              },
+            );
+      first ??= view;
+    }
+
+    if (!first) {
+      throw new BadRequestException({
+        code: 'NOT_FOUND',
+        message: 'A design is missing.',
+      });
+    }
 
     let invitePath: string | null = null;
-    if (buyer.invitePhone) {
+    if (buyer.invitePhone && inviteOrderId) {
       const token = randomToken(18);
       await this.prisma.orderAcceptInvite.create({
         data: {
-          orderId: order.id,
+          orderId: inviteOrderId,
           token,
           phone: buyer.invitePhone,
           expiresAt: new Date(Date.now() + INVITE_MS),
@@ -152,7 +219,7 @@ export class BuyForBuyerService {
     }
 
     return {
-      order: this.serializer.toOrderView(order, actorCompanyId, threadId),
+      order: first,
       invitePath,
     };
   }
@@ -175,6 +242,12 @@ export class BuyForBuyerService {
       });
     }
     if (order.createdByCompanyId !== order.sellerCompanyId) {
+      throw new BadRequestException({
+        code: 'NOT_LOGGED',
+        message: 'This is not a logged ticket.',
+      });
+    }
+    if (order.tradeMode !== OrderTradeMode.Bilateral) {
       throw new BadRequestException({
         code: 'NOT_LOGGED',
         message: 'This is not a logged ticket.',
@@ -367,6 +440,24 @@ export class BuyForBuyerService {
         message: 'Sign in with the phone on this link.',
       });
     }
+  }
+
+  private async pathForPair(
+    traderCompanyId: string,
+    millCompanyId: string,
+    buyerCompanyId: string,
+  ): Promise<'handle' | 'direct'> {
+    const lane = await this.prisma.tradeLane.findUnique({
+      where: {
+        traderCompanyId_sellerCompanyId_buyerCompanyId: {
+          traderCompanyId,
+          sellerCompanyId: millCompanyId,
+          buyerCompanyId,
+        },
+      },
+      select: { ticket: true },
+    });
+    return effectivePathFromLane(lane?.ticket);
   }
 
   private async resolveBuyer(

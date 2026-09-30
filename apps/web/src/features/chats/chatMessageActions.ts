@@ -6,6 +6,8 @@ import {
   documentFromMessage,
   documentTypeCue,
   photoUrlsFromMessage,
+  quotedDesignFromAlbum,
+  quotedPhotoUrl,
   shortOrderLabel,
   type MessageView,
 } from '@ekum/domain-types';
@@ -240,7 +242,12 @@ export function forwardPayload(message: MessageView): {
 export function replyComposerLabel(
   message: MessageView,
   photoIndex?: number | null,
+  productId?: string | null,
 ): string {
+  if (productId) {
+    const quoted = quotedDesignFromAlbum(message.reference, productId);
+    return quoted ? `Design · ${quoted.name}` : 'Design';
+  }
   if (message.type === 'photo' && photoIndex != null) {
     return 'Photo';
   }
@@ -272,4 +279,15 @@ export function replyComposerLabel(
     return body.length > 60 ? `${body.slice(0, 60)}…` : body;
   }
   return 'Message';
+}
+
+export function quotedComposerThumbUrl(
+  message: MessageView,
+  photoIndex?: number | null,
+  productId?: string | null,
+): string | null {
+  if (productId) {
+    return quotedDesignFromAlbum(message.reference, productId)?.image ?? null;
+  }
+  return quotedPhotoUrl(message, photoIndex);
 }

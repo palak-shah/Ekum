@@ -15,6 +15,8 @@ import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { applySelectingPill } from '@/features/browse/selectingPill';
+import { exploreShowSelectChrome } from './exploreSelectChrome';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -674,14 +676,23 @@ export function ExplorePage() {
     );
   };
 
-  const contentCount =
+  const selectableCount =
     contentMode === 'collections'
       ? filteredCollections.length
       : contentMode === 'designs'
         ? filteredDesigns.length
         : contentMode === 'businesses'
-          ? 1
+          ? 0
           : filteredPosts.length;
+  const contentCount = contentMode === 'businesses' ? 1 : selectableCount;
+  const selecting =
+    shortlist.count > 0 || albumPick.count > 0 || shortlist.selectMode || albumPick.selectMode;
+  const showSelectChrome = exploreShowSelectChrome({
+    searchFocused,
+    tradeSide,
+    contentMode,
+    selectableCount,
+  });
 
   const hasSellCategories = (company.data?.sellCategories ?? []).some(
     (tag) => tag.trim().length > 0,
@@ -751,6 +762,30 @@ export function ExplorePage() {
             >
               <FilterIcon width={20} height={20} />
             </ListSquareButton>
+            {showSelectChrome ? (
+              <button
+                type="button"
+                data-testid="explore-select"
+                className={cx(
+                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                  selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                )}
+                onClick={() =>
+                  applySelectingPill(selecting, shortlist.count + albumPick.count, {
+                    clear: () => {
+                      shortlist.clear();
+                      albumPick.clear();
+                    },
+                    setSelectMode: (on) => {
+                      shortlist.setSelectMode(on);
+                      albumPick.setSelectMode(on);
+                    },
+                  })
+                }
+              >
+                {selecting ? 'Selecting' : 'Select'}
+              </button>
+            ) : null}
 
             <ExploreFilterMenu
               open={menuOpen}

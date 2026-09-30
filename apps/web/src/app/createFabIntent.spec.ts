@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { CREATE_FAB_EXPLAIN, createFabHref, createFabIntent } from './createFabIntent';
+import {
+  CREATE_FAB_EXPLAIN,
+  CREATE_FAB_MY_COLLECTIONS_HREF,
+  CREATE_FAB_NEW_COLLECTION_HREF,
+  createFabHref,
+  createFabIntent,
+} from './createFabIntent';
 
 describe('createFabIntent', () => {
-  it('opens New collection when they sell and can upload', () => {
+  it('opens the Collection sheet when they sell and can upload', () => {
     expect(
       createFabIntent({ selling: true, buying: true, canUploads: true, canOrders: true }),
     ).toBe('collection');
-    expect(createFabHref('collection')).toBe('/catalog/collections/new');
+    expect(createFabHref('collection')).toBeNull();
+    expect(CREATE_FAB_NEW_COLLECTION_HREF).toBe('/catalog/collections/new');
+    expect(CREATE_FAB_MY_COLLECTIONS_HREF).toBe('/catalog?tab=collections');
   });
 
   it('opens Orders when they only buy', () => {

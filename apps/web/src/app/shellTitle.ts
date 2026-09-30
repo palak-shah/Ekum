@@ -19,6 +19,11 @@ export function pageOwnsTopChrome(pathname: string): boolean {
   return false;
 }
 
+/** You is a Home destination — Back on the shell band, not history −1. */
+export function shellShowsHomeBack(pathname: string): boolean {
+  return pathname === '/more';
+}
+
 /** Sticky shell h1 on tab roots. Nested/detail routes return null (PageHeader owns the title). */
 export function shellTitle(pathname: string): string | null {
   if (pathname === '/') return 'Home';

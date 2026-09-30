@@ -3,15 +3,20 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { youShortcutItems } from '@/features/settings/youShortcuts';
 import { useAuth } from '@/lib/auth';
-import { cx } from '@/ui/kit';
-import { MoreHorizontalIcon } from '@/ui/icons';
+import { Avatar, cx } from '@/ui/kit';
 import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
 
 const ITEM =
   'flex w-full px-4 py-3 text-left text-[15px] font-semibold tracking-tight text-ink hover:bg-foam/70';
 
-/** You shell ⋯ — Network, Settings, Log out (same band as Chats ⋯). */
-export function YouHeaderMore() {
+/** Home header avatar — Profile, Network, library, Settings, Log out. */
+export function HomeAccountMenu({
+  name,
+  imageUrl,
+}: {
+  name: string;
+  imageUrl?: string | null;
+}) {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -69,17 +74,14 @@ export function YouHeaderMore() {
       <button
         ref={anchorRef}
         type="button"
-        data-testid="you-more"
-        aria-label="More"
+        data-testid="home-account"
+        aria-label="Account"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((next) => !next)}
-        className={cx(
-          'rounded-full p-2 transition-colors',
-          open ? 'bg-foam text-ink' : 'text-slate hover:bg-foam hover:text-ink',
-        )}
+        className="rounded-full p-0.5"
       >
-        <MoreHorizontalIcon width={22} height={22} />
+        <Avatar name={name} imageUrl={imageUrl} size={36} />
       </button>
       {open && typeof document !== 'undefined'
         ? createPortal(
@@ -93,7 +95,7 @@ export function YouHeaderMore() {
               <div
                 ref={panelRef}
                 role="menu"
-                data-testid="you-more-menu"
+                data-testid="home-account-menu"
                 className="fixed z-[61] w-64 overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
                 style={{ top: pos.top, right: pos.right }}
               >
@@ -102,7 +104,7 @@ export function YouHeaderMore() {
                     key={item.to}
                     type="button"
                     role="menuitem"
-                    data-testid={`you-more-${item.label.toLowerCase()}`}
+                    data-testid={`home-account-${item.testId}`}
                     className={cx(ITEM, index > 0 && 'border-t border-line/70')}
                     onClick={() => {
                       setOpen(false);
@@ -115,7 +117,7 @@ export function YouHeaderMore() {
                 <button
                   type="button"
                   role="menuitem"
-                  data-testid="you-more-logout"
+                  data-testid="home-account-logout"
                   className={cx(ITEM, 'border-t border-line/70 text-danger')}
                   onClick={() => {
                     setOpen(false);

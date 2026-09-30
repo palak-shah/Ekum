@@ -15,8 +15,10 @@ import {
   designAlbumCaption,
   designAlbumProductIdsFromMessage,
   photoUrlsFromMessage,
+  quotedDesignFromAlbum,
   quotedPhotoUrl,
   replyPhotoIndexFromMetadata,
+  replyProductIdFromMetadata,
   type CrossChatFindItemView,
   type CrossChatFindKind,
   type CursorPage,
@@ -74,7 +76,12 @@ export class MessageService {
       actor.userId,
     );
     await this.validateReference(actorCompanyId, dto);
-    await this.validateReplyTarget(threadId, dto.replyToMessageId, dto.replyToPhotoIndex);
+    await this.validateReplyTarget(
+      threadId,
+      dto.replyToMessageId,
+      dto.replyToPhotoIndex,
+      dto.replyToProductId,
+    );
     const mentionWork = await this.resolveMentions(threadId, actor.userId, actorCompanyId, dto);
 
     const sender = await this.prisma.user.findUnique({
@@ -111,7 +118,7 @@ export class MessageService {
     } else if (Object.keys(mergedMeta).length > 0) {
       rawMeta = mergedMeta as Prisma.InputJsonValue;
     }
-    const metadata = this.withReplyPhotoIndex(rawMeta, dto.replyToPhotoIndex);
+    const metadata = this.withReplyQuote(rawMeta, dto.replyToPhotoIndex, dto.replyToProductId);
 
     const now = new Date();
     const message = await this.prisma.$transaction(async (tx) => {
@@ -481,22 +488,30 @@ export class MessageService {
     });
   }
 
-  private withReplyPhotoIndex(
+  private withReplyQuote(
     metadata: Prisma.InputJsonValue | undefined,
     index: number | undefined,
+    productId: string | undefined,
   ): Prisma.InputJsonValue | undefined {
-    if (index == null) return metadata;
+    if (index == null && !productId) return metadata;
     const base =
       metadata && typeof metadata === 'object' && !Array.isArray(metadata)
         ? { ...(metadata as Record<string, unknown>) }
         : {};
-    return { ...base, replyToPhotoIndex: index } as Prisma.InputJsonValue;
+    if (index != null) {
+      base.replyToPhotoIndex = index;
+    }
+    if (productId) {
+      base.replyToProductId = productId;
+    }
+    return base as Prisma.InputJsonValue;
   }
 
   private async validateReplyTarget(
     threadId: string,
     replyToMessageId: string | undefined,
     replyToPhotoIndex?: number,
+    replyToProductId?: string,
   ): Promise<void> {
     if (!replyToMessageId) {
       return;
@@ -509,6 +524,28 @@ export class MessageService {
         code: 'INVALID_REPLY',
         message: 'You can only reply to a message in this chat.',
       });
+    }
+    if (replyToPhotoIndex != null && replyToProductId) {
+      throw new BadRequestException({
+        code: 'INVALID_REPLY',
+        message: 'Quote a photo or a design, not both.',
+      });
+    }
+    if (replyToProductId) {
+      if (parent.type !== MessageType.DesignAlbum) {
+        throw new BadRequestException({
+          code: 'INVALID_REPLY_DESIGN',
+          message: 'You can only quote a design from a designs message.',
+        });
+      }
+      const ids = designAlbumProductIdsFromMessage(parent.metadata);
+      if (!ids.includes(replyToProductId)) {
+        throw new BadRequestException({
+          code: 'INVALID_REPLY_DESIGN',
+          message: 'That design is not in this set.',
+        });
+      }
+      return;
     }
     if (replyToPhotoIndex == null) return;
     if (parent.type !== MessageType.Photo) {
@@ -567,15 +604,20 @@ export class MessageService {
       }
       const reference = parentRefs.get(parent.id) ?? null;
       const photoIndex = replyPhotoIndexFromMetadata(message.metadata);
+      const productId = replyProductIdFromMetadata(message.metadata);
+      const quotedDesign = quotedDesignFromAlbum(reference, productId);
       const photoUrl =
-        parent.type === MessageType.Photo ? quotedPhotoUrl(parent, photoIndex) : null;
+        parent.type === MessageType.Photo
+          ? quotedPhotoUrl(parent, photoIndex)
+          : (quotedDesign?.image ?? null);
       result.set(message.id, {
         id: parent.id,
         type: parent.type,
-        bodyPreview: this.replyBodyPreview(parent, reference, photoIndex),
+        bodyPreview: this.replyBodyPreview(parent, reference, photoIndex, productId),
         available: true,
         photoIndex,
         photoUrl,
+        productId,
       });
     }
     return result;
@@ -585,7 +627,12 @@ export class MessageService {
     message: Message,
     reference: MessageReference | null,
     photoIndex: number | null = null,
+    productId: string | null = null,
   ): string | null {
+    if (productId) {
+      const quoted = quotedDesignFromAlbum(reference, productId);
+      return quoted ? `Design · ${quoted.name}` : 'Design';
+    }
     if (reference?.name) {
       if (reference.kind === 'collection') {
         return `Collection · ${reference.name}`;
@@ -621,9 +668,9 @@ export class MessageService {
   }
 
   /**
-   * Forward free: pass a live catalog card as-is. View/audience is checked when
-   * the recipient opens (chat share unlocks the album shell + Ask). Blocked
-   * senders still cannot share. Curate stays gated elsewhere.
+   * Forward free: post the card. View/audience is checked when they open
+   * (they Ask the supplier). Blocked senders still cannot share. Curate stays gated elsewhere.
+   * Pack-only Published designs have no Explore tile (`postedToMarketAt` null) — still shareable.
    */
   private async validateReference(actorCompanyId: string, dto: SendMessageDto): Promise<void> {
     if (dto.type === MessageType.DesignAlbum) {
@@ -718,7 +765,6 @@ export class MessageService {
         id: true,
         companyId: true,
         status: true,
-        postedToMarketAt: true,
       },
     });
     if (!product) {
@@ -733,7 +779,7 @@ export class MessageService {
     if (await this.wasSharedInChat(actorCompanyId, product.id, MessageType.ProductCard)) {
       return;
     }
-    if (product.status === ProductStatus.Published && product.postedToMarketAt) {
+    if (product.status === ProductStatus.Published) {
       return;
     }
     throw this.invalidReference();

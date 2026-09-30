@@ -26,6 +26,7 @@ import {
 import { useMyCompany } from '@/lib/queries';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import { applySelectingPill } from '@/features/browse/selectingPill';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
@@ -54,12 +55,14 @@ import { PageHeader } from '@/ui/PageHeader';
 import { designCardShopLine, packHeaderSubtitle } from './packHeaderSubtitle';
 import { CompanyRow } from '@/ui/cards';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
-import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
+import { usePageOwnsBottomBand, usePageSelecting } from '@/features/browse/selectionBottomBand';
 import {
   collectionPackTradeDock,
   collectionShowHandleCopy,
+  collectionShowPackNote,
   collectionViewerPrimaryAction,
 } from '@/features/collections/collectionViewerChrome';
+import { CollectionVisitorNote } from '@/features/collections/CollectionVisitorNote';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
 import { curatedMemberUnavailableReason } from '@/features/collections/curatedMemberAvailability';
 import {
@@ -245,6 +248,7 @@ export function CollectionViewerPage() {
     resumeContinue: showResumeContinue,
   });
   usePageOwnsBottomBand(packTradeDock);
+  usePageSelecting(selectMode);
   const viewGrants = useQuery({
     queryKey: ['collection-view-grants', id],
     queryFn: () => api.get<CollectionViewGrantView[]>(`/collections/${id}/view-grants`),
@@ -292,6 +296,7 @@ export function CollectionViewerPage() {
   }, [isOwner, collection.data, products]);
 
   const visibleDesignIds = visibleProducts.map((product) => product.id);
+  const thisAlbumCount = visibleDesignIds.filter((id) => shortlist.productIds.has(id)).length;
   const selectAll = selectAllState(visibleDesignIds, shortlist.productIds);
   const onSelectAllVisible = () => {
     const published = visibleProducts.filter((product) => isPublishedForSelection(product.status));
@@ -471,7 +476,8 @@ export function CollectionViewerPage() {
   };
 
   const data = collection.data;
-  const floaterClearance = selectedCount + albumPick.count > 0 || showResumeContinue;
+  const floaterClearance =
+    (selectMode && selectedCount + albumPick.count > 0) || showResumeContinue;
 
   return (
     <div
@@ -500,6 +506,27 @@ export function CollectionViewerPage() {
                   setSearchOpen(true);
                 }}
               />
+            ) : null}
+            {canSelectDesigns ? (
+              <button
+                type="button"
+                data-testid="collection-select"
+                className={cx(
+                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                  selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                )}
+                onClick={() =>
+                  applySelectingPill(selectMode, thisAlbumCount, {
+                    clear: onClearVisible,
+                    setSelectMode: (on) => {
+                      setPageSelecting(on);
+                      shortlist.setSelectMode(on);
+                    },
+                  })
+                }
+              >
+                {selectMode ? 'Selecting' : 'Select'}
+              </button>
             ) : null}
             {primaryAction === 'edit' ? (
               <button
@@ -640,6 +667,9 @@ export function CollectionViewerPage() {
         company={data.company}
         to={isOwner ? undefined : `/company/${data.company.id}`}
       />
+      {collectionShowPackNote(data.description) ? (
+        <CollectionVisitorNote text={data.description ?? ''} />
+      ) : null}
       {ownerSourceLine ? (
         <p className="px-0.5 text-xs text-muted">{ownerSourceLine}</p>
       ) : null}
@@ -713,7 +743,7 @@ export function CollectionViewerPage() {
             {askToSee.isPending ? 'Asking…' : 'Ask to see this pack'}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-medium text-accent">
-            Follow or Request access on their profile
+            See new packs on their shop
           </Link>
         </Card>
       )}
@@ -893,7 +923,7 @@ function AccessPendingCard({
         {opening ? 'Opening…' : 'Open chat'}
       </Button>
       <Link to={`/company/${companyId}`} className="text-xs font-medium text-accent">
-        Follow or Request access on their profile
+        See new packs on their shop
       </Link>
     </Card>
   );

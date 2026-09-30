@@ -161,11 +161,11 @@ export function nextOrderAction(order: NextOrderActionInput): string | null {
       }
       return 'Your move: dispatch remaining';
     case 'dispatched':
-      return buying ? 'Dispatched — raise a return if needed' : 'Dispatched · complete';
+      return 'Dispatched · complete';
     case 'settled':
-      return buying ? 'Settled — raise a return if needed' : 'Settled · complete';
+      return 'Settled · complete';
     case 'delivered':
-      return buying ? 'Delivered — raise a return if needed' : 'Delivered';
+      return 'Delivered';
     case 'cancelled':
       return 'Cancelled';
     case 'declined':

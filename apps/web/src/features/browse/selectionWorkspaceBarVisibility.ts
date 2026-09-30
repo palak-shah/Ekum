@@ -8,29 +8,45 @@ export function pathOwnsBottomActionBand(pathname: string): boolean {
   return false;
 }
 
-/** Routes where the Selection floater must not cover page chrome (composer, docks). */
+export function isExploreFeedPath(pathname: string): boolean {
+  return pathname === '/explore';
+}
+
+export function isCompanyShopPath(pathname: string): boolean {
+  return /^\/company\/[^/]+$/.test(pathname);
+}
+
+export function isDesignOrPackPath(pathname: string): boolean {
+  return (
+    /^\/explore\/products\/[^/]+$/.test(pathname) ||
+    /^\/products\/[^/]+$/.test(pathname) ||
+    /^\/collections\/[^/]+$/.test(pathname)
+  );
+}
+
+/**
+ * Floater only on pick surfaces: Explore; other shop when its dock is down;
+ * design / pack while Selecting.
+ */
 export function shouldShowSelectionWorkspaceBar(
   pathname: string,
   total: number,
-  options?: { shopDockUp?: boolean; pageDockUp?: boolean },
+  options?: { shopDockUp?: boolean; pageDockUp?: boolean; ownShop?: boolean; pageSelecting?: boolean },
 ): boolean {
   if (total < 1) return false;
-  if (pathname.startsWith('/selection')) return false;
-  // Open chat thread: message composer owns the band above nav.
-  if (/^\/chats\/[^/]+/.test(pathname)) return false;
-  if (pathOwnsBottomActionBand(pathname)) return false;
-  // My designs Selecting = owner dock; Order / Curate navigate away.
-  if (
-    pathname === '/catalog' ||
-    pathname === '/catalog/' ||
-    pathname === '/more' ||
-    pathname === '/saved' ||
-    pathname === '/saved/'
-  ) {
-    return false;
-  }
-  // Company shop / pack / design Ask·Order dock owns the band.
   if (options?.shopDockUp || options?.pageDockUp) return false;
-  // Chats list, Explore, idle company, etc.
-  return true;
+  if (pathOwnsBottomActionBand(pathname)) return false;
+
+  if (isExploreFeedPath(pathname)) return true;
+
+  if (isCompanyShopPath(pathname)) {
+    if (options?.ownShop) return false;
+    return true;
+  }
+
+  if (isDesignOrPackPath(pathname)) {
+    return Boolean(options?.pageSelecting);
+  }
+
+  return false;
 }

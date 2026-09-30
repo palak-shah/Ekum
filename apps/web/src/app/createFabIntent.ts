@@ -4,6 +4,9 @@ export type CreateFabIntent = 'collection' | 'orders' | 'explain';
 export const CREATE_FAB_EXPLAIN =
   'This login cannot add designs or start an order from here. Ask the owner on Team.';
 
+export const CREATE_FAB_NEW_COLLECTION_HREF = '/catalog/collections/new';
+export const CREATE_FAB_MY_COLLECTIONS_HREF = '/catalog?tab=collections';
+
 export function createFabIntent(input: {
   selling: boolean;
   buying: boolean;
@@ -15,8 +18,8 @@ export function createFabIntent(input: {
   return 'explain';
 }
 
+/** Immediate navigate. Collection opens a chooser sheet instead. */
 export function createFabHref(intent: CreateFabIntent): string | null {
-  if (intent === 'collection') return '/catalog/collections/new';
   if (intent === 'orders') return '/orders';
   return null;
 }

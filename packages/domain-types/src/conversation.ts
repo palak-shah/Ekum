@@ -153,6 +153,47 @@ export function quotedPhotoUrl(
   return urls[index] ?? null;
 }
 
+export function replyProductIdFromMetadata(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const raw = (metadata as { replyToProductId?: unknown }).replyToProductId;
+  if (typeof raw !== 'string') return null;
+  const id = raw.trim();
+  return id.length > 0 ? id : null;
+}
+
+export function quotedDesignFromAlbum(
+  reference:
+    | {
+        designItems?: Array<{ id: string; name: string; image: string | null }> | null;
+        productIds?: string[] | null;
+        images?: string[] | null;
+      }
+    | null
+    | undefined,
+  productId: string | null | undefined,
+): { productId: string; name: string; image: string | null } | null {
+  const id = productId?.trim();
+  if (!id) return null;
+  const items = reference?.designItems ?? [];
+  const hit = items.find((item) => item.id === id);
+  if (hit) {
+    return {
+      productId: id,
+      name: hit.name.trim() || 'Design',
+      image: hit.image,
+    };
+  }
+  const ids = reference?.productIds ?? [];
+  const index = ids.indexOf(id);
+  if (index < 0) return null;
+  const images = reference?.images ?? [];
+  return {
+    productId: id,
+    name: 'Design',
+    image: images[index] ?? null,
+  };
+}
+
 export function voiceDurationMsFromMessage(metadata: unknown): number | null {
   const parsed = voiceMessageMetadataSchema.safeParse(metadata);
   return parsed.success ? parsed.data.durationMs : null;
@@ -226,6 +267,8 @@ export const sendMessageSchema = z
     replyToMessageId: z.string().min(1).optional(),
     /** Which shot in a photo album this reply quotes (0-based). */
     replyToPhotoIndex: z.number().int().min(0).max(99).optional(),
+    /** Which design in a design_album this reply quotes. */
+    replyToProductId: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     if ((needsBodyTypes as readonly string[]).includes(value.type) && !value.body) {
@@ -317,6 +360,20 @@ export const sendMessageSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Quoting a photo needs replyToMessageId.',
         path: ['replyToPhotoIndex'],
+      });
+    }
+    if (value.replyToProductId && !value.replyToMessageId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Quoting a design needs replyToMessageId.',
+        path: ['replyToProductId'],
+      });
+    }
+    if (value.replyToPhotoIndex != null && value.replyToProductId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Quote a photo or a design, not both.',
+        path: ['replyToProductId'],
       });
     }
   });
@@ -596,6 +653,8 @@ export interface MessageReplyPreview {
   /** Quoted shot in a photo album. */
   photoIndex?: number | null;
   photoUrl?: string | null;
+  /** Quoted design in a design_album. */
+  productId?: string | null;
 }
 
 export interface MessageView {

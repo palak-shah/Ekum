@@ -17,9 +17,8 @@ test.describe('collections journey @functional @collections', () => {
     await page.getByTestId('collection-find-toggle').click();
     await expect(page.getByTestId('collection-find')).toHaveCount(0);
 
-    // Enter select via long-press (⋯ no longer has a Select pill).
-    const designTile = page.locator('button, a').filter({ has: page.locator('img') }).first();
-    await designTile.click({ button: 'right' });
+    await expect(page.getByTestId('collection-select')).toBeVisible();
+    await page.getByTestId('collection-select').click();
     await page.getByTestId('select-all-float-select-all').click();
     await expect(page.getByTestId('select-all-float')).toContainText(/\d+ selected/);
 

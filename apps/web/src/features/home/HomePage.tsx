@@ -10,7 +10,6 @@ import type {
   ExplorePost,
   FollowAskView,
   OrderView,
-  ReturnView,
   ThreadSummary,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
@@ -24,7 +23,6 @@ import {
   ChevronRightIcon,
   CollectionIcon,
   OrdersIcon,
-  ReturnIcon,
   UserIcon,
 } from '@/ui/icons';
 import {
@@ -70,10 +68,6 @@ export function HomePage() {
     queryKey: ['orders', { home: true }],
     queryFn: () => api.get<CursorPage<OrderView>>('/orders', { limit: 50 }),
   });
-  const returns = useQuery({
-    queryKey: ['returns', { home: true }],
-    queryFn: () => api.get<CursorPage<ReturnView>>('/returns', { limit: 40 }),
-  });
   const threadRequests = useQuery({
     queryKey: ['threads', { state: 'pending' }],
     queryFn: () => api.get<CursorPage<ThreadSummary>>('/threads', { state: 'pending', limit: 10 }),
@@ -98,7 +92,6 @@ export function HomePage() {
   });
 
   const orderRows = orders.data?.results ?? [];
-  const returnRows = returns.data?.results ?? [];
   const followAskRows = followAsks.data ?? [];
   const chatRequests = threadRequests.data?.results ?? [];
   const myGrants = useQuery({
@@ -114,7 +107,7 @@ export function HomePage() {
       companyId ?? undefined,
       buildHomeNeeds({
         orders: orderRows,
-        returns: returnRows,
+        returns: [],
         followAsks: followAskRows,
         chatRequests,
         collectionViewGrants: grantRows,
@@ -122,7 +115,6 @@ export function HomePage() {
     );
   }, [
     orderRows,
-    returnRows,
     followAskRows,
     chatRequests,
     grantRows,
@@ -131,7 +123,7 @@ export function HomePage() {
   ]);
   const metrics = homeMetrics({
     orders: orderRows,
-    returns: returnRows,
+    returns: [],
     chatCount: chatRequests.length,
     followAskCount: followAskRows.length,
   });
@@ -149,7 +141,6 @@ export function HomePage() {
         value: metrics.requests,
         to: CHATS_REQUESTS_HREF,
       },
-      { label: 'Returns', value: metrics.returns, to: '/orders?filter=needs' },
     ] as const
   ).filter((chip) => chip.value > 0);
   const hasChips = chipEntries.length > 0;
@@ -157,7 +148,6 @@ export function HomePage() {
   const stillBootstrapping =
     followAsks.isLoading ||
     orders.isLoading ||
-    returns.isLoading ||
     threadRequests.isLoading ||
     following.isLoading ||
     (hasNetwork && followed.isLoading) ||
@@ -440,7 +430,6 @@ function metricLabel(label: string, value: number): string {
   const singular: Record<string, string> = {
     Orders: 'order',
     Requests: 'request',
-    Returns: 'return',
   };
   if (value === 1) return singular[label] ?? label.toLowerCase();
   return label.toLowerCase();
@@ -448,7 +437,6 @@ function metricLabel(label: string, value: number): string {
 
 function metricIcon(label: string): ComponentType<SVGProps<SVGSVGElement>> {
   if (label === 'Requests') return ChatIcon;
-  if (label === 'Returns') return ReturnIcon;
   return OrdersIcon;
 }
 
@@ -519,8 +507,6 @@ function needIcon(kind: HomeNeedItem['kind']): ComponentType<SVGProps<SVGSVGElem
   switch (kind) {
     case 'dispatch':
       return CheckIcon;
-    case 'review_return':
-      return ReturnIcon;
     case 'access_request':
     case 'follow_request':
       return UserIcon;

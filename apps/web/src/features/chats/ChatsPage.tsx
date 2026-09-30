@@ -267,11 +267,11 @@ export function ChatsPage() {
                   <Link
                     to={`/chats/find?kind=${item.kind}`}
                     data-testid={`chats-find-${item.kind}`}
-                    className="flex items-center gap-2.5 border-b border-line/70 px-4 py-2 last:border-b-0 hover:bg-canvas active:bg-canvas"
+                    className="flex items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0 hover:bg-canvas active:bg-canvas"
                   >
                     <span
                       className={cx(
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                        'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
                         badge,
                       )}
                     >
@@ -342,11 +342,11 @@ export function ChatsPage() {
                 ? (asks.data ?? []).map((ask) => (
                     <div
                       key={ask.company.id}
-                      className="flex flex-col gap-1.5 border-b border-line/70 px-4 py-2"
+                      className="flex flex-col gap-1.5 border-b border-line/70 px-4 py-3"
                       data-testid={`chats-see-packs-ask-${ask.company.id}`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} size={36} />
+                      <div className="flex items-center gap-3">
+                        <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} size={48} />
                         <div className="min-w-0">
                           <p className="truncate text-[15px] font-semibold text-ink">{ask.company.name}</p>
                           <p className="text-[12px] text-muted">{SEE_PACKS_ASK_LINE}</p>

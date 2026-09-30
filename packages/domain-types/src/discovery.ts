@@ -254,6 +254,8 @@ export interface UniversalSearchResults {
  */
 export interface CollectionPreviewView extends CollectionCard {
   connected: boolean;
+  /** Pack note for visitors. Omitted/empty when the seller left Description blank. */
+  description?: string | null;
   products: ProductView[] | null;
   /**
    * Visitor on a curated pack: Your paths ticket for this buyer × mills.

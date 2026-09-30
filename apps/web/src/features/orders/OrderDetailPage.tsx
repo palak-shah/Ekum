@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   agreementStepLabel,
   buildOrderTimelineSteps,
   collapseQuotedTrailEvents,
   shortOrderLabel,
-  type CreateReturnDto,
   type DecideOrderLinesDto,
   type DispatchDto,
   type OrderItemView,
   type OrderView,
   type QuoteOrderDto,
-  type ReturnView,
   type SendUpOrderDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
@@ -27,7 +25,6 @@ import {
 import { useCompanyId } from '@/lib/auth';
 import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { returnStatusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import { ShipProgressHint, SettleQtyColumns, SettlePendingSummary, fulfillmentRowClass, orderLineShowsPending } from '@/features/orders/shipProgressLabel';
@@ -76,12 +73,8 @@ import {
   showOrderParentItemsList,
   showSendQuoteOnDeskFace,
 } from '@/features/orders/iHandleDesk';
+import { setOrderActionDockNavVisible } from '@/features/orders/orderActionDockNav';
 import { TicketPathPick } from '@/features/orders/ticketPathPick';
-import {
-  allReturnLinesSelected,
-  clearReturnSelection,
-  selectAllReturnLines,
-} from '@/features/orders/returnRaiseSelect';
 import { parseQuoteRateDraft, quoteRateNumber, ratesWithSharedValue, SameRateForAll, sanitizeQuoteRateInput } from '@/features/orders/quoteSameRate';
 import {
   orderLineCantSupplyCue,
@@ -400,14 +393,11 @@ function OrderLineCantSupplyFace({
 export function OrderDetailPage() {
   const { id = '' } = useParams();
   const companyId = useCompanyId();
-  const [searchParams] = useSearchParams();
-  const focusReturnId = searchParams.get('return');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
-  const [returnOpen, setReturnOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
   const [amendOpen, setAmendOpen] = useState(false);
@@ -423,10 +413,6 @@ export function OrderDetailPage() {
   }>({});
   const [shipQty, setShipQty] = useState<Record<string, string>>({});
   const [shipOn, setShipOn] = useState<Record<string, boolean>>({});
-  const [returnReason, setReturnReason] = useState('');
-  const [returnReasonVoice, setReturnReasonVoice] = useState<NoteVoiceValue>(null);
-  const [returnSelected, setReturnSelected] = useState<Record<string, boolean>>({});
-  const [returnQty, setReturnQty] = useState<Record<string, string>>({});
   const [dispatchNote, setDispatchNote] = useState('');
   const [dispatchNoteVoice, setDispatchNoteVoice] = useState<NoteVoiceValue>(null);
   const [amendNote, setAmendNote] = useState('');
@@ -475,7 +461,6 @@ export function OrderDetailPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['order', id] });
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
-    void queryClient.invalidateQueries({ queryKey: ['returns'] });
     void queryClient.invalidateQueries({ queryKey: ['threads'] });
     const threadId = order.data?.threadId;
     if (threadId) {
@@ -790,65 +775,6 @@ export function OrderDetailPage() {
     onError: (err) => setSheetError(actionErrorMessage(err, 'Could not update lines.')),
   });
 
-  const raiseReturn = useMutation({
-    mutationFn: () => {
-      const items = (order.data?.items ?? [])
-        .filter((item) => item.lineStatus !== 'declined' && returnSelected[item.id])
-        .map((item) => ({
-          orderItemId: item.id,
-          quantity: Number(returnQty[item.id] || 0),
-        }))
-        .filter((line) => line.quantity > 0);
-      if (items.length < 1) {
-        throw new ApiError({
-          statusCode: 400,
-          code: 'EMPTY_RETURN',
-          message: 'Select at least one design to return.',
-        });
-      }
-      const dto: CreateReturnDto = {
-        orderId: id,
-        reason: returnReason || undefined,
-        reasonVoiceMediaId: returnReasonVoice?.mediaId,
-        reasonVoiceDurationMs: returnReasonVoice?.durationMs,
-        items,
-      };
-      return api.post('/returns', dto);
-    },
-    onSuccess: () => {
-      setReturnOpen(false);
-      setReturnReason('');
-      setReturnReasonVoice(null);
-      setSheetError(null);
-      refresh();
-    },
-    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not raise return.')),
-  });
-
-  const returnAct = useMutation({
-    mutationFn: ({
-      returnId,
-      action,
-    }: {
-      returnId: string;
-      action: 'approve' | 'decline' | 'resolve';
-    }) => {
-      if (action === 'approve') {
-        return api.post<ReturnView>(`/returns/${returnId}/approve`, {});
-      }
-      return api.post<ReturnView>(`/returns/${returnId}/${action}`);
-    },
-    onSuccess: () => refresh(),
-    onError: (err) =>
-      showToast(actionErrorMessage(err, 'Could not update return.'), 'danger'),
-  });
-
-  useEffect(() => {
-    if (!focusReturnId || !order.data?.returns?.length) return;
-    const node = document.getElementById(`return-${focusReturnId}`);
-    node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [focusReturnId, order.data?.returns]);
-
   const openQuoteSheet = () => {
     const data = order.data;
     if (!data) return;
@@ -891,18 +817,8 @@ export function OrderDetailPage() {
     setDispatchOpen(true);
   };
 
-  const openReturnSheet = () => {
-    const returnable = (order.data?.items ?? []).filter((item) => item.lineStatus !== 'declined');
-    const next = selectAllReturnLines(returnable);
-    setReturnSelected(next.selected);
-    setReturnQty(next.qty);
-    setSheetError(null);
-    setReturnReason('');
-    setReturnOpen(true);
-  };
-
   const closeSheet = (
-    which: 'quote' | 'lines' | 'dispatch' | 'settle' | 'amend' | 'return',
+    which: 'quote' | 'lines' | 'dispatch' | 'settle' | 'amend',
   ) => {
     setSheetError(null);
     if (which === 'quote') setQuoteOpen(false);
@@ -913,7 +829,6 @@ export function OrderDetailPage() {
     }
     if (which === 'settle') setSettleOpen(false);
     if (which === 'amend') setAmendOpen(false);
-    if (which === 'return') setReturnOpen(false);
   };
 
   const quoteItems = useMemo(
@@ -930,43 +845,6 @@ export function OrderDetailPage() {
     () => decideLinesTally(openItemIds, lineActions),
     [openItemIds, lineActions],
   );
-
-  const returnableItems = useMemo(
-    () => (order.data?.items ?? []).filter((item) => item.lineStatus !== 'declined'),
-    [order.data?.items],
-  );
-
-  const returnReady = useMemo(
-    () =>
-      returnableItems.some(
-        (item) =>
-          returnSelected[item.id] &&
-          Number(returnQty[item.id] || 0) > 0 &&
-          Number(returnQty[item.id] || 0) <= item.quantity,
-      ),
-    [returnableItems, returnSelected, returnQty],
-  );
-
-  const returnSelectedCount = useMemo(
-    () => returnableItems.filter((item) => returnSelected[item.id]).length,
-    [returnableItems, returnSelected],
-  );
-  const returnAllSelected = useMemo(
-    () => allReturnLinesSelected(returnableItems, returnSelected),
-    [returnableItems, returnSelected],
-  );
-
-  const selectAllReturnable = () => {
-    setSheetError(null);
-    const next = selectAllReturnLines(returnableItems);
-    setReturnSelected(next.selected);
-    setReturnQty(next.qty);
-  };
-
-  const clearReturnable = () => {
-    setSheetError(null);
-    setReturnSelected(clearReturnSelection(returnableItems));
-  };
 
   const quoteReady = useMemo(() => {
     const supplyable = quoteItems.filter((item) => !unavailable[item.id]);
@@ -989,6 +867,36 @@ export function OrderDetailPage() {
     }, 0);
     return { count: supplyable.length, total, of: quoteItems.length };
   }, [quoteItems, unavailable, rates, offerQty]);
+
+  const actionDockKind = useMemo(() => {
+    const data = order.data;
+    if (!data) return 'none';
+    const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
+    const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
+    const openForDispatch =
+      data.status === 'confirmed' || data.status === 'part_shipped';
+    const quoteOnFace = showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
+    return orderActionDock({
+      isSeller,
+      status: data.status,
+      millDesks: data.millDesks,
+      sendQuote: quoteOnFace && data.status === 'requested',
+      hasSellerQuote: data.hasSellerQuote === true,
+      canAmend: data.canAmend === true,
+      canAcceptQuote: data.canAcceptQuote === true,
+      canAcceptLogged: data.canAcceptLogged === true,
+      createdBySeller: data.createdBySeller === true,
+      openForDispatch,
+      hasRemaining,
+      canSettle: data.canSettle === true,
+      partiallyShipped: data.partiallyShipped,
+    }).kind;
+  }, [order.data, companyId]);
+
+  useEffect(() => {
+    setOrderActionDockNavVisible(actionDockKind !== 'none');
+    return () => setOrderActionDockNavVisible(false);
+  }, [actionDockKind]);
 
   if (order.isLoading) {
     return <LoadingBlock label="Loading order…" />;
@@ -1033,6 +941,7 @@ export function OrderDetailPage() {
     canAmend: data.canAmend === true,
     canAcceptQuote: data.canAcceptQuote === true,
     canAcceptLogged: data.canAcceptLogged === true,
+    createdBySeller: data.createdBySeller === true,
     openForDispatch,
     hasRemaining,
     canSettle: data.canSettle === true,
@@ -1622,91 +1531,6 @@ export function OrderDetailPage() {
 
       <OrderTimeline order={data} hidePriorQuotes={isBuyer} />
 
-      {(data.returns ?? []).length > 0 ? (
-        <Card className="flex flex-col gap-3 text-sm">
-          <p className="font-semibold text-ink">Returns</p>
-          {(data.returns ?? []).map((ret) => {
-            const focused = focusReturnId === ret.id;
-            return (
-              <div
-                key={ret.id}
-                id={`return-${ret.id}`}
-                className={cx(
-                  'border-t border-line pt-3 first:border-0 first:pt-0',
-                  focused && 'rounded-xl bg-foam/80 px-2.5 py-2',
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium text-ink">
-                    {ret.items.length} {ret.items.length === 1 ? 'design' : 'designs'}
-                    {ret.reason ? ` · ${ret.reason}` : ''}
-                  </p>
-                  <StatusPill status={ret.status} label={returnStatusLabel(ret.status)} />
-                </div>
-                <ul className="mt-2 flex flex-col gap-1">
-                  {ret.items.map((line) => (
-                    <li key={line.id} className="text-sm text-ink">
-                      <span className="font-medium">{line.name}</span>
-                      <span className="text-muted">
-                        {' '}
-                        · return {line.requestedQuantity}
-                        {line.approvedQuantity != null
-                          ? ` · approved ${line.approvedQuantity}`
-                          : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1.5 text-xs text-muted">
-                  Raised {formatDate(ret.createdAt)}
-                </p>
-                {ret.reasonVoiceUrl ? (
-                  <div className="mt-2">
-                    <VoicePlayer
-                      src={ret.reasonVoiceUrl}
-                      durationMs={ret.reasonVoiceDurationMs}
-                    />
-                  </div>
-                ) : null}
-                {isSeller && ret.status === 'requested' ? (
-                  <div className="mt-2 flex flex-col gap-2">
-                    <Button
-                      onClick={() =>
-                        returnAct.mutate({ returnId: ret.id, action: 'approve' })
-                      }
-                      disabled={returnAct.isPending}
-                    >
-                      Approve return
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        returnAct.mutate({ returnId: ret.id, action: 'decline' })
-                      }
-                      disabled={returnAct.isPending}
-                    >
-                      Decline return
-                    </Button>
-                  </div>
-                ) : null}
-                {isSeller &&
-                (ret.status === 'approved' || ret.status === 'partially_approved') ? (
-                  <Button
-                    className="mt-2"
-                    onClick={() =>
-                      returnAct.mutate({ returnId: ret.id, action: 'resolve' })
-                    }
-                    disabled={returnAct.isPending}
-                  >
-                    Mark return resolved
-                  </Button>
-                ) : null}
-              </div>
-            );
-          })}
-        </Card>
-      ) : null}
-
       {data.shipments.length > 0 ? (
         <Card className="flex flex-col gap-3 text-sm">
           <p className="font-semibold text-ink">Shipments</p>
@@ -1780,7 +1604,7 @@ export function OrderDetailPage() {
       {actionDock.kind !== 'none' ? (
         <div
           data-testid="order-action-dock"
-          className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur"
+          className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur"
         >
           {actionDock.kind === 'buy' ? (
             <>
@@ -1837,15 +1661,6 @@ export function OrderDetailPage() {
                   onClick={() => act.mutate('accept-quote')}
                 >
                   Accept quote
-                </Button>
-              ) : null}
-              {actionDock.raiseReturn ? (
-                <Button
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
-                  data-testid="order-return-open"
-                  onClick={openReturnSheet}
-                >
-                  Raise a return
                 </Button>
               ) : null}
             </>
@@ -2608,118 +2423,6 @@ export function OrderDetailPage() {
         </div>
       </Sheet>
 
-      <Sheet open={returnOpen} onClose={() => closeSheet('return')} title="Raise a return">
-        <div className="flex flex-col gap-3" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          {returnableItems.length > 0 ? (
-            <div
-              data-testid="return-raise-select-chrome"
-              className="flex items-center justify-between gap-2"
-            >
-              <p className="text-sm font-semibold text-ink">
-                {returnSelectedCount} of {returnableItems.length} selected
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  data-testid="return-raise-select-all"
-                  disabled={returnAllSelected}
-                  className="text-xs font-bold text-accent disabled:opacity-40"
-                  onClick={selectAllReturnable}
-                >
-                  Select all
-                </button>
-                <button
-                  type="button"
-                  data-testid="return-raise-clear"
-                  className="text-xs font-bold text-accent"
-                  onClick={clearReturnable}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted">Pick designs to return</p>
-          )}
-          {returnableItems.length === 0 ? (
-            <InlineNotice message="No supplyable lines left to return." />
-          ) : (
-            returnableItems.map((item) => {
-              const on = Boolean(returnSelected[item.id]);
-              const lastReturnQtyId = returnableItems
-                .filter((line) => returnSelected[line.id])
-                .at(-1)?.id;
-              return (
-                <div
-                  key={item.id}
-                  className={cx(
-                    'flex items-center gap-2 rounded-xl border px-2.5 py-2',
-                    on ? 'border-accent bg-accent/5' : 'border-line bg-surface',
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    aria-pressed={on}
-                    aria-label={on ? `Skip ${item.name}` : `Return ${item.name}`}
-                    onClick={() => {
-                      setSheetError(null);
-                      setReturnSelected((prev) => ({
-                        ...prev,
-                        [item.id]: !prev[item.id],
-                      }));
-                    }}
-                  >
-                    <OrderLinePhoto
-                      item={item}
-                      items={order.data?.items ?? []}
-                      onOpen={openPhotoViewer}
-                      size="sm"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
-                      <p className="truncate text-xs text-muted">Ordered {item.quantity}</p>
-                    </div>
-                    <span className="shrink-0 text-xs text-muted">{on ? 'Return' : 'Skip'}</span>
-                  </button>
-                  <TextInput
-                    type="number"
-                    min={1}
-                    max={item.quantity}
-                    disabled={!on}
-                    className={COMPACT_QTY_INPUT_CLASS}
-                    value={returnQty[item.id] ?? ''}
-                    onClick={(event) => event.stopPropagation()}
-                    onChange={(event) => {
-                      setSheetError(null);
-                      setReturnQty((prev) => ({ ...prev, [item.id]: event.target.value }));
-                    }}
-                    {...orderQtyInputProps(item.id === lastReturnQtyId)}
-                  />
-                </div>
-              );
-            })
-          )}
-          <NoteVoiceField
-            label="Note"
-            note={returnReason}
-            onNoteChange={(value) => {
-              setSheetError(null);
-              setReturnReason(value);
-            }}
-            voice={returnReasonVoice}
-            onVoiceChange={setReturnReasonVoice}
-          />
-          {sheetError && returnOpen ? <InlineNotice message={sheetError} /> : null}
-          <Button
-            fullWidth
-            onClick={() => raiseReturn.mutate()}
-            disabled={!returnReady || raiseReturn.isPending}
-          >
-            {raiseReturn.isPending ? 'Submitting…' : 'Submit return'}
-          </Button>
-        </div>
-      </Sheet>
 
       <Sheet
         open={changeOpen}

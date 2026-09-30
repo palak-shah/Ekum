@@ -1,9 +1,9 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { clearBrowseShortlist } from './browseShortlist';
-import { useBrowseShortlist } from './useBrowseShortlist';
+import { resetBrowseShortlistSelectMode, useBrowseShortlist } from './useBrowseShortlist';
 import { clearBrowseAlbumPick } from './browseAlbumPick';
-import { useBrowseAlbumPick } from './useBrowseAlbumPick';
+import { resetBrowseAlbumPickSelectMode, useBrowseAlbumPick } from './useBrowseAlbumPick';
 
 const design = {
   productId: 'p1',
@@ -28,6 +28,7 @@ describe('useBrowseShortlist selectMode', () => {
   beforeEach(() => {
     sessionStorage.clear();
     clearBrowseShortlist();
+    resetBrowseShortlistSelectMode();
   });
 
   it('exits select mode when the last design is toggled off', () => {
@@ -64,12 +65,22 @@ describe('useBrowseShortlist selectMode', () => {
     expect(result.current.count).toBe(0);
     expect(result.current.selectMode).toBe(true);
   });
+
+  it('shares empty select mode across hook instances', () => {
+    const a = renderHook(() => useBrowseShortlist());
+    const b = renderHook(() => useBrowseShortlist());
+    act(() => {
+      a.result.current.setSelectMode(true);
+    });
+    expect(b.result.current.selectMode).toBe(true);
+  });
 });
 
 describe('useBrowseAlbumPick selectMode', () => {
   beforeEach(() => {
     sessionStorage.clear();
     clearBrowseAlbumPick();
+    resetBrowseAlbumPickSelectMode();
   });
 
   it('exits select mode when the last album is toggled off', () => {

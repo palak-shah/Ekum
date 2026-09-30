@@ -307,6 +307,8 @@ export function orderActionDock(input: {
   canAmend?: boolean;
   canAcceptQuote?: boolean;
   canAcceptLogged?: boolean;
+  /** Seller logged this ticket — buyer Accepts; hide Confirm. */
+  createdBySeller?: boolean;
 }): OrderActionDock {
   if (!input.isSeller) {
     const requested = input.status === 'requested';
@@ -315,11 +317,7 @@ export function orderActionDock(input: {
     const edit = input.canAmend === true;
     const cancel =
       !acceptLogged && (requested || input.status === 'confirmed');
-    const raiseReturn =
-      input.status === 'dispatched' ||
-      input.status === 'settled' ||
-      input.status === 'delivered';
-    if (!cancel && !edit && !acceptQuote && !acceptLogged && !raiseReturn) {
+    if (!cancel && !edit && !acceptQuote && !acceptLogged) {
       return { kind: 'none' };
     }
     return {
@@ -328,12 +326,13 @@ export function orderActionDock(input: {
       edit,
       acceptQuote,
       acceptLogged,
-      raiseReturn,
+      raiseReturn: false,
     };
   }
   if (input.status === 'requested') {
     const sendOrder = showMillSendAll(input.millDesks);
-    const confirm = showSellerConfirmOnDesk(input.millDesks);
+    const confirm =
+      showSellerConfirmOnDesk(input.millDesks) && input.createdBySeller !== true;
     const quoted = input.hasSellerQuote === true;
     if (!sendOrder && !input.sendQuote && !confirm) return { kind: 'none' };
     return {

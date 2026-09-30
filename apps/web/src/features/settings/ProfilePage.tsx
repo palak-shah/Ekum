@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   SUPER_CATEGORY_LABEL,
@@ -11,6 +12,8 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { uploadImage } from '@/lib/mediaUpload';
 import { useMyCompany } from '@/lib/queries';
+import { isOwnProfileEditing } from '@/features/settings/profileEdit';
+import { YouHeaderShare } from '@/features/settings/YouHeaderShare';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
@@ -23,13 +26,20 @@ function parseList(value: string): string[] {
     .filter(Boolean);
 }
 
+function ReadValue({ value }: { value: string | null | undefined }) {
+  const text = value?.trim();
+  return <p className="text-[15px] leading-snug text-ink">{text || '—'}</p>;
+}
+
 const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
 
 export function ProfilePage() {
   const company = useMyCompany();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const editing = isOwnProfileEditing(location.pathname, location.search);
   const focusSell = searchParams.get('focus') === 'sell';
   const sellFieldRef = useRef<HTMLDivElement>(null);
   const [sellHighlight, setSellHighlight] = useState(focusSell);
@@ -46,19 +56,21 @@ export function ProfilePage() {
     superCategories: [] as SuperCategoryType[],
   });
 
+  const applyCompany = (data: OwnCompanyProfile) => {
+    setForm({
+      name: data.name,
+      contactPerson: data.contactPerson ?? '',
+      city: data.city,
+      about: data.about ?? '',
+      sellCategories: data.sellCategories.join(', '),
+      buyCategories: data.buyCategories.join(', '),
+      gstNumber: data.gstNumber ?? '',
+      superCategories: data.superCategories as SuperCategoryType[],
+    });
+  };
+
   useEffect(() => {
-    if (company.data) {
-      setForm({
-        name: company.data.name,
-        contactPerson: company.data.contactPerson ?? '',
-        city: company.data.city,
-        about: company.data.about ?? '',
-        sellCategories: company.data.sellCategories.join(', '),
-        buyCategories: company.data.buyCategories.join(', '),
-        gstNumber: company.data.gstNumber ?? '',
-        superCategories: company.data.superCategories as SuperCategoryType[],
-      });
-    }
+    if (company.data) applyCompany(company.data);
   }, [company.data]);
 
   useEffect(() => {
@@ -83,6 +95,32 @@ export function ProfilePage() {
         { replace: true },
       );
     }
+  };
+
+  const enterEdit = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('edit', '1');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const exitEdit = () => {
+    if (company.data) applyCompany(company.data);
+    setError(null);
+    setSellHighlight(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('edit');
+        next.delete('focus');
+        return next;
+      },
+      { replace: true },
+    );
   };
 
   const toggleSuper = (value: SuperCategoryType) => {
@@ -110,9 +148,9 @@ export function ProfilePage() {
     },
     onSuccess: () => {
       setError(null);
-      clearSellFocus();
-      void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
       showToast('Profile saved.');
+      void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+      exitEdit();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
   });
@@ -148,8 +186,17 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title="Business profile" />
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        editing ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]' : 'pb-8',
+      )}
+    >
+      <PageHeader
+        title="Business profile"
+        onBack={editing ? exitEdit : undefined}
+        action={editing ? undefined : <YouHeaderShare />}
+      />
 
       <Card className="flex items-center gap-3">
         <Avatar
@@ -160,33 +207,35 @@ export function ProfilePage() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">Profile photo</p>
           <p className="text-xs text-muted">Shown in chats and your header. Optional.</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <label className="inline-flex cursor-pointer">
-              <span className="rounded-[13px] border-[1.5px] border-accent bg-surface px-3 py-1.5 text-xs font-bold text-accent">
-                {logoBusy || setLogo.isPending ? 'Uploading…' : 'Upload'}
-              </span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                disabled={logoBusy || setLogo.isPending}
-                onChange={(event) => {
-                  void onPickLogo(event.target.files);
-                  event.target.value = '';
-                }}
-              />
-            </label>
-            {company.data?.logoUrl ? (
-              <button
-                type="button"
-                className="text-xs font-bold text-muted"
-                disabled={setLogo.isPending}
-                onClick={() => setLogo.mutate(null)}
-              >
-                Remove
-              </button>
-            ) : null}
-          </div>
+          {editing ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <label className="inline-flex cursor-pointer">
+                <span className="rounded-[13px] border-[1.5px] border-accent bg-surface px-3 py-1.5 text-xs font-bold text-accent">
+                  {logoBusy || setLogo.isPending ? 'Uploading…' : 'Upload'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  disabled={logoBusy || setLogo.isPending}
+                  onChange={(event) => {
+                    void onPickLogo(event.target.files);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+              {company.data?.logoUrl ? (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-muted"
+                  disabled={setLogo.isPending}
+                  onClick={() => setLogo.mutate(null)}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </Card>
 
@@ -205,40 +254,65 @@ export function ProfilePage() {
       </Card>
 
       <Field label="Business name">
-        <TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        {editing ? (
+          <TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        ) : (
+          <ReadValue value={form.name} />
+        )}
       </Field>
       <Field label="Contact person">
-        <TextInput
-          value={form.contactPerson}
-          onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
-          placeholder="How others address you"
-        />
+        {editing ? (
+          <TextInput
+            value={form.contactPerson}
+            onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
+            placeholder="How others address you"
+          />
+        ) : (
+          <ReadValue value={form.contactPerson} />
+        )}
       </Field>
       <Field label="City">
-        <SuggestInput
-          kind="city"
-          value={form.city}
-          onChange={(city) => setForm({ ...form, city })}
-        />
+        {editing ? (
+          <SuggestInput
+            kind="city"
+            value={form.city}
+            onChange={(city) => setForm({ ...form, city })}
+          />
+        ) : (
+          <ReadValue value={form.city} />
+        )}
       </Field>
       <Field label="What do you deal in?">
         <div className="flex flex-wrap gap-2">
-          {SUPER_OPTIONS.map((value) => {
-            const on = form.superCategories.includes(value);
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => toggleSuper(value)}
-                className={cx(
-                  'rounded-full px-3.5 py-1.5 text-sm font-medium',
-                  on ? 'bg-accent text-white' : 'bg-foam text-muted',
+          {editing
+            ? SUPER_OPTIONS.map((value) => {
+                const on = form.superCategories.includes(value);
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => toggleSuper(value)}
+                    className={cx(
+                      'rounded-full px-3.5 py-1.5 text-sm font-medium',
+                      on ? 'bg-accent text-white' : 'bg-foam text-muted',
+                    )}
+                  >
+                    {SUPER_CATEGORY_LABEL[value]}
+                  </button>
+                );
+              })
+            : form.superCategories.length > 0
+              ? form.superCategories.map((value) => (
+                  <span
+                    key={value}
+                    className="rounded-full bg-accent/10 px-3.5 py-1.5 text-sm font-medium text-ink"
+                  >
+                    {SUPER_CATEGORY_LABEL[value]}
+                  </span>
+                ))
+              : (
+                  <ReadValue value="" />
                 )}
-              >
-                {SUPER_CATEGORY_LABEL[value]}
-              </button>
-            );
-          })}
         </div>
       </Field>
       <div
@@ -247,54 +321,90 @@ export function ProfilePage() {
         data-testid="profile-sell-categories"
         className={cx(
           'rounded-xl transition-[box-shadow,background-color] duration-300',
-          sellHighlight && 'bg-accent/5 p-3 ring-2 ring-accent',
+          editing && sellHighlight && 'bg-accent/5 p-3 ring-2 ring-accent',
         )}
       >
         <Field
           label="Categories you sell"
           hint={
-            sellHighlight
-              ? 'Add what you sell — then buyers looking for those goods show in Explore.'
-              : 'Optional. Comma-separated (e.g. sarees, kurtis).'
+            editing
+              ? sellHighlight
+                ? 'Add what you sell — then buyers looking for those goods show in Explore.'
+                : 'Optional. Comma-separated (e.g. sarees, kurtis).'
+              : undefined
           }
         >
+          {editing ? (
+            <SuggestInput
+              kind="category"
+              mode="list"
+              value={form.sellCategories}
+              onChange={(sellCategories) => {
+                setForm({ ...form, sellCategories });
+                clearSellFocus();
+              }}
+              onFocus={clearSellFocus}
+            />
+          ) : (
+            <ReadValue value={form.sellCategories} />
+          )}
+        </Field>
+      </div>
+      <Field label="Categories you buy" hint={editing ? 'Optional. Comma-separated.' : undefined}>
+        {editing ? (
           <SuggestInput
             kind="category"
             mode="list"
-            value={form.sellCategories}
-            onChange={(sellCategories) => setForm({ ...form, sellCategories })}
+            value={form.buyCategories}
+            onChange={(buyCategories) => setForm({ ...form, buyCategories })}
           />
-        </Field>
-      </div>
-      <Field label="Categories you buy" hint="Optional. Comma-separated.">
-        <SuggestInput
-          kind="category"
-          mode="list"
-          value={form.buyCategories}
-          onChange={(buyCategories) => setForm({ ...form, buyCategories })}
-        />
+        ) : (
+          <ReadValue value={form.buyCategories} />
+        )}
       </Field>
-      <Field label="GST number" hint="Optional — adds a verified badge.">
-        <TextInput
-          value={form.gstNumber}
-          onChange={(e) => setForm({ ...form, gstNumber: e.target.value })}
-        />
+      <Field label="GST number" hint={editing ? 'Optional — adds a verified badge.' : undefined}>
+        {editing ? (
+          <TextInput
+            value={form.gstNumber}
+            onChange={(e) => setForm({ ...form, gstNumber: e.target.value })}
+          />
+        ) : (
+          <ReadValue value={form.gstNumber} />
+        )}
       </Field>
-      <Field label="About" error={error}>
-        <TextArea value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} />
+      <Field label="About" error={editing ? error : undefined}>
+        {editing ? (
+          <TextArea value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} />
+        ) : (
+          <ReadValue value={form.about} />
+        )}
       </Field>
-      <Button
-        fullWidth
-        disabled={
-          !form.name.trim() ||
-          !form.city.trim() ||
-          form.superCategories.length === 0 ||
-          save.isPending
-        }
-        onClick={() => save.mutate()}
-      >
-        {save.isPending ? 'Saving…' : 'Save profile'}
-      </Button>
+      {editing
+        ? createPortal(
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
+              <div className="mx-auto max-w-md">
+                <Button
+                  fullWidth
+                  data-testid="profile-update"
+                  disabled={
+                    !form.name.trim() ||
+                    !form.city.trim() ||
+                    form.superCategories.length === 0 ||
+                    save.isPending
+                  }
+                  onClick={() => save.mutate()}
+                >
+                  {save.isPending ? 'Updating…' : 'Update'}
+                </Button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : (
+            <Button fullWidth data-testid="profile-edit" onClick={enterEdit}>
+              Edit profile
+            </Button>
+          )}
     </div>
   );
 }

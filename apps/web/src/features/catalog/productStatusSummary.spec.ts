@@ -51,16 +51,16 @@ describe('productStatusLine', () => {
     ).toBe('In your packs');
   });
 
-  it('marks a solo Explore post separately from pack-only', () => {
+  it('does not say On Explore or who can see on a live design', () => {
     expect(
       productStatusLine(
         product({
           status: ProductStatus.Published,
           postedToMarketAt: '2026-01-02T00:00:00.000Z',
-          audience: 'followers',
+          audience: 'connections',
         }),
       ),
-    ).toMatch(/^On Explore/);
+    ).toBe('');
   });
 });
 
@@ -98,6 +98,6 @@ describe('productTileSubtitle', () => {
           images: ['https://example.com/a.jpg'],
         }),
       ),
-    ).toBe('On request · EK-1 · 1 photo');
+    ).toBe('Price on request · EK-1 · 1 photo');
   });
 });

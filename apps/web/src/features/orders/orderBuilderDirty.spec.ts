@@ -62,4 +62,17 @@ describe('orderBuilderStandardDirty', () => {
       }),
     ).toBe(true);
   });
+
+  it('is dirty when they type the first pieces into a blank line', () => {
+    expect(
+      orderBuilderStandardDirty({
+        uploading: false,
+        note: '',
+        sellerId: '',
+        sellerFromUrl: 's1',
+        lines: [{ productId: 'p1', quantity: '80' }],
+        initialQuantities: { p1: '' },
+      }),
+    ).toBe(true);
+  });
 });

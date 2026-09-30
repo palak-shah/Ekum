@@ -28,10 +28,11 @@ function orderItem(partial: { tradeMode: string; direction: string }): TradeList
 }
 
 describe('kindFacetFromNeedle', () => {
-  it('treats linked as Trading', () => {
-    expect(kindFacetFromNeedle('linked')).toBe('trading');
-    expect(kindFacetFromNeedle('Trading')).toBe('trading');
+  it('maps sample return order — not trading', () => {
     expect(kindFacetFromNeedle('sample')).toBe('sample');
+    expect(kindFacetFromNeedle('return')).toBeNull();
+    expect(kindFacetFromNeedle('linked')).toBeNull();
+    expect(kindFacetFromNeedle('Trading')).toBeNull();
     expect(kindFacetFromNeedle('Surat')).toBeNull();
   });
 });

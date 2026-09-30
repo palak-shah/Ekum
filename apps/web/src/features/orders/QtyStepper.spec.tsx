@@ -35,3 +35,10 @@ describe('QtyStepper edit 20', () => {
     expect(onChange).toHaveBeenLastCalledWith(15);
   });
 });
+
+describe('QtyStepper first count', () => {
+  it('starts empty so they type the first pieces', () => {
+    render(<QtyStepper value={null} aria-label="Pieces" onChange={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: 'Pieces' })).toHaveValue('');
+  });
+});

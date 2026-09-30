@@ -220,7 +220,6 @@ export function SavedPage({
     (tab === 'designs' && productItems.length > 0) ||
     (tab === 'collections' && collectionItems.length > 0);
   const showLayoutToggle = tabItems.length > 0;
-  const floaterClearance = shortlist.count + albumPick.count > 0;
   const headerSubtitle =
     saved.isLoading || saved.isError
       ? undefined
@@ -233,7 +232,7 @@ export function SavedPage({
           : `${collectionItems.length} collections`;
 
   return (
-    <div className={cx('flex flex-col gap-4', floaterClearance && 'pb-[calc(5rem+5.5rem)]')}>
+    <div className="flex flex-col gap-4">
       {embedded ? null : (
         <PageHeader
           title="Saved"

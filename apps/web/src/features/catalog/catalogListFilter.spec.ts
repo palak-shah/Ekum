@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CATALOG_FIND_STATUS_FILTERS,
   CATALOG_STATUS_FILTERS,
   DEFAULT_CATALOG_LIST_FILTER,
   publishedDesignsElsewhereHint,
@@ -7,13 +8,14 @@ import {
 } from './catalogListFilter';
 
 describe('catalog status chips', () => {
-  it('defaults to Published, then Draft, then Archived', () => {
+  it('defaults to published; Find only offers Draft and Archived', () => {
     expect(DEFAULT_CATALOG_LIST_FILTER).toBe('published');
     expect(CATALOG_STATUS_FILTERS.map((row) => row.id)).toEqual([
       'published',
       'draft',
       'archived',
     ]);
+    expect(CATALOG_FIND_STATUS_FILTERS.map((row) => row.id)).toEqual(['draft', 'archived']);
   });
 });
 
@@ -39,10 +41,10 @@ describe('publishedDesignsElsewhereHint', () => {
 
   it('points Draft-empty at pack designs on Published', () => {
     expect(publishedDesignsElsewhereHint(1)).toBe(
-      '1 design is on Published (including packs).',
+      '1 design is already live (including packs).',
     );
     expect(publishedDesignsElsewhereHint(3)).toBe(
-      '3 designs are on Published (including packs).',
+      '3 designs are already live (including packs).',
     );
   });
 });

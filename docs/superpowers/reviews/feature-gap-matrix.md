@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-29 (Network one header)  
+**Updated:** 2026-09-30 (pastel avatar washes)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -15,7 +15,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Auth | Login mobile field accepts typing on iOS Home Screen | Works | Unit | Required | Completeness 2026-09-25-login-phone-type; no page-load autofocus; HS reload skips login / focused fields |
 | Onboarding | Required * on business name, contact person, city, types | Works | Unit | Required | Completeness 2026-09-26-onboarding-required-star |
 | Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; What broke + Copy |
-| Platform | Nav ＋ never a dead tap | Works | Unit | Required | Completeness 2026-09-25-create-fab-dead-tap; 2026-09-28 skip New sheet; You ＋ stays on Saved |
+| Platform | Nav ＋ never a dead tap | Works | Unit + Functional | Required | Completeness 2026-09-25-create-fab-dead-tap; 2026-09-29 collection chooser (create vs You Collections); You ＋ stays on Saved |
 | Platform | Kit density: 40px Button/input, 28px Chip, 40×40 list square | Works | Unit | Required | Completeness 2026-09-26-kit-density; qty thumbs + nav ＋ stay 48px |
 | Explore | Shop header: GST tick, city · cats, See new packs, date under post | Works | Unit | Required | Completeness 2026-09-29-explore-shop-header-chrome; CSV sr 8 T4 · 9/10 T1+T3 · 16 T4 |
 | Explore | Pack header rate band; design card / popup shop name | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 16 T3 · 17 T3 |
@@ -33,7 +33,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
 | Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Android left-swipe More/Archive; theme-color white |
 | Chat | 1:1 ＋ Complaint form (photos optional) + In chats / thread filter | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-complaint-form; View order if attached (2026-09-29-complaint-view-order); never View designs |
-| Chat | No-photo avatars use name colours (WhatsApp-like) | Works | Unit | Required | Completeness 2026-09-28-chat-avatar-colors; kit Avatar |
+| Chat | No-photo avatars use name colours (WhatsApp-like) | Works | Unit | Required | Completeness 2026-09-28-chat-avatar-colors; pastel wash + ink 2026-09-30-avatar-pastel-wash; kit Avatar |
 | Chat | Requests inbox (unconnected + connect invite) | Works | Functional + Unit | Required | Approve / Ignore; see-packs Allow; `/chats?inbox=requests`; Completeness 2026-09-28-chats-requests-fold-access |
 | Chat | See-packs ask: see + share checkboxes, compact Allow / Decline | Works | Unit | Required | Completeness 2026-09-28-follow-ask-share-checkbox; see default on, share off → pack |
 | Company | See new packs + Write them / Open chat (no Request); Share header icon | Works | Unit | Required | Completeness 2026-09-26-shop-chat-plain-copy; 2026-09-25-follow-is-view-collection |
@@ -62,16 +62,20 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Locked catalog thumbs blur (no viewer) | Works | Unit | Required | `imagesLocked` + PhotoAlbum locked |
 | Chat | Message actions (Reply/Forward/Copy/Star/Edit/Delete) | Works | Unit | Required | Completeness 2026-09-03-chat-message-actions; no Select all; order teaser strip |
 | Chat | Quote one photo in an album (reference, not Order) | Works | Unit | Required | Completeness 2026-09-23-quote-one-album-photo |
+| Chat | Quote one design in a designs set (reference, not Order) | Works | Unit | Required | Completeness 2026-10-01-quote-one-design |
 | Chat | Photo long-press opens Ekum actions menu | Works | Unit + Functional | Required | Completeness 2026-09-13-photo-longpress-menu; WA gesture, Ekum verbs |
 | Collections | Pack Ask Allow/Deny (Granted on request) | Works | Unit | Required | Completeness 2026-09-03-collection-view-request-allow-deny; ≠ Connection |
 | Orders | Core trade request→quote→accept | Works | Functional | Required | Green 2026-08-11 |
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
 | Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
 | Orders | Orders More menu portal (Samples/Returns) | Works | Functional | Recommended | `orders.chrome.journey.spec.ts` |
-| Orders | List tabs Pending / Completed + row Needs you (left accent + verb line) | Works | Unit + Functional | Required | Completeness 2026-09-19-orders-list-tabs; legacy `filter=needs|progress` → Pending |
+| Orders | List tabs Pending / Completed + inbox-geometry rows (Avatar, time, one preview; Needs you accent) | Works | Unit + Functional | Required | Completeness 2026-09-19-orders-list-tabs + 2026-09-30-orders-inbox-rows; no chat swipe/unread |
+| Orders | Filter Select Status = six only, scoped to Pending / Completed | Works | Unit + Functional | Required | Completeness 2026-09-30-orders-few-statuses; no Received/Approved/Resolved/Declined |
+| Orders | Returns removed from product | Works | Unit + Functional | Required | Completeness 2026-09-30-remove-returns; no Raise a return / Return type / Home Returns |
 | Orders | Bottom nav Needs you count (same teal pill as Chats unread) | Works | Unit | Required | Completeness 2026-09-26-orders-nav-needs-you; `GET /orders/needs-you-count` |
 | Orders | Buy/Sell is a temporary list filter (not account mode); one compact row | Works | Unit + Functional | Required | Completeness 2026-09-21-orders-buy-sell-temp-filter; in-memory session; reset off `/orders` |
 | Orders | Qty box: delete / replace prefilled 20 (no snap-back) | Works | Unit | Required | Completeness 2026-09-25-qty-stepper-edit; draft is the input value |
+| Orders place | How many each / builder: blank first pieces, else last entered per shop | Works | Unit + Functional | Required | Completeness 2026-09-29-how-many-blank-qty; `qtyEachMemory`; Place off until qty |
 | Orders / Catalog / Collections | QA ten: last-row BM-07, mill names on Trading only, drop standard/?, You date-only, 1 design, origin pack dock, sheet Dismiss, `/collections/new`, Chats aria | Works | Unit + Functional | Required | Completeness 2026-09-25-qa-ten-fixes; Who stays on create page |
 | Orders | Place-order tabular lines (− editable qty + · Same for all chip · Add note) | Works | Unit + Functional | Required | Completeness 2026-09-20-place-order-line-chrome; HowManyEach + Order builder |
 | Orders | Enter/Next on line qty jumps to next line qty | Works | Unit | Required | `orderQtyFocus`; How many each, builder, quote, mill, dispatch, return, edit |
@@ -85,10 +89,10 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Pending qty clarity (partial ship + settle) | Works | Unit + Functional | Required | Completeness 2026-09-13-order-pending-qty-clarity; left→pending; Settle Dispatched\|Pending |
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Deferred | — | — | Removed from product 2026-09-21; order completes on dispatch; endpoints reject `PAYMENT_DISABLED` |
-| Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token |
+| Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token; mill seller + path 2026-09-29-order-for-buyer-mill-seller |
 | Collections | 48h share link | Works | Functional + Unit | Required | Presentable WhatsApp OG collage + seller copy 2026-09-11; multi-design kind `designs` 2026-09-16; mix keeps N doors 2026-09-24; `share-link.journey` |
-| Explore / Catalog | Grouped designs share (chat collage + 48h, not a Collection) | Works | Unit | Required | Completeness 2026-09-16; viewer + shop line 2026-09-24; virtual set `/designs/set` |
-| Orders | Photo order / amend / samples / returns | Partial | Unit + Functional | Future | Chat ＋ Photo order prefills that shop (editable) 2026-09-24; Raise return Select all / Clear + living chat Return pulse 2026-09-07 |
+| Explore / Catalog | Grouped designs share (chat collage + 48h, not a Collection) | Works | Unit | Required | Completeness 2026-09-16; viewer + shop line 2026-09-24; set Feed/Grid + facts 2026-09-30; virtual set `/designs/set` |
+| Orders | Photo order / amend / samples | Partial | Unit + Functional | Future | Chat ＋ Photo order prefills that shop (editable) 2026-09-24; returns removed 2026-09-30 |
 | Orders | Leave guard (photo order + builders) | Works | Unit + Functional | Required | Completeness 2026-08-24-discard-guard; shared sheet |
 | Orders | Trade without connection | Rejected | — | Reject | Trust ladder |
 | Collections | Buyer view Wedding Edit + shortlist clear | Works | Functional | Required | Green 2026-08-11 (BM-03) |
@@ -99,12 +103,13 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | New collection add-and-go (photos + name; Who on Publish sheet) | Redesign | Functional | Required | Completeness 2026-09-24-collection-who-tags-set-size; Who expandable; pack tags append; set-size only for set |
 | Collections | Seller create/publish / quick-add (edit) | Works | Functional | Recommended | `collection.publish.journey.spec.ts` |
 | Collections | Buyer groups (elevate broadcast lists) | Works | Unit | Required | 2026-08-13 Completeness |
-| Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open; Share = live+not-blocked (no sender canDiscover); Curate still locked; in-sheet Share errors |
+| Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open + 2026-09-30-share-no-view-gate; Share published pack-only designs; view/Ask on open; Curate still locked |
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
 | Collections | Pack publish does not Explore-post member designs | Works | Unit | Required | Completeness 2026-09-11-collection-publish-no-design-explore |
 | Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; no buyer groups) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
+| Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |
 | Explore | Design page Ask / Order dock visitors only | Works | Unit | Required | Owner never gets dock (even Selling/Trading); `exploreProductChrome` |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |
@@ -119,7 +124,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Businesses for you + Stories rail | Works | Unit | Recommended | Stories = follow/connected + published (Slice C) |
 | Explore | Trade-side Buying / Selling (no All chip) | Works | Unit | Required | 2026-08-23 filter panels; dual Explore Buyers / Explore Suppliers; default Buying |
 | Explore | Filter: Change View + multi category/city | Works | Unit + Functional | Required | Popup B; Confirm closes; pin selected on reopen |
-| Explore | Search chrome: filter only (no Saved / Selection squares) | Works | Functional | Required | Completeness 2026-09-23-explore-chrome-cut; floater + You → Saved |
+| Explore | Search chrome: Filter square + Select pill (no Saved / Selection squares) | Works | Unit + Functional | Required | Completeness 2026-09-23-explore-chrome-cut; Select 2026-10-01-android-select-not-longpress |
+| Explore | Selection floater only on Explore / other shop / pack Selecting | Works | Unit + Functional | Required | Completeness 2026-09-30-selection-floater-allowlist; hide Home Chats Orders You |
 | Explore | Search hint: no GST (idle + field same line) | Works | Unit + Functional | Optional | Completeness 2026-09-24-explore-search-no-gst |
 | Explore | Category copy: Women’s apparel not womens_apparel | Works | Unit | Required | categoryDisplayLabel on feed / search / design / shop |
 | Explore | Hide solo design when live pack on same feed already has it; design card first photo | Works | Unit | Required | Completeness 2026-09-25-explore-pack-covered-designs |
@@ -150,7 +156,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | UI | Home attention-center composition (count + compact metrics + need rows) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-home-attention-center; presentation only |
 | UI | Your selection visual polish (image-led rows; Order primary) | Works | Unit + Functional | Recommended | Completeness 2026-09-10-selection-visual-polish; no model change |
 | UI | Order flow sheets visual polish (resolve + quantity) | Works | Functional + Visual | Recommended | Completeness 2026-09-10-order-flow-visual-polish; presentation only |
-| UI | Long-press select without Safari link menu | Works | Unit + Functional | Required | Completeness 2026-09-10; Android stickiness 2026-09-12-explore-longpress-select-stays |
+| UI | Long-press select without Safari link menu | Works | Unit + Functional | Required | Completeness 2026-09-10; Android stickiness 2026-09-12; one-fire contextmenu 2026-10-01 |
+| Browse | Android start select with Select (Explore + album), not hold | Works | Unit + Functional | Required | Completeness 2026-10-01-android-select-not-longpress; long-press remains shortcut |
 | UI | Send quote qty/rate numbers not clipped (BM-07) | Works | Unit | Required | textInputChromeClass + wider quote columns |
 | UI | Chats visual polish (restrained teal 3+1 cards + list hierarchy) | Works | Unit | Recommended | Completeness 2026-09-11-chats-visual-polish; presentation only |
 | UI | Chat trade cards: same surface in/out (no mine solid teal) | Superseded | — | — | Replaced by direction surface rule |
@@ -159,11 +166,11 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Explore Buying: received by day/business | Works | Unit | Required | Slice C; directed audience or broadcast |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |
 | Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Works | Unit | Required | Shipped: Direct vs I handle + Send-hold. Product Redesign 2026-09-02: TradeLane ticket × reveal |
-| Trader curation | I-handle desk: mill Send on card + Timeline (You sent to); Send quote / Decline / dispatch / settle on the face; mill subsets + # after Send; Hold; Trading filter; From/To rates | Works | Unit + Functional | Required | Completeness 2026-09-07-trader-i-handle-desk + 2026-09-20-trader-mill-send-face + 2026-09-20-mill-send-timeline + 2026-09-23-desk-no-more-actions |
+| Trader curation | I-handle desk: mill Send on card + Timeline (You sent to); Send quote / Decline / dispatch / settle on the face; mill subsets + # after Send; Hold; list row Trading (no type); From/To rates | Works | Unit + Functional | Required | Completeness 2026-09-07-trader-i-handle-desk + 2026-09-20-trader-mill-send-face + 2026-09-20-mill-send-timeline + 2026-09-23-desk-no-more-actions; 2026-09-30-orders-no-trading-type |
 | Trader curation | Decline beside mill Send (held hop only) | Works | Unit + Functional | Required | Completeness 2026-09-23-mill-decline-beside-send; confirm; other mills stay |
 | Trader curation | Send all waiting mills (2+) | Works | Unit | Required | Completeness 2026-09-23-mill-send-all; no mill-picker sheet |
 | Trader curation | Decline all waiting mills (2+) | Works | Unit | Required | Completeness 2026-09-23-mill-decline-all; confirm; pair with Send all |
-| Trader curation | Order action dock above nav | Works | Unit | Required | Completeness 2026-09-23-order-action-dock + dock-confirm + buyer-action-dock; buyer Cancel/Edit/Accept quote |
+| Trader curation | Order action dock at bottom; hides app nav while dock is on | Works | Unit + Functional | Required | Completeness 2026-09-23-order-action-dock + dock-confirm + buyer-action-dock + 2026-09-30-orders-inbox-rows; finished ticket keeps nav |
 | Trader curation | Shared Direct: no seller confirm/quote until Handle myself | Works | Unit | Required | Completeness 2026-09-20-direct-shared-seller-ctas; gate on sellerCompanyId |
 | Orders quote | Same for all + line Rate: one ₹, digits not clipped | Works | Unit | Required | Completeness 2026-09-20-quote-rate-single; no catalog range |
 | Orders quote | Can’t supply stays on Send quote (checked on reopen) | Works | Unit | Required | Completeness 2026-09-20-quote-cant-supply-stays |
@@ -201,6 +208,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | No pack cover — collage is member design thumbs only | Works | Unit + Functional | Required | Completeness 2026-09-24-no-collection-cover; `coverImage` silent fallback only |
 | Browse | Shop Designs = unique pack members + Explore posts | Works | Unit | Required | Completeness 2026-09-24-shop-unique-pack-designs |
 | Browse | Shop Feed / Grid (shared with Saved · album · My designs) | Works | Unit | Required | Completeness 2026-09-24-shop-feed-grid |
+| Catalog | Pack Feed = Explore post (shop + You Collections) | Works | Unit | Required | Completeness 2026-09-30-pack-feed-explore-parity; tags/From 2026-09-30-pack-feed-tags |
 | Browse | Open collection / design while Selecting (name always opens; photo toggles) | Works | Unit + Functional | Required | Completeness 2026-09-24-browse-open-while-selecting; Explore + shop + album + Saved |
 | Browse | Selection availability = access only (album members without market post stay orderable) | Works | Unit | Required | Completeness 2026-09-07-selection-access-availability; explore productDetail + TradeAccess |
 | Trader curation | Curate albums like Order (whole pack / pick); designs as-is; gray locked (Slice A) | Works | Unit + Functional | Required | Completeness 2026-09-04-curate-album-as-is; Save draft primary; no Ask in A |
@@ -212,8 +220,13 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Top-level Media tab | Rejected | — | Reject | |
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
-| You / Settings | You: identity + library; Edit ≠ Share ≠ Settings; Settings domain cards (Business & Roles · Dispatch · Billing) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
-| You / Shop | Find designs / collections in place (You library + shop) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-shop-catalog-search; on-demand icon 2026-09-24-collection-on-demand-find; shop first page only (G-001 Later) |
+| You / Settings | You: identity + library; Home avatar = account menu; Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
+| You / Company | Library tabs Collections first (You + shop) | Works | Unit + Functional | Required | Completeness 2026-09-30-library-collections-first; `?tab=products` for Designs |
+| You / Company | Feed matches Explore (4∶5 single photo, inset mosaic) | Works | Unit | Required | Completeness 2026-09-30-library-feed-explore; Grid unchanged |
+| You / Settings | You shell Back → Home | Works | Unit | Required | Completeness 2026-09-30-you-back-home |
+| You / Settings | Shop Share on Business profile (not You library) | Works | Unit | Required | Completeness 2026-09-30-profile-share-icon |
+| Company | Own Business profile view until Edit; Update; hide tab bar | Works | Unit + Functional | Required | Completeness 2026-09-30-profile-view-then-edit; `?edit=1` / `focus=sell` |
+| You / Shop | Find designs / collections in place (You library + shop) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-shop-catalog-search; You Find + filter square Draft/Archived/Saved (2026-09-29-you-library-find-status); no Published chip |
 | Collections | Album / list find (tags, design name, notes, SKU; not a permanent bar) | Works | Unit + Functional | Required | Completeness 2026-09-24-collection-on-demand-find |
 
 | Collections | Fixed select bar clips last card (BM-07) | Works | Untested (manual fix 2026-08-11) | Required | Padding clears nav + bar; add regression when practical |

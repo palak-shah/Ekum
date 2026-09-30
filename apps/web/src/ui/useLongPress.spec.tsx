@@ -62,4 +62,14 @@ describe('useLongPress', () => {
     fireEvent.click(getByTestId('surface'));
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it('does not fire twice when the timer and contextmenu both run (Android)', () => {
+    const onLong = vi.fn();
+    const { getByTestId } = render(<Probe onLong={onLong} />);
+    const surface = getByTestId('surface');
+    fireEvent.pointerDown(surface);
+    vi.advanceTimersByTime(50);
+    fireEvent.contextMenu(surface);
+    expect(onLong).toHaveBeenCalledTimes(1);
+  });
 });

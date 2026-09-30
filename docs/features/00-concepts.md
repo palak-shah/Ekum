@@ -16,7 +16,7 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Contact person** | The logged-in user’s display name (e.g. Ravi) — distinct from the **business name** (e.g. Surat Silk House). |
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
 | **Trade presence** | `buyingEnabled` / `sellingEnabled` still shape ＋ and Home. Not shown on You or Edit. Creating catalog content turns selling back on. |
-| **Edit** | Manage my business / profile / content. You **Edit** → `/settings/profile`. Not Settings. |
+| **Edit** | Manage my business / profile / content. Home avatar **Profile** is look-first; **Edit profile** unlocks fields. Not Settings. |
 | **Share** | Share my Ekum identity (chat + OS share). Not a social post. |
 | **Settings** | Configure Ekum. Domain cards only — add a link to a domain or add a domain. Not Edit. |
 

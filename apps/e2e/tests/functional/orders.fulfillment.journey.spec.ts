@@ -19,6 +19,8 @@ test.describe('order fulfillment @functional @orders', () => {
     await loginAsRavi(page);
     await page.goto(`/orders/${orderId}`);
     await expect(page.getByTestId('order-dispatch-open')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-action-dock')).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     const linePhoto = page.getByTestId('order-line-photo').first();
     if ((await linePhoto.getAttribute('data-empty')) !== 'true') {
       await linePhoto.click();
@@ -53,7 +55,9 @@ test.describe('order fulfillment @functional @orders', () => {
     await expect(page.getByText(/Dispatched · complete|Dispatched/).first()).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByRole('button', { name: 'Raise a return' })).toBeVisible();
+    await expect(page.getByTestId('order-action-dock')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Raise a return' })).toHaveCount(0);
     await expect(page.getByTestId('order-deliver')).toHaveCount(0);
   });
 

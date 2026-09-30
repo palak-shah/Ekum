@@ -32,9 +32,11 @@ Use accent-border rows (ConnectionPicker language), not a new control.
 
 ## Ticket
 
-- `requested`. You are the **seller** on the ticket; chosen company (or thin company) is the buyer.  
-- Lines may be **others’ designs**. No chain picker. No auto Send-up (mill hop is **Send** later).  
-- Accept / Decline / `/o/:token` unchanged from the first slice (OTP on that phone, ~7 days, one use, Copy / WhatsApp after off-app create).
+- **Own designs:** `requested`, **you** are the seller, buyer **Accept**. No Confirm on your desk (you already logged it). Off-app `/o/:token` unchanged.
+- **Mill designs:** seller is the **mill**. Path from **Your paths** for trader × mill × buyer; **no row = I handle**.
+  - **I handle:** buyer↔you parent + held mill lots. You **Send**; mill **Confirm**. You do not Confirm the parent.
+  - **Direct:** mill ticket, you **Shared · {mill}**. Mill **Confirm**. You do not Confirm.
+- No auto Send-up. Mixed mills → one hop per mill.
 
 ## Picker bug
 

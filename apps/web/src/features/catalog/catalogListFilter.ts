@@ -1,8 +1,14 @@
 export type CatalogStatusFilter = 'draft' | 'published' | 'archived';
 
-/** Chip order and first-open default on My designs (Designs + Collections). */
+/** All library statuses (API / empty copy). You landing is published — no Published chip. */
 export const CATALOG_STATUS_FILTERS: { id: CatalogStatusFilter; label: string }[] = [
   { id: 'published', label: 'Published' },
+  { id: 'draft', label: 'Draft' },
+  { id: 'archived', label: 'Archived' },
+];
+
+/** Find-only chips on You (Draft / Archived). Saved is a separate Find chip. */
+export const CATALOG_FIND_STATUS_FILTERS: { id: CatalogStatusFilter; label: string }[] = [
   { id: 'draft', label: 'Draft' },
   { id: 'archived', label: 'Archived' },
 ];
@@ -75,6 +81,6 @@ export function uniqueById<T extends { id: string }>(rows: T[]): T[] {
 export function publishedDesignsElsewhereHint(publishedCount: number): string | null {
   if (publishedCount < 1) return null;
   return publishedCount === 1
-    ? '1 design is on Published (including packs).'
-    : `${publishedCount} designs are on Published (including packs).`;
+    ? '1 design is already live (including packs).'
+    : `${publishedCount} designs are already live (including packs).`;
 }

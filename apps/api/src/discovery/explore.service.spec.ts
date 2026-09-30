@@ -81,6 +81,7 @@ function makeService(
 const publishedCollection = {
   id: 'col1',
   companyId: 'owner',
+  description: 'Festive sets for Diwali counters.',
   status: 'published',
   audience: 'connections',
   rateVisibility: 'on_request',
@@ -159,6 +160,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.connected).toBe(true);
     expect(view.products).toHaveLength(2);
+    expect(view.description).toBe('Festive sets for Diwali counters.');
   });
 
   it('returns 404 to a blocked viewer, never a 403 that would confirm the block', async () => {
@@ -233,6 +235,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.coverImage).toBeNull();
     expect(view.previewImages).toEqual([]);
     expect(view.imageCount).toBe(0);
+    expect(view.description).toBe('Festive sets for Diwali counters.');
   });
 
   it('still 404s a Followers pack with no follow and no chat share', async () => {

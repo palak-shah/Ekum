@@ -94,6 +94,8 @@ type CreateOrderOptions = {
   holdUntilSend?: boolean;
   /** Internal recreate after ticket flip — do not re-resolve lane. */
   skipLanePlace?: boolean;
+  /** Trader/supplier logging How many each for this buyer (not the actor). */
+  onBehalfBuyerCompanyId?: string;
 };
 
 /** Chat body for line decisions — omit zero counts; Order # lives on the card title. */
@@ -142,7 +144,10 @@ export class OrderService {
       options.tradeMode !== OrderTradeMode.Manage &&
       !options.skipLanePlace
     ) {
-      dto = await this.applyTradeLanePlacePath(actorCompanyId, dto);
+      dto = await this.applyTradeLanePlacePath(
+        options.onBehalfBuyerCompanyId ?? actorCompanyId,
+        dto,
+      );
     }
     const handlePath =
       dto.orderPathPreference === 'handle' && !options.downstreamOrderId;
@@ -165,11 +170,22 @@ export class OrderService {
       };
     }
 
-    await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId, {
-      productIds: dto.items
-        .map((item) => item.productId)
-        .filter((id): id is string => Boolean(id)),
-    });
+    const buyerCompanyId = options.onBehalfBuyerCompanyId ?? actorCompanyId;
+    if (buyerCompanyId === dto.sellerCompanyId) {
+      throw new BadRequestException({
+        code: 'INVALID_TARGET',
+        message: 'You cannot place an order with your own business.',
+      });
+    }
+    if (actorCompanyId === dto.sellerCompanyId && options.onBehalfBuyerCompanyId) {
+      await this.tradeAccess.assertCanTrade(buyerCompanyId, actorCompanyId);
+    } else {
+      await this.tradeAccess.assertCanTrade(actorCompanyId, dto.sellerCompanyId, {
+        productIds: dto.items
+          .map((item) => item.productId)
+          .filter((id): id is string => Boolean(id)),
+      });
+    }
     const items = await this.snapshotItems(dto, {
       allowForeignProducts: options.allowForeignProducts === true,
     });
@@ -195,7 +211,7 @@ export class OrderService {
         downstreamOrderId: resolvedOpts.downstreamOrderId ?? null,
         upstreamReleasedAt:
           resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId ? null : undefined,
-        buyerCompanyId: actorCompanyId,
+        buyerCompanyId,
         sellerCompanyId: dto.sellerCompanyId,
         createdByCompanyId: actorCompanyId,
         createdByUserId: userId,
@@ -211,15 +227,27 @@ export class OrderService {
     let threadId: string | null = null;
     let livingMessageId: string | null = null;
     if (!held) {
-      threadId = await this.threads.ensureTradeThread(actorCompanyId, dto.sellerCompanyId);
+      threadId = await this.threads.ensureTradeThread(buyerCompanyId, dto.sellerCompanyId);
       const orderLabel = shortOrderLabel(order.id, { inquiry });
-      const actorLabel = order.buyer.name;
+      const loggedForBuyer = Boolean(options.onBehalfBuyerCompanyId);
+      const logger = loggedForBuyer
+        ? await this.prisma.company.findUnique({
+            where: { id: actorCompanyId },
+            select: { name: true },
+          })
+        : null;
+      const actorLabel = loggedForBuyer
+        ? (logger?.name ?? order.seller.name)
+        : order.buyer.name;
       const event = inquiry ? OrderChatEvent.RateRequested : OrderChatEvent.OrderRequested;
+      const body = loggedForBuyer
+        ? `${actorLabel} logged an order`
+        : dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`);
       livingMessageId = await this.upsertOrderThreadMessage(
-        actorCompanyId,
+        buyerCompanyId,
         dto.sellerCompanyId,
         actorCompanyId,
-        dto.note ?? (inquiry ? `${actorLabel} asked for rates` : `${actorLabel} requested`),
+        body,
         order.id,
         {
           status: order.status,
@@ -227,8 +255,9 @@ export class OrderService {
           event,
           orderLabel,
           actorLabel,
-          actorRole: 'buyer',
+          actorRole: actorCompanyId === dto.sellerCompanyId ? 'seller' : 'buyer',
           intent,
+          createdBySeller: actorCompanyId === dto.sellerCompanyId,
           ...(noteVoice.noteVoiceUrl
             ? {
                 noteVoiceUrl: noteVoice.noteVoiceUrl,
@@ -832,7 +861,8 @@ export class OrderService {
       canAcceptLogged:
         order.buyerCompanyId === actorCompanyId &&
         order.status === OrderStatus.Requested &&
-        order.createdByCompanyId === order.sellerCompanyId,
+        order.createdByCompanyId === order.sellerCompanyId &&
+        order.tradeMode === OrderTradeMode.Bilateral,
       paymentRequests: [],
       canAskPayment: false,
       ...quoteNoteFields,
@@ -918,6 +948,15 @@ export class OrderService {
       throw new ForbiddenException({
         code: 'NOT_ALLOWED',
         message: 'Only the seller can do this.',
+      });
+    }
+    if (
+      order.createdByCompanyId === order.sellerCompanyId &&
+      order.tradeMode === OrderTradeMode.Bilateral
+    ) {
+      throw new BadRequestException({
+        code: 'LOGGED_TICKET',
+        message: 'They still need to Accept this.',
       });
     }
     if (order.status !== OrderStatus.Requested) {
@@ -2860,6 +2899,27 @@ export class OrderService {
     options: CreateOrderOptions,
   ): Promise<CreateOrderOptions> {
     const facilitatorCompanyId = options.facilitatorCompanyId ?? facilitatorFromDto;
+    if (
+      options.onBehalfBuyerCompanyId &&
+      facilitatorCompanyId === actorCompanyId &&
+      sellerCompanyId !== actorCompanyId
+    ) {
+      const settings = await this.prisma.companySettings.findUnique({
+        where: { companyId: actorCompanyId },
+        select: { tradeDefaults: true },
+      });
+      if (!resolveTradePresence(settings?.tradeDefaults).trading) {
+        throw new BadRequestException({
+          code: 'TRADING_REQUIRED',
+          message: 'Turn on Trading in Profile to stay in the loop on orders.',
+        });
+      }
+      return {
+        ...options,
+        tradeMode: options.tradeMode ?? OrderTradeMode.Direct,
+        facilitatorCompanyId: actorCompanyId,
+      };
+    }
     if (
       !facilitatorCompanyId ||
       facilitatorCompanyId === actorCompanyId ||
