@@ -10,6 +10,11 @@ describe('shouldShowSelectionWorkspaceBar', () => {
     expect(shouldShowSelectionWorkspaceBar('/explore', 2)).toBe(true);
   });
 
+  it('shows on a shared design set when count > 0', () => {
+    expect(shouldShowSelectionWorkspaceBar('/designs/set', 2)).toBe(true);
+    expect(shouldShowSelectionWorkspaceBar('/designs/set', 0)).toBe(false);
+  });
+
   it('shows on another shop only when that shop’s trade dock is down', () => {
     expect(shouldShowSelectionWorkspaceBar('/company/abc', 1)).toBe(true);
     expect(shouldShowSelectionWorkspaceBar('/company/abc', 4, { shopDockUp: true })).toBe(false);

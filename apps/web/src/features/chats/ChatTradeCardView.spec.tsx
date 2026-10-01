@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ChatTradeCard } from './ChatTradeCardView';
@@ -220,6 +220,30 @@ describe('ChatTradeCard direction surface rule', () => {
     const accept = screen.getByText('Accept quote');
     expect(accept.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
     expect(accept.className).toMatch(/text-white/);
+  });
+});
+
+describe('ChatTradeCard designs', () => {
+  it('collage tap opens the set page, not PhotoViewer', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup();
+    const onOpen = vi.fn();
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          onOpen={onOpen}
+          model={model({
+            kind: 'designs',
+            primary: '17 designs',
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg'],
+            noteVoiceUrl: null,
+            action: { label: 'View designs →', to: '/designs/set?ids=a,b', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByTestId('photo-album-thumb'));
+    expect(onOpen).toHaveBeenCalled();
+    expect(screen.queryByTestId('photo-viewer')).toBeNull();
   });
 });
 

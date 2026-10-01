@@ -14,7 +14,7 @@
 | Lens | Summary findings |
 |------|------------------|
 | Product Manager | Photos already Quote one shot. A clubbed Designs card is the same talk-about-this-thing job — one design, not the whole collage. Trade actions stay on the ticket. |
-| UX Designer | Open **View designs →** → PhotoViewer **Quote** (same word as photos). Composer + reply bar show that design’s thumb and **Design · {name}**. Menu Reply still quotes the whole set. Quote only when the set was opened from that chat (thread + message). 48h / Explore set has no Quote. |
+| UX Designer | Open **View designs →** → set page → tap a design → PhotoViewer **Quote** (same word as photos). Composer + reply bar show that design’s thumb and **Design · {name}**. Menu Reply still quotes the whole set. Quote only when the set was opened from that chat (thread + message). 48h / Explore set has no Quote. |
 | Solution Architect | `replyToProductId` on send + reply metadata. Parent must be `design_album` and the id in `productIds`. Do not reuse `replyToPhotoIndex` (one design can have several photos). Preview thumb from `reference.designItems`. |
 
 ---

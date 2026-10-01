@@ -257,7 +257,7 @@ export function ChatsPage() {
       )}
 
       {showInChats ? (
-        <section data-testid="chats-in-chats" className="flex flex-col gap-2">
+        <section data-testid="chats-in-chats" className="flex flex-col gap-1">
           <h2 className="px-0.5 text-[13px] font-semibold text-muted">In chats</h2>
           <ul className="-mx-4 overflow-hidden bg-surface">
             {IN_CHATS.map((item) => {
@@ -267,15 +267,15 @@ export function ChatsPage() {
                   <Link
                     to={`/chats/find?kind=${item.kind}`}
                     data-testid={`chats-find-${item.kind}`}
-                    className="flex items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0 hover:bg-canvas active:bg-canvas"
+                    className="flex items-center gap-2.5 border-b border-line/70 px-4 py-2 last:border-b-0 hover:bg-canvas active:bg-canvas"
                   >
                     <span
                       className={cx(
-                        'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
                         badge,
                       )}
                     >
-                      <Icon width={20} height={20} aria-hidden />
+                      <Icon width={18} height={18} aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1 text-[14px] font-semibold text-ink">{item.label}</span>
                     <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />

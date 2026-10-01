@@ -16,6 +16,10 @@ import {
   shouldHideAppNav,
   shopSelectedCount,
 } from '@/features/company/shopTradeDock';
+import {
+  getPageOwnsBottomBand,
+  subscribePageOwnsBottomBand,
+} from '@/features/browse/selectionBottomBand';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
 import {
   getOrderActionDockNavVisible,
@@ -52,7 +56,7 @@ const NAV = [
 ] as const;
 
 /**
- * Mobile-first shell: quiet header (no brand mark), glass bottom nav, elevated ＋.
+ * Mobile-first shell: quiet header (no brand mark), glass bottom nav, centred ＋.
  */
 export function AppShell() {
   const navigate = useNavigate();
@@ -94,6 +98,7 @@ export function AppShell() {
     getOrderActionDockNavVisible,
     getOrderActionDockNavVisible,
   );
+  const pageDockUp = useSyncExternalStore(subscribePageOwnsBottomBand, getPageOwnsBottomBand);
   const hideAppNav =
     shouldHideAppNav(location.pathname, {
       myCompanyId: company.data?.id,
@@ -101,6 +106,7 @@ export function AppShell() {
         ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
         : 0,
       search: location.search,
+      pageDockUp,
     }) || orderDockHidesNav;
   const wasOrdersPath = useRef(false);
 
@@ -230,7 +236,7 @@ export function AppShell() {
         data-testid="app-bottom-nav"
         hidden={hideAppNav}
         className={cx(
-          'ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-end justify-around border-t border-line px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1',
+          'ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-center justify-around border-t border-line px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1',
           hideAppNav && 'hidden',
         )}
       >
@@ -242,15 +248,21 @@ export function AppShell() {
             badge={item.to === '/chats' && chatUnreadCount > 0 ? chatUnreadCount : undefined}
           />
         ))}
-        <button
-          type="button"
-          data-testid="app-create-fab"
-          aria-label="Create"
-          className="mb-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-white"
-          onClick={onCreate}
-        >
-          <PlusIcon width={26} height={26} />
-        </button>
+        {/* Same flex-1 column + label band as NavItem so ＋ centres with Home/Chats/Explore/Orders. */}
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5">
+          <button
+            type="button"
+            data-testid="app-create-fab"
+            aria-label="Create"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white"
+            onClick={onCreate}
+          >
+            <PlusIcon width={28} height={28} />
+          </button>
+          <span className="text-[11px] font-medium tracking-tight text-transparent" aria-hidden>
+            ·
+          </span>
+        </div>
         {NAV.slice(2).map((item) => (
           <NavItem
             key={item.to}

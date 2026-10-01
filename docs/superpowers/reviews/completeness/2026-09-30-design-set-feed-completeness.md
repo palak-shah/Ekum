@@ -35,7 +35,7 @@
 
 ## Explicitly deferred
 
-- Select / Order from the set page (Selection still from shop / pack).
+- Select / Order from the set page — **shipped 2026-10-01** (`2026-10-01-design-set-select-order`).
 - SKU on explore preview (not on this payload).
 
 ## Sign-off

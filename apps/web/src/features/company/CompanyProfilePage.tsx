@@ -9,7 +9,7 @@ import {
   type ConnectionView,
   type CursorPage,
   type ExploreProductCard,
-  type OrderView,
+  type CreateOrdersBatchResult,
   type PublicCompanyProfile,
   type PublicCompanySummary,
   type ThreadSummary,
@@ -34,7 +34,9 @@ import {
   clearResumeAfterAlbumPick,
   writeResumeAfterAlbumPick,
 } from '@/features/browse/resumeAfterAlbumPick';
-import { entriesAsProducts } from '@/features/browse/useShortlistOrderFlow';
+import { entriesAsProducts, sellerIdForEntries } from '@/features/browse/useShortlistOrderFlow';
+import { packHandlerName } from '@/features/browse/packOrderSource';
+import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { applySelectingPill } from '@/features/browse/selectingPill';
@@ -70,7 +72,7 @@ function toShopShortlistEntry(
     productId: product.id,
     name: product.name,
     thumbUrl: product.images[0] ?? null,
-    companyId: shopCompanyId,
+    companyId: product.company.id,
     companyName: product.company.name,
     unit: product.unit ?? null,
     rate: product.rate ?? null,
@@ -268,10 +270,9 @@ export function CompanyProfilePage() {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
       lines: Array<{ productId: string; quantity: number; note?: string }>;
     }) =>
-      api.post<OrderView & { threadId?: string | null }>('/orders', {
-        sellerCompanyId: id,
+      api.post<CreateOrdersBatchResult>('/orders/batch', {
         kind: OrderKind.Standard,
-        ...(input.intent === OrderIntent.Inquiry ? { intent: OrderIntent.Inquiry } : {}),
+        intent: input.intent,
         items: input.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -279,17 +280,20 @@ export function CompanyProfilePage() {
           ...(line.note?.trim() ? { note: line.note.trim() } : {}),
         })),
       }),
-    onSuccess: (order, input) => {
+    onSuccess: (payload, input) => {
       setQtyOpen(false);
       setQtyEntries(null);
       setOrderError(null);
-      shortlist.removeIds(input.lines.map((line) => line.productId));
+      const failedIds = new Set(payload.failures.flatMap((failure) => failure.productIds));
+      shortlist.removeIds(input.lines.map((line) => line.productId).filter((pid) => !failedIds.has(pid)));
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      if (input.intent === OrderIntent.Inquiry) {
-        showToast('Rate request sent');
+      const title = batchConfirmTitle(payload);
+      showToast(title, payload.orders.length === 0 ? 'danger' : 'success');
+      const leave = batchSuccessLeave(payload);
+      if (leave?.kind === 'order') {
+        void navigateToOrderChat(navigate, queryClient, leave.order, { replace: true });
       }
-      void navigateToOrderChat(navigate, queryClient, order, { replace: true });
     },
     onError: (error, input) =>
       setOrderError(
@@ -680,12 +684,12 @@ export function CompanyProfilePage() {
           setQtyOpen(false);
           setQtyEntries(null);
         }}
-        sellerId={id}
+        sellerId={sellerIdForEntries(qtyEntries ?? shopEntries)}
         products={entriesAsProducts(qtyEntries ?? shopEntries)}
         submitting={placeShopOrder.isPending && placeShopOrder.variables?.intent !== OrderIntent.Inquiry}
         asking={placeShopOrder.isPending && placeShopOrder.variables?.intent === OrderIntent.Inquiry}
         error={orderError}
-        orderGoesToName={company.name}
+        orderGoesToName={packHandlerName(qtyEntries ?? shopEntries) ?? company.name}
         onSendOrder={(lines) => {
           setOrderError(null);
           placeShopOrder.mutate({ intent: OrderIntent.Order, lines });

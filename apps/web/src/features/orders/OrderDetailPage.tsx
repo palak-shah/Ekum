@@ -27,7 +27,7 @@ import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
-import { ShipProgressHint, SettleQtyColumns, SettlePendingSummary, fulfillmentRowClass, orderLineShowsPending } from '@/features/orders/shipProgressLabel';
+import { ShipProgressHint, SettleQtyColumns, SettlePendingSummary, fulfillmentRowClass, orderLineShowsFulfillment, orderLineShowsPending } from '@/features/orders/shipProgressLabel';
 import {
   defaultDispatchOn,
   defaultDispatchQty,
@@ -280,21 +280,6 @@ function PartyShopName({
       {you ? ' (you)' : null}
     </>
   );
-}
-
-function lineStatusLabel(status: string): string {
-  switch (status) {
-    case 'declined':
-      return 'Can’t supply';
-    case 'confirmed':
-      return 'Confirmed';
-    case 'dispatched':
-      return 'Dispatched';
-    case 'delivered':
-      return 'Delivered';
-    default:
-      return 'Open';
-  }
 }
 
 function OrderLinePhoto({
@@ -1354,6 +1339,7 @@ export function OrderDetailPage() {
                     const cantSupply = item.lineStatus === 'declined';
                     const pending = item.remainingQuantity ?? 0;
                     const showPending = !cantSupply && orderLineShowsPending(item);
+                    const showFulfillment = !cantSupply && orderLineShowsFulfillment(item);
                     return (
                       <div
                         key={item.id}
@@ -1386,9 +1372,12 @@ export function OrderDetailPage() {
                               {item.quantity} × {formatRate(item.rate, item.unit)}
                             </p>
                           ) : null}
-                          {showPending ? (
+                          {showFulfillment ? (
                             <p className="text-[11px] font-medium">
-                              <ShipProgressHint shipped={item.shippedQuantity} pending={pending} />
+                              <ShipProgressHint
+                                dispatched={item.shippedQuantity}
+                                pending={pending}
+                              />
                             </p>
                           ) : null}
                         </OrderLineCantSupplyFace>
@@ -1464,6 +1453,7 @@ export function OrderDetailPage() {
           const pending = item.remainingQuantity ?? 0;
           const cantSupply = item.lineStatus === 'declined';
           const showPending = !cantSupply && orderLineShowsPending(item);
+          const showFulfillment = !cantSupply && orderLineShowsFulfillment(item);
           return (
             <div
               key={item.id}
@@ -1497,15 +1487,9 @@ export function OrderDetailPage() {
                 ) : (
                   <p className="text-xs text-muted">{item.requestedQuantity} asked</p>
                 )}
-                {!cantSupply ? (
+                {showFulfillment ? (
                   <p className="text-[11px] font-medium">
-                    <span className="text-slate">{lineStatusLabel(item.lineStatus)}</span>
-                    {item.shippedQuantity > 0 || showPending ? (
-                      <>
-                        {' · '}
-                        <ShipProgressHint shipped={item.shippedQuantity} pending={pending} />
-                      </>
-                    ) : null}
+                    <ShipProgressHint dispatched={item.shippedQuantity} pending={pending} />
                   </p>
                 ) : null}
                 {item.note ? <p className="text-xs text-muted">{item.note}</p> : null}

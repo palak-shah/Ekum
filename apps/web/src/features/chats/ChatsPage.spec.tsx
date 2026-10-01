@@ -248,6 +248,8 @@ describe('ChatsPage In chats find', () => {
       '/chats/find?kind=complaints',
     );
     expect(screen.queryByText('Orders')).toBeNull();
+    expect(screen.getByTestId('chats-find-complaints').className).toMatch(/py-2/);
+    expect(screen.getByTestId('chats-find-photos').querySelector('.h-10')).toBeTruthy();
   });
 
   it('hides In chats when typing a query', async () => {

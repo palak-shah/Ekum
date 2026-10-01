@@ -49,10 +49,16 @@ export function shouldShowShopTradeDock(options: {
 /** Hide Home · Chats · ＋ · Explore · Orders when a focused job owns the bottom. */
 export function shouldHideAppNav(
   pathname: string,
-  options: { myCompanyId?: string | null; thisShopSelectedCount: number; search?: string },
+  options: {
+    myCompanyId?: string | null;
+    thisShopSelectedCount: number;
+    search?: string;
+    pageDockUp?: boolean;
+  },
 ): boolean {
   if (isOwnProfileEditing(pathname, options.search)) return true;
   if (pathname === '/selection' || pathname.startsWith('/selection/')) return true;
+  if (pathname.startsWith('/designs/set') && options.pageDockUp) return true;
   if (
     pathname === '/catalog/collections/new' ||
     /^\/catalog\/collections\/[^/]+$/.test(pathname)

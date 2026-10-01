@@ -8,6 +8,10 @@ import {
   designSetSlides,
   firstSlideIndexForProduct,
 } from '@/features/browse/designSetSlides';
+import { designSetOpenIds, designSetToShortlist } from '@/features/browse/designSetShortlist';
+import { applySelectingPill } from '@/features/browse/selectingPill';
+import { selectAllState } from '@/features/browse/selectAllState';
+import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   type DesignBrowseLayout,
   designBrowsePhotoClass,
@@ -20,8 +24,15 @@ import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { CatalogFeedPost } from '@/ui/cards';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
-import { LockIcon } from '@/ui/icons';
+import { Button, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
+import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { packHandlerName } from '@/features/browse/packOrderSource';
+import { sellerIdForEntries, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import { useTradePresence } from '@/lib/tradePresence';
+import { CheckIcon, LockIcon } from '@/ui/icons';
+import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 
 type SetTile =
   | { id: string; status: 'ok'; product: ExploreProductPreviewView }
@@ -44,6 +55,10 @@ export function DesignSetPage() {
   const [layout, setLayout] = useState<DesignBrowseLayout>(() =>
     readDesignBrowseLayout(companyId),
   );
+  const shortlist = useBrowseShortlist();
+  const orderFlow = useShortlistOrderFlow();
+  const { trading } = useTradePresence();
+  const [curateOpen, setCurateOpen] = useState(false);
 
   useEffect(() => {
     setLayout(readDesignBrowseLayout(companyId));
@@ -80,7 +95,15 @@ export function DesignSetPage() {
     return { id, status: 'missing' as const };
   }), [ids, queries]);
 
-  const visibleCount = tiles.filter((t) => t.status === 'ok').length;
+  const openIds = useMemo(() => designSetOpenIds(tiles), [tiles]);
+  const visibleCount = openIds.length;
+  const thisSetCount = openIds.filter((id) => shortlist.productIds.has(id)).length;
+  const selectAll = selectAllState(openIds, shortlist.productIds);
+  const selecting = shortlist.selectMode || thisSetCount > 0;
+  const setEntries = shortlist.entries.filter((entry) => openIds.includes(entry.productId));
+  const visitorSetCount = setEntries.filter((entry) => entry.companyId !== companyId).length;
+  const dockUp = visitorSetCount > 0;
+  usePageOwnsBottomBand(dockUp);
   const slides = useMemo(() => {
     const products = tiles
       .filter((tile): tile is Extract<SetTile, { status: 'ok' }> => tile.status === 'ok')
@@ -101,14 +124,6 @@ export function DesignSetPage() {
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const [autoOpened, setAutoOpened] = useState(false);
-
-  useEffect(() => {
-    if (autoOpened || slides.length < 1) return;
-    setViewerIndex(0);
-    setViewerOpen(true);
-    setAutoOpened(true);
-  }, [autoOpened, slides.length]);
 
   const openAtProduct = (productId: string) => {
     if (slides.length < 1) return;
@@ -122,6 +137,24 @@ export function DesignSetPage() {
       writeDesignBrowseLayout(companyId, next);
       return next;
     });
+  };
+
+  const toggleProduct = (product: ExploreProductPreviewView) => {
+    shortlist.toggle(designSetToShortlist(product));
+  };
+
+  const onDesignActivate = (product: ExploreProductPreviewView) => {
+    if (selecting) {
+      toggleProduct(product);
+      return;
+    }
+    openAtProduct(product.id);
+  };
+
+  const onDesignLongSelect = (product: ExploreProductPreviewView) => {
+    setViewerOpen(false);
+    shortlist.setSelectMode(true);
+    toggleProduct(product);
   };
 
   if (ids.length < 1) {
@@ -143,7 +176,14 @@ export function DesignSetPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-canvas" data-testid="design-set-page">
+    <div
+      className={cx(
+        'flex min-h-full flex-col bg-canvas',
+        dockUp && 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
+        !dockUp && thisSetCount > 0 && 'pb-[calc(5rem+5.5rem)]',
+      )}
+      data-testid="design-set-page"
+    >
       <PageHeader
         title="Designs"
         subtitle={`${ids.length} design${ids.length === 1 ? '' : 's'}${
@@ -152,15 +192,60 @@ export function DesignSetPage() {
         onBack={() => navigate(-1)}
         action={
           visibleCount > 0 ? (
-            <button
-              type="button"
-              data-testid="design-set-layout-toggle"
-              aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-              className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-              onClick={toggleLayout}
-            >
-              {layout === 'feed' ? 'Grid' : 'Feed'}
-            </button>
+            <div className="flex items-center gap-2">
+              {selecting ? (
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    data-testid="select-all-float-select-all"
+                    disabled={selectAll.allSelected}
+                    className="text-xs font-bold text-accent disabled:opacity-40"
+                    onClick={() => {
+                      const openProducts = tiles.flatMap((tile) =>
+                        tile.status === 'ok' ? [tile.product] : [],
+                      );
+                      shortlist.addMany(openProducts.map(designSetToShortlist));
+                    }}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="select-all-float-clear"
+                    className="text-xs font-bold text-accent"
+                    onClick={() => shortlist.removeIds(openIds)}
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                data-testid="design-set-select"
+                className={cx(
+                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                  selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                )}
+                onClick={() => {
+                  setViewerOpen(false);
+                  applySelectingPill(selecting, thisSetCount, {
+                    clear: () => shortlist.removeIds(openIds),
+                    setSelectMode: shortlist.setSelectMode,
+                  });
+                }}
+              >
+                {selecting ? 'Selecting' : 'Select'}
+              </button>
+              <button
+                type="button"
+                data-testid="design-set-layout-toggle"
+                aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
+                onClick={toggleLayout}
+              >
+                {layout === 'feed' ? 'Grid' : 'Feed'}
+              </button>
+            </div>
           ) : null
         }
       />
@@ -177,7 +262,10 @@ export function DesignSetPage() {
                 key={tile.id}
                 product={tile.product}
                 layout={layout}
-                onOpen={() => openAtProduct(tile.product.id)}
+                selected={shortlist.productIds.has(tile.product.id)}
+                selectMode={selecting}
+                onActivate={() => onDesignActivate(tile.product)}
+                onLongSelect={() => onDesignLongSelect(tile.product)}
               />
             );
           }
@@ -218,6 +306,57 @@ export function DesignSetPage() {
           <ErrorState message="None of these designs are open to you." />
         </div>
       ) : null}
+      {dockUp ? (
+        <div
+          className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur"
+          data-testid="design-set-trade-dock"
+        >
+          {trading ? (
+            <Button variant="secondary" fullWidth onClick={() => setCurateOpen(true)}>
+              Curate
+            </Button>
+          ) : null}
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => {
+              setViewerOpen(false);
+              orderFlow.setError(null);
+              orderFlow.setQtyOpen(true);
+            }}
+          >
+            Ask for rates
+          </Button>
+          <Button
+            fullWidth
+            data-testid="design-set-order"
+            onClick={() => {
+              setViewerOpen(false);
+              orderFlow.setError(null);
+              orderFlow.setQtyOpen(true);
+            }}
+          >
+            Order
+          </Button>
+        </div>
+      ) : null}
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => orderFlow.setQtyOpen(false)}
+        sellerId={sellerIdForEntries(setEntries)}
+        products={orderFlow.products.filter((product) => openIds.includes(product.id))}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        orderGoesToName={packHandlerName(setEntries)}
+        onSendOrder={(lines) => orderFlow.sendOrder(lines, { collectionId: undefined })}
+        onAskRates={(lines) => orderFlow.askRates(lines, { collectionId: undefined })}
+      />
+      <CurateFromSelectionSheet
+        open={curateOpen}
+        onClose={() => setCurateOpen(false)}
+        productIds={setEntries.map((entry) => entry.productId)}
+      />
       <PhotoViewer
         open={viewerOpen && slides.length > 0}
         urls={slides.map((slide) => slide.url)}
@@ -251,11 +390,17 @@ export function DesignSetPage() {
 function DesignSetTile({
   product,
   layout,
-  onOpen,
+  selected,
+  selectMode,
+  onActivate,
+  onLongSelect,
 }: {
   product: ExploreProductPreviewView;
   layout: DesignBrowseLayout;
-  onOpen: () => void;
+  selected: boolean;
+  selectMode: boolean;
+  onActivate: () => void;
+  onLongSelect: () => void;
 }) {
   const images = product.images.map((url) => toAbsoluteMediaUrl(url) || url).filter(Boolean);
   const thumb = images[0] ?? null;
@@ -268,6 +413,7 @@ function DesignSetTile({
     categories: product.categories,
   });
   const extraPhotos = Math.max(0, images.length - 1);
+  const longPress = useLongPress(onLongSelect);
 
   if (layout === 'feed') {
     return (
@@ -279,7 +425,10 @@ function DesignSetTile({
         images={thumb ? [thumb] : []}
         imageCount={1}
         company={product.company}
-        onMediaClick={onOpen}
+        selected={selected}
+        selectMode={selectMode}
+        onMediaClick={onActivate}
+        onLongSelect={onLongSelect}
         mediaTestId="design-set-tile"
         openTestId="design-set-tile-open"
       />
@@ -289,13 +438,28 @@ function DesignSetTile({
   return (
     <button
       type="button"
-      onClick={onOpen}
-      className="overflow-hidden rounded-2xl border border-line bg-surface text-left active:opacity-90"
+      onClick={onActivate}
+      className={cx(
+        'overflow-hidden rounded-2xl border bg-surface text-left active:opacity-90',
+        selected ? 'border-accent bg-accent/5' : 'border-line',
+        LONG_PRESS_SURFACE_CLASS,
+      )}
       data-testid="design-set-tile"
+      {...longPress}
     >
       {thumb ? (
         <span className="relative block">
           <img src={thumb} alt="" className={designBrowsePhotoClass('grid')} />
+          {selectMode ? (
+            <span
+              className={cx(
+                'absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
+                selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
+              )}
+            >
+              <CheckIcon width={14} height={14} />
+            </span>
+          ) : null}
           {extraPhotos > 0 ? (
             <span className="absolute bottom-2 left-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
               +{extraPhotos}

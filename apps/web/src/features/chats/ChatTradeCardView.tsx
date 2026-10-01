@@ -237,6 +237,7 @@ function CardBody({
               overflowCount={model.thumbOverflow ?? 0}
               size="thumb"
               locked={Boolean(model.imagesLocked)}
+              interactive={model.kind === 'complaint'}
             />
           </div>
         ) : null}

@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-09-30 (pastel avatar washes)  
+**Updated:** 2026-10-01 (nav ＋ 48px)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -16,7 +16,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Onboarding | Required * on business name, contact person, city, types | Works | Unit | Required | Completeness 2026-09-26-onboarding-required-star |
 | Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; What broke + Copy |
 | Platform | Nav ＋ never a dead tap | Works | Unit + Functional | Required | Completeness 2026-09-25-create-fab-dead-tap; 2026-09-29 collection chooser (create vs You Collections); You ＋ stays on Saved |
-| Platform | Kit density: 40px Button/input, 28px Chip, 40×40 list square | Works | Unit | Required | Completeness 2026-09-26-kit-density; qty thumbs + nav ＋ stay 48px |
+| Platform | Kit density: 40px Button/input, 28px Chip, 40×40 list square | Works | Unit | Required | Completeness 2026-09-26-kit-density; qty thumbs + nav ＋ stay 48px (restored 2026-10-01-nav-plus-size) |
 | Explore | Shop header: GST tick, city · cats, See new packs, date under post | Works | Unit | Required | Completeness 2026-09-29-explore-shop-header-chrome; CSV sr 8 T4 · 9/10 T1+T3 · 16 T4 |
 | Explore | Pack header rate band; design card / popup shop name | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 16 T3 · 17 T3 |
 | Catalog | Nav ＋ has no Add designs (You Add only) | Works | Unit-only | Required | Completeness 2026-09-25-nav-plus-no-add-designs |
@@ -63,6 +63,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Message actions (Reply/Forward/Copy/Star/Edit/Delete) | Works | Unit | Required | Completeness 2026-09-03-chat-message-actions; no Select all; order teaser strip |
 | Chat | Quote one photo in an album (reference, not Order) | Works | Unit | Required | Completeness 2026-09-23-quote-one-album-photo |
 | Chat | Quote one design in a designs set (reference, not Order) | Works | Unit | Required | Completeness 2026-10-01-quote-one-design |
+| Chat | View designs opens set page (not PhotoViewer) | Works | Unit + Functional | Required | Completeness 2026-10-01-design-set-page-first |
 | Chat | Photo long-press opens Ekum actions menu | Works | Unit + Functional | Required | Completeness 2026-09-13-photo-longpress-menu; WA gesture, Ekum verbs |
 | Collections | Pack Ask Allow/Deny (Granted on request) | Works | Unit | Required | Completeness 2026-09-03-collection-view-request-allow-deny; ≠ Connection |
 | Orders | Core trade request→quote→accept | Works | Functional | Required | Green 2026-08-11 |
@@ -86,12 +87,12 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Dispatch → settle (+ legacy deliver) | Works | Unit | Required | Completeness 2026-09-06-settle-order-trail; trail Timeline |
 | Orders | Dispatch sheet on/off + packing PDF | Works | Unit | Required | Completeness 2026-09-21-dispatch-tabular; pending-only; share PDF after save |
 | Orders | Confirm/decline lines: dispatch cards; off = decline; leftover qty at Dispatch | Works | Unit | Required | Completeness 2026-09-21-confirm-decline-lines |
-| Orders | Pending qty clarity (partial ship + settle) | Works | Unit + Functional | Required | Completeness 2026-09-13-order-pending-qty-clarity; left→pending; Settle Dispatched\|Pending |
+| Orders | Pending qty clarity (partial ship + settle) | Works | Unit + Functional | Required | Completeness 2026-09-13-order-pending-qty-clarity + 2026-10-01-order-line-dispatched-pending; items card **dispatched N · pending M** (both); Settle Dispatched\|Pending |
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Deferred | — | — | Removed from product 2026-09-21; order completes on dispatch; endpoints reject `PAYMENT_DISABLED` |
 | Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token; mill seller + path 2026-09-29-order-for-buyer-mill-seller |
 | Collections | 48h share link | Works | Functional + Unit | Required | Presentable WhatsApp OG collage + seller copy 2026-09-11; multi-design kind `designs` 2026-09-16; mix keeps N doors 2026-09-24; `share-link.journey` |
-| Explore / Catalog | Grouped designs share (chat collage + 48h, not a Collection) | Works | Unit | Required | Completeness 2026-09-16; viewer + shop line 2026-09-24; set Feed/Grid + facts 2026-09-30; virtual set `/designs/set` |
+| Explore / Catalog | Grouped designs share (chat collage + 48h, not a Collection) | Works | Unit + Functional | Required | Completeness 2026-09-16; viewer + shop line 2026-09-24; set Feed/Grid + facts 2026-09-30; Select/Order 2026-10-01; shop-style Ask/Order dock mixed shops 2026-10-01-pick-surface-trade-dock |
 | Orders | Photo order / amend / samples | Partial | Unit + Functional | Future | Chat ＋ Photo order prefills that shop (editable) 2026-09-24; returns removed 2026-09-30 |
 | Orders | Leave guard (photo order + builders) | Works | Unit + Functional | Required | Completeness 2026-08-24-discard-guard; shared sheet |
 | Orders | Trade without connection | Rejected | — | Reject | Trust ladder |

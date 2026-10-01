@@ -3,7 +3,6 @@ export function pathOwnsBottomActionBand(pathname: string): boolean {
   if (pathname === '/orders/new' || pathname.startsWith('/orders/new/')) return true;
   if (/^\/orders\/[^/]+/.test(pathname)) return true;
   if (pathname.startsWith('/o/')) return true;
-  if (pathname.startsWith('/designs/set')) return true;
   if (pathname.startsWith('/catalog/')) return true;
   return false;
 }
@@ -25,8 +24,8 @@ export function isDesignOrPackPath(pathname: string): boolean {
 }
 
 /**
- * Floater only on pick surfaces: Explore; other shop when its dock is down;
- * design / pack while Selecting.
+ * Floater only on pick surfaces: Explore; shared design set; other shop when
+ * its dock is down; design / pack while Selecting.
  */
 export function shouldShowSelectionWorkspaceBar(
   pathname: string,
@@ -38,6 +37,7 @@ export function shouldShowSelectionWorkspaceBar(
   if (pathOwnsBottomActionBand(pathname)) return false;
 
   if (isExploreFeedPath(pathname)) return true;
+  if (pathname.startsWith('/designs/set')) return true;
 
   if (isCompanyShopPath(pathname)) {
     if (options?.ownShop) return false;

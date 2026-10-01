@@ -86,6 +86,23 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('non-interactive thumbs do not open viewer', async () => {
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(
+      <PhotoAlbum
+        urls={['https://example.com/a.jpg', 'https://example.com/b.jpg']}
+        size="thumb"
+        interactive={false}
+      />,
+    );
+    const thumb = screen.getByTestId('photo-album-thumb');
+    expect(thumb).toHaveAttribute('data-interactive', 'false');
+    expect(thumb.className).toMatch(/pointer-events-none/);
+    await user.click(thumb);
+    expect(screen.queryByTestId('photo-viewer')).toBeNull();
+  });
+
   it('non-interactive collage does not open viewer (forward select)', async () => {
     const { userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();

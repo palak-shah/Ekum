@@ -20,6 +20,11 @@ describe('shellTitle', () => {
     expect(shellShowsHomeBack('/chats')).toBe(false);
   });
 
+  it('lets the shared design set own the top band (no empty shell line)', () => {
+    expect(shellTitle('/designs/set')).toBeNull();
+    expect(pageOwnsTopChrome('/designs/set')).toBe(true);
+  });
+
   it('lets Network PageHeader own the top band (no second Network title)', () => {
     expect(shellTitle('/network')).toBeNull();
     expect(shellTitle('/network/following')).toBeNull();

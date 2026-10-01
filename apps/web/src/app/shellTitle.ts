@@ -14,6 +14,7 @@ export function pageOwnsTopChrome(pathname: string): boolean {
   if (pathname === '/orders/new' || pathname.startsWith('/orders/new/')) return true;
   if (/^\/orders\/[^/]+/.test(pathname)) return true;
   if (/^\/collections\//.test(pathname)) return true;
+  if (pathname.startsWith('/designs/set')) return true;
   if (/^\/products\//.test(pathname)) return true;
   if (/^\/company\//.test(pathname)) return true;
   return false;

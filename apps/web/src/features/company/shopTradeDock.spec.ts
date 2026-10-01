@@ -103,6 +103,13 @@ describe('shouldHideAppNav', () => {
     expect(shouldHideAppNav('/selection', { thisShopSelectedCount: 0 })).toBe(true);
   });
 
+  it('hides on a shared design set while the trade dock is up', () => {
+    expect(shouldHideAppNav('/designs/set', { thisShopSelectedCount: 0, pageDockUp: true })).toBe(
+      true,
+    );
+    expect(shouldHideAppNav('/designs/set', { thisShopSelectedCount: 0 })).toBe(false);
+  });
+
   it('hides on a shop while that seller has selected designs', () => {
     expect(
       shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 1 }),

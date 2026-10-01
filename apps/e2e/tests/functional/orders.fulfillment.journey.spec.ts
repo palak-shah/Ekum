@@ -84,6 +84,8 @@ test.describe('order fulfillment @functional @orders', () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId('ship-progress-pending').first()).toContainText(/pending/);
+    await expect(page.getByTestId('ship-progress-hint').first()).toContainText(/dispatched/);
+    await expect(page.getByTestId('ship-progress-hint').first()).not.toContainText(/shipped/);
     await expect(page.getByTestId('ship-progress-hint').first()).not.toContainText(/\bleft\b/);
 
     await page.getByTestId('order-settle-open').first().click();

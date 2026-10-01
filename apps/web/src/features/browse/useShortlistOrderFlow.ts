@@ -83,6 +83,12 @@ export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[
   );
 }
 
+export function sellerIdForEntries(entries: readonly { companyId: string }[]): string {
+  if (entries.length === 0) return 'multi';
+  const first = entries[0]!.companyId;
+  return entries.every((entry) => entry.companyId === first) ? first : 'multi';
+}
+
 export function useShortlistOrderFlow() {
   const shortlist = useBrowseShortlist();
   const queryClient = useQueryClient();
@@ -149,14 +155,7 @@ export function useShortlistOrderFlow() {
     },
   });
 
-  const sellerIdForQty =
-    shortlist.entries.length === 0
-      ? 'multi'
-      : shortlist.entries.length === 1
-        ? shortlist.entries[0]!.companyId
-        : shortlist.entries.every((entry) => entry.companyId === shortlist.entries[0]?.companyId)
-          ? shortlist.entries[0]!.companyId
-          : 'multi';
+  const sellerIdForQty = sellerIdForEntries(shortlist.entries);
 
   return {
     shortlist,

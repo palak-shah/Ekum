@@ -169,9 +169,13 @@ export function PhotoAlbum({
     return (
       <>
         <div
-          className="h-14 w-fit shrink-0 overflow-hidden"
+          className={cx(
+            'h-14 w-fit shrink-0 overflow-hidden',
+            !canOpen && 'pointer-events-none',
+          )}
           data-testid="photo-album-thumb"
           data-locked={locked ? 'true' : undefined}
+          data-interactive={canOpen ? undefined : 'false'}
         >
           {grid}
         </div>

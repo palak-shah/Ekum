@@ -9,6 +9,24 @@ export function orderLineShowsPending(item: {
   if (pending <= 0) return false;
   return item.lineStatus === 'confirmed' || item.lineStatus === 'dispatched';
 }
+
+/** Show the dispatched/pending pair (not Open / Can’t supply). */
+export function orderLineShowsFulfillment(item: {
+  remainingQuantity?: number;
+  shippedQuantity?: number;
+  lineStatus?: string;
+}): boolean {
+  if (item.lineStatus === 'declined' || item.lineStatus === 'open') return false;
+  const pending = item.remainingQuantity ?? 0;
+  const dispatched = item.shippedQuantity ?? 0;
+  return (
+    item.lineStatus === 'confirmed' ||
+    item.lineStatus === 'dispatched' ||
+    item.lineStatus === 'delivered' ||
+    dispatched > 0 ||
+    pending > 0
+  );
+}
 export function fulfillmentNeedsAttention(pending: number): boolean {
   return pending > 0;
 }
@@ -23,30 +41,28 @@ export function fulfillmentRowClass(pending: number, className?: string): string
   );
 }
 
-/** Shipped (quiet) + pending (accent when open) — order line / dispatch cue. */
+/** Always both: dispatched N · pending M — same words on every line. */
 export function ShipProgressHint({
-  shipped,
+  dispatched,
   pending,
   className,
 }: {
-  shipped: number;
+  dispatched: number;
   pending: number;
   className?: string;
 }) {
-  if (shipped <= 0 && pending <= 0) return null;
   return (
     <span className={cx('tabular-nums', className)} data-testid="ship-progress-hint">
-      {shipped > 0 ? (
-        <span className="text-muted">
-          shipped <span className="font-medium text-slate">{shipped}</span>
-        </span>
-      ) : null}
-      {shipped > 0 && pending > 0 ? <span className="text-muted"> · </span> : null}
-      {pending > 0 ? (
-        <span className="font-semibold text-accent" data-testid="ship-progress-pending">
-          pending {pending}
-        </span>
-      ) : null}
+      <span className="text-muted">
+        dispatched <span className="font-medium text-slate">{dispatched}</span>
+      </span>
+      <span className="text-muted"> · </span>
+      <span
+        className={pending > 0 ? 'font-semibold text-accent' : 'text-muted'}
+        data-testid="ship-progress-pending"
+      >
+        pending <span className="font-medium">{pending}</span>
+      </span>
     </span>
   );
 }
