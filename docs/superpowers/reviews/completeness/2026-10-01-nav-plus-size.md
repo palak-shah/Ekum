@@ -57,7 +57,7 @@ None required.
 
 ## Approved scope for this slice
 
-- Bottom-nav Create ＋ is **48×48** (`h-12 w-12`), circle, plus glyph ~28px.
+- Bottom-nav Create ＋ is **48×48** (`h-12 w-12`), circle, plus glyph ~28px, vertically centred in the nav (not stacked on the 32px icon row).
 - Tab icon wells stay 32px.
 - Concepts stay “Nav ＋ / camera shutter = 48px” (already true).
 

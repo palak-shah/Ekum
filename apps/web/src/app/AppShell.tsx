@@ -248,8 +248,8 @@ export function AppShell() {
             badge={item.to === '/chats' && chatUnreadCount > 0 ? chatUnreadCount : undefined}
           />
         ))}
-        {/* Same flex-1 column + label band as NavItem so ＋ centres with Home/Chats/Explore/Orders. */}
-        <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5">
+        {/* Stretch to the tab column height and centre the 48px ＋ (not top-aligned to the 32px icons). */}
+        <div className="flex min-w-0 flex-1 items-center justify-center self-stretch">
           <button
             type="button"
             data-testid="app-create-fab"
@@ -259,9 +259,6 @@ export function AppShell() {
           >
             <PlusIcon width={28} height={28} />
           </button>
-          <span className="text-[11px] font-medium tracking-tight text-transparent" aria-hidden>
-            ·
-          </span>
         </div>
         {NAV.slice(2).map((item) => (
           <NavItem
