@@ -1148,6 +1148,7 @@ export class ExploreService {
       connected,
       description: product.description,
       moq: product.moq ?? null,
+      piecesPerPack: product.piecesPerPack ?? null,
       categories: product.categories,
     };
     if (!showBody) {

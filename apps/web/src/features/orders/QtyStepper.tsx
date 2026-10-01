@@ -19,7 +19,7 @@ export function parseQtyDraft(raw: string): number | null {
 
 /**
  * − [editable textbox] + for piece counts.
- * Center field is always typeable; ± use `step` (default 10).
+ * Center field is always typeable; ± use `step` (default 1).
  * `enterKeyHint="done"` shows Done on mobile keyboards; with a parent <form>,
  * Enter/Done typically submits (Apply).
  */
@@ -31,7 +31,7 @@ export function QtyStepper({
   value,
   onChange,
   disabled,
-  step = 10,
+  step = 1,
   enterKeyHint = 'done',
   chainQty = false,
   autoFocus = false,
@@ -66,7 +66,7 @@ export function QtyStepper({
         type="button"
         className={STEPPER_BTN}
         disabled={disabled || value == null || value <= 1}
-        aria-label="Decrease pieces"
+        aria-label={`Decrease ${ariaLabel}`}
         onClick={() => onChange(Math.max(1, (value ?? 1) - step))}
       >
         −
@@ -106,7 +106,7 @@ export function QtyStepper({
         type="button"
         className={STEPPER_BTN}
         disabled={disabled}
-        aria-label="Increase pieces"
+        aria-label={`Increase ${ariaLabel}`}
         onClick={() => onChange(Math.min(1_000_000, (value ?? 0) + step))}
       >
         +

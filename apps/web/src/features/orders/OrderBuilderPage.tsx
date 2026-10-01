@@ -10,7 +10,6 @@ import type {
 } from '@ekum/domain-types';
 import { OrderKind } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { formatRate } from '@/lib/format';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
@@ -18,13 +17,14 @@ import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ListSquareButton } from '@/ui/ListSearchRow';
-import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextInput, cx } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from '@/features/orders/QtyStepper';
+import { howManyLineMeta, howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
@@ -47,9 +47,9 @@ interface StandardLine {
   rateMax: number | null;
   unit: string | null;
   categories: string[];
+  piecesPerPack: number | null;
   quantity: string;
   note: string;
-  noteOpen: boolean;
 }
 
 /** Wholesale-scale presets — traders usually think in 50s / 100s, not singles. */
@@ -131,9 +131,9 @@ export function OrderBuilderPage() {
           rateMax: product.rateMax ?? null,
           unit: product.unit,
           categories: product.categories ?? [],
+          piecesPerPack: product.piecesPerPack ?? null,
           quantity: seedQty,
           note: '',
-          noteOpen: false,
         })),
       );
       setInitialQuantities(Object.fromEntries(rows.map((product) => [product.id, seedQty])));
@@ -433,7 +433,7 @@ export function OrderBuilderPage() {
                 <QtyStepper
                   autoFocus
                   value={sameDraft}
-                  aria-label="Same pieces for all designs"
+                  aria-label="Same quantity for all designs"
                   onChange={setSameDraft}
                 />
               </SameForAllEditor>
@@ -457,7 +457,15 @@ export function OrderBuilderPage() {
             {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
           >
             {standardLines.map((line, index) => {
-              const rate = formatRate(line.rate, line.unit, line.rateMax);
+              const qty = parseQtyDraft(line.quantity);
+              const facts = howManyLineMeta({
+                unit: line.unit,
+                piecesPerPack: line.piecesPerPack,
+                rate: line.rate,
+                rateMax: line.rateMax,
+              });
+              const totalPcs = howManyTotalPcsLabel(qty, line.unit, line.piecesPerPack);
+              const noun = qtyCountNoun(line.unit);
               return (
                 <li
                   key={line.productId}
@@ -481,9 +489,25 @@ export function OrderBuilderPage() {
                           <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
                             {line.name}
                           </p>
-                          {rate !== 'On request' ? (
-                            <p className="mt-0.5 text-[12px] text-muted">{rate}</p>
+                          {facts ? (
+                            <p className="mt-0.5 text-[12px] text-muted">{facts}</p>
                           ) : null}
+                          <TextInput
+                            className="mt-2"
+                            placeholder="Colour, packing…"
+                            value={line.note}
+                            data-testid="how-many-note"
+                            aria-label={`Note for ${line.name}`}
+                            onChange={(event) =>
+                              setStandardLines((prev) =>
+                                prev.map((item) =>
+                                  item.productId === line.productId
+                                    ? { ...item, note: event.target.value }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
                         </div>
                         {standardLines.length > 1 ? (
                           <button
@@ -500,73 +524,29 @@ export function OrderBuilderPage() {
                           </button>
                         ) : null}
                       </div>
-                      <div className="mt-2">
-                        <QtyStepper
-                          value={parseQtyDraft(line.quantity)}
-                          chainQty
-                          enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
-                          aria-label={`Pieces for ${line.name}`}
-                          onChange={(next) => {
-                            if (next != null) rememberQty(sellerId || sellerFromUrl, next);
-                            setStandardLines((prev) =>
-                              prev.map((item) =>
-                                item.productId === line.productId
-                                  ? { ...item, quantity: next == null ? '' : String(next) }
-                                  : item,
-                              ),
-                            );
-                          }}
-                        />
-                      </div>
-                      {line.noteOpen ? (
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            className="text-[12px] font-bold tracking-tight text-accent"
-                            onClick={() =>
-                              setStandardLines((prev) =>
-                                prev.map((item) =>
-                                  item.productId === line.productId
-                                    ? { ...item, noteOpen: false }
-                                    : item,
-                                ),
-                              )
-                            }
-                          >
-                            Note ▴
-                          </button>
-                          <TextArea
-                            className="mt-1.5 min-h-[4.5rem] text-sm"
-                            placeholder="Colour, packing…"
-                            value={line.note}
-                            onChange={(event) =>
-                              setStandardLines((prev) =>
-                                prev.map((item) =>
-                                  item.productId === line.productId
-                                    ? { ...item, note: event.target.value }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="mt-2 text-[12px] font-bold tracking-tight text-accent"
-                          onClick={() =>
-                            setStandardLines((prev) =>
-                              prev.map((item) =>
-                                item.productId === line.productId
-                                  ? { ...item, noteOpen: true }
-                                  : item,
-                              ),
-                            )
-                          }
-                        >
-                          Add note
-                        </button>
-                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <QtyStepper
+                        value={qty}
+                        chainQty
+                        enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
+                        aria-label={`${noun} for ${line.name}`}
+                        onChange={(next) => {
+                          if (next != null) rememberQty(sellerId || sellerFromUrl, next);
+                          setStandardLines((prev) =>
+                            prev.map((item) =>
+                              item.productId === line.productId
+                                ? { ...item, quantity: next == null ? '' : String(next) }
+                                : item,
+                            ),
+                          );
+                        }}
+                      />
+                      {totalPcs ? (
+                        <p className="text-[11px] font-medium text-muted" data-testid="how-many-total-pcs">
+                          {totalPcs}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </li>

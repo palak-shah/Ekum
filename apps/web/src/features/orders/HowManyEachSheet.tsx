@@ -6,18 +6,17 @@ import { orderSheetTitle } from '@/features/orders/orderQtyUi';
 import {
   QtyStepper,
   SameForAllEditor,
-  cxNoteLink,
   sameForAllChipLabel,
 } from '@/features/orders/QtyStepper';
 import { applyHowManyDetail } from '@/features/orders/howManyHydrate';
-import { howManyLineMeta } from '@/features/orders/howManyLineMeta';
+import { howManyLineMeta, howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
 import { howManySingleGoesTo, howManySplitBanner } from '@/features/orders/howManySplitBanner';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { Button, InlineNotice, Sheet, TextArea, cx } from '@/ui/kit';
+import { Button, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty } from '@/features/orders/qtyEachMemory';
@@ -96,7 +95,6 @@ export function HowManyEachSheet({
   const [sharedQty, setSharedQty] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<Record<string, number | null>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
   const [removed, setRemoved] = useState<Set<string>>(() => new Set());
   const [sameOpen, setSameOpen] = useState(false);
   const [sameDraft, setSameDraft] = useState<number | null>(null);
@@ -113,7 +111,6 @@ export function HowManyEachSheet({
     setSameDraft(remembered);
     setOverrides({});
     setNotes({});
-    setNoteOpen({});
     setRemoved(new Set());
     setSameOpen(false);
     setPhotoOpen(false);
@@ -334,7 +331,7 @@ export function HowManyEachSheet({
                   autoFocus
                   value={sameDraft}
                   disabled={busy}
-                  aria-label="Same pieces for all designs"
+                  aria-label="Same quantity for all designs"
                   onChange={setSameDraft}
                 />
               </SameForAllEditor>
@@ -363,8 +360,13 @@ export function HowManyEachSheet({
               const thumbs = howManyPhotoUrls(product);
               const thumb = thumbs[0] ?? null;
               const facts = howManyLineMeta(product);
-              const openNote = Boolean(noteOpen[product.id]);
               const noteValue = notes[product.id] ?? '';
+              const noun = qtyCountNoun(product.unit);
+              const totalPcs = howManyTotalPcsLabel(
+                quantity,
+                product.unit,
+                product.piecesPerPack,
+              );
               return (
                 <li
                   key={product.id}
@@ -405,54 +407,39 @@ export function HowManyEachSheet({
                           {facts}
                         </p>
                       ) : null}
-                      {openNote ? (
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            className={cxNoteLink()}
-                            onClick={() =>
-                              setNoteOpen((prev) => ({ ...prev, [product.id]: false }))
-                            }
-                          >
-                            Note ▴
-                          </button>
-                          <TextArea
-                            className="mt-1.5 min-h-[4.5rem] text-sm"
-                            placeholder="Colour, packing…"
-                            value={noteValue}
-                            disabled={busy}
-                            onChange={(event) =>
-                              setNotes((prev) => ({
-                                ...prev,
-                                [product.id]: event.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className={cx(cxNoteLink(), 'mt-2')}
-                          disabled={busy}
-                          onClick={() =>
-                            setNoteOpen((prev) => ({ ...prev, [product.id]: true }))
-                          }
-                        >
-                          Add note
-                        </button>
-                      )}
+                      <TextInput
+                        className="mt-2"
+                        placeholder="Colour, packing…"
+                        value={noteValue}
+                        disabled={busy}
+                        data-testid="how-many-note"
+                        aria-label={`Note for ${product.name}`}
+                        onChange={(event) =>
+                          setNotes((prev) => ({
+                            ...prev,
+                            [product.id]: event.target.value,
+                          }))
+                        }
+                      />
                     </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
                     <QtyStepper
                       value={quantity}
                       disabled={busy}
                       chainQty
                       enterKeyHint={index === lines.length - 1 ? 'done' : 'next'}
-                      aria-label={`Pieces for ${product.name}`}
+                      aria-label={`${noun} for ${product.name}`}
                       onChange={(next) => {
                         setOverrides((prev) => ({ ...prev, [product.id]: next }));
                         if (next != null) persistQty(next);
                       }}
                     />
+                    {totalPcs ? (
+                      <p className="text-[11px] font-medium text-muted" data-testid="how-many-total-pcs">
+                        {totalPcs}
+                      </p>
+                    ) : null}
+                    </div>
                     {canRemove ? (
                       <button
                         type="button"

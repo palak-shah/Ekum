@@ -190,7 +190,7 @@ export function CollectionEditorPage() {
   const [memberForm, setMemberForm] = useState<MemberDesignForm>({
     name: '',
     rate: '',
-    unit: Unit.Piece,
+    unit: Unit.Set,
     piecesPerPack: '',
     moq: '',
     notes: '',
@@ -199,10 +199,10 @@ export function CollectionEditorPage() {
   const [memberPhotos, setMemberPhotos] = useState<MemberPhotoThumb[]>([]);
   const [memberSaving, setMemberSaving] = useState(false);
   const [sameForAll, setSameForAll] = useState<SameForAllDetails>(() =>
-    emptySameForAll(Unit.Piece),
+    emptySameForAll(Unit.Set),
   );
   const [sameForAllDraft, setSameForAllDraft] = useState<SameForAllDetails>(() =>
-    emptySameForAll(Unit.Piece),
+    emptySameForAll(Unit.Set),
   );
   const [sameForAllExpanded, setSameForAllExpanded] = useState(false);
   const [whoExpanded, setWhoExpanded] = useState(false);
@@ -330,7 +330,7 @@ export function CollectionEditorPage() {
         form: {
           name: product.name,
           rate: formatRateInput(product.rate, product.rateMax ?? null),
-          unit: product.unit || Unit.Piece,
+          unit: product.unit || Unit.Set,
           piecesPerPack:
             product.piecesPerPack != null ? String(product.piecesPerPack) : '',
           moq: product.moq != null ? String(product.moq) : '',
@@ -395,7 +395,7 @@ export function CollectionEditorPage() {
     const sell = readCompanySellAsUsual(settings.data.tradeDefaults);
     setPublishAudience(emptyPublishAudienceState(usual));
     const nextSame: SameForAllDetails = {
-      ...emptySameForAll(sell.unit || Unit.Piece),
+      ...emptySameForAll(sell.unit || Unit.Set),
       piecesPerPack: sell.piecesPerPack,
       moq: sell.moq,
       categories: [],
@@ -780,7 +780,7 @@ export function CollectionEditorPage() {
       ],
       name: nameFromFilename(file.name),
       rate: shared.rate,
-      unit: shared.unit || Unit.Piece,
+      unit: shared.unit || Unit.Set,
       piecesPerPack: shared.piecesPerPack,
       moq: shared.moq,
       notes: shared.notes,
@@ -833,7 +833,7 @@ export function CollectionEditorPage() {
         const parsed = productFieldsFromMember({
           name: nameFromFilename(file.name),
           rate: shared.rate,
-          unit: shared.unit || Unit.Piece,
+          unit: shared.unit || Unit.Set,
           piecesPerPack: shared.piecesPerPack,
           moq: shared.moq,
           notes: shared.notes,
@@ -1075,7 +1075,7 @@ export function CollectionEditorPage() {
     setMemberForm({
       name: product.name,
       rate: formatRateInput(product.rate, product.rateMax ?? null),
-      unit: product.unit || Unit.Piece,
+      unit: product.unit || Unit.Set,
       piecesPerPack:
         product.piecesPerPack != null ? String(product.piecesPerPack) : '',
       moq: product.moq != null ? String(product.moq) : '',
@@ -1094,7 +1094,7 @@ export function CollectionEditorPage() {
     setMemberForm({
       name: photo.name,
       rate: photo.rate,
-      unit: photo.unit || Unit.Piece,
+      unit: photo.unit || Unit.Set,
       piecesPerPack: photo.piecesPerPack,
       moq: photo.moq,
       notes: photo.notes,

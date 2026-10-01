@@ -34,6 +34,14 @@ describe('publishDefaults', () => {
     });
   });
 
+  it('defaults unsaved sell-as to set', () => {
+    expect(readCompanySellAsUsual(null)).toEqual({
+      unit: 'set',
+      piecesPerPack: '',
+      moq: '',
+    });
+  });
+
   it('reads sellAsUsual without rate or notes', () => {
     expect(
       readCompanySellAsUsual({

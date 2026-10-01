@@ -17,6 +17,10 @@ export function applyHowManyDetail(
     categories,
     unit: detail.unit ?? product.unit ?? null,
     moq: detail.moq !== undefined ? detail.moq : (product.moq ?? null),
+    piecesPerPack:
+      detail.piecesPerPack !== undefined
+        ? detail.piecesPerPack
+        : (product.piecesPerPack ?? null),
     rate: detail.visible === false ? (product.rate ?? null) : (detail.rate ?? product.rate ?? null),
   };
 }

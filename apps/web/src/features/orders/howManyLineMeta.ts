@@ -42,3 +42,46 @@ export function howManyLineMeta(product: {
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 
+/** Pcs inside one sell-as unit (set / dozen / box). */
+export function howManyPcsPerUnit(
+  unit: string | null | undefined,
+  piecesPerPack?: number | null,
+): number | null {
+  if (piecesPerPack != null && piecesPerPack > 0) return piecesPerPack;
+  if (unit === 'dozen') return 12;
+  return null;
+}
+
+/** 5 sets × 4 pcs → Total 20 pcs. Hidden without a count or pcs-per-unit. */
+export function howManyTotalPcsLabel(
+  qty: number | null | undefined,
+  unit: string | null | undefined,
+  piecesPerPack?: number | null,
+): string | null {
+  if (qty == null || qty <= 0) return null;
+  const key = unit?.trim();
+  if (key !== 'set' && key !== 'dozen' && key !== 'box') return null;
+  const pcs = howManyPcsPerUnit(unit, piecesPerPack);
+  if (pcs == null) return null;
+  return `Total ${qty * pcs} pcs`;
+}
+
+export function qtyCountNoun(unit: string | null | undefined): string {
+  switch (unit?.trim()) {
+    case 'set':
+      return 'sets';
+    case 'dozen':
+      return 'dozens';
+    case 'mtr':
+      return 'metres';
+    case 'than':
+      return 'thans';
+    case 'kg':
+      return 'kg';
+    case 'box':
+      return 'boxes';
+    default:
+      return 'pieces';
+  }
+}
+

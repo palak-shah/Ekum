@@ -26,13 +26,13 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 
 ### Settings (`/settings`)
 
-1. Domain groups (compact `SettingsDomainCard`, not KPI tiles): **Business & Roles** — **Team** → `/team`; **Your paths** → `/settings/paths` when Trading is on; when selling or trading — **Catalog defaults** → `/settings/catalog-defaults` (usual Who / Show rates / curate / download · design sell-as unit / pcs-in-set / MOQ — **not** rate or notes); **Units** → `/settings/units` (receive↔deliver conversions, e.g. 1 yard = n metres).
+1. Domain groups (compact `SettingsDomainCard`, not KPI tiles): **Business & Roles** — **Team** → `/team`; **Your paths** → `/settings/paths` when Trading is on; when selling or trading — **Catalog defaults** → `/settings/catalog-defaults` (usual Who / Show rates / curate / download · design sell-as unit / pcs-in-set / MOQ — **not** rate or notes; empty sell-as starts as **set**); **Units** → `/settings/units` (receive↔deliver conversions, e.g. 1 yard = n metres).
 2. **Dispatch** and **Billing** stay on this page — **Add** (sheet). First billing firm is saved as Default.
 3. New configuration joins an existing domain or adds one domain card. No empty Account / Privacy / Notifications blocks. Return policy / notification type mutes are not on this page yet.
 4. Home avatar **Profile** → `/settings/profile` **view** (see [company](./company.md)). Header **Share** (shop card to chats + OS). **Edit profile** unlocks fields; CTA **Update**; tab bar hidden while editing; Share hides in edit.
 5. Path (**Buyer talks to** · **Share a group**) is **Your paths**, not Profile. New middle-hop pair always starts **You**, group **Off** (see [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md)). Trade presence flags still exist on the company; Edit does not show buy / sell / trade switches.  
 6. **Your paths** (`/settings/paths`): search + list. Why-line + **?** — **next orders only** (open tickets stay). Each card is mill · buyer, then a closed **Buyer talks to** pick (You / mill shop) and **Share a group** On/Off (tap saves). Needs trading on the shop (not a Profile switch). Empty until a first middle-hop pair exists.
-7. **Catalog defaults** / **Units** store in `CompanySettings.tradeDefaults` (`publishDefaults`, `sellAsUsual`, `unitConversions`). New collection expandables prefill Who and sell-as (unit / pcs / MOQ). Rate and notes are set on the pack or design, not in Settings.
+7. **Catalog defaults** / **Units** store in `CompanySettings.tradeDefaults` (`publishDefaults`, `sellAsUsual`, `unitConversions`). New collection expandables prefill Who and sell-as (unit / pcs / MOQ). If they have never saved sell-as, unit is **set**. Rate and notes are set on the pack or design, not in Settings. MOQ is in that unit (sets when unit is set).
 
 ## Business rules
 

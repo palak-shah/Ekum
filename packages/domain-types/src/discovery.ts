@@ -269,7 +269,9 @@ export interface ExploreProductPreviewView extends ExploreProductCard {
   connected: boolean;
   visible: boolean;
   description?: string | null;
-  /** Minimum order in pieces when the seller set one. */
+  /** Minimum order in the sell-as unit. */
   moq?: number | null;
+  /** Pcs inside one set / dozen / box. */
+  piecesPerPack?: number | null;
   categories?: string[];
 }

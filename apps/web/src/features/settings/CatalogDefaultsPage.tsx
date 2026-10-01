@@ -18,7 +18,7 @@ export function CatalogDefaultsPage() {
   const [rateVisibility, setRateVisibility] = useState(RateVisibility.OnRequest);
   const [allowForward, setAllowForward] = useState(true);
   const [allowDownload, setAllowDownload] = useState(false);
-  const [unit, setUnit] = useState(Unit.Piece);
+  const [unit, setUnit] = useState(Unit.Set);
   const [piecesPerPack, setPiecesPerPack] = useState('');
   const [moq, setMoq] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function CatalogDefaultsPage() {
     setRateVisibility(pub.rateVisibility as typeof RateVisibility.OnRequest);
     setAllowForward(pub.allowForward);
     setAllowDownload(pub.allowDownload);
-    setUnit((sell.unit as typeof Unit.Piece) || Unit.Piece);
+    setUnit((sell.unit as typeof Unit.Set) || Unit.Set);
     setPiecesPerPack(sell.piecesPerPack);
     setMoq(sell.moq);
   }, [settings.data]);
@@ -126,7 +126,7 @@ export function CatalogDefaultsPage() {
         <Field label="Unit">
           <select
             value={unit}
-            onChange={(e) => setUnit(e.target.value as typeof Unit.Piece)}
+            onChange={(e) => setUnit(e.target.value as typeof Unit.Set)}
             className="min-h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink"
           >
             {unitValues.map((u) => (
@@ -149,7 +149,7 @@ export function CatalogDefaultsPage() {
             value={moq}
             onChange={(e) => setMoq(e.target.value)}
             inputMode="numeric"
-            placeholder="Pieces"
+            placeholder={unit === Unit.Set ? 'Sets' : 'In this unit'}
           />
         </Field>
       </section>

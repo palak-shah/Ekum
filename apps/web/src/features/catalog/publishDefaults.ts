@@ -25,8 +25,11 @@ const PLATFORM: PublishSheetPolicy = {
   allowDownload: false,
 };
 
+/** Platform usual when Catalog defaults has never been saved. */
+export const DEFAULT_SELL_AS_UNIT = 'set';
+
 const EMPTY_SELL_AS: SellAsUsual = {
-  unit: '',
+  unit: DEFAULT_SELL_AS_UNIT,
   piecesPerPack: '',
   moq: '',
 };
@@ -65,7 +68,7 @@ export function readCompanySellAsUsual(
   }
   const blob = raw as Record<string, unknown>;
   return {
-    unit: typeof blob.unit === 'string' ? blob.unit : '',
+    unit: typeof blob.unit === 'string' && blob.unit.trim() ? blob.unit : DEFAULT_SELL_AS_UNIT,
     piecesPerPack:
       typeof blob.piecesPerPack === 'string'
         ? blob.piecesPerPack

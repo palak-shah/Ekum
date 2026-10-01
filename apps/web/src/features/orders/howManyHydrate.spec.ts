@@ -26,6 +26,7 @@ const detail = {
   connected: true,
   visible: true,
   moq: 12,
+  piecesPerPack: 4,
   categories: ['Saree'],
 } as ExploreProductPreviewView;
 
@@ -37,6 +38,7 @@ describe('applyHowManyDetail', () => {
       categories: ['Saree'],
       unit: 'set',
       moq: 12,
+      piecesPerPack: 4,
       rate: 800,
     });
   });

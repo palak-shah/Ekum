@@ -42,3 +42,15 @@ describe('QtyStepper first count', () => {
     expect(screen.getByRole('textbox', { name: 'Pieces' })).toHaveValue('');
   });
 });
+
+describe('QtyStepper step', () => {
+  it('adds and removes one', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<QtyStepper value={5} aria-label="sets for Navy" onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: 'Increase sets for Navy' }));
+    expect(onChange).toHaveBeenLastCalledWith(6);
+    await user.click(screen.getByRole('button', { name: 'Decrease sets for Navy' }));
+    expect(onChange).toHaveBeenLastCalledWith(4);
+  });
+});
