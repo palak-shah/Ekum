@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-01 (nav ＋ 48px)  
+**Updated:** 2026-10-02 (Ask/Order + You Designs taps)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -223,13 +223,14 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
 | You / Settings | You: identity + library; Home avatar = account menu; Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
-| You / Company | Library tabs Collections first (You + shop) | Works | Unit + Functional | Required | Completeness 2026-09-30-library-collections-first; `?tab=products` for Designs |
+| You / Company | Library tabs Collections first (You + shop) | Works | Unit + Functional | Required | Completeness 2026-09-30-library-collections-first; Designs writes `tab=products` (`youLibraryWriteSearch`) |
 | You / Company | Feed matches Explore (4∶5 single photo, inset mosaic) | Works | Unit | Required | Completeness 2026-09-30-library-feed-explore; Grid unchanged |
 | You / Settings | You shell Back → Home | Works | Unit | Required | Completeness 2026-09-30-you-back-home |
 | You / Settings | Shop Share on Business profile (not You library) | Works | Unit | Required | Completeness 2026-09-30-profile-share-icon |
 | Company | Own Business profile view until Edit; Update; hide tab bar | Works | Unit + Functional | Required | Completeness 2026-09-30-profile-view-then-edit; `?edit=1` / `focus=sell` |
 | You / Shop | Find designs / collections in place (You library + shop) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-shop-catalog-search; You Find + filter square Draft/Archived/Saved (2026-09-29-you-library-find-status); no Published chip |
 | Collections | Album / list find (tags, design name, notes, SKU; not a permanent bar) | Works | Unit + Functional | Required | Completeness 2026-09-24-collection-on-demand-find |
+| Browse | Ask / Order / Designs taps (dock portal + How many on origin packs) | Works | Unit | Required | Pack qty sheet not curated-only; trade docks portaled; nav hidden while dock owns band |
 
 | Collections | Fixed select bar clips last card (BM-07) | Works | Untested (manual fix 2026-08-11) | Required | Padding clears nav + bar; add regression when practical |
 | Browse | Select all float as soon as select starts | Works | Unit | Required | Completeness 2026-08-21; spec select-all-float; not on Explore |

@@ -24,6 +24,7 @@ import {
   type DesignBrowseLayout,
 } from '@/lib/designBrowseLayout';
 import { useMyCompany } from '@/lib/queries';
+import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { applySelectingPill } from '@/features/browse/selectingPill';
@@ -57,6 +58,7 @@ import { CompanyRow } from '@/ui/cards';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
 import { usePageOwnsBottomBand, usePageSelecting } from '@/features/browse/selectionBottomBand';
 import {
+  collectionPackQtySheet,
   collectionPackTradeDock,
   collectionShowHandleCopy,
   collectionShowPackNote,
@@ -484,7 +486,7 @@ export function CollectionViewerPage() {
       className={cx(
         'flex flex-col gap-4',
         floaterClearance && (showResumeContinue ? 'pb-[calc(5rem+10rem)]' : 'pb-[calc(5rem+5.5rem)]'),
-        packTradeDock && 'pb-[calc(5rem+5.5rem)]',
+        packTradeDock && 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
       )}
     >
       <PageHeader
@@ -794,10 +796,7 @@ export function CollectionViewerPage() {
       ) : null}
 
       {packTradeDock ? (
-        <div
-          className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur"
-          data-testid="collection-pack-trade-dock"
-        >
+        <BottomTradeDock testId="collection-pack-trade-dock" aboveAppNav={false}>
           <Button
             variant="secondary"
             fullWidth
@@ -817,7 +816,7 @@ export function CollectionViewerPage() {
           >
             Order
           </Button>
-        </div>
+        </BottomTradeDock>
       ) : null}
 
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
@@ -834,7 +833,7 @@ export function CollectionViewerPage() {
         products={[]}
       />
 
-      {handlePack && !isOwner ? (
+      {collectionPackQtySheet({ visitor: !isOwner, hasProducts: products.length > 0 }) ? (
         <HowManyEachSheet
           open={qtyOpen}
           onClose={() => setQtyOpen(false)}

@@ -57,6 +57,7 @@ import { SavedPage } from '@/features/saved/SavedPage';
 import {
   isYouSavedSearch,
   youLibraryTabFromSearch,
+  youLibraryWriteSearch,
 } from '@/features/saved/youSavedHref';
 
 function toCatalogShortlistEntry(
@@ -255,11 +256,14 @@ export function MyCatalogPage({
   };
 
   const writeLibraryParams = (nextTab: Tab, saved: boolean) => {
-    const next = new URLSearchParams();
-    if (nextTab === 'collections') next.set('tab', 'collections');
-    if (saved) next.set('saved', '1');
-    if (searchParams.get('select') === '1') next.set('select', '1');
-    setSearchParams(next, { replace: true });
+    setSearchParams(
+      youLibraryWriteSearch({
+        tab: nextTab,
+        saved,
+        select: searchParams.get('select') === '1',
+      }),
+      { replace: true },
+    );
   };
 
   const closeLibraryFind = () => {
@@ -612,7 +616,7 @@ export function MyCatalogPage({
       <div className="flex items-center gap-2.5">
         {embedded || catalogTabs ? (
           <div
-            className="flex w-fit gap-4"
+            className="relative z-10 flex w-fit shrink-0 gap-4"
             role="tablist"
             aria-label="Library"
             data-testid="you-library-kind-tabs"
@@ -626,7 +630,7 @@ export function MyCatalogPage({
                 data-testid={value === 'products' ? 'you-tab-designs' : 'you-tab-collections'}
                 onClick={() => setTab(value)}
                 className={cx(
-                  'h-10 border-b-2 px-0.5 text-[15px] tracking-tight',
+                  'relative isolate h-10 shrink-0 border-b-2 px-0.5 text-[15px] tracking-tight touch-manipulation',
                   tab === value
                     ? 'border-accent font-bold text-ink'
                     : 'border-transparent font-medium text-muted',
@@ -637,7 +641,7 @@ export function MyCatalogPage({
             ))}
           </div>
         ) : null}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="relative z-0 ml-auto flex shrink-0 items-center gap-1">
           {catalogTabs || youSaved || tabHasItems ? (
             <>
               <CatalogFindToggle

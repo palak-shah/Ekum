@@ -28,6 +28,7 @@ import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import { writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { writeBrowseShortlist } from '@/features/browse/browseShortlist';
+import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import {
@@ -587,10 +588,7 @@ export function CompanyProfilePage() {
       )}
 
       {shopDockUp ? (
-        <div
-          className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur"
-          data-testid="company-shop-dock"
-        >
+        <BottomTradeDock testId="company-shop-dock" aboveAppNav={false}>
           {canCurate ? (
             <Button
               variant="secondary"
@@ -625,7 +623,7 @@ export function CompanyProfilePage() {
           >
             Order
           </Button>
-        </div>
+        </BottomTradeDock>
       ) : null}
 
       <OrderCollectionResolveSheet

@@ -110,6 +110,16 @@ describe('shouldHideAppNav', () => {
     expect(shouldHideAppNav('/designs/set', { thisShopSelectedCount: 0 })).toBe(false);
   });
 
+  it('hides on a pack or design page while Ask / Order owns the band', () => {
+    expect(
+      shouldHideAppNav('/collections/pack-1', { thisShopSelectedCount: 0, pageDockUp: true }),
+    ).toBe(true);
+    expect(shouldHideAppNav('/collections/pack-1', { thisShopSelectedCount: 0 })).toBe(false);
+    expect(
+      shouldHideAppNav('/explore/products/d1', { thisShopSelectedCount: 0, pageDockUp: true }),
+    ).toBe(true);
+  });
+
   it('hides on a shop while that seller has selected designs', () => {
     expect(
       shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 1 }),

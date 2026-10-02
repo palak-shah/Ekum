@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  collectionPackQtySheet,
   collectionPackTradeDock,
   collectionShowHandleCopy,
   collectionShowPackNote,
@@ -49,6 +50,12 @@ describe('collectionPackTradeDock', () => {
         resumeContinue: false,
       }),
     ).toBe(false);
+  });
+
+  it('opens How many on origin packs, not only curated', () => {
+    expect(collectionPackQtySheet({ visitor: true, hasProducts: true })).toBe(true);
+    expect(collectionPackQtySheet({ visitor: true, hasProducts: false })).toBe(false);
+    expect(collectionPackQtySheet({ visitor: false, hasProducts: true })).toBe(false);
   });
 
   it('hides the dock for the owner', () => {

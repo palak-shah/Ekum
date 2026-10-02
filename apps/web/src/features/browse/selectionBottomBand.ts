@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 
 let pageOwnsBand = false;
 const listeners = new Set<() => void>();
@@ -20,7 +20,7 @@ export function setPageOwnsBottomBand(next: boolean): void {
 
 /** While this screen pins a dock above nav, hide the Selection floater. */
 export function usePageOwnsBottomBand(owns: boolean): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPageOwnsBottomBand(owns);
     return () => setPageOwnsBottomBand(false);
   }, [owns]);
@@ -46,7 +46,7 @@ export function setPageSelecting(next: boolean): void {
 
 /** Design / pack: floater only while this page is Selecting. */
 export function usePageSelecting(selecting: boolean): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPageSelecting(selecting);
     return () => setPageSelecting(false);
   }, [selecting]);

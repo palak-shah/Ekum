@@ -19,3 +19,16 @@ export function youLibraryTabFromSearch(
   }
   return params.get('tab') === 'products' ? 'products' : 'collections';
 }
+
+/** You library query. Designs must set `tab=products` — default URL is Collections. */
+export function youLibraryWriteSearch(input: {
+  tab: 'products' | 'collections';
+  saved?: boolean;
+  select?: boolean;
+}): URLSearchParams {
+  const next = new URLSearchParams();
+  next.set('tab', input.tab);
+  if (input.saved) next.set('saved', '1');
+  if (input.select) next.set('select', '1');
+  return next;
+}

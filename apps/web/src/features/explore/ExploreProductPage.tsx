@@ -11,6 +11,7 @@ import {
   type OrderView,
   type ProductView,
 } from '@ekum/domain-types';
+import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { RELIST_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import { DEFAULT_ACCESS_REQUEST_NOTE } from '@/lib/accessRequestNote';
@@ -206,7 +207,12 @@ export function ExploreProductPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-3', (canTrade || canCurate) && 'pb-[calc(5rem+6.5rem)]')}>
+    <div
+      className={cx(
+        'flex flex-col gap-3',
+        (canTrade || canCurate) && 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
+      )}
+    >
       <PageHeader
         title={data.name}
         action={
@@ -288,10 +294,7 @@ export function ExploreProductPage() {
       />
 
       {canTrade || canCurate ? (
-        <div
-          data-testid="explore-product-trade-dock"
-          className="fixed inset-x-0 bottom-20 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur"
-        >
+        <BottomTradeDock testId="explore-product-trade-dock" aboveAppNav={false}>
           {canCurate ? (
             <Button variant="secondary" fullWidth onClick={openCurate}>
               Curate
@@ -307,7 +310,7 @@ export function ExploreProductPage() {
               </Button>
             </>
           ) : null}
-        </div>
+        </BottomTradeDock>
       ) : null}
 
       <HowManyEachSheet

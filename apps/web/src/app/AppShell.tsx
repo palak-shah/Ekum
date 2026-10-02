@@ -237,7 +237,7 @@ export function AppShell() {
         hidden={hideAppNav}
         className={cx(
           'ekum-glass fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-center justify-around border-t border-line px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1',
-          hideAppNav && 'hidden',
+          hideAppNav && 'pointer-events-none hidden',
         )}
       >
         {NAV.slice(0, 2).map((item) => (

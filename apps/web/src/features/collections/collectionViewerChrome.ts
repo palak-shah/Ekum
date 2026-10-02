@@ -5,6 +5,14 @@ export function collectionViewerPrimaryAction(
   return isOwner ? 'edit' : 'bookmark';
 }
 
+/** How many sheet for any visitor pack with designs — not only curated (I-handle) packs. */
+export function collectionPackQtySheet(input: {
+  visitor: boolean;
+  hasProducts: boolean;
+}): boolean {
+  return input.visitor && input.hasProducts;
+}
+
 /** Whole-pack Ask rates / Order — same sticky dock as a design page. */
 export function collectionPackTradeDock(input: {
   visitor: boolean;

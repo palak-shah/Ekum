@@ -59,6 +59,8 @@ export function shouldHideAppNav(
   if (isOwnProfileEditing(pathname, options.search)) return true;
   if (pathname === '/selection' || pathname.startsWith('/selection/')) return true;
   if (pathname.startsWith('/designs/set') && options.pageDockUp) return true;
+  if (/^\/collections\/[^/]+$/.test(pathname) && options.pageDockUp) return true;
+  if (/^\/explore\/products\/[^/]+$/.test(pathname) && options.pageDockUp) return true;
   if (
     pathname === '/catalog/collections/new' ||
     /^\/catalog\/collections\/[^/]+$/.test(pathname)

@@ -25,6 +25,7 @@ import { CatalogFeedPost } from '@/ui/cards';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Button, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
+import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { packHandlerName } from '@/features/browse/packOrderSource';
@@ -307,10 +308,7 @@ export function DesignSetPage() {
         </div>
       ) : null}
       {dockUp ? (
-        <div
-          className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur"
-          data-testid="design-set-trade-dock"
-        >
+        <BottomTradeDock testId="design-set-trade-dock" aboveAppNav={false}>
           {trading ? (
             <Button variant="secondary" fullWidth onClick={() => setCurateOpen(true)}>
               Curate
@@ -338,7 +336,7 @@ export function DesignSetPage() {
           >
             Order
           </Button>
-        </div>
+        </BottomTradeDock>
       ) : null}
       <HowManyEachSheet
         open={orderFlow.qtyOpen}

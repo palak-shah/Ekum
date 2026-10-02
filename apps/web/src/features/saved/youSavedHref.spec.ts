@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isYouSavedSearch,
   youLibraryTabFromSearch,
+  youLibraryWriteSearch,
   youSavedHref,
 } from './youSavedHref';
 
@@ -28,5 +29,14 @@ describe('youSavedHref', () => {
     expect(youLibraryTabFromSearch(new URLSearchParams('saved=1'))).toBe('collections');
     expect(youLibraryTabFromSearch(new URLSearchParams())).toBe('collections');
     expect(youLibraryTabFromSearch(new URLSearchParams('tab=products'))).toBe('products');
+  });
+
+  it('writes tab=products so Designs is not a dead tap (default is Collections)', () => {
+    expect(youLibraryWriteSearch({ tab: 'products' }).toString()).toBe('tab=products');
+    expect(youLibraryTabFromSearch(youLibraryWriteSearch({ tab: 'products' }))).toBe('products');
+    expect(youLibraryWriteSearch({ tab: 'collections' }).get('tab')).toBe('collections');
+    expect(youLibraryWriteSearch({ tab: 'products', saved: true, select: true }).toString()).toBe(
+      'tab=products&saved=1&select=1',
+    );
   });
 });
