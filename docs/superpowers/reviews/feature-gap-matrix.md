@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-02 (Ask/Order + You Designs taps)  
+**Updated:** 2026-10-02 (How many note is a TextArea)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -184,7 +184,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders place | Mixed Selection: split banner + × syncs pile | Works | Unit | Required | sr 42; `howManySplitBanner`; Selection `onRemoveProduct` |
 | Collections | Pack “Order goes to trader” follows Your paths ticket | Works | Unit | Required | sr 16; `viewerTicket` + `collectionShowHandleCopy` |
 | Orders place | How many each: tags + sold-as (Set / Dozen / Metre) · min · rate | Works | Unit | Required | Completeness 2026-09-24-how-many-line-meta; hydrate explore detail |
-| Orders place | How many note strip · qty step 1 · Total N pcs; Catalog default unit set | Works | Unit | Required | Completeness 2026-10-01-how-many-sets-note-strip |
+| Orders place | How many note strip · qty step 1 · Total N pcs; Catalog default unit set | Works | Unit | Required | Completeness 2026-10-01-how-many-sets-note-strip; full-width note grows as they type 2026-10-02-how-many-note-feels-like-notes |
 | Orders / Catalog | Pack size (sets) per design, not one shop rule | Missing | — | Required | Completeness 2026-09-23-order-pack-size — model locked, build later |
 | Orders close | Full dispatch → `dispatched` complete; Settle only on qty mismatch → `settled` | Works | Unit | Required | Completeness 2026-09-07-dispatch-complete-vs-settle |
 | Orders part ship | Partial dispatch → main status `part_shipped` (not Confirmed cue) | Works | Unit | Required | Completeness 2026-09-07-part-shipped-main-status |

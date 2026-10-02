@@ -50,10 +50,12 @@ function renderSheet() {
 }
 
 describe('HowManyEachSheet note strip', () => {
-  it('shows a note field without Add note', () => {
+  it('shows a one-line note field that can grow, without Add note', () => {
     renderSheet();
-    expect(screen.getByTestId('how-many-note')).toBeInTheDocument();
+    const note = screen.getByTestId('how-many-note');
+    expect(note.tagName).toBe('TEXTAREA');
+    expect(note).toHaveAttribute('rows', '1');
     expect(screen.queryByText('Add note')).toBeNull();
-    expect(screen.getByPlaceholderText('Colour, packing…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Note — colour, packing…')).toBeInTheDocument();
   });
 });

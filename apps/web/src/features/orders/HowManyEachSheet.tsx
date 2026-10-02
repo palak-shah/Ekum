@@ -16,7 +16,8 @@ import { useMyCompany } from '@/lib/queries';
 import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { Button, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
+import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
+import { Button, InlineNotice, Sheet, cx } from '@/ui/kit';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty } from '@/features/orders/qtyEachMemory';
@@ -407,20 +408,6 @@ export function HowManyEachSheet({
                           {facts}
                         </p>
                       ) : null}
-                      <TextInput
-                        className="mt-2"
-                        placeholder="Colour, packing…"
-                        value={noteValue}
-                        disabled={busy}
-                        data-testid="how-many-note"
-                        aria-label={`Note for ${product.name}`}
-                        onChange={(event) =>
-                          setNotes((prev) => ({
-                            ...prev,
-                            [product.id]: event.target.value,
-                          }))
-                        }
-                      />
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                     <QtyStepper
@@ -455,6 +442,17 @@ export function HowManyEachSheet({
                       </button>
                     ) : null}
                   </div>
+                  <HowManyLineNote
+                    value={noteValue}
+                    disabled={busy}
+                    ariaLabel={`Note for ${product.name}`}
+                    onChange={(next) =>
+                      setNotes((prev) => ({
+                        ...prev,
+                        [product.id]: next,
+                      }))
+                    }
+                  />
                 </li>
               );
             })}

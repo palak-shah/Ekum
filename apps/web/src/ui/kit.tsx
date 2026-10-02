@@ -185,18 +185,24 @@ export const SearchInput = forwardRef<
   },
 );
 
-export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const TextArea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function TextArea({ className, ...props }, ref) {
+  const hasMinH = Boolean(className && /(?:^|\s)(?:\S+:)*min-h-/.test(` ${className}`));
   return (
     <textarea
+      ref={ref}
       className={cx(
         formControlWidthClass(className),
-        'min-h-24 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+        !hasMinH && 'min-h-24',
+        'rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
         className,
       )}
       {...props}
     />
   );
-}
+});
 
 export function StatusPill({
   status,

@@ -17,6 +17,7 @@ import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ListSquareButton } from '@/ui/ListSearchRow';
+import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
 import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextInput, cx } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
@@ -492,22 +493,6 @@ export function OrderBuilderPage() {
                           {facts ? (
                             <p className="mt-0.5 text-[12px] text-muted">{facts}</p>
                           ) : null}
-                          <TextInput
-                            className="mt-2"
-                            placeholder="Colour, packing…"
-                            value={line.note}
-                            data-testid="how-many-note"
-                            aria-label={`Note for ${line.name}`}
-                            onChange={(event) =>
-                              setStandardLines((prev) =>
-                                prev.map((item) =>
-                                  item.productId === line.productId
-                                    ? { ...item, note: event.target.value }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
                         </div>
                         {standardLines.length > 1 ? (
                           <button
@@ -549,6 +534,19 @@ export function OrderBuilderPage() {
                       ) : null}
                     </div>
                   </div>
+                  <HowManyLineNote
+                    value={line.note}
+                    ariaLabel={`Note for ${line.name}`}
+                    onChange={(next) =>
+                      setStandardLines((prev) =>
+                        prev.map((item) =>
+                          item.productId === line.productId
+                            ? { ...item, note: next }
+                            : item,
+                        ),
+                      )
+                    }
+                  />
                 </li>
               );
             })}
