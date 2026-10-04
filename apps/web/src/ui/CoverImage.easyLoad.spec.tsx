@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { AlbumGrid } from './cards';
+import { AlbumGrid, COVER_IMAGE_ROOT_MARGIN } from './cards';
 
 class FakeIntersectionObserver {
   static instances: FakeIntersectionObserver[] = [];
   callback: IntersectionObserverCallback;
-  constructor(callback: IntersectionObserverCallback) {
+  rootMargin = '';
+  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
     this.callback = callback;
+    this.rootMargin = options?.rootMargin ?? '';
     FakeIntersectionObserver.instances.push(this);
   }
   observe = vi.fn();
@@ -14,7 +16,6 @@ class FakeIntersectionObserver {
   disconnect = vi.fn();
   takeRecords = () => [];
   root = null;
-  rootMargin = '';
   thresholds: number[] = [];
 }
 
@@ -33,6 +34,8 @@ describe('CoverImage easy load', () => {
 
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
     expect(FakeIntersectionObserver.instances).toHaveLength(1);
+    expect(FakeIntersectionObserver.instances[0]!.rootMargin).toBe(COVER_IMAGE_ROOT_MARGIN);
+    expect(COVER_IMAGE_ROOT_MARGIN).toBe('600px 0px');
 
     const io = FakeIntersectionObserver.instances[0]!;
     const target = io.observe.mock.calls[0]?.[0] as Element;

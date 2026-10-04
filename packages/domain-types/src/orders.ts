@@ -520,9 +520,9 @@ export interface OrderItemView {
   /** Original buyer-requested quantity. */
   requestedQuantity: number;
   lineStatus: OrderLineStatus;
-  /** Qty already included in shipments. */
+  /** Qty already included in shipments (may exceed `quantity` when over-shipped). */
   shippedQuantity: number;
-  /** quantity − shippedQuantity for shippable lines. */
+  /** max(0, quantity − shippedQuantity) for shippable lines. */
   remainingQuantity: number;
   note: string | null;
   /** False when the catalog design was later hidden or deleted. */

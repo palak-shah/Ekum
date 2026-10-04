@@ -2,13 +2,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import {
   clearBrowseAlbumPick,
   readBrowseAlbumPick,
   writeBrowseAlbumPick,
 } from '@/features/browse/browseAlbumPick';
 import { clearBrowseShortlist, writeBrowseShortlist } from '@/features/browse/browseShortlist';
+import { resetBrowseAlbumPickSelectMode } from '@/features/browse/useBrowseAlbumPick';
+import { resetBrowseShortlistSelectMode } from '@/features/browse/useBrowseShortlist';
 import { CompanyProfilePage } from './CompanyProfilePage';
 import { api } from '@/lib/apiClient';
 
@@ -76,9 +79,19 @@ function renderPage(fromChat = false) {
 }
 
 describe('CompanyProfilePage shop chrome', () => {
+  afterEach(() => {
+    cleanup();
+    clearBrowseShortlist();
+    clearBrowseAlbumPick();
+    resetBrowseShortlistSelectMode();
+    resetBrowseAlbumPickSelectMode();
+  });
+
   beforeEach(() => {
     clearBrowseShortlist();
     clearBrowseAlbumPick();
+    resetBrowseShortlistSelectMode();
+    resetBrowseAlbumPickSelectMode();
     localStorage.removeItem('ekum.designBrowseLayout.seed-company-meena');
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/companies/seed-company-ravi') return company;
@@ -176,8 +189,13 @@ describe('CompanyProfilePage shop chrome', () => {
   it('shows the design name on the shop grid', async () => {
     const user = userEvent.setup();
     renderPage(false);
-    expect(await screen.findByTestId('company-shop-tab-collections')).toBeInTheDocument();
-    await user.click(screen.getByTestId('company-shop-tab-designs'));
+    const collectionsTab = await screen.findByTestId('company-shop-tab-collections');
+    const designsTab = screen.getByTestId('company-shop-tab-designs');
+    expect(collectionsTab).toHaveTextContent('Collections');
+    expect(collectionsTab).not.toHaveTextContent('·');
+    expect(designsTab).toHaveTextContent('Designs');
+    expect(designsTab).not.toHaveTextContent('·');
+    await user.click(designsTab);
     expect(await screen.findByTestId('company-shop-grid')).toBeInTheDocument();
     expect(screen.getByTestId('company-shop-layout-toggle')).toHaveAttribute(
       'aria-label',
@@ -263,6 +281,12 @@ describe('CompanyProfilePage shop chrome', () => {
     const user = userEvent.setup();
     renderPage(false);
     await user.click(await screen.findByTestId('company-shop-tab-collections'));
+    expect(screen.getByTestId('company-shop-grid')).toHaveAttribute('data-layout', 'feed');
+    expect(screen.getByRole('heading', { name: 'Surat Silk House' })).toBeInTheDocument();
+    expect(screen.getAllByText('Surat Silk House')).toHaveLength(1);
+    expect(screen.getByText('Wedding Edit')).toBeInTheDocument();
+    await user.click(screen.getByTestId('company-shop-layout-toggle'));
+    expect(screen.getByTestId('company-shop-grid')).toHaveAttribute('data-layout', 'grid');
     expect(screen.getByTestId('company-shop-collection-col1')).toHaveAttribute(
       'aria-label',
       'Wedding Edit',
@@ -272,8 +296,7 @@ describe('CompanyProfilePage shop chrome', () => {
       '/collections/col1',
     );
     expect(screen.getByText('Wedding Edit')).toBeInTheDocument();
-    expect(screen.getByText(/4 designs/)).toBeInTheDocument();
-    expect(screen.getAllByText('Surat Silk House').length).toBeGreaterThan(1);
+    expect(screen.queryByText(/^\d+ designs?$/)).toBeNull();
   });
 
   it('Clear unselects a collection on this shop even if stored under another company', async () => {

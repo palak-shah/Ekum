@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-04 (Explore feed virtual + lazy images)  
+**Updated:** 2026-10-04 (Explore first-paint + app shell perf)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,8 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Explore | First-paint feed + end footer; virtual overscan; shop prefetch | Works | Unit | Required | Progressive `/explore/feed` + `sections=feed`; You've reached the end |
+| Orders | Cheap Needs you badge count (no full list walk) | Works | Unit | Required | Completeness 2026-10-04-orders-needs-you-count |
 | Notifications | Accuracy: tap mark-read, badge scope, who/what copy, deep links + push path | Works | Unit + Functional | Required | Completeness 2026-09-14-notifications-accuracy; return→order; SW `url` |
 | Auth | Stay signed in until Logout (10y sliding refresh) | Works | Unit-only | Required | Completeness 2026-08-31-stay-signed-in; OTP only Logout / wipe / INVALID_TOKEN; HS update must not drop caches (wipes iOS tokens) |
 | Auth | Login logo + tagline + form in one horizontal teal-gradient box | Works | Visual | Optional | Completeness 2026-09-24-login-teal-form-box; tagline “Textile trade, organised.” |
@@ -90,6 +92,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Dispatch sheet on/off + packing PDF | Works | Unit | Required | Completeness 2026-09-21-dispatch-tabular; pending-only; share PDF after save |
 | Orders | Confirm/decline lines: dispatch cards; off = decline; leftover qty at Dispatch | Works | Unit | Required | Completeness 2026-09-21-confirm-decline-lines |
 | Orders | Pending qty clarity (partial ship + settle) | Works | Unit + Functional | Required | Completeness 2026-09-13-order-pending-qty-clarity + 2026-10-01-order-line-dispatched-pending; items card **dispatched N · pending M** (both); Settle Dispatched\|Pending |
+| Orders | Dispatch extra qty (qty > remaining) + highlight | Works | Unit | Required | Completeness 2026-10-04-dispatch-overship; sheet **Extra N**; detail **dispatched N · extra M**; no silent clamp |
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Deferred | — | — | Removed from product 2026-09-21; order completes on dispatch; endpoints reject `PAYMENT_DISABLED` |
 | Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token; mill seller + path 2026-09-29-order-for-buyer-mill-seller |

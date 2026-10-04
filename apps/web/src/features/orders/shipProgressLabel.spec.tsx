@@ -32,6 +32,14 @@ describe('ShipProgressHint', () => {
     expect(screen.getByTestId('ship-progress-pending').textContent).toMatch(/pending 10/);
     expect(screen.getByTestId('ship-progress-pending').className).toMatch(/text-accent/);
   });
+
+  it('shows accented extra when shipped past agreed qty', () => {
+    render(<ShipProgressHint dispatched={2} pending={0} extra={1} />);
+    expect(screen.getByTestId('ship-progress-hint').textContent).toMatch(/dispatched 2/);
+    expect(screen.getByTestId('ship-progress-extra').textContent).toMatch(/extra 1/);
+    expect(screen.getByTestId('ship-progress-extra').className).toMatch(/text-accent/);
+    expect(screen.queryByTestId('ship-progress-pending')).toBeNull();
+  });
 });
 
 describe('SettleQtyColumns', () => {

@@ -41,28 +41,52 @@ export function fulfillmentRowClass(pending: number, className?: string): string
   );
 }
 
-/** Always both: dispatched N · pending M — same words on every line. */
+/** Extra pcs when shipped > agreed line qty. */
+export function orderLineOverShipped(item: {
+  shippedQuantity?: number;
+  quantity?: number;
+}): number {
+  return Math.max(0, (item.shippedQuantity ?? 0) - (item.quantity ?? 0));
+}
+
+/**
+ * Always a pair: **dispatched N · pending M**, or **dispatched N · extra M**
+ * when the seller sent more than ordered (extra accented).
+ */
 export function ShipProgressHint({
   dispatched,
   pending,
+  extra = 0,
   className,
 }: {
   dispatched: number;
   pending: number;
+  extra?: number;
   className?: string;
 }) {
+  const showExtra = extra > 0;
   return (
     <span className={cx('tabular-nums', className)} data-testid="ship-progress-hint">
-      <span className="text-muted">
-        dispatched <span className="font-medium text-slate">{dispatched}</span>
+      <span className={showExtra ? 'font-semibold text-accent' : 'text-muted'}>
+        dispatched{' '}
+        <span className={showExtra ? 'font-semibold' : 'font-medium text-slate'}>{dispatched}</span>
       </span>
       <span className="text-muted"> · </span>
-      <span
-        className={pending > 0 ? 'font-semibold text-accent' : 'text-muted'}
-        data-testid="ship-progress-pending"
-      >
-        pending <span className="font-medium">{pending}</span>
-      </span>
+      {showExtra ? (
+        <span
+          className="font-semibold text-accent"
+          data-testid="ship-progress-extra"
+        >
+          extra <span className="font-medium">{extra}</span>
+        </span>
+      ) : (
+        <span
+          className={pending > 0 ? 'font-semibold text-accent' : 'text-muted'}
+          data-testid="ship-progress-pending"
+        >
+          pending <span className="font-medium">{pending}</span>
+        </span>
+      )}
     </span>
   );
 }

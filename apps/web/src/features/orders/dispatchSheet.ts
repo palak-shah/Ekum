@@ -21,10 +21,18 @@ export function defaultDispatchQty(items: OrderItemView[]): Record<string, strin
   return qty;
 }
 
+const DISPATCH_QTY_MAX = 1_000_000;
+
+/** Typed pcs for this LR — may exceed remaining (over-ship). */
 export function lineDispatchQty(item: OrderItemView, qty: Record<string, string>): number {
   const n = Number(qty[item.id]);
   if (!Number.isFinite(n) || n < 1) return item.remainingQuantity;
-  return Math.min(Math.floor(n), item.remainingQuantity);
+  return Math.min(Math.floor(n), DISPATCH_QTY_MAX);
+}
+
+/** Extra pcs above pending when the seller types over remaining. */
+export function lineDispatchOverBy(item: OrderItemView, qty: Record<string, string>): number {
+  return Math.max(0, lineDispatchQty(item, qty) - item.remainingQuantity);
 }
 
 export function dispatchPayloadLines(

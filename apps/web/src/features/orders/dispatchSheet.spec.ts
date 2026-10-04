@@ -8,6 +8,8 @@ import {
   dispatchPayloadLines,
   dispatchThisLrLabel,
   dispatchThisLrTally,
+  lineDispatchOverBy,
+  lineDispatchQty,
   shippableDispatchItems,
 } from './dispatchSheet';
 
@@ -61,5 +63,15 @@ describe('dispatchSheet', () => {
       dispatchLineCountLine(line({ id: 'a', requestedQuantity: 20, remainingQuantity: 8 })),
     ).toBe('20 ordered · pending 8');
     expect(dispatchLineKindLine(line({ id: 'a', sku: null, unit: null }))).toBeNull();
+  });
+
+  it('allows typed qty above remaining (over-ship)', () => {
+    const one = line({ id: 'a', quantity: 1, remainingQuantity: 1 });
+    expect(lineDispatchQty(one, { a: '2' })).toBe(2);
+    expect(lineDispatchOverBy(one, { a: '2' })).toBe(1);
+    expect(dispatchPayloadLines([one], { a: true }, { a: '2' })).toEqual([
+      { orderItemId: 'a', quantity: 2 },
+    ]);
+    expect(dispatchThisLrTally([one], { a: true }, { a: '2' }).pieces).toBe(2);
   });
 });

@@ -10,6 +10,7 @@ import {
   type ExploreBuyerOpportunity,
   type ExploreSupplierCard,
   type ExploreStory,
+  type ExplorePost,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
@@ -40,12 +41,27 @@ import {
 import { SUGGEST_CATEGORIES, SUGGEST_CITIES } from '@/lib/suggestData';
 import { useTradePresence } from '@/lib/tradePresence';
 import { buildRankedPostFeed, type MixedOpportunity } from './exploreFeedRank';
+import {
+  EXPLORE_FIRST_PAINT_POSTS,
+  EXPLORE_INITIAL_FEED_POSTS,
+  exploreFeedEndVisible,
+  exploreLandingBlocked,
+  mixedOpportunitiesFromExplorePosts,
+} from './exploreFeedFromPosts';
 import { loadExploreFeedSeenMap } from './exploreFeedSeen';
 import { EXPLORE_SEARCH_HINT } from './exploreSearchHint';
 import { VirtualFeedList } from './VirtualFeedList';
 
-/** Initial buying feed window — then More posts (explore.md). */
-export const EXPLORE_INITIAL_FEED_POSTS = 12;
+function ExploreFeedEnd() {
+  return (
+    <p
+      data-testid="explore-feed-end"
+      className="px-4 py-6 text-center text-sm font-medium text-muted"
+    >
+      You&apos;ve reached the end
+    </p>
+  );
+}
 
 function optionLabel(value: string): string {
   if (value === 'All') return 'Any category';
@@ -97,9 +113,10 @@ function CollectionSection({
       <VirtualFeedList
         items={items}
         getKey={(opportunity) => opportunity.collection.id}
-        renderItem={(opportunity) => (
+        renderItem={(opportunity, index) => (
           <OpportunityCollectionCard
             opportunity={opportunity}
+            priority={index < 2}
             selectMode={selecting}
             selected={albumPick.collectionIds.has(opportunity.collection.id)}
             onLongSelect={() => toggleExploreAlbum(albumPick, opportunity)}
@@ -173,9 +190,10 @@ function DesignSection({
       <VirtualFeedList
         items={items}
         getKey={(opportunity) => opportunity.product.id}
-        renderItem={(opportunity) => (
+        renderItem={(opportunity, index) => (
           <OpportunityDesignCard
             opportunity={opportunity}
+            priority={index < 2}
             selectMode={selecting}
             selected={shortlist.productIds.has(opportunity.product.id)}
             onLongSelect={() => toggleExploreDesign(shortlist, opportunity)}
@@ -215,10 +233,11 @@ function MixedSection({
       <VirtualFeedList
         items={items}
         getKey={(item) => item.id}
-        renderItem={(item) =>
+        renderItem={(item, index) =>
           item.kind === 'collection' ? (
             <OpportunityCollectionCard
               opportunity={item.opportunity}
+              priority={index < 2}
               selectMode={selecting}
               selected={albumPick.collectionIds.has(item.opportunity.collection.id)}
               onLongSelect={() => toggleExploreAlbum(albumPick, item.opportunity)}
@@ -235,9 +254,9 @@ function MixedSection({
           ) : (
             <OpportunityDesignCard
               opportunity={item.opportunity}
+              priority={index < 2}
               selectMode={selecting}
-              selected={shortlist.productIds.has(item.opportunity.product.id)}
-              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
+              selected={shortlist.productIds.has(item.opportunity.product.id)}              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
               onToggleSelect={
                 selecting ? () => toggleExploreDesign(shortlist, item.opportunity) : undefined
               }
@@ -565,18 +584,32 @@ export function ExplorePage() {
     );
   };
 
+  const useFirstPaint =
+    tradeSide === 'buying' && contentMode === 'all' && !showingResults;
+
   const home = useQuery({
-    queryKey: ['explore', 'home', filters, tradeSide],
+    queryKey: ['explore', 'home', filters, tradeSide, 'feed'],
     queryFn: () =>
       api.get<ExploreHomeView>('/explore/home', {
         ...filters,
         side: tradeSide,
+        sections: 'feed',
       }),
     enabled: contentMode !== 'businesses',
   });
 
+  const firstPaintFeed = useQuery({
+    queryKey: ['explore', 'feed', 'first-paint', filters, tradeSide],
+    queryFn: () =>
+      api.get<CursorPage<ExplorePost>>('/explore/feed', {
+        ...filters,
+        limit: EXPLORE_FIRST_PAINT_POSTS,
+      }),
+    enabled: useFirstPaint,
+  });
+
   const data = home.data;
-  const postsForYou = useMemo(
+  const homePosts = useMemo(
     () =>
       buildRankedPostFeed(
         data?.fromNetwork ?? [],
@@ -591,6 +624,11 @@ export function ExplorePage() {
       ),
     [data, tradeSide, company.data?.id],
   );
+  const firstPaintPosts = useMemo(
+    () => mixedOpportunitiesFromExplorePosts(firstPaintFeed.data?.results ?? []),
+    [firstPaintFeed.data?.results],
+  );
+  const postsForYou = home.isSuccess ? homePosts : firstPaintPosts;
   const collectionsForYou = useMemo(
     () =>
       postsForYou
@@ -624,9 +662,24 @@ export function ExplorePage() {
 
   const visiblePosts = useMemo(() => {
     if (storyCompanyId || showAllPosts) return filteredPosts;
+    if (!home.isSuccess) return filteredPosts.slice(0, EXPLORE_FIRST_PAINT_POSTS);
     return filteredPosts.slice(0, EXPLORE_INITIAL_FEED_POSTS);
-  }, [filteredPosts, showAllPosts, storyCompanyId]);
-  const morePostsCount = Math.max(0, filteredPosts.length - visiblePosts.length);
+  }, [filteredPosts, showAllPosts, storyCompanyId, home.isSuccess]);
+  const morePostsCount = home.isSuccess
+    ? Math.max(0, filteredPosts.length - visiblePosts.length)
+    : 0;
+  const showFeedEnd = exploreFeedEndVisible({
+    postCount: visiblePosts.length,
+    morePostsCount,
+    homeReady: home.isSuccess,
+  });
+  const landingBlocked = exploreLandingBlocked({
+    homeLoading: home.isLoading,
+    homeHasData: Boolean(home.data),
+    firstPaintLoading: firstPaintFeed.isLoading,
+    firstPaintHasData: firstPaintPosts.length > 0,
+    useFirstPaint,
+  });
   const filteredCollections = useMemo(() => {
     if (!storyCompanyId) return collectionsForYou;
     return [...collectionsForYou]
@@ -848,9 +901,9 @@ export function ExplorePage() {
         <ExploreSearchResults query={searchQuery} onPickQuery={onSearchTermChange} />
       ) : contentMode === 'businesses' ? (
         <SupplierDirectory filters={filters} />
-      ) : home.isLoading || (tradeSide === 'selling' && company.isLoading) ? (
+      ) : landingBlocked || (tradeSide === 'selling' && company.isLoading) ? (
         <LoadingBlock />
-      ) : home.isError ? (
+      ) : home.isError && !firstPaintPosts.length ? (
         <EmptyState
           title="Couldn’t load Explore"
           message="Check your connection and try again."
@@ -923,6 +976,7 @@ export function ExplorePage() {
                     More posts ({morePostsCount})
                   </Button>
                 ) : null}
+                {showFeedEnd ? <ExploreFeedEnd /> : null}
               </>
             ) : storyCompanyId ? (
               <EmptyState
@@ -937,18 +991,24 @@ export function ExplorePage() {
             )
           ) : null}
           {tradeSide !== 'selling' && contentMode === 'collections' ? (
-            <CollectionSection
-              title=""
-              items={filteredCollections}
-              feedRelationships={feedRelationships}
-            />
+            <>
+              <CollectionSection
+                title=""
+                items={filteredCollections}
+                feedRelationships={feedRelationships}
+              />
+              {home.isSuccess && filteredCollections.length > 0 ? <ExploreFeedEnd /> : null}
+            </>
           ) : null}
           {tradeSide !== 'selling' && contentMode === 'designs' ? (
-            <DesignSection
-              title=""
-              items={filteredDesigns}
-              feedRelationships={feedRelationships}
-            />
+            <>
+              <DesignSection
+                title=""
+                items={filteredDesigns}
+                feedRelationships={feedRelationships}
+              />
+              {home.isSuccess && filteredDesigns.length > 0 ? <ExploreFeedEnd /> : null}
+            </>
           ) : null}
           {tradeSide === 'selling' && !storyCompanyId && data?.lookingForWhatYouSell ? (
             <CompanySection

@@ -15,7 +15,7 @@ import type {
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
-import { CompanyRow } from '@/ui/cards';
+import { CompanyRow, CoverImage } from '@/ui/cards';
 import { Avatar, Button, LoadingBlock, SectionHeader, cx } from '@/ui/kit';
 import {
   ChatIcon,
@@ -145,14 +145,13 @@ export function HomePage() {
   ).filter((chip) => chip.value > 0);
   const hasChips = chipEntries.length > 0;
 
-  const stillBootstrapping =
+  const identityLoading = tradeLoading || company.isLoading;
+  const attentionLoading =
     followAsks.isLoading ||
     orders.isLoading ||
     threadRequests.isLoading ||
-    following.isLoading ||
-    (hasNetwork && followed.isLoading) ||
-    tradeLoading ||
-    company.isLoading;
+    myGrants.isLoading;
+  const networkLoading = following.isLoading || (hasNetwork && followed.isLoading);
 
   const suggestScope = buying || !selling ? 'buy' : 'sell';
   const viewerCity = company.data?.city?.trim() || undefined;
@@ -164,7 +163,7 @@ export function HomePage() {
   const marketFeed = useQuery({
     queryKey: ['explore', 'feed', { homeOpportunity: true }],
     queryFn: () => api.get<CursorPage<ExplorePost>>('/explore/feed', { limit: 20 }),
-    enabled: !stillBootstrapping && isOpportunity,
+    enabled: !identityLoading && !attentionLoading && isOpportunity,
   });
 
   const suggested = useQuery({
@@ -181,10 +180,10 @@ export function HomePage() {
       if (local.results.length > 0) return local;
       return api.get<CursorPage<CompanyCard>>('/explore/companies', base);
     },
-    enabled: !stillBootstrapping && isOpportunity,
+    enabled: !identityLoading && !attentionLoading && isOpportunity,
   });
 
-  if (stillBootstrapping) {
+  if (identityLoading) {
     return <LoadingBlock label="Opening home…" />;
   }
 
@@ -219,7 +218,9 @@ export function HomePage() {
         <p className="text-[15px] font-medium leading-snug text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </p>
-        {hasNeeds ? (
+        {attentionLoading ? (
+          <p className="text-sm text-muted">Checking what needs you…</p>
+        ) : hasNeeds ? (
           <p className="text-[15px] font-medium leading-snug text-accent">
             {needs.length === 1
               ? '1 item needs attention.'
@@ -244,7 +245,13 @@ export function HomePage() {
         )}
       </header>
 
-      {hasNeeds && hasChips ? (
+      {attentionLoading ? (
+        <div className="mt-6">
+          <LoadingBlock label="Loading…" />
+        </div>
+      ) : null}
+
+      {!attentionLoading && hasNeeds && hasChips ? (
         <div
           className={`mt-6 grid gap-2.5 ${chipEntries.length === 1 ? 'grid-cols-2' : chipEntries.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}
         >
@@ -254,7 +261,7 @@ export function HomePage() {
         </div>
       ) : null}
 
-      {hasNeeds ? (
+      {!attentionLoading && hasNeeds ? (
         <section className="mt-6 flex flex-col gap-3">
           <h2 className="px-0.5 text-[15px] font-semibold tracking-tight text-ink">
             Needs your attention
@@ -323,9 +330,11 @@ export function HomePage() {
         </div>
       ) : null}
 
-      {isOpportunity ? (
+      {!attentionLoading && isOpportunity ? (
         <div className="mt-6">
-          {isEmptyPlatform ? (
+          {networkLoading || (!opportunityReady && !isEmptyPlatform) ? (
+            <LoadingBlock label="Loading market…" />
+          ) : isEmptyPlatform ? (
             <EmptyPlatformSection selling={selling} buying={buying} />
           ) : (
             <div className="flex flex-col gap-7">
@@ -539,7 +548,7 @@ function HomeLookRail({ posts }: { posts: HomePostGroup[] }) {
             to={homePostGroupLink(group)}
             className="relative h-[7.25rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-linen"
           >
-            <img src={src} alt="" className="h-full w-full object-cover" />
+            <CoverImage src={src} alt="" priority />
             <span className="absolute inset-x-0 bottom-0 truncate bg-ink/55 px-1.5 py-1 text-[10px] font-semibold text-white">
               {group.companyName}
             </span>
@@ -567,11 +576,9 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
       className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-foam active:bg-foam"
     >
       {thumb ? (
-        <img
-          src={thumb}
-          alt=""
-          className="h-14 w-14 shrink-0 rounded-lg object-cover"
-        />
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
+          <CoverImage src={thumb} alt="" />
+        </div>
       ) : (
         <Avatar name={group.companyName} size={56} />
       )}

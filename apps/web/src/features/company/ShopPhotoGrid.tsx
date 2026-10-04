@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { CollectionCard } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
-import { collectionMosaicCount, packFeedCaption, packFeedDetailLine } from '@/ui/albumMosaic';
+import { packFeedDetailLine } from '@/ui/albumMosaic';
 import { CheckIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from '@/ui/useLongPress';
@@ -142,8 +142,8 @@ export function ShopCollectionCell({
   const longPress = useLongPress(onLongSelect);
   const selecting = Boolean(selectMode && onToggleSelect);
   const images = shopCollectionPreviewImages(collection);
-  const countLabel =
-    collection.productCount === 1 ? '1 design' : `${collection.productCount} designs`;
+  /** Preview thumbs only — do not size mosaic from productCount (leaks inventory). */
+  const mosaicCount = images.length;
 
   const onMosaic = () => {
     if (isLongPressActivateSuppressed()) return;
@@ -157,19 +157,11 @@ export function ShopCollectionCell({
     return (
       <CatalogFeedPost
         name={collection.name}
-        meta={packFeedCaption({
-          live: true,
-          productCount: collection.productCount,
-          when: explorePostedWhen(collection.updatedAt),
-        })}
+        meta={explorePostedWhen(collection.updatedAt) ?? ''}
         detail={packFeedDetailLine({ tags: collection.categories })}
         href={`/collections/${collection.id}`}
         images={images.map((url) => toAbsoluteMediaUrl(url)).filter((url): url is string => Boolean(url))}
-        imageCount={collectionMosaicCount({
-          productCount: collection.productCount,
-          previewCount: images.length,
-        })}
-        company={collection.company}
+        imageCount={mosaicCount}
         selected={selected}
         selectMode={selectMode}
         onMediaClick={onMosaic}
@@ -197,10 +189,7 @@ export function ShopCollectionCell({
       >
         <AlbumGrid
           images={images.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean)}
-          imageCount={collectionMosaicCount({
-            productCount: collection.productCount,
-            previewCount: images.length,
-          })}
+          imageCount={mosaicCount}
           alt={collection.name}
         />
         {selectMode ? (
@@ -222,7 +211,6 @@ export function ShopCollectionCell({
         <span className="block truncate text-[13px] font-semibold tracking-tight text-ink">
           {collection.name}
         </span>
-        <span className="block truncate text-[11px] font-medium text-muted">{countLabel}</span>
       </Link>
     </div>
   );

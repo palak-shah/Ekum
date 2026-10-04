@@ -144,7 +144,8 @@ export class ExploreService {
    * `side=buying` fills receivedByDay; receivedCurated is always populated for Home.
    */
   async home(viewerCompanyId: string, query: ExploreHomeQuery = {}): Promise<ExploreHomeView> {
-    const sectionLimit = 24;
+    const feedOnly = query.sections === 'feed';
+    const sectionLimit = 12;
     const { categories: homeCategories, cities: homeCities } = narrowLists(query);
     const base: ExploreQuery = {
       limit: sectionLimit,
@@ -166,6 +167,10 @@ export class ExploreService {
     const sells = (viewer?.sellCategories ?? []).some((tag) => tag.trim().length > 0);
     const interest = interestFromNarrowCategories(homeCategories) ??
       resolveInterestFromCompany(viewer ?? {});
+    // Explore `sections=feed` skips Home-only shelves; selling still needs buyers.
+    const wantBuyers = sells && (!feedOnly || query.side === 'selling');
+    const wantSuggested = !feedOnly;
+    const wantReceived = !feedOnly;
 
     const [
       networkPage,
@@ -182,8 +187,10 @@ export class ExploreService {
       this.collections(viewerCompanyId, base),
       this.designs(viewerCompanyId, { ...base, following: true, limit: 8 }),
       this.designs(viewerCompanyId, { ...base, limit: 12 }),
-      this.companies(viewerCompanyId, { ...base, scope: 'buy' }),
-      sells
+      wantSuggested
+        ? this.companies(viewerCompanyId, { ...base, scope: 'buy' })
+        : Promise.resolve({ results: [] as CompanyCard[], nextCursor: null }),
+      wantBuyers
         ? this.companies(viewerCompanyId, { ...base, scope: 'sell' })
         : Promise.resolve({ results: [] as CompanyCard[], nextCursor: null }),
       this.prisma.connection.findMany({
@@ -194,14 +201,16 @@ export class ExploreService {
         where: { followerCompanyId: viewerCompanyId, status: 'allowed' },
         select: { followedCompanyId: true },
       }),
-      this.prisma.broadcast.findMany({
-        where: {
-          type: MessageType.CollectionCard,
-          referenceId: { not: null },
-          recipients: { some: { recipientCompanyId: viewerCompanyId } },
-        },
-        select: { referenceId: true },
-      }),
+      wantReceived
+        ? this.prisma.broadcast.findMany({
+            where: {
+              type: MessageType.CollectionCard,
+              referenceId: { not: null },
+              recipients: { some: { recipientCompanyId: viewerCompanyId } },
+            },
+            select: { referenceId: true },
+          })
+        : Promise.resolve([] as { referenceId: string | null }[]),
     ]);
 
     const connectedIds = new Set(counterpartIdsFromRows(viewerCompanyId, connectedRows));
@@ -284,7 +293,10 @@ export class ExploreService {
         ...buyersPage.results.map((company) => company.id),
       ]),
     ];
-    const shopPreviews = await this.shopPreviewsForCompanies(viewerCompanyId, businessIds);
+    const shopPreviews =
+      businessIds.length > 0
+        ? await this.shopPreviewsForCompanies(viewerCompanyId, businessIds)
+        : new Map<string, { previewImages: string[]; designCount: number; collectionCount: number; latestPostedAt: string | null }>();
 
     const suggestedBusinesses = suggestedPage.results.map((company) =>
       this.toSuggestedOpportunity(
@@ -318,25 +330,33 @@ export class ExploreService {
       connectedIds,
     });
 
-    const broadcastCollectionIds = [
-      ...new Set(
-        broadcastRows
-          .map((row) => row.referenceId)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-    const receivedPacks = await this.loadReceivedPacks(viewerCompanyId, base, broadcastCollectionIds);
-    const receivedByDay =
-      query.side === 'buying'
-        ? groupReceivedByDay(receivedPacks).map((day) => ({
-            day: day.day,
-            groups: day.groups.map((group) => ({
-              company: group.items[0]!.company,
-              collections: group.items,
-            })),
-          }))
-        : [];
-    const receivedCurated = pickReceivedCurated(receivedPacks);
+    let receivedByDay: ExploreHomeView['receivedByDay'] = [];
+    let receivedCurated: ExploreHomeView['receivedCurated'] = [];
+    if (wantReceived) {
+      const broadcastCollectionIds = [
+        ...new Set(
+          broadcastRows
+            .map((row) => row.referenceId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const receivedPacks = await this.loadReceivedPacks(
+        viewerCompanyId,
+        base,
+        broadcastCollectionIds,
+      );
+      receivedByDay =
+        query.side === 'buying'
+          ? groupReceivedByDay(receivedPacks).map((day) => ({
+              day: day.day,
+              groups: day.groups.map((group) => ({
+                company: group.items[0]!.company,
+                collections: group.items,
+              })),
+            }))
+          : [];
+      receivedCurated = pickReceivedCurated(receivedPacks);
+    }
 
     return {
       forYou,

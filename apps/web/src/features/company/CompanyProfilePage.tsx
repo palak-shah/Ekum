@@ -17,6 +17,7 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { SEE_PACKS_HINT, seePacksShopLabel, shopWriteLabel } from './seePacksCopy';
+import { shopShelfLoading } from './shopShelfLoading';
 import { ShareIcon } from '@/ui/icons';
 import { useCompanyId } from '@/lib/auth';
 import {
@@ -187,8 +188,13 @@ export function CompanyProfilePage() {
     [collections, deferredListSearch],
   );
   const listSearchActive = Boolean(deferredListSearch.trim());
-  const shopLoading = shopDesigns.isLoading || shopCollections.isLoading;
-  const shopReady = shopDesigns.isSuccess && shopCollections.isSuccess;
+  const shopLoading = shopShelfLoading(
+    shopTab,
+    shopCollections.isLoading,
+    shopDesigns.isLoading,
+  );
+  const shopReady =
+    shopTab === 'collections' ? shopCollections.isSuccess : shopDesigns.isSuccess;
   const visibleShopIds = designs.map((product) => product.id);
   const visibleAlbumIds = collections.map((collection) => collection.id);
   const gridDesignIds = visibleDesigns.map((product) => product.id);
@@ -458,10 +464,10 @@ export function CompanyProfilePage() {
               <div className="flex gap-2">
                 {(
                   [
-                    ['collections', 'Collections', collections.length],
-                    ['designs', 'Designs', designs.length],
+                    ['collections', 'Collections'],
+                    ['designs', 'Designs'],
                   ] as const
-                ).map(([value, label, count]) => (
+                ).map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
@@ -473,7 +479,6 @@ export function CompanyProfilePage() {
                     )}
                   >
                     {label}
-                    {count > 0 ? ` · ${count}` : ''}
                   </button>
                 ))}
               </div>

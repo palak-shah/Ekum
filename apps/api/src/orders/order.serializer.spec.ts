@@ -82,6 +82,35 @@ describe('OrderSerializer remainingQuantity', () => {
     expect(view.items[0]?.remainingQuantity).toBe(0);
   });
 
+  it('floors remaining at 0 when shipped exceeds agreed qty', () => {
+    const base = orderWithItem(OrderLineStatus.Dispatched) as never as {
+      shipments: unknown[];
+      items: Array<{ quantity: { toNumber: () => number } }>;
+    };
+    base.items[0]!.quantity = { toNumber: () => 1 };
+    base.shipments = [
+      {
+        id: 's1',
+        orderId: 'o1',
+        transporter: null,
+        lrNumber: 'LR-OVER',
+        parcelCount: null,
+        dispatchedAt: new Date(),
+        items: [
+          {
+            orderItemId: 'oi1',
+            quantity: { toNumber: () => 2 },
+            orderItem: { id: 'oi1', name: 'A' },
+          },
+        ],
+      },
+    ];
+    const view = serializer.toOrderView(base as never, 'seller');
+    expect(view.items[0]?.shippedQuantity).toBe(2);
+    expect(view.items[0]?.remainingQuantity).toBe(0);
+    expect(view.items[0]?.quantity).toBe(1);
+  });
+
   it('exposes part_shipped when confirmed has partial shipments', () => {
     const base = orderWithItem(OrderLineStatus.Confirmed) as never as {
       status: string;

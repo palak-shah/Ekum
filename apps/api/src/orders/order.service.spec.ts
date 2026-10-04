@@ -1053,6 +1053,37 @@ describe('OrderService state machine', () => {
     });
   });
 
+  it('allows dispatch qty above remaining (over-ship)', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Confirmed,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 1 },
+            requestedQuantity: { toNumber: () => 1 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [],
+      },
+    });
+    await service.dispatch('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', quantity: 2 }],
+      lrNumber: 'LR-OVER',
+    });
+    expect(captured.shipmentCreate).toMatchObject({
+      lrNumber: 'LR-OVER',
+      items: { create: [{ orderItemId: 'oi1', quantity: 2 }] },
+    });
+    expect(captured.updateData?.status).toBe(OrderStatus.Dispatched);
+  });
+
   it('settles from part_shipped to settled completed status', async () => {
     const { service, captured } = makeService({
       order: {

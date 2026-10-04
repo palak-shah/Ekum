@@ -775,19 +775,78 @@ export class OrderService {
     });
   }
 
-  /** Bottom-nav Orders badge — same Needs you rows as the list. */
+  /**
+   * Bottom-nav Orders badge — same Needs you rows as the list.
+   * Only loads open-status party orders (not settled/cancelled history).
+   */
   async needsYouCount(actorCompanyId: string): Promise<number> {
-    let cursor: string | undefined;
-    let count = 0;
-    for (;;) {
-      const page = await this.list(actorCompanyId, {
-        limit: 100,
-        sort: 'newest',
-        ...(cursor ? { cursor } : {}),
+    const partyWhere: Prisma.OrderWhereInput = {
+      OR: [
+        { buyerCompanyId: actorCompanyId },
+        { sellerCompanyId: actorCompanyId },
+        { facilitatorCompanyId: actorCompanyId },
+      ],
+    };
+    const listWhere: Prisma.OrderWhereInput = {
+      AND: [
+        partyWhere,
+        {
+          status: {
+            in: [
+              OrderStatus.Requested,
+              OrderStatus.Confirmed,
+              OrderStatus.PartShipped,
+              OrderStatus.Dispatched,
+              OrderStatus.Delivered,
+            ],
+          },
+        },
+        {
+          NOT: {
+            sellerCompanyId: actorCompanyId,
+            downstreamOrderId: { not: null },
+            upstreamReleasedAt: null,
+          },
+        },
+        {
+          NOT: traderListHidesSubset(actorCompanyId),
+        },
+      ],
+    };
+
+    let rows = await this.prisma.order.findMany({
+      where: listWhere,
+      include: ORDER_RELATIONS,
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    const quotedIds = await this.orderIdsWithSellerQuote(rows);
+    const needsQuotePassIds = await this.parentIdsNeedingQuotePass(rows, actorCompanyId, quotedIds);
+    const linkedByParent = await this.linkedMillsByParent(rows, actorCompanyId);
+    const healedIds = await this.healManageParentsInList(rows);
+    if (healedIds.size > 0) {
+      const refreshed = await this.prisma.order.findMany({
+        where: { id: { in: [...healedIds] } },
+        include: ORDER_RELATIONS,
       });
-      count += page.results.filter((row) => matchesOrderNeedsYou(row)).length;
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
+      const byId = new Map(refreshed.map((row) => [row.id, row]));
+      rows = rows.map((row) => byId.get(row.id) ?? row);
+    }
+    const catalog = await productCatalogStatusById(
+      this.prisma,
+      rows.flatMap((row) => row.items.map((item) => item.productId)),
+    );
+    let count = 0;
+    for (const row of rows) {
+      const sellerQuoted = quotedIds.has(row.id);
+      const view = {
+        ...this.serializer.toOrderView(row, actorCompanyId, null, null, catalog),
+        hasSellerQuote: sellerQuoted,
+        canAcceptQuote: this.buyerCanAcceptQuoteSync(row, actorCompanyId, sellerQuoted),
+        needsQuotePass: needsQuotePassIds.has(row.id),
+        linkedMills: linkedByParent.get(row.id) ?? [],
+      };
+      if (matchesOrderNeedsYou(view)) count += 1;
     }
     return count;
   }
@@ -1559,14 +1618,8 @@ export class OrderService {
           message: 'Only confirmed lines can be dispatched.',
         });
       }
-      const shipped = shippedByItem.get(item.id) ?? 0;
-      const remaining = item.quantity.toNumber() - shipped;
-      if (line.quantity > remaining + 1e-9) {
-        throw new BadRequestException({
-          code: 'QTY_TOO_HIGH',
-          message: 'Dispatch quantity exceeds what is left to ship.',
-        });
-      }
+      // Over-ship (qty > remaining) is allowed — extra sets. remaining floors at 0
+      // on serialize; line/order complete when shipped ≥ agreed quantity.
     }
 
     const lrNumber = dto.lrNumber?.trim() || null;

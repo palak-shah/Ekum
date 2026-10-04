@@ -48,7 +48,7 @@ User control is **Buying** or **Selling** only (`?side=`). Dual presence (I buy 
 | Designs on Explore | Published designs with `postedToMarketAt` (Publish sets both). On Explore home and the mixed feed, if that design is already a member of a **live pack in the same result**, hide the solo tile — the pack is the album. Solo Publish still shows when the design is not on a visible live pack. **Designs Only** still lists posted designs. |
 | Collections on Explore | Published albums with activity / live-window rules — see [collections](./collections.md) |
 | Follow | Ask; Buying side prioritizes **allowed** followed publishers’ posts. Pending never ranks as a follow. |
-| Ranking (feed) | Interest / opportunity matching (`feed-rank`, `interest-match`) — not likes/viral scores. **Seen posts** sink within a tier until the post has newer activity (device-local for now; server sync later at scale). Explore home shows **12 posts** then **More posts** so discovery shelves are not buried. Mixed / collections / designs lists **virtual-scroll** (window rows only). Cover images **easy-load** (src deferred until near viewport). API `feed` / `collections` pull a **ranking window** (not the whole market) then page. |
+| Ranking (feed) | Interest / opportunity matching (`feed-rank`, `interest-match`) — not likes/viral scores. **Seen posts** sink within a tier until the post has newer activity (device-local for now; server sync later at scale). Landing paints the first posts from a light `/explore/feed` while `/explore/home?sections=feed` enriches Stories + ranked shelves. Explore home shows **12 posts** then **More posts** so discovery shelves are not buried; when the list is fully shown, a quiet **You've reached the end** footer. Mixed / collections / designs lists **virtual-scroll** (window rows only). Cover images **easy-load** (src deferred until near viewport; first two cards eager). API `feed` / `collections` pull a **ranking window** (not the whole market) then page. |
 | Stories | Company appears when viewer is an **allowed** follower or is connected and company has **published** to feed (own or curated). Rank by recent publish; hide rail when empty; not Instagram personal stories |
 | Role opacity | No Trader / Seller badges on Stories or cards |
 | Businesses directory | Filter square → **Businesses Only**. Not mixed into the buying post feed. |
@@ -77,7 +77,7 @@ User control is **Buying** or **Selling** only (`?side=`). Dual presence (I buy 
 ## Automated verification
 
 - Functional: `pnpm test:e2e:functional` — `@explore` browse, filter dismiss, open collection
-- Regression: `omit-covered-design-feed-rows.spec.ts`; `cards.selectOpen.spec.tsx` (first photo + name opens); `exploreProductChrome.spec.ts` (dock visitors only); `rank-window.spec.ts`; `VirtualFeedList.spec.tsx`; `CoverImage.easyLoad.spec.tsx`
+- Regression: `omit-covered-design-feed-rows.spec.ts`; `cards.selectOpen.spec.tsx` (first photo + name opens); `exploreProductChrome.spec.ts` (dock visitors only); `rank-window.spec.ts`; `VirtualFeedList.spec.tsx`; `CoverImage.easyLoad.spec.tsx`; `exploreFeedFromPosts.spec.ts`
 - Completeness: `docs/superpowers/reviews/completeness/2026-08-11-explore-completeness.md`; Slice C `2026-08-22-explore-trade-side-completeness.md`; filter panels `2026-08-23-explore-filter-panels-completeness.md`; pack-covered `2026-09-25-explore-pack-covered-designs-completeness.md`; feed virtual/lazy `2026-10-04-explore-feed-virtual-lazy-completeness.md`
 
 ## Where it lives

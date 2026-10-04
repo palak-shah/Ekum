@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import type {
   CollectionCard,
   CompanyCard,
@@ -14,6 +15,7 @@ import type {
   PublicCompanySummary,
 } from '@ekum/domain-types';
 import { formatRate, timeAgo } from '@/lib/format';
+import { warmCompanyFromExplore } from '@/features/company/warmCompanyQueries';
 import { Avatar, Chip, cx } from './kit';
 import { CheckIcon, ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
@@ -26,6 +28,9 @@ import {
   packFeedDetailLine,
 } from './albumMosaic';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
+
+/** CoverImage IO prefetch — ahead of tall Explore cards. */
+export const COVER_IMAGE_ROOT_MARGIN = '600px 0px';
 
 /** Explore feed chrome — same tightness as Chats rows. */
 export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 border-b border-line/70 pb-2.5';
@@ -71,13 +76,25 @@ function ShopPostHeader({
   trailing?: ReactNode;
   nameClassName?: string;
 }) {
+  const queryClient = useQueryClient();
   const identity = shopIdentityLine(company.city, shopSellCategories(company));
+  const warm = () => warmCompanyFromExplore(queryClient, company.id);
   return (
     <div className={EXPLORE_POST_HEADER_CLASS}>
-      <Link to={to} className="shrink-0">
+      <Link
+        to={to}
+        className="shrink-0"
+        onPointerDown={warm}
+        onMouseEnter={warm}
+      >
         <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
       </Link>
-      <Link to={to} className="min-w-0 flex-1">
+      <Link
+        to={to}
+        className="min-w-0 flex-1"
+        onPointerDown={warm}
+        onMouseEnter={warm}
+      >
         <ShopName name={company.name} verification={company.verification} className={nameClassName} />
         {identity ? <p className="truncate text-xs font-medium text-muted">{identity}</p> : null}
       </Link>
@@ -133,6 +150,7 @@ export function OpportunityCollectionCard({
   onToggleSelect,
   onOpen,
   headerTrailing,
+  priority = false,
 }: {
   opportunity: ExploreOpportunity;
   selected?: boolean;
@@ -142,6 +160,8 @@ export function OpportunityCollectionCard({
   onOpen?: () => void;
   /** Follow control or other header trailing chrome (replaces posted time when set). */
   headerTrailing?: ReactNode;
+  /** Above-the-fold Explore cards — load cover immediately. */
+  priority?: boolean;
 }) {
   const { collection } = opportunity;
   const company = collection.company;
@@ -180,6 +200,7 @@ export function OpportunityCollectionCard({
             previewCount: collection.previewImages.length,
           })}
           alt={collection.name}
+          priority={priority}
         />
         {selectMode ? (
           <span
@@ -432,6 +453,7 @@ export function OpportunityDesignCard({
   onToggleSelect,
   onOpen,
   headerTrailing,
+  priority = false,
 }: {
   opportunity: ExploreDesignOpportunity;
   selected?: boolean;
@@ -440,6 +462,7 @@ export function OpportunityDesignCard({
   onToggleSelect?: () => void;
   onOpen?: () => void;
   headerTrailing?: ReactNode;
+  priority?: boolean;
 }) {
   const { product } = opportunity;
   const company = product.company;
@@ -475,6 +498,7 @@ export function OpportunityDesignCard({
           images={product.images[0] ? [product.images[0]] : []}
           imageCount={1}
           alt={product.name}
+          priority={priority}
         />
         {selectMode ? (
           <span
@@ -576,14 +600,29 @@ export function DesignTile({
  * Fills its parent; parent must set size + overflow-hidden.
  * Easy load: hold the network request until near the viewport (feed image storms
  * were hanging the local media server even with native loading=lazy).
+ * `priority` skips IO defer for above-the-fold Explore cards.
  */
-function CoverImage({ src, alt, className }: { src: string | null; alt: string; className?: string }) {
+export function CoverImage({
+  src,
+  alt,
+  className,
+  priority = false,
+}: {
+  src: string | null;
+  alt: string;
+  className?: string;
+  priority?: boolean;
+}) {
   const shellRef = useRef<HTMLDivElement>(null);
-  const [activeSrc, setActiveSrc] = useState<string | null>(null);
+  const [activeSrc, setActiveSrc] = useState<string | null>(priority ? src : null);
 
   useEffect(() => {
     if (!src) {
       setActiveSrc(null);
+      return;
+    }
+    if (priority) {
+      setActiveSrc(src);
       return;
     }
     const node = shellRef.current;
@@ -600,14 +639,14 @@ function CoverImage({ src, alt, className }: { src: string | null; alt: string; 
         setActiveSrc(src);
         io.disconnect();
       },
-      { rootMargin: '240px 0px', threshold: 0.01 },
+      { rootMargin: COVER_IMAGE_ROOT_MARGIN, threshold: 0.01 },
     );
     io.observe(node);
     return () => {
       done = true;
       io.disconnect();
     };
-  }, [src]);
+  }, [src, priority]);
 
   return (
     <div ref={shellRef} className={cx('h-full w-full', className)}>
@@ -616,7 +655,7 @@ function CoverImage({ src, alt, className }: { src: string | null; alt: string; 
           src={activeSrc}
           alt={alt}
           className="h-full w-full object-cover object-center"
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
           decoding="async"
         />
       ) : (
@@ -696,12 +735,14 @@ export function AlbumGrid({
   imageCount,
   alt,
   frame = 'square',
+  priority = false,
 }: {
   images: string[];
   imageCount: number;
   alt: string;
   /** `feed` = 4∶5 for one photo (light top/bottom crop). Mosaic stays square. */
   frame?: 'square' | 'feed';
+  priority?: boolean;
 }) {
   // Layout from available thumbs only — never invent empty cells from productCount.
   const count = images.length;
@@ -709,7 +750,7 @@ export function AlbumGrid({
   if (count <= 0) {
     return (
       <div className={cx(aspect, 'overflow-hidden rounded-xl bg-foam')}>
-        <CoverImage src={null} alt={alt} />
+        <CoverImage src={null} alt={alt} priority={priority} />
       </div>
     );
   }
@@ -717,7 +758,7 @@ export function AlbumGrid({
   if (count === 1) {
     return (
       <div className={cx(aspect, 'overflow-hidden rounded-xl')}>
-        <CoverImage src={images[0] ?? null} alt={alt} />
+        <CoverImage src={images[0] ?? null} alt={alt} priority={priority} />
       </div>
     );
   }
@@ -727,10 +768,10 @@ export function AlbumGrid({
     return (
       <div className="grid aspect-square grid-cols-2 grid-rows-1 gap-0 overflow-hidden rounded-xl">
         <div className="relative h-full min-h-0 overflow-hidden">
-          <CoverImage src={images[0] ?? null} alt="" />
+          <CoverImage src={images[0] ?? null} alt="" priority={priority} />
         </div>
         <div className="relative h-full min-h-0 overflow-hidden">
-          <CoverImage src={images[1] ?? null} alt="" />
+          <CoverImage src={images[1] ?? null} alt="" priority={priority} />
         </div>
       </div>
     );
@@ -740,13 +781,13 @@ export function AlbumGrid({
     return (
       <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-xl bg-line">
         <div className="relative row-span-2 min-h-0 overflow-hidden bg-foam">
-          <CoverImage src={images[0] ?? null} alt="" />
+          <CoverImage src={images[0] ?? null} alt="" priority={priority} />
         </div>
         <div className="relative min-h-0 overflow-hidden bg-foam">
-          <CoverImage src={images[1] ?? null} alt="" />
+          <CoverImage src={images[1] ?? null} alt="" priority={priority} />
         </div>
         <div className="relative min-h-0 overflow-hidden bg-foam">
-          <CoverImage src={images[2] ?? null} alt="" />
+          <CoverImage src={images[2] ?? null} alt="" priority={priority} />
         </div>
       </div>
     );
@@ -762,7 +803,7 @@ export function AlbumGrid({
         const isOverflow = index === 3 && overflow;
         return (
           <div key={index} className="relative min-h-0 overflow-hidden bg-foam">
-            {src ? <CoverImage src={src} alt="" /> : null}
+            {src ? <CoverImage src={src} alt="" priority={priority} /> : null}
             {isOverflow ? (
               <div className="absolute inset-0 flex items-center justify-center bg-ink/55">
                 <span className="text-2xl font-bold tracking-tight text-white">{overflow}</span>

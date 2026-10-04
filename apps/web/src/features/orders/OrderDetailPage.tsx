@@ -27,7 +27,15 @@ import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
-import { ShipProgressHint, SettleQtyColumns, SettlePendingSummary, fulfillmentRowClass, orderLineShowsFulfillment, orderLineShowsPending } from '@/features/orders/shipProgressLabel';
+import {
+  ShipProgressHint,
+  SettleQtyColumns,
+  SettlePendingSummary,
+  fulfillmentRowClass,
+  orderLineOverShipped,
+  orderLineShowsFulfillment,
+  orderLineShowsPending,
+} from '@/features/orders/shipProgressLabel';
 import {
   defaultDispatchOn,
   defaultDispatchQty,
@@ -35,6 +43,7 @@ import {
   dispatchThisLrLabel,
   dispatchThisLrTally,
   lineDispatchQty,
+  lineDispatchOverBy,
   shippableDispatchItems,
   dispatchLineKindLine,
   dispatchLineCountLine,
@@ -1346,14 +1355,16 @@ export function OrderDetailPage() {
                       : null;
                     const cantSupply = item.lineStatus === 'declined';
                     const pending = item.remainingQuantity ?? 0;
+                    const extra = orderLineOverShipped(item);
                     const showPending = !cantSupply && orderLineShowsPending(item);
+                    const showExtra = !cantSupply && extra > 0;
                     const showFulfillment = !cantSupply && orderLineShowsFulfillment(item);
                     return (
                       <div
                         key={item.id}
                         className={cx(
                           'pt-3',
-                          showPending
+                          showPending || showExtra
                             ? 'rounded-xl border border-accent/40 bg-accent/5 px-2'
                             : 'border-t border-line',
                           quoteCantSupplyRowClass(cantSupply),
@@ -1366,7 +1377,9 @@ export function OrderDetailPage() {
                             ? 'order-line-cant-supply'
                             : showPending
                               ? 'order-line-pending'
-                              : undefined
+                              : showExtra
+                                ? 'order-line-extra'
+                                : undefined
                         }
                       >
                         <OrderLineCantSupplyFace
@@ -1385,6 +1398,7 @@ export function OrderDetailPage() {
                               <ShipProgressHint
                                 dispatched={item.shippedQuantity}
                                 pending={pending}
+                                extra={extra}
                               />
                             </p>
                           ) : null}
@@ -1459,15 +1473,17 @@ export function OrderDetailPage() {
       <Card className="flex flex-col gap-2" data-testid="order-parent-items">
         {data.items.map((item) => {
           const pending = item.remainingQuantity ?? 0;
+          const extra = orderLineOverShipped(item);
           const cantSupply = item.lineStatus === 'declined';
           const showPending = !cantSupply && orderLineShowsPending(item);
+          const showExtra = !cantSupply && extra > 0;
           const showFulfillment = !cantSupply && orderLineShowsFulfillment(item);
           return (
             <div
               key={item.id}
               className={cx(
                 'flex items-center gap-3 rounded-xl px-2 py-2',
-                showPending && 'border border-accent/40 bg-accent/5',
+                (showPending || showExtra) && 'border border-accent/40 bg-accent/5',
                 quoteCantSupplyRowClass(cantSupply),
               )}
               data-testid={
@@ -1475,7 +1491,9 @@ export function OrderDetailPage() {
                   ? 'order-line-cant-supply'
                   : showPending
                     ? 'order-line-pending'
-                    : undefined
+                    : showExtra
+                      ? 'order-line-extra'
+                      : undefined
               }
             >
               <OrderLineCantSupplyFace
@@ -1497,7 +1515,11 @@ export function OrderDetailPage() {
                 )}
                 {showFulfillment ? (
                   <p className="text-[11px] font-medium">
-                    <ShipProgressHint dispatched={item.shippedQuantity} pending={pending} />
+                    <ShipProgressHint
+                      dispatched={item.shippedQuantity}
+                      pending={pending}
+                      extra={extra}
+                    />
                   </p>
                 ) : null}
                 {item.note ? <p className="text-xs text-muted">{item.note}</p> : null}
@@ -2166,6 +2188,7 @@ export function OrderDetailPage() {
               {shippableItems.map((item) => {
                 const on = shipOn[item.id] !== false;
                 const kind = dispatchLineKindLine(item);
+                const overBy = on ? lineDispatchOverBy(item, shipQty) : 0;
                 const lastDispatchQtyId = shippableItems
                   .filter((line) => shipOn[line.id] !== false)
                   .at(-1)?.id;
@@ -2230,15 +2253,25 @@ export function OrderDetailPage() {
                             {dispatchLineCountLine(item)}
                           </span>
                         </p>
+                        {overBy > 0 ? (
+                          <p
+                            className="mt-px truncate text-[11px] font-semibold text-accent"
+                            data-testid="order-dispatch-line-extra"
+                          >
+                            Extra {overBy}
+                          </p>
+                        ) : null}
                       </div>
                     </button>
                     <TextInput
                       type="number"
                       min={1}
-                      max={item.remainingQuantity}
                       disabled={!on}
                       data-testid="order-dispatch-line-qty"
-                      className={COMPACT_QTY_INPUT_CLASS}
+                      className={cx(
+                        COMPACT_QTY_INPUT_CLASS,
+                        overBy > 0 && 'border-accent ring-1 ring-accent/40',
+                      )}
                       value={shipQty[item.id] ?? String(lineDispatchQty(item, shipQty))}
                       onClick={(event) => event.stopPropagation()}
                       onChange={(event) =>

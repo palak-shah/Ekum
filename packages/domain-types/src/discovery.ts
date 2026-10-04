@@ -59,6 +59,11 @@ export const exploreHomeQuerySchema = z.object({
   cities: listQuery,
   /** Trade-side. Omit or `all` = mixed (legacy). Product UI uses buying | selling. */
   side: z.enum(exploreTradeSideValues).optional(),
+  /**
+   * `feed` = Explore landing only (stories + post shelves). Skips suggested /
+   * received work Home still needs from a full home call.
+   */
+  sections: z.enum(['feed']).optional(),
 });
 export type ExploreHomeQuery = z.infer<typeof exploreHomeQuerySchema>;
 
