@@ -30,10 +30,11 @@ export class ProductService {
     dto: CreateProductDto,
   ): Promise<ProductView> {
     const sku = await resolveProductSku(this.prisma, companyId, dto.sku);
+    const name = dto.name?.trim() || sku;
     const product = await this.prisma.product.create({
       data: {
         companyId,
-        name: dto.name,
+        name,
         sku,
         description: dto.description ?? null,
         moq: dto.moq ?? null,

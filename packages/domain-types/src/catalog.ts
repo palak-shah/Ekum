@@ -7,11 +7,12 @@ import {
 } from './enums';
 
 /**
- * Catalog contracts. A Product (design) is the live entity: name required; rate
- * nullable ("on request"). SKU is optional on input — if omitted the API assigns
- * a stable company-unique code that never changes for that product's life.
- * Products and Collections are separate (many-to-many). Client "catalogue" means
- * an order-as-whole pack (future); shop publish is "Publish design", not catalogue.
+ * Catalog contracts. A Product (design) is the live entity: name optional on
+ * create (blank → server uses the resolved SKU); rate nullable ("on request").
+ * SKU is optional on input — if omitted the API assigns a stable company-unique
+ * code that never changes for that product's life. Products and Collections are
+ * separate (many-to-many). Client "catalogue" means an order-as-whole pack
+ * (future); shop publish is "Publish design", not catalogue.
  */
 
 /** Staff who/when on catalog + orders rows (full AuditLog UI later). */
@@ -31,7 +32,8 @@ export const listCatalogQuerySchema = z.object({
 export type ListCatalogQuery = z.infer<typeof listCatalogQuerySchema>;
 
 const createProductObjectSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required').max(160),
+  /** Optional on create; blank/omit → server uses the resolved SKU as the name. */
+  name: z.string().trim().max(160).optional(),
   /** Optional on create; server fills a stable SKU when omitted. */
   sku: z.string().trim().min(1).max(64).optional(),
   /** Seller notes for buyers (fabric, size, width, etc.). */

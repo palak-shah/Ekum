@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SelectAllFloat } from './SelectAllFloat';
+import { SelectAllFloat, SELECT_FLOAT_BELOW_YOU } from './SelectAllFloat';
 
 describe('SelectAllFloat', () => {
   it('hides when closed', () => {
@@ -92,5 +92,22 @@ describe('SelectAllFloat', () => {
     const bar = screen.getByTestId('select-all-float');
     expect(bar.className).toMatch(/rounded-full/);
     expect(bar.className).not.toMatch(/sticky/);
+  });
+
+  it('sits flush under shell You (no PageHeader gap)', () => {
+    render(
+      <SelectAllFloat
+        open
+        count={3}
+        allSelected={false}
+        offsetClass={SELECT_FLOAT_BELOW_YOU}
+        onSelectAll={() => {}}
+        onClear={() => {}}
+      />,
+    );
+    const bar = screen.getByTestId('select-all-float');
+    expect(bar.className).toMatch(/sticky/);
+    expect(bar.className).toMatch(/top-0/);
+    expect(bar.className).not.toMatch(/top-\[3\.25rem\]/);
   });
 });

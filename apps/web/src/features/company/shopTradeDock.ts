@@ -61,6 +61,8 @@ export function shouldHideAppNav(
   if (pathname.startsWith('/designs/set') && options.pageDockUp) return true;
   if (/^\/collections\/[^/]+$/.test(pathname) && options.pageDockUp) return true;
   if (/^\/explore\/products\/[^/]+$/.test(pathname) && options.pageDockUp) return true;
+  // You library select dock (Order · Share · Hide) owns the bottom — same as pack manage.
+  if (pathname === '/more' && options.pageDockUp) return true;
   if (
     pathname === '/catalog/collections/new' ||
     /^\/catalog\/collections\/[^/]+$/.test(pathname)

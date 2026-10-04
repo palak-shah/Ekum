@@ -152,15 +152,8 @@ describe('ProductService.postToMarket / unpost / unpublish', () => {
 });
 
 describe('ProductService.create', () => {
-  it('ensures selling is enabled after creating a design', async () => {
+  function createHarness(productCreate: ReturnType<typeof vi.fn>) {
     const settingsUpsert = vi.fn(async () => ({}));
-    const productCreate = vi.fn(async () => ({
-      id: 'p-new',
-      companyId: 'c1',
-      name: 'Banarasi',
-      sku: 'EK-1',
-      status: ProductStatus.Draft,
-    }));
     const prisma = {
       product: {
         findFirst: async () => null,
@@ -175,7 +168,22 @@ describe('ProductService.create', () => {
     const serializer = {
       toProductView: (product: unknown) => product,
     } as unknown as CatalogSerializer;
-    const service = new ProductService(prisma, serializer);
+    return {
+      service: new ProductService(prisma, serializer),
+      productCreate,
+      settingsUpsert,
+    };
+  }
+
+  it('ensures selling is enabled after creating a design', async () => {
+    const productCreate = vi.fn(async () => ({
+      id: 'p-new',
+      companyId: 'c1',
+      name: 'Banarasi',
+      sku: 'EK-1',
+      status: ProductStatus.Draft,
+    }));
+    const { service, settingsUpsert } = createHarness(productCreate);
 
     await service.create('c1', 'u1', {
       name: 'Banarasi',
@@ -189,6 +197,60 @@ describe('ProductService.create', () => {
         update: expect.objectContaining({
           tradeDefaults: expect.objectContaining({ sellingEnabled: true }),
         }),
+      }),
+    );
+  });
+
+  it('uses the resolved SKU as the name when name is omitted or blank', async () => {
+    const productCreate = vi.fn(async (args: { data: { name: string; sku: string } }) => ({
+      id: 'p-new',
+      ...args.data,
+      status: ProductStatus.Draft,
+    }));
+    const { service } = createHarness(productCreate);
+
+    await service.create('c1', 'u1', {
+      sku: 'EK-ABCD1234',
+      categories: [],
+      images: [],
+    });
+    expect(productCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: 'EK-ABCD1234', sku: 'EK-ABCD1234' }),
+      }),
+    );
+
+    productCreate.mockClear();
+    await service.create('c1', 'u1', {
+      name: '   ',
+      sku: 'EK-BLANK1',
+      categories: [],
+      images: [],
+    });
+    expect(productCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: 'EK-BLANK1', sku: 'EK-BLANK1' }),
+      }),
+    );
+  });
+
+  it('keeps a typed name when present', async () => {
+    const productCreate = vi.fn(async (args: { data: { name: string; sku: string } }) => ({
+      id: 'p-new',
+      ...args.data,
+      status: ProductStatus.Draft,
+    }));
+    const { service } = createHarness(productCreate);
+
+    await service.create('c1', 'u1', {
+      name: 'Blue georgette',
+      sku: 'EK-KEEP1',
+      categories: [],
+      images: [],
+    });
+    expect(productCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: 'Blue georgette', sku: 'EK-KEEP1' }),
       }),
     );
   });

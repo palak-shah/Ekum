@@ -69,6 +69,7 @@ function renderSheet(connections: ConnectionView[] = [jaipur, ahmedabad]) {
   });
   vi.mocked(api.get).mockImplementation(async (path: string) => {
     if (path === '/connections') return connections as never;
+    if (path === '/broadcasts/lists') return [] as never;
     if (path === '/access-requests/outgoing') return [] as never;
     if (path === '/settings') {
       return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
@@ -152,6 +153,86 @@ describe('CatalogShareSheet multi-select share', () => {
     );
   });
 
+  it('sends once when a company sits in two selected groups', async () => {
+    vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
+      if (path === '/threads/direct') {
+        const companyId = (body as { companyId: string }).companyId;
+        return { id: `thread-${companyId}` } as never;
+      }
+      if (String(path).includes('/messages')) return { id: 'm1' } as never;
+      throw new Error(`unexpected post ${path}`);
+    });
+
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') return [jaipur, ahmedabad] as never;
+      if (path === '/broadcasts/lists') {
+        return [
+          {
+            id: 'g-jaipur',
+            name: 'Jaipur retailers',
+            memberCompanyIds: ['c1'],
+            memberCount: 1,
+            defaultRateVisibility: null,
+            allowForward: null,
+            createdAt: '2026-09-01T00:00:00.000Z',
+            updatedAt: '2026-09-01T00:00:00.000Z',
+          },
+          {
+            id: 'g-west',
+            name: 'West shops',
+            memberCompanyIds: ['c1', 'c2'],
+            memberCount: 2,
+            defaultRateVisibility: null,
+            allowForward: null,
+            createdAt: '2026-09-01T00:00:00.000Z',
+            updatedAt: '2026-09-01T00:00:00.000Z',
+          },
+        ] as never;
+      }
+      if (path === '/access-requests/outgoing') return [] as never;
+      if (path === '/settings') {
+        return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
+      }
+      throw new Error(`unexpected get ${path}`);
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CatalogShareSheet
+            open
+            onClose={() => {}}
+            collections={[{ collectionId: 'col1', name: 'Monsoon' }]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('catalog-share-group-g-jaipur')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('catalog-share-group-g-jaipur'));
+    await user.click(screen.getByTestId('catalog-share-group-g-west'));
+    expect(screen.getByText(/2 selected/)).toBeInTheDocument();
+    await user.click(screen.getByTestId('catalog-share-send'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/threads/direct', { companyId: 'c1' });
+      expect(api.post).toHaveBeenCalledWith('/threads/direct', { companyId: 'c2' });
+    });
+    const directCalls = vi
+      .mocked(api.post)
+      .mock.calls.filter(([path]) => path === '/threads/direct');
+    expect(directCalls).toHaveLength(2);
+    expect(vi.mocked(api.post).mock.calls.some(([path]) => String(path).includes('/broadcasts'))).toBe(
+      false,
+    );
+  });
+
   it('keeps 48h on 1 collection + 1 design and mints two share-links', async () => {
     vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
       if (path !== '/share-links') throw new Error(`unexpected post ${path}`);
@@ -170,6 +251,7 @@ describe('CatalogShareSheet multi-select share', () => {
     });
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [jaipur] as never;
+      if (path === '/broadcasts/lists') return [] as never;
       if (path === '/access-requests/outgoing') return [] as never;
       if (path === '/settings') {
         return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
@@ -237,6 +319,7 @@ describe('CatalogShareSheet multi-select share', () => {
     });
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [jaipur] as never;
+      if (path === '/broadcasts/lists') return [] as never;
       if (path === '/access-requests/outgoing') return [] as never;
       if (path === '/settings') {
         return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
@@ -285,6 +368,7 @@ describe('CatalogShareSheet multi-select share', () => {
     });
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [jaipur] as never;
+      if (path === '/broadcasts/lists') return [] as never;
       if (path === '/access-requests/outgoing') return [] as never;
       if (path === '/settings') {
         return { tradeDefaults: { orderPathPreference: 'direct' } } as never;

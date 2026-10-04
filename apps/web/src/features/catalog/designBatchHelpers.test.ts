@@ -5,6 +5,7 @@ import {
   generateDraftSku,
   gridHeading,
   morePhotosEntry,
+  nameForNewDesign,
   overridesFromSheet,
   parkEditDraftForCamera,
   batchSaveErrorMessage,
@@ -44,6 +45,15 @@ describe('createProductIdentity', () => {
       name: 'EK-ABCD1234',
       sku: 'EK-ABCD1234',
     });
+  });
+});
+
+describe('nameForNewDesign', () => {
+  it('keeps a typed name and falls back to SKU when blank', () => {
+    expect(nameForNewDesign('Blue georgette', 'EK-ABCD1234')).toBe('Blue georgette');
+    expect(nameForNewDesign('  ', 'EK-ABCD1234')).toBe('EK-ABCD1234');
+    expect(nameForNewDesign(undefined, 'EK-ABCD1234')).toBe('EK-ABCD1234');
+    expect(nameForNewDesign('IMG_1234', 'EK-ABCD1234')).toBe('IMG_1234');
   });
 });
 

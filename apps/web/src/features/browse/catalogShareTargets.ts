@@ -11,6 +11,34 @@ export function dedupeCompanyIds(ids: string[]): string[] {
   return out;
 }
 
+export type CatalogShareGroup = {
+  id: string;
+  memberCompanyIds: string[];
+};
+
+/**
+ * Companies + selected buyer groups → unique shops (once even if in two groups).
+ * Group members outside `eligibleCompanyIds` are dropped (disconnected / stale).
+ */
+export function catalogShareRecipientIds(input: {
+  selectedCompanyIds: string[];
+  selectedGroupIds: string[];
+  groups: CatalogShareGroup[];
+  eligibleCompanyIds?: Iterable<string>;
+}): string[] {
+  const selectedGroups = input.groups.filter((group) =>
+    input.selectedGroupIds.includes(group.id),
+  );
+  const fromGroups = selectedGroups.flatMap((group) => group.memberCompanyIds);
+  const merged = dedupeCompanyIds([...input.selectedCompanyIds, ...fromGroups]);
+  if (!input.eligibleCompanyIds) return merged;
+  const allowed = new Set(
+    [...input.eligibleCompanyIds].map((id) => id.trim()).filter(Boolean),
+  );
+  const picked = new Set(dedupeCompanyIds(input.selectedCompanyIds));
+  return merged.filter((id) => picked.has(id) || allowed.has(id));
+}
+
 /** Open the thread only when sharing to exactly one company. */
 export function shouldOpenChatAfterCatalogShare(recipientCount: number): boolean {
   return recipientCount === 1;

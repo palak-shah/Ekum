@@ -44,7 +44,8 @@ body,
 #root {
   height: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  /* clip, not hidden — hidden forces overflow-y:auto and breaks sticky top chrome */
+  overflow-x: clip;
 }
 
 html {

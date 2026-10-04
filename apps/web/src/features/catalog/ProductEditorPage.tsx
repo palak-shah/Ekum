@@ -17,6 +17,7 @@ import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
+import { SaveOrDiscardSheet } from '@/ui/SaveOrDiscardSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { CameraIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
@@ -26,6 +27,7 @@ import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
 import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
 import { formatRateInput, parseRateInput, rateFieldInputProps } from './rateInput';
+import { generateDraftSku, nameForNewDesign } from './designBatchHelpers';
 import { TagsField } from './TagsField';
 import {
   emptyPublishAudienceState,
@@ -66,6 +68,7 @@ export function ProductEditorPage() {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [leaveSaving, setLeaveSaving] = useState(false);
   const memory = readCatalogFieldMemory();
   const [form, setForm] = useState({
     name: '',
@@ -257,20 +260,27 @@ export function ProductEditorPage() {
     void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
   };
 
+  const buildProductDto = (): CreateProductDto => {
+    const parsed = parseRateInput(form.rate);
+    const resolvedSku =
+      form.sku.trim() || existing.data?.sku?.trim() || generateDraftSku();
+    const name = nameForNewDesign(form.name, resolvedSku);
+    return {
+      name,
+      sku: form.sku.trim() || (existing.data?.sku ? undefined : resolvedSku),
+      rate: parsed.rate,
+      rateMax: parsed.rateMax,
+      moq: form.moq.trim() ? Number(form.moq) : null,
+      unit: form.unit ? (form.unit as (typeof unitValues)[number]) : undefined,
+      description: form.description.trim() || undefined,
+      categories: parseList(form.categories),
+      images: imageUrls,
+    };
+  };
+
   const save = useMutation({
     mutationFn: () => {
-      const parsed = parseRateInput(form.rate);
-      const dto: CreateProductDto = {
-        name: form.name.trim(),
-        sku: form.sku.trim() || undefined,
-        rate: parsed.rate,
-        rateMax: parsed.rateMax,
-        moq: form.moq.trim() ? Number(form.moq) : null,
-        unit: form.unit ? (form.unit as (typeof unitValues)[number]) : undefined,
-        description: form.description.trim() || undefined,
-        categories: parseList(form.categories),
-        images: imageUrls,
-      };
+      const dto = buildProductDto();
       return editing
         ? api.patch<ProductView>(`/products/${id}`, dto)
         : api.post<ProductView>('/products', dto);
@@ -402,17 +412,55 @@ export function ProductEditorPage() {
   );
   const discard = useDiscardGuard(productDirty, leaveBypassRef);
 
+  const onSaveThenLeave = async () => {
+    setLeaveSaving(true);
+    setError(null);
+    try {
+      const dto = buildProductDto();
+      if (editing) {
+        await api.patch<ProductView>(`/products/${id}`, dto);
+      } else {
+        await api.post<ProductView>('/products', dto);
+      }
+      if (!editing) {
+        writeCatalogFieldMemory(form.categories, form.unit);
+      }
+      invalidate();
+      showToast(editing ? 'Updated' : 'Design saved');
+      // Clear dirty so the leave bypass is belt-and-suspenders with allowLeave.
+      savedSnapshotRef.current = formSnapshot;
+      discard.allowLeave();
+      discard.confirmLeave();
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Could not save the design.';
+      setError(message);
+      showToast(message, 'danger');
+    } finally {
+      setLeaveSaving(false);
+    }
+  };
+
   if (editing && existing.isLoading) {
     return <LoadingBlock label="Loading design…" />;
   }
 
   return (
     <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-8')}>
-      <DiscardChangesSheet
-        open={discard.confirmOpen}
-        onCancel={discard.cancelLeave}
-        onLeave={discard.confirmLeave}
-      />
+      {editing ? (
+        <SaveOrDiscardSheet
+          open={discard.confirmOpen}
+          onCancel={discard.cancelLeave}
+          onDiscard={discard.confirmLeave}
+          onSave={() => void onSaveThenLeave()}
+          saving={leaveSaving || save.isPending}
+        />
+      ) : (
+        <DiscardChangesSheet
+          open={discard.confirmOpen}
+          onCancel={discard.cancelLeave}
+          onLeave={discard.confirmLeave}
+        />
+      )}
       <PageHeader
         title={editing ? 'Edit design' : 'Upload a design'}
         onBack={() => discard.tryLeave(() => navigate(-1))}
@@ -513,11 +561,21 @@ export function ProductEditorPage() {
         </div>
       )}
 
-      <Field label="Name" error={error && !detailsOpen ? error : undefined}>
+      <Field
+        label="Name"
+        hint={
+          form.name.trim()
+            ? undefined
+            : form.sku.trim() || existing.data?.sku
+              ? `Blank uses ${form.sku.trim() || existing.data?.sku}`
+              : 'Blank uses the SKU'
+        }
+        error={error && !detailsOpen ? error : undefined}
+      >
         <TextInput
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="Blue georgette saree"
+          placeholder={form.sku.trim() || existing.data?.sku || 'Blue georgette saree'}
         />
       </Field>
       <div className="grid grid-cols-2 gap-3">
@@ -616,7 +674,7 @@ export function ProductEditorPage() {
                 <Button
                   variant="secondary"
                   className="min-w-0 flex-1"
-                  disabled={!form.name.trim() || save.isPending || uploading}
+                  disabled={save.isPending || uploading}
                   onClick={() => save.mutate()}
                 >
                   {save.isPending ? 'Updating…' : 'Update'}
@@ -649,7 +707,7 @@ export function ProductEditorPage() {
         : (
           <Button
             fullWidth
-            disabled={!form.name.trim() || save.isPending || uploading}
+            disabled={save.isPending || uploading}
             onClick={() => save.mutate()}
           >
             {save.isPending ? 'Saving…' : 'Save design'}

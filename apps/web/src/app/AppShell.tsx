@@ -86,6 +86,9 @@ export function AppShell() {
   const showHomeBack = shellShowsHomeBack(location.pathname);
   const isHome = location.pathname === '/';
   const ownsTopChrome = pageOwnsTopChrome(location.pathname);
+  /** You scrolls in main so ← You never leaves a blank sticky offset above the shop card. */
+  const youRoot = location.pathname === '/more';
+  const shellLocksHeight = ownsTopChrome || youRoot;
   const isChatThread = isChatThreadPath(location.pathname);
   const shopId = companyIdFromPath(location.pathname);
   const chatsInbox = useSyncExternalStore(
@@ -134,13 +137,15 @@ export function AppShell() {
       className={cx(
         'mx-auto flex w-full max-w-md flex-col bg-canvas',
         SHELL_X_CONTAIN_CLASS,
-        ownsTopChrome ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
+        shellLocksHeight ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
       )}
     >
       {!ownsTopChrome ? (
         <header
           className={cx(
-            'sticky top-0 z-20 flex items-center border-b border-line bg-canvas px-4 py-2.5',
+            youRoot
+              ? 'z-20 flex shrink-0 items-center border-b border-line bg-canvas px-4 py-2.5'
+              : 'sticky top-0 z-20 flex items-center border-b border-line bg-canvas px-4 py-2.5',
             title ? 'justify-between' : 'justify-end',
           )}
         >
@@ -203,10 +208,11 @@ export function AppShell() {
           SHELL_X_CONTAIN_CLASS,
           isChatThread
             ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
-            : ownsTopChrome
-              ? // Hide rail like chat — PageHeader pages scroll in main on a mobile shell.
+            : ownsTopChrome || youRoot
+              ? // PageHeader pages + You: scroll in main so ← You / titles stay put.
+                // You page owns its own top pad (identity scrolls; shell title does not).
                 cx(
-                  'ekum-no-scrollbar min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-0',
+                  'ekum-no-scrollbar min-h-0 overflow-y-auto overflow-x-clip px-4 pt-0',
                   hideAppNav ? 'pb-8' : 'pb-28',
                 )
               : hideAppNav

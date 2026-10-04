@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
+  type CurateCheckView,
+  type RelistAccessView,
+  type RelistRequestView,
   type SetCollectionProductsDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useTradePresence } from '@/lib/tradePresence';
+import { useMyCompany } from '@/lib/queries';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   curateExistingTargets,
@@ -16,7 +21,20 @@ import {
   findOwnedPackByName,
   mergeCollectionProductIds,
 } from '@/features/browse/curateExisting';
-import { CURATE_ADD_TO_IT, CURATE_NAME_TAKEN } from '@/features/browse/curateCheck';
+import {
+  CURATE_ADD_TO_IT,
+  CURATE_ASK_RELIST,
+  CURATE_NAME_TAKEN,
+  curateAskAllLabel,
+  curateAskKind,
+  curateBlockReason,
+  curateSaveDraftLabel,
+  curateSkipSummary,
+  groupRelistAskBatches,
+  isCurateCeilingError,
+  mayAskToPutInPack,
+  partitionCurateByCheck,
+} from '@/features/browse/curateCheck';
 import { useToast } from '@/ui/Toast';
 import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 
@@ -29,6 +47,16 @@ function statusLabel(status: CollectionView['status']): string {
   if (status === CollectionStatus.Ready) return 'Ready';
   return 'Draft';
 }
+
+type BlockedRow = {
+  productId: string;
+  name: string;
+  thumbUrl: string | null;
+  companyId: string;
+  companyName: string;
+  sourceCollectionId?: string;
+  code: string;
+};
 
 export function CurateFromSelectionSheet({
   open,
@@ -49,9 +77,13 @@ export function CurateFromSelectionSheet({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { trading } = useTradePresence();
+  const me = useMyCompany();
+  const myCompanyId = me.data?.id;
   const shortlist = useBrowseShortlist();
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [askingKey, setAskingKey] = useState<string | null>(null);
   const [mode, setMode] = useState<'new' | 'existing'>('new');
   const [query, setQuery] = useState('');
   const [sheetError, setSheetError] = useState<string | null>(null);
@@ -77,18 +109,90 @@ export function CurateFromSelectionSheet({
     setMode('new');
     setQuery('');
     setSheetError(null);
+    setAskingKey(null);
   }, [open, defaultName]);
 
   const ids = productIds ?? shortlist.entries.map((entry) => entry.productId);
   const entries = shortlist.entries.filter((entry) => ids.includes(entry.productId));
+  const idKey = ids.join('|');
+
+  const curateCheck = useQuery({
+    queryKey: ['collections', 'curate-check', idKey],
+    queryFn: () =>
+      api.post<CurateCheckView>('/collections/curate-check', { productIds: ids }),
+    enabled: open && ids.length > 0,
+  });
+
+  const relistAccess = useQuery({
+    queryKey: ['relist-access', idKey],
+    queryFn: () => {
+      const packByProductId: Record<string, string> = {};
+      for (const entry of entries) {
+        if (entry.sourceCollectionId) {
+          packByProductId[entry.productId] = entry.sourceCollectionId;
+        }
+      }
+      return api.post<RelistAccessView>('/relist-requests/access', {
+        productIds: ids,
+        packByProductId,
+      });
+    },
+    enabled: open && ids.length > 0,
+  });
+
+  const { allowed, blocked } = partitionCurateByCheck(entries, curateCheck.data);
+  const skipLine = curateSkipSummary(allowed.length, blocked.length);
+  const pendingByProductId = relistAccess.data?.pendingByProductId ?? {};
+
+  const relistAskable = blocked.filter((row) =>
+    mayAskToPutInPack({
+      trading,
+      ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
+      waiting: Boolean(pendingByProductId[row.productId]),
+      packLocked: curateAskKind(row.code) === 'relist',
+      lookOnly: row.code === 'FOLLOW_LOOK_ONLY',
+    }),
+  );
+
   const nameClash = findOwnedPackByName(targets, name);
-  const canSubmit = entries.length >= 1 && Boolean(name.trim()) && !nameClash;
+  const checkReady = !curateCheck.isLoading;
+  const canSubmit =
+    allowed.length >= 1 && Boolean(name.trim()) && !nameClash && checkReady;
+
+  const askRelist = useMutation({
+    mutationFn: async (rows: { productId: string; sourceCollectionId?: string }[]) => {
+      for (const batch of groupRelistAskBatches(rows)) {
+        await api.post<RelistRequestView>('/relist-requests', batch);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['relist-access'] });
+      void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
+      setAskingKey(null);
+    },
+    onError: (err) => {
+      setAskingKey(null);
+      showToast(err instanceof ApiError ? err.message : 'Could not ask.', 'danger');
+    },
+  });
+
+  const refetchSplit = async () => {
+    const next = await queryClient.fetchQuery({
+      queryKey: ['collections', 'curate-check', idKey],
+      queryFn: () =>
+        api.post<CurateCheckView>('/collections/curate-check', { productIds: ids }),
+    });
+    return partitionCurateByCheck(entries, next);
+  };
+
+  const putMembers = async (collectionId: string, productIdsToPut: string[]) => {
+    return api.put<CollectionDetailView>(`/collections/${collectionId}/products`, {
+      productIds: productIdsToPut,
+    } satisfies SetCollectionProductsDto);
+  };
 
   const createDraft = async (opts?: { openPublish?: boolean }) => {
-    if (entries.length < 1) {
-      showToast('Pick at least one design.', 'danger');
-      return;
-    }
+    if (allowed.length < 1) return;
     const packName = name.trim();
     if (!packName) {
       setSheetError('Enter a pack name.');
@@ -99,7 +203,7 @@ export function CurateFromSelectionSheet({
       setSheetError(CURATE_NAME_TAKEN);
       return;
     }
-    const firstThumb = entries.find((item) => isHttpUrl(item.thumbUrl))?.thumbUrl;
+    const firstThumb = allowed.find((item) => isHttpUrl(item.thumbUrl))?.thumbUrl;
     setSaving(true);
     setSheetError(null);
     let createdId: string | undefined;
@@ -109,12 +213,30 @@ export function CurateFromSelectionSheet({
         ...(firstThumb ? { coverImage: firstThumb } : {}),
       } satisfies CreateCollectionDto);
       createdId = created.id;
-      const detail = await api.put<CollectionDetailView>(`/collections/${created.id}/products`, {
-        productIds: entries.map((entry) => entry.productId),
-      } satisfies SetCollectionProductsDto);
+      const toPut = allowed.map((entry) => entry.productId);
+      let detail: CollectionDetailView;
+      try {
+        detail = await putMembers(created.id, toPut);
+      } catch (err) {
+        if (!(err instanceof ApiError) || !isCurateCeilingError(err)) throw err;
+        const retry = await refetchSplit();
+        if (retry.allowed.length < 1) {
+          try {
+            await api.del(`/collections/${created.id}`);
+          } catch {
+            // Best-effort
+          }
+          createdId = undefined;
+          return;
+        }
+        detail = await putMembers(
+          created.id,
+          retry.allowed.map((entry) => entry.productId),
+        );
+      }
       queryClient.setQueryData(['collection', created.id], detail);
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
-      shortlist.removeIds(entries.map((entry) => entry.productId));
+      shortlist.removeIds(detail.products.map((product) => product.id));
       onCurated?.();
       onClose();
       navigate(`/catalog/collections/${created.id}`, {
@@ -132,6 +254,11 @@ export function CurateFromSelectionSheet({
           // Best-effort — do not leave the trader on an empty named draft.
         }
       }
+      if (err instanceof ApiError && isCurateCeilingError(err)) {
+        setSheetError(null);
+        void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
+        return;
+      }
       const message =
         err instanceof ApiError ? err.message : (err as Error).message || 'Could not save pack.';
       setSheetError(message);
@@ -141,24 +268,34 @@ export function CurateFromSelectionSheet({
   };
 
   const addToExisting = async (pack: CollectionView) => {
-    if (entries.length < 1) {
-      showToast('Pick at least one design.', 'danger');
-      return;
-    }
+    if (allowed.length < 1) return;
     setSaving(true);
+    setSheetError(null);
     try {
       const detail = await api.get<CollectionDetailView>(`/collections/${pack.id}`);
       const existingIds = detail.products.map((product) => product.id);
       const productIdsMerged = mergeCollectionProductIds(
         existingIds,
-        entries.map((entry) => entry.productId),
+        allowed.map((entry) => entry.productId),
       );
-      const updated = await api.put<CollectionDetailView>(`/collections/${pack.id}/products`, {
-        productIds: productIdsMerged,
-      } satisfies SetCollectionProductsDto);
+      let updated: CollectionDetailView;
+      try {
+        updated = await putMembers(pack.id, productIdsMerged);
+      } catch (err) {
+        if (!(err instanceof ApiError) || !isCurateCeilingError(err)) throw err;
+        const retry = await refetchSplit();
+        if (retry.allowed.length < 1) return;
+        updated = await putMembers(
+          pack.id,
+          mergeCollectionProductIds(
+            existingIds,
+            retry.allowed.map((entry) => entry.productId),
+          ),
+        );
+      }
       queryClient.setQueryData(['collection', pack.id], updated);
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
-      shortlist.removeIds(entries.map((entry) => entry.productId));
+      shortlist.removeIds(allowed.map((entry) => entry.productId));
       onCurated?.();
       onClose();
       showToast(`Added to ${pack.name}`);
@@ -166,6 +303,11 @@ export function CurateFromSelectionSheet({
         navigate(`/catalog/collections/${pack.id}`, { replace: true });
       }
     } catch (err) {
+      if (err instanceof ApiError && isCurateCeilingError(err)) {
+        setSheetError(null);
+        void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
+        return;
+      }
       setSheetError(
         err instanceof ApiError
           ? err.message
@@ -175,6 +317,87 @@ export function CurateFromSelectionSheet({
       setSaving(false);
     }
   };
+
+  const blockedList = (rows: BlockedRow[]) => (
+    <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto" data-testid="curate-blocked-list">
+      {rows.map((row) => {
+        const waiting = Boolean(pendingByProductId[row.productId]);
+        const showAsk = mayAskToPutInPack({
+          trading,
+          ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
+          waiting,
+          packLocked: curateAskKind(row.code) === 'relist',
+          lookOnly: row.code === 'FOLLOW_LOOK_ONLY',
+        });
+        return (
+          <li
+            key={row.productId}
+            className="flex items-center gap-2.5 rounded-xl border border-line bg-foam/60 px-2.5 py-2"
+            data-testid="curate-blocked-row"
+          >
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam">
+              {row.thumbUrl && isHttpUrl(row.thumbUrl) ? (
+                <img src={row.thumbUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-sm font-bold text-muted">
+                  {row.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink">{row.name}</p>
+              <p className="truncate text-[12px] text-muted">{row.companyName}</p>
+              <p className="mt-0.5 text-[12px] font-medium text-muted">
+                {waiting ? 'Waiting for Allow' : curateBlockReason(row.code)}
+              </p>
+            </div>
+            {showAsk ? (
+              <button
+                type="button"
+                className="shrink-0 text-[13px] font-semibold text-accent disabled:opacity-50"
+                disabled={askingKey != null}
+                data-testid="curate-blocked-ask"
+                onClick={() => {
+                  setAskingKey(row.productId);
+                  askRelist.mutate([row]);
+                }}
+              >
+                {askingKey === row.productId ? 'Asking…' : CURATE_ASK_RELIST}
+              </button>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const skipChrome =
+    blocked.length > 0 ? (
+      <div className="flex flex-col gap-2">
+        {skipLine ? (
+          <p className="text-sm text-muted" data-testid="curate-skip-summary">
+            {skipLine}
+          </p>
+        ) : null}
+        {blockedList(blocked)}
+        {relistAskable.length > 1 ? (
+          <Button
+            variant="secondary"
+            fullWidth
+            disabled={askingKey != null}
+            data-testid="curate-ask-all-relist"
+            onClick={() => {
+              setAskingKey('all-relist');
+              askRelist.mutate(relistAskable);
+            }}
+          >
+            {askingKey === 'all-relist'
+              ? 'Asking…'
+              : curateAskAllLabel(relistAskable.length)}
+          </Button>
+        ) : null}
+      </div>
+    ) : null;
 
   return (
     <Sheet open={open} onClose={onClose} title="Curate pack">
@@ -189,9 +412,10 @@ export function CurateFromSelectionSheet({
             ← New pack
           </button>
           <p className="text-sm text-muted">
-            {entries.length} design{entries.length === 1 ? '' : 's'} · pick a pack to add them
+            {allowed.length} design{allowed.length === 1 ? '' : 's'} · pick a pack to add them
           </p>
-          {sheetError ? <InlineNotice message={sheetError} /> : null}
+          {skipChrome}
+          {sheetError ? <InlineNotice message={sheetError} tone="muted" /> : null}
           {targets.length > 0 ? (
             <TextInput
               value={query}
@@ -212,7 +436,7 @@ export function CurateFromSelectionSheet({
                 <li key={pack.id}>
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={saving || allowed.length < 1}
                     onClick={() => void addToExisting(pack)}
                     className={cx(
                       'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
@@ -243,6 +467,11 @@ export function CurateFromSelectionSheet({
             {new Set(entries.map((entry) => entry.companyId)).size} business
             {new Set(entries.map((entry) => entry.companyId)).size === 1 ? '' : 'es'}
           </p>
+          {curateCheck.isLoading ? (
+            <p className="text-sm text-muted">Checking which can go in…</p>
+          ) : (
+            skipChrome
+          )}
           <Field label="Name">
             <TextInput
               value={name}
@@ -255,20 +484,29 @@ export function CurateFromSelectionSheet({
               autoFocus
             />
           </Field>
-          {nameClash ? <InlineNotice message={CURATE_NAME_TAKEN} /> : null}
-          {sheetError && !nameClash ? <InlineNotice message={sheetError} /> : null}
+          {nameClash ? (
+            <InlineNotice message={CURATE_NAME_TAKEN} tone="muted" />
+          ) : null}
+          {sheetError && !nameClash ? (
+            <InlineNotice message={sheetError} tone="muted" />
+          ) : null}
           {nameClash ? (
             <Button
               fullWidth
-              disabled={saving || entries.length < 1}
+              disabled={saving || allowed.length < 1}
               onClick={() => void addToExisting(nameClash)}
             >
               {saving ? 'Saving…' : CURATE_ADD_TO_IT}
             </Button>
           ) : (
             <>
-              <Button fullWidth disabled={saving || !canSubmit} onClick={() => void createDraft()}>
-                {saving ? 'Saving…' : 'Save draft'}
+              <Button
+                fullWidth
+                disabled={saving || !canSubmit}
+                onClick={() => void createDraft()}
+                data-testid="curate-save-draft"
+              >
+                {saving ? 'Saving…' : curateSaveDraftLabel(allowed.length, blocked.length)}
               </Button>
               <Button
                 variant="secondary"

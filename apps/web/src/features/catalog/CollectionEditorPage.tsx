@@ -54,7 +54,12 @@ import {
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
+import { COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
+import {
+  createProductIdentity,
+  nameForNewDesign,
+  uniqueDraftSku,
+} from './designBatchHelpers';
 import {
   collectSameForAllDiffIds,
   emptySameForAll,
@@ -115,7 +120,9 @@ type PendingImage = {
 type PendingPhoto = {
   localId: string;
   images: PendingImage[];
+  /** Typed display name; blank until they edit — SKU is the fallback name. */
   name: string;
+  sku: string;
   rate: string;
   unit: string;
   piecesPerPack: string;
@@ -336,7 +343,7 @@ export function CollectionEditorPage() {
       ...pendingPhotos.map((photo) => ({
         id: photo.localId,
         form: {
-          name: photo.name,
+          name: nameForNewDesign(photo.name, photo.sku),
           rate: photo.rate,
           unit: photo.unit,
           piecesPerPack: photo.piecesPerPack,
@@ -819,25 +826,31 @@ export function CollectionEditorPage() {
     const selected = files.slice(0, room);
     setError(null);
     const shared = sameForAll;
-    const stubs: PendingPhoto[] = selected.map((file) => ({
-      localId: crypto.randomUUID(),
-      images: [
-        {
-          id: crypto.randomUUID(),
-          previewUrl: URL.createObjectURL(file),
-          imageUrl: null,
-          uploading: true,
-        },
-      ],
-      name: nameFromFilename(file.name),
-      rate: shared.rate,
-      unit: shared.unit || Unit.Set,
-      piecesPerPack: shared.piecesPerPack,
-      moq: shared.moq,
-      notes: shared.notes,
-      categories: [],
-      tagsDirty: false,
-    }));
+    const takenSkus = pendingPhotos.map((p) => p.sku);
+    const stubs: PendingPhoto[] = selected.map((file) => {
+      const sku = uniqueDraftSku(takenSkus);
+      takenSkus.push(sku);
+      return {
+        localId: crypto.randomUUID(),
+        images: [
+          {
+            id: crypto.randomUUID(),
+            previewUrl: URL.createObjectURL(file),
+            imageUrl: null,
+            uploading: true,
+          },
+        ],
+        name: '',
+        sku,
+        rate: shared.rate,
+        unit: shared.unit || Unit.Set,
+        piecesPerPack: shared.piecesPerPack,
+        moq: shared.moq,
+        notes: shared.notes,
+        categories: [],
+        tagsDirty: false,
+      };
+    });
     setPendingPhotos((prev) => [...prev, ...stubs]);
     setQuickUploading(true);
     try {
@@ -879,10 +892,13 @@ export function CollectionEditorPage() {
     try {
       const createdIds: string[] = [];
       const shared = sameForAll;
+      const takenSkus: string[] = [];
       for (const file of picked) {
         const imageUrl = await uploadImage(file);
+        const identity = createProductIdentity(uniqueDraftSku(takenSkus));
+        takenSkus.push(identity.sku);
         const parsed = productFieldsFromMember({
-          name: nameFromFilename(file.name),
+          name: identity.name,
           rate: shared.rate,
           unit: shared.unit || Unit.Set,
           piecesPerPack: shared.piecesPerPack,
@@ -891,7 +907,8 @@ export function CollectionEditorPage() {
           categories: [],
         });
         const dto: CreateProductDto = {
-          name: nameFromFilename(file.name),
+          name: identity.name,
+          sku: identity.sku,
           images: [imageUrl],
           categories: [],
           description: parsed.description,
@@ -961,8 +978,9 @@ export function CollectionEditorPage() {
       const createdIds: string[] = [];
       for (const photo of readyCreatePhotos) {
         const categories = unionTags(photo.categories, form.categories);
+        const displayName = nameForNewDesign(photo.name, photo.sku);
         const fields = productFieldsFromMember({
-          name: photo.name,
+          name: displayName,
           rate: photo.rate,
           unit: photo.unit,
           piecesPerPack: photo.piecesPerPack,
@@ -971,7 +989,8 @@ export function CollectionEditorPage() {
           categories,
         });
         const product = await api.post<ProductView>('/products', {
-          name: photo.name,
+          name: displayName,
+          sku: photo.sku,
           images: photo.images.map((img) => toAbsoluteMediaUrl(img.imageUrl!)),
           categories: fields.categories ?? categories,
           description: fields.description,
@@ -1347,7 +1366,7 @@ export function CollectionEditorPage() {
             p.localId === memberSheet.localId
               ? {
                   ...p,
-                  name: memberForm.name.trim() || p.name,
+                  name: memberForm.name.trim(),
                   rate: memberForm.rate,
                   unit: memberForm.unit,
                   piecesPerPack: memberForm.piecesPerPack,
@@ -1741,7 +1760,7 @@ export function CollectionEditorPage() {
                         className="absolute inset-0 block text-left"
                         data-testid="collection-pending-tile"
                         onClick={() => openPendingDesignSheet(photo.localId)}
-                        aria-label={`Edit design · ${photo.name}`}
+                        aria-label={`Edit design · ${nameForNewDesign(photo.name, photo.sku)}`}
                       >
                         {photo.images[0] ? (
                           <img
@@ -2518,7 +2537,12 @@ export function CollectionEditorPage() {
             <TextInput
               value={memberForm.name}
               onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
-              placeholder="Design name"
+              placeholder={
+                memberSheet?.kind === 'pending'
+                  ? pendingPhotos.find((p) => p.localId === memberSheet.localId)?.sku ||
+                    'Design name'
+                  : 'Design name'
+              }
             />
           </Field>
           {memberSheet?.kind === 'product'

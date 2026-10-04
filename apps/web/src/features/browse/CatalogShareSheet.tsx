@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
+  BroadcastListView,
   ConnectionView,
   MessageView,
   ShareLinkView,
@@ -16,6 +17,7 @@ import {
 } from '@/features/browse/catalogShareLinkUnits';
 import {
   catalogShareToastLabel,
+  catalogShareRecipientIds,
   dedupeCompanyIds,
   shouldOpenChatAfterCatalogShare,
 } from '@/features/browse/catalogShareTargets';
@@ -23,7 +25,8 @@ import { api, ApiError } from '@/lib/apiClient';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextArea } from '@/ui/kit';
+import { uniqueConnectionsByCompany } from '@/ui/uniqueConnections';
+import { Button, Field, InlineNotice, LoadingBlock, Sheet, TextArea, cx } from '@/ui/kit';
 
 export type CatalogShareCollectionItem = {
   collectionId: string;
@@ -38,8 +41,9 @@ export type CatalogShareProductItem = {
 };
 
 /**
- * Catalogue → chat(s): multi-select companies (Find on Ekum, Clear), then post
- * collection_card / product_card / design_album into each DM. No buyer groups / Broadcast.
+ * Catalogue → chat(s): companies and, when they exist, buyer groups (shortcut).
+ * Union + unique shop: one DM even if the shop sits in two groups.
+ * Posts collection_card / product_card / design_album. Not Broadcast compose.
  * Quiet 48h link: one door per chat unit (album / design / design album). Mix keeps the row.
  */
 export function CatalogShareSheet({
@@ -66,12 +70,14 @@ export function CatalogShareSheet({
   const [error, setError] = useState<string | null>(null);
   const [readyInvite, setReadyInvite] = useState<string | null>(null);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setReadyInvite(null);
     setSelectedCompanyIds([]);
+    setSelectedGroupIds([]);
   }, [open]);
 
   const connections = useQuery({
@@ -79,6 +85,33 @@ export function CatalogShareSheet({
     queryFn: () => api.get<ConnectionView[]>('/connections'),
     enabled: open && total > 0,
   });
+
+  const buyerGroups = useQuery({
+    queryKey: ['broadcast-lists'],
+    queryFn: () => api.get<BroadcastListView[]>('/broadcasts/lists'),
+    enabled: open && total > 0,
+  });
+
+  const shareableGroups = useMemo(
+    () => (buyerGroups.data ?? []).filter((group) => group.memberCompanyIds.length > 0),
+    [buyerGroups.data],
+  );
+
+  const eligibleCompanyIds = useMemo(
+    () => uniqueConnectionsByCompany(connections.data ?? []).map((row) => row.company.id),
+    [connections.data],
+  );
+
+  const recipientIds = useMemo(
+    () =>
+      catalogShareRecipientIds({
+        selectedCompanyIds,
+        selectedGroupIds,
+        groups: shareableGroups,
+        eligibleCompanyIds,
+      }),
+    [selectedCompanyIds, selectedGroupIds, shareableGroups, eligibleCompanyIds],
+  );
 
   const connectionName = (companyId: string) =>
     connections.data?.find((row) => row.company.id === companyId)?.company.name ?? null;
@@ -201,7 +234,7 @@ export function CatalogShareSheet({
             ? 'Share design…'
             : 'Share to…';
 
-  const selectedCount = selectedCompanyIds.length;
+  const selectedCount = recipientIds.length;
   const busy = share.isPending || makeLink.isPending;
 
   return (
@@ -218,7 +251,7 @@ export function CatalogShareSheet({
               type="button"
               fullWidth
               disabled={busy || selectedCount < 1}
-              onClick={() => share.mutate(selectedCompanyIds)}
+              onClick={() => share.mutate(recipientIds)}
               data-testid="catalog-share-send"
             >
               {share.isPending
@@ -274,13 +307,54 @@ export function CatalogShareSheet({
                 type="button"
                 className="text-xs font-medium text-accent disabled:opacity-50"
                 disabled={busy}
-                onClick={() => setSelectedCompanyIds([])}
+                onClick={() => {
+                  setSelectedCompanyIds([]);
+                  setSelectedGroupIds([]);
+                }}
                 data-testid="catalog-share-clear"
               >
                 Clear
               </button>
             ) : null}
           </div>
+          {shareableGroups.length > 0 ? (
+            <div className="flex flex-col gap-1.5" data-testid="catalog-share-groups">
+              <p className="text-xs font-semibold text-ink">Buyer groups</p>
+              {shareableGroups.map((group) => {
+                const selected = selectedGroupIds.includes(group.id);
+                const n = group.memberCompanyIds.length;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    data-testid={`catalog-share-group-${group.id}`}
+                    disabled={busy}
+                    onClick={() =>
+                      setSelectedGroupIds((prev) =>
+                        prev.includes(group.id)
+                          ? prev.filter((id) => id !== group.id)
+                          : [...prev, group.id],
+                      )
+                    }
+                    className={cx(
+                      'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
+                      selected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{group.name}</p>
+                      <p className="truncate text-xs text-muted">
+                        {n} {n === 1 ? 'business' : 'businesses'}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted">
+                      {selected ? 'Selected' : 'Add'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
           <ConnectionPicker
             mode="multi"
             embedded

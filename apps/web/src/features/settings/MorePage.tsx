@@ -12,7 +12,7 @@ export function MorePage() {
   const showLibrary = selling || trading;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pt-3">
       <div data-testid="you-identity">
         <Card className="flex flex-col gap-3">
           <div className="flex items-start gap-3">

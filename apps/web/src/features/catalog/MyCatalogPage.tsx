@@ -50,7 +50,11 @@ import {
 import { YouLibraryFilterMenu, type YouLibraryFindScope } from './YouLibraryFilterMenu';
 import { catalogSearchMatches, designFindParts } from './catalogSearch';
 import { CatalogFindToggle } from './catalogFindToggle';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import {
+  SelectAllFloat,
+  SELECT_FLOAT_BELOW_YOU,
+} from '@/features/browse/SelectAllFloat';
+import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { SavedPage } from '@/features/saved/SavedPage';
@@ -230,6 +234,8 @@ export function MyCatalogPage({
   const [productFilter, setProductFilter] = useState<ProductFilter>(initialProductFilter);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  // Select dock owns the bottom — hide Home · Chats · ＋ (same as pack manage).
+  usePageOwnsBottomBand(selecting && !youSaved);
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
@@ -753,6 +759,7 @@ export function MyCatalogPage({
         open={selecting && visibleIds.length > 0}
         count={selectedIds.size}
         allSelected={selectAllState(visibleIds, selectedIds).allSelected}
+        offsetClass={embedded ? SELECT_FLOAT_BELOW_YOU : undefined}
         onSelectAll={() => {
           setSelectedIds((prev) => {
             const next = new Set(prev);
@@ -844,7 +851,6 @@ export function MyCatalogPage({
                 <SellerCollectionTile
                   key={collection.id}
                   collection={collection}
-                  company={me.data}
                   groups={buyerGroups}
                   variant={layout}
                   selecting={selecting}
@@ -878,7 +884,10 @@ export function MyCatalogPage({
 
       {selecting && typeof document !== 'undefined'
         ? createPortal(
-            <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
+            <div
+              data-testid="you-library-select-dock"
+              className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+            >
               <div className="mx-auto flex max-w-md flex-col gap-2">
                 {hideableIds.length > 0 ? (
                   <div className="flex gap-2">
@@ -1138,7 +1147,6 @@ function SellerProductTile({
 
 function SellerCollectionTile({
   collection,
-  company,
   groups,
   variant,
   selecting,
@@ -1147,15 +1155,6 @@ function SellerCollectionTile({
   onLongSelect,
 }: {
   collection: CollectionView;
-  company?: {
-    id: string;
-    name: string;
-    city: string;
-    logoUrl: string | null;
-    verification: string;
-    sellCategories?: string[];
-    categories?: string[];
-  } | null;
   groups: BroadcastListView[];
   variant: DesignBrowseLayout;
   selecting: boolean;
@@ -1209,7 +1208,6 @@ function SellerCollectionTile({
         name={collection.name}
         meta={meta}
         detail={detail}
-        company={company ?? undefined}
         href={href}
         images={previews}
         imageCount={mosaicCount}

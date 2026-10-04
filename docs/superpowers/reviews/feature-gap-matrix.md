@@ -112,7 +112,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open + 2026-09-30-share-no-view-gate; Share published pack-only designs; view/Ask on open; Curate still locked |
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
 | Collections | Pack publish does not Explore-post member designs | Works | Unit | Required | Completeness 2026-09-11-collection-publish-no-design-explore |
-| Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; no buyer groups) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share |
+| Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; buyer groups as shortcut, unique shops) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share + 2026-10-04-share-buyer-groups |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |
@@ -122,6 +122,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Own pack manage dock (Add/Replace; Delete/Remove; hide owner name card) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock |
 | Orders | Ordered design leftover says No longer available | Works | Unit | Required | Same leftover as Saved / share |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |
+| Catalog | Blank design name → SKU (create + pack photos + editor) | Works | Unit | Required | Completeness 2026-10-04-design-name-sku |
+| Catalog | Edit design dirty leave: Save or Discard | Works | Unit | Required | Completeness 2026-10-04-edit-design-save-or-discard; chat/orders keep Leave sheet |
 | Orders | How many each footer **Share** (same chat sheet) | Works | Unit | Required | Completeness 2026-09-29-how-many-share |
 | Trader curation | Curate **Add to existing pack** (merge; draft→editor / published toast) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing; saved.md |
 | Collections | Ready status + seller badges/filters | Works | Unit | Required | 2026-08-13 Completeness |
@@ -222,7 +224,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Browse | Open collection / design while Selecting (name always opens; photo toggles) | Works | Unit + Functional | Required | Completeness 2026-09-24-browse-open-while-selecting; Explore + shop + album + Saved |
 | Browse | Selection availability = access only (album members without market post stay orderable) | Works | Unit | Required | Completeness 2026-09-07-selection-access-availability; explore productDetail + TradeAccess |
 | Trader curation | Curate albums like Order (whole pack / pick); designs as-is; gray locked (Slice A) | Works | Unit + Functional | Required | Completeness 2026-09-04-curate-album-as-is; Save draft primary; no Ask in A |
-| Trader curation | Own-name clash → Add to it; gray not-visible; no empty draft; supplier names OK | Works | Unit | Required | Completeness 2026-09-24-curate-pack-errors |
+| Trader curation | Own-name clash → Add to it; skip blocked with Ask only when pack lock + Trading; never trap; never mix view-Ask | Works | Unit | Required | Completeness 2026-09-24-curate-pack-errors + 2026-10-04-curate-skip-ask + 2026-10-04-curate-ask-permission |
 | Trader curation | Curated pack fades members when the mill ends the design (not album edit) | Works | Unit | Required | Completeness 2026-09-24-curated-member-source-ended |
 | Trader curation | Ask supplier pack permission (Allow/Deny + product relist grant) (Slice B) | Works | Unit + Functional | Required | Completeness 2026-09-08-relist-ask-slice-b; distinct from view Ask |
 | Trader curation | Desk-chain Ask (via pack → desk; mill listing → mill; publish allow gates buyers) | Works | Unit + Functional | Required | Completeness 2026-09-09-relist-desk-chain; agent role Later |

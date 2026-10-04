@@ -4,6 +4,12 @@ import { cx } from '@/ui/kit';
 export const SELECT_FLOAT_BELOW_PAGE = 'top-[3.25rem]';
 
 /**
+ * You scrolls in main with shell ← You outside — stick flush to the main top
+ * (no PageHeader offset, or feed peeks in the gap).
+ */
+export const SELECT_FLOAT_BELOW_YOU = 'top-0';
+
+/**
  * Shown once selecting has started (long-press / list Select).
  * Always offers Select all + Clear — no header Select pill required.
  */

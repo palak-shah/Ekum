@@ -11,7 +11,8 @@ import {
 
 describe('mobileOverflow (BM-07)', () => {
   it('shell contains horizontal overflow', () => {
-    expect(SHELL_X_CONTAIN_CLASS).toContain('overflow-x-hidden');
+    expect(SHELL_X_CONTAIN_CLASS).toContain('overflow-x-clip');
+    expect(SHELL_X_CONTAIN_CLASS).not.toContain('overflow-x-hidden');
     expect(SHELL_X_CONTAIN_CLASS).toContain('min-w-0');
   });
 

@@ -1,13 +1,48 @@
 import { describe, expect, it } from 'vitest';
 import {
   catalogShareToastLabel,
+  catalogShareRecipientIds,
   dedupeCompanyIds,
   shouldOpenChatAfterCatalogShare,
 } from './catalogShareTargets';
 
-describe('dedupeCompanyIds', () => {
-  it('dedupes and drops blanks', () => {
-    expect(dedupeCompanyIds(['a', 'b', 'a', '', '  ', 'b'])).toEqual(['a', 'b']);
+describe('catalogShareRecipientIds', () => {
+  const groups = [
+    { id: 'g1', memberCompanyIds: ['x', 'y'] },
+    { id: 'g2', memberCompanyIds: ['x', 'z'] },
+  ];
+
+  it('unions companies and groups once', () => {
+    expect(
+      catalogShareRecipientIds({
+        selectedCompanyIds: ['y'],
+        selectedGroupIds: ['g1', 'g2'],
+        groups,
+        eligibleCompanyIds: ['x', 'y', 'z'],
+      }),
+    ).toEqual(['y', 'x', 'z']);
+  });
+
+  it('drops stale group members not in connections', () => {
+    expect(
+      catalogShareRecipientIds({
+        selectedCompanyIds: [],
+        selectedGroupIds: ['g1'],
+        groups,
+        eligibleCompanyIds: ['y'],
+      }),
+    ).toEqual(['y']);
+  });
+
+  it('keeps Find-on-Ekum companies even if not in connections', () => {
+    expect(
+      catalogShareRecipientIds({
+        selectedCompanyIds: ['new'],
+        selectedGroupIds: ['g1'],
+        groups,
+        eligibleCompanyIds: ['x'],
+      }),
+    ).toEqual(['new', 'x']);
   });
 });
 

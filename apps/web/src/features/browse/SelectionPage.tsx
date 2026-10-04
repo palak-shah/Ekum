@@ -10,6 +10,7 @@ import type {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTradePresence } from '@/lib/tradePresence';
+import { useMyCompany } from '@/lib/queries';
 import { pickSelectionLabel, shouldShowAlbumSelectActions } from '@/features/browse/albumSelectModel';
 import { selectionRowHref } from '@/features/browse/selectionRowHref';
 import { clearSelection } from '@/features/browse/clearSelection';
@@ -24,14 +25,17 @@ import {
   writeBrowseShortlist,
   type BrowseShortlistEntry,
 } from '@/features/browse/browseShortlist';
-import { curateBlockedIdSet } from '@/features/browse/curateCheck';
-import { RELIST_LOCKED_TOAST } from '@/features/browse/forwardGate';
+import {
+  CURATE_ASK_RELIST,
+  curateAskAllLabel,
+  mayAskToPutInPack,
+  groupRelistAskBatches,
+} from '@/features/browse/curateCheck';
 import {
   curateDefaultPackName,
   curateLockedSkipMessage,
   packLockReason,
   partitionRelistableAlbums,
-  partitionRelistableDesigns,
 } from '@/features/browse/curateAlbumResolve';
 import {
   clearResumeAfterAlbumPick,
@@ -67,6 +71,8 @@ export function SelectionPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { trading } = useTradePresence();
+  const me = useMyCompany();
+  const myCompanyId = me.data?.id;
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const orderFlow = useShortlistOrderFlow();
@@ -118,10 +124,13 @@ export function SelectionPage() {
       }),
     enabled: trading && designProductIds.length > 0,
   });
-  const curateBlockedReasons = useMemo(
-    () => curateBlockedIdSet(curateCheck.data?.blocked),
-    [curateCheck.data?.blocked],
-  );
+  const curateBlockCodeById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of curateCheck.data?.blocked ?? []) {
+      map.set(row.productId, row.code);
+    }
+    return map;
+  }, [curateCheck.data?.blocked]);
 
   const relistAccess = useQuery({
     queryKey: [
@@ -245,6 +254,36 @@ export function SelectionPage() {
   const availableAlbumCount = resolving ? albumPick.count : availableAlbums.length;
   const availableTotal = availableDesignCount + availableAlbumCount;
 
+  const lookOnlyCompanyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of designRows) {
+      if (curateBlockCodeById.get(row.productId) === 'FOLLOW_LOOK_ONLY') {
+        ids.add(row.companyId);
+      }
+    }
+    return ids;
+  }, [designRows, curateBlockCodeById]);
+
+  const packAskDesigns = designRows.filter((row) => {
+    if (row.availability?.available === false) return false;
+    const waiting = Boolean(pendingByProductId[row.productId]);
+    const packLocked = Boolean(
+      packLockReason(row.allowForward, {
+        hasGrant: grantedIds.has(row.productId),
+        waiting,
+        sourcePackAllowForward:
+          packOpenIds.has(row.productId) || row.sourcePackAllowForward === true,
+      }),
+    );
+    return mayAskToPutInPack({
+      trading,
+      ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
+      waiting,
+      packLocked,
+      lookOnly: lookOnlyCompanyIds.has(row.companyId),
+    });
+  });
+
   const shown = shouldShowAlbumSelectActions({
     designCount: availableDesignCount,
     albumCount: availableAlbumCount,
@@ -279,29 +318,17 @@ export function SelectionPage() {
     source: BrowseShortlistEntry[],
     expandedAlbumNames: string[] = [],
   ) => {
-    const visible = source.filter((entry) => !curateBlockedReasons.has(entry.productId));
-    const { allowed, locked } = partitionRelistableDesigns(visible, grantedIds);
-    if (allowed.length === 0) {
-      showToast(
-        source.length === 0
-          ? 'Pick at least one design.'
-          : visible.length === 0
-            ? "These designs can't go in a pack."
-            : RELIST_LOCKED_TOAST,
-        'danger',
-      );
+    if (source.length === 0) {
+      showToast('Pick at least one design.');
       return;
-    }
-    if (locked.length > 0) {
-      showToast(curateLockedSkipMessage(locked.length));
     }
     setCurateDefaultName(
       curateDefaultPackName({
         expandedAlbumNames,
-        allowedDesignNames: allowed.map((entry) => entry.name),
+        allowedDesignNames: source.map((entry) => entry.name),
       }),
     );
-    setCurateProductIds(allowed.map((entry) => entry.productId));
+    setCurateProductIds(source.map((entry) => entry.productId));
     setCurateOpen(true);
   };
 
@@ -375,7 +402,7 @@ export function SelectionPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-4', total > 0 && 'pb-[calc(11.5rem+env(safe-area-inset-bottom))]')}>
+    <div className={cx('flex flex-col gap-4', total > 0 && 'pb-[calc(14rem+env(safe-area-inset-bottom))]')}>
       <PageHeader title="Your selection" />
 
       {total < 1 ? (
@@ -405,6 +432,13 @@ export function SelectionPage() {
               const waiting = waitingAlbumIds.has(row.collectionId);
               const packReason = packLockReason(row.allowForward, { waiting });
               const packLocked = Boolean(packReason) && !discoveryUnavailable;
+              const showAsk = mayAskToPutInPack({
+                trading,
+                ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
+                waiting,
+                packLocked,
+                lookOnly: lookOnlyCompanyIds.has(row.companyId),
+              });
               return (
                 <SelectionRow
                   key={`c-${row.collectionId}`}
@@ -416,7 +450,7 @@ export function SelectionPage() {
                   packLocked={packLocked}
                   reason={row.availability?.reason ?? packReason}
                   askState={
-                    packLocked && !waiting
+                    showAsk
                       ? askingKey === `c-${row.collectionId}`
                         ? 'asking'
                         : 'ask'
@@ -443,6 +477,13 @@ export function SelectionPage() {
                 availabilityReason: row.availability?.reason,
                 packReason,
               });
+              const showAsk = mayAskToPutInPack({
+                trading,
+                ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
+                waiting,
+                packLocked: listChrome.packLocked,
+                lookOnly: lookOnlyCompanyIds.has(row.companyId),
+              });
               return (
                 <SelectionRow
                   key={`p-${row.productId}`}
@@ -454,14 +495,15 @@ export function SelectionPage() {
                   packLocked={listChrome.packLocked}
                   reason={listChrome.reason}
                   askState={
-                    Boolean(packReason) && !waiting
+                    showAsk
                       ? askingKey === `p-${row.productId}`
                         ? 'asking'
                         : 'ask'
                       : undefined
                   }
+                  askLabel={CURATE_ASK_RELIST}
                   onAsk={
-                    packReason && !waiting
+                    showAsk
                       ? () => onAskDesign(row.productId, row.sourceCollectionId)
                       : undefined
                   }
@@ -476,6 +518,37 @@ export function SelectionPage() {
               <div className="mx-auto flex max-w-md flex-col gap-2.5">
                 {availableTotal < 1 && !resolving ? (
                   <p className="text-[13px] text-muted">Nothing available to act on</p>
+                ) : null}
+                {packAskDesigns.length > 1 ? (
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    disabled={askingKey != null}
+                    data-testid="selection-ask-all-relist"
+                    onClick={() => {
+                      setAskingKey('all-relist');
+                      const batches = groupRelistAskBatches(packAskDesigns);
+                      void (async () => {
+                        try {
+                          for (const batch of batches) {
+                            await api.post<RelistRequestView>('/relist-requests', batch);
+                          }
+                          void queryClient.invalidateQueries({ queryKey: ['relist-access'] });
+                        } catch (err) {
+                          showToast(
+                            err instanceof ApiError ? err.message : 'Could not ask.',
+                            'danger',
+                          );
+                        } finally {
+                          setAskingKey(null);
+                        }
+                      })();
+                    }}
+                  >
+                    {askingKey === 'all-relist'
+                      ? 'Asking…'
+                      : curateAskAllLabel(packAskDesigns.length)}
+                  </Button>
                 ) : null}
                 <div className="flex flex-col gap-2">
                   {shown.order ? (
@@ -686,6 +759,7 @@ function SelectionRow({
   packLocked,
   reason,
   askState,
+  askLabel = CURATE_ASK_RELIST,
   onAsk,
   onRemove,
 }: {
@@ -697,6 +771,7 @@ function SelectionRow({
   packLocked?: boolean;
   reason?: string;
   askState?: 'ask' | 'asking';
+  askLabel?: string;
   onAsk?: () => void;
   onRemove: () => void;
 }) {
@@ -739,7 +814,7 @@ function SelectionRow({
         ) : null}
         {faded && reason ? (
           <p
-            className="mt-1 text-[12px] font-medium text-danger"
+            className="mt-1 text-[12px] font-medium text-muted"
             data-testid={unavailable ? 'selection-unavailable-reason' : 'selection-pack-lock-reason'}
           >
             {reason}
@@ -753,7 +828,7 @@ function SelectionRow({
             onClick={onAsk}
             data-testid="selection-ask-relist"
           >
-            {askState === 'asking' ? 'Asking…' : 'Ask to put in my pack'}
+            {askState === 'asking' ? 'Asking…' : askLabel}
           </button>
         ) : null}
       </div>

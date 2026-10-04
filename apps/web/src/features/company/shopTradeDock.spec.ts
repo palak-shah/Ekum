@@ -120,6 +120,11 @@ describe('shouldHideAppNav', () => {
     ).toBe(true);
   });
 
+  it('hides on You while the library select dock is up', () => {
+    expect(shouldHideAppNav('/more', { thisShopSelectedCount: 0, pageDockUp: true })).toBe(true);
+    expect(shouldHideAppNav('/more', { thisShopSelectedCount: 0 })).toBe(false);
+  });
+
   it('hides on a shop while that seller has selected designs', () => {
     expect(
       shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 1 }),

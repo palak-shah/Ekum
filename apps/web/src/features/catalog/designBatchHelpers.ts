@@ -47,6 +47,15 @@ export function createProductIdentity(sku: string): { name: string; sku: string 
   return { name: value, sku: value };
 }
 
+/**
+ * Typed name wins. Blank/whitespace → SKU (same job as You → Add thumbs).
+ */
+export function nameForNewDesign(typedName: string | null | undefined, sku: string): string {
+  const typed = typedName?.trim() ?? '';
+  if (typed) return typed;
+  return sku.trim();
+}
+
 export function gridHeading(count: number): string {
   return `${count} design${count === 1 ? '' : 's'}`;
 }

@@ -2,8 +2,11 @@
  * BM-07 / iOS Safari: keep the mobile shell from growing past the viewport when
  * a child (qty chip rail, default input min-width, etc.) wants more horizontal
  * space. Overflow must clip — not shove fixed bottom nav off-screen.
+ *
+ * Use `overflow-x-clip` (not `hidden`): `hidden` makes overflow-y compute to
+ * `auto`, which creates a scrollport and kills sticky shell titles (You / Home).
  */
-export const SHELL_X_CONTAIN_CLASS = 'min-w-0 overflow-x-hidden';
+export const SHELL_X_CONTAIN_CLASS = 'min-w-0 overflow-x-clip';
 
 /**
  * Form controls without an explicit width use a large intrinsic min-size on

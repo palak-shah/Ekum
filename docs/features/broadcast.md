@@ -10,7 +10,7 @@ Companies with **selling** on and **`canPublish`** (unlocked after first publish
 
 **Entry points:**
 - ~~**＋ → Broadcast to buyers**~~ — compose **hidden** for now (backup; route `/broadcast/new` kept)
-- Collection / Selection / album **Share** posts into **chat(s)** via `CatalogShareSheet` (pick 1 or many companies + Find on Ekum) — it does **not** open Broadcast compose or send via buyer groups. Groups remain on Publish Selected and Network → Buyer groups.
+- Collection / Selection / album **Share** posts into **chat(s)** via `CatalogShareSheet` (companies and, when they exist, **buyer groups** as a shortcut — same lists). Overlap across groups → **one** chat. Does **not** open Broadcast compose or `POST /broadcasts`. Create/edit groups stays on Network → Buyer groups / Publish Selected.
 - **Network → Buyer groups** — manage groups (edit members, rate/forward defaults)
 - **Publish → Selected** — pick or create groups without leaving Publish (same lists)
 
@@ -18,7 +18,7 @@ Companies with **selling** on and **`canPublish`** (unlocked after first publish
 
 | Job | Where |
 |-----|--------|
-| Send card/text now | **＋ → Compose** → buyer group chips + `listIds` on send |
+| Send card/text now | **Share** sheet (companies + groups → unique DMs). **＋ → Compose** still hidden |
 | Private publish audience | **Publish → Selected** on design / collection / batch |
 | Expand audience later | **Visibility** on published pack (`audienceGroupIds` restore) |
 | Edit / delete groups | **Network → Buyer groups** (`/broadcast`) |
