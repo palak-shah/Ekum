@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { RelistRequestStatus } from '@ekum/domain-types';
+import { ProductStatus, RelistRequestStatus } from '@ekum/domain-types';
 import { RelistRequestService } from './relist-request.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CompanySerializer } from '../access/company.serializer';
@@ -198,7 +198,7 @@ describe('RelistRequestService', () => {
       allowForward: false,
       startsAt: null,
       endsAt: null,
-      products: [{ productId: 'p1' }],
+      products: [{ productId: 'p1', product: { status: ProductStatus.Published } }],
     });
     prisma.relistRequest.create.mockResolvedValue({
       id: 'req-desk',
@@ -236,6 +236,37 @@ describe('RelistRequestService', () => {
     expect(view.target.id).toBe(kavita.id);
     expect(view.sourceCollectionId).toBe('pack-1');
     expect(threads.ensureTradeThread).toHaveBeenCalledWith(meena.id, kavita.id);
+  });
+
+  it('rejects desk-chain Ask when pack has no published designs', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        name: 'Locked',
+        companyId: ravi.id,
+        allowForward: false,
+        images: [],
+      },
+    ]);
+    prisma.collection.findUnique.mockResolvedValue({
+      id: 'pack-1',
+      companyId: kavita.id,
+      status: 'published',
+      allowForward: false,
+      startsAt: null,
+      endsAt: null,
+      products: [{ productId: 'draft-1', product: { status: ProductStatus.Draft } }],
+    });
+
+    await expect(
+      service.create(meena.id, {
+        productIds: ['p1'],
+        sourceCollectionId: 'pack-1',
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'NOT_FOUND', message: 'Pack not found.' },
+    });
+    expect(prisma.relistRequest.create).not.toHaveBeenCalled();
   });
 
   it('allow creates ProductRelistGrant per product and notifies', async () => {

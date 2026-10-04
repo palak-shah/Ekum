@@ -77,21 +77,17 @@ export class RelistRequestService {
           allowForward: true,
           startsAt: true,
           endsAt: true,
-          products: { where: { productId: { in: uniqueIds } }, select: { productId: true } },
+          // Full member list with status — live check needs ≥1 Published design.
+          products: {
+            select: { productId: true, product: { select: { status: true } } },
+          },
         },
       });
-      if (
-        !collection ||
-        collection.status !== CollectionStatus.Published ||
-        !isCollectionLiveForBuyers({
-          status: collection.status,
-          startsAt: collection.startsAt,
-          endsAt: collection.endsAt,
-        })
-      ) {
+      if (!collection || !isCollectionLiveForBuyers(collection)) {
         throw new NotFoundException({ code: 'NOT_FOUND', message: 'Pack not found.' });
       }
-      if (collection.products.length !== uniqueIds.length) {
+      const inPack = new Set(collection.products.map((row) => row.productId));
+      if (uniqueIds.some((id) => !inPack.has(id))) {
         throw new BadRequestException({
           code: 'NOT_IN_PACK',
           message: 'Those designs are not in this pack.',

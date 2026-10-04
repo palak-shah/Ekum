@@ -93,7 +93,8 @@ Defined in root [`package.json`](../package.json). Use either `pnpm <script>` or
 | Script | Command | Purpose |
 |--------|---------|---------|
 | `docker:build` | `docker compose build` | Build `api` and `web` images |
-| `docker:up` | `docker compose up -d --build` | Build and start the stack |
+| `docker:up` | `docker compose up -d --build --remove-orphans && docker system prune -f` | Build and start the stack; remove orphan Compose containers; prune unused Docker junk (dangling images, stopped containers, unused networks). **Does not** delete volumes |
+| `docker:prune` | `docker system prune -f` | Prune unused Docker junk without starting the stack. **Does not** delete volumes |
 | `docker:down` | `docker compose down` | Stop containers; **keep** volumes |
 | `docker:down:volumes` | `docker compose down -v` | Stop and **delete** DB + media volumes |
 | `docker:logs` | `docker compose logs -f --tail=200` | Follow logs |
