@@ -1,7 +1,7 @@
 import { ProductStatus } from '@ekum/domain-types';
 
 function memberIsPublished(product: { status?: string | null }): boolean {
-  return !product.status || product.status === ProductStatus.Published;
+  return product.status === ProductStatus.Published;
 }
 
 /**

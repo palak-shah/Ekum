@@ -6,9 +6,9 @@ describe('collectionPreviewFromRow', () => {
     const preview = collectionPreviewFromRow({
       coverImage: 'https://img/cover',
       products: [
-        { product: { images: ['https://img/a', 'https://img/a-extra'] } },
-        { product: { images: ['https://img/b'] } },
-        { product: { images: ['https://img/c', 'https://img/c2'] } },
+        { product: { images: ['https://img/a', 'https://img/a-extra'], status: 'published' } },
+        { product: { images: ['https://img/b'], status: 'published' } },
+        { product: { images: ['https://img/c', 'https://img/c2'], status: 'published' } },
       ],
     });
     expect(preview.previewImages).toEqual([
@@ -35,6 +35,18 @@ describe('collectionPreviewFromRow', () => {
     const preview = collectionPreviewFromRow({
       products: [
         { product: { images: ['https://img/draft'], status: 'draft' } },
+        { product: { images: ['https://img/live'], status: 'published' } },
+      ],
+    });
+    expect(preview.previewImages).toEqual(['https://img/live']);
+    expect(preview.imageCount).toBe(1);
+  });
+
+  it('does not count members with missing status as published', () => {
+    const preview = collectionPreviewFromRow({
+      products: [
+        { product: { images: ['https://img/no-status'] } },
+        { product: { images: ['https://img/null-status'], status: null } },
         { product: { images: ['https://img/live'], status: 'published' } },
       ],
     });
