@@ -1,29 +1,20 @@
-import { useDeferredValue, useEffect, useState, useSyncExternalStore } from 'react';
+import { useDeferredValue, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CursorPage, type FollowAskView, type MuteFor, type ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Avatar, Button, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
+import { Button, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
 import { ListSearchRow } from '@/ui/ListSearchRow';
 import { ChevronRightIcon } from '@/ui/icons';
 import { subscribeChatsNewChat } from './chatsNewChat';
 import { chatMediaKindChrome } from './chatMediaKindChrome';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
-import { nextIdSet, selectAllState } from '@/features/browse/selectAllState';
 import { StartChatSheet } from './StartChatSheet';
-import { ChatsInboxDock } from './ChatsInboxDock';
 import { ChatsInboxRowMenu } from './ChatsInboxRowMenu';
 import { InboxThreadRow } from './InboxThreadRow';
-import {
-  getChatsInboxSelecting,
-  setChatsInboxSelecting,
-  subscribeChatsInboxSelect,
-} from './chatsInboxSelect';
 import { useToast } from '@/ui/Toast';
-import { SEE_PACKS_ASK_LINE } from '@/features/company/seePacksCopy';
-import { FollowAskDecideRow } from '@/features/chats/FollowAskDecideRow';
+import { FollowAskDecideRow, FollowAskHeader } from '@/features/chats/FollowAskDecideRow';
 import {
   type ChatsInboxChip,
   chatsInboxChipBadge,
@@ -76,10 +67,8 @@ export function ChatsPage() {
   const [searchFocused, setSearchFocused] = useState(false);
   const deferredQuery = useDeferredValue(query.trim());
   const [startOpen, setStartOpen] = useState(false);
-  const selecting = useSyncExternalStore(subscribeChatsInboxSelect, getChatsInboxSelecting);
 
   useEffect(() => subscribeChatsNewChat(() => setStartOpen(true)), []);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirm, setConfirm] = useState<'clear' | 'delete' | 'exit' | null>(null);
   const [confirmIds, setConfirmIds] = useState<string[]>([]);
   const [menuThread, setMenuThread] = useState<ThreadSummary | null>(null);
@@ -88,26 +77,19 @@ export function ChatsPage() {
     bottom: number;
     right: number;
   } | null>(null);
+
   useEffect(() => {
-    if (selecting) {
-      setChip('all');
-      setSearchFocused(false);
-      setQuery('');
-      return;
-    }
     const nextChip = chatsInboxFromSearch(searchParams.toString());
     setChip(nextChip);
     rememberChatsInbox(nextChip);
-    setSelectedIds(new Set());
     setConfirm(null);
     setConfirmIds([]);
     setMenuThread(null);
     setMenuAnchor(null);
-  }, [selecting, searchParams]);
+  }, [searchParams]);
 
-  // Keep both inboxes warm so All / Requests never swap through a loader or the other list.
   const q = deferredQuery || undefined;
-  const live = !deferredQuery && !selecting;
+  const live = !deferredQuery;
   const activeInbox = useInboxThreads('active', q, live);
   const requestInbox = useInboxThreads('requests', q, live);
   const asks = useQuery({
@@ -128,10 +110,8 @@ export function ChatsPage() {
     chip === 'requests'
       ? (requestInbox.data?.results ?? [])
       : filterActiveInbox(activeInbox.data?.results ?? [], chip);
-  const visibleIds = list.map((row) => row.id);
-  const selectState = selectAllState(visibleIds, selectedIds);
   const searching = Boolean(deferredQuery);
-  const showInChats = !selecting && searchFocused && !query.trim();
+  const showInChats = searchFocused && !query.trim();
 
   const inboxAct = useMutation({
     mutationFn: (payload: { action: InboxAction; threadIds: string[] }) =>
@@ -141,8 +121,6 @@ export function ChatsPage() {
       setConfirmIds([]);
       setMenuThread(null);
       setMenuAnchor(null);
-      setSelectedIds(new Set());
-      setChatsInboxSelecting(false);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
       const n = vars.threadIds.length;
@@ -167,9 +145,8 @@ export function ChatsPage() {
     },
   });
 
-  const selectedList = [...selectedIds];
   const run = (action: InboxAction, threadIds?: string[]) => {
-    const ids = threadIds ?? (confirmIds.length > 0 ? confirmIds : selectedList);
+    const ids = threadIds ?? confirmIds;
     if (ids.length === 0) return;
     inboxAct.mutate({ action, threadIds: ids });
   };
@@ -228,33 +205,23 @@ export function ChatsPage() {
     inboxAct.isPending || pinRow.isPending || muteRow.isPending || exitGroup.isPending;
 
   return (
-    <div className={cx('flex flex-col gap-2.5', selecting && selectedIds.size > 0 && 'pb-28')}>
-      {selecting ? (
-        <SelectAllFloat
-          open
-          count={selectedIds.size}
-          allSelected={selectState.allSelected}
-          onSelectAll={() => setSelectedIds(nextIdSet(visibleIds, selectedIds))}
-          onClear={() => setSelectedIds(new Set())}
-        />
-      ) : (
-        <ListSearchRow
-          search={
-            <SearchInput
-              compact
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => {
-                window.setTimeout(() => setSearchFocused(false), 150);
-              }}
-              placeholder="Search chats"
-              aria-label="Search chats"
-              data-testid="chats-search"
-            />
-          }
-        />
-      )}
+    <div className="flex flex-col gap-2.5">
+      <ListSearchRow
+        search={
+          <SearchInput
+            compact
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => {
+              window.setTimeout(() => setSearchFocused(false), 150);
+            }}
+            placeholder="Search chats"
+            aria-label="Search chats"
+            data-testid="chats-search"
+          />
+        }
+      />
 
       {showInChats ? (
         <section data-testid="chats-in-chats" className="flex flex-col gap-1">
@@ -287,47 +254,45 @@ export function ChatsPage() {
         </section>
       ) : (
         <>
-          {selecting ? null : (
-            <FilterRail className="gap-1.5">
-              {(['all', 'unread', 'groups', 'requests'] as const).map((value) => {
-                const badge = chatsInboxChipBadge(
-                  chatsInboxChipCount(value, {
-                    active: activeInbox.data?.results ?? [],
-                    pendingCount: requestInbox.data?.results.length ?? 0,
-                    askCount: asks.data?.length ?? 0,
-                  }),
-                );
-                return (
-                  <Chip
-                    key={value}
-                    compact
-                    active={chip === value}
-                    onClick={() => {
-                      setChip(value);
-                      const next = new URLSearchParams(searchParams);
-                      if (value === 'all') next.delete('inbox');
-                      else next.set('inbox', value);
-                      setSearchParams(next, { replace: true });
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      {CHIP_LABEL[value]}
-                      {badge ? (
-                        <span
-                          className={cx(
-                            'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
-                            chip === value ? 'bg-white/25 text-white' : 'bg-accent text-white',
-                          )}
-                        >
-                          {badge}
-                        </span>
-                      ) : null}
-                    </span>
-                  </Chip>
-                );
-              })}
-            </FilterRail>
-          )}
+          <FilterRail className="gap-1.5">
+            {(['all', 'unread', 'groups', 'requests'] as const).map((value) => {
+              const badge = chatsInboxChipBadge(
+                chatsInboxChipCount(value, {
+                  active: activeInbox.data?.results ?? [],
+                  pendingCount: requestInbox.data?.results.length ?? 0,
+                  askCount: asks.data?.length ?? 0,
+                }),
+              );
+              return (
+                <Chip
+                  key={value}
+                  compact
+                  active={chip === value}
+                  onClick={() => {
+                    setChip(value);
+                    const next = new URLSearchParams(searchParams);
+                    if (value === 'all') next.delete('inbox');
+                    else next.set('inbox', value);
+                    setSearchParams(next, { replace: true });
+                  }}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {CHIP_LABEL[value]}
+                    {badge ? (
+                      <span
+                        className={cx(
+                          'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
+                          chip === value ? 'bg-white/25 text-white' : 'bg-accent text-white',
+                        )}
+                      >
+                        {badge}
+                      </span>
+                    ) : null}
+                  </span>
+                </Chip>
+              );
+            })}
+          </FilterRail>
 
           {threads.isLoading && !threads.data ? (
             <LoadingBlock />
@@ -345,13 +310,11 @@ export function ChatsPage() {
                       className="flex flex-col gap-1.5 border-b border-line/70 px-4 py-3"
                       data-testid={`chats-see-packs-ask-${ask.company.id}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} size={48} />
-                        <div className="min-w-0">
-                          <p className="truncate text-[15px] font-semibold text-ink">{ask.company.name}</p>
-                          <p className="text-[12px] text-muted">{SEE_PACKS_ASK_LINE}</p>
-                        </div>
-                      </div>
+                      <FollowAskHeader
+                        name={ask.company.name}
+                        logoUrl={ask.company.logoUrl}
+                        avatarSize={48}
+                      />
                       <FollowAskDecideRow
                         disabled={decideAsk.isPending}
                         onAllow={(decision) =>
@@ -368,22 +331,15 @@ export function ChatsPage() {
                 <InboxThreadRow
                   key={thread.id}
                   thread={thread}
-                  selecting={selecting}
-                  selected={selectedIds.has(thread.id) || menuThread?.id === thread.id}
-                  canMenu={!selecting}
+                  selecting={false}
+                  selected={menuThread?.id === thread.id}
+                  canMenu
                   onMenu={(rect) => {
                     setMenuThread(thread);
                     setMenuAnchor(rect);
                   }}
                   onArchive={() => run('archive', [thread.id])}
-                  onToggle={() => {
-                    setSelectedIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(thread.id)) next.delete(thread.id);
-                      else next.add(thread.id);
-                      return next;
-                    });
-                  }}
+                  onToggle={() => undefined}
                 />
               ))}
             </div>
@@ -392,7 +348,7 @@ export function ChatsPage() {
               title={chatsInboxEmptyCopy(chip, searching).title}
               message={chatsInboxEmptyCopy(chip, searching).message}
               action={
-                !searching && chip === 'all' && !selecting ? (
+                !searching && chip === 'all' ? (
                   <div className="flex flex-col items-center gap-2">
                     <button
                       type="button"
@@ -409,16 +365,6 @@ export function ChatsPage() {
           )}
         </>
       )}
-
-      {selecting ? (
-        <ChatsInboxDock
-          count={selectedIds.size}
-          pending={inboxAct.isPending}
-          onArchive={() => run('archive')}
-          onClear={() => askConfirm('clear', selectedList)}
-          onDelete={() => askConfirm('delete', selectedList)}
-        />
-      ) : null}
 
       {menuThread ? (
         <ChatsInboxRowMenu
@@ -493,12 +439,8 @@ export function ChatsPage() {
           confirm === 'exit'
             ? 'Exit this group?'
             : confirm === 'delete'
-              ? confirmIds.length > 1
-                ? 'Delete chats?'
-                : 'Delete chat?'
-              : confirmIds.length > 1
-                ? 'Clear chats?'
-                : 'Clear chat?'
+              ? 'Delete chat?'
+              : 'Clear chat?'
         }
       >
         <p className="text-sm text-muted">

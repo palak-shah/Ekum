@@ -9,7 +9,8 @@ import {
   sameForAllChipLabel,
 } from '@/features/orders/QtyStepper';
 import { applyHowManyDetail } from '@/features/orders/howManyHydrate';
-import { howManyLineMeta, howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
+import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
+import { howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
 import { howManySingleGoesTo, howManySplitBanner } from '@/features/orders/howManySplitBanner';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
@@ -360,7 +361,6 @@ export function HowManyEachSheet({
             {lines.map(({ product, quantity }, index) => {
               const thumbs = howManyPhotoUrls(product);
               const thumb = thumbs[0] ?? null;
-              const facts = howManyLineMeta(product);
               const noteValue = notes[product.id] ?? '';
               const noun = qtyCountNoun(product.unit);
               const totalPcs = howManyTotalPcsLabel(
@@ -393,22 +393,15 @@ export function HowManyEachSheet({
                         {product.name.charAt(0)}
                       </div>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
-                        {product.name}
-                      </p>
-                      {multiShop && product.companyName?.trim() ? (
-                        <p className="truncate text-[12px] text-muted">{product.companyName}</p>
-                      ) : null}
-                      {facts ? (
-                        <p
-                          className="mt-0.5 truncate text-[12px] text-muted"
-                          data-testid="how-many-facts"
-                        >
-                          {facts}
-                        </p>
-                      ) : null}
-                    </div>
+                    <HowManyLineHeading
+                      name={product.name}
+                      unit={product.unit}
+                      piecesPerPack={product.piecesPerPack}
+                      moq={product.moq}
+                      rate={product.rate}
+                      rateMax={product.rateMax}
+                      shop={multiShop ? product.companyName : null}
+                    />
                     <div className="flex shrink-0 flex-col items-end gap-1">
                     <QtyStepper
                       value={quantity}

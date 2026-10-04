@@ -49,6 +49,10 @@ export interface SavedItemView {
   createdAt: string;
   /** Staff who saved this for the company (internal). */
   savedBy: AuditActorView | null;
+  /** False when the source design / pack is no longer live. */
+  available?: boolean;
+  /** Leftover pointer copy — Your selection / Saved / share. */
+  unavailableReason?: string | null;
 }
 
 export type SavedListView = SavedItemView[];

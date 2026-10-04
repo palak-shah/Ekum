@@ -133,6 +133,14 @@ import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
 import { ChatComplaintSheet } from './ChatComplaintSheet';
+import { isChatSystemNotice } from './chatSystemNotice';
+import { inboxThreadAvatarUrl } from './inboxThreadAvatar';
+import { placeInboxRowMenu } from './placeInboxRowMenu';
+import {
+  messageReplyShouldTrigger,
+  messageReplySwipeAxis,
+  messageReplySwipeReveal,
+} from './messageBubbleSwipe';
 import {
   highlightSearchText,
   searchHitIdsNewestFirst,
@@ -836,17 +844,6 @@ export function ThreadPage() {
     },
     onError: (err) =>
       setError(err instanceof ApiError ? err.message : 'Could not update star.'),
-  });
-
-  const pinMessage = useMutation({
-    mutationFn: (messageId: string | null) =>
-      api.patch<ThreadDetail>(`/threads/${id}/pinned-message`, { messageId }),
-    onSuccess: (next) => {
-      queryClient.setQueryData(['thread', id], next);
-      refreshMessages();
-    },
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : 'Could not pin.'),
   });
 
   const reactMessage = useMutation({
@@ -1885,20 +1882,6 @@ export function ThreadPage() {
         }
       />
 
-      {detail.pinnedMessage ? (
-        <button
-          type="button"
-          data-testid="pinned-message-banner"
-          className="mb-2 w-full rounded-xl border border-line bg-surface px-3 py-2 text-left"
-          onClick={() => void jumpToMessage(detail.pinnedMessage!.id)}
-        >
-          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Pinned</p>
-          <p className="truncate text-sm text-ink">
-            {detail.pinnedMessage.body?.trim() || 'Message'}
-          </p>
-        </button>
-      ) : null}
-
       {moreOpen && typeof document !== 'undefined'
         ? createPortal(
             <>
@@ -2160,7 +2143,7 @@ export function ThreadPage() {
         data-testid="thread-message-list"
         className={cx(
           'ekum-no-scrollbar absolute inset-0 space-y-2.5 overflow-y-auto overscroll-contain',
-          canCompose ? 'pb-3' : 'pb-[calc(5rem+env(safe-area-inset-bottom))]',
+          canCompose ? 'pb-3' : 'pb-[max(1rem,env(safe-area-inset-bottom))]',
         )}
       >
         {messages.isLoading ? (
@@ -2193,17 +2176,18 @@ export function ThreadPage() {
                 </button>
               </div>
             ) : null}
-            {ordered.map((message) => (
+            {ordered.map((message) => {
+              const systemNotice = isChatSystemNotice(message);
+              const showThumb =
+                !systemNotice &&
+                showGroupSenderThumb({
+                  isGroup: detail.type === 'group',
+                  incoming: !message.mine,
+                });
+              return (
               <div
                 key={message.id}
-                className={
-                  showGroupSenderThumb({
-                    isGroup: detail.type === 'group',
-                    incoming: !message.mine,
-                  })
-                    ? 'flex items-end gap-1.5'
-                    : undefined
-                }
+                className={showThumb ? 'flex items-end gap-1.5' : undefined}
               >
                 {firstUnreadId === message.id && openVisit && openVisit.unreadCount > 0 ? (
                   <div
@@ -2219,10 +2203,7 @@ export function ThreadPage() {
                     <span className="h-px flex-1 bg-line" />
                   </div>
                 ) : null}
-                {showGroupSenderThumb({
-                  isGroup: detail.type === 'group',
-                  incoming: !message.mine,
-                }) ? (
+                {showThumb ? (
                   <Avatar
                     name={
                       detail.participants?.find((row) => row.companyId === message.senderCompanyId)
@@ -2288,7 +2269,7 @@ export function ThreadPage() {
                       : undefined
                   }
                   actions={
-                    canCompose && !selecting
+                    canCompose && !selecting && !systemNotice
                       ? {
                           onReply: canReplyToMessage(message)
                             ? () => startReply(message)
@@ -2314,13 +2295,6 @@ export function ThreadPage() {
                                   starred: !message.starred,
                                 }),
                           starred: Boolean(message.starred),
-                          onPin: message.deletedForEveryone
-                            ? undefined
-                            : () =>
-                                pinMessage.mutate(
-                                  detail.pinnedMessage?.id === message.id ? null : message.id,
-                                ),
-                          pinned: detail.pinnedMessage?.id === message.id,
                           onReact: message.deletedForEveryone
                             ? undefined
                             : (emoji) =>
@@ -2374,7 +2348,8 @@ export function ThreadPage() {
                   </p>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
             <div ref={bottomRef} />
           </>
         ) : (
@@ -2436,7 +2411,7 @@ export function ThreadPage() {
 
       {canCompose && !selecting ? (
         <form
-          className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 bg-canvas px-0 py-2 mb-[calc(4.25rem+env(safe-area-inset-bottom))]"
+          className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 bg-canvas px-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
           onSubmit={(event) => {
             event.preventDefault();
             sendText();
@@ -2987,7 +2962,7 @@ export function ThreadPage() {
                     onClick={() => forward.mutate(row.id)}
                     className="flex items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-foam active:bg-foam disabled:opacity-50"
                   >
-                    <Avatar name={chatTitle} imageUrl={row.counterpart?.logoUrl} />
+                    <Avatar name={chatTitle} imageUrl={inboxThreadAvatarUrl(row)} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-ink">
                         {chatTitle}
@@ -3187,12 +3162,10 @@ type MessageActions = {
   onSelect?: () => void;
   onCopy?: () => void;
   onStar?: () => void;
-  onPin?: () => void;
   onReact?: (emoji: (typeof CHAT_REACTION_EMOJIS)[number]) => void;
   onEdit?: () => void;
   onDelete?: () => void;
   starred?: boolean;
-  pinned?: boolean;
 };
 
 function MessageChrome({
@@ -3223,14 +3196,21 @@ function MessageChrome({
   longPressOpensMenu?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [replyReveal, setReplyReveal] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
+  const axisRef = useRef<'x' | 'y' | null>(null);
+  const dragXRef = useRef(0);
+  const canSwipeReply = Boolean(actions?.onReply) && !selecting;
   const hasActions = Boolean(
     actions?.onReply ||
       actions?.onForward ||
       actions?.onSelect ||
       actions?.onCopy ||
       actions?.onStar ||
-      actions?.onPin ||
       actions?.onReact ||
       actions?.onEdit ||
       actions?.onDelete,
@@ -3257,20 +3237,163 @@ function MessageChrome({
   );
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) {
+      setMenuPos(null);
+      return;
+    }
+    const place = () => {
+      const box = rootRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const height = menuRef.current?.offsetHeight || 280;
+      const width = menuRef.current?.offsetWidth || 160;
+      setMenuPos(
+        placeInboxRowMenu(
+          { top: box.top, bottom: box.bottom, right: box.right },
+          { width: window.innerWidth, height: window.innerHeight },
+          { width, height },
+        ),
+      );
+    };
+    place();
     const onDoc = (event: Event) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setMenuOpen(false);
     };
     document.addEventListener('pointerdown', onDoc);
-    return () => document.removeEventListener('pointerdown', onDoc);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDoc);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
   }, [menuOpen]);
 
   const run = (fn?: () => void) => {
     setMenuOpen(false);
     fn?.();
   };
+
+  const setReveal = (next: number) => {
+    dragXRef.current = next;
+    setReplyReveal(next);
+  };
+
+  const menuItems = (
+    <>
+      {actions?.onReply ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onReply);
+          }}
+        >
+          Reply
+        </button>
+      ) : null}
+      {actions?.onForward ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onForward);
+          }}
+        >
+          Forward
+        </button>
+      ) : null}
+      {actions?.onCopy ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onCopy);
+          }}
+        >
+          Copy
+        </button>
+      ) : null}
+      {actions?.onStar ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onStar);
+          }}
+        >
+          {actions.starred ? 'Unstar' : 'Star'}
+        </button>
+      ) : null}
+      {actions?.onReact ? (
+        <div className="flex gap-1 border-t border-line/70 px-2 py-1.5">
+          {CHAT_REACTION_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              className="rounded-lg px-2 py-1 text-base hover:bg-foam"
+              onClick={(event) => {
+                event.stopPropagation();
+                setMenuOpen(false);
+                actions.onReact?.(emoji);
+              }}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {actions?.onEdit ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onEdit);
+          }}
+        >
+          Edit
+        </button>
+      ) : null}
+      {actions?.onSelect ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onSelect);
+          }}
+        >
+          Select
+        </button>
+      ) : null}
+      {actions?.onDelete ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="block w-full border-t border-line/70 px-3 py-2.5 text-left text-sm font-semibold text-danger hover:bg-foam"
+          onClick={(event) => {
+            event.stopPropagation();
+            run(actions.onDelete);
+          }}
+        >
+          Delete
+        </button>
+      ) : null}
+    </>
+  );
 
   return (
     <div
@@ -3298,13 +3421,66 @@ function MessageChrome({
       <div
         ref={rootRef}
         data-message-id={messageId}
+        data-testid={canSwipeReply ? `message-swipe-${messageId}` : undefined}
         className={cx(
-          'relative',
+          'relative touch-pan-y',
           messageChromeBubblePad(hasActions && !selecting),
           className,
         )}
+        style={
+          replyReveal > 0 ? { transform: `translateX(${replyReveal}px)` } : undefined
+        }
         {...longPress}
         onClick={selecting && onToggleSelect ? () => onToggleSelect() : undefined}
+        onPointerDown={(event) => {
+          longPress.onPointerDown();
+          if (!canSwipeReply) return;
+          startX.current = event.clientX;
+          startY.current = event.clientY;
+          axisRef.current = null;
+          dragXRef.current = 0;
+        }}
+        onPointerMove={(event) => {
+          if (!canSwipeReply || startX.current == null || startY.current == null) return;
+          const dx = event.clientX - startX.current;
+          const dy = event.clientY - startY.current;
+          if (axisRef.current == null) {
+            axisRef.current = messageReplySwipeAxis(dx, dy);
+            if (axisRef.current === 'x') {
+              try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+              } catch {
+                /* optional */
+              }
+              longPress.onPointerCancel();
+            }
+          }
+          if (axisRef.current !== 'x') return;
+          event.preventDefault();
+          setReveal(messageReplySwipeReveal(dx));
+        }}
+        onPointerUp={() => {
+          longPress.onPointerUp();
+          if (canSwipeReply && axisRef.current === 'x') {
+            if (messageReplyShouldTrigger(dragXRef.current)) {
+              actions?.onReply?.();
+            }
+            setReveal(0);
+          }
+          startX.current = null;
+          startY.current = null;
+          axisRef.current = null;
+        }}
+        onPointerLeave={() => {
+          longPress.onPointerLeave();
+        }}
+        onPointerCancel={() => {
+          longPress.onPointerCancel();
+          startX.current = null;
+          startY.current = null;
+          axisRef.current = null;
+          setReveal(0);
+        }}
       >
         {children}
         {hasActions && !selecting ? (
@@ -3328,138 +3504,25 @@ function MessageChrome({
             <ChevronDownIcon width={16} height={16} />
           </button>
         ) : null}
-        {hasActions && !selecting && menuOpen ? (
-          <div
-            role="menu"
-            data-testid="message-actions-menu"
-            className="absolute right-1 top-8 z-30 min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft"
-          >
-            {actions?.onReply ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onReply);
-                }}
-              >
-                Reply
-              </button>
-            ) : null}
-            {actions?.onForward ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onForward);
-                }}
-              >
-                Forward
-              </button>
-            ) : null}
-            {actions?.onCopy ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onCopy);
-                }}
-              >
-                Copy
-              </button>
-            ) : null}
-            {actions?.onStar ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onStar);
-                }}
-              >
-                {actions.starred ? 'Unstar' : 'Star'}
-              </button>
-            ) : null}
-            {actions?.onPin ? (
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="message-pin"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onPin);
-                }}
-              >
-                {actions.pinned ? 'Unpin message' : 'Pin message'}
-              </button>
-            ) : null}
-            {actions?.onReact ? (
-              <div className="flex gap-1 border-t border-line/70 px-2 py-1.5">
-                {CHAT_REACTION_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    className="rounded-lg px-2 py-1 text-base hover:bg-foam"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setMenuOpen(false);
-                      actions.onReact?.(emoji);
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {actions?.onEdit ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onEdit);
-                }}
-              >
-                Edit
-              </button>
-            ) : null}
-            {actions?.onSelect ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onSelect);
-                }}
-              >
-                Select
-              </button>
-            ) : null}
-            {actions?.onDelete ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full border-t border-line/70 px-3 py-2.5 text-left text-sm font-semibold text-danger hover:bg-foam"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  run(actions.onDelete);
-                }}
-              >
-                Delete
-              </button>
-            ) : null}
-          </div>
-        ) : null}
       </div>
+      {hasActions && !selecting && menuOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              data-testid="message-actions-menu"
+              className="fixed z-[70] min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft"
+              style={
+                menuPos
+                  ? { top: menuPos.top, left: menuPos.left }
+                  : { top: -9999, left: -9999 }
+              }
+            >
+              {menuItems}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -3522,6 +3585,18 @@ function TimelineItem({
   actions?: MessageActions;
 }) {
   const navigate = useNavigate();
+  if (isChatSystemNotice(message)) {
+    return (
+      <div
+        className="flex w-full justify-center py-1.5"
+        data-testid={`chat-system-notice-${message.id}`}
+      >
+        <p className="max-w-[90%] rounded-full bg-canvas px-3 py-1 text-center text-[12px] font-medium text-muted">
+          {message.body?.trim() || 'Notice'}
+        </p>
+      </div>
+    );
+  }
   const mentions = mentionsFromMetadata(message.metadata);
   const hl = (text: string) =>
     searchHighlight

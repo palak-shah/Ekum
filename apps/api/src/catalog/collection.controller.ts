@@ -15,12 +15,14 @@ import {
   createCollectionSchema,
   curateCheckSchema,
   listCatalogQuerySchema,
+  otherPackCountsSchema,
   publishCollectionSchema,
   setCollectionProductsSchema,
   updateCollectionSchema,
   type CreateCollectionDto,
   type CurateCheckDto,
   type ListCatalogQuery,
+  type OtherPackCountsDto,
   type PublishCollectionDto,
   type SetCollectionProductsDto,
   type UpdateCollectionDto,
@@ -77,6 +79,16 @@ export class CollectionController {
     @Body(new ZodValidationPipe(curateCheckSchema)) dto: CurateCheckDto,
   ) {
     return this.collections.checkCurateProducts(companyId, dto.productIds);
+  }
+
+  @Post(':id/other-pack-counts')
+  @RequirePermission('uploads')
+  otherPackCounts(
+    @CurrentCompanyId() companyId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(otherPackCountsSchema)) dto: OtherPackCountsDto,
+  ) {
+    return this.collections.otherPackCounts(companyId, id, dto.productIds);
   }
 
   @Put(':id/products')

@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-02 (How many note is a TextArea)  
+**Updated:** 2026-10-04 (Explore feed virtual + lazy images)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -17,9 +17,11 @@ Verification: Functional · Regression · Unit-only · Untested
 | Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; What broke + Copy |
 | Platform | Nav ＋ never a dead tap | Works | Unit + Functional | Required | Completeness 2026-09-25-create-fab-dead-tap; 2026-09-29 collection chooser (create vs You Collections); You ＋ stays on Saved |
 | Platform | Kit density: 40px Button/input, 28px Chip, 40×40 list square | Works | Unit | Required | Completeness 2026-09-26-kit-density; qty thumbs + nav ＋ stay 48px (restored 2026-10-01-nav-plus-size) |
+| Explore | Feed virtual scroll + easy image load; API ranking window; 12 then More posts | Works | Unit | Required | Completeness 2026-10-04-explore-feed-virtual-lazy; stream local media |
 | Explore | Shop header: GST tick, city · cats, See new packs, date under post | Works | Unit | Required | Completeness 2026-09-29-explore-shop-header-chrome; CSV sr 8 T4 · 9/10 T1+T3 · 16 T4 |
 | Explore | Pack header rate band; design card / popup shop name | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 16 T3 · 17 T3 |
 | Catalog | Nav ＋ has no Add designs (You Add only) | Works | Unit-only | Required | Completeness 2026-09-25-nav-plus-no-add-designs |
+| Chat | WhatsApp parity: group photo inbox, public leave, no ＋ multi-group, swipe-reply, menus, Unarchive swipe, no Pin message / Select chats, starred Unstar, Android borders | Works | Unit | Required | Completeness 2026-10-02-chat-whatsapp-parity |
 | Chat | Thread down-arrow to latest (WhatsApp) | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-jump-latest |
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
 | Chat | In-thread search scopes + stepper | Works | Functional | Required | Green 2026-08-24: All/Photos/Collections/Designs/Orders |
@@ -113,6 +115,9 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |
 | Explore | Design page Ask / Order dock visitors only | Works | Unit | Required | Owner never gets dock (even Selling/Trading); `exploreProductChrome` |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
+| Collections | Hide last live design drafts the pack; viewer lists Published only | Works | Unit | Required | Completeness 2026-10-02-empty-pack-not-for-followers |
+| Collections | Own pack manage dock (Add/Replace; Delete/Remove; hide owner name card) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock |
+| Orders | Ordered design leftover says No longer available | Works | Unit | Required | Same leftover as Saved / share |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |
 | Orders | How many each footer **Share** (same chat sheet) | Works | Unit | Required | Completeness 2026-09-29-how-many-share |
 | Trader curation | Curate **Add to existing pack** (merge; draft→editor / published toast) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing; saved.md |
@@ -184,7 +189,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders place | Mixed Selection: split banner + × syncs pile | Works | Unit | Required | sr 42; `howManySplitBanner`; Selection `onRemoveProduct` |
 | Collections | Pack “Order goes to trader” follows Your paths ticket | Works | Unit | Required | sr 16; `viewerTicket` + `collectionShowHandleCopy` |
 | Orders place | How many each: tags + sold-as (Set / Dozen / Metre) · min · rate | Works | Unit | Required | Completeness 2026-09-24-how-many-line-meta; hydrate explore detail |
-| Orders place | How many note strip · qty step 1 · Total N pcs; Catalog default unit set | Works | Unit | Required | Completeness 2026-10-01-how-many-sets-note-strip; full-width note grows as they type 2026-10-02-how-many-note-feels-like-notes |
+| Orders place | How many note strip · qty step 1 · Total N pcs; Catalog default unit set | Works | Unit | Required | Completeness 2026-10-01-how-many-sets-note-strip; name+unit one line; note is Add note until tap |
 | Orders / Catalog | Pack size (sets) per design, not one shop rule | Missing | — | Required | Completeness 2026-09-23-order-pack-size — model locked, build later |
 | Orders close | Full dispatch → `dispatched` complete; Settle only on qty mismatch → `settled` | Works | Unit | Required | Completeness 2026-09-07-dispatch-complete-vs-settle |
 | Orders part ship | Partial dispatch → main status `part_shipped` (not Confirmed cue) | Works | Unit | Required | Completeness 2026-09-07-part-shipped-main-status |

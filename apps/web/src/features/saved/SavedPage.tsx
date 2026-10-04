@@ -186,6 +186,7 @@ export function SavedPage({
     tab === 'collections' ? albumPick.selectMode : shortlist.selectMode;
 
   const onToggleItem = (item: SavedItemView) => {
+    if (item.available === false) return;
     if (item.kind === 'collection') {
       const entry = savedToAlbumEntry(item);
       if (entry) albumPick.toggle(entry);
@@ -196,6 +197,7 @@ export function SavedPage({
   };
 
   const onOpenItem = (item: SavedItemView) => {
+    if (item.available === false) return;
     if (item.kind === 'collection' && item.collectionId) {
       navigate(`/collections/${item.collectionId}`);
       return;
@@ -207,6 +209,7 @@ export function SavedPage({
   };
 
   const onLongSelectItem = (item: SavedItemView) => {
+    if (item.available === false) return;
     if (item.kind === 'product') {
       const entry = savedToEntry(item);
       if (entry) shortlist.toggle(entry);
@@ -279,6 +282,7 @@ export function SavedPage({
         onSelectAll={() =>
           shortlist.addMany(
             productItems
+              .filter((item) => item.available !== false)
               .map(savedToEntry)
               .filter((entry): entry is BrowseShortlistEntry => Boolean(entry)),
           )
@@ -293,6 +297,7 @@ export function SavedPage({
         onSelectAll={() =>
           addAlbumMany(
             collectionItems
+              .filter((item) => item.available !== false)
               .map(savedToAlbumEntry)
               .filter((entry): entry is BrowseAlbumEntry => Boolean(entry)),
           )
@@ -445,6 +450,7 @@ function SavedGridTile({
       className={cx(
         'relative overflow-hidden rounded-2xl border bg-surface',
         selected ? 'border-accent' : 'border-line',
+        item.available === false && 'opacity-70',
       )}
     >
       <button
@@ -456,7 +462,9 @@ function SavedGridTile({
         <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
       </button>
       <button type="button" className="block w-full px-2.5 py-2.5 text-left" onClick={onOpen}>
-        <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+        <p className={cx('truncate text-sm font-semibold text-ink', item.available === false && 'opacity-45')}>
+          {item.name}
+        </p>
         <p className="truncate text-xs text-muted">{savedItemMeta(item)}</p>
       </button>
       {selectMode ? (
@@ -559,7 +567,9 @@ function SavedFeedRow({
         ) : null}
       </button>
       <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onOpen}>
-        <p className="text-sm font-semibold tracking-tight text-ink">{item.name}</p>
+        <p className={cx('text-sm font-semibold tracking-tight text-ink', item.available === false && 'opacity-45')}>
+          {item.name}
+        </p>
         <p className="text-xs font-medium text-muted">{savedItemMeta(item)}</p>
       </button>
     </article>

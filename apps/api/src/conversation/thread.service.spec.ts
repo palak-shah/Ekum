@@ -419,3 +419,102 @@ describe('ThreadService.applyInboxActions (our shop only)', () => {
     expect(lastRead.at?.toISOString()).toBe('2026-09-23T11:59:59.999Z');
   });
 });
+
+describe('ThreadService.leave / archiveGroup public notices', () => {
+  it('posts a public member_left line and bumps lastMessageAt', async () => {
+    const created: unknown[] = [];
+    let lastMessageAt: Date | null = null;
+    const prisma = {
+      threadParticipant: {
+        findUnique: async () => ({
+          id: 'p-me',
+          state: 'active',
+          leftAt: null,
+          thread: { id: 't1', type: 'group', visibility: 'shared' },
+        }),
+      },
+      threadMember: {
+        findUnique: async () => ({
+          state: 'active',
+          companyId: 'me',
+        }),
+        update: async () => ({}),
+        count: async () => 2,
+      },
+      user: { findUnique: async () => ({ name: 'Priya' }) },
+      message: {
+        create: async (args: { data: unknown }) => {
+          created.push(args.data);
+          return { id: 'm-leave' };
+        },
+      },
+      thread: {
+        update: async (args: { data: { lastMessageAt?: Date } }) => {
+          lastMessageAt = args.data.lastMessageAt ?? null;
+          return {};
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new ThreadService(
+      prisma,
+      {} as VisibilityService,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      accessStub(),
+    );
+    await service.leave('me', 'staff', 't1', 'u-priya');
+    expect(created).toEqual([
+      expect.objectContaining({
+        type: 'system',
+        body: 'Priya left',
+        metadata: { kind: 'member_left' },
+      }),
+    ]);
+    expect((created[0] as { metadata: Record<string, unknown> }).metadata.side).toBeUndefined();
+    expect(lastMessageAt).toBeInstanceOf(Date);
+  });
+
+  it('posts a public company_left line on shop exit', async () => {
+    const created: unknown[] = [];
+    const prisma = {
+      threadParticipant: {
+        findUnique: async () => ({
+          id: 'p-me',
+          state: 'active',
+          leftAt: null,
+          thread: { id: 't1', type: 'group', visibility: 'shared' },
+        }),
+        update: async () => ({}),
+      },
+      threadMember: {
+        findUnique: async () => ({
+          state: 'active',
+          companyId: 'me',
+        }),
+      },
+      company: { findUnique: async () => ({ name: 'Jaipur Emporium' }) },
+      message: {
+        create: async (args: { data: unknown }) => {
+          created.push(args.data);
+          return { id: 'm-exit' };
+        },
+      },
+      thread: { update: async () => ({}) },
+    } as unknown as PrismaService;
+    const service = new ThreadService(
+      prisma,
+      {} as VisibilityService,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      accessStub(),
+    );
+    await service.archiveGroup('me', 'owner', 't1', 'u1');
+    expect(created).toEqual([
+      expect.objectContaining({
+        type: 'system',
+        body: 'Jaipur Emporium left',
+        metadata: { kind: 'company_left', companyId: 'me' },
+      }),
+    ]);
+  });
+});

@@ -193,6 +193,26 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
     expect(model.action?.label).toBe('View collection →');
   });
 
+  it('names an ended share No longer available', () => {
+    const message = textMessage({
+      id: 'c-gone',
+      type: 'collection_card',
+      mine: false,
+      senderCompanyId: 'co-owner',
+      reference: {
+        id: 'col-1',
+        kind: 'collection',
+        name: 'Wedding 2026',
+        image: null,
+        available: false,
+        ownerCompanyId: 'co-owner',
+      },
+    });
+    const model = buildCollectionTradeCard(message, message.reference, 'Jaipur Emporium', null);
+    expect(model.primary).toBe('No longer available');
+    expect(model.action).toBeUndefined();
+  });
+
   it('design card uses design name primary and order goes to detail', () => {
     const message = textMessage({
       id: 'p1',

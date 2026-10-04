@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,12 +10,6 @@ import { useToast } from '@/ui/Toast';
 import { cx } from '@/ui/kit';
 import { MoreHorizontalIcon } from '@/ui/icons';
 import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
-import {
-  getChatsInboxSelecting,
-  requestChatsInboxSelect,
-  setChatsInboxSelecting,
-  subscribeChatsInboxSelect,
-} from './chatsInboxSelect';
 
 const ITEM =
   'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
@@ -29,7 +23,6 @@ export function ChatsHeaderMore() {
   const chatUnread = useChatUnreadCount();
   const [inviteSharing, setInviteSharing] = useState(false);
   const hasUnread = (chatUnread.data?.count ?? 0) > 0;
-  const selecting = useSyncExternalStore(subscribeChatsInboxSelect, getChatsInboxSelecting);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pos, setPos] = useState({ top: 0, right: 8 });
@@ -89,19 +82,6 @@ export function ChatsHeaderMore() {
     };
   }, [open]);
 
-  if (selecting) {
-    return (
-      <button
-        type="button"
-        data-testid="chats-select-cancel"
-        className="rounded-full px-2 py-1.5 text-sm font-semibold text-accent hover:bg-foam"
-        onClick={() => setChatsInboxSelecting(false)}
-      >
-        Cancel
-      </button>
-    );
-  }
-
   return (
     <>
       <button
@@ -141,20 +121,8 @@ export function ChatsHeaderMore() {
                 <button
                   type="button"
                   role="menuitem"
-                  data-testid="chats-select"
-                  className={ITEM}
-                  onClick={() => {
-                    setOpen(false);
-                    requestChatsInboxSelect();
-                  }}
-                >
-                  Select chats
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
                   data-testid="chats-starred"
-                  className={cx(ITEM, 'border-t border-line/70')}
+                  className={ITEM}
                   onClick={() => {
                     setOpen(false);
                     navigate('/chats/starred');

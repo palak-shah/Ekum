@@ -1,5 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import type { INestApplication } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import express from 'express';
@@ -93,17 +95,22 @@ export function mountLocalMedia(app: INestApplication, mediaRoot: string): void 
         continue;
       }
       try {
-        const data = await readFile(target);
+        const info = await stat(target);
+        if (!info.isFile()) continue;
         const type = CONTENT_TYPES[extname(target).toLowerCase()] ?? 'application/octet-stream';
         res.setHeader('Content-Type', type);
+        res.setHeader('Content-Length', String(info.size));
         res.setHeader('Cache-Control', 'public, max-age=86400');
-        res.status(200).send(data);
+        res.status(200);
+        // Stream — never buffer whole images into Nest memory (feed image storms).
+        await pipeline(createReadStream(target), res);
         return;
       } catch {
-        // try next layout (slash folder vs comma filename)
+        // try next layout (slash folder vs comma filename), or client aborted
+        if (res.headersSent) return;
       }
     }
-    res.status(404).end();
+    if (!res.headersSent) res.status(404).end();
   });
 }
 

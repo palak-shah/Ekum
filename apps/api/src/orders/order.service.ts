@@ -57,6 +57,7 @@ import { createdAtRangeFilter } from '../common/audit';
 import { JobQueue } from '../jobs/job-queue.service';
 import { ThreadService } from '../conversation/thread.service';
 import { resolveTradePresence } from '../identity/trade-presence';
+import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
 import { OrderTrailService } from './order-trail.service';
 import { resolveNoteVoiceFields } from './note-voice';
@@ -293,7 +294,7 @@ export class OrderService {
       noteVoiceDurationMs: noteVoice.noteVoiceDurationMs,
     });
 
-    return this.serializer.toOrderView(order, actorCompanyId, threadId, livingMessageId);
+    return this.toOrderView(order, actorCompanyId, threadId, livingMessageId);
   }
 
   /**
@@ -656,7 +657,7 @@ export class OrderService {
     );
     await this.passBuyerAmendToMills(id);
     return {
-      ...this.serializer.toOrderView(refreshed, actorCompanyId, threadId),
+      ...(await this.toOrderView(refreshed, actorCompanyId, threadId)),
       canAmend: true,
     };
   }
@@ -758,10 +759,14 @@ export class OrderService {
       const byId = new Map(refreshed.map((row) => [row.id, row]));
       rows = rows.map((row) => byId.get(row.id) ?? row);
     }
+    const catalog = await productCatalogStatusById(
+      this.prisma,
+      rows.flatMap((row) => row.items.map((item) => item.productId)),
+    );
     return toCursorPage(rows, query.limit, (row) => {
       const sellerQuoted = quotedIds.has(row.id);
       return {
-        ...this.serializer.toOrderView(row, actorCompanyId),
+        ...this.serializer.toOrderView(row, actorCompanyId, null, null, catalog),
         hasSellerQuote: sellerQuoted,
         canAcceptQuote: this.buyerCanAcceptQuoteSync(row, actorCompanyId, sellerQuoted),
         needsQuotePass: needsQuotePassIds.has(row.id),
@@ -799,7 +804,7 @@ export class OrderService {
       order.sellerCompanyId,
     );
     const threadId = manageParentOpenChatThreadId(directThreadId, firstReveal);
-    const view = this.serializer.toOrderView(order, actorCompanyId, threadId);
+    const view = await this.toOrderView(order, actorCompanyId, threadId);
     const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
     const relatedOrders = await this.buildRelatedOrders(order, actorCompanyId);
     const canSendUp =
@@ -2889,7 +2894,21 @@ export class OrderService {
       updated.buyerCompanyId,
       updated.sellerCompanyId,
     );
-    return this.serializer.toOrderView(updated, actorCompanyId, threadId);
+    return this.toOrderView(updated, actorCompanyId, threadId);
+  }
+
+  private async toOrderView(
+    order: Parameters<OrderSerializer['toOrderView']>[0],
+    actorCompanyId: string,
+    threadId: string | null = null,
+    livingMessageId: string | null = null,
+  ) {
+    const items = Array.isArray(order.items) ? order.items : [];
+    const catalog = await productCatalogStatusById(
+      this.prisma,
+      items.map((item) => item.productId),
+    );
+    return this.serializer.toOrderView(order, actorCompanyId, threadId, livingMessageId, catalog);
   }
 
   private async resolveFacilitatorOptions(

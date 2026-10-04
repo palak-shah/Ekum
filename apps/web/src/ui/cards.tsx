@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type {
   CollectionCard,
@@ -572,26 +572,58 @@ export function DesignTile({
   );
 }
 
-/** Fills its parent; parent must set size + overflow-hidden. */
+/**
+ * Fills its parent; parent must set size + overflow-hidden.
+ * Easy load: hold the network request until near the viewport (feed image storms
+ * were hanging the local media server even with native loading=lazy).
+ */
 function CoverImage({ src, alt, className }: { src: string | null; alt: string; className?: string }) {
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={cx('h-full w-full object-cover object-center', className)}
-        loading="lazy"
-      />
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [activeSrc, setActiveSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!src) {
+      setActiveSrc(null);
+      return;
+    }
+    const node = shellRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setActiveSrc(src);
+      return;
+    }
+    let done = false;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (done) return;
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        done = true;
+        setActiveSrc(src);
+        io.disconnect();
+      },
+      { rootMargin: '240px 0px', threshold: 0.01 },
     );
-  }
+    io.observe(node);
+    return () => {
+      done = true;
+      io.disconnect();
+    };
+  }, [src]);
+
   return (
-    <div
-      className={cx(
-        'flex h-full w-full items-center justify-center bg-foam text-2xl font-bold text-muted',
-        className,
+    <div ref={shellRef} className={cx('h-full w-full', className)}>
+      {activeSrc ? (
+        <img
+          src={activeSrc}
+          alt={alt}
+          className="h-full w-full object-cover object-center"
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-foam text-2xl font-bold text-muted">
+          {alt.charAt(0).toUpperCase()}
+        </div>
       )}
-    >
-      {alt.charAt(0).toUpperCase()}
     </div>
   );
 }

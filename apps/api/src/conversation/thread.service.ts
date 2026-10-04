@@ -732,6 +732,7 @@ export class ThreadService {
       select: { name: true },
     });
     const name = user?.name?.trim() || 'Someone';
+    const now = new Date();
     await this.prisma.message.create({
       data: {
         threadId,
@@ -739,9 +740,13 @@ export class ThreadService {
         senderUserId: viewerUserId,
         senderName: name,
         type: MessageType.System,
-        body: `${name} left this chat.`,
-        metadata: { side: 'company', companyId: actorCompanyId } as Prisma.InputJsonValue,
+        body: `${name} left`,
+        metadata: { kind: 'member_left' } as Prisma.InputJsonValue,
       },
+    });
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: now },
     });
     return { ok: true };
   }
@@ -762,9 +767,30 @@ export class ThreadService {
     if (role !== MembershipRole.Owner) {
       throw ownerOnlyRoster();
     }
+    const company = await this.prisma.company.findUnique({
+      where: { id: actorCompanyId },
+      select: { name: true },
+    });
+    const shopName = company?.name?.trim() || 'A business';
+    const now = new Date();
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
-      data: { state: ThreadParticipantState.Archived, leftAt: new Date() },
+      data: { state: ThreadParticipantState.Archived, leftAt: now },
+    });
+    await this.prisma.message.create({
+      data: {
+        threadId,
+        senderCompanyId: actorCompanyId,
+        senderUserId: viewerUserId,
+        senderName: shopName,
+        type: MessageType.System,
+        body: `${shopName} left`,
+        metadata: { kind: 'company_left', companyId: actorCompanyId } as Prisma.InputJsonValue,
+      },
+    });
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: now },
     });
     return { ok: true };
   }

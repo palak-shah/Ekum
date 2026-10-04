@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest';
+import { ProductStatus } from '@ekum/domain-types';
 import {
+  collectionOwnerManageDock,
   collectionPackQtySheet,
   collectionPackTradeDock,
   collectionShowHandleCopy,
+  collectionShowOwnerCompanyRow,
   collectionShowPackNote,
+  collectionViewerListedProducts,
   collectionViewerPrimaryAction,
   noteBlockOverflows,
 } from './collectionViewerChrome';
+
+describe('collectionViewerListedProducts', () => {
+  it('drops unpublished tiles', () => {
+    expect(
+      collectionViewerListedProducts([
+        { id: 'a', status: ProductStatus.Published },
+        { id: 'b', status: ProductStatus.Draft },
+      ]),
+    ).toEqual([{ id: 'a', status: ProductStatus.Published }]);
+  });
+});
 
 describe('collectionViewerPrimaryAction', () => {
   it('gives owners Edit and visitors Bookmark', () => {
@@ -68,6 +83,15 @@ describe('collectionPackTradeDock', () => {
         resumeContinue: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe('collectionOwnerManageDock / company row', () => {
+  it('claims the band for owners and hides their shop card', () => {
+    expect(collectionOwnerManageDock(true)).toBe(true);
+    expect(collectionOwnerManageDock(false)).toBe(false);
+    expect(collectionShowOwnerCompanyRow(true)).toBe(false);
+    expect(collectionShowOwnerCompanyRow(false)).toBe(true);
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   orderLineCantSupplyCue,
+  orderLineLeftoverCue,
   quoteCantSupplyControlClass,
   quoteCantSupplyMutedClass,
   quoteCantSupplyRowClass,
@@ -32,5 +33,9 @@ describe('quoteSheetItems', () => {
     expect(quoteCantSupplyControlClass(false)).toContain('text-muted');
     expect(orderLineCantSupplyCue(true)).toBe('Can’t supply');
     expect(orderLineCantSupplyCue(false)).toBeNull();
+    expect(orderLineLeftoverCue({ unavailableReason: 'No longer available' })).toBe(
+      'No longer available',
+    );
+    expect(orderLineLeftoverCue({ unavailableReason: null })).toBeNull();
   });
 });

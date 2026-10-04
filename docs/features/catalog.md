@@ -40,7 +40,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 | Download | `allowDownload` on design (and pack); buyers cannot export when false. |
 | SKU | Optional on API; batch add assigns a session-unique `EK-` code and sends it so Edit design **Reference / SKU** matches. Server still assigns if omitted elsewhere |
 | Selling presence | Creating products calls `ensureSellingEnabled` |
-| Unpublish | Clears Explore post when design leaves published |
+| Unpublish | Clears Explore post when design leaves published. If that was the last Published member of a live pack, the pack goes **Draft** too. |
 | Unarchive | Archived → draft (`POST /products/:id/unarchive`) |
 | Bulk Select | Same visibility sheet for many drafts → publish each |
 | Staff audit | `createdBy` / `updatedBy` on product views. **You** library tiles and the collection editor status line show the **date only** (no own name). Saved still may show staff. |

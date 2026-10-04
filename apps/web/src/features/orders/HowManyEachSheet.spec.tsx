@@ -49,13 +49,13 @@ function renderSheet() {
   );
 }
 
-describe('HowManyEachSheet note strip', () => {
-  it('shows a one-line note field that can grow, without Add note', () => {
+describe('HowManyEachSheet line chrome', () => {
+  it('puts sold-as beside the name and keeps note quiet until Add note', () => {
     renderSheet();
-    const note = screen.getByTestId('how-many-note');
-    expect(note.tagName).toBe('TEXTAREA');
-    expect(note).toHaveAttribute('rows', '1');
-    expect(screen.queryByText('Add note')).toBeNull();
-    expect(screen.getByPlaceholderText('Note — colour, packing…')).toBeInTheDocument();
+    expect(screen.getByText('Navy')).toBeInTheDocument();
+    expect(screen.getByText('Set')).toBeInTheDocument();
+    expect(screen.getByText('4 pcs')).toBeInTheDocument();
+    expect(screen.getByTestId('how-many-add-note')).toBeInTheDocument();
+    expect(screen.queryByTestId('how-many-note')).toBeNull();
   });
 });

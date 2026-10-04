@@ -30,4 +30,15 @@ describe('collectionPreviewFromRow', () => {
     expect(preview.previewImages).toEqual([]);
     expect(preview.imageCount).toBe(0);
   });
+
+  it('does not count unpublished members as designs', () => {
+    const preview = collectionPreviewFromRow({
+      products: [
+        { product: { images: ['https://img/draft'], status: 'draft' } },
+        { product: { images: ['https://img/live'], status: 'published' } },
+      ],
+    });
+    expect(preview.previewImages).toEqual(['https://img/live']);
+    expect(preview.imageCount).toBe(1);
+  });
 });

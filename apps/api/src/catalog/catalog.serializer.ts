@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Collection, CollectionProduct, Product, User } from '@prisma/client';
-import type { CollectionDetailView, CollectionView, ProductView } from '@ekum/domain-types';
+import { ProductStatus, type CollectionDetailView, type CollectionView, type ProductView } from '@ekum/domain-types';
 import { toAuditActor } from '../common/audit';
 import { collectionPreviewFromRow } from '../discovery/collection-preview';
 import { collectionMemberFind } from './collection-member-find';
@@ -29,6 +29,12 @@ type CollectionWithProducts = Collection & {
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
 };
+
+function publishedMemberCount(collection: CollectionWithCount): number | undefined {
+  const rows = collection.products;
+  if (!rows) return undefined;
+  return rows.filter((row) => row.product.status === ProductStatus.Published).length;
+}
 
 export const productActorInclude = {
   createdByUser: { select: { id: true, name: true } },
@@ -110,7 +116,12 @@ export class CatalogSerializer {
       allowDownload: collection.allowDownload === true,
       /** Legacy column ignored — path is TradeLane / Your paths. */
       orderPathPreference: null,
-      productCount: productCount ?? collection._count?.products ?? collection.products?.length ?? 0,
+      productCount:
+        productCount ??
+        publishedMemberCount(collection) ??
+        collection._count?.products ??
+        collection.products?.length ??
+        0,
       photoCount: preview.imageCount,
       previewImages: preview.previewImages,
       startsAt: collection.startsAt ? collection.startsAt.toISOString() : null,

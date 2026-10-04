@@ -26,6 +26,7 @@ import { ThreadService } from '../conversation/thread.service';
 import { DomainEvents } from '../events/events.module';
 import { randomToken } from '../common/crypto.util';
 import { connectionPairWhere } from '../access/connection-pair';
+import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
 import { OrderService } from './order.service';
 import { groupForBuyerLines } from './for-buyer-groups';
@@ -145,7 +146,7 @@ export class BuyForBuyerService {
         buyerCompanyId: order.buyerCompanyId,
         sellerCompanyId: order.sellerCompanyId,
       });
-      first = this.serializer.toOrderView(order, actorCompanyId, threadId);
+      first = await this.toOrderView(order, actorCompanyId, threadId);
       inviteOrderId = order.id;
     }
 
@@ -338,7 +339,7 @@ export class BuyForBuyerService {
       where: { id },
       include: ORDER_INCLUDE,
     });
-    return this.serializer.toOrderView(fresh, actorCompanyId, threadId);
+    return this.toOrderView(fresh, actorCompanyId, threadId);
   }
 
   async getInvite(token: string): Promise<OrderInviteView> {
@@ -406,7 +407,20 @@ export class BuyForBuyerService {
       updated.buyerCompanyId,
       updated.sellerCompanyId,
     );
-    return this.serializer.toOrderView(updated, actorCompanyId, threadId);
+    return this.toOrderView(updated, actorCompanyId, threadId);
+  }
+
+  private async toOrderView(
+    order: Parameters<OrderSerializer['toOrderView']>[0],
+    actorCompanyId: string,
+    threadId: string | null = null,
+  ) {
+    const items = Array.isArray(order.items) ? order.items : [];
+    const catalog = await productCatalogStatusById(
+      this.prisma,
+      items.map((item) => item.productId),
+    );
+    return this.serializer.toOrderView(order, actorCompanyId, threadId, null, catalog);
   }
 
   private async requireOpenInvite(token: string) {

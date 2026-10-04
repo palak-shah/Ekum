@@ -19,7 +19,10 @@ function makeService(
   opts?: { sharedInChat?: boolean; following?: boolean },
 ) {
   const prisma = {
-    collection: { findUnique: async () => collectionRow },
+    collection: {
+      findUnique: async () => collectionRow,
+      updateMany: async () => ({ count: 0 }),
+    },
     follow: {
       findUnique: async () => (opts?.following ? { status: 'allowed' } : null),
     },
@@ -91,8 +94,8 @@ const publishedCollection = {
   company: { id: 'owner' },
   _count: { products: 2 },
   products: [
-    { product: { id: 'p1', companyId: 'owner', rate: 100, rateVisibility: 'on_request' } },
-    { product: { id: 'p2', companyId: 'owner', rate: 200, rateVisibility: 'on_request' } },
+    { product: { id: 'p1', companyId: 'owner', status: 'published', rate: 100, rateVisibility: 'on_request' } },
+    { product: { id: 'p2', companyId: 'owner', status: 'published', rate: 200, rateVisibility: 'on_request' } },
   ],
 };
 
@@ -271,6 +274,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
             product: {
               id: 'own-1',
               companyId: 'owner',
+              status: 'published',
               rate: 100,
               rateVisibility: 'visible',
             },
@@ -279,6 +283,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
             product: {
               id: 'foreign-1',
               companyId: 'supplier',
+              status: 'published',
               rate: 200,
               rateVisibility: 'on_request',
             },

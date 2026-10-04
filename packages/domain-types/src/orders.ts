@@ -525,6 +525,10 @@ export interface OrderItemView {
   /** quantity − shippedQuantity for shippable lines. */
   remainingQuantity: number;
   note: string | null;
+  /** False when the catalog design was later hidden or deleted. */
+  available?: boolean;
+  /** Leftover pointer — same copy as Saved / share. */
+  unavailableReason?: string | null;
 }
 
 export interface DispatchInfo {

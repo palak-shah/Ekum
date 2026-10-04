@@ -34,6 +34,7 @@ function makeResolver(opts?: { connected?: boolean; following?: boolean }) {
           allowForward: true,
           audience: 'everyone',
           audienceCompanyIds: [],
+          status: 'published',
           company: { id: 'co1', name: 'Surat Silk House' },
         },
       ],
@@ -48,11 +49,14 @@ function makeResolver(opts?: { connected?: boolean; following?: boolean }) {
           allowForward: false,
           audience: 'followers',
           audienceCompanyIds: [],
+          status: 'published',
+          startsAt: null,
+          endsAt: null,
           company: { id: 'co1', name: 'Surat Silk House' },
           _count: { products: 2 },
           products: [
-            { product: { images: ['d1'] } },
-            { product: { images: ['d2'] } },
+            { product: { images: ['d1'], status: 'published' } },
+            { product: { images: ['d2'], status: 'published' } },
           ],
         },
       ],
@@ -98,7 +102,7 @@ function makeResolver(opts?: { connected?: boolean; following?: boolean }) {
       ],
     },
     follow: {
-      findUnique: async () => (following ? { id: 'f1' } : null),
+      findUnique: async () => (following ? { id: 'f1', status: 'allowed' } : null),
     },
     collectionViewGrant: {
       findMany: async () => [],
@@ -144,6 +148,37 @@ describe('ReferenceResolver catalog cards', () => {
     const reference = references.get('m2');
     expect(reference?.available).toBe(false);
     expect(reference?.name).toBeNull();
+  });
+
+  it('flags an unpublished design as unavailable', async () => {
+    const resolver = new ReferenceResolver(
+      {
+        product: {
+          findMany: async () => [
+            {
+              id: 'p-draft',
+              name: 'Hidden silk',
+              images: ['img1'],
+              companyId: 'co1',
+              allowForward: true,
+              audience: 'everyone',
+              audienceCompanyIds: [],
+              status: 'draft',
+              company: { id: 'co1', name: 'Surat Silk House' },
+            },
+          ],
+        },
+        collection: { findMany: async () => [] },
+        order: { findMany: async () => [] },
+        follow: { findUnique: async () => null },
+        collectionViewGrant: { findMany: async () => [] },
+      } as unknown as PrismaService,
+      makeVisibility(),
+    );
+    const references = await resolver.resolve([
+      message({ id: 'm-draft', type: MessageType.ProductCard, referenceId: 'p-draft' }),
+    ]);
+    expect(references.get('m-draft')?.available).toBe(false);
   });
 
   it('keeps collection thumbs locked when the viewer lacks audience rights', async () => {

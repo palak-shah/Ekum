@@ -15,6 +15,7 @@ import { assertCanPublish, grantPublishCapability } from './publish-capability';
 import { CatalogSerializer, productActorInclude } from './catalog.serializer';
 import { rememberPublishDefaults } from './publish-policy';
 import { resolveProductSku } from './sku';
+import { draftPacksLeftWithoutPublishedDesign } from './draft-packs-after-design-hide';
 
 @Injectable()
 export class ProductService {
@@ -119,6 +120,9 @@ export class ProductService {
       },
       include: productActorInclude,
     });
+    if (status !== ProductStatus.Published) {
+      await draftPacksLeftWithoutPublishedDesign(this.prisma, id);
+    }
     return this.serializer.toProductView(product);
   }
 
@@ -214,6 +218,7 @@ export class ProductService {
 
   async remove(companyId: string, id: string): Promise<void> {
     await this.owned(companyId, id);
+    await draftPacksLeftWithoutPublishedDesign(this.prisma, id);
     await this.prisma.product.delete({ where: { id } });
   }
 

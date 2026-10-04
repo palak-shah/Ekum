@@ -8,6 +8,7 @@ import type {
   ConnectionView,
   CreateCollectionDto,
   CreateProductDto,
+  OtherPackCountsView,
   ProductView,
   PublishCollectionDto,
 } from '@ekum/domain-types';
@@ -40,6 +41,18 @@ import {
 } from '@/ui/kit';
 import { TagsField } from './TagsField';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
+import { applySelectingPill } from '@/features/browse/selectingPill';
+import { selectAllState } from '@/features/browse/selectAllState';
+import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
+import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
+import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
+import {
+  canDeleteSelected,
+  deleteNeedsMultiPackConfirm,
+  membershipAfterRemove,
+  ownedSelectedIds,
+} from '@/features/collections/ownerPackManage';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { nameFromFilename, COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
 import {
@@ -171,6 +184,11 @@ export function CollectionEditorPage() {
   const [savingDesigns, setSavingDesigns] = useState(false);
   const [creating, setCreating] = useState(false);
   const [designSearch, setDesignSearch] = useState('');
+  const [manageSelecting, setManageSelecting] = useState(false);
+  const [manageSelected, setManageSelected] = useState<Set<string>>(() => new Set());
+  const [manageBusy, setManageBusy] = useState(false);
+  const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
+  const [replaceSheetOpen, setReplaceSheetOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -178,7 +196,12 @@ export function CollectionEditorPage() {
     categories: [] as string[],
   });
   const leaveBypassRef = useRef(false);
+  const bootPickerRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    bootPickerRef.current = false;
+  }, [id]);
   const [publishAudience, setPublishAudience] = useState<PublishAudienceState>(() =>
     emptyPublishAudienceState(),
   );
@@ -634,6 +657,34 @@ export function CollectionEditorPage() {
     openCollectionCamera(null);
   };
 
+  useEffect(() => {
+    if (!editing || !existing.data || !id || bootPickerRef.current) return;
+    const boot = location.state as {
+      openDesignPicker?: boolean;
+      replaceThenPick?: boolean;
+    } | null;
+    if (!boot?.openDesignPicker && !boot?.replaceThenPick) return;
+    bootPickerRef.current = true;
+    navigate(location.pathname, { replace: true, state: {} });
+    if (boot.replaceThenPick) {
+      void (async () => {
+        setSelected(new Set());
+        setSavingDesigns(true);
+        try {
+          await api.put(`/collections/${id}/products`, { productIds: [] });
+          invalidate(id);
+          openDesignPicker();
+        } catch (err) {
+          showToast(err instanceof ApiError ? err.message : 'Could not clear designs.', 'danger');
+        } finally {
+          setSavingDesigns(false);
+        }
+      })();
+      return;
+    }
+    openDesignPicker();
+  }, [editing, existing.data, id, location.state, location.pathname, navigate]);
+
   const restoreMemberSheetAfterCamera = () => {
     const resume = resumeMemberSheetRef.current;
     resumeMemberSheetRef.current = null;
@@ -999,6 +1050,129 @@ export function CollectionEditorPage() {
       scheduleDesignSave(next);
       return next;
     });
+  };
+
+  const manageSelectedIds = useMemo(() => [...manageSelected], [manageSelected]);
+  const productCompanyById = useMemo(
+    () => new Map(selectedProducts.map((product) => [product.id, product.companyId])),
+    [selectedProducts],
+  );
+  const memberIds = useMemo(
+    () => selectedProducts.map((product) => product.id),
+    [selectedProducts],
+  );
+  const manageSelectAll = selectAllState(memberIds, manageSelected);
+  const ownerCanDelete = canDeleteSelected(
+    manageSelectedIds,
+    productCompanyById,
+    company.data?.id ?? '',
+  );
+  const ownerCanRemove = manageSelectedIds.length > 0;
+
+  useEffect(() => {
+    if (!manageSelecting) setManageSelected(new Set());
+  }, [manageSelecting]);
+
+  const clearManageSelect = () => {
+    setManageSelected(new Set());
+    setManageSelecting(false);
+  };
+
+  const onManageSelectAll = () => {
+    setManageSelecting(true);
+    setManageSelected(new Set(memberIds));
+  };
+
+  const onManageClear = () => {
+    clearManageSelect();
+  };
+
+  const toggleManageSelect = (productId: string) => {
+    setManageSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  const onEditorReplaceConfirm = async () => {
+    if (!id) return;
+    setManageBusy(true);
+    try {
+      setSelected(new Set());
+      await persistDesigns([]);
+      setReplaceSheetOpen(false);
+      openDesignPicker();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not replace.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
+  const onEditorRemove = async () => {
+    if (!ownerCanRemove) return;
+    setManageBusy(true);
+    try {
+      const next = membershipAfterRemove([...selected], manageSelectedIds);
+      setSelected(new Set(next));
+      await persistDesigns(next);
+      clearManageSelect();
+      showToast('Removed from collection');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
+  const finishEditorDelete = async (mode: 'everywhere' | 'only-here') => {
+    const myId = company.data?.id ?? '';
+    const owned = ownedSelectedIds(manageSelectedIds, productCompanyById, myId);
+    setManageBusy(true);
+    try {
+      if (mode === 'everywhere' && owned.length > 0) {
+        for (const productId of owned) {
+          await api.del(`/products/${productId}`);
+        }
+      }
+      const next = membershipAfterRemove([...selected], manageSelectedIds);
+      setSelected(new Set(next));
+      await persistDesigns(next);
+      setDeleteSheetOpen(false);
+      clearManageSelect();
+      showToast(mode === 'everywhere' ? 'Deleted' : 'Removed from collection');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
+  const onEditorDelete = async () => {
+    if (!ownerCanDelete || !id) {
+      showToast('You can only delete designs you own.');
+      return;
+    }
+    const myId = company.data?.id ?? '';
+    const owned = ownedSelectedIds(manageSelectedIds, productCompanyById, myId);
+    setManageBusy(true);
+    try {
+      const result = await api.post<OtherPackCountsView>(`/collections/${id}/other-pack-counts`, {
+        productIds: owned,
+      });
+      if (deleteNeedsMultiPackConfirm(owned, result.counts, new Set(owned))) {
+        setDeleteSheetOpen(true);
+        setManageBusy(false);
+        return;
+      }
+    } catch (err) {
+      setManageBusy(false);
+      showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
+      return;
+    }
+    await finishEditorDelete('everywhere');
   };
 
   const removePending = (localId: string) => {
@@ -1435,6 +1609,32 @@ export function CollectionEditorPage() {
         action={
           editing && existing.data ? (
             <div className="flex items-center gap-1">
+              {selectedProducts.length > 0 ? (
+                <button
+                  type="button"
+                  data-testid="collection-editor-select"
+                  className={cx(
+                    'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                    manageSelecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
+                  )}
+                  onClick={() =>
+                    applySelectingPill(manageSelecting, manageSelected.size, {
+                      clear: onManageClear,
+                      setSelectMode: setManageSelecting,
+                    })
+                  }
+                >
+                  {manageSelecting ? 'Selecting' : 'Select'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-45"
+                disabled={!form.name.trim() || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? 'Updating…' : 'Update'}
+              </button>
               {id ? (
                 <button
                   type="button"
@@ -1464,6 +1664,16 @@ export function CollectionEditorPage() {
           ) : undefined
         }
       />
+
+      {editing ? (
+        <SelectAllFloat
+          open={manageSelecting && selectedProducts.length > 0}
+          count={manageSelected.size}
+          allSelected={manageSelectAll.allSelected}
+          onSelectAll={onManageSelectAll}
+          onClear={onManageClear}
+        />
+      ) : null}
 
       {editing && existing.data && statusSummary ? (
         <div className="-mt-2 flex flex-col gap-1">
@@ -1718,10 +1928,26 @@ export function CollectionEditorPage() {
                 >
                   <button
                     type="button"
-                    className="absolute inset-0 block text-left"
+                    className={cx(
+                      'absolute inset-0 block text-left',
+                      manageSelecting && manageSelected.has(product.id) && 'ring-2 ring-inset ring-accent',
+                    )}
                     data-testid="collection-member-tile"
-                    onClick={() => openMemberDesignSheet(product)}
-                    aria-label={`Edit design · ${product.name}`}
+                    onClick={() =>
+                      manageSelecting
+                        ? toggleManageSelect(product.id)
+                        : openMemberDesignSheet(product)
+                    }
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setManageSelecting(true);
+                      toggleManageSelect(product.id);
+                    }}
+                    aria-label={
+                      manageSelecting
+                        ? `${manageSelected.has(product.id) ? 'Deselect' : 'Select'} ${product.name}`
+                        : `Edit design · ${product.name}`
+                    }
                   >
                     {product.images[0] ? (
                       <img
@@ -1823,27 +2049,61 @@ export function CollectionEditorPage() {
                 ) : (
                   <>
                     {isPublished ? (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            setPublishOpen(true);
+                          }}
+                        >
+                          Visibility
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            setShareOpen(true);
+                          }}
+                        >
+                          Share
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={lifecycle.isPending}
+                          className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            lifecycle.mutate('unpublish');
+                          }}
+                        >
+                          Hide from Explore
+                        </button>
+                      </>
+                    ) : (
                       <button
                         type="button"
                         role="menuitem"
-                        disabled={lifecycle.isPending}
+                        disabled={!canPublishAlbum}
                         className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
                         onClick={() => {
                           setMoreOpen(false);
-                          lifecycle.mutate('unpublish');
+                          setPublishOpen(true);
                         }}
                       >
-                        Hide from Explore
+                        Publish
                       </button>
-                    ) : null}
+                    )}
                     <button
                       type="button"
                       role="menuitem"
                       disabled={lifecycle.isPending}
-                      className={cx(
-                        'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40',
-                        isPublished && 'border-t border-line/70',
-                      )}
+                      className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40"
                       onClick={() => {
                         setMoreOpen(false);
                         lifecycle.mutate('archive');
@@ -1859,55 +2119,33 @@ export function CollectionEditorPage() {
           )
         : null}
 
-      {editing && existing.data
-        ? createPortal(
-            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
-              <div className="mx-auto flex max-w-md flex-col gap-2">
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    className="min-w-0 flex-1"
-                    disabled={!form.name.trim() || save.isPending}
-                    onClick={() => save.mutate()}
-                  >
-                    {save.isPending ? 'Updating…' : 'Update'}
-                  </Button>
-                  {isArchived ? (
-                    <Button
-                      className="min-w-0 flex-1"
-                      disabled={lifecycle.isPending}
-                      onClick={() => lifecycle.mutate('unarchive')}
-                    >
-                      {lifecycle.isPending ? 'Restoring…' : 'Restore'}
-                    </Button>
-                  ) : isPublished ? (
-                    <>
-                      <Button
-                        className="min-w-0 flex-1"
-                        variant="secondary"
-                        onClick={() => setPublishOpen(true)}
-                      >
-                        Visibility
-                      </Button>
-                      <Button className="min-w-0 flex-1" onClick={() => setShareOpen(true)}>
-                        Share
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      className="min-w-0 flex-1"
-                      disabled={!canPublishAlbum}
-                      onClick={() => setPublishOpen(true)}
-                    >
-                      Publish
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {editing && existing.data ? (
+        <>
+          <OwnerPackManageDock
+            selecting={manageSelecting}
+            busy={manageBusy || savingDesigns || quickUploading}
+            canDelete={ownerCanDelete}
+            canRemove={ownerCanRemove}
+            onAdd={openDesignPicker}
+            onReplace={() => setReplaceSheetOpen(true)}
+            onDelete={() => void onEditorDelete()}
+            onRemove={() => void onEditorRemove()}
+          />
+          <OwnerPackReplaceSheet
+            open={replaceSheetOpen}
+            onClose={() => setReplaceSheetOpen(false)}
+            busy={manageBusy}
+            onConfirm={() => void onEditorReplaceConfirm()}
+          />
+          <OwnerPackDeleteSheet
+            open={deleteSheetOpen}
+            onClose={() => setDeleteSheetOpen(false)}
+            busy={manageBusy}
+            onDeleteEverywhere={() => void finishEditorDelete('everywhere')}
+            onOnlyThisCollection={() => void finishEditorDelete('only-here')}
+          />
+        </>
+      ) : null}
 
       {!editing
         ? createPortal(

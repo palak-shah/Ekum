@@ -1040,3 +1040,31 @@ describe('CollectionService categories', () => {
     );
   });
 });
+
+describe('CollectionService.otherPackCounts', () => {
+  it('counts memberships in other non-archived packs', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-a',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+        }),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          { productId: 'p1' },
+          { productId: 'p1' },
+          { productId: 'p2' },
+        ],
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const result = await service.otherPackCounts('company-1', 'col-a', ['p1', 'p2', 'p3']);
+    expect(result.counts).toEqual([
+      { productId: 'p1', otherPackCount: 2 },
+      { productId: 'p2', otherPackCount: 1 },
+      { productId: 'p3', otherPackCount: 0 },
+    ]);
+  });
+});

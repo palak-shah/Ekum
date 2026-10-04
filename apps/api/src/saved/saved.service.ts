@@ -17,6 +17,8 @@ import { toAuditActor } from '../common/audit';
 import { canDiscoverCollection } from '../catalog/audience-visibility';
 import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
 
+const LEFTOVER_OFFER_REASON = 'No longer available';
+
 type AudienceTarget = {
   id: string;
   companyId: string;
@@ -54,7 +56,7 @@ type CollectionRow = AudienceTarget & {
     verification: string;
     logoUrl: string | null;
   };
-  products: Array<{ product: { images: string[] } }>;
+  products: Array<{ product: { images: string[]; status?: string } }>;
   _count?: { products: number };
 };
 
@@ -75,7 +77,7 @@ const listInclude = {
       products: {
         orderBy: { position: 'asc' as const },
         take: 4,
-        include: { product: { select: { images: true } } },
+        include: { product: { select: { images: true, status: true } } },
       },
       _count: { select: { products: true } },
     },
@@ -295,6 +297,9 @@ export class SavedService {
         unit: row.product.unit ?? null,
         createdAt: row.createdAt.toISOString(),
         savedBy,
+        available: row.product.status === ProductStatus.Published,
+        unavailableReason:
+          row.product.status === ProductStatus.Published ? null : LEFTOVER_OFFER_REASON,
       };
     }
     if (row.collectionId && row.collection) {
@@ -318,6 +323,10 @@ export class SavedService {
         productCount,
         createdAt: row.createdAt.toISOString(),
         savedBy,
+        available: isCollectionLiveForBuyers(row.collection),
+        unavailableReason: isCollectionLiveForBuyers(row.collection)
+          ? null
+          : LEFTOVER_OFFER_REASON,
       };
     }
     throw new BadRequestException({

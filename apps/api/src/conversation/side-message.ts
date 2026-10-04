@@ -1,4 +1,4 @@
-/** Your-side leave lines stay on our shop only. Denied pack Asks stay owner-only. */
+/** Denied pack Asks stay owner-only. Leave notices are public (no company side). */
 export function messageVisibleToCompany(
   message: { type: string; metadata: unknown },
   companyId: string,

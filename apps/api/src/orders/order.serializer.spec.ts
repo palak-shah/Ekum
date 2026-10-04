@@ -56,6 +56,22 @@ describe('OrderSerializer remainingQuantity', () => {
     };
   }
 
+  it('marks a later-hidden catalog design as no longer available', () => {
+    const row = orderWithItem(OrderLineStatus.Confirmed) as never as {
+      items: Array<{ productId: string | null }>;
+    };
+    row.items[0]!.productId = 'p-gone';
+    const view = serializer.toOrderView(
+      row as never,
+      'seller',
+      null,
+      null,
+      new Map([['p-gone', 'draft']]),
+    );
+    expect(view.items[0]?.unavailableReason).toBe('No longer available');
+    expect(view.items[0]?.available).toBe(false);
+  });
+
   it('gives remaining qty only for confirmed lines', () => {
     const view = serializer.toOrderView(orderWithItem(OrderLineStatus.Confirmed) as never, 'seller');
     expect(view.items[0]?.remainingQuantity).toBe(10);

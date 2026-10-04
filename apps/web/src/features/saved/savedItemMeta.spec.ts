@@ -45,4 +45,16 @@ describe('savedItemMeta', () => {
       ),
     ).toBe('Shreeji Textiles · 5 designs');
   });
+
+  it('says No longer available when the source ended', () => {
+    expect(
+      savedItemMeta(
+        item({
+          kind: 'product',
+          available: false,
+          unavailableReason: 'No longer available',
+        }),
+      ),
+    ).toBe('No longer available');
+  });
 });

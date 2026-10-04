@@ -1,10 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatsHeaderMore } from './ChatsHeaderMore';
-import { setChatsInboxSelecting } from './chatsInboxSelect';
 import { api } from '@/lib/apiClient';
 
 vi.mock('@/lib/apiClient', () => ({
@@ -40,8 +39,9 @@ function renderMore() {
 }
 
 describe('ChatsHeaderMore', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
-    setChatsInboxSelecting(false);
     vi.mocked(api.get).mockResolvedValue({ count: 2 });
     vi.mocked(api.post).mockResolvedValue({ ok: true });
   });
@@ -56,29 +56,30 @@ describe('ChatsHeaderMore', () => {
     expect(screen.getByTestId('chats-starred')).toBeInTheDocument();
     expect(screen.getByTestId('chats-archived')).toBeInTheDocument();
     expect(screen.getByTestId('chats-mark-all-read')).toBeInTheDocument();
+    expect(screen.queryByTestId('chats-select')).toBeNull();
     expect(screen.getByTestId('chats-invite-connect')).toHaveTextContent('Invite to connect');
     await user.click(screen.getByTestId('chats-mark-all-read'));
     expect(api.post).toHaveBeenCalledWith('/threads/read-all', {});
   });
 
-  it('offers Select chats next to Mark all read, then Cancel', async () => {
+  it('does not offer Select chats', async () => {
     const user = userEvent.setup();
     renderMore();
     await user.click(screen.getByTestId('chats-more'));
-    await user.click(screen.getByTestId('chats-select'));
-    expect(screen.getByTestId('chats-select-cancel')).toBeInTheDocument();
-    expect(screen.queryByTestId('chats-more')).toBeNull();
-    await user.click(screen.getByTestId('chats-select-cancel'));
-    expect(screen.getByTestId('chats-more')).toBeInTheDocument();
+    expect(screen.queryByTestId('chats-select')).toBeNull();
+    expect(screen.queryByText('Select chats')).toBeNull();
   });
 
   it('does not close ⋯ when Android chrome fires a document scroll', async () => {
     const user = userEvent.setup();
     renderMore();
     await user.click(screen.getByTestId('chats-more'));
-    expect(screen.getByTestId('chats-more-menu')).toBeInTheDocument();
+    expect(await screen.findByTestId('chats-more-menu')).toBeInTheDocument();
     act(() => {
-      window.dispatchEvent(new Event('scroll', { bubbles: true }));
+      // jsdom’s window.dispatchEvent often leaves target null — chrome scroll is document.
+      const event = new Event('scroll', { bubbles: true });
+      Object.defineProperty(event, 'target', { value: document });
+      window.dispatchEvent(event);
     });
     expect(screen.getByTestId('chats-more-menu')).toBeInTheDocument();
   });

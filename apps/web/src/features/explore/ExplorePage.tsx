@@ -42,6 +42,10 @@ import { useTradePresence } from '@/lib/tradePresence';
 import { buildRankedPostFeed, type MixedOpportunity } from './exploreFeedRank';
 import { loadExploreFeedSeenMap } from './exploreFeedSeen';
 import { EXPLORE_SEARCH_HINT } from './exploreSearchHint';
+import { VirtualFeedList } from './VirtualFeedList';
+
+/** Initial buying feed window — then More posts (explore.md). */
+export const EXPLORE_INITIAL_FEED_POSTS = 12;
 
 function optionLabel(value: string): string {
   if (value === 'All') return 'Any category';
@@ -90,10 +94,11 @@ function CollectionSection({
 
   return (
     <Section title={title}>
-      <div className="flex flex-col">
-        {items.map((opportunity) => (
+      <VirtualFeedList
+        items={items}
+        getKey={(opportunity) => opportunity.collection.id}
+        renderItem={(opportunity) => (
           <OpportunityCollectionCard
-            key={opportunity.collection.id}
             opportunity={opportunity}
             selectMode={selecting}
             selected={albumPick.collectionIds.has(opportunity.collection.id)}
@@ -108,8 +113,8 @@ function CollectionSection({
               feedRelationships,
             )}
           />
-        ))}
-      </div>
+        )}
+      />
     </Section>
   );
 }
@@ -165,10 +170,11 @@ function DesignSection({
 
   return (
     <Section title={title}>
-      <div className="flex flex-col">
-        {items.map((opportunity) => (
+      <VirtualFeedList
+        items={items}
+        getKey={(opportunity) => opportunity.product.id}
+        renderItem={(opportunity) => (
           <OpportunityDesignCard
-            key={opportunity.product.id}
             opportunity={opportunity}
             selectMode={selecting}
             selected={shortlist.productIds.has(opportunity.product.id)}
@@ -183,8 +189,8 @@ function DesignSection({
               feedRelationships,
             )}
           />
-        ))}
-      </div>
+        )}
+      />
     </Section>
   );
 }
@@ -206,11 +212,12 @@ function MixedSection({
 
   return (
     <Section title={title}>
-      <div className="flex flex-col">
-        {items.map((item) =>
+      <VirtualFeedList
+        items={items}
+        getKey={(item) => item.id}
+        renderItem={(item) =>
           item.kind === 'collection' ? (
             <OpportunityCollectionCard
-              key={item.id}
               opportunity={item.opportunity}
               selectMode={selecting}
               selected={albumPick.collectionIds.has(item.opportunity.collection.id)}
@@ -227,7 +234,6 @@ function MixedSection({
             />
           ) : (
             <OpportunityDesignCard
-              key={item.id}
               opportunity={item.opportunity}
               selectMode={selecting}
               selected={shortlist.productIds.has(item.opportunity.product.id)}
@@ -242,9 +248,9 @@ function MixedSection({
                 feedRelationships,
               )}
             />
-          ),
-        )}
-      </div>
+          )
+        }
+      />
     </Section>
   );
 }
@@ -445,6 +451,7 @@ export function ExplorePage() {
     () => searchParams.get('search') === '1' || Boolean(searchParams.get('q')),
   );
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '');
+  const [showAllPosts, setShowAllPosts] = useState(false);
   const searchQuery = searchTerm.trim();
   const showingResults = searchFocused && searchQuery.length >= 2;
 
@@ -609,6 +616,17 @@ export function ExplorePage() {
       )
       .sort((a, b) => b.at - a.at);
   }, [postsForYou, storyCompanyId]);
+
+  // Story filter and filter changes reset the More posts window.
+  useEffect(() => {
+    setShowAllPosts(false);
+  }, [storyCompanyId, contentMode, categories, cities, tradeSide]);
+
+  const visiblePosts = useMemo(() => {
+    if (storyCompanyId || showAllPosts) return filteredPosts;
+    return filteredPosts.slice(0, EXPLORE_INITIAL_FEED_POSTS);
+  }, [filteredPosts, showAllPosts, storyCompanyId]);
+  const morePostsCount = Math.max(0, filteredPosts.length - visiblePosts.length);
   const filteredCollections = useMemo(() => {
     if (!storyCompanyId) return collectionsForYou;
     return [...collectionsForYou]
@@ -889,11 +907,23 @@ export function ExplorePage() {
           ) : null}
           {tradeSide !== 'selling' && contentMode === 'all' ? (
             filteredPosts.length > 0 ? (
-              <MixedSection
-                title=""
-                items={filteredPosts}
-                feedRelationships={feedRelationships}
-              />
+              <>
+                <MixedSection
+                  title=""
+                  items={visiblePosts}
+                  feedRelationships={feedRelationships}
+                />
+                {morePostsCount > 0 ? (
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    data-testid="explore-more-posts"
+                    onClick={() => setShowAllPosts(true)}
+                  >
+                    More posts ({morePostsCount})
+                  </Button>
+                ) : null}
+              </>
             ) : storyCompanyId ? (
               <EmptyState
                 title="No posts in this feed"

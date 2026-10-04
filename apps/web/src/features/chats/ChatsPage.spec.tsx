@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatsPage } from './ChatsPage';
 import { chatsInboxHref, rememberChatsInbox } from './chatsInboxFilter';
-import { requestChatsInboxSelect, setChatsInboxSelecting } from './chatsInboxSelect';
 import { resetChatDrafts, setChatDraft } from './chatsDrafts';
+import { resetLongPressSuppressForTests } from '@/ui/useLongPress';
 import { api } from '@/lib/apiClient';
 
 vi.mock('@/lib/apiClient', () => ({
@@ -38,8 +38,9 @@ function renderPage(path = '/chats') {
 }
 
 describe('ChatsPage tabs', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
-    setChatsInboxSelecting(false);
     rememberChatsInbox('all');
   });
 
@@ -223,8 +224,9 @@ describe('ChatsPage tabs', () => {
 });
 
 describe('ChatsPage In chats find', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
-    setChatsInboxSelecting(false);
     vi.mocked(api.get).mockResolvedValue({ results: [], nextCursor: null });
   });
 
@@ -262,11 +264,13 @@ describe('ChatsPage In chats find', () => {
   });
 });
 
-describe('ChatsPage inbox select', () => {
+describe('ChatsPage inbox rows', () => {
   const now = new Date().toISOString();
 
+  afterEach(() => cleanup());
+
   beforeEach(() => {
-    setChatsInboxSelecting(false);
+    resetLongPressSuppressForTests();
     resetChatDrafts();
     vi.mocked(api.post).mockResolvedValue({ ok: true, count: 1 });
     vi.mocked(api.get).mockResolvedValue({
@@ -302,36 +306,11 @@ describe('ChatsPage inbox select', () => {
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
   });
 
-  it('selects rows with accent (no checkbox) and archives our shop only', async () => {
+  it('confirms Clear from the row menu before posting', async () => {
     const user = userEvent.setup();
-    requestChatsInboxSelect();
     renderPage();
-
-    expect(screen.queryByRole('tab', { name: 'All Chats' })).toBeNull();
-    const row = await screen.findByTestId('chats-select-row-t1');
-    expect(row.querySelector('input[type="checkbox"]')).toBeNull();
-    expect(screen.queryByTestId('chats-inbox-dock')).toBeNull();
-
-    await user.click(row);
-    expect(row).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('chats-inbox-dock')).toBeInTheDocument();
-    expect(screen.getByTestId('chats-inbox-archive')).toBeInTheDocument();
-    expect(screen.getByTestId('chats-inbox-clear')).toBeInTheDocument();
-    expect(screen.getByTestId('chats-inbox-delete')).toBeInTheDocument();
-
-    await user.click(screen.getByTestId('chats-inbox-archive'));
-    expect(api.post).toHaveBeenCalledWith('/threads/inbox-actions', {
-      action: 'archive',
-      threadIds: ['t1'],
-    });
-  });
-
-  it('confirms Clear before posting', async () => {
-    const user = userEvent.setup();
-    requestChatsInboxSelect();
-    renderPage();
-    await user.click(await screen.findByTestId('chats-select-row-t1'));
-    await user.click(screen.getByTestId('chats-inbox-clear'));
+    fireEvent.contextMenu(await screen.findByTestId('chats-row-t1'));
+    await user.click(screen.getByTestId('chats-row-clear'));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: 'Clear chat?' })).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Clear' }));

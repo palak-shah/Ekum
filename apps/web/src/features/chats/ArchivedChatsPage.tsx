@@ -127,6 +127,10 @@ export function ArchivedChatsPage() {
               selecting={false}
               selected={menuThread?.id === thread.id}
               canMenu
+              archiveLabel="Unarchive"
+              onArchive={() => {
+                inboxAct.mutate({ action: 'unarchive', threadIds: [thread.id] });
+              }}
               onMenu={(rect) => {
                 setMenuThread(thread);
                 setMenuAnchor(rect);

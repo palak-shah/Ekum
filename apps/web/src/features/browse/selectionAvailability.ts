@@ -16,6 +16,9 @@ export type SelectionAvailability = {
   reason?: string;
 };
 
+/** Your selection / Saved / a share — never owner “Not published”. */
+export const LEFTOVER_OFFER_REASON = 'No longer available';
+
 /** Map catalog lifecycle / access to short copy (unit-tested). */
 export function reasonFromProductStatus(status: string | undefined): string | undefined {
   if (status === ProductStatus.Archived) return 'Archived';
@@ -23,20 +26,34 @@ export function reasonFromProductStatus(status: string | undefined): string | un
   return undefined;
 }
 
+/** Ended offer on a leftover pointer (cart, Saved, share). */
+export function leftoverOfferReason(status: string | undefined): string | undefined {
+  if (!status || status === ProductStatus.Published) return undefined;
+  return LEFTOVER_OFFER_REASON;
+}
+
 export function reasonFromCollectionStatus(status: string | undefined): string | undefined {
   if (status === CollectionStatus.Archived) return 'Archived';
-  if (status === CollectionStatus.Draft || status === CollectionStatus.Ready) return 'Not published';
+  if (status === CollectionStatus.Draft || status === CollectionStatus.Ready) {
+    return 'Not published';
+  }
   return undefined;
+}
+
+export function leftoverCollectionReason(status: string | undefined): string | undefined {
+  if (!status || status === CollectionStatus.Published) return undefined;
+  return LEFTOVER_OFFER_REASON;
 }
 
 export function reasonFromApiError(err: unknown): string {
   if (err instanceof ApiError) {
     const msg = err.message.trim();
     if (/archiv/i.test(msg)) return 'Archived';
-    if (/publish|draft|live/i.test(msg)) return 'Not published';
-    if (/access|forbidden|permission|connect/i.test(msg)) return 'No longer available';
+    if (/access|forbidden|permission|connect|publish|draft|live/i.test(msg)) {
+      return LEFTOVER_OFFER_REASON;
+    }
   }
-  return 'No longer available';
+  return LEFTOVER_OFFER_REASON;
 }
 
 export async function resolveDesignAvailability(
@@ -48,7 +65,7 @@ export async function resolveDesignAvailability(
   } catch (exploreErr) {
     try {
       const own = await api.get<ProductView>(`/products/${entry.productId}`);
-      const reason = reasonFromProductStatus(own.status);
+      const reason = leftoverOfferReason(own.status);
       if (reason) return { available: false, reason };
       // Own published (or other non-draft/archived) stays available for Selection verbs.
       return { available: true };
@@ -67,7 +84,7 @@ export async function resolveCollectionAvailability(
   } catch (exploreErr) {
     try {
       const own = await api.get<CollectionDetailView>(`/collections/${entry.collectionId}`);
-      const reason = reasonFromCollectionStatus(own.status);
+      const reason = leftoverCollectionReason(own.status);
       if (reason) return { available: false, reason };
       return { available: true };
     } catch {

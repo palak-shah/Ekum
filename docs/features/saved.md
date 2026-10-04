@@ -39,7 +39,7 @@ Selection is a client pile of designs + collections (not the same as Saved). Fed
 | Rule | Detail |
 |------|--------|
 | References only | Saved rows and curated membership point at supplier `Product` / `Collection` IDs — no duplicate catalog rows |
-| Source ended | Mill **archives / unpublishes the design** → it stays on the curated pack but **grays** (**Archived** / **Not published**); no select or order. Mill only **edits their album** (add/remove members) → curated lines **do not** change. |
+| Source ended | Mill **archives / unpublishes** after you already Saved, shared, or put it on Your selection → the leftover row stays faded with **No longer available**. Explore / shop / album do not show that design. Mill only **edits their album** (add/remove members) → curated lines **do not** change. |
 | Independent bookmarks | Album bookmark ≠ member design bookmarks; each is its own Saved row |
 | Discoverability | Bookmark requires the actor can discover the source (audience, block, live rules) |
 | Team audit | Saved rows show staff name in the card meta line (internal only) |

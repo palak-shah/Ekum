@@ -54,6 +54,9 @@ describe('FollowersPage inbox', () => {
     expect(await screen.findByRole('heading', { name: 'They see mine' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Asked' })).toBeNull();
     expect(await screen.findByTestId('follow-ask-row')).toBeInTheDocument();
+    expect(screen.getByTestId('follow-ask-why')).toHaveTextContent(
+      'Wants to see your new packs',
+    );
     expect(
       await screen.findByRole('checkbox', { name: 'They can see my collections' }),
     ).toHaveAttribute('aria-checked', 'true');

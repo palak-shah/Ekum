@@ -3,6 +3,9 @@ import { formatRate } from '@/lib/format';
 
 /** Subtitle under a Saved tile — never the saver’s own name (BM — client Saved clutter). */
 export function savedItemMeta(item: SavedItemView): string {
+  if (item.available === false) {
+    return item.unavailableReason?.trim() || 'No longer available';
+  }
   if (item.kind === 'product') {
     const bits = [item.company.name];
     if (item.sku) bits.push(item.sku);

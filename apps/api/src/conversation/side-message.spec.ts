@@ -43,4 +43,19 @@ describe('messageVisibleToCompany', () => {
     expect(messageVisibleToCompany(message, 'meena')).toBe(true);
     expect(messageVisibleToCompany(message, 'kavita')).toBe(true);
   });
+
+  it('shows public leave notices to every shop', () => {
+    const leave = {
+      type: 'system',
+      metadata: { kind: 'member_left' },
+    };
+    expect(messageVisibleToCompany(leave, 'me')).toBe(true);
+    expect(messageVisibleToCompany(leave, 'them')).toBe(true);
+    expect(
+      messageVisibleToCompany(
+        { type: 'system', metadata: { kind: 'company_left', companyId: 'me' } },
+        'them',
+      ),
+    ).toBe(true);
+  });
 });

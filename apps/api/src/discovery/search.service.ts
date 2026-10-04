@@ -163,6 +163,7 @@ export class SearchService {
           { OR: audienceVisibilityOr(viewerCompanyId) },
           { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
           { OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
+          { products: { some: { product: { status: ProductStatus.Published } } } },
         ],
       },
       include: collectionCardInclude,

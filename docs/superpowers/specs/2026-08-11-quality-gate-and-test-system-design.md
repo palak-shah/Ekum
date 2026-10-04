@@ -143,6 +143,7 @@ Each new production UI bug **adds a case here** and a failing test before the fi
 | BM-08 | Trading Open chat → wrong trio | Manage parent `threadId` stays buyer↔trader 1:1; mill trio only via `millDesks.revealThreadId` / mill **Open group chat** |
 | BM-09 | Reveal ON leaks trader ops | Buyer with mill desks (Reveal On) must not see trader “Your move: Send to …” or **More actions**; identity ≠ permissions |
 | BM-10 | Android voice chrome | VoicePlayer is play + progress + time only — no in-DOM `<audio>` (native scrubber / giant play) |
+| BM-11 | Spec-green, client-obvious | Trader-eye on the running screen. Optional chrome stays quiet (Add note, not a boxed field on every row). Name + sold-as read as one caption. A test that only repeats the ticket is not a pass. |
 
 ---
 

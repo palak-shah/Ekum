@@ -300,7 +300,7 @@ export function buildCollectionTradeCard(
   const primary = ref?.available
     ? (ref.name ?? message.body ?? 'Collection')
     : ref
-      ? 'Unavailable'
+      ? 'No longer available'
       : (message.body?.trim() || 'Collection');
   const details: string[] = [];
   if (orderGoesTo) details.push(orderGoesTo);
@@ -369,7 +369,7 @@ export function buildDesignTradeCard(
   const primary = ref?.available
     ? (ref.name ?? message.body ?? 'Design')
     : ref
-      ? 'Unavailable'
+      ? 'No longer available'
       : (message.body?.trim() || 'Design');
   const details = orderGoesTo ? [orderGoesTo] : [];
   const secondaryAction =

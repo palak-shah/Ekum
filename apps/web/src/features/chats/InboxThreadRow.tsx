@@ -9,6 +9,7 @@ import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
 import { inboxObjectLabel, inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
 import { getChatDraft, subscribeChatDrafts } from './chatsDrafts';
+import { inboxThreadAvatarUrl } from './inboxThreadAvatar';
 import {
   inboxSwipeAxis,
   inboxSwipeReveal,
@@ -23,6 +24,7 @@ export function InboxThreadRow({
   onMenu,
   onToggle,
   onArchive,
+  archiveLabel = 'Archive',
 }: {
   thread: ThreadSummary;
   selecting: boolean;
@@ -31,6 +33,7 @@ export function InboxThreadRow({
   onMenu: (rect: { top: number; bottom: number; right: number } | null) => void;
   onToggle: () => void;
   onArchive?: () => void;
+  archiveLabel?: 'Archive' | 'Unarchive';
 }) {
   const draft = useSyncExternalStore(
     subscribeChatDrafts,
@@ -50,10 +53,11 @@ export function InboxThreadRow({
     whyLine && thread.searchHitMessageId
       ? `/chats/${thread.id}?message=${encodeURIComponent(thread.searchHitMessageId)}`
       : `/chats/${thread.id}`;
+  const avatarUrl = inboxThreadAvatarUrl(thread);
 
   const body = (
     <>
-      <Avatar name={title} imageUrl={thread.counterpart?.logoUrl} size={48} />
+      <Avatar name={title} imageUrl={avatarUrl} size={48} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="flex min-w-0 items-center gap-1 text-[15px] font-semibold leading-tight tracking-[-0.02em] text-ink">
@@ -98,8 +102,8 @@ export function InboxThreadRow({
 
   const rowClass = cx(
     LONG_PRESS_SURFACE_CLASS,
-    'flex w-full items-center gap-3 border-b border-line/70 px-4 py-3 text-left last:border-b-0',
-    selected ? 'border-accent bg-accent/5' : 'hover:bg-canvas active:bg-canvas',
+    'flex w-full items-center gap-3 px-4 py-3 text-left',
+    selected ? 'bg-accent/5' : 'bg-surface hover:bg-canvas active:bg-canvas',
   );
   const rowRef = useRef<HTMLAnchorElement>(null);
   const startX = useRef<number | null>(null);
@@ -129,7 +133,7 @@ export function InboxThreadRow({
         type="button"
         data-testid={`chats-select-row-${thread.id}`}
         aria-pressed={selected}
-        className={rowClass}
+        className={cx(rowClass, 'border-b border-line')}
         onClick={onToggle}
       >
         {body}
@@ -143,7 +147,10 @@ export function InboxThreadRow({
   };
 
   return (
-    <div className="relative overflow-hidden touch-pan-y" data-testid={`chats-swipe-${thread.id}`}>
+    <div
+      className="relative isolate overflow-hidden border-b border-line touch-pan-y"
+      data-testid={`chats-swipe-${thread.id}`}
+    >
       <div className="absolute inset-y-0 right-0 z-0 flex">
         <button
           type="button"
@@ -157,20 +164,23 @@ export function InboxThreadRow({
         </button>
         <button
           type="button"
+          data-testid={
+            archiveLabel === 'Unarchive' ? 'chats-row-swipe-unarchive' : 'chats-row-swipe-archive'
+          }
           className="flex w-[4.5rem] items-center justify-center bg-success text-xs font-bold text-white"
           onClick={() => {
             setDragX(0);
             onArchive?.();
           }}
         >
-          Archive
+          {archiveLabel}
         </button>
       </div>
       <Link
         ref={rowRef}
         to={to}
         data-testid={`chats-row-${thread.id}`}
-        className={cx(rowClass, 'relative z-[1] touch-pan-y bg-surface')}
+        className={cx(rowClass, 'relative z-[1] touch-pan-y')}
         style={{ transform: `translateX(${-reveal}px)` }}
         onPointerDown={(event) => {
           startX.current = event.clientX;

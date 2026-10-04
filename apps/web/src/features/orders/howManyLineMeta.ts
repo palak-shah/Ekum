@@ -10,6 +10,32 @@ const SOLD_AS: Record<string, string> = {
   box: 'Box',
 };
 
+/** Short sold-as on the name line — never a second title under a one-word name. */
+export function howManyUnitShort(unit: string | null | undefined): string | null {
+  const key = unit?.trim();
+  if (!key) return null;
+  return SOLD_AS[key] ?? key;
+}
+
+/** Min / rate / pcs-in-set — not the sold-as word (that sits beside the name). */
+export function howManyLineExtra(product: {
+  unit?: string | null;
+  piecesPerPack?: number | null;
+  moq?: number | null;
+  rate?: number | null;
+  rateMax?: number | null;
+}): string | null {
+  const bits: string[] = [];
+  const key = product.unit?.trim();
+  const pack = product.piecesPerPack;
+  if (pack != null && pack > 0) bits.push(`${pack} pcs`);
+  else if (key === 'dozen') bits.push('12 pcs');
+  if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
+  const rate = formatRate(product.rate ?? null, product.unit ?? null, product.rateMax ?? null);
+  if (rate !== 'On request') bits.push(rate);
+  return bits.length > 0 ? bits.join(' · ') : null;
+}
+
 export function howManySoldAs(
   unit: string | null | undefined,
   piecesPerPack?: number | null,

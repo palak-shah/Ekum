@@ -63,5 +63,27 @@ describe('collection-schedule', () => {
         now,
       ),
     ).toBe(false);
+    expect(
+      isCollectionLiveForBuyers(
+        {
+          status: CollectionStatus.Published,
+          startsAt: null,
+          endsAt: null,
+          products: [{ product: { status: 'draft' } }],
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCollectionLiveForBuyers(
+        {
+          status: CollectionStatus.Published,
+          startsAt: null,
+          endsAt: null,
+          products: [{ product: { status: 'published' } }],
+        },
+        now,
+      ),
+    ).toBe(true);
   });
 });

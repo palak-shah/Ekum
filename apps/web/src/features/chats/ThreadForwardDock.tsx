@@ -1,6 +1,6 @@
 import { Button } from '@/ui/kit';
 
-/** Inline forward dock in the thread column — sits above bottom nav like the composer. */
+/** Inline forward dock in the thread column — above the safe area (no bottom nav on thread). */
 export function ThreadForwardDock({
   open,
   count,
@@ -19,7 +19,7 @@ export function ThreadForwardDock({
   return (
     <div
       data-testid="thread-forward-dock"
-      className="shrink-0 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md mb-[calc(4.25rem+env(safe-area-inset-bottom))]"
+      className="shrink-0 border-t border-line bg-canvas/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
     >
       <div className="flex items-center gap-3">
         <p className="min-w-0 flex-1 text-sm font-semibold text-ink">{count} selected</p>

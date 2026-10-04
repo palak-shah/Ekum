@@ -46,6 +46,7 @@ Mark each: OK · Gap · N/A · Later
 | Error handling | | |
 | Scalability | | |
 | Mobile interactions | | Including: fixed/sticky bars clear last content (BM-07)? |
+| First glance (BM-11) | | Phone width: one job is loudest; optional chrome quiet; name+unit not a broken wrap; taps land. Green tests do not skip this. |
 | Accessibility | | |
 | Platform consistency | | |
 

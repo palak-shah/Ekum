@@ -16,6 +16,11 @@ export function isLongPressActivateSuppressed() {
   return Date.now() < suppressClicksUntil;
 }
 
+/** Test-only: clear the shared suppress window between cases. */
+export function resetLongPressSuppressForTests() {
+  suppressClicksUntil = 0;
+}
+
 /** WhatsApp-style long-press; swallows the click that usually follows so activate does not fire. */
 export function useLongPress(onLongPress?: () => void, ms = 420) {
   const timer = useRef<number | null>(null);

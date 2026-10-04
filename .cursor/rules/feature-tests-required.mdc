@@ -20,7 +20,8 @@ A feature is **not done** until Completeness allows it and verification passes.
    - `pnpm --filter @ekum/web test` / relevant API specs
    - `pnpm test:e2e:smoke` (regression)
    - `pnpm test:e2e:functional` (or filtered module tag)
-7. Pure copy/CSS with no behaviour change may skip new tests — say so explicitly.
+7. **Trader-eye on the running screen (Required, BM-11).** Green tests are not done. Open the changed flow as a first-time seller (phone viewport). If a client would screenshot one thing as “this looks broken / too loud / I can’t tap it,” that is a **blocker** — fix before claiming done. Tests that only assert the spec you just wrote will not catch this.
+8. Pure copy/CSS with no behaviour change may skip new tests — say so explicitly. Still do the trader-eye pass.
 
 ## Bug modes
 

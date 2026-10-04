@@ -139,6 +139,21 @@ export interface CurateCheckView {
   blocked: CurateCheckBlocked[];
 }
 
+/** Count how many other owned packs each design is in (exclude this collection). */
+export const otherPackCountsSchema = z.object({
+  productIds: z.array(z.string().min(1)).max(1000),
+});
+export type OtherPackCountsDto = z.infer<typeof otherPackCountsSchema>;
+
+export interface OtherPackCountItem {
+  productId: string;
+  otherPackCount: number;
+}
+
+export interface OtherPackCountsView {
+  counts: OtherPackCountItem[];
+}
+
 /** Audience + rate visibility decided in the publish sheet (not a settings page). */
 export const publishCollectionSchema = z
   .object({

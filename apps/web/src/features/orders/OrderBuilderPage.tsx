@@ -25,7 +25,8 @@ import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from '@/features/orders/QtyStepper';
-import { howManyLineMeta, howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
+import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
+import { howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
@@ -459,12 +460,6 @@ export function OrderBuilderPage() {
           >
             {standardLines.map((line, index) => {
               const qty = parseQtyDraft(line.quantity);
-              const facts = howManyLineMeta({
-                unit: line.unit,
-                piecesPerPack: line.piecesPerPack,
-                rate: line.rate,
-                rateMax: line.rateMax,
-              });
               const totalPcs = howManyTotalPcsLabel(qty, line.unit, line.piecesPerPack);
               const noun = qtyCountNoun(line.unit);
               return (
@@ -486,14 +481,13 @@ export function OrderBuilderPage() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-semibold tracking-tight text-ink">
-                            {line.name}
-                          </p>
-                          {facts ? (
-                            <p className="mt-0.5 text-[12px] text-muted">{facts}</p>
-                          ) : null}
-                        </div>
+                        <HowManyLineHeading
+                          name={line.name}
+                          unit={line.unit}
+                          piecesPerPack={line.piecesPerPack}
+                          rate={line.rate}
+                          rateMax={line.rateMax}
+                        />
                         {standardLines.length > 1 ? (
                           <button
                             type="button"

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { howManyLineMeta, howManySoldAs, howManyTotalPcsLabel, qtyCountNoun } from './howManyLineMeta';
+import {
+  howManyLineExtra,
+  howManyLineMeta,
+  howManySoldAs,
+  howManyTotalPcsLabel,
+  howManyUnitShort,
+  qtyCountNoun,
+} from './howManyLineMeta';
 
 describe('howManyLineMeta', () => {
   it('says how a set or dozen is sold', () => {
@@ -27,6 +34,9 @@ describe('howManyLineMeta', () => {
         rateMax: null,
       }),
     ).toBe('Piece');
+    expect(howManyUnitShort('pc')).toBe('Piece');
+    expect(howManyLineExtra({ unit: 'pc' })).toBeNull();
+    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 4 })).toBe('4 pcs');
   });
 
   it('totals pcs for sets when pcs-per-set is known', () => {

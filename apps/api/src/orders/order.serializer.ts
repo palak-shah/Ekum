@@ -23,6 +23,7 @@ import {
   type ReturnView,
   type SampleView,
 } from '@ekum/domain-types';
+import { leftoverOfferFromCatalogStatus } from '../catalog/leftover-offer';
 import { CompanySerializer } from '../access/company.serializer';
 import { toAuditActor } from '../common/audit';
 
@@ -68,6 +69,7 @@ export class OrderSerializer {
     viewerCompanyId: string,
     threadId: string | null = null,
     livingMessageId: string | null = null,
+    catalogStatusByProductId: Map<string, string | null> = new Map(),
   ): OrderView {
     const buying = order.buyerCompanyId === viewerCompanyId;
     const confirmedByCompanyId = order.confirmedByCompanyId ?? null;
@@ -93,7 +95,9 @@ export class OrderSerializer {
       }
     }
 
-    const items = order.items.map((item) => this.toItemView(item, shippedByItem.get(item.id) ?? 0));
+    const items = order.items.map((item) =>
+      this.toItemView(item, shippedByItem.get(item.id) ?? 0, catalogStatusByProductId),
+    );
     const shipments = (order.shipments ?? [])
       .slice()
       .sort((a, b) => b.dispatchedAt.getTime() - a.dispatchedAt.getTime())
@@ -292,12 +296,20 @@ export class OrderSerializer {
     };
   }
 
-  private toItemView(item: OrderItem, shippedQuantity: number): OrderItemView {
+  private toItemView(
+    item: OrderItem,
+    shippedQuantity: number,
+    catalogStatusByProductId: Map<string, string | null> = new Map(),
+  ): OrderItemView {
     const quantity = item.quantity.toNumber();
     const lineStatus = (item.lineStatus || OrderLineStatus.Open) as OrderLineStatus;
     const shippable =
       lineStatus === OrderLineStatus.Confirmed || lineStatus === OrderLineStatus.Dispatched;
     const remaining = shippable ? Math.max(0, quantity - shippedQuantity) : 0;
+    const leftover = leftoverOfferFromCatalogStatus(
+      item.productId,
+      item.productId ? catalogStatusByProductId.get(item.productId) : undefined,
+    );
     return {
       id: item.id,
       productId: item.productId,
@@ -313,6 +325,8 @@ export class OrderSerializer {
       shippedQuantity,
       remainingQuantity: remaining,
       note: item.note,
+      available: leftover ? false : undefined,
+      unavailableReason: leftover,
     };
   }
 

@@ -19,6 +19,18 @@ Ekum is for busy textile traders. **Clutter-free, fewer taps, never get lost.**
 - **Challenge feature creep.** Prefer cutting a control over adding a “helpful” second path. If two ways exist, keep the shorter one.
 - **Success metric:** a first-time seller can create and publish a pack without hunting menus or re-learning the app.
 
+## 0b. Green tests are not a visual pass (Required — BM-11)
+
+Clients must not be the first people to notice an obvious miss. Before calling UI work done:
+
+1. **Look at the running screen** (phone width), not only the unit that encodes the spec.
+2. Ask: *What is the one job?* If an optional field, second title line, or box is louder than that job, it is wrong — even if the ticket asked for it.
+3. Short names + a unit on the next line must still read as **one caption**, not a broken title.
+4. Optional actions stay quiet (**Add note**, not a full boxed input on every row).
+5. If you cannot open the app, say so — do **not** call it done.
+
+A test that asserts “the note field is visible” would have shipped the How many bug. Assert the **trader feel**, or look at the sheet.
+
 Before calling UI/product work done, check all four:
 
 ## 1. Real estate is not wasted

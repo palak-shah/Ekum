@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { cx } from '@/ui/kit';
+import { Link } from 'react-router-dom';
+import { Avatar, cx } from '@/ui/kit';
+import { SEE_PACKS_ASK_LINE } from '@/features/company/seePacksCopy';
 import {
   defaultFollowAskGrants,
   followAskAllowDecision,
@@ -10,6 +12,43 @@ import {
 
 export const compactCta =
   'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-[13px] font-semibold tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
+
+/** Incoming ask: shop name + full-width why-line (never crush the sentence). */
+export function FollowAskHeader({
+  name,
+  logoUrl,
+  avatarSize = 40,
+  to,
+  className,
+}: {
+  name: string;
+  logoUrl?: string | null;
+  avatarSize?: number;
+  /** When set, the header is a shop link. */
+  to?: string;
+  className?: string;
+}) {
+  const body = (
+    <>
+      <Avatar name={name} imageUrl={logoUrl} size={avatarSize} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-semibold leading-snug text-ink">{name}</p>
+        <p className="text-sm font-medium leading-snug text-ink" data-testid="follow-ask-why">
+          {SEE_PACKS_ASK_LINE}
+        </p>
+      </div>
+    </>
+  );
+  const rowClass = cx('flex min-w-0 items-center gap-3', className);
+  if (to) {
+    return (
+      <Link to={to} className={rowClass}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={rowClass}>{body}</div>;
+}
 
 export function FollowGrantChecks({
   grants,

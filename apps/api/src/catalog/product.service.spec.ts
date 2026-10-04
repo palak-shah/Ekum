@@ -32,6 +32,11 @@ function setup(canPublish: boolean) {
       findUnique: async () => null,
       upsert: vi.fn(async () => ({})),
     },
+    collectionProduct: {
+      findMany: async () => [],
+      count: async () => 0,
+    },
+    collection: { updateMany: async () => ({ count: 0 }) },
   } as unknown as PrismaService;
   const serializer = {
     toProductView: (product: unknown) => product,

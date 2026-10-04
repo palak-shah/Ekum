@@ -40,7 +40,8 @@ Want a different shape that still fits Ekum → **Redesign**: update `docs/featu
 1. Lock approved flows/rules in `docs/features/*.md`.
 2. Implement **approved scope only**.
 3. Verify: **functional** (`@functional`) + **regression** (`@smoke @regression` / BM-* units) + docs/tests.
-4. Update `docs/superpowers/reviews/feature-gap-matrix.md`.
+4. **Trader-eye (BM-11):** running UI, first-time seller. Spec-green with an obvious visual miss is a failed ship, not polish.
+5. Update `docs/superpowers/reviews/feature-gap-matrix.md`.
 
 ## Specs
 

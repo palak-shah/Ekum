@@ -78,6 +78,7 @@ import { TicketPathPick } from '@/features/orders/ticketPathPick';
 import { parseQuoteRateDraft, quoteRateNumber, ratesWithSharedValue, SameRateForAll, sanitizeQuoteRateInput } from '@/features/orders/quoteSameRate';
 import {
   orderLineCantSupplyCue,
+  orderLineLeftoverCue,
   quoteCantSupplyControlClass,
   quoteCantSupplyMutedClass,
   quoteCantSupplyRowClass,
@@ -346,24 +347,31 @@ function OrderLineCantSupplyFace({
   size?: 'md' | 'sm';
   children?: ReactNode;
 }) {
+  const leftover = orderLineLeftoverCue(item);
+  const faded = cantSupply || Boolean(leftover);
   const cue = orderLineCantSupplyCue(cantSupply);
   return (
     <div className="flex min-w-0 flex-1 items-center gap-3">
-      <div className={cx('shrink-0', quoteCantSupplyMutedClass(cantSupply))}>
+      <div className={cx('shrink-0', quoteCantSupplyMutedClass(faded))}>
         <OrderLinePhoto item={item} items={items} onOpen={onOpen} size={size} />
       </div>
       <div className="min-w-0 flex-1">
         <p
           className={cx(
             'line-clamp-2 break-words text-sm font-medium',
-            cantSupply ? 'text-muted' : 'text-ink',
-            quoteCantSupplyMutedClass(cantSupply),
+            faded ? 'text-muted' : 'text-ink',
+            quoteCantSupplyMutedClass(faded),
           )}
         >
           {item.name}
         </p>
         {children ? (
-          <div className={quoteCantSupplyMutedClass(cantSupply)}>{children}</div>
+          <div className={quoteCantSupplyMutedClass(faded)}>{children}</div>
+        ) : null}
+        {leftover ? (
+          <p className="text-xs font-semibold text-ink" data-testid="order-line-no-longer-available">
+            {leftover}
+          </p>
         ) : null}
         {cue ? (
           <p className="text-xs font-semibold text-ink" data-testid="order-line-cant-supply-cue">
@@ -1841,6 +1849,11 @@ export function OrderDetailPage() {
                           >
                             {item.name}
                           </p>
+                          {orderLineLeftoverCue(item) ? (
+                            <p className="text-[11px] font-semibold text-ink">
+                              {orderLineLeftoverCue(item)}
+                            </p>
+                          ) : null}
                           {cantSupply ? (
                             <p
                               className={cx(
@@ -2053,9 +2066,15 @@ export function OrderDetailPage() {
                   />
                   <div className="min-w-0 flex-1 leading-tight">
                     <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
-                    <p className="mt-px truncate text-[11px] text-muted">
-                      {item.quantity} ordered
-                    </p>
+                    {orderLineLeftoverCue(item) ? (
+                      <p className="mt-px truncate text-[11px] font-semibold text-ink">
+                        {orderLineLeftoverCue(item)}
+                      </p>
+                    ) : (
+                      <p className="mt-px truncate text-[11px] text-muted">
+                        {item.quantity} ordered
+                      </p>
+                    )}
                   </div>
                 </button>
                 <span className="w-14 shrink-0 text-right text-[11px] font-medium text-muted">
@@ -2197,6 +2216,11 @@ export function OrderDetailPage() {
                         >
                           {item.name}
                         </p>
+                        {orderLineLeftoverCue(item) ? (
+                          <p className="truncate text-[11px] font-semibold text-ink">
+                            {orderLineLeftoverCue(item)}
+                          </p>
+                        ) : null}
                         <p className="mt-px truncate text-[11px] text-muted">
                           {kind ? (
                             <span data-testid="order-dispatch-line-kind">{kind}</span>
@@ -2294,6 +2318,11 @@ export function OrderDetailPage() {
                         />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                          {orderLineLeftoverCue(item) ? (
+                            <p className="truncate text-[11px] font-semibold text-ink">
+                              {orderLineLeftoverCue(item)}
+                            </p>
+                          ) : null}
                           <SettleQtyColumns dispatched={shipped} pending={pending} />
                         </div>
                       </div>
@@ -2450,6 +2479,11 @@ export function OrderDetailPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                  {orderLineLeftoverCue(item) ? (
+                    <p className="truncate text-[11px] font-semibold text-ink">
+                      {orderLineLeftoverCue(item)}
+                    </p>
+                  ) : null}
                   <div className="mt-1 flex gap-2">
                     <Field label="Qty">
                       <TextInput

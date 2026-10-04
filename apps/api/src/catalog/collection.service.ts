@@ -15,6 +15,7 @@ import {
   type CreateCollectionDto,
   type CurateCheckView,
   type ListCatalogQuery,
+  type OtherPackCountsView,
   type PublishCollectionDto,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
@@ -41,6 +42,7 @@ import {
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
 import { shouldBumpExploreOnPublish } from './explore-activity-bump';
+import { draftPublishedPacksWithoutLiveDesign } from './draft-packs-after-design-hide';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
@@ -153,7 +155,14 @@ export class CollectionService {
       orderBy: [...createdAtOrderBy(query.sort)],
       include: listInclude,
     });
-    return collections.map((collection) => this.serializer.toCollectionView(collection));
+    const drafted = await draftPublishedPacksWithoutLiveDesign(this.prisma, collections);
+    return collections.map((collection) =>
+      this.serializer.toCollectionView(
+        drafted.has(collection.id)
+          ? { ...collection, status: CollectionStatus.Draft }
+          : collection,
+      ),
+    );
   }
 
   async get(companyId: string, id: string): Promise<CollectionDetailView> {
@@ -486,6 +495,47 @@ export class CollectionService {
       }
     }
     return { allowedProductIds, blocked };
+  }
+
+  /**
+   * For each product id, how many other non-archived packs of this company
+   * also include it (excludes `collectionId`). Used by Delete confirm.
+   */
+  async otherPackCounts(
+    companyId: string,
+    collectionId: string,
+    productIds: string[],
+  ): Promise<OtherPackCountsView> {
+    await this.owned(companyId, collectionId);
+    const uniqueIds = [...new Set(productIds)];
+    if (uniqueIds.length === 0) {
+      return { counts: [] };
+    }
+
+    const rows = await this.prisma.collectionProduct.findMany({
+      where: {
+        productId: { in: uniqueIds },
+        collectionId: { not: collectionId },
+        collection: {
+          companyId,
+          status: { not: CollectionStatus.Archived },
+        },
+      },
+      select: { productId: true },
+    });
+
+    const tally = new Map<string, number>();
+    for (const id of uniqueIds) tally.set(id, 0);
+    for (const row of rows) {
+      tally.set(row.productId, (tally.get(row.productId) ?? 0) + 1);
+    }
+
+    return {
+      counts: uniqueIds.map((productId) => ({
+        productId,
+        otherPackCount: tally.get(productId) ?? 0,
+      })),
+    };
   }
 
   /**

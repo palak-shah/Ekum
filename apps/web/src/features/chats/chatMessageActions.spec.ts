@@ -56,7 +56,7 @@ describe('canForwardMessage', () => {
           reference: {
             kind: 'order',
             id: 'o1',
-            name: 'Unavailable',
+            name: 'No longer available',
             image: null,
             available: false,
           },

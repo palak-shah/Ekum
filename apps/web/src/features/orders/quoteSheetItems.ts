@@ -26,6 +26,11 @@ export function orderLineCantSupplyCue(cantSupply: boolean): string | null {
   return cantSupply ? 'Can’t supply' : null;
 }
 
+export function orderLineLeftoverCue(item: Pick<OrderItemView, 'unavailableReason'>): string | null {
+  const reason = item.unavailableReason?.trim();
+  return reason || null;
+}
+
 /**
  * Reopen: declined default on; an explicit untick (`prev[id] === false`) wins
  * so the seller can bring the line back.

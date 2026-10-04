@@ -356,7 +356,7 @@ export function GroupInfoPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
       <PageHeader onBack={() => navigate(`/chats/${id}`)} />
-      <div className="ekum-no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+      <div className="ekum-no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <GroupIdentityHero
           title={groupTitle}
           blurb={blurb}

@@ -39,11 +39,15 @@ import {
   canViewCollectionProducts,
 } from '../catalog/audience-visibility';
 import {
+  collectionHasPublishedMember,
+  hasPublishedDesignClause,
   isCollectionLiveForBuyers,
   liveWindowClauses,
 } from '../catalog/collection-schedule';
-import { collectionCardInclude } from './collection-preview';
+import { draftPublishedPacksWithoutLiveDesign } from '../catalog/draft-packs-after-design-hide';
+import { collectionCardInclude, publishedCollectionMemberWhere } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
+import { rankWindowTake } from './rank-window';
 import {
   interestHitLabel,
   matchesCompanyInterest,
@@ -76,7 +80,11 @@ function audienceVisibility(viewerCompanyId: string): { OR: object[] } {
 /** Audience + curated source auto-exclude for collection rows. */
 function collectionAudienceVisibility(viewerCompanyId: string): object {
   return {
-    AND: [audienceVisibility(viewerCompanyId), curatedSourceExcludeAnd(viewerCompanyId)],
+    AND: [
+      audienceVisibility(viewerCompanyId),
+      curatedSourceExcludeAnd(viewerCompanyId),
+      hasPublishedDesignClause(),
+    ],
   };
 }
 
@@ -98,6 +106,10 @@ type InterestCompanyRow = {
   sellCategories: string[];
   superCategories: string[];
 };
+
+function withLiveDesigns<T extends { _count?: { products: number } }>(rows: T[]): T[] {
+  return rows.filter((row) => (row._count?.products ?? 0) > 0);
+}
 
 function pageMerged<T>(
   merged: T[],
@@ -391,14 +403,15 @@ export class ExploreService {
       include: {
         ...collectionCardInclude,
         products: {
-          include: { product: { select: { images: true, companyId: true } } },
+          where: publishedCollectionMemberWhere,
+          include: { product: { select: { images: true, companyId: true, status: true } } },
         },
       },
       orderBy: [{ exploreActivityAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
       take: 80,
     });
 
-    return rows
+    return withLiveDesigns(rows)
       .filter((row) => isDirectedAudience(row.audience) || broadcastCollectionIds.includes(row.id))
       .map((row) => {
         const card = this.discovery.toCollectionCard(row);
@@ -485,6 +498,7 @@ export class ExploreService {
    */
   async feed(viewerCompanyId: string, query: ExploreQuery): Promise<CursorPage<ExplorePost>> {
     const companyFilter = this.companyFilter(viewerCompanyId, query);
+    const windowTake = rankWindowTake(query.limit);
     const collectionWhere: Prisma.CollectionWhereInput = {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
@@ -505,16 +519,18 @@ export class ExploreService {
           where: collectionWhere,
           include: collectionCardInclude,
           orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          take: windowTake,
         }),
         this.prisma.product.findMany({
           where: productWhere,
           include: { company: true },
           orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
+          take: windowTake,
         }),
       ]);
       const merged = await this.hideDesignsCoveredByPacks(
         [
-          ...collections.map((row) => this.toCollectionFeedRow(row)),
+          ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
           ...products.map((row) => this.toProductFeedRow(row)),
         ].sort(byPostedAtDesc),
       );
@@ -540,6 +556,7 @@ export class ExploreService {
               where: { ...collectionWhere, companyId: { in: followedIds } },
               include: collectionCardInclude,
               orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+              take: windowTake,
             })
           : Promise.resolve([] as CollectionCardRow[]),
         this.prisma.collection.findMany({
@@ -551,12 +568,14 @@ export class ExploreService {
           },
           include: collectionCardInclude,
           orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          take: windowTake,
         }),
         followedIds.length > 0
           ? this.prisma.product.findMany({
               where: { ...productWhere, companyId: { in: followedIds } },
               include: { company: true },
               orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
+              take: windowTake,
             })
           : Promise.resolve([] as ProductFeedRow[]),
         this.prisma.product.findMany({
@@ -568,15 +587,16 @@ export class ExploreService {
           },
           include: { company: true },
           orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
+          take: windowTake,
         }),
       ]);
 
     const followedRows = [
-      ...followedCollections.map((row) => this.toCollectionFeedRow(row)),
+      ...withLiveDesigns(followedCollections).map((row) => this.toCollectionFeedRow(row)),
       ...followedProducts.map((row) => this.toProductFeedRow(row)),
     ].sort(byPostedAtDesc);
     const otherRows = [
-      ...otherCollections.map((row) => this.toCollectionFeedRow(row)),
+      ...withLiveDesigns(otherCollections).map((row) => this.toCollectionFeedRow(row)),
       ...otherProducts.map((row) => this.toProductFeedRow(row)),
     ].sort(byPostedAtDesc);
 
@@ -600,6 +620,7 @@ export class ExploreService {
 
   /** Collections-only browse (same ranking rules as feed, without product posts). */
   async collections(viewerCompanyId: string, query: ExploreQuery): Promise<CursorPage<CollectionCard>> {
+    const windowTake = rankWindowTake(query.limit);
     const baseWhere: Prisma.CollectionWhereInput = {
       status: CollectionStatus.Published,
       companyId: { not: viewerCompanyId },
@@ -619,7 +640,7 @@ export class ExploreService {
         take: query.limit + 1,
         ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       });
-      return toCursorPage(rows, query.limit, (row) => this.discovery.toCollectionCard(row));
+      return toCursorPage(withLiveDesigns(rows), query.limit, (row) => this.discovery.toCollectionCard(row));
     }
 
     const followed = await this.prisma.follow.findMany({
@@ -638,6 +659,7 @@ export class ExploreService {
             where: { ...baseWhere, companyId: { in: followedIds } },
             include: collectionCardInclude,
             orderBy,
+            take: windowTake,
           })
         : Promise.resolve([] as CollectionCardRow[]),
       this.prisma.collection.findMany({
@@ -649,13 +671,14 @@ export class ExploreService {
         },
         include: collectionCardInclude,
         orderBy,
+        take: windowTake,
       }),
     ]);
 
     const { interest, city } = await this.resolveViewerRankContext(viewerCompanyId, query);
     const softRank = interest.tags.length > 0 && narrowLists(query).categories.length === 0;
-    const followedFeed = followedRows.map((row) => this.toCollectionFeedRow(row));
-    const otherFeed = otherRows.map((row) => this.toCollectionFeedRow(row));
+    const followedFeed = withLiveDesigns(followedRows).map((row) => this.toCollectionFeedRow(row));
+    const otherFeed = withLiveDesigns(otherRows).map((row) => this.toCollectionFeedRow(row));
     const mergedFeed = softRank
       ? this.mergeFollowThenInterest(followedFeed, otherFeed, interest, city)
       : [
@@ -893,7 +916,7 @@ export class ExploreService {
    * products until connected / selected / following as published.
    */
   async collectionDetail(viewerCompanyId: string, id: string): Promise<CollectionPreviewView> {
-    const collection = await this.prisma.collection.findUnique({
+    let collection = await this.prisma.collection.findUnique({
       where: { id },
       include: {
         company: true,
@@ -909,6 +932,12 @@ export class ExploreService {
     }
 
     const isOwner = collection.companyId === viewerCompanyId;
+    if (isOwner && !collectionHasPublishedMember(collection.products)) {
+      const drafted = await draftPublishedPacksWithoutLiveDesign(this.prisma, [collection]);
+      if (drafted.has(collection.id)) {
+        collection = { ...collection, status: CollectionStatus.Draft };
+      }
+    }
     const connected =
       isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
     const following =
@@ -984,7 +1013,9 @@ export class ExploreService {
       });
       const ownerName = new Map(ownerRows.map((row) => [row.id, row.name]));
 
-      products = collection.products.map((entry) => {
+      products = collection.products
+        .filter((entry) => entry.product.status === ProductStatus.Published)
+        .map((entry) => {
         const view = {
           ...this.catalog.toProductView(entry.product),
           companyName: ownerName.get(entry.product.companyId) ?? null,
@@ -1056,6 +1087,7 @@ export class ExploreService {
       description,
       connected,
       products,
+      productCount: products.length,
       viewerTicket,
     };
   }
@@ -1281,7 +1313,7 @@ export class ExploreService {
           where: {
             status: CollectionStatus.Published,
             OR: visibleOr,
-            AND: liveWindowClauses(),
+            AND: [...liveWindowClauses(), hasPublishedDesignClause()],
           },
           orderBy: { updatedAt: 'desc' },
           take: 4,
@@ -1311,7 +1343,7 @@ export class ExploreService {
               where: {
                 status: CollectionStatus.Published,
                 OR: visibleOr,
-                AND: liveWindowClauses(),
+                AND: [...liveWindowClauses(), hasPublishedDesignClause()],
               },
             },
             products: {

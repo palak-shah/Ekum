@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  leftoverCollectionReason,
+  leftoverOfferReason,
   reasonFromApiError,
   reasonFromCollectionStatus,
   reasonFromProductStatus,
@@ -14,6 +16,14 @@ describe('selectionAvailability reasons', () => {
     expect(reasonFromProductStatus(ProductStatus.Archived)).toBe('Archived');
     expect(reasonFromProductStatus(ProductStatus.Draft)).toBe('Not published');
     expect(reasonFromProductStatus(ProductStatus.Published)).toBeUndefined();
+  });
+
+  it('leftover pointers say No longer available, not Not published', () => {
+    expect(leftoverOfferReason(ProductStatus.Draft)).toBe('No longer available');
+    expect(leftoverOfferReason(ProductStatus.Archived)).toBe('No longer available');
+    expect(leftoverOfferReason(ProductStatus.Published)).toBeUndefined();
+    expect(leftoverCollectionReason(CollectionStatus.Draft)).toBe('No longer available');
+    expect(leftoverCollectionReason(CollectionStatus.Published)).toBeUndefined();
   });
 
   it('maps collection lifecycle', () => {

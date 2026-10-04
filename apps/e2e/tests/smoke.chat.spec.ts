@@ -6,6 +6,7 @@ test.describe('seed chat @smoke @regression @chat', () => {
   test('Meena opens seeded thread and can send text', async ({ page }) => {
     await loginAs(page, PHONES.meena);
     await page.goto('/chats/seed-thread-1');
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
 
     const composer = page.getByTestId('chat-composer');
     await composer.fill(`e2e-${Date.now()}`);

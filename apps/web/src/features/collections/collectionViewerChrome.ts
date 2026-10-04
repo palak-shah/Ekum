@@ -1,3 +1,12 @@
+import { ProductStatus } from '@ekum/domain-types';
+
+/** Album viewer never lists draft / archived members. */
+export function collectionViewerListedProducts<T extends { status: string }>(
+  products: T[],
+): T[] {
+  return products.filter((product) => product.status === ProductStatus.Published);
+}
+
 /** Album viewer header: Edit (owner) or Bookmark (visitor); multi-pick via long-press. */
 export function collectionViewerPrimaryAction(
   isOwner: boolean,
@@ -28,6 +37,16 @@ export function collectionPackTradeDock(input: {
     !input.selecting &&
     !input.resumeContinue
   );
+}
+
+/** Owner manage dock claims the bottom band (nav hidden). */
+export function collectionOwnerManageDock(isOwner: boolean): boolean {
+  return isOwner;
+}
+
+/** Hide the shop name card on your own packs. */
+export function collectionShowOwnerCompanyRow(isOwner: boolean): boolean {
+  return !isOwner;
 }
 
 /** Pack Description sits above designs for anyone who can open the album. */

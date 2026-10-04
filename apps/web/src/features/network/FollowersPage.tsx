@@ -15,7 +15,7 @@ import {
   SearchInput,
 } from '@/ui/kit';
 import { ListSearchRow } from '@/ui/ListSearchRow';
-import { FollowAskDecideRow, FollowGrantChecks } from '@/features/chats/FollowAskDecideRow';
+import { FollowAskDecideRow, FollowAskHeader, FollowGrantChecks } from '@/features/chats/FollowAskDecideRow';
 import { type FollowAskGrants } from '@/features/chats/followAskDecide';
 import {
   filterTheySeeMine,
@@ -135,16 +135,11 @@ export function FollowersPage() {
           {visibleAsks.map((ask) => (
             <Card key={ask.company.id} className="!p-3 flex flex-col gap-2">
               <div data-testid="follow-ask-row" className="flex flex-col gap-2">
-                <Link
+                <FollowAskHeader
+                  name={ask.company.name}
+                  logoUrl={ask.company.logoUrl}
                   to={`/company/${ask.company.id}`}
-                  className="flex min-w-0 items-center gap-2.5"
-                >
-                  <Avatar name={ask.company.name} imageUrl={ask.company.logoUrl} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">{ask.company.name}</p>
-                    <p className="truncate text-xs text-muted">{ask.company.city}</p>
-                  </div>
-                </Link>
+                />
                 <FollowAskDecideRow
                   disabled={decide.isPending}
                   onAllow={(decision) =>

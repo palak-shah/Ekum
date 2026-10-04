@@ -5,6 +5,7 @@ import {
   OrderLineStatus,
   OrderStatus,
   PaymentRequestStatus,
+  ProductStatus,
   designAlbumCaption,
   designAlbumProductIdsFromMessage,
   inferOrderChatEvent,
@@ -15,7 +16,12 @@ import {
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { canViewCollectionProducts } from '../catalog/audience-visibility';
+import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
 import { isHeldFromSupplier } from '../orders/orderHold';
+
+function catalogDesignLive(status?: string | null): boolean {
+  return status === ProductStatus.Published;
+}
 
 /**
  * Messages store a reference id, never a copy. Product/collection cards resolve
@@ -64,6 +70,7 @@ export class ReferenceResolver {
               allowForward: true,
               audience: true,
               audienceCompanyIds: true,
+              status: true,
               company: { select: { id: true, name: true } },
             },
           })
@@ -79,12 +86,14 @@ export class ReferenceResolver {
               allowForward: true,
               audience: true,
               audienceCompanyIds: true,
+              status: true,
+              startsAt: true,
+              endsAt: true,
               company: { select: { id: true, name: true } },
               _count: { select: { products: true } },
               products: {
                 orderBy: { position: 'asc' },
-                take: 4,
-                select: { product: { select: { images: true } } },
+                select: { product: { select: { images: true, status: true } } },
               },
             },
           })
@@ -171,8 +180,8 @@ export class ReferenceResolver {
         let allowForward = true;
         for (const id of ids) {
           const product = productById.get(id);
-          if (!product) {
-            designItems.push({ id, name: 'Unavailable', image: null });
+          if (!product || !catalogDesignLive(product.status)) {
+            designItems.push({ id, name: 'No longer available', image: null });
             continue;
           }
           anyAvailable = true;
@@ -225,7 +234,7 @@ export class ReferenceResolver {
           ownerCompanyId: product?.company?.id ?? product?.companyId ?? null,
           ownerCompanyName: product?.company?.name ?? null,
           allowForward: product ? product.allowForward !== false : true,
-          available: Boolean(product),
+          available: Boolean(product) && catalogDesignLive(product.status),
         });
       } else if (message.type === MessageType.CollectionCard) {
         const collection = collectionById.get(message.referenceId);
@@ -255,7 +264,7 @@ export class ReferenceResolver {
           ownerCompanyId: collection?.company?.id ?? collection?.companyId ?? null,
           ownerCompanyName: collection?.company?.name ?? null,
           allowForward: collection ? collection.allowForward !== false : true,
-          available: Boolean(collection),
+          available: Boolean(collection) && isCollectionLiveForBuyers(collection),
         });
       } else if (message.type === MessageType.PaymentCard) {
         const ask = paymentById.get(message.referenceId);

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { CollectionStatus } from '@ekum/domain-types';
+import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -41,12 +41,24 @@ export function assertValidLiveWindow(startsAt: Date | null, endsAt: Date | null
   }
 }
 
-/** Buyer-facing: published and inside the live window. */
+/** At least one Published member — empty / all-draft packs waste a follower tap. */
+export function hasPublishedDesignClause(): Prisma.CollectionWhereInput {
+  return { products: { some: { product: { status: ProductStatus.Published } } } };
+}
+
+export function collectionHasPublishedMember(
+  products?: Array<{ product?: { status?: string } | null } | null> | null,
+): boolean {
+  return (products ?? []).some((row) => row?.product?.status === ProductStatus.Published);
+}
+
+/** Buyer-facing: published, inside the live window, and has a live design. */
 export function isCollectionLiveForBuyers(
   collection: {
     status: string;
     startsAt?: Date | string | null;
     endsAt?: Date | string | null;
+    products?: Array<{ product?: { status?: string } | null } | null> | null;
   },
   now: Date = new Date(),
 ): boolean {
@@ -55,6 +67,9 @@ export function isCollectionLiveForBuyers(
   const endsAt = collection.endsAt ? new Date(collection.endsAt) : null;
   if (startsAt && startsAt.getTime() > now.getTime()) return false;
   if (endsAt && endsAt.getTime() < now.getTime()) return false;
+  if (collection.products !== undefined && !collectionHasPublishedMember(collection.products)) {
+    return false;
+  }
   return true;
 }
 
@@ -72,6 +87,6 @@ export function livePublishedCollectionWhere(
 ): Prisma.CollectionWhereInput {
   return {
     status: CollectionStatus.Published,
-    AND: liveWindowClauses(now),
+    AND: [...liveWindowClauses(now), hasPublishedDesignClause()],
   };
 }

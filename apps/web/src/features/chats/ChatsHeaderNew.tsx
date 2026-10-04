@@ -1,14 +1,11 @@
-import { useSyncExternalStore } from 'react';
 import { PlusIcon } from '@/ui/icons';
 import { useTeamCaps } from '@/lib/teamCaps';
-import { getChatsInboxSelecting, subscribeChatsInboxSelect } from './chatsInboxSelect';
 import { requestChatsNewChat } from './chatsNewChat';
 
 /** WhatsApp-style New chat — filled circle, far top-right of Chats. */
 export function ChatsHeaderNew() {
   const { can } = useTeamCaps();
-  const selecting = useSyncExternalStore(subscribeChatsInboxSelect, getChatsInboxSelecting);
-  if (!can('chats') || selecting) return null;
+  if (!can('chats')) return null;
 
   return (
     <button

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConnectionView,
-  CreateGroupThreadDto,
   StartDirectThreadDto,
   StartDirectThreadResult,
   TeamMemberView,
@@ -12,18 +11,19 @@ import type {
 import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
-import { Button, Field, InlineNotice, SearchInput, Sheet, TextInput } from '@/ui/kit';
+import { Button, InlineNotice, SearchInput, Sheet } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { TeamPersonRow } from '@/features/chats/TeamPersonRow';
 import { directOpenToast } from './directOpenToast';
 
-type Step = 'shops' | 'team' | 'name';
+type Step = 'shops' | 'team';
 
 type Props = {
   open: boolean;
   onClose: () => void;
 };
 
+/** New chat from ＋ — one business only. Groups come from trader reveal on orders. */
 export function StartChatSheet({ open, onClose }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -31,8 +31,7 @@ export function StartChatSheet({ open, onClose }: Props) {
   const { can, isOwner } = useTeamCaps();
   const canChat = can('chats');
 
-  const [groupTitle, setGroupTitle] = useState('');
-  const [companyIds, setCompanyIds] = useState<string[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [staffIds, setStaffIds] = useState<string[]>([]);
   const [teamQuery, setTeamQuery] = useState('');
   const [step, setStep] = useState<Step>('shops');
@@ -42,8 +41,7 @@ export function StartChatSheet({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setGroupTitle('');
-    setCompanyIds([]);
+    setCompanyId(null);
     setStaffIds([]);
     setTeamQuery('');
     setStep('shops');
@@ -93,11 +91,12 @@ export function StartChatSheet({ open, onClose }: Props) {
     navigate(`/chats/${thread.id}`);
   };
 
-  const businessLabel = (companyId: string) =>
-    active.find((row) => row.company.id === companyId)?.company.name ?? 'business';
+  const businessLabel = (id: string) =>
+    active.find((row) => row.company.id === id)?.company.name ?? 'business';
 
-  const openChatWithLabel =
-    companyIds.length === 1 ? `Open chat with ${businessLabel(companyIds[0]!)}` : 'Open chat';
+  const openChatWithLabel = companyId
+    ? `Open chat with ${businessLabel(companyId)}`
+    : 'Open chat';
 
   const onCloneOrError = (err: unknown) => {
     if (err instanceof ApiError && err.code === 'SAME_CHAT') {
@@ -118,62 +117,28 @@ export function StartChatSheet({ open, onClose }: Props) {
     mutationFn: (payload: StartDirectThreadDto) =>
       api.post<StartDirectThreadResult>('/threads/direct', payload),
     onSuccess: (thread) => {
-      const name = thread.counterpart?.name?.trim() || businessLabel(companyIds[0] ?? '');
+      const name = thread.counterpart?.name?.trim() || businessLabel(companyId ?? '');
       goToThread(thread, directOpenToast(name, thread.opened));
     },
     onError: onCloneOrError,
   });
 
-  const createGroup = useMutation({
-    mutationFn: (dto: CreateGroupThreadDto) => api.post<ThreadSummary>('/threads/group', dto),
-    onSuccess: goToThread,
-    onError: onCloneOrError,
-  });
-
-  const pending = startDirect.isPending || createGroup.isPending;
-  const selectedShops = companyIds
-    .map((id) => active.find((row) => row.company.id === id)?.company)
-    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+  const pending = startDirect.isPending;
 
   const openDirect = (memberUserIds: string[]) => {
-    if (pending || companyIds.length !== 1) return;
+    if (pending || !companyId) return;
     setError(null);
     startDirect.mutate({
-      companyId: companyIds[0]!,
+      companyId,
       memberUserIds: isOwner ? memberUserIds : [],
     });
   };
 
-  const createNamedGroup = () => {
-    if (pending || companyIds.length < 2 || !groupTitle.trim()) return;
-    setError(null);
-    setExistingThreadId(null);
-    setExistingThreadTitle(null);
-    createGroup.mutate({
-      title: groupTitle.trim(),
-      participantCompanyIds: companyIds,
-      memberUserIds: isOwner ? staffIds : [],
-    });
-  };
-
-  const goAfterTeam = (memberUserIds: string[]) => {
-    if (companyIds.length > 1) {
-      setError(null);
-      setStep('name');
-      return;
-    }
-    openDirect(memberUserIds);
-  };
-
   const onShopsNext = () => {
-    if (pending || companyIds.length < 1) return;
+    if (pending || !companyId) return;
     setError(null);
     if (hasTeamStep) {
       setStep('team');
-      return;
-    }
-    if (companyIds.length > 1) {
-      setStep('name');
       return;
     }
     openDirect([]);
@@ -196,32 +161,20 @@ export function StartChatSheet({ open, onClose }: Props) {
     });
   };
 
-  const skipTeamStep = () => {
-    if (pending) return;
-    setStaffIds([]);
-    goAfterTeam([]);
-  };
-
-  const title = step === 'name' ? 'New group' : step === 'team' ? 'Add your team' : 'New chat';
-
-  const onBack =
-    step === 'name'
-      ? () => {
-          setError(null);
-          setStep(hasTeamStep ? 'team' : 'shops');
-        }
-      : step === 'team'
-        ? () => {
-            setError(null);
-            setStep('shops');
-          }
-        : undefined;
+  const title = step === 'team' ? 'Add your team' : 'New chat';
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      onBack={onBack}
+      onBack={
+        step === 'team'
+          ? () => {
+              setError(null);
+              setStep('shops');
+            }
+          : undefined
+      }
       title={title}
       panelClassName="h-[min(88dvh,36rem)]"
       footer={
@@ -247,43 +200,25 @@ export function StartChatSheet({ open, onClose }: Props) {
                   Open chat
                 </Button>
               </>
-            ) : step === 'name' ? (
-              <Button
-                fullWidth
-                disabled={pending || !groupTitle.trim()}
-                onClick={createNamedGroup}
-              >
-                {pending ? 'Opening…' : 'Create'}
-              </Button>
             ) : step === 'team' ? (
               <Button
                 fullWidth
-                disabled={pending || companyIds.length < 1}
-                onClick={() => goAfterTeam(staffIds)}
+                disabled={pending || !companyId}
+                onClick={() => openDirect(staffIds)}
               >
-                {pending
-                  ? 'Opening…'
-                  : companyIds.length > 1
-                    ? 'Next'
-                    : openChatWithLabel}
+                {pending ? 'Opening…' : openChatWithLabel}
               </Button>
             ) : (
-              <Button
-                fullWidth
-                disabled={pending || companyIds.length < 1}
-                onClick={onShopsNext}
-              >
+              <Button fullWidth disabled={pending || !companyId} onClick={onShopsNext}>
                 {pending
                   ? 'Opening…'
                   : hasTeamStep
-                    ? companyIds.length < 1
-                      ? 'Pick a business'
-                      : 'Next'
-                    : companyIds.length > 1
+                    ? companyId
                       ? 'Next'
-                      : companyIds.length === 1
-                        ? openChatWithLabel
-                        : 'Pick a business'}
+                      : 'Pick a business'
+                    : companyId
+                      ? openChatWithLabel
+                      : 'Pick a business'}
               </Button>
             )}
           </div>
@@ -296,40 +231,22 @@ export function StartChatSheet({ open, onClose }: Props) {
         <>
           <div hidden={step !== 'shops'} className="flex flex-col gap-4 pb-4">
             <ConnectionPicker
-              mode="multi"
+              mode="single"
               embedded
               findOnEkum="link"
               connections={active}
               loading={connections.isPending && !connections.data}
-              value={companyIds}
-              onChange={setCompanyIds}
-              onMessageFound={(companyId) => {
-                setCompanyIds((ids) => (ids.includes(companyId) ? ids : [...ids, companyId]));
-              }}
-              label="Businesses"
+              value={companyId}
+              onChange={(id) => setCompanyId(id)}
+              onMessageFound={(id) => setCompanyId(id)}
+              label="Business"
               emptyMessage="Find a business on Ekum — or connect first."
             />
           </div>
           {hasTeamStep ? (
             <div hidden={step !== 'team'} className="flex flex-col gap-4 pb-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 text-sm text-muted">
-                  Optional — add teammates
-                  {companyIds.length > 1 ? (
-                    <>
-                      {' or '}
-                      <button
-                        type="button"
-                        className="font-bold text-accent underline decoration-accent/40 disabled:opacity-45"
-                        disabled={pending}
-                        onClick={skipTeamStep}
-                      >
-                        skip
-                      </button>
-                    </>
-                  ) : null}
-                  .
-                </p>
+                <p className="min-w-0 text-sm text-muted">Optional — add teammates.</p>
                 {visibleStaff.length > 0 ? (
                   <button
                     type="button"
@@ -369,32 +286,6 @@ export function StartChatSheet({ open, onClose }: Props) {
               </div>
             </div>
           ) : null}
-          <div hidden={step !== 'name'} className="flex flex-col gap-4 pb-4">
-            <Field label="Group name">
-              <TextInput
-                value={groupTitle}
-                onChange={(e) => setGroupTitle(e.target.value)}
-                placeholder="e.g. Surat buyers"
-                maxLength={120}
-                autoFocus={step === 'name'}
-              />
-            </Field>
-            <p className="text-sm text-muted">
-              {companyIds.length} business{companyIds.length === 1 ? '' : 'es'}
-              {staffIds.length > 0
-                ? ` · ${staffIds.length} from your team`
-                : ''}
-            </p>
-            {selectedShops.length > 0 ? (
-              <ul className="flex flex-col gap-1.5">
-                {selectedShops.map((shop) => (
-                  <li key={shop.id} className="text-sm font-semibold text-ink">
-                    {shop.name}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
         </>
       )}
     </Sheet>

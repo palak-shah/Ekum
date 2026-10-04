@@ -34,6 +34,7 @@ import {
   getRememberedChatsInbox,
   subscribeRememberedChatsInbox,
 } from '@/features/chats/chatsInboxFilter';
+import { isChatThreadPath } from '@/features/chats/chatThreadPath';
 import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
 import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
 import { HomeAccountMenu } from '@/features/home/HomeAccountMenu';
@@ -85,8 +86,7 @@ export function AppShell() {
   const showHomeBack = shellShowsHomeBack(location.pathname);
   const isHome = location.pathname === '/';
   const ownsTopChrome = pageOwnsTopChrome(location.pathname);
-  const isChatThread =
-    /^\/chats\/[^/]+/.test(location.pathname) && location.pathname !== '/chats/archived';
+  const isChatThread = isChatThreadPath(location.pathname);
   const shopId = companyIdFromPath(location.pathname);
   const chatsInbox = useSyncExternalStore(
     subscribeRememberedChatsInbox,
@@ -107,7 +107,9 @@ export function AppShell() {
         : 0,
       search: location.search,
       pageDockUp,
-    }) || orderDockHidesNav;
+    }) ||
+    orderDockHidesNav ||
+    isChatThread;
   const wasOrdersPath = useRef(false);
 
   useEffect(() => {

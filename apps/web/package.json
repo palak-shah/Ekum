@@ -15,6 +15,7 @@
   "dependencies": {
     "@ekum/domain-types": "workspace:*",
     "@tanstack/react-query": "^5.62.11",
+    "@tanstack/react-virtual": "^3.14.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.1"

@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StartChatSheet } from './StartChatSheet';
 import { api, ApiError } from '@/lib/apiClient';
 
@@ -81,6 +81,8 @@ function renderSheet() {
 }
 
 describe('StartChatSheet', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     showToast.mockReset();
     mockGets({ connections: [], team: staffTeam });
@@ -105,7 +107,7 @@ describe('StartChatSheet', () => {
     expect(screen.queryByText(/Your team and one or more/)).toBeNull();
     expect(screen.queryByTestId('start-chat-panes')).toBeNull();
     expect(screen.getByRole('button', { name: 'Pick a business' })).toBeDisabled();
-    expect(screen.getByLabelText('Group name')).not.toBeVisible();
+    expect(screen.queryByLabelText('Group name')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Add your team' })).toBeNull();
     expect(screen.getByPlaceholderText('Search name or city…')).toBeVisible();
   });
@@ -123,7 +125,7 @@ describe('StartChatSheet', () => {
     await user.click(screen.getByText('Jaipur Emporium'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('heading', { name: 'Add your team' })).toBeVisible();
-    expect(screen.getByText('Optional — add teammates.')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Add your team' })).toBeInTheDocument();
     expect(screen.getByText('Pushya')).toBeVisible();
     expect(screen.queryByLabelText('Search your team')).toBeNull();
     expect(screen.queryByRole('button', { name: 'skip' })).toBeNull();
@@ -156,7 +158,7 @@ describe('StartChatSheet', () => {
     });
   });
 
-  it('asks for the group name after team, and Back keeps selection', async () => {
+  it('keeps only one business selected (no New group path)', async () => {
     const user = userEvent.setup();
     mockGets({
       connections: [
@@ -165,62 +167,33 @@ describe('StartChatSheet', () => {
       ],
       team: staffTeam,
     });
-    vi.mocked(api.post).mockResolvedValue({ id: 'thread-g' });
 
     renderSheet();
     await screen.findByText('Jaipur Emporium');
     await user.click(screen.getByText('Jaipur Emporium'));
     await user.click(screen.getByText('Ring Road Silks'));
-    expect(screen.getByLabelText('Group name')).not.toBeVisible();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    expect(screen.queryByLabelText('Group name')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'New group' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('heading', { name: 'Add your team' })).toBeVisible();
-    await user.click(screen.getByText('Amit'));
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getByRole('heading', { name: 'New group' })).toBeVisible();
-    expect(screen.getByLabelText('Group name')).toBeVisible();
-    expect(screen.getByTestId('sheet-back')).toHaveAttribute('aria-label', 'Back');
-    await user.click(screen.getByTestId('sheet-back'));
-    expect(screen.getByRole('heading', { name: 'Add your team' })).toBeVisible();
-    expect(screen.getByText('Amit').closest('button')).toHaveClass('border-accent');
-    await user.click(screen.getByTestId('sheet-back'));
-    expect(screen.getByRole('heading', { name: 'New chat' })).toBeVisible();
-    expect(screen.getAllByText('Jaipur Emporium').length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.type(screen.getByLabelText('Group name'), 'Surat buyers');
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-    expect(api.post).toHaveBeenCalledWith('/threads/group', {
-      title: 'Surat buyers',
-      participantCompanyIds: ['co-1', 'co-2'],
-      memberUserIds: ['u-2'],
-    });
+    expect(screen.getByRole('button', { name: 'Open chat with Ring Road Silks' })).toBeVisible();
   });
 
-  it('skips the team step when there is no staff', async () => {
+  it('opens direct without team when there is no staff', async () => {
     const user = userEvent.setup();
     mockGets({
-      connections: [
-        shop('co-1', 'Jaipur Emporium', 'Jaipur'),
-        shop('co-2', 'Ring Road Silks', 'Surat'),
-      ],
+      connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: [{ userId: 'u-owner', name: 'Ravi', role: 'owner' }],
     });
-    vi.mocked(api.post).mockResolvedValue({ id: 'thread-g' });
+    vi.mocked(api.post).mockResolvedValue(directThread('thread-d', 'created'));
 
     renderSheet();
     await screen.findByText('Jaipur Emporium');
     await user.click(screen.getByText('Jaipur Emporium'));
-    await user.click(screen.getByText('Ring Road Silks'));
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getByRole('heading', { name: 'New group' })).toBeVisible();
-    await user.click(screen.getByTestId('sheet-back'));
-    expect(screen.getByRole('heading', { name: 'New chat' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.type(screen.getByLabelText('Group name'), 'Surat buyers');
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-    expect(api.post).toHaveBeenCalledWith('/threads/group', {
-      title: 'Surat buyers',
-      participantCompanyIds: ['co-1', 'co-2'],
+    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    expect(api.post).toHaveBeenCalledWith('/threads/direct', {
+      companyId: 'co-1',
       memberUserIds: [],
     });
   });
@@ -237,7 +210,6 @@ describe('StartChatSheet', () => {
     await screen.findByText('Jaipur Emporium');
     await user.click(screen.getByText('Jaipur Emporium'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(screen.getByText('Pushya'));
     expect(screen.queryByRole('button', { name: 'skip' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
     expect(api.post).toHaveBeenCalledWith('/threads/direct', {
@@ -245,27 +217,6 @@ describe('StartChatSheet', () => {
       memberUserIds: [],
     });
     expect(showToast).toHaveBeenCalledWith('Opened chat with Jaipur Emporium', 'success');
-  });
-
-  it('goes to group name via Skip when two shops are picked', async () => {
-    const user = userEvent.setup();
-    mockGets({
-      connections: [
-        shop('co-1', 'Jaipur Emporium', 'Jaipur'),
-        shop('co-2', 'Ring Road Silks', 'Surat'),
-      ],
-      team: staffTeam,
-    });
-
-    renderSheet();
-    await screen.findByText('Jaipur Emporium');
-    await user.click(screen.getByText('Jaipur Emporium'));
-    await user.click(screen.getByText('Ring Road Silks'));
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(screen.getByText('Amit'));
-    await user.click(screen.getByRole('button', { name: 'skip' }));
-    expect(screen.getByRole('heading', { name: 'New group' })).toBeVisible();
-    expect(screen.getByLabelText('Group name')).toBeVisible();
   });
 
   it('shows team search when there are 10 or more staff', async () => {
@@ -290,33 +241,26 @@ describe('StartChatSheet', () => {
     expect(screen.getByLabelText('Search your team')).toBeVisible();
   });
 
-  it('shows Open chat when the group already exists', async () => {
+  it('shows Open chat when the same 1:1 already exists', async () => {
     const user = userEvent.setup();
     mockGets({
-      connections: [
-        shop('co-1', 'Jaipur Emporium', 'Jaipur'),
-        shop('co-2', 'Ring Road Silks', 'Surat'),
-      ],
+      connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: [{ userId: 'u-owner', name: 'Ravi', role: 'owner' }],
     });
     vi.mocked(api.post).mockRejectedValue(
       new ApiError({
         statusCode: 409,
         code: 'SAME_CHAT',
-        message: 'That’s the same as Surat buyers. Open that chat?',
-        details: { threadId: 'thread-existing', title: 'Surat buyers' },
+        message: 'That’s the same as Jaipur Emporium. Open that chat?',
+        details: { threadId: 'thread-existing', title: 'Jaipur Emporium' },
       }),
     );
 
     renderSheet();
     await screen.findByText('Jaipur Emporium');
     await user.click(screen.getByText('Jaipur Emporium'));
-    await user.click(screen.getByText('Ring Road Silks'));
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.type(screen.getByLabelText('Group name'), 'Another name');
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-    expect(screen.getByText('Same as Surat buyers.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    expect(await screen.findByText('Same as Jaipur Emporium.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open chat' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
   });
 });

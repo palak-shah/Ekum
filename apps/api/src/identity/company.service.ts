@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma, type Company } from '@prisma/client';
 import {
   CollectionStatus,
+  ProductStatus,
   MembershipRole,
   ThreadParticipantState,
   ThreadType,
@@ -309,21 +310,22 @@ export class CompanyService {
           // Owner browsing their own shop still sees every published collection.
           ...(isOwner ? [{ companyId: targetId }] : []),
         ],
-        // Buyers only see albums inside the live window; owners see scheduled too.
-        ...(isOwner
-          ? {}
-          : {
-              AND: [
+        AND: [
+          { products: { some: { product: { status: ProductStatus.Published } } } },
+          ...(isOwner
+            ? []
+            : [
                 { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
                 { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
-              ],
-            }),
+              ]),
+        ],
       },
       include: collectionCardInclude,
       ...cursorArgs(query),
     });
 
-    return toCursorPage(rows, query.limit, (row) => {
+    const live = rows.filter((row) => row._count.products > 0);
+    return toCursorPage(live, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
       return {
         id: row.id,
