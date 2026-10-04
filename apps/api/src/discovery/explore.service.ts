@@ -1087,7 +1087,7 @@ export class ExploreService {
       description,
       connected,
       products,
-      productCount: products.length,
+      productCount: products?.length ?? 0,
       viewerTicket,
     };
   }

@@ -234,7 +234,7 @@ export class ReferenceResolver {
           ownerCompanyId: product?.company?.id ?? product?.companyId ?? null,
           ownerCompanyName: product?.company?.name ?? null,
           allowForward: product ? product.allowForward !== false : true,
-          available: Boolean(product) && catalogDesignLive(product.status),
+          available: product != null && catalogDesignLive(product.status),
         });
       } else if (message.type === MessageType.CollectionCard) {
         const collection = collectionById.get(message.referenceId);
@@ -264,7 +264,7 @@ export class ReferenceResolver {
           ownerCompanyId: collection?.company?.id ?? collection?.companyId ?? null,
           ownerCompanyName: collection?.company?.name ?? null,
           allowForward: collection ? collection.allowForward !== false : true,
-          available: Boolean(collection) && isCollectionLiveForBuyers(collection),
+          available: collection != null && isCollectionLiveForBuyers(collection),
         });
       } else if (message.type === MessageType.PaymentCard) {
         const ask = paymentById.get(message.referenceId);

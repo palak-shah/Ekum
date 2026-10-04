@@ -83,7 +83,11 @@ export class RelistRequestService {
       if (
         !collection ||
         collection.status !== CollectionStatus.Published ||
-        !isCollectionLiveForBuyers(collection)
+        !isCollectionLiveForBuyers({
+          status: collection.status,
+          startsAt: collection.startsAt,
+          endsAt: collection.endsAt,
+        })
       ) {
         throw new NotFoundException({ code: 'NOT_FOUND', message: 'Pack not found.' });
       }
