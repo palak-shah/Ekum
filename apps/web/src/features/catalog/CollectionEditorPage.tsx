@@ -1285,7 +1285,7 @@ export function CollectionEditorPage() {
     const photo = pendingPhotos.find((p) => p.localId === localId);
     if (!photo) return;
     setMemberForm({
-      name: photo.name,
+      name: nameForNewDesign(photo.name, photo.sku),
       rate: photo.rate,
       unit: photo.unit || Unit.Set,
       piecesPerPack: photo.piecesPerPack,
