@@ -11,6 +11,7 @@ describe('collectionMemberFind', () => {
             sku: 'EK-1',
             description: '44 inch cotton',
             categories: ['Wedding 2026', 'saree'],
+            company: { name: 'Ahmedabad Loom Co' },
           },
         },
         {
@@ -22,7 +23,14 @@ describe('collectionMemberFind', () => {
           },
         },
       ]),
-    ).toEqual(['Banarasi Silk', 'EK-1', '44 inch cotton', 'Wedding 2026', 'saree']);
+    ).toEqual([
+      'Banarasi Silk',
+      'EK-1',
+      '44 inch cotton',
+      'Wedding 2026',
+      'saree',
+      'Ahmedabad Loom Co',
+    ]);
   });
 
   it('returns empty when members are missing', () => {

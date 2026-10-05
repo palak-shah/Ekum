@@ -820,6 +820,7 @@ export function AlbumGrid({
 export function CatalogFeedPost({
   name,
   meta,
+  source,
   detail,
   href,
   images,
@@ -835,6 +836,8 @@ export function CatalogFeedPost({
 }: {
   name: string;
   meta?: string;
+  /** Owner mill cue — louder than tags. */
+  source?: string | null;
   detail?: string;
   href: string;
   images: string[];
@@ -885,6 +888,14 @@ export function CatalogFeedPost({
         className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
       >
         <p className="text-sm font-semibold tracking-tight text-ink">{name}</p>
+        {source ? (
+          <p
+            className="text-sm font-semibold tracking-tight text-ink"
+            data-testid="catalog-feed-source"
+          >
+            {source}
+          </p>
+        ) : null}
         {meta ? <p className="text-xs font-medium text-muted">{meta}</p> : null}
         {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
       </Link>

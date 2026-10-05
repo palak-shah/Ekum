@@ -62,19 +62,20 @@ describe('CatalogFeedPost pack chrome', () => {
     expect(screen.getByRole('link', { name: /Wedding Edit/ })).toBeInTheDocument();
   });
 
-  it('shows tags and From on a second line when they exist', () => {
+  it('shows tags muted and owner From as its own caption', () => {
     wrap(
       <CatalogFeedPost
         name="Wedding Edit"
         meta="9 designs · 9 Sept"
-        detail="Sarees · Bridal · From Surat Silk House"
+        source="From Yash Fabrics"
+        detail="Sarees · Bridal"
         href="/collections/c1"
         images={[]}
         imageCount={0}
-        company={company}
         onMediaClick={() => undefined}
       />,
     );
-    expect(screen.getByText('Sarees · Bridal · From Surat Silk House')).toBeInTheDocument();
+    expect(screen.getByTestId('catalog-feed-source')).toHaveTextContent('From Yash Fabrics');
+    expect(screen.getByText('Sarees · Bridal')).toBeInTheDocument();
   });
 });

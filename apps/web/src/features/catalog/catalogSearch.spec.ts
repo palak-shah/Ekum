@@ -32,4 +32,10 @@ describe('catalogSearchMatches', () => {
     expect(catalogSearchMatches('1200', ...parts)).toBe(true);
     expect(catalogSearchMatches('k-2', ...parts)).toBe(true);
   });
+
+  it('matches mill shop names on a pack haystack', () => {
+    expect(
+      catalogSearchMatches('yash', 'Festive 2026', 'Wedding', 'Yash Fabrics'),
+    ).toBe(true);
+  });
 });

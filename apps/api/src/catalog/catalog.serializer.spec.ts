@@ -161,5 +161,6 @@ describe('CatalogSerializer', () => {
     const detail = serializer.toCollectionDetail(collection);
     expect(detail.products[0]?.companyName).toBe('Ahmedabad Loom Co');
     expect(detail.memberShops).toEqual([{ id: 'kavita', name: 'Ahmedabad Loom Co' }]);
+    expect(detail.memberFind).toContain('Ahmedabad Loom Co');
   });
 });

@@ -826,7 +826,12 @@ export function CollectionViewerPage() {
         <CollectionVisitorNote text={data.description ?? ''} />
       ) : null}
       {ownerSourceLine ? (
-        <p className="px-0.5 text-xs text-muted">{ownerSourceLine}</p>
+        <p
+          className="px-0.5 text-sm font-semibold tracking-tight text-ink"
+          data-testid="collection-owner-source"
+        >
+          {ownerSourceLine}
+        </p>
       ) : null}
       {data.products && showHandleCopy ? (
         <div className="px-0.5" data-testid="collection-order-goes-to">
@@ -1063,6 +1068,13 @@ export function CollectionViewerPage() {
             ? (viewerProduct.companyName ?? data.company.name)
             : null
         }
+        curatedFrom={
+          Boolean(
+            isOwner &&
+              viewerProduct &&
+              viewerProduct.companyId !== data.company.id,
+          )
+        }
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerProduct(null)}
@@ -1206,7 +1218,17 @@ function DesignTile({
         )}
       >
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
-        {shopLine ? <p className="truncate text-xs text-muted">{shopLine}</p> : null}
+        {shopLine ? (
+          <p
+            className={cx(
+              'truncate text-xs',
+              curatedFrom ? 'font-semibold text-ink' : 'text-muted',
+            )}
+            data-testid={curatedFrom ? 'collection-design-from' : undefined}
+          >
+            {shopLine}
+          </p>
+        ) : null}
         {meta ? <p className="truncate text-xs text-muted">{meta}</p> : null}
       </button>
     </div>
@@ -1216,6 +1238,7 @@ function DesignTile({
 function ProductPhotosSheet({
   product,
   shopName,
+  curatedFrom = false,
   index,
   onIndex,
   onClose,
@@ -1225,6 +1248,7 @@ function ProductPhotosSheet({
 }: {
   product: ProductView | null;
   shopName?: string | null;
+  curatedFrom?: boolean;
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
@@ -1260,9 +1284,9 @@ function ProductPhotosSheet({
         }
       >
         <div className="flex flex-col gap-3">
-          {designCardShopLine(shopName ?? product.companyName) ? (
-            <p className="text-sm font-medium text-ink">
-              {designCardShopLine(shopName ?? product.companyName)}
+          {designCardShopLine(shopName ?? product.companyName, curatedFrom) ? (
+            <p className={cx('text-sm', curatedFrom ? 'font-semibold text-ink' : 'font-medium text-ink')}>
+              {designCardShopLine(shopName ?? product.companyName, curatedFrom)}
             </p>
           ) : null}
           {product.sku ? <p className="text-xs font-medium text-muted">SKU {product.sku}</p> : null}

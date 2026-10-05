@@ -1179,9 +1179,6 @@ function SellerCollectionTile({
     collection.companyId,
     collection.memberShops ?? [],
   );
-  const subtitle = sourceLine
-    ? `${density} · ${sourceLine} · ${summary.line}`
-    : `${density} · ${summary.line}`;
   const whoWhen = libraryAuditLine(collection);
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
@@ -1201,11 +1198,11 @@ function SellerCollectionTile({
     });
     const detail = packFeedDetailLine({
       tags: collection.categories,
-      sourceLine,
     });
     return (
       <CatalogFeedPost
         name={collection.name}
+        source={sourceLine}
         meta={meta}
         detail={detail}
         href={href}
@@ -1241,7 +1238,14 @@ function SellerCollectionTile({
       </div>
       <div className="flex min-w-0 flex-col gap-1 overflow-hidden p-3">
         <p className="truncate text-base font-semibold text-ink">{collection.name}</p>
-        <p className="line-clamp-2 text-xs text-muted">{subtitle}</p>
+        {sourceLine ? (
+          <p className="truncate text-sm font-semibold tracking-tight text-ink" data-testid="you-collection-source">
+            {sourceLine}
+          </p>
+        ) : null}
+        <p className="line-clamp-2 text-xs text-muted">
+          {density} · {summary.line}
+        </p>
         {whoWhen ? <p className="text-[11px] text-muted">{whoWhen}</p> : null}
       </div>
     </>

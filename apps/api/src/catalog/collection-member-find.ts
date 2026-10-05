@@ -1,4 +1,4 @@
-/** Haystack bits for in-list collection find (name, SKU, notes, tags). */
+/** Haystack bits for in-list collection find (name, SKU, notes, tags, mill shop). */
 export function collectionMemberFind(
   products:
     | Array<{
@@ -7,6 +7,8 @@ export function collectionMemberFind(
           sku?: string | null;
           description?: string | null;
           categories?: string[] | null;
+          company?: { name?: string | null } | null;
+          companyName?: string | null;
         };
       }>
     | undefined,
@@ -20,6 +22,8 @@ export function collectionMemberFind(
       product.sku,
       product.description,
       ...(product.categories ?? []),
+      product.company?.name,
+      product.companyName,
     ];
     for (const bit of bits) {
       const value = bit?.trim();

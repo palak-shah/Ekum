@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-04 (Explore first-paint + app shell perf)  
+**Updated:** 2026-10-04 (curated From + mill Find)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -221,6 +221,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Browse | Shop Designs = unique pack members + Explore posts | Works | Unit | Required | Completeness 2026-09-24-shop-unique-pack-designs |
 | Browse | Shop Feed / Grid (shared with Saved · album · My designs) | Works | Unit | Required | Completeness 2026-09-24-shop-feed-grid |
 | Catalog | Pack Feed = Explore post (shop + You Collections) | Works | Unit | Required | Completeness 2026-09-30-pack-feed-explore-parity; tags/From 2026-09-30-pack-feed-tags |
+| Catalog | Owner From {shop} loud + Collections Find by mill; mill designs stay off Designs | Works | Unit | Required | Completeness 2026-10-04-curated-from-shop |
 | Browse | Open collection / design while Selecting (name always opens; photo toggles) | Works | Unit + Functional | Required | Completeness 2026-09-24-browse-open-while-selecting; Explore + shop + album + Saved |
 | Browse | Selection availability = access only (album members without market post stay orderable) | Works | Unit | Required | Completeness 2026-09-07-selection-access-availability; explore productDetail + TradeAccess |
 | Trader curation | Curate albums like Order (whole pack / pick); designs as-is; gray locked (Slice A) | Works | Unit + Functional | Required | Completeness 2026-09-04-curate-album-as-is; Save draft primary; no Ask in A |

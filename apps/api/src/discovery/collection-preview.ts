@@ -55,6 +55,7 @@ export const collectionCardInclude = {
           description: true,
           categories: true,
           status: true,
+          company: { select: { name: true } },
         },
       },
     },

@@ -1711,7 +1711,11 @@ export function CollectionEditorPage() {
               {libraryAuditLine(existing.data) ? ` · ${libraryAuditLine(existing.data)}` : ''}
             </p>
           )}
-          {ownerSourceLine ? <p className="text-xs text-muted">{ownerSourceLine}</p> : null}
+          {ownerSourceLine ? (
+            <p className="text-sm font-semibold tracking-tight text-ink" data-testid="collection-editor-source">
+              {ownerSourceLine}
+            </p>
+          ) : null}
           {isPublished && existing.data.rateVisibility === RateVisibility.OnRequest ? (
             <p className="text-xs text-muted">Buyers may need to ask for rates</p>
           ) : null}
