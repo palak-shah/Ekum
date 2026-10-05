@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { OrderChatEvent } from '@ekum/domain-types';
 import { orderCardMessage, textMessage } from '@/test/messageFixtures';
 import {
@@ -333,6 +333,33 @@ describe('buildChatTradeCard dispatcher', () => {
     expect(card?.note).toBe('Need 20 more pieces');
     expect(card?.thumbs).toEqual(['https://img/grey.jpg']);
     expect(card?.action?.label).toBe('View order →');
+  });
+
+  it('offers Send to supplier on inbound complaint with escalate handler', () => {
+    const escalate = vi.fn();
+    const card = buildChatTradeCard(
+      textMessage({
+        id: 'c-esc',
+        type: 'complaint',
+        body: 'Short qty',
+        mine: false,
+        referenceId: 'cmp-esc',
+      }),
+      {
+        kind: 'complaint',
+        id: 'cmp-esc',
+        name: 'Short qty',
+        image: null,
+        available: true,
+        orderId: 'ord-1',
+        orderLabel: 'Silk · 5 Oct',
+      },
+      'Buyer',
+      { actions: { onEscalateComplaint: escalate } },
+    );
+    expect(card?.secondaryAction?.label).toBe('Send to supplier');
+    card?.secondaryAction?.onClick?.();
+    expect(escalate).toHaveBeenCalledWith('cmp-esc', 'ord-1', null);
   });
 
   it('has no View designs and no View order when no ticket is attached', () => {

@@ -13,6 +13,7 @@ function orderItem(partial: {
     kind: 'order',
     id: 'ord-1',
     createdAt: '2026-09-07T00:00:00.000Z',
+    updatedAt: partial.updatedAt ?? '2026-09-07T00:00:00.000Z',
     direction: partial.direction ?? 'buying',
     order: {
       id: 'ord-1',
@@ -54,6 +55,7 @@ describe('tradeListPreview', () => {
       kind: 'order',
       id: 'o1',
       createdAt: '2026-09-07T00:00:00.000Z',
+      updatedAt: '2026-09-07T00:00:00.000Z',
       direction: 'selling',
       order: {
         id: 'o1',

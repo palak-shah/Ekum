@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-04 (curated From + mill Find)  
+**Updated:** 2026-10-05 (orders timeline / complaint / dispatch edit / list sort)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
 | Explore | First-paint feed + end footer; virtual overscan; shop prefetch | Works | Unit | Required | Progressive `/explore/feed` + `sections=feed`; You've reached the end |
 | Orders | Cheap Needs you badge count (no full list walk) | Works | Unit | Required | Completeness 2026-10-04-orders-needs-you-count |
 | Notifications | Accuracy: tap mark-read, badge scope, who/what copy, deep links + push path | Works | Unit + Functional | Required | Completeness 2026-09-14-notifications-accuracy; return→order; SW `url` |

@@ -61,6 +61,12 @@ export interface TradeCardActions {
   onCurate?: () => void;
   curating?: boolean;
   curated?: boolean;
+  /** Trader escalate: complaint against us → Send to supplier. */
+  onEscalateComplaint?: (
+    complaintId: string,
+    orderId: string | null,
+    productIds?: string[] | null,
+  ) => void;
 }
 
 /** Strip a leading party name from compact-pulse body copy. */
@@ -462,6 +468,17 @@ export function buildChatTradeCard(
       const hit = ref?.designItems?.find((item) => item.image === url);
       return hit?.name?.trim() || null;
     });
+    const escalate =
+      !message.mine &&
+      message.referenceId &&
+      options.actions?.onEscalateComplaint
+        ? () =>
+            options.actions?.onEscalateComplaint?.(
+              message.referenceId!,
+              card.orderId ?? null,
+              card.productIds?.length ? card.productIds : null,
+            )
+        : undefined;
     return {
       kind: 'complaint',
       primary: ref?.name?.trim() || message.body?.trim() || 'Complaint',
@@ -475,6 +492,9 @@ export function buildChatTradeCard(
         card.orderId && options.actions?.openOrder
           ? { label: 'View order →', onClick: options.actions.openOrder, style: 'link' }
           : undefined,
+      secondaryAction: escalate
+        ? { label: 'Send to supplier', onClick: escalate }
+        : undefined,
       createdAt: message.createdAt,
       mine: message.mine,
       variant: 'bubble',

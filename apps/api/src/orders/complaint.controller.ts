@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   createComplaintSchema,
+  listComplaintsQuerySchema,
   respondComplaintSchema,
   type CreateComplaintDto,
+  type ListComplaintsQuery,
   type RespondComplaintDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -20,6 +22,14 @@ export class ComplaintController {
     @Body(new ZodValidationPipe(createComplaintSchema)) dto: CreateComplaintDto,
   ) {
     return this.complaints.create(companyId, dto);
+  }
+
+  @Get()
+  list(
+    @CurrentCompanyId() companyId: string,
+    @Query(new ZodValidationPipe(listComplaintsQuerySchema)) query: ListComplaintsQuery,
+  ) {
+    return this.complaints.list(companyId, query);
   }
 
   @Get(':id')

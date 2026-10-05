@@ -95,7 +95,11 @@ describe('tradeKindLabel', () => {
 
   it('returns label for known kind', () => {
     expect(tradeKindLabel('sample')).toBe('Sample');
-    expect(TRADE_FILTER_TYPES.map((row) => row.kind)).toEqual(['order', 'sample']);
+    expect(TRADE_FILTER_TYPES.map((row) => row.kind)).toEqual([
+      'order',
+      'sample',
+      'complaint',
+    ]);
   });
 });
 

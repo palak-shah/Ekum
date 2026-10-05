@@ -2,6 +2,7 @@ import {
   forwardRef,
   useState,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type TextareaHTMLAttributes,
@@ -102,9 +103,16 @@ export function FilterRail({ children, className }: { children: ReactNode; class
   );
 }
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className,
+  ...rest
+}: {
+  children: ReactNode;
+  className?: string;
+} & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cx('rounded-xl border border-line bg-surface p-4', className)}>
+    <div className={cx('rounded-xl border border-line bg-surface p-4', className)} {...rest}>
       {children}
     </div>
   );

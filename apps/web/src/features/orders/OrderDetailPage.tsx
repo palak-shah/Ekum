@@ -8,6 +8,7 @@ import {
   shortOrderLabel,
   type DecideOrderLinesDto,
   type DispatchDto,
+  type EditShipmentDto,
   type OrderItemView,
   type OrderView,
   type QuoteOrderDto,
@@ -49,6 +50,10 @@ import {
   dispatchLineCountLine,
 } from '@/features/orders/dispatchSheet';
 import {
+  newestFirstTrail,
+  timelineVisibleSlice,
+} from '@/features/orders/orderTimelineDisplay';
+import {
   decideLinesPayload,
   decideLinesTally,
   defaultLineActions,
@@ -60,8 +65,13 @@ import {
   shareOrDownloadPdf,
 } from '@/features/orders/packingSlip';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { CheckIcon } from '@/ui/icons';
+import { CheckIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
+import {
+  complaintAgainstTargets,
+  complaintRoleCue,
+  type ComplaintAgainstTarget,
+} from '@/features/orders/complaintAgainstTargets';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import {
@@ -166,24 +176,27 @@ function OrderTimeline({
   /** Buyer: one live quote + Edited. Seller keeps full quote history. */
   hidePriorQuotes?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const rawTrail = order.trail ?? [];
   if (rawTrail.length > 0) {
-    const { events: trail, quoteEditCount } = hidePriorQuotes
+    const { events: trailAsc, quoteEditCount } = hidePriorQuotes
       ? collapseQuotedTrailEvents(rawTrail)
       : { events: rawTrail, quoteEditCount: 0 };
+    const trail = newestFirstTrail(trailAsc);
+    const { visible, hiddenCount } = timelineVisibleSlice(trail, expanded);
     return (
-      <Card className="flex flex-col gap-0">
+      <Card className="flex flex-col gap-0" data-testid="order-timeline">
         <p className="mb-3 text-sm font-semibold text-ink">Timeline</p>
         <ol className="flex flex-col">
-          {trail.map((step, index) => (
+          {visible.map((step, index) => (
             <li key={step.id} className="flex gap-3">
               <div className="flex w-4 flex-col items-center">
                 <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
-                {index < trail.length - 1 ? (
+                {index < visible.length - 1 ? (
                   <span className="my-1 min-h-4 w-px flex-1 bg-accent/40" />
                 ) : null}
               </div>
-              <div className={cx('min-w-0 pb-3', index === trail.length - 1 && 'pb-0')}>
+              <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
                 <p className="text-sm font-medium text-ink">{step.summary ?? step.type}</p>
                 <p className="text-xs text-muted">{formatDate(step.at)}</p>
                 {hidePriorQuotes && step.type === 'quoted' && quoteEditCount > 0 ? (
@@ -209,25 +222,37 @@ function OrderTimeline({
             </li>
           ))}
         </ol>
+        {hiddenCount > 0 || expanded ? (
+          <button
+            type="button"
+            data-testid="order-timeline-more"
+            className="mt-2 self-start text-[15px] font-semibold text-accent"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? 'Less' : 'More'}
+          </button>
+        ) : null}
       </Card>
     );
   }
 
-  const steps = buildOrderTimelineSteps({
+  const stepsAsc = buildOrderTimelineSteps({
     ...order,
     returns: order.returns ?? [],
     staff: order.timelineStaff,
   });
+  const steps = newestFirstTrail(stepsAsc);
+  const { visible, hiddenCount } = timelineVisibleSlice(steps, expanded);
   const amended =
     order.amendCount > 0 ||
     (order.status === 'requested' &&
       new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime() > 2000);
 
   return (
-    <Card className="flex flex-col gap-0">
+    <Card className="flex flex-col gap-0" data-testid="order-timeline">
       <p className="mb-3 text-sm font-semibold text-ink">Timeline</p>
       <ol className="flex flex-col">
-        {steps.map((step, index) => (
+        {visible.map((step, index) => (
           <li key={step.key} className="flex gap-3">
             <div className="flex w-4 flex-col items-center">
               <span
@@ -236,11 +261,11 @@ function OrderTimeline({
                   step.done || step.current ? 'bg-accent' : 'bg-line',
                 )}
               />
-              {index < steps.length - 1 ? (
+              {index < visible.length - 1 ? (
                 <span className={cx('my-1 w-px flex-1 min-h-4', step.done ? 'bg-accent/40' : 'bg-line')} />
               ) : null}
             </div>
-            <div className={cx('min-w-0 pb-3', index === steps.length - 1 && 'pb-0')}>
+            <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
               <p
                 className={cx(
                   'text-sm font-medium',
@@ -265,6 +290,16 @@ function OrderTimeline({
           </li>
         ))}
       </ol>
+      {hiddenCount > 0 || expanded ? (
+        <button
+          type="button"
+          data-testid="order-timeline-more"
+          className="mt-2 self-start text-[15px] font-semibold text-accent"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? 'Less' : 'More'}
+        </button>
+      ) : null}
     </Card>
   );
 }
@@ -399,6 +434,8 @@ export function OrderDetailPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
+  /** When set, Dispatch sheet edits that shipment instead of creating a new LR. */
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
   const [settleOpen, setSettleOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
@@ -448,6 +485,9 @@ export function OrderDetailPage() {
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
   const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
+  const [orderMenuOpen, setOrderMenuOpen] = useState(false);
+  const [complaintAgainstOpen, setComplaintAgainstOpen] = useState(false);
+  const [complaintTargets, setComplaintTargets] = useState<ComplaintAgainstTarget[]>([]);
 
   const order = useQuery({
     queryKey: ['order', id],
@@ -657,6 +697,7 @@ export function OrderDetailPage() {
     },
     onSuccess: () => {
       setDispatchOpen(false);
+      setEditingShipmentId(null);
       setDispatchError(null);
       setDispatchNote('');
       setDispatchNoteVoice(null);
@@ -667,8 +708,59 @@ export function OrderDetailPage() {
       setDispatchError(actionErrorMessage(err, 'Could not dispatch.')),
   });
 
+  const editShipment = useMutation({
+    mutationFn: () => {
+      if (!editingShipmentId || !order.data) {
+        throw new ApiError({
+          statusCode: 400,
+          code: 'INVALID',
+          message: 'No shipment to edit.',
+        });
+      }
+      const items = Object.entries(shipOn)
+        .filter(([, on]) => on)
+        .map(([orderItemId]) => ({
+          orderItemId,
+          quantity: Math.max(0, Number(shipQty[orderItemId] ?? 0) || 0),
+        }))
+        .filter((line) => line.quantity > 0);
+      if (items.length < 1) {
+        throw new ApiError({
+          statusCode: 400,
+          code: 'NOTHING_TO_SHIP',
+          message: 'Keep at least one design on this LR.',
+        });
+      }
+      const dto: EditShipmentDto = {
+        lrNumber: (dispatch.lrNumber ?? '').trim() || null,
+        transporter: dispatch.transporter?.trim() || null,
+        parcelCount: dispatch.parcelCount ?? null,
+        items,
+      };
+      return api.patch<OrderView>(`/orders/${id}/shipments/${editingShipmentId}`, dto);
+    },
+    onSuccess: () => {
+      setDispatchOpen(false);
+      setEditingShipmentId(null);
+      setDispatchError(null);
+      refresh();
+      showToast('Dispatch updated.');
+    },
+    onError: (err) =>
+      setDispatchError(actionErrorMessage(err, 'Could not update dispatch.')),
+  });
+
   const submitDispatch = () => {
     setDispatchError(null);
+    if (editingShipmentId) {
+      const kept = Object.entries(shipOn).filter(([, on]) => on).length;
+      if (kept < 1) {
+        setDispatchError('Keep at least one design on this LR.');
+        return;
+      }
+      editShipment.mutate();
+      return;
+    }
     if (dispatchPayloadLines(shippableItems, shipOn, shipQty).length < 1) {
       setDispatchError('Turn on at least one design for this LR.');
       return;
@@ -810,11 +902,69 @@ export function OrderDetailPage() {
     setLinesOpen(true);
   };
 
+  const openComplaintFromOrder = async () => {
+    if (!order.data || !companyId) return;
+    setOrderMenuOpen(false);
+    const targets = complaintAgainstTargets(order.data, companyId);
+    if (targets.length === 0) {
+      showToast('No shop to complain about on this order.');
+      return;
+    }
+    if (targets.length === 1) {
+      await goComplaintAgainst(targets[0]!);
+      return;
+    }
+    setComplaintTargets(targets);
+    setComplaintAgainstOpen(true);
+  };
+
+  const goComplaintAgainst = async (target: ComplaintAgainstTarget) => {
+    setComplaintAgainstOpen(false);
+    try {
+      const thread = await api.post<{ id: string }>('/threads/direct', {
+        companyId: target.companyId,
+      });
+      navigate(
+        `/chats/${thread.id}?complaint=1&order=${encodeURIComponent(target.orderId)}`,
+      );
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not open chat.');
+    }
+  };
+
   const openDispatchSheet = () => {
     const pending = shippableDispatchItems(order.data?.items ?? []);
+    setEditingShipmentId(null);
     setShipOn(defaultDispatchOn(pending));
     setShipQty(defaultDispatchQty(pending));
     setDispatch({});
+    setDispatchNote('');
+    setDispatchNoteVoice(null);
+    setDispatchError(null);
+    setDispatchOpen(true);
+  };
+
+  const openEditShipment = (shipment: OrderView['shipments'][number]) => {
+    if (!order.data || order.data.status === 'settled') return;
+    const on: Record<string, boolean> = {};
+    const qty: Record<string, string> = {};
+    for (const item of order.data.items) {
+      const line = shipment.items.find((row) => row.orderItemId === item.id);
+      if (line && line.quantity > 0) {
+        on[item.id] = true;
+        qty[item.id] = String(line.quantity);
+      }
+    }
+    setEditingShipmentId(shipment.id);
+    setShipOn(on);
+    setShipQty(qty);
+    setDispatch({
+      lrNumber: shipment.lrNumber ?? undefined,
+      transporter: shipment.transporter ?? undefined,
+      parcelCount: shipment.parcelCount ?? undefined,
+    });
+    setDispatchNote('');
+    setDispatchNoteVoice(null);
     setDispatchError(null);
     setDispatchOpen(true);
   };
@@ -827,6 +977,7 @@ export function OrderDetailPage() {
     if (which === 'lines') setLinesOpen(false);
     if (which === 'dispatch') {
       setDispatchError(null);
+      setEditingShipmentId(null);
       setDispatchOpen(false);
     }
     if (which === 'settle') setSettleOpen(false);
@@ -983,21 +1134,46 @@ export function OrderDetailPage() {
         title={`${idLabel} · ${data.counterpart.name}`}
         subtitle={roleSubtitle}
         action={
-          <div className="flex flex-col items-end gap-0.5">
-            <StatusPill status={data.status} />
-            {isInquiry ? (
-              <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
-                Inquiry
-              </span>
-            ) : null}
-            {/* Part shipped is only a mid-fulfillment pill/timeline cue — never after Settled. */}
-            {data.partiallyShipped &&
-            data.status === 'confirmed' &&
-            data.status !== 'settled' ? (
-              <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
-                Part shipped
-              </span>
-            ) : null}
+          <div className="flex items-start gap-1">
+            <div className="flex flex-col items-end gap-0.5">
+              <StatusPill status={data.status} />
+              {isInquiry ? (
+                <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
+                  Inquiry
+                </span>
+              ) : null}
+              {/* Part shipped is only a mid-fulfillment pill/timeline cue — never after Settled. */}
+              {data.partiallyShipped &&
+              data.status === 'confirmed' &&
+              data.status !== 'settled' ? (
+                <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
+                  Part shipped
+                </span>
+              ) : null}
+            </div>
+            <details
+              className="relative"
+              open={orderMenuOpen}
+              onToggle={(event) => setOrderMenuOpen((event.target as HTMLDetailsElement).open)}
+            >
+              <summary
+                className="cursor-pointer list-none rounded-lg p-1.5 text-muted hover:bg-foam"
+                data-testid="order-more-menu"
+                aria-label="More"
+              >
+                <MoreHorizontalIcon width={20} height={20} />
+              </summary>
+              <div className="absolute right-0 z-20 mt-1 min-w-[10rem] rounded-xl border border-line bg-surface p-1 shadow-sm">
+                <button
+                  type="button"
+                  data-testid="order-complaint"
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-foam"
+                  onClick={() => void openComplaintFromOrder()}
+                >
+                  Complaint
+                </button>
+              </div>
+            </details>
           </div>
         }
       />
@@ -1560,14 +1736,24 @@ export function OrderDetailPage() {
                 {shipment.items.map((line) => `${line.name} × ${line.quantity}`).join(' · ')}
               </p>
               <p className="text-muted">Sent {formatDate(shipment.dispatchedAt)}</p>
-              <Button
-                variant="secondary"
-                className="mt-2"
-                data-testid="order-shipment-pdf"
-                onClick={() => void shareShipmentPdf(shipment)}
-              >
-                PDF
-              </Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data.status !== 'settled' && data.direction === 'selling' ? (
+                  <Button
+                    variant="secondary"
+                    data-testid="order-shipment-edit"
+                    onClick={() => openEditShipment(shipment)}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  data-testid="order-shipment-pdf"
+                  onClick={() => void shareShipmentPdf(shipment)}
+                >
+                  PDF
+                </Button>
+              </div>
             </div>
           ))}
         </Card>
@@ -2118,7 +2304,7 @@ export function OrderDetailPage() {
       <Sheet
         open={dispatchOpen}
         onClose={() => closeSheet('dispatch')}
-        title="Dispatch"
+        title={editingShipmentId ? 'Edit dispatch' : 'Dispatch'}
         footer={
           <div className="flex flex-col gap-2.5">
             <Field label="LR number">
@@ -2160,15 +2346,107 @@ export function OrderDetailPage() {
               fullWidth
               data-testid="order-dispatch-confirm"
               onClick={submitDispatch}
-              disabled={dispatchOrder.isPending || dispatchTally.designs < 1}
+              disabled={
+                editingShipmentId
+                  ? editShipment.isPending ||
+                    Object.values(shipOn).filter(Boolean).length < 1
+                  : dispatchOrder.isPending || dispatchTally.designs < 1
+              }
             >
-              {dispatchOrder.isPending ? 'Saving…' : 'Confirm dispatch'}
+              {editingShipmentId
+                ? editShipment.isPending
+                  ? 'Saving…'
+                  : 'Save changes'
+                : dispatchOrder.isPending
+                  ? 'Saving…'
+                  : 'Confirm dispatch'}
             </Button>
           </div>
         }
       >
         <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          {shippableItems.length === 0 ? (
+          {!editingShipmentId && (data.shipments?.length ?? 0) > 0 ? (
+            <div className="flex flex-col gap-2" data-testid="order-dispatch-prior">
+              <p className="text-xs font-semibold text-muted">Earlier dispatches</p>
+              {data.shipments.map((shipment) => (
+                <div
+                  key={shipment.id}
+                  className="flex items-start justify-between gap-2 rounded-xl border border-line bg-foam/60 px-3 py-2 opacity-70"
+                  data-testid="order-dispatch-prior-row"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {shipment.lrNumber ? `LR · ${shipment.lrNumber}` : 'Dispatch'}
+                    </p>
+                    <p className="truncate text-[11px] text-muted">
+                      {shipment.items.map((line) => `${line.name} × ${line.quantity}`).join(' · ')}
+                    </p>
+                    <p className="text-[11px] text-muted">{formatDate(shipment.dispatchedAt)}</p>
+                  </div>
+                  {data.status !== 'settled' ? (
+                    <button
+                      type="button"
+                      data-testid="order-dispatch-prior-edit"
+                      className="shrink-0 text-[15px] font-semibold text-accent"
+                      onClick={() => openEditShipment(shipment)}
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {editingShipmentId ? (
+            <>
+              <p className="text-sm text-muted">Correct quantities or LR details. Buyer is told in chat.</p>
+              {(data.items ?? [])
+                .filter((item) => shipOn[item.id] !== undefined)
+                .map((item) => {
+                  const active = shipOn[item.id] !== false;
+                  return (
+                    <div
+                      key={item.id}
+                      className={cx(
+                        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
+                        active ? 'border-accent bg-accent/5' : 'border-line bg-surface opacity-60',
+                      )}
+                      data-testid="order-dispatch-edit-line"
+                    >
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                        onClick={() =>
+                          setShipOn((prev) => ({
+                            ...prev,
+                            [item.id]: !active,
+                          }))
+                        }
+                      >
+                        <OrderLinePhoto
+                          item={item}
+                          items={data.items}
+                          onOpen={openPhotoViewer}
+                          size="sm"
+                        />
+                        <p className="min-w-0 truncate text-sm font-semibold text-ink">{item.name}</p>
+                      </button>
+                      <TextInput
+                        type="number"
+                        min={0}
+                        disabled={!active}
+                        data-testid="order-dispatch-line-qty"
+                        className={COMPACT_QTY_INPUT_CLASS}
+                        value={shipQty[item.id] ?? ''}
+                        onChange={(event) =>
+                          setShipQty((prev) => ({ ...prev, [item.id]: event.target.value }))
+                        }
+                      />
+                    </div>
+                  );
+                })}
+            </>
+          ) : shippableItems.length === 0 ? (
             <InlineNotice message="No confirmed quantity pending to dispatch." />
           ) : (
             <>
@@ -2284,13 +2562,15 @@ export function OrderDetailPage() {
               })}
             </>
           )}
-          <NoteVoiceField
-            label="Note"
-            note={dispatchNote}
-            onNoteChange={setDispatchNote}
-            voice={dispatchNoteVoice}
-            onVoiceChange={setDispatchNoteVoice}
-          />
+          {!editingShipmentId ? (
+            <NoteVoiceField
+              label="Note"
+              note={dispatchNote}
+              onNoteChange={setDispatchNote}
+              voice={dispatchNoteVoice}
+              onVoiceChange={setDispatchNoteVoice}
+            />
+          ) : null}
         </div>
       </Sheet>
 
@@ -2608,6 +2888,35 @@ export function OrderDetailPage() {
             voice={actionNoteVoice}
             onVoiceChange={setActionNoteVoice}
           />
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={complaintAgainstOpen}
+        onClose={() => setComplaintAgainstOpen(false)}
+        title="Complaint about"
+      >
+        <div className="flex flex-col gap-2 pb-2">
+          <p className="text-sm text-muted">Who is this about?</p>
+          {complaintTargets.map((target) => {
+            const cue = complaintRoleCue(target.role);
+            return (
+              <button
+                key={target.companyId}
+                type="button"
+                data-testid="order-complaint-against"
+                className="flex w-full items-center justify-between rounded-xl border border-line px-3 py-3 text-left hover:border-accent hover:bg-accent/5"
+                onClick={() => void goComplaintAgainst(target)}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-ink">
+                    {target.name}
+                  </span>
+                  {cue ? <span className="text-xs text-muted">{cue}</span> : null}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </Sheet>
 

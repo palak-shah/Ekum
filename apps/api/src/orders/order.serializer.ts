@@ -290,6 +290,10 @@ export class OrderSerializer {
       response: complaint.response,
       raisedByCompanyId: complaint.raisedByCompanyId,
       againstCompanyId: complaint.againstCompanyId,
+      forwardedFromComplaintId:
+        'forwardedFromComplaintId' in complaint
+          ? (complaint.forwardedFromComplaintId ?? null)
+          : null,
       mine: complaint.raisedByCompanyId === viewerCompanyId,
       createdAt: complaint.createdAt.toISOString(),
       updatedAt: complaint.updatedAt.toISOString(),
@@ -337,6 +341,10 @@ export class OrderSerializer {
       lrNumber: shipment.lrNumber,
       parcelCount: shipment.parcelCount,
       dispatchedAt: shipment.dispatchedAt.toISOString(),
+      updatedAt:
+        'updatedAt' in shipment && shipment.updatedAt instanceof Date
+          ? shipment.updatedAt.toISOString()
+          : undefined,
       items: shipment.items.map((line) => ({
         orderItemId: line.orderItemId,
         name: line.orderItem.name,

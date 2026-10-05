@@ -13,6 +13,8 @@ export const OrderChatEvent = {
   OrderDeclined: 'order_declined',
   OrderCancelled: 'order_cancelled',
   OrderDispatched: 'order_dispatched',
+  /** Seller corrected a past LR — living pulse: Dispatch edited. */
+  OrderDispatchEdited: 'order_dispatch_edited',
   OrderDelivered: 'order_delivered',
   OrderSettled: 'order_settled',
   /** Buyer raised a return — living order pulse: Order #… Returned + note + View order. */
@@ -30,6 +32,7 @@ const EVENT_LABELS: Record<string, string> = {
   [OrderChatEvent.OrderDeclined]: 'Declined',
   [OrderChatEvent.OrderCancelled]: 'Cancelled',
   [OrderChatEvent.OrderDispatched]: 'Dispatched',
+  [OrderChatEvent.OrderDispatchEdited]: 'Dispatch edited',
   [OrderChatEvent.OrderDelivered]: 'Delivered',
   [OrderChatEvent.OrderSettled]: 'Settled',
   [OrderChatEvent.ReturnRaised]: 'Returned',
@@ -235,6 +238,8 @@ export function orderChatEventHeadline(actor: string, event: string): string {
       return `${actor} cancelled`;
     case OrderChatEvent.OrderDispatched:
       return `${actor} dispatched`;
+    case OrderChatEvent.OrderDispatchEdited:
+      return `${actor} edited dispatch`;
     case OrderChatEvent.OrderDelivered:
       return `${actor} marked delivered`;
     case OrderChatEvent.OrderSettled:

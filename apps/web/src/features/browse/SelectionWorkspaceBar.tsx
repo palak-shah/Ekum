@@ -19,6 +19,9 @@ import { readResumeAfterAlbumPick } from '@/features/browse/resumeAfterAlbumPick
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 
+/** Phone thumb target — match kit 40px controls; never shrink below this. */
+export const SELECTION_FLOATER_MIN_H = 'min-h-10';
+
 /**
  * Compact floater: count + thumbs open the pile; Order starts the same path
  * as Your selection. Only Explore, another shop (no shop dock), and a design /
@@ -82,39 +85,41 @@ export function SelectionWorkspaceBar() {
       className="pointer-events-none fixed inset-x-0 bottom-[5.25rem] z-30 flex justify-center px-4"
       data-testid="selection-workspace-bar"
     >
-      <div className="pointer-events-auto flex max-w-[min(100%,18rem)] items-stretch overflow-hidden rounded-full border border-ink/25 bg-surface shadow-[0_2px_12px_rgb(26_23_20/0.18)]">
+      <div
+        className={`pointer-events-auto flex ${SELECTION_FLOATER_MIN_H} max-w-[min(100%,20rem)] items-stretch overflow-hidden rounded-full border border-ink/25 bg-surface shadow-[0_2px_12px_rgb(26_23_20/0.18)]`}
+      >
         <button
           type="button"
           data-testid="selection-workspace-view"
-          className="flex min-w-0 items-center gap-1.5 py-[5px] pl-[5px] pr-2.5"
+          className={`flex ${SELECTION_FLOATER_MIN_H} min-w-0 flex-1 items-center gap-2 py-1.5 pl-2 pr-3`}
           onClick={openPile}
           aria-label={`${countLabel}. Open Your selection`}
         >
-          <div className="flex shrink-0 -space-x-1.5">
+          <div className="flex shrink-0 -space-x-2">
             {thumbs.map((thumb) =>
               thumb.url ? (
                 <img
                   key={thumb.key}
                   src={thumb.url}
                   alt=""
-                  className="h-[25px] w-[25px] rounded-full border border-ink/15 object-cover"
+                  className="h-8 w-8 rounded-full border border-ink/15 object-cover"
                 />
               ) : (
                 <span
                   key={thumb.key}
-                  className="flex h-[25px] w-[25px] items-center justify-center rounded-full border border-ink/15 bg-foam text-[9px] font-bold text-ink"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/15 bg-foam text-[11px] font-bold text-ink"
                 >
                   {thumb.name.slice(0, 1).toUpperCase()}
                 </span>
               ),
             )}
           </div>
-          <span className="min-w-0 truncate text-xs font-semibold text-ink">{countLabel}</span>
+          <span className="min-w-0 truncate text-sm font-semibold text-ink">{countLabel}</span>
         </button>
         <button
           type="button"
           data-testid="selection-workspace-order"
-          className="shrink-0 border-l border-ink/15 px-3 text-xs font-bold text-accent"
+          className={`shrink-0 border-l border-ink/15 px-4 text-sm font-bold text-accent ${SELECTION_FLOATER_MIN_H}`}
           onClick={startOrder}
         >
           Order

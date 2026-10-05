@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   amendOrderSchema,
   cancelOrderSchema,
@@ -9,6 +9,7 @@ import {
   decideOrderLinesSchema,
   declineOrderSchema,
   dispatchSchema,
+  editShipmentSchema,
   listOrdersQuerySchema,
   quoteOrderSchema,
   millPassHoldSchema,
@@ -26,6 +27,7 @@ import {
   type DecideOrderLinesDto,
   type DeclineOrderDto,
   type DispatchDto,
+  type EditShipmentDto,
   type ListOrdersQuery,
   type QuoteOrderDto,
   type MillPassHoldDto,
@@ -207,6 +209,19 @@ export class OrderController {
     @Body(new ZodValidationPipe(dispatchSchema)) dto: DispatchDto,
   ) {
     return this.orders.dispatch(companyId, user.userId, id, dto);
+  }
+
+  @Patch(':id/shipments/:shipmentId')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  editShipment(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('shipmentId') shipmentId: string,
+    @Body(new ZodValidationPipe(editShipmentSchema)) dto: EditShipmentDto,
+  ) {
+    return this.orders.editShipment(companyId, user.userId, id, shipmentId, dto);
   }
 
   @Post(':id/settle')

@@ -146,6 +146,7 @@ describe('ComplaintService', () => {
           buyerCompanyId: 'buyer',
           sellerCompanyId: 'other',
         }),
+        findFirst: async () => null,
       },
     } as unknown as PrismaService;
     const service = new ComplaintService(prisma, {

@@ -24,7 +24,15 @@ vi.mock('@/ui/ContinuousCamera', () => ({
   ContinuousCamera: () => null,
 }));
 
-function renderSheet() {
+function renderSheet(
+  props: Partial<{
+    againstCompanyId: string;
+    againstCompanyName: string | null;
+    forwardedFromComplaintId: string | null;
+    supplierAlternatives: Array<{ companyId: string; name: string; orderId: string }>;
+    onChangeSupplier: () => void;
+  }> = {},
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -33,6 +41,7 @@ function renderSheet() {
         onClose={() => undefined}
         threadId="t1"
         againstCompanyId="shop-1"
+        {...props}
       />
     </QueryClientProvider>,
   );
@@ -52,6 +61,21 @@ describe('ChatComplaintSheet', () => {
     expect(photos.className).toContain('text-accent');
     expect(photos.className).not.toContain('rounded-xl');
     await waitFor(() => expect(screen.queryByTestId('complaint-attach-order')).toBeNull());
+  });
+
+  it('shows prefilled supplier with Change when escalating', () => {
+    const onChangeSupplier = vi.fn();
+    renderSheet({
+      againstCompanyId: 'mill-b',
+      againstCompanyName: 'Mill B',
+      forwardedFromComplaintId: 'cmp-1',
+      supplierAlternatives: [{ companyId: 'mill-a', name: 'Mill A', orderId: 'lot-a' }],
+      onChangeSupplier,
+    });
+    expect(screen.getByTestId('complaint-escalate-supplier')).toHaveTextContent('Mill B');
+    expect(screen.getByTestId('complaint-escalate-supplier')).toHaveTextContent(/Supplier/);
+    screen.getByTestId('complaint-change-supplier').click();
+    expect(onChangeSupplier).toHaveBeenCalled();
   });
 
   it('lets you attach an order from this shop', async () => {

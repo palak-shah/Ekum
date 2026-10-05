@@ -8,16 +8,17 @@ import {
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type {
+  ComplaintView,
   CursorPage,
   OrderView,
   SampleView,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
-import { timeAgo } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { Avatar, Chip, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
+import { explorePostedWhen } from '@/ui/cards';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   getOrdersDirection,
@@ -62,7 +63,12 @@ function statusFilterFromParam(value: string | null): StatusFilter {
 }
 
 function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
-  if (value === 'sample' || value === 'order' || value === 'trading') {
+  if (
+    value === 'sample' ||
+    value === 'order' ||
+    value === 'trading' ||
+    value === 'complaint'
+  ) {
     return value;
   }
   return null;
@@ -143,10 +149,20 @@ export function OrdersPage() {
     queryKey: ['samples', { list: true }],
     queryFn: () => api.get<CursorPage<SampleView>>('/samples', { limit: 50 }),
   });
+  const complaints = useQuery({
+    queryKey: ['complaints', { list: true }],
+    queryFn: () => api.get<CursorPage<ComplaintView>>('/complaints', { limit: 50 }),
+  });
 
   const merged = useMemo(
-    () => toTradeItems(orders.data?.results ?? [], samples.data?.results ?? [], []),
-    [orders.data, samples.data],
+    () =>
+      toTradeItems(
+        orders.data?.results ?? [],
+        samples.data?.results ?? [],
+        [],
+        complaints.data?.results ?? [],
+      ),
+    [orders.data, samples.data, complaints.data],
   );
 
   const findOverridesAttention =
@@ -182,7 +198,8 @@ export function OrdersPage() {
 
   const loading =
     (orders.isPending && !orders.data) ||
-    (samples.isPending && !samples.data);
+    (samples.isPending && !samples.data) ||
+    (complaints.isPending && !complaints.data);
 
   const syncFindParams = (statusFacet: string | null, kindFacet: TradeKindFacet | null) => {
     setSearchParams(
@@ -448,7 +465,9 @@ export function OrdersPage() {
             <EmptyState
               title={
                 findOverridesAttention
-                  ? 'No matches'
+                  ? find.kindFacet === 'complaint'
+                    ? 'No complaints yet'
+                    : 'No matches'
                   : statusFilter === 'pending'
                     ? 'No open orders'
                     : 'No completed orders'
@@ -456,7 +475,7 @@ export function OrdersPage() {
               message={
                 findOverridesAttention
                   ? 'Try another find, or clear filters.'
-                  : 'Orders and samples show up here.'
+                  : 'Orders, samples, and complaints show up here.'
               }
             />
           )}
@@ -478,15 +497,24 @@ function TradeRow({
   const needsLabel = tradeNeedsYouLabel(item);
   const { preview, accent } = tradeListPreview(item, companyId);
   const facts = tradeListFacts(item);
-  const when = timeAgo(tradeListWhen(item));
+  const when = explorePostedWhen(tradeListWhen(item));
   const name =
-    item.kind === 'order' ? item.order.counterpart.name : item.sample.counterpart.name;
+    item.kind === 'order'
+      ? item.order.counterpart.name
+      : item.kind === 'sample'
+        ? item.sample.counterpart.name
+        : item.complaint.counterpartName || 'Complaint';
   const logoUrl =
-    item.kind === 'order' ? item.order.counterpart.logoUrl : item.sample.counterpart.logoUrl;
+    item.kind === 'order'
+      ? item.order.counterpart.logoUrl
+      : item.kind === 'sample'
+        ? item.sample.counterpart.logoUrl
+        : null;
   const rowClass = cx(
     'flex w-full items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0',
     needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
-    item.kind === 'order' && 'hover:bg-canvas active:bg-canvas text-left',
+    (item.kind === 'order' || item.kind === 'complaint') &&
+      'hover:bg-canvas active:bg-canvas text-left',
   );
   const body = (
     <>
@@ -524,6 +552,33 @@ function TradeRow({
       <div data-needs-you={needsLabel ? 'true' : undefined} className={rowClass}>
         {body}
       </div>
+    );
+  }
+
+  if (item.kind === 'complaint') {
+    const to = item.complaint.threadId
+      ? item.complaint.messageId
+        ? `/chats/${item.complaint.threadId}?message=${encodeURIComponent(item.complaint.messageId)}`
+        : `/chats/${item.complaint.threadId}`
+      : item.complaint.orderId
+        ? `/orders/${item.complaint.orderId}`
+        : null;
+    if (!to) {
+      return (
+        <div data-testid="trade-list-row" className={rowClass}>
+          {body}
+        </div>
+      );
+    }
+    return (
+      <Link
+        to={to}
+        data-testid="trade-list-row"
+        data-needs-you={needsLabel ? 'true' : undefined}
+        className={rowClass}
+      >
+        {body}
+      </Link>
     );
   }
 

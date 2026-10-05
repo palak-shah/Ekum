@@ -30,6 +30,7 @@ export const TRADE_FILTER_LEGACY_STATUSES: ReadonlyArray<{ label: string; status
 export const TRADE_FILTER_TYPES: ReadonlyArray<{ label: string; kind: TradeKindFacet }> = [
   { label: 'Order', kind: 'order' },
   { label: 'Sample', kind: 'sample' },
+  { label: 'Complaint', kind: 'complaint' },
 ];
 
 export function tradeStatusesForTab(
@@ -64,6 +65,7 @@ export function tradeMenuFilterSummary(input: {
 }): string {
   const parts: string[] = [];
   if (input.kindFacet === 'sample') parts.push('Sample');
+  else if (input.kindFacet === 'complaint') parts.push('Complaint');
   else if (input.kindFacet === 'trading') parts.push('Trading');
   else if (input.kindFacet === 'order') parts.push('Order');
   if (input.statusFacet) {

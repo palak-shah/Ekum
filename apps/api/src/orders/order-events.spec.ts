@@ -16,6 +16,7 @@ describe('orderChatEventLabel / inferOrderChatEvent', () => {
     expect(orderChatEventLabel(OrderChatEvent.OrderCancelled)).toBe('Cancelled');
     expect(orderChatEventLabel(OrderChatEvent.QuoteAccepted)).toBe('Accepted');
     expect(orderChatEventLabel(OrderChatEvent.OrderDispatched)).toBe('Dispatched');
+    expect(orderChatEventLabel(OrderChatEvent.OrderDispatchEdited)).toBe('Dispatch edited');
     expect(orderChatEventLabel(OrderChatEvent.OrderDelivered)).toBe('Delivered');
     expect(orderChatEventLabel(OrderChatEvent.OrderDeclined)).toBe('Declined');
     expect(orderChatEventLabel(OrderChatEvent.ReturnRaised)).toBe('Returned');

@@ -26,6 +26,13 @@ export function tradeListPreview(
     return { preview: `Sample · ${statusLabel(item.sample.status)}`, accent: false };
   }
 
+  if (item.kind === 'complaint') {
+    return {
+      preview: `Complaint · ${statusLabel(item.complaint.status)}`,
+      accent: item.complaint.status === 'open' && !item.complaint.mine,
+    };
+  }
+
   return { preview: '', accent: false };
 }
 
@@ -39,11 +46,16 @@ export function tradeListFacts(item: TradeListItem): string {
   if (item.kind === 'sample') {
     return `Sample · 1 design`;
   }
+  if (item.kind === 'complaint') {
+    const title = item.complaint.subject.trim() || 'Complaint';
+    return title.length > 40 ? `${title.slice(0, 37)}…` : title;
+  }
   return '';
 }
 
 export function tradeListWhen(item: TradeListItem): string {
   if (item.kind === 'order') return item.order.updatedAt || item.order.createdAt;
   if (item.kind === 'sample') return item.sample.updatedAt || item.sample.createdAt;
-  return item.createdAt;
+  if (item.kind === 'complaint') return item.complaint.updatedAt || item.complaint.createdAt;
+  return item.updatedAt || item.createdAt;
 }

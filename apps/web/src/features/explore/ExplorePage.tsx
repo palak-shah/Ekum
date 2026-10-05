@@ -838,7 +838,7 @@ export function ExplorePage() {
                 type="button"
                 data-testid="explore-select"
                 className={cx(
-                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
+                  'inline-flex h-10 shrink-0 items-center rounded-full px-3.5 text-sm font-bold',
                   selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
                 )}
                 onClick={() =>

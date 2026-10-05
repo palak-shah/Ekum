@@ -829,6 +829,7 @@ model OrderShipment {
   dispatchedAt DateTime  @default(now())
   dispatchedByUserId String?
   createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   order            Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   dispatchedByUser User? @relation("ShipmentDispatchedByUser", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
@@ -918,25 +919,29 @@ model ReturnItem {
 
 /// A complaint against another shop (optional shared order).
 model Complaint {
-  id                String    @id @default(cuid())
-  orderId           String?
-  raisedByCompanyId String
-  againstCompanyId  String
-  subject           String
-  detail            String?
-  images            String[]
-  status            String    @default("open") // ComplaintStatus
-  response          String?
-  respondedAt       DateTime?
-  resolvedAt        DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                        String    @id @default(cuid())
+  orderId                   String?
+  raisedByCompanyId         String
+  againstCompanyId          String
+  subject                   String
+  detail                    String?
+  images                    String[]
+  status                    String    @default("open") // ComplaintStatus
+  response                  String?
+  respondedAt               DateTime?
+  resolvedAt                DateTime?
+  forwardedFromComplaintId  String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
-  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  order         Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  forwardedFrom Complaint? @relation("ComplaintForward", fields: [forwardedFromComplaintId], references: [id], onDelete: SetNull)
+  forwards      Complaint[] @relation("ComplaintForward")
 
   @@index([orderId])
   @@index([raisedByCompanyId])
   @@index([againstCompanyId])
+  @@index([forwardedFromComplaintId])
 }
 
 /// Honour-system pay ask on an order. Ekum does not move money.

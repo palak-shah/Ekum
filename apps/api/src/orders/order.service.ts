@@ -33,6 +33,7 @@ import {
   type DecideOrderLinesDto,
   type DeclineOrderDto,
   type DispatchDto,
+  type EditShipmentDto,
   type ListOrdersQuery,
   matchesOrderNeedsYou,
   type OrderView,
@@ -817,7 +818,7 @@ export class OrderService {
     let rows = await this.prisma.order.findMany({
       where: listWhere,
       include: ORDER_RELATIONS,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
       take: 500,
     });
     const quotedIds = await this.orderIdsWithSellerQuote(rows);
@@ -1767,6 +1768,180 @@ export class OrderService {
     );
     await this.passMillDispatchToParent(id, actorCompanyId, userId, candidates);
     return this.emitAndGet(actorCompanyId, id, OrderStatus.PartShipped);
+  }
+
+  /** Seller corrects a past LR (qty + LR fields). Not silent — chat + trail. */
+  async editShipment(
+    actorCompanyId: string,
+    userId: string,
+    orderId: string,
+    shipmentId: string,
+    dto: EditShipmentDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(orderId, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can do this.',
+      });
+    }
+    if (order.status === OrderStatus.Settled) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Cannot edit dispatch after settle.',
+      });
+    }
+    if (
+      order.status !== OrderStatus.Confirmed &&
+      order.status !== OrderStatus.PartShipped &&
+      order.status !== OrderStatus.Dispatched
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Only a confirmed, part-shipped, or dispatched order can edit a shipment.',
+      });
+    }
+
+    const shipment = await this.prisma.orderShipment.findFirst({
+      where: { id: shipmentId, orderId },
+      include: { items: true },
+    });
+    if (!shipment) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Shipment not found.' });
+    }
+
+    const byId = new Map(order.items.map((item) => [item.id, item]));
+    const kept = dto.items.filter((line) => line.quantity > 0);
+    if (kept.length < 1) {
+      throw new BadRequestException({
+        code: 'NOTHING_TO_SHIP',
+        message: 'Keep at least one line on this dispatch.',
+      });
+    }
+    for (const line of kept) {
+      const item = byId.get(line.orderItemId);
+      if (!item || item.lineStatus === OrderLineStatus.Declined) {
+        throw new NotFoundException({
+          code: 'INVALID_ITEM',
+          message: 'A dispatch line does not match this order.',
+        });
+      }
+    }
+
+    const lrNumber =
+      dto.lrNumber === undefined
+        ? shipment.lrNumber
+        : dto.lrNumber?.trim() || null;
+    const transporter =
+      dto.transporter === undefined ? shipment.transporter : dto.transporter;
+    const parcelCount =
+      dto.parcelCount === undefined ? shipment.parcelCount : dto.parcelCount;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderShipmentItem.deleteMany({ where: { shipmentId } });
+      await tx.orderShipment.update({
+        where: { id: shipmentId },
+        data: {
+          transporter,
+          lrNumber,
+          parcelCount,
+          items: {
+            create: kept.map((line) => ({
+              orderItemId: line.orderItemId,
+              quantity: line.quantity,
+            })),
+          },
+        },
+      });
+    });
+
+    const after = await this.loadForParty(orderId, actorCompanyId);
+    const shippedAfter = this.shippedTotals(after);
+    for (const item of after.items) {
+      if (item.lineStatus === OrderLineStatus.Declined) continue;
+      if (
+        item.lineStatus !== OrderLineStatus.Confirmed &&
+        item.lineStatus !== OrderLineStatus.Dispatched
+      ) {
+        continue;
+      }
+      const shipped = shippedAfter.get(item.id) ?? 0;
+      const nextStatus =
+        shipped + 1e-9 >= item.quantity.toNumber()
+          ? OrderLineStatus.Dispatched
+          : OrderLineStatus.Confirmed;
+      if (item.lineStatus !== nextStatus) {
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: { lineStatus: nextStatus },
+        });
+      }
+    }
+
+    const final = await this.loadForParty(orderId, actorCompanyId);
+    const shippable = final.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const totals = this.shippedTotals(final);
+    const allOut = shippable.every((item) => {
+      if (item.lineStatus === OrderLineStatus.Open) return false;
+      const shipped = totals.get(item.id) ?? 0;
+      return (
+        item.lineStatus === OrderLineStatus.Dispatched ||
+        item.lineStatus === OrderLineStatus.Delivered ||
+        shipped + 1e-9 >= item.quantity.toNumber()
+      );
+    });
+    const anyShipped = shippable.some((item) => (totals.get(item.id) ?? 0) > 0);
+    const nextStatus = allOut
+      ? OrderStatus.Dispatched
+      : anyShipped
+        ? OrderStatus.PartShipped
+        : OrderStatus.Confirmed;
+
+    const newest = (final.shipments ?? [])[0];
+    const now = new Date();
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: nextStatus,
+        transporter: newest?.transporter ?? transporter,
+        lrNumber: newest?.lrNumber ?? lrNumber,
+        parcelCount: newest?.parcelCount ?? parcelCount,
+        dispatchedAt: nextStatus === OrderStatus.Dispatched ? final.dispatchedAt ?? now : null,
+        closedAt: nextStatus === OrderStatus.Dispatched ? final.closedAt ?? now : null,
+        ...this.withActor(userId),
+      },
+    });
+
+    const orderLabel = shortOrderLabel(orderId);
+    const actorLabel = order.seller.name;
+    const lrNote = lrNumber ? ` · LR ${lrNumber}` : '';
+    await this.trail.append({
+      orderId,
+      type: OrderTrailType.DispatchEdited,
+      at: now,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: lrNumber ? `LR ${lrNumber}` : 'Dispatch edited',
+      summary: 'Dispatch edited',
+    });
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} edited dispatch${lrNote}`,
+      orderId,
+      {
+        status: nextStatus,
+        itemCount: kept.length,
+        event: OrderChatEvent.OrderDispatchEdited,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+        partial: nextStatus === OrderStatus.PartShipped,
+        lrNumber,
+      },
+    );
+    return this.emitAndGet(actorCompanyId, orderId, nextStatus);
   }
 
   /** Seller closes a part-shipped order: qty := shipped, status → settled. */
@@ -2865,7 +3040,11 @@ export class OrderService {
             : actor
               ? `${actor} dispatched`
               : 'Dispatched'
-          : null;
+          : event === OrderChatEvent.OrderDispatchEdited
+            ? actor
+              ? `${actor} edited dispatch`
+              : 'Dispatch edited'
+            : null;
     const preview =
       eventPreview ||
       customNote ||

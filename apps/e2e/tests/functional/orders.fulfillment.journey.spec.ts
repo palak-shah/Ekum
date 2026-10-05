@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   accessTokenFromPage,
   dispatchOrder,
+  editShipment,
   getOrder,
   setupConfirmedOrder,
 } from '../../helpers/orders';
@@ -97,5 +98,68 @@ test.describe('order fulfillment @functional @orders', () => {
     await expect(settleSheet.getByText('Dispatched').first()).toBeVisible();
     await expect(settleSheet.getByText('Pending').first()).toBeVisible();
     await expect(settleSheet.getByTestId('settle-qty-pending').first()).toBeVisible();
+  });
+
+  test('dispatch more shows prior LR; edit pulses Dispatch edited', async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+
+    const { id: orderId } = await setupConfirmedOrder(page.request, meenaToken, raviToken);
+    const detailed = await getOrder(page.request, raviToken, orderId);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected order items');
+    const half = Math.max(1, Math.floor(first.quantity / 2));
+
+    await dispatchOrder(page.request, raviToken, orderId, {
+      lrNumber: 'LR-EDIT-1',
+      items: [{ orderItemId: first.id, quantity: half }],
+    });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-timeline')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-timeline-more')).toBeVisible();
+    await page.getByTestId('order-dispatch-open').click();
+    const dispatchSheet = page.getByRole('dialog');
+    await expect(dispatchSheet.getByTestId('order-dispatch-prior')).toBeVisible();
+    await expect(dispatchSheet.getByTestId('order-dispatch-prior-edit').first()).toBeVisible();
+    await dispatchSheet.getByTestId('order-dispatch-prior-edit').first().click();
+    await expect(dispatchSheet.getByRole('heading', { name: 'Edit dispatch' })).toBeVisible();
+    await dispatchSheet.getByTestId('order-dispatch-confirm').click();
+    await expect(dispatchSheet).toBeHidden({ timeout: 15_000 });
+
+    const after = await getOrder(page.request, raviToken, orderId);
+    const shipmentId = after.shipments?.[0]?.id;
+    if (!shipmentId) throw new Error('expected shipment');
+    await editShipment(page.request, raviToken, orderId, shipmentId, {
+      lrNumber: 'LR-EDIT-2',
+      items: [{ orderItemId: first.id, quantity: Math.max(1, half - 1) }],
+    });
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-timeline')).toContainText(/Dispatch edited/i, {
+      timeout: 15_000,
+    });
+  });
+
+  test('order ⋯ Complaint opens against pick or chat sheet', async ({ page }) => {
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+    const { id: orderId } = await setupConfirmedOrder(page.request, meenaToken, raviToken);
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-more-menu')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-more-menu').click();
+    await page.getByTestId('order-complaint').click();
+    await expect(
+      page.getByRole('heading', { name: /Complaint|Complaint about/ }).first(),
+    ).toBeVisible({ timeout: 15_000 });
   });
 });

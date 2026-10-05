@@ -30,6 +30,7 @@ export async function getOrder(
     shippedQuantity?: number;
     remainingQuantity?: number;
   }>;
+  shipments?: Array<{ id: string; lrNumber?: string | null }>;
 }> {
   const res = await request.get(`${API_URL}/orders/${orderId}`, {
     headers: { authorization: `Bearer ${accessToken}` },
@@ -47,6 +48,7 @@ export async function getOrder(
       shippedQuantity?: number;
       remainingQuantity?: number;
     }>;
+    shipments?: Array<{ id: string; lrNumber?: string | null }>;
   }>;
 }
 
@@ -112,6 +114,28 @@ export async function dispatchOrder(
   });
   if (!res.ok()) {
     throw new Error(`dispatch failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json() as Promise<{ id: string; status: string }>;
+}
+
+export async function editShipment(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+  shipmentId: string,
+  body: {
+    lrNumber?: string | null;
+    transporter?: string | null;
+    parcelCount?: number | null;
+    items: Array<{ orderItemId: string; quantity: number }>;
+  },
+): Promise<{ id: string; status: string }> {
+  const res = await request.patch(`${API_URL}/orders/${orderId}/shipments/${shipmentId}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data: body,
+  });
+  if (!res.ok()) {
+    throw new Error(`edit shipment failed: ${res.status()} ${await res.text()}`);
   }
   return res.json() as Promise<{ id: string; status: string }>;
 }

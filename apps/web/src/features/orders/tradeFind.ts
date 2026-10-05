@@ -2,7 +2,7 @@ import { shortOrderLabel } from '@ekum/domain-types';
 import { isTradingDeskOrder, linkedMillHaystack } from './tradeListRole';
 import type { TradeListItem } from './tradeList';
 
-export type TradeKindFacet = 'order' | 'sample' | 'return' | 'trading';
+export type TradeKindFacet = 'order' | 'sample' | 'return' | 'trading' | 'complaint';
 
 export type DateFacet = {
   from: string;
@@ -46,12 +46,13 @@ const ALL_STATUS_LABELS = PRIMARY_STATUS_LABELS;
 const KIND_LABELS: { label: string; kind: TradeKindFacet }[] = [
   { label: 'Sample', kind: 'sample' },
   { label: 'Order', kind: 'order' },
+  { label: 'Complaint', kind: 'complaint' },
 ];
 
 /** Type words in Find — same as Select Type. */
 export function kindFacetFromNeedle(raw: string): TradeKindFacet | null {
   const word = raw.trim().toLowerCase();
-  if (word === 'sample' || word === 'order') {
+  if (word === 'sample' || word === 'order' || word === 'complaint') {
     return word;
   }
   return null;
@@ -195,6 +196,7 @@ function inDateRange(iso: string, facet: DateFacet): boolean {
 function itemStatus(item: TradeListItem): string {
   if (item.kind === 'order') return item.order.status;
   if (item.kind === 'sample') return item.sample.status;
+  if (item.kind === 'complaint') return item.complaint.status;
   return item.ret.status;
 }
 
@@ -208,6 +210,10 @@ function itemTextHaystack(item: TradeListItem): string {
   if (item.kind === 'sample') {
     const s = item.sample;
     return `${s.name} ${s.counterpart.name} ${s.id} sample ${s.status}`.toLowerCase();
+  }
+  if (item.kind === 'complaint') {
+    const c = item.complaint;
+    return `${c.subject} ${c.detail ?? ''} ${c.counterpartName ?? ''} complaint ${c.status}`.toLowerCase();
   }
   const r = item.ret;
   return `${r.counterpart.name} ${r.id} return ${r.status}`.toLowerCase();
@@ -227,7 +233,7 @@ export function tradeMatchesFind(item: TradeListItem, find: TradeFindState): boo
 
   const dateFromNeedle = dateFacetFromNeedle(find.needle);
   const dateFacet = find.dateFacet ?? dateFromNeedle;
-  if (dateFacet && !inDateRange(item.createdAt, dateFacet)) return false;
+  if (dateFacet && !inDateRange(item.updatedAt || item.createdAt, dateFacet)) return false;
 
   // Needle is only a date word / typed date — date filter is enough.
   if (dateFromNeedle && !find.dateFacet) return true;

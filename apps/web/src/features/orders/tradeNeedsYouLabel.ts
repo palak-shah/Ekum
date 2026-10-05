@@ -16,6 +16,12 @@ import type { TradeListItem } from './tradeList';
 export function tradeNeedsYouLabel(item: TradeListItem): string | null {
   if (item.kind === 'order') return orderNeedsYouLabel(item.order);
   if (item.kind === 'sample') return sampleNeedsYouLabel(item.sample);
+  if (item.kind === 'complaint') {
+    if (item.complaint.status === 'open' && !item.complaint.mine) {
+      return 'Needs you · Complaint';
+    }
+    return null;
+  }
   return returnNeedsYouLabel(item.ret);
 }
 

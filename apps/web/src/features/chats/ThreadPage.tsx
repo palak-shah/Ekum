@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query';
 import type {
   CollectionView,
+  ComplaintView,
   CreateProductDto,
   CursorPage,
   MessageReference,
@@ -21,6 +22,11 @@ import type {
   ThreadDetail,
   ThreadSummary,
 } from '@ekum/domain-types';
+import {
+  defaultEscalateSupplier,
+  escalateSupplierAlternatives,
+  type ComplaintAgainstTarget,
+} from '@/features/orders/complaintAgainstTargets';
 import {
   CHAT_REACTION_EMOJIS,
   outgoingSeenLabel,
@@ -171,6 +177,8 @@ export function ThreadPage() {
   const { id = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const refMessageId = searchParams.get('message');
+  const complaintDeepLink = searchParams.get('complaint') === '1';
+  const complaintOrderParam = searchParams.get('order');
   const companyId = useCompanyId();
   const { session } = useAuth();
   const viewerUserId = session?.user.userId ?? null;
@@ -201,6 +209,24 @@ export function ThreadPage() {
   const [attachSending, setAttachSending] = useState(false);
   const [attachSendError, setAttachSendError] = useState<string | null>(null);
   const [complaintOpen, setComplaintOpen] = useState(false);
+  const [complaintPrefill, setComplaintPrefill] = useState<{
+    orderId: string | null;
+    subject: string;
+    detail: string;
+    images: string[];
+    forwardedFromComplaintId: string | null;
+    supplierAlternatives: ComplaintAgainstTarget[];
+  }>({
+    orderId: null,
+    subject: '',
+    detail: '',
+    images: [],
+    forwardedFromComplaintId: null,
+    supplierAlternatives: [],
+  });
+  const [escalateMillPick, setEscalateMillPick] = useState<ComplaintAgainstTarget[] | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<Set<string>>(() => new Set());
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -334,6 +360,105 @@ export function ThreadPage() {
     queryFn: () => api.get<ThreadDetail>(`/threads/${id}`),
     refetchInterval: 4_000,
   });
+
+  useEffect(() => {
+    if (!complaintDeepLink || !id) return;
+    const navState = location.state as {
+      complaintPrefill?: {
+        subject?: string;
+        detail?: string;
+        images?: string[];
+        forwardedFromComplaintId?: string;
+        supplierAlternatives?: ComplaintAgainstTarget[];
+      };
+    } | null;
+    setComplaintPrefill({
+      orderId: complaintOrderParam,
+      subject: navState?.complaintPrefill?.subject ?? '',
+      detail: navState?.complaintPrefill?.detail ?? '',
+      images: navState?.complaintPrefill?.images ?? [],
+      forwardedFromComplaintId: navState?.complaintPrefill?.forwardedFromComplaintId ?? null,
+      supplierAlternatives: navState?.complaintPrefill?.supplierAlternatives ?? [],
+    });
+    setComplaintOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('complaint');
+    next.delete('order');
+    setSearchParams(next, { replace: true });
+  }, [complaintDeepLink, complaintOrderParam, id, location.state, searchParams, setSearchParams]);
+
+  const goEscalateToMill = useCallback(
+    async (
+      mill: ComplaintAgainstTarget,
+      prefill: {
+        subject: string;
+        detail: string;
+        images: string[];
+        forwardedFromComplaintId: string | null;
+        supplierAlternatives: ComplaintAgainstTarget[];
+      },
+    ) => {
+      const threadRow = await api.post<{ id: string }>('/threads/direct', {
+        companyId: mill.companyId,
+      });
+      navigate(`/chats/${threadRow.id}?complaint=1&order=${encodeURIComponent(mill.orderId)}`, {
+        state: { complaintPrefill: prefill },
+      });
+    },
+    [navigate],
+  );
+
+  const openEscalateToSupplier = useCallback(
+    async (
+      complaintId: string,
+      orderId: string | null,
+      productIds?: string[] | null,
+    ) => {
+      if (!companyId || !orderId) {
+        showToast('Attach an order before sending to a supplier.');
+        return;
+      }
+      try {
+        const [complaint, order] = await Promise.all([
+          api.get<ComplaintView>(`/complaints/${complaintId}`),
+          api.get<OrderView>(`/orders/${orderId}`),
+        ]);
+        if (complaint.againstCompanyId !== companyId) {
+          showToast('Only the shop this complaint is about can send it on.');
+          return;
+        }
+        const mill = defaultEscalateSupplier(order, companyId, {
+          orderId: complaint.orderId ?? orderId,
+          productIds: productIds ?? undefined,
+        });
+        if (!mill) {
+          showToast('No supplier on this order to send to.');
+          return;
+        }
+        const alternatives = escalateSupplierAlternatives(order, companyId, mill.companyId);
+        const prefill = {
+          subject: complaint.subject,
+          detail: complaint.detail ?? '',
+          images: complaint.images ?? [],
+          forwardedFromComplaintId: complaint.id,
+          supplierAlternatives: alternatives,
+        };
+        setComplaintPrefill({
+          orderId: mill.orderId,
+          subject: prefill.subject,
+          detail: prefill.detail,
+          images: prefill.images,
+          forwardedFromComplaintId: prefill.forwardedFromComplaintId,
+          supplierAlternatives: alternatives,
+        });
+        await goEscalateToMill(mill, prefill);
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Could not open Send to supplier.');
+      }
+    },
+    [companyId, goEscalateToMill, showToast],
+  );
+
   /** Search + All + empty query: prompt to type — don't re-list the whole thread. */
   const messagesEnabled =
     Boolean(id) && (!searchOpen || searchView !== 'all' || Boolean(listQ));
@@ -2238,6 +2363,9 @@ export function ThreadPage() {
                   onAcceptLogged={(orderId) => acceptLogged.mutate(orderId)}
                   accepting={acceptQuote.isPending || acceptLogged.isPending}
                 onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)}
+                onEscalateComplaint={(complaintId, orderId, productIds) => {
+                  void openEscalateToSupplier(complaintId, orderId, productIds);
+                }}
                 onOpenCollection={(collectionId) => navigate(`/collections/${collectionId}`)}
                 onViewRequestAllow={(requestId) => viewRequestAllow.mutate(requestId)}
                 onViewRequestDeny={(requestId) => viewRequestDeny.mutate(requestId)}
@@ -2929,11 +3057,88 @@ export function ThreadPage() {
       {detail.type !== 'group' && counterpartId && id ? (
         <ChatComplaintSheet
           open={complaintOpen}
-          onClose={() => setComplaintOpen(false)}
+          onClose={() => {
+            setComplaintOpen(false);
+            setComplaintPrefill({
+              orderId: null,
+              subject: '',
+              detail: '',
+              images: [],
+              forwardedFromComplaintId: null,
+              supplierAlternatives: [],
+            });
+          }}
           threadId={id}
           againstCompanyId={counterpartId}
+          againstCompanyName={detail.counterpart?.name ?? null}
+          initialOrderId={complaintPrefill.orderId}
+          initialSubject={complaintPrefill.subject}
+          initialDetail={complaintPrefill.detail}
+          initialImages={complaintPrefill.images}
+          forwardedFromComplaintId={complaintPrefill.forwardedFromComplaintId}
+          supplierAlternatives={complaintPrefill.supplierAlternatives}
+          onChangeSupplier={() => {
+            if (complaintPrefill.supplierAlternatives.length < 1) return;
+            setEscalateMillPick(complaintPrefill.supplierAlternatives);
+          }}
         />
       ) : null}
+
+      <Sheet
+        open={Boolean(escalateMillPick?.length)}
+        onClose={() => setEscalateMillPick(null)}
+        title="Change supplier"
+      >
+        <div className="flex flex-col gap-2 pb-2">
+          <p className="text-sm text-muted">Complaint goes in your shop’s name.</p>
+          {(escalateMillPick ?? []).map((mill) => (
+            <button
+              key={mill.companyId}
+              type="button"
+              data-testid="complaint-escalate-mill"
+              className="flex w-full items-center justify-between rounded-xl border border-line px-3 py-3 text-left hover:border-accent hover:bg-accent/5"
+              onClick={() => {
+                const pick = mill;
+                const previous =
+                  counterpartId && detail.counterpart?.name
+                    ? ({
+                        companyId: counterpartId,
+                        name: detail.counterpart.name,
+                        role: 'supplier' as const,
+                        orderId: complaintPrefill.orderId ?? pick.orderId,
+                      } satisfies ComplaintAgainstTarget)
+                    : null;
+                const remaining = [
+                  ...(previous && previous.companyId !== pick.companyId ? [previous] : []),
+                  ...(escalateMillPick ?? []).filter((row) => row.companyId !== pick.companyId),
+                ];
+                setEscalateMillPick(null);
+                setComplaintOpen(false);
+                void (async () => {
+                  try {
+                    await goEscalateToMill(pick, {
+                      subject: complaintPrefill.subject,
+                      detail: complaintPrefill.detail,
+                      images: complaintPrefill.images,
+                      forwardedFromComplaintId: complaintPrefill.forwardedFromComplaintId,
+                      supplierAlternatives: remaining,
+                    });
+                  } catch (err) {
+                    showToast(
+                      err instanceof ApiError ? err.message : 'Could not open chat.',
+                    );
+                  }
+                })();
+              }}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-ink">{mill.name}</span>
+                <span className="text-xs text-muted">Supplier</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       <Sheet
         open={forwardQueue.length > 0}
@@ -3538,6 +3743,7 @@ function TimelineItem({
   onAcceptLogged,
   accepting,
   onOpenOrder,
+  onEscalateComplaint,
   onOpenCollection,
   onViewRequestAllow,
   onViewRequestDeny,
@@ -3566,6 +3772,11 @@ function TimelineItem({
   onAcceptLogged: (orderId: string) => void;
   accepting: boolean;
   onOpenOrder: (orderId: string) => void;
+  onEscalateComplaint?: (
+    complaintId: string,
+    orderId: string | null,
+    productIds?: string[] | null,
+  ) => void;
   onOpenCollection?: (collectionId: string) => void;
   onViewRequestAllow?: (requestId: string) => void;
   onViewRequestDeny?: (requestId: string) => void;
@@ -4168,6 +4379,7 @@ function TimelineItem({
       onCurate: ref?.available ? () => onCurate(ref) : undefined,
       curating,
       curated,
+      onEscalateComplaint,
     },
   });
 

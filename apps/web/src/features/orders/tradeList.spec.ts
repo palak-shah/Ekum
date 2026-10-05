@@ -73,3 +73,25 @@ describe('sortTradePending', () => {
     expect(sortTradePending([waiting, needs]).map((row) => row.id)).toEqual(['need', 'wait']);
   });
 });
+
+describe('toTradeItems sort', () => {
+  it('orders by updatedAt desc', () => {
+    const rows = toTradeItems(
+      [
+        order({
+          id: 'old',
+          createdAt: '2026-01-02T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        }),
+        order({
+          id: 'edited',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-03T00:00:00.000Z',
+        }),
+      ],
+      [],
+      [],
+    );
+    expect(rows.map((row) => row.id)).toEqual(['edited', 'old']);
+  });
+});

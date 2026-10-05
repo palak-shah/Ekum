@@ -28,6 +28,13 @@ import {
 const MAX_PHOTOS = 9;
 const QUIET_LINK =
   'self-start text-[15px] font-semibold text-accent disabled:cursor-not-allowed disabled:opacity-45';
+/** Stable empty defaults — inline `= []` would re-fire the open reset effect forever. */
+const EMPTY_IMAGES: string[] = [];
+const EMPTY_SUPPLIER_ALTERNATIVES: Array<{
+  companyId: string;
+  name: string;
+  orderId: string;
+}> = [];
 
 function OrderThumb({ order, title }: { order: OrderView; title: string }) {
   const src = complaintOrderThumb(order);
@@ -52,11 +59,28 @@ export function ChatComplaintSheet({
   onClose,
   threadId,
   againstCompanyId,
+  againstCompanyName = null,
+  initialOrderId = null,
+  initialSubject = '',
+  initialDetail = '',
+  initialImages = EMPTY_IMAGES,
+  forwardedFromComplaintId = null,
+  supplierAlternatives = EMPTY_SUPPLIER_ALTERNATIVES,
+  onChangeSupplier,
 }: {
   open: boolean;
   onClose: () => void;
   threadId: string;
   againstCompanyId: string;
+  againstCompanyName?: string | null;
+  initialOrderId?: string | null;
+  initialSubject?: string;
+  initialDetail?: string;
+  initialImages?: string[];
+  forwardedFromComplaintId?: string | null;
+  /** Other mills on a multi-supplier ticket — Change stays quiet until needed. */
+  supplierAlternatives?: Array<{ companyId: string; name: string; orderId: string }>;
+  onChangeSupplier?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -95,16 +119,16 @@ export function ChatComplaintSheet({
 
   useEffect(() => {
     if (!open) return;
-    setSubject('');
-    setDetail('');
-    setOrderId(null);
-    setImages([]);
+    setSubject(initialSubject);
+    setDetail(initialDetail);
+    setOrderId(initialOrderId);
+    setImages(initialImages);
     setError(null);
     setUploading(false);
     setCameraOpen(false);
     setOrderPickOpen(false);
     setOrderQuery('');
-  }, [open]);
+  }, [open, initialOrderId, initialSubject, initialDetail, initialImages]);
 
   const addFiles = async (files: File[]) => {
     const room = MAX_PHOTOS - images.length;
@@ -145,6 +169,9 @@ export function ChatComplaintSheet({
         ...(detail.trim() ? { detail: detail.trim() } : {}),
         ...(orderId ? { orderId } : {}),
         ...(images.length > 0 ? { images } : {}),
+        ...(forwardedFromComplaintId
+          ? { forwardedFromComplaintId }
+          : {}),
       });
       const orderLine = selectedOrder
         ? `${complaintOrderTitle(selectedOrder)} · ${orderWhen(selectedOrder.createdAt)}`
@@ -209,6 +236,28 @@ export function ChatComplaintSheet({
         }
       >
         <div className="flex flex-col gap-4 pb-8">
+          {forwardedFromComplaintId && againstCompanyName ? (
+            <div
+              className="flex items-center justify-between gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2"
+              data-testid="complaint-escalate-supplier"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink">{againstCompanyName}</p>
+                <p className="text-xs text-muted">Supplier · in your shop’s name</p>
+              </div>
+              {supplierAlternatives.length > 0 && onChangeSupplier ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  data-testid="complaint-change-supplier"
+                  className={QUIET_LINK}
+                  onClick={onChangeSupplier}
+                >
+                  Change
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <Field label="What's wrong" required>
             <TextInput
               data-testid="complaint-subject"

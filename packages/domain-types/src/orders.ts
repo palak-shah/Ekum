@@ -354,6 +354,23 @@ export const dispatchSchema = z.object({
 });
 export type DispatchDto = z.infer<typeof dispatchSchema>;
 
+/** Edit a past shipment (qty + LR fields). Qty 0 removes that line from the LR. */
+export const editShipmentSchema = z.object({
+  transporter: z.string().trim().max(160).optional().nullable(),
+  lrNumber: z.string().trim().max(80).optional().nullable(),
+  parcelCount: z.number().int().positive().max(100000).optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        quantity: z.number().nonnegative().max(1_000_000),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type EditShipmentDto = z.infer<typeof editShipmentSchema>;
+
 /**
  * Seller quote. Included lines need a rate; mark unavailable to decline a line.
  * At least one supplyable (not unavailable) line is required.
@@ -496,8 +513,13 @@ export const createComplaintSchema = z.object({
   subject: z.string().trim().min(1).max(160),
   detail: z.string().trim().max(2000).optional(),
   images: z.array(z.string().trim().min(1).max(500)).max(9).optional(),
+  /** Audit link when trader escalates buyer complaint to mill (as trader). */
+  forwardedFromComplaintId: z.string().min(1).optional(),
 });
 export type CreateComplaintDto = z.infer<typeof createComplaintSchema>;
+
+export const listComplaintsQuerySchema = cursorPageQuerySchema;
+export type ListComplaintsQuery = z.infer<typeof listComplaintsQuerySchema>;
 
 export const respondComplaintSchema = z.object({
   response: z.string().trim().min(1).max(2000),
@@ -550,6 +572,7 @@ export interface OrderShipmentView {
   lrNumber: string | null;
   parcelCount: number | null;
   dispatchedAt: string;
+  updatedAt?: string;
   items: OrderShipmentItemView[];
 }
 
@@ -727,6 +750,12 @@ export interface ComplaintView {
   response: string | null;
   raisedByCompanyId: string;
   againstCompanyId: string;
+  /** Other shop on this complaint (for list rows). */
+  counterpartName?: string | null;
+  forwardedFromComplaintId?: string | null;
+  /** Chat message id when known (Orders Find tap). */
+  messageId?: string | null;
+  threadId?: string | null;
   mine: boolean;
   createdAt: string;
   updatedAt: string;
