@@ -46,9 +46,18 @@ import {
   lineDispatchQty,
   lineDispatchOverBy,
   shippableDispatchItems,
+  cantSupplyDispatchItems,
   dispatchLineKindLine,
   dispatchLineCountLine,
+  previousDispatchesCue,
 } from '@/features/orders/dispatchSheet';
+import {
+  latestShipmentForLine,
+  lineShippedOnShipment,
+  sellerCanFulfillEdit,
+  sellerCanNewDispatch,
+} from '@/features/orders/lineFulfillCard';
+import { OrderLineFulfillExpand } from '@/features/orders/OrderLineFulfillExpand';
 import {
   newestFirstTrail,
   timelineVisibleSlice,
@@ -62,10 +71,11 @@ import { partyCompanyHref } from '@/features/orders/partyCompanyHref';
 import {
   packingSlipFileName,
   packingSlipPdfBytes,
+  openPackingSlipPdf,
   shareOrDownloadPdf,
 } from '@/features/orders/packingSlip';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { CheckIcon, MoreHorizontalIcon } from '@/ui/icons';
+import { CheckIcon, ChevronRightIcon, CloseIcon, MoreHorizontalIcon, PencilIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import {
   complaintAgainstTargets,
@@ -434,8 +444,6 @@ export function OrderDetailPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
-  /** When set, Dispatch sheet edits that shipment instead of creating a new LR. */
-  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
   const [settleOpen, setSettleOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
@@ -452,6 +460,18 @@ export function OrderDetailPage() {
   }>({});
   const [shipQty, setShipQty] = useState<Record<string, string>>({});
   const [shipOn, setShipOn] = useState<Record<string, boolean>>({});
+  /** Inline expand of an earlier LR — separate from new-dispatch draft. */
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
+  const [priorListOpen, setPriorListOpen] = useState(false);
+  const [editShipQty, setEditShipQty] = useState<Record<string, string>>({});
+  const [editShipOn, setEditShipOn] = useState<Record<string, boolean>>({});
+  const [editDispatch, setEditDispatch] = useState<{
+    transporter?: string;
+    lrNumber?: string;
+    parcelCount?: number;
+  }>({});
+  const [expandedLineId, setExpandedLineId] = useState<string | null>(null);
+  const [lineFulfillError, setLineFulfillError] = useState<string | null>(null);
   const [dispatchNote, setDispatchNote] = useState('');
   const [dispatchNoteVoice, setDispatchNoteVoice] = useState<NoteVoiceValue>(null);
   const [amendNote, setAmendNote] = useState('');
@@ -668,10 +688,18 @@ export function OrderDetailPage() {
     [order.data?.items],
   );
 
+  const declinedDispatchItems = useMemo(
+    () => cantSupplyDispatchItems(order.data?.items ?? []),
+    [order.data?.items],
+  );
+
   const dispatchTally = useMemo(
     () => dispatchThisLrTally(shippableItems, shipOn, shipQty),
     [shippableItems, shipOn, shipQty],
   );
+
+  const priorShipments = order.data?.shipments ?? [];
+  const priorListShown = priorListOpen || Boolean(editingShipmentId);
 
   const dispatchOrder = useMutation({
     mutationFn: () => {
@@ -717,11 +745,11 @@ export function OrderDetailPage() {
           message: 'No shipment to edit.',
         });
       }
-      const items = Object.entries(shipOn)
+      const items = Object.entries(editShipOn)
         .filter(([, on]) => on)
         .map(([orderItemId]) => ({
           orderItemId,
-          quantity: Math.max(0, Number(shipQty[orderItemId] ?? 0) || 0),
+          quantity: Math.max(0, Number(editShipQty[orderItemId] ?? 0) || 0),
         }))
         .filter((line) => line.quantity > 0);
       if (items.length < 1) {
@@ -732,15 +760,14 @@ export function OrderDetailPage() {
         });
       }
       const dto: EditShipmentDto = {
-        lrNumber: (dispatch.lrNumber ?? '').trim() || null,
-        transporter: dispatch.transporter?.trim() || null,
-        parcelCount: dispatch.parcelCount ?? null,
+        lrNumber: (editDispatch.lrNumber ?? '').trim() || null,
+        transporter: editDispatch.transporter?.trim() || null,
+        parcelCount: editDispatch.parcelCount ?? null,
         items,
       };
       return api.patch<OrderView>(`/orders/${id}/shipments/${editingShipmentId}`, dto);
     },
     onSuccess: () => {
-      setDispatchOpen(false);
       setEditingShipmentId(null);
       setDispatchError(null);
       refresh();
@@ -750,17 +777,84 @@ export function OrderDetailPage() {
       setDispatchError(actionErrorMessage(err, 'Could not update dispatch.')),
   });
 
+  const setLineSupply = useMutation({
+    mutationFn: (payload: { orderItemId: string; cantSupply: boolean }) =>
+      api.post<OrderView>(`/orders/${id}/lines/supply`, {
+        items: [payload],
+      }),
+    onSuccess: (updated, vars) => {
+      setLineFulfillError(null);
+      if (!vars.cantSupply) {
+        const restored = updated.items.find((row) => row.id === vars.orderItemId);
+        if (restored && (restored.remainingQuantity ?? 0) > 0) {
+          setShipOn((prev) => ({ ...prev, [restored.id]: true }));
+          setShipQty((prev) => ({
+            ...prev,
+            [restored.id]: String(restored.remainingQuantity),
+          }));
+        }
+      }
+      refresh();
+      showToast('Updated.');
+    },
+    onError: (err) =>
+      setLineFulfillError(actionErrorMessage(err, 'Could not update Can’t supply.')),
+  });
+
+  const dispatchOneLine = useMutation({
+    mutationFn: (payload: { orderItemId: string; quantity: number }) =>
+      api.post<OrderView>(`/orders/${id}/dispatch`, {
+        items: [payload],
+      }),
+    onSuccess: () => {
+      setExpandedLineId(null);
+      setLineFulfillError(null);
+      refresh();
+      showToast('Dispatched.');
+    },
+    onError: (err) =>
+      setLineFulfillError(actionErrorMessage(err, 'Could not dispatch.')),
+  });
+
+  const saveLastLrQty = useMutation({
+    mutationFn: async (payload: { orderItemId: string; quantity: number }) => {
+      if (!order.data) {
+        throw new ApiError({
+          statusCode: 400,
+          code: 'INVALID',
+          message: 'Order missing.',
+        });
+      }
+      const shipment = latestShipmentForLine(order.data.shipments, payload.orderItemId);
+      if (!shipment) {
+        throw new ApiError({
+          statusCode: 400,
+          code: 'NO_SHIPMENT',
+          message: 'No earlier dispatch to edit for this design.',
+        });
+      }
+      const items = shipment.items.map((row) => ({
+        orderItemId: row.orderItemId,
+        quantity: row.orderItemId === payload.orderItemId ? payload.quantity : row.quantity,
+      }));
+      return api.patch<OrderView>(`/orders/${id}/shipments/${shipment.id}`, {
+        items,
+        lrNumber: shipment.lrNumber,
+        transporter: shipment.transporter,
+        parcelCount: shipment.parcelCount,
+      });
+    },
+    onSuccess: () => {
+      setLineFulfillError(null);
+      refresh();
+      showToast('Dispatch updated.');
+    },
+    onError: (err) =>
+      setLineFulfillError(actionErrorMessage(err, 'Could not update last LR.')),
+  });
+
   const submitDispatch = () => {
     setDispatchError(null);
-    if (editingShipmentId) {
-      const kept = Object.entries(shipOn).filter(([, on]) => on).length;
-      if (kept < 1) {
-        setDispatchError('Keep at least one design on this LR.');
-        return;
-      }
-      editShipment.mutate();
-      return;
-    }
     if (dispatchPayloadLines(shippableItems, shipOn, shipQty).length < 1) {
       setDispatchError('Turn on at least one design for this LR.');
       return;
@@ -768,8 +862,50 @@ export function OrderDetailPage() {
     dispatchOrder.mutate();
   };
 
-  const shareShipmentPdf = async (shipment: OrderView['shipments'][number]) => {
-    if (!order.data) return;
+  const submitEditShipment = () => {
+    setDispatchError(null);
+    const kept = Object.entries(editShipOn).filter(([, on]) => on).length;
+    if (kept < 1) {
+      setDispatchError('Keep at least one design on this LR.');
+      return;
+    }
+    editShipment.mutate();
+  };
+
+  const loadShipmentIntoEdit = (shipment: OrderView['shipments'][number]) => {
+    if (!order.data || order.data.status === 'settled') return;
+    const on: Record<string, boolean> = {};
+    const qty: Record<string, string> = {};
+    for (const item of order.data.items) {
+      const line = shipment.items.find((row) => row.orderItemId === item.id);
+      if (line && line.quantity > 0) {
+        on[item.id] = true;
+        qty[item.id] = String(line.quantity);
+      }
+    }
+    setEditingShipmentId(shipment.id);
+    setEditShipOn(on);
+    setEditShipQty(qty);
+    setEditDispatch({
+      lrNumber: shipment.lrNumber ?? undefined,
+      transporter: shipment.transporter ?? undefined,
+      parcelCount: shipment.parcelCount ?? undefined,
+    });
+    setDispatchError(null);
+  };
+
+  const togglePriorShipmentEdit = (shipment: OrderView['shipments'][number]) => {
+    if (editingShipmentId === shipment.id) {
+      setEditingShipmentId(null);
+      setDispatchError(null);
+      return;
+    }
+    setPriorListOpen(true);
+    loadShipmentIntoEdit(shipment);
+  };
+
+  const packingSlipFile = (shipment: OrderView['shipments'][number]) => {
+    if (!order.data) return null;
     const input = {
       orderId: order.data.id,
       counterpartName: order.data.counterpart.name,
@@ -777,10 +913,26 @@ export function OrderDetailPage() {
       note: order.data.note,
       orderItems: order.data.items,
     };
+    const bytes = packingSlipPdfBytes(input);
+    return new File([Uint8Array.from(bytes)], packingSlipFileName(input), {
+      type: 'application/pdf',
+    });
+  };
+
+  const openShipmentPdf = (shipment: OrderView['shipments'][number]) => {
     try {
-      const file = new File([packingSlipPdfBytes(input)], packingSlipFileName(input), {
-        type: 'application/pdf',
-      });
+      const file = packingSlipFile(shipment);
+      if (!file) return;
+      openPackingSlipPdf(file);
+    } catch {
+      showToast('Could not open PDF.', 'danger');
+    }
+  };
+
+  const shareShipmentPdf = async (shipment: OrderView['shipments'][number]) => {
+    try {
+      const file = packingSlipFile(shipment);
+      if (!file) return;
       await shareOrDownloadPdf(file);
     } catch {
       showToast('Could not share PDF.', 'danger');
@@ -935,6 +1087,7 @@ export function OrderDetailPage() {
   const openDispatchSheet = () => {
     const pending = shippableDispatchItems(order.data?.items ?? []);
     setEditingShipmentId(null);
+    setPriorListOpen(false);
     setShipOn(defaultDispatchOn(pending));
     setShipQty(defaultDispatchQty(pending));
     setDispatch({});
@@ -946,27 +1099,18 @@ export function OrderDetailPage() {
 
   const openEditShipment = (shipment: OrderView['shipments'][number]) => {
     if (!order.data || order.data.status === 'settled') return;
-    const on: Record<string, boolean> = {};
-    const qty: Record<string, string> = {};
-    for (const item of order.data.items) {
-      const line = shipment.items.find((row) => row.orderItemId === item.id);
-      if (line && line.quantity > 0) {
-        on[item.id] = true;
-        qty[item.id] = String(line.quantity);
-      }
+    // Keep new-dispatch draft; open sheet and expand this earlier LR inline.
+    if (!dispatchOpen) {
+      const pending = shippableDispatchItems(order.data.items);
+      setShipOn(defaultDispatchOn(pending));
+      setShipQty(defaultDispatchQty(pending));
+      setDispatch({});
+      setDispatchNote('');
+      setDispatchNoteVoice(null);
+      setDispatchOpen(true);
     }
-    setEditingShipmentId(shipment.id);
-    setShipOn(on);
-    setShipQty(qty);
-    setDispatch({
-      lrNumber: shipment.lrNumber ?? undefined,
-      transporter: shipment.transporter ?? undefined,
-      parcelCount: shipment.parcelCount ?? undefined,
-    });
-    setDispatchNote('');
-    setDispatchNoteVoice(null);
-    setDispatchError(null);
-    setDispatchOpen(true);
+    setPriorListOpen(true);
+    loadShipmentIntoEdit(shipment);
   };
 
   const closeSheet = (
@@ -1647,60 +1791,50 @@ export function OrderDetailPage() {
       {/* Mill desks already list every design (trader + Reveal-On buyer). No second aggregate card. */}
       {showOrderParentItemsList(data.millDesks) ? (
       <Card className="flex flex-col gap-2" data-testid="order-parent-items">
+        {lineFulfillError ? <InlineNotice message={lineFulfillError} /> : null}
         {data.items.map((item) => {
-          const pending = item.remainingQuantity ?? 0;
-          const extra = orderLineOverShipped(item);
-          const cantSupply = item.lineStatus === 'declined';
-          const showPending = !cantSupply && orderLineShowsPending(item);
-          const showExtra = !cantSupply && extra > 0;
-          const showFulfillment = !cantSupply && orderLineShowsFulfillment(item);
+          const canEdit = sellerCanFulfillEdit(data);
+          const canDispatch = sellerCanNewDispatch(data);
+          const expanded = expandedLineId === item.id;
+          const lastLr = latestShipmentForLine(data.shipments, item.id);
+          const lastLrQty = lastLr ? lineShippedOnShipment(lastLr, item.id) : 0;
           return (
-            <div
+            <OrderLineFulfillExpand
               key={item.id}
-              className={cx(
-                'flex items-center gap-3 rounded-xl px-2 py-2',
-                (showPending || showExtra) && 'border border-accent/40 bg-accent/5',
-                quoteCantSupplyRowClass(cantSupply),
-              )}
-              data-testid={
-                cantSupply
-                  ? 'order-line-cant-supply'
-                  : showPending
-                    ? 'order-line-pending'
-                    : showExtra
-                      ? 'order-line-extra'
-                      : undefined
+              item={item}
+              canEdit={canEdit}
+              canDispatch={canDispatch}
+              hasLastLr={Boolean(lastLr)}
+              lastLrQty={lastLrQty}
+              expanded={expanded}
+              busy={
+                setLineSupply.isPending ||
+                dispatchOneLine.isPending ||
+                saveLastLrQty.isPending
               }
-            >
-              <OrderLineCantSupplyFace
-                item={item}
-                items={data.items}
-                cantSupply={cantSupply}
-                onOpen={openPhotoViewer}
-              >
-                {!cantSupply ? (
-                  <p className="text-xs text-muted">
-                    {item.quantity}
-                    {item.requestedQuantity !== item.quantity
-                      ? ` of ${item.requestedQuantity} asked`
-                      : ''}{' '}
-                    × {formatRate(item.rate, item.unit)}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted">{item.requestedQuantity} asked</p>
-                )}
-                {showFulfillment ? (
-                  <p className="text-[11px] font-medium">
-                    <ShipProgressHint
-                      dispatched={item.shippedQuantity}
-                      pending={pending}
-                      extra={extra}
-                    />
-                  </p>
-                ) : null}
-                {item.note ? <p className="text-xs text-muted">{item.note}</p> : null}
-              </OrderLineCantSupplyFace>
-            </div>
+              photo={
+                <OrderLinePhoto
+                  item={item}
+                  items={data.items}
+                  onOpen={openPhotoViewer}
+                />
+              }
+              onToggle={() =>
+                setExpandedLineId((prev) => (prev === item.id ? null : item.id))
+              }
+              onCantSupply={(cantSupply) => {
+                setLineFulfillError(null);
+                setLineSupply.mutate({ orderItemId: item.id, cantSupply });
+              }}
+              onDispatch={(quantity) => {
+                setLineFulfillError(null);
+                dispatchOneLine.mutate({ orderItemId: item.id, quantity });
+              }}
+              onSaveLastLr={(quantity) => {
+                setLineFulfillError(null);
+                saveLastLrQty.mutate({ orderItemId: item.id, quantity });
+              }}
+            />
           );
         })}
         {data.note ? <p className="border-t border-line pt-2 text-sm text-muted">{data.note}</p> : null}
@@ -1749,10 +1883,18 @@ export function OrderDetailPage() {
                 <Button
                   variant="secondary"
                   data-testid="order-shipment-pdf"
-                  onClick={() => void shareShipmentPdf(shipment)}
+                  onClick={() => openShipmentPdf(shipment)}
                 >
                   PDF
                 </Button>
+                <button
+                  type="button"
+                  data-testid="order-shipment-pdf-share"
+                  className="px-1 text-sm font-semibold text-accent"
+                  onClick={() => void shareShipmentPdf(shipment)}
+                >
+                  Share
+                </button>
               </div>
             </div>
           ))}
@@ -2304,8 +2446,9 @@ export function OrderDetailPage() {
       <Sheet
         open={dispatchOpen}
         onClose={() => closeSheet('dispatch')}
-        title={editingShipmentId ? 'Edit dispatch' : 'Dispatch'}
+        title="Dispatch"
         footer={
+          editingShipmentId || shippableItems.length === 0 ? undefined : (
           <div className="flex flex-col gap-2.5">
             <Field label="LR number">
               <TextInput
@@ -2341,115 +2484,27 @@ export function OrderDetailPage() {
                 />
               </Field>
             </div>
-            {dispatchError ? <InlineNotice message={dispatchError} /> : null}
+            {dispatchError && !editingShipmentId ? (
+              <InlineNotice message={dispatchError} />
+            ) : null}
             <Button
               fullWidth
               data-testid="order-dispatch-confirm"
               onClick={submitDispatch}
-              disabled={
-                editingShipmentId
-                  ? editShipment.isPending ||
-                    Object.values(shipOn).filter(Boolean).length < 1
-                  : dispatchOrder.isPending || dispatchTally.designs < 1
-              }
+              disabled={dispatchOrder.isPending || dispatchTally.designs < 1}
             >
-              {editingShipmentId
-                ? editShipment.isPending
-                  ? 'Saving…'
-                  : 'Save changes'
-                : dispatchOrder.isPending
-                  ? 'Saving…'
-                  : 'Confirm dispatch'}
+              {dispatchOrder.isPending ? 'Saving…' : 'Confirm dispatch'}
             </Button>
           </div>
+          )
         }
       >
         <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          {!editingShipmentId && (data.shipments?.length ?? 0) > 0 ? (
-            <div className="flex flex-col gap-2" data-testid="order-dispatch-prior">
-              <p className="text-xs font-semibold text-muted">Earlier dispatches</p>
-              {data.shipments.map((shipment) => (
-                <div
-                  key={shipment.id}
-                  className="flex items-start justify-between gap-2 rounded-xl border border-line bg-foam/60 px-3 py-2 opacity-70"
-                  data-testid="order-dispatch-prior-row"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {shipment.lrNumber ? `LR · ${shipment.lrNumber}` : 'Dispatch'}
-                    </p>
-                    <p className="truncate text-[11px] text-muted">
-                      {shipment.items.map((line) => `${line.name} × ${line.quantity}`).join(' · ')}
-                    </p>
-                    <p className="text-[11px] text-muted">{formatDate(shipment.dispatchedAt)}</p>
-                  </div>
-                  {data.status !== 'settled' ? (
-                    <button
-                      type="button"
-                      data-testid="order-dispatch-prior-edit"
-                      className="shrink-0 text-[15px] font-semibold text-accent"
-                      onClick={() => openEditShipment(shipment)}
-                    >
-                      Edit
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {editingShipmentId ? (
-            <>
-              <p className="text-sm text-muted">Correct quantities or LR details. Buyer is told in chat.</p>
-              {(data.items ?? [])
-                .filter((item) => shipOn[item.id] !== undefined)
-                .map((item) => {
-                  const active = shipOn[item.id] !== false;
-                  return (
-                    <div
-                      key={item.id}
-                      className={cx(
-                        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
-                        active ? 'border-accent bg-accent/5' : 'border-line bg-surface opacity-60',
-                      )}
-                      data-testid="order-dispatch-edit-line"
-                    >
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                        onClick={() =>
-                          setShipOn((prev) => ({
-                            ...prev,
-                            [item.id]: !active,
-                          }))
-                        }
-                      >
-                        <OrderLinePhoto
-                          item={item}
-                          items={data.items}
-                          onOpen={openPhotoViewer}
-                          size="sm"
-                        />
-                        <p className="min-w-0 truncate text-sm font-semibold text-ink">{item.name}</p>
-                      </button>
-                      <TextInput
-                        type="number"
-                        min={0}
-                        disabled={!active}
-                        data-testid="order-dispatch-line-qty"
-                        className={COMPACT_QTY_INPUT_CLASS}
-                        value={shipQty[item.id] ?? ''}
-                        onChange={(event) =>
-                          setShipQty((prev) => ({ ...prev, [item.id]: event.target.value }))
-                        }
-                      />
-                    </div>
-                  );
-                })}
-            </>
-          ) : shippableItems.length === 0 ? (
-            <InlineNotice message="No confirmed quantity pending to dispatch." />
+          {shippableItems.length === 0 && declinedDispatchItems.length === 0 ? (
+            <p className="px-1 text-sm text-muted">Nothing left for a new LR.</p>
           ) : (
             <>
+              {shippableItems.length > 0 ? (
               <div
                 className="flex items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
                 data-testid="order-dispatch-tally"
@@ -2463,6 +2518,9 @@ export function OrderDetailPage() {
                   </p>
                 ) : null}
               </div>
+              ) : (
+                <p className="px-1 text-sm text-muted">Nothing left for a new LR.</p>
+              )}
               {shippableItems.map((item) => {
                 const on = shipOn[item.id] !== false;
                 const kind = dispatchLineKindLine(item);
@@ -2560,17 +2618,250 @@ export function OrderDetailPage() {
                   </div>
                 );
               })}
+              {declinedDispatchItems.length > 0 ? (
+                <div className="flex flex-col gap-2 pt-1" data-testid="order-dispatch-cant-supply">
+                  <p className="text-xs font-semibold text-muted">Can’t supply</p>
+                  {declinedDispatchItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={cx(
+                        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
+                        quoteCantSupplyRowClass(true),
+                      )}
+                      data-testid="order-dispatch-cant-supply-line"
+                    >
+                      <OrderLinePhoto
+                        item={item}
+                        items={data.items}
+                        onOpen={openPhotoViewer}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <p className="truncate text-sm font-semibold text-muted">{item.name}</p>
+                        <p className="text-[11px] font-semibold text-ink">Can’t supply</p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        className="!min-h-8 h-8 shrink-0 px-2 text-[12px]"
+                        data-testid="order-dispatch-restore-supply"
+                        disabled={setLineSupply.isPending}
+                        onClick={() =>
+                          setLineSupply.mutate({ orderItemId: item.id, cantSupply: false })
+                        }
+                      >
+                        Restore
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </>
           )}
-          {!editingShipmentId ? (
-            <NoteVoiceField
-              label="Note"
-              note={dispatchNote}
-              onNoteChange={setDispatchNote}
-              voice={dispatchNoteVoice}
-              onVoiceChange={setDispatchNoteVoice}
-            />
+          {priorShipments.length > 0 ? (
+            <div className="flex flex-col gap-2" data-testid="order-dispatch-prior">
+              <button
+                type="button"
+                data-testid="order-dispatch-prior-toggle"
+                className="flex w-full items-center justify-between gap-2 px-1 py-1 text-left"
+                aria-expanded={priorListShown}
+                onClick={() => {
+                  if (priorListShown) {
+                    setPriorListOpen(false);
+                    setEditingShipmentId(null);
+                    setDispatchError(null);
+                    return;
+                  }
+                  setPriorListOpen(true);
+                }}
+              >
+                <p className="min-w-0 truncate text-xs font-medium text-muted">
+                  {previousDispatchesCue(priorShipments.length)}
+                </p>
+                <ChevronRightIcon
+                  width={16}
+                  height={16}
+                  aria-hidden
+                  className={cx(
+                    'shrink-0 text-muted transition-transform',
+                    priorListShown && 'rotate-90',
+                  )}
+                />
+              </button>
+              {priorListShown
+                ? priorShipments.map((shipment) => {
+                    const expanded = editingShipmentId === shipment.id;
+                    return (
+                      <div
+                        key={shipment.id}
+                        className={cx(
+                          'rounded-xl border px-3 py-2',
+                          expanded
+                            ? 'border-accent/40 bg-accent/5'
+                            : 'border-line bg-foam/60 opacity-70',
+                        )}
+                        data-testid="order-dispatch-prior-row"
+                        data-expanded={expanded ? 'true' : 'false'}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-ink">
+                              {shipment.lrNumber ? `LR · ${shipment.lrNumber}` : 'Previous dispatch'}
+                            </p>
+                            <p className="text-[11px] text-muted">
+                              {formatDate(shipment.dispatchedAt)}
+                            </p>
+                            {!expanded ? (
+                              <p className="truncate text-[11px] text-muted">
+                                {shipment.items
+                                  .map((line) => `${line.name} × ${line.quantity}`)
+                                  .join(' · ')}
+                              </p>
+                            ) : null}
+                          </div>
+                          {data.status !== 'settled' ? (
+                            <button
+                              type="button"
+                              data-testid="order-dispatch-prior-edit"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
+                              aria-label={expanded ? 'Close edit' : 'Edit dispatch'}
+                              onClick={() => togglePriorShipmentEdit(shipment)}
+                            >
+                              {expanded ? (
+                                <CloseIcon width={18} height={18} />
+                              ) : (
+                                <PencilIcon width={18} height={18} />
+                              )}
+                            </button>
+                          ) : null}
+                        </div>
+                        {expanded ? (
+                          <div
+                            className="mt-3 flex flex-col gap-2 border-t border-line pt-3"
+                            data-testid="order-dispatch-prior-expand"
+                          >
+                            {(data.items ?? [])
+                              .filter((item) => editShipOn[item.id] !== undefined)
+                              .map((item) => {
+                                const active = editShipOn[item.id] !== false;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={cx(
+                                      'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
+                                      active
+                                        ? 'border-accent bg-accent/5'
+                                        : 'border-line bg-surface opacity-60',
+                                    )}
+                                    data-testid="order-dispatch-edit-line"
+                                  >
+                                    <button
+                                      type="button"
+                                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                                      onClick={() =>
+                                        setEditShipOn((prev) => ({
+                                          ...prev,
+                                          [item.id]: !active,
+                                        }))
+                                      }
+                                    >
+                                      <OrderLinePhoto
+                                        item={item}
+                                        items={data.items}
+                                        onOpen={openPhotoViewer}
+                                        size="sm"
+                                      />
+                                      <p className="min-w-0 truncate text-sm font-semibold text-ink">
+                                        {item.name}
+                                      </p>
+                                    </button>
+                                    <TextInput
+                                      type="number"
+                                      min={0}
+                                      disabled={!active}
+                                      data-testid="order-dispatch-line-qty"
+                                      className={COMPACT_QTY_INPUT_CLASS}
+                                      value={editShipQty[item.id] ?? ''}
+                                      onChange={(event) =>
+                                        setEditShipQty((prev) => ({
+                                          ...prev,
+                                          [item.id]: event.target.value,
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                );
+                              })}
+                            <Field label="LR number">
+                              <TextInput
+                                value={editDispatch.lrNumber ?? ''}
+                                placeholder="Optional"
+                                onChange={(event) =>
+                                  setEditDispatch((prev) => ({
+                                    ...prev,
+                                    lrNumber: event.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Field label="Transporter">
+                                <TextInput
+                                  value={editDispatch.transporter ?? ''}
+                                  placeholder="Optional"
+                                  onChange={(event) =>
+                                    setEditDispatch((prev) => ({
+                                      ...prev,
+                                      transporter: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </Field>
+                              <Field label="Parcels">
+                                <TextInput
+                                  type="number"
+                                  min={1}
+                                  value={editDispatch.parcelCount ?? ''}
+                                  placeholder="Optional"
+                                  onChange={(event) =>
+                                    setEditDispatch((prev) => ({
+                                      ...prev,
+                                      parcelCount: event.target.value
+                                        ? Number(event.target.value)
+                                        : undefined,
+                                    }))
+                                  }
+                                />
+                              </Field>
+                            </div>
+                            {dispatchError && editingShipmentId === shipment.id ? (
+                              <InlineNotice message={dispatchError} />
+                            ) : null}
+                            <Button
+                              fullWidth
+                              data-testid="order-dispatch-prior-save"
+                              onClick={submitEditShipment}
+                              disabled={
+                                editShipment.isPending ||
+                                Object.values(editShipOn).filter(Boolean).length < 1
+                              }
+                            >
+                              {editShipment.isPending ? 'Saving…' : 'Save changes'}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                : null}
+            </div>
           ) : null}
+          <NoteVoiceField
+            label="Note"
+            note={dispatchNote}
+            onNoteChange={setDispatchNote}
+            voice={dispatchNoteVoice}
+            onVoiceChange={setDispatchNoteVoice}
+          />
         </div>
       </Sheet>
 

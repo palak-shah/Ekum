@@ -434,6 +434,23 @@ export const decideOrderLinesSchema = z.object({
 });
 export type DecideOrderLinesDto = z.infer<typeof decideOrderLinesSchema>;
 
+/**
+ * Seller flips Can’t supply on confirmed / part-shipped / dispatched tickets
+ * (after lock — quote/decide only work while requested).
+ */
+export const setLineSupplySchema = z.object({
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        cantSupply: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type SetLineSupplyDto = z.infer<typeof setLineSupplySchema>;
+
 export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   direction: z.enum(orderDirectionValues).optional(),
   status: z.enum(orderStatusValues).optional(),

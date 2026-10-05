@@ -6,8 +6,11 @@ import {
   dispatchLineCountLine,
   dispatchLineKindLine,
   dispatchPayloadLines,
+  dispatchSheetItems,
   dispatchThisLrLabel,
   dispatchThisLrTally,
+  previousDispatchesCue,
+  cantSupplyDispatchItems,
   lineDispatchOverBy,
   lineDispatchQty,
   shippableDispatchItems,
@@ -38,6 +41,11 @@ describe('dispatchSheet', () => {
     expect(shippableDispatchItems([a, b, declined]).map((row) => row.id)).toEqual(['a', 'b']);
   });
 
+  it('lists Can’t supply after shippable for the sheet', () => {
+    expect(cantSupplyDispatchItems([a, declined, b]).map((row) => row.id)).toEqual(['c']);
+    expect(dispatchSheetItems([a, declined, b]).map((row) => row.id)).toEqual(['a', 'b', 'c']);
+  });
+
   it('defaults all on at remaining', () => {
     expect(defaultDispatchOn([a, b])).toEqual({ a: true, b: true });
     expect(defaultDispatchQty([a, b])).toEqual({ a: '20', b: '10' });
@@ -62,7 +70,22 @@ describe('dispatchSheet', () => {
     expect(
       dispatchLineCountLine(line({ id: 'a', requestedQuantity: 20, remainingQuantity: 8 })),
     ).toBe('20 ordered · pending 8');
+    expect(
+      dispatchLineCountLine(
+        line({
+          id: 'a',
+          requestedQuantity: 20,
+          remainingQuantity: 2,
+          shippedQuantity: 18,
+        }),
+      ),
+    ).toBe('dispatched 18 · pending 2');
     expect(dispatchLineKindLine(line({ id: 'a', sku: null, unit: null }))).toBeNull();
+  });
+
+  it('names the previous-dispatches collapse cue', () => {
+    expect(previousDispatchesCue(1)).toBe('1 previous dispatch');
+    expect(previousDispatchesCue(3)).toBe('3 previous dispatches');
   });
 
   it('allows typed qty above remaining (over-ship)', () => {

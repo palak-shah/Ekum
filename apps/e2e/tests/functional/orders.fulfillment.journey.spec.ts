@@ -125,11 +125,14 @@ test.describe('order fulfillment @functional @orders', () => {
     await page.getByTestId('order-dispatch-open').click();
     const dispatchSheet = page.getByRole('dialog');
     await expect(dispatchSheet.getByTestId('order-dispatch-prior')).toBeVisible();
+    await dispatchSheet.getByTestId('order-dispatch-prior-toggle').click();
     await expect(dispatchSheet.getByTestId('order-dispatch-prior-edit').first()).toBeVisible();
     await dispatchSheet.getByTestId('order-dispatch-prior-edit').first().click();
-    await expect(dispatchSheet.getByRole('heading', { name: 'Edit dispatch' })).toBeVisible();
-    await dispatchSheet.getByTestId('order-dispatch-confirm').click();
-    await expect(dispatchSheet).toBeHidden({ timeout: 15_000 });
+    await expect(dispatchSheet.getByTestId('order-dispatch-prior-expand')).toBeVisible();
+    await dispatchSheet.getByTestId('order-dispatch-prior-save').click();
+    await expect(dispatchSheet.getByTestId('order-dispatch-prior-expand')).toBeHidden({
+      timeout: 15_000,
+    });
 
     const after = await getOrder(page.request, raviToken, orderId);
     const shipmentId = after.shipments?.[0]?.id;

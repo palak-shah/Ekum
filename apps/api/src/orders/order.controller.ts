@@ -18,6 +18,7 @@ import {
   orderTicketSchema,
   sendUpOrderSchema,
   settleOrderSchema,
+  setLineSupplySchema,
   type AmendOrderDto,
   type CancelOrderDto,
   type CreateForBuyerDto,
@@ -36,6 +37,7 @@ import {
   type OrderTicketDto,
   type SendUpOrderDto,
   type SettleOrderDto,
+  type SetLineSupplyDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
@@ -163,6 +165,18 @@ export class OrderController {
     @Body(new ZodValidationPipe(decideOrderLinesSchema)) dto: DecideOrderLinesDto,
   ) {
     return this.orders.decideLines(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/lines/supply')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  setLineSupply(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setLineSupplySchema)) dto: SetLineSupplyDto,
+  ) {
+    return this.orders.setLineSupply(companyId, user.userId, id, dto);
   }
 
   @Post(':id/accept')

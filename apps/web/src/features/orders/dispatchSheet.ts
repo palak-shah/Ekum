@@ -9,6 +9,16 @@ export function shippableDispatchItems(items: OrderItemView[]): OrderItemView[] 
   );
 }
 
+/** Declined / Can’t supply lines — shown grayed on Dispatch (not shippable until restored). */
+export function cantSupplyDispatchItems(items: OrderItemView[]): OrderItemView[] {
+  return items.filter((item) => item.lineStatus === 'declined');
+}
+
+/** Shippable first, then Can’t supply — full list for the Dispatch sheet. */
+export function dispatchSheetItems(items: OrderItemView[]): OrderItemView[] {
+  return [...shippableDispatchItems(items), ...cantSupplyDispatchItems(items)];
+}
+
 export function defaultDispatchOn(items: OrderItemView[]): Record<string, boolean> {
   const on: Record<string, boolean> = {};
   for (const item of items) on[item.id] = true;
@@ -79,10 +89,20 @@ export function dispatchLineKindLine(item: Pick<OrderItemView, 'sku' | 'unit'>):
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 
-/** Ordered vs still pending — we do not store pcs/set. */
+/** Ordered / shipped / pending — show dispatched when some already left. */
 export function dispatchLineCountLine(
-  item: Pick<OrderItemView, 'requestedQuantity' | 'remainingQuantity'>,
+  item: Pick<OrderItemView, 'requestedQuantity' | 'remainingQuantity' | 'shippedQuantity'>,
 ): string {
+  const shipped = item.shippedQuantity ?? 0;
+  if (shipped > 0) {
+    return `dispatched ${shipped} · pending ${item.remainingQuantity}`;
+  }
   return `${item.requestedQuantity} ordered · pending ${item.remainingQuantity}`;
+}
+
+/** Quiet collapse cue for earlier LRs on Dispatch. */
+export function previousDispatchesCue(count: number): string {
+  if (count <= 0) return '';
+  return count === 1 ? '1 previous dispatch' : `${count} previous dispatches`;
 }
 

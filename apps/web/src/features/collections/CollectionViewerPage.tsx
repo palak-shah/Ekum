@@ -89,10 +89,11 @@ import {
   StatusPill,
   cx,
 } from '@/ui/kit';
-import { CheckIcon, LockIcon, MoreHorizontalIcon } from '@/ui/icons';
+import { LockIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { useToast } from '@/ui/Toast';
+import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 
 type Layout = DesignBrowseLayout;
@@ -1157,51 +1158,47 @@ function DesignTile({
   const longPress = useLongPress(onLongSelect);
 
   return (
-    <div
-      className={cx(
-        'overflow-hidden rounded-2xl border text-left',
-        selected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
-      )}
-    >
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface text-left">
       <button
         type="button"
         onClick={onActivate}
         className={cx('relative block w-full', LONG_PRESS_SURFACE_CLASS)}
         {...longPress}
       >
-        {image ? (
-          <img
-            src={image}
-            alt={product.name}
-            className={cx(
-              designBrowsePhotoClass(variant),
-              unavailableReason && 'opacity-45',
-            )}
-            loading="lazy"
-          />
-        ) : (
-          <div
-            className={cx(
-              designBrowsePhotoClass(variant, 'placeholder'),
-              unavailableReason && 'opacity-45',
-            )}
-          >
-            {product.name.charAt(0).toUpperCase()}
-          </div>
-        )}
+        <SelectableMediaFrame
+          selectMode={selectMode && !unavailableReason}
+          selected={selected}
+          checkClassName="right-2 top-2"
+        >
+          {image ? (
+            <img
+              src={image}
+              alt={product.name}
+              className={cx(
+                designBrowsePhotoClass(variant),
+                unavailableReason && 'opacity-45',
+              )}
+              loading="lazy"
+            />
+          ) : (
+            <div
+              className={cx(
+                designBrowsePhotoClass(variant, 'placeholder'),
+                unavailableReason && 'opacity-45',
+              )}
+            >
+              {product.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </SelectableMediaFrame>
         {extraPhotos > 0 ? (
-          <span className="absolute bottom-2 left-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
+          <span className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
             +{extraPhotos}
-          </span>
-        ) : null}
-        {selectMode && !unavailableReason ? (
-          <span className="absolute right-2 top-2">
-            <SelectMark selected={selected} />
           </span>
         ) : null}
         {unavailableReason ? (
           <span
-            className="absolute left-2 top-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
+            className="absolute left-2 top-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
             data-testid="collection-member-unavailable"
           >
             {unavailableReason}
@@ -1352,18 +1349,5 @@ function ProductSaveButton({ productId }: { productId: string }) {
           ? 'Design bookmarked'
           : 'Bookmark this design'}
     </Button>
-  );
-}
-
-function SelectMark({ selected }: { selected: boolean }) {
-  return (
-    <span
-      className={cx(
-        'flex h-6 w-6 items-center justify-center rounded-full border',
-        selected ? 'border-accent bg-accent text-white' : 'border-line bg-white/90 text-transparent',
-      )}
-    >
-      <CheckIcon width={14} height={14} />
-    </span>
   );
 }

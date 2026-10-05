@@ -21,6 +21,7 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { AlbumGrid } from '@/ui/cards';
+import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { useToast } from '@/ui/Toast';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import {
@@ -32,7 +33,6 @@ import {
   Sheet,
   cx,
 } from '@/ui/kit';
-import { CheckIcon } from '@/ui/icons';
 import { catalogSearchMatches } from '@/features/catalog/catalogSearch';
 import { savedAlbumImageCount } from './savedAlbumCount';
 import { savedItemMeta } from './savedItemMeta';
@@ -448,8 +448,7 @@ function SavedGridTile({
   return (
     <div
       className={cx(
-        'relative overflow-hidden rounded-2xl border bg-surface',
-        selected ? 'border-accent' : 'border-line',
+        'relative overflow-hidden rounded-2xl border border-line bg-surface',
         item.available === false && 'opacity-70',
       )}
     >
@@ -459,7 +458,9 @@ function SavedGridTile({
         onClick={() => (selectMode && onToggleSelect ? onToggleSelect() : onOpen())}
         {...longPress}
       >
-        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
+        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+          <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
+        </SelectableMediaFrame>
       </button>
       <button type="button" className="block w-full px-2.5 py-2.5 text-left" onClick={onOpen}>
         <p className={cx('truncate text-sm font-semibold text-ink', item.available === false && 'opacity-45')}>
@@ -467,16 +468,7 @@ function SavedGridTile({
         </p>
         <p className="truncate text-xs text-muted">{savedItemMeta(item)}</p>
       </button>
-      {selectMode ? (
-        <span
-          className={cx(
-            'pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-            selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-          )}
-        >
-          <CheckIcon width={14} height={14} />
-        </span>
-      ) : (
+      {!selectMode ? (
         <button
           type="button"
           aria-label="Remove from Saved"
@@ -489,7 +481,7 @@ function SavedGridTile({
         >
           ×
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -546,25 +538,13 @@ function SavedFeedRow({
       </div>
       <button
         type="button"
-        className={cx(
-          'relative block w-full px-3 text-left',
-          LONG_PRESS_SURFACE_CLASS,
-          selected && 'opacity-95',
-        )}
+        className={cx('relative block w-full px-3 text-left', LONG_PRESS_SURFACE_CLASS)}
         onClick={() => (selectMode && onToggleSelect ? onToggleSelect() : onOpen())}
         {...longPress}
       >
-        <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
-        {selectMode ? (
-          <span
-            className={cx(
-              'absolute left-5 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-            )}
-          >
-            <CheckIcon width={14} height={14} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame selectMode={selectMode} selected={selected} checkClassName="left-2 top-2">
+          <AlbumGrid images={images} imageCount={imageCount} alt={item.name} />
+        </SelectableMediaFrame>
       </button>
       <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onOpen}>
         <p className={cx('text-sm font-semibold tracking-tight text-ink', item.available === false && 'opacity-45')}>

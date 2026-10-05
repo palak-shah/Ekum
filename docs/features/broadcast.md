@@ -10,7 +10,7 @@ Companies with **selling** on and **`canPublish`** (unlocked after first publish
 
 **Entry points:**
 - ~~**＋ → Broadcast to buyers**~~ — compose **hidden** for now (backup; route `/broadcast/new` kept)
-- Collection / Selection / album **Share** posts into **chat(s)** via `CatalogShareSheet` (companies and, when they exist, **buyer groups** as a shortcut — same lists). Overlap across groups → **one** chat. Does **not** open Broadcast compose or `POST /broadcasts`. Create/edit groups stays on Network → Buyer groups / Publish Selected.
+- Collection / Selection / album **Share** posts into **chat(s)** via `CatalogShareSheet` (companies + **Publish-style buyer-group chips** when groups exist — same lists). Overlap across groups → **one** chat. Does **not** open Broadcast compose or `POST /broadcasts`. Create/edit groups stays on Network → Buyer groups / Publish Selected.
 - **Network → Buyer groups** — manage groups (edit members, rate/forward defaults)
 - **Publish → Selected** — pick or create groups without leaving Publish (same lists)
 

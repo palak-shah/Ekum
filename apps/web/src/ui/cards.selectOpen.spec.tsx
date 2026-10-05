@@ -1,9 +1,20 @@
+import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { ExploreDesignOpportunity, ExploreOpportunity } from '@ekum/domain-types';
 import { OpportunityCollectionCard, OpportunityDesignCard } from './cards';
+
+function wrap(ui: ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 const company = {
   id: 'co-1',
@@ -52,15 +63,13 @@ describe('Explore cards open while Selecting', () => {
   it('keeps the collection name as an open link while Selecting', async () => {
     const onToggle = vi.fn();
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <OpportunityCollectionCard
-          opportunity={collectionOpportunity}
-          selectMode
-          selected
-          onToggleSelect={onToggle}
-        />
-      </MemoryRouter>,
+    wrap(
+      <OpportunityCollectionCard
+        opportunity={collectionOpportunity}
+        selectMode
+        selected
+        onToggleSelect={onToggle}
+      />,
     );
     expect(screen.getByTestId('explore-collection-open-col1')).toHaveAttribute(
       'href',
@@ -68,20 +77,19 @@ describe('Explore cards open while Selecting', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Select Wedding Edit' }));
     expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('selectable-media-selected')).toBeTruthy();
   });
 
   it('keeps the design name as an open link while Selecting', async () => {
     const onToggle = vi.fn();
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <OpportunityDesignCard
-          opportunity={designOpportunity}
-          selectMode
-          selected
-          onToggleSelect={onToggle}
-        />
-      </MemoryRouter>,
+    wrap(
+      <OpportunityDesignCard
+        opportunity={designOpportunity}
+        selectMode
+        selected
+        onToggleSelect={onToggle}
+      />,
     );
     expect(screen.getByTestId('explore-design-open-d1')).toHaveAttribute(
       'href',
@@ -91,5 +99,6 @@ describe('Explore cards open while Selecting', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('explore-design-open-d1')).toHaveTextContent('Design · 3 photos');
     expect(screen.queryByText('+2')).not.toBeInTheDocument();
+    expect(screen.getByTestId('selectable-media-selected')).toBeTruthy();
   });
 });

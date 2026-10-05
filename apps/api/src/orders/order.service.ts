@@ -45,6 +45,7 @@ import {
   type OrderTicketDto,
   type SendUpOrderDto,
   type SettleOrderDto,
+  type SetLineSupplyDto,
   TradeLaneTicket,
 } from '@ekum/domain-types';
 import { matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
@@ -1562,6 +1563,168 @@ export class OrderService {
       ...(await this.trailVoiceFields(actorCompanyId, dto)),
     });
     return this.get(actorCompanyId, id);
+  }
+
+  /**
+   * Seller flips Can’t supply after confirm (quote/decide only work while requested).
+   * Chat + Timeline — not silent.
+   */
+  async setLineSupply(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: SetLineSupplyDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can do this.',
+      });
+    }
+    if (order.status === OrderStatus.Settled) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Cannot change supply after settle.',
+      });
+    }
+    if (
+      order.status !== OrderStatus.Confirmed &&
+      order.status !== OrderStatus.PartShipped &&
+      order.status !== OrderStatus.Dispatched
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Use Send quote or Confirm for designs before the order is locked.',
+      });
+    }
+
+    const byId = new Map(order.items.map((item) => [item.id, item]));
+    const shippedByItem = this.shippedTotals(order);
+    const changed: Array<{ name: string; cantSupply: boolean }> = [];
+
+    for (const line of dto.items) {
+      const item = byId.get(line.orderItemId);
+      if (!item) {
+        throw new NotFoundException({
+          code: 'INVALID_ITEM',
+          message: 'A line does not match this order.',
+        });
+      }
+      const shipped = shippedByItem.get(item.id) ?? 0;
+
+      if (line.cantSupply) {
+        if (item.lineStatus === OrderLineStatus.Declined) continue;
+        if (
+          item.lineStatus !== OrderLineStatus.Confirmed &&
+          item.lineStatus !== OrderLineStatus.Dispatched
+        ) {
+          throw new ConflictException({
+            code: 'LINE_NOT_SUPPLYABLE',
+            message: 'Only confirmed designs can be marked Can’t supply.',
+          });
+        }
+        if (shipped <= 0) {
+          await this.prisma.orderItem.update({
+            where: { id: item.id },
+            data: { lineStatus: OrderLineStatus.Declined },
+          });
+        } else {
+          await this.prisma.orderItem.update({
+            where: { id: item.id },
+            data: {
+              quantity: shipped,
+              lineStatus: OrderLineStatus.Dispatched,
+            },
+          });
+        }
+        changed.push({ name: item.name, cantSupply: true });
+      } else {
+        if (item.lineStatus !== OrderLineStatus.Declined) continue;
+        const restoreQty = item.requestedQuantity.toNumber();
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data: {
+            quantity: restoreQty,
+            lineStatus: OrderLineStatus.Confirmed,
+          },
+        });
+        changed.push({ name: item.name, cantSupply: false });
+      }
+    }
+
+    if (changed.length < 1) {
+      return this.get(actorCompanyId, id);
+    }
+
+    const final = await this.loadForParty(id, actorCompanyId);
+    const shippable = final.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const totals = this.shippedTotals(final);
+    const allOut =
+      shippable.length > 0 &&
+      shippable.every((item) => {
+        if (item.lineStatus === OrderLineStatus.Open) return false;
+        const shipped = totals.get(item.id) ?? 0;
+        return (
+          item.lineStatus === OrderLineStatus.Dispatched ||
+          item.lineStatus === OrderLineStatus.Delivered ||
+          shipped + 1e-9 >= item.quantity.toNumber()
+        );
+      });
+    const anyShipped = shippable.some((item) => (totals.get(item.id) ?? 0) > 0);
+    const nextStatus =
+      shippable.length < 1
+        ? OrderStatus.Declined
+        : allOut
+          ? OrderStatus.Dispatched
+          : anyShipped
+            ? OrderStatus.PartShipped
+            : OrderStatus.Confirmed;
+
+    const now = new Date();
+    await this.prisma.order.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        dispatchedAt: nextStatus === OrderStatus.Dispatched ? final.dispatchedAt ?? now : null,
+        closedAt:
+          nextStatus === OrderStatus.Dispatched || nextStatus === OrderStatus.Declined
+            ? final.closedAt ?? now
+            : null,
+        ...this.withActor(userId),
+      },
+    });
+
+    const actorLabel = order.seller.name;
+    const orderLabel = shortOrderLabel(id);
+    const bits = changed.map((row) =>
+      row.cantSupply ? `Can’t supply · ${row.name}` : `Back on order · ${row.name}`,
+    );
+    const summary = bits.join(' · ');
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Updated,
+      at: now,
+      actorCompanyId,
+      actorUserId: userId,
+      summary: `${actorLabel} · ${summary}`,
+    });
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      `${actorLabel} · ${summary}`,
+      id,
+      {
+        status: nextStatus,
+        event: OrderChatEvent.OrderUpdated,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+        itemCount: changed.length,
+      },
+    );
+    return this.emitAndGet(actorCompanyId, id, nextStatus);
   }
 
   async dispatch(actorCompanyId: string, userId: string, id: string, dto: DispatchDto): Promise<OrderView> {

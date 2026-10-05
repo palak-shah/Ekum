@@ -10,6 +10,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
 | Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
+| Orders | Per-line fulfill edit + Can’t supply on Dispatch sheet + packing PDF (phone viewer + quiet Share) | Works | Unit | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf |
+| Explore / Selection | Photos-style selected media (scale over teal + teal check; no grey-out) app-wide incl. pack viewer | Works | Unit | Required | Completeness 2026-10-05-selection-media-photos-look |
 | Explore | First-paint feed + end footer; virtual overscan; shop prefetch | Works | Unit | Required | Progressive `/explore/feed` + `sections=feed`; You've reached the end |
 | Orders | Cheap Needs you badge count (no full list walk) | Works | Unit | Required | Completeness 2026-10-04-orders-needs-you-count |
 | Notifications | Accuracy: tap mark-read, badge scope, who/what copy, deep links + push path | Works | Unit + Functional | Required | Completeness 2026-09-14-notifications-accuracy; return→order; SW `url` |
@@ -113,7 +115,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Relist lock (usual → group → sheet + API); Forward free | Works | Unit | Required | Completeness 2026-09-03-forward-free-view-on-open + 2026-09-30-share-no-view-gate; Share published pack-only designs; view/Ask on open; Curate still locked |
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
 | Collections | Pack publish does not Explore-post member designs | Works | Unit | Required | Completeness 2026-09-11-collection-publish-no-design-explore |
-| Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; buyer groups as shortcut, unique shops) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share + 2026-10-04-share-buyer-groups |
+| Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; Publish-style group chips, unique shops) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share + 2026-10-04-share-buyer-groups + 2026-10-05-catalog-share-sheet-quiet |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |

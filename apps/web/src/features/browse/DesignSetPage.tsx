@@ -25,6 +25,7 @@ import { CatalogFeedPost } from '@/ui/cards';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Button, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
+import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
@@ -32,7 +33,7 @@ import { packHandlerName } from '@/features/browse/packOrderSource';
 import { sellerIdForEntries, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useTradePresence } from '@/lib/tradePresence';
-import { CheckIcon, LockIcon } from '@/ui/icons';
+import { LockIcon } from '@/ui/icons';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 
 type SetTile =
@@ -438,8 +439,7 @@ function DesignSetTile({
       type="button"
       onClick={onActivate}
       className={cx(
-        'overflow-hidden rounded-2xl border bg-surface text-left active:opacity-90',
-        selected ? 'border-accent bg-accent/5' : 'border-line',
+        'overflow-hidden rounded-2xl border border-line bg-surface text-left active:opacity-90',
         LONG_PRESS_SURFACE_CLASS,
       )}
       data-testid="design-set-tile"
@@ -447,19 +447,11 @@ function DesignSetTile({
     >
       {thumb ? (
         <span className="relative block">
-          <img src={thumb} alt="" className={designBrowsePhotoClass('grid')} />
-          {selectMode ? (
-            <span
-              className={cx(
-                'absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-                selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-              )}
-            >
-              <CheckIcon width={14} height={14} />
-            </span>
-          ) : null}
+          <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+            <img src={thumb} alt="" className={designBrowsePhotoClass('grid')} />
+          </SelectableMediaFrame>
           {extraPhotos > 0 ? (
-            <span className="absolute bottom-2 left-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
+            <span className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
               +{extraPhotos}
             </span>
           ) : null}

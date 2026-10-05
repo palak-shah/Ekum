@@ -4,8 +4,8 @@ import type { CollectionCard } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
 import { packFeedDetailLine } from '@/ui/albumMosaic';
-import { CheckIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
+import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from '@/ui/useLongPress';
 import { shopCollectionPreviewImages } from './shopPhoto';
 
@@ -70,41 +70,28 @@ export function ShopPhotoCell({
       onClick={onActivate}
       {...longPress}
     >
-      {url ? (
-        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <span className="flex h-full w-full items-center justify-center bg-linen text-lg font-bold text-muted">
-          {label.trim().charAt(0).toUpperCase() || '·'}
-        </span>
-      )}
-      {selectMode ? (
-        <span
-          className={cx(
-            'absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-            selected ? 'border-accent bg-accent' : 'border-white/80 bg-black/20 text-transparent',
-          )}
-        >
-          <CheckIcon width={14} height={14} />
-        </span>
-      ) : null}
+      <SelectableMediaFrame
+        selectMode={selectMode}
+        selected={selected}
+        idleCheckClassName="border-white/80 bg-black/20 text-transparent"
+      >
+        {url ? (
+          <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center bg-linen text-lg font-bold text-muted">
+            {label.trim().charAt(0).toUpperCase() || '·'}
+          </span>
+        )}
+      </SelectableMediaFrame>
     </button>
   );
 
   if (!showName) {
-    return (
-      <div className={cx('bg-surface', selecting && selected ? 'ring-2 ring-inset ring-accent' : '')}>
-        {photo}
-      </div>
-    );
+    return <div className="bg-surface">{photo}</div>;
   }
 
   return (
-    <div
-      className={cx(
-        'flex flex-col bg-surface text-left',
-        selecting && selected ? 'ring-2 ring-inset ring-accent' : '',
-      )}
-    >
+    <div className="flex flex-col bg-surface text-left">
       {photo}
       {to ? (
         <Link
@@ -173,12 +160,7 @@ export function ShopCollectionCell({
   }
 
   return (
-    <div
-      className={cx(
-        'flex flex-col bg-surface',
-        selecting && selected ? 'ring-2 ring-inset ring-accent' : '',
-      )}
-    >
+    <div className="flex flex-col bg-surface">
       <button
         type="button"
         aria-label={selecting ? `Select ${collection.name}` : collection.name}
@@ -187,21 +169,17 @@ export function ShopCollectionCell({
         onClick={onMosaic}
         {...longPress}
       >
-        <AlbumGrid
-          images={images.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean)}
-          imageCount={mosaicCount}
-          alt={collection.name}
-        />
-        {selectMode ? (
-          <span
-            className={cx(
-              'absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-              selected ? 'border-accent bg-accent' : 'border-white/80 bg-black/20 text-transparent',
-            )}
-          >
-            <CheckIcon width={14} height={14} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame
+          selectMode={selectMode}
+          selected={selected}
+          idleCheckClassName="border-white/80 bg-black/20 text-transparent"
+        >
+          <AlbumGrid
+            images={images.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean)}
+            imageCount={mosaicCount}
+            alt={collection.name}
+          />
+        </SelectableMediaFrame>
       </button>
       <Link
         to={`/collections/${collection.id}`}

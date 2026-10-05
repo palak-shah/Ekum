@@ -22,9 +22,10 @@ import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, Sheet, cx } 
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { CheckIcon, FilterIcon, PlusIcon } from '@/ui/icons';
+import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { collectionMosaicCount, packFeedCaption, packFeedDetailLine } from '@/ui/albumMosaic';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { libraryAuditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
@@ -1075,29 +1076,24 @@ function SellerProductTile({
   const body = (
     <>
       <div className="relative">
-        {product.images[0] ? (
-          <img
-            src={product.images[0]}
-            alt=""
-            className={designBrowsePhotoClass(variant)}
-          />
-        ) : (
-          <div className={designBrowsePhotoClass(variant, 'placeholder')}>
-            {product.name.charAt(0)}
-          </div>
-        )}
-        {selecting ? (
-          <span
-            className={cx(
-              'absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border-2',
-              selected
-                ? 'border-accent bg-accent text-white'
-                : 'border-white bg-ink/30 text-transparent',
-            )}
-          >
-            <CheckIcon width={16} height={16} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame
+          selectMode={selecting}
+          selected={selected}
+          checkClassName="right-2 top-2"
+          idleCheckClassName="border-white bg-ink/30 text-transparent"
+        >
+          {product.images[0] ? (
+            <img
+              src={product.images[0]}
+              alt=""
+              className={designBrowsePhotoClass(variant)}
+            />
+          ) : (
+            <div className={designBrowsePhotoClass(variant, 'placeholder')}>
+              {product.name.charAt(0)}
+            </div>
+          )}
+        </SelectableMediaFrame>
       </div>
       <div className={cx('flex min-w-0 flex-col gap-1 overflow-hidden', feed ? 'p-3' : 'p-2.5')}>
         <p className="truncate text-sm font-medium text-ink">{product.name}</p>
@@ -1119,9 +1115,8 @@ function SellerProductTile({
         data-testid="catalog-product-tile"
         onClick={onToggle}
         className={cx(
-          'overflow-hidden rounded-2xl border bg-surface text-left',
+          'overflow-hidden rounded-2xl border border-line bg-surface text-left',
           LONG_PRESS_SURFACE_CLASS,
-          selected ? 'border-accent' : 'border-line',
         )}
       >
         {body}
@@ -1222,19 +1217,14 @@ function SellerCollectionTile({
   const body = (
     <>
       <div className={cx('relative', feed && 'px-0')}>
-        <AlbumGrid images={previews} imageCount={mosaicCount} alt={collection.name} />
-        {selecting ? (
-          <span
-            className={cx(
-              'absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border-2',
-              selected
-                ? 'border-accent bg-accent text-white'
-                : 'border-white bg-ink/30 text-transparent',
-            )}
-          >
-            <CheckIcon width={16} height={16} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame
+          selectMode={selecting}
+          selected={selected}
+          checkClassName="right-2 top-2"
+          idleCheckClassName="border-white bg-ink/30 text-transparent"
+        >
+          <AlbumGrid images={previews} imageCount={mosaicCount} alt={collection.name} />
+        </SelectableMediaFrame>
       </div>
       <div className="flex min-w-0 flex-col gap-1 overflow-hidden p-3">
         <p className="truncate text-base font-semibold text-ink">{collection.name}</p>
@@ -1257,9 +1247,8 @@ function SellerCollectionTile({
         type="button"
         onClick={onToggle}
         className={cx(
-          'overflow-hidden rounded-2xl border bg-surface text-left',
+          'overflow-hidden rounded-2xl border border-line bg-surface text-left',
           LONG_PRESS_SURFACE_CLASS,
-          selected ? 'border-accent' : 'border-line',
         )}
       >
         {body}

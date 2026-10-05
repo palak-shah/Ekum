@@ -17,7 +17,7 @@ import type {
 import { formatRate, timeAgo } from '@/lib/format';
 import { warmCompanyFromExplore } from '@/features/company/warmCompanyQueries';
 import { Avatar, Chip, cx } from './kit';
-import { CheckIcon, ChevronRightIcon } from './icons';
+import { ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
 import { shopIdentityLine, shopSellCategories } from './shopIdentity';
 import {
@@ -27,6 +27,7 @@ import {
   designCountLabel,
   packFeedDetailLine,
 } from './albumMosaic';
+import { SelectableMediaFrame } from './selectMediaChrome';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 /** CoverImage IO prefetch — ahead of tall Explore cards. */
@@ -193,25 +194,17 @@ export function OpportunityCollectionCard({
         onClick={onMediaClick}
         {...longPress}
       >
-        <AlbumGrid
-          images={collection.previewImages}
-          imageCount={collectionMosaicCount({
-            productCount: collection.productCount,
-            previewCount: collection.previewImages.length,
-          })}
-          alt={collection.name}
-          priority={priority}
-        />
-        {selectMode ? (
-          <span
-            className={cx(
-              'absolute left-6 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-            )}
-          >
-            <CheckIcon width={14} height={14} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+          <AlbumGrid
+            images={collection.previewImages}
+            imageCount={collectionMosaicCount({
+              productCount: collection.productCount,
+              previewCount: collection.previewImages.length,
+            })}
+            alt={collection.name}
+            priority={priority}
+          />
+        </SelectableMediaFrame>
       </button>
       <Link
         to={`/collections/${collection.id}`}
@@ -494,22 +487,14 @@ export function OpportunityDesignCard({
         onClick={onMediaClick}
         {...longPress}
       >
-        <AlbumGrid
-          images={product.images[0] ? [product.images[0]] : []}
-          imageCount={1}
-          alt={product.name}
-          priority={priority}
-        />
-        {selectMode ? (
-          <span
-            className={cx(
-              'absolute left-6 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-            )}
-          >
-            <CheckIcon width={14} height={14} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+          <AlbumGrid
+            images={product.images[0] ? [product.images[0]] : []}
+            imageCount={1}
+            alt={product.name}
+            priority={priority}
+          />
+        </SelectableMediaFrame>
       </button>
       <Link
         to={`/explore/products/${product.id}`}
@@ -556,33 +541,20 @@ export function DesignTile({
   };
 
   return (
-    <div
-      className={cx(
-        'overflow-hidden rounded-2xl border bg-surface text-left',
-        selecting && selected ? 'border-accent' : 'border-line',
-      )}
-    >
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface text-left">
       <button
         type="button"
         className={cx('relative block w-full p-1.5 text-left', LONG_PRESS_SURFACE_CLASS)}
         onClick={onTileClick}
         {...longPress}
       >
-        <AlbumGrid
-          images={product.images}
-          imageCount={product.images.length}
-          alt={product.name}
-        />
-        {selectMode ? (
-          <span
-            className={cx(
-              'absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-            )}
-          >
-            <CheckIcon width={14} height={14} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+          <AlbumGrid
+            images={product.images}
+            imageCount={product.images.length}
+            alt={product.name}
+          />
+        </SelectableMediaFrame>
       </button>
       <Link
         to={`/explore/products/${product.id}`}
@@ -870,17 +842,9 @@ export function CatalogFeedPost({
         onClick={onMediaClick}
         {...longPress}
       >
-        <AlbumGrid images={images} imageCount={imageCount} alt={name} frame="feed" />
-        {selectMode ? (
-          <span
-            className={cx(
-              'absolute left-6 top-2 flex h-6 w-6 items-center justify-center rounded-full border text-white',
-              selected ? 'border-accent bg-accent' : 'border-line bg-white/90 text-transparent',
-            )}
-          >
-            <CheckIcon width={14} height={14} />
-          </span>
-        ) : null}
+        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+          <AlbumGrid images={images} imageCount={imageCount} alt={name} frame="feed" />
+        </SelectableMediaFrame>
       </button>
       <Link
         to={href}

@@ -298,11 +298,11 @@ export function CatalogShareSheet({
         <LoadingBlock />
       ) : (
         <div className="ekum-no-scrollbar flex max-h-[min(24rem,55vh)] flex-col gap-2 overflow-y-auto">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted">
-              {selectedCount} selected · posts into chat
-            </p>
-            {selectedCount > 0 ? (
+          {selectedCount > 0 ? (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted">
+                {selectedCount} selected · posts into chat
+              </p>
               <button
                 type="button"
                 className="text-xs font-medium text-accent disabled:opacity-50"
@@ -315,44 +315,40 @@ export function CatalogShareSheet({
               >
                 Clear
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           {shareableGroups.length > 0 ? (
             <div className="flex flex-col gap-1.5" data-testid="catalog-share-groups">
               <p className="text-xs font-semibold text-ink">Buyer groups</p>
-              {shareableGroups.map((group) => {
-                const selected = selectedGroupIds.includes(group.id);
-                const n = group.memberCompanyIds.length;
-                return (
-                  <button
-                    key={group.id}
-                    type="button"
-                    data-testid={`catalog-share-group-${group.id}`}
-                    disabled={busy}
-                    onClick={() =>
-                      setSelectedGroupIds((prev) =>
-                        prev.includes(group.id)
-                          ? prev.filter((id) => id !== group.id)
-                          : [...prev, group.id],
-                      )
-                    }
-                    className={cx(
-                      'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
-                      selected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{group.name}</p>
-                      <p className="truncate text-xs text-muted">
-                        {n} {n === 1 ? 'business' : 'businesses'}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-xs text-muted">
-                      {selected ? 'Selected' : 'Add'}
-                    </span>
-                  </button>
-                );
-              })}
+              <div className="flex flex-wrap gap-2">
+                {shareableGroups.map((group) => {
+                  const selected = selectedGroupIds.includes(group.id);
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      data-testid={`catalog-share-group-${group.id}`}
+                      disabled={busy}
+                      aria-pressed={selected}
+                      onClick={() =>
+                        setSelectedGroupIds((prev) =>
+                          prev.includes(group.id)
+                            ? prev.filter((id) => id !== group.id)
+                            : [...prev, group.id],
+                        )
+                      }
+                      className={cx(
+                        'rounded-full border px-3 py-1 text-xs font-medium',
+                        selected
+                          ? 'border-accent bg-accent/5 text-ink'
+                          : 'border-line text-ink',
+                      )}
+                    >
+                      {group.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
           <ConnectionPicker

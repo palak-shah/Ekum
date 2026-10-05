@@ -215,7 +215,11 @@ describe('CatalogShareSheet multi-select share', () => {
     await waitFor(() => {
       expect(screen.getByTestId('catalog-share-group-g-jaipur')).toBeInTheDocument();
     });
-    await user.click(screen.getByTestId('catalog-share-group-g-jaipur'));
+    expect(screen.queryByText('0 selected · posts into chat')).not.toBeInTheDocument();
+    const jaipurGroup = screen.getByTestId('catalog-share-group-g-jaipur');
+    expect(jaipurGroup).toHaveClass('rounded-full');
+    expect(jaipurGroup).not.toHaveTextContent('Add');
+    await user.click(jaipurGroup);
     await user.click(screen.getByTestId('catalog-share-group-g-west'));
     expect(screen.getByText(/2 selected/)).toBeInTheDocument();
     await user.click(screen.getByTestId('catalog-share-send'));
@@ -425,7 +429,8 @@ describe('CatalogShareSheet multi-select share', () => {
     await user.click(screen.getByRole('button', { name: /Jaipur Emporium/i }));
     expect(screen.getByText(/1 selected/)).toBeInTheDocument();
     await user.click(screen.getByTestId('catalog-share-clear'));
-    expect(screen.getByText(/0 selected/)).toBeInTheDocument();
+    expect(screen.queryByText(/0 selected/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/selected · posts into chat/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('catalog-share-clear')).toBeNull();
   });
 
