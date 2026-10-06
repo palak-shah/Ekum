@@ -62,7 +62,8 @@ import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
-import { ContinuousCamera } from '@/ui/ContinuousCamera';
+import { acquireMediaStream } from '@/lib/mediaSession';
+import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
@@ -1573,34 +1574,64 @@ export function ThreadPage() {
     void sendDocumentFiles(fileList ? Array.from(fileList) : []);
   };
 
-  const openPhotoGallery = useCallback(() => {
-    queueMicrotask(() => photoRef.current?.click());
+  /** Sync click — same user gesture (Gallery handoff / Photos row). */
+  const clickPhotoGallery = useCallback(() => {
+    photoRef.current?.click();
   }, []);
+
+  /** After async camera failure — microtask; gesture may already be gone. */
+  const openPhotoGalleryDeferred = useCallback(() => {
+    queueMicrotask(() => clickPhotoGallery());
+  }, [clickPhotoGallery]);
 
   const openDocumentPicker = useCallback(() => {
     queueMicrotask(() => documentRef.current?.click());
   }, []);
 
-  /** One Photos row: phone → ContinuousCamera (Gallery on chrome); desktop → gallery. */
-  const openPhotosAttach = useCallback(() => {
+  const closeAttachForMedia = useCallback(() => {
     setAttachOpen(false);
     setAttachStep('menu');
     setAttachQuery('');
     setAttachSelectedIds(new Set());
     setAttachSendError(null);
-    if (morePhotosEntry(isPhoneLike()) === 'camera') {
-      setCameraSession((n) => n + 1);
-      setCameraOpen(true);
+  }, []);
+
+  /**
+   * Photos = OS gallery only. Click the file input in this tap (before sheet
+   * teardown) so Android/iOS never flash a black camera shell first.
+   */
+  const openPhotosAttach = useCallback(() => {
+    clickPhotoGallery();
+    closeAttachForMedia();
+  }, [clickPhotoGallery, closeAttachForMedia]);
+
+  /**
+   * Camera = ContinuousCamera on phone — only mount after getUserMedia succeeds
+   * so a failed permission does not paint the black shell then bounce to gallery.
+   */
+  const openCameraAttach = useCallback(() => {
+    closeAttachForMedia();
+    if (morePhotosEntry(isPhoneLike()) !== 'camera') {
+      clickPhotoGallery();
       return;
     }
-    openPhotoGallery();
-  }, [openPhotoGallery]);
+    void (async () => {
+      const acquired = await acquireMediaStream('camera', continuousCameraConstraints);
+      if (!acquired.ok) {
+        showToast(acquired.message || 'Camera not available. Pick from gallery.', 'danger');
+        openPhotoGalleryDeferred();
+        return;
+      }
+      setCameraSession((n) => n + 1);
+      setCameraOpen(true);
+    })();
+  }, [clickPhotoGallery, closeAttachForMedia, openPhotoGalleryDeferred, showToast]);
 
   const onCameraUnavailable = useCallback(() => {
     setCameraOpen(false);
     showToast('Camera not available. Pick from gallery.', 'danger');
-    openPhotoGallery();
-  }, [openPhotoGallery, showToast]);
+    openPhotoGalleryDeferred();
+  }, [openPhotoGalleryDeferred, showToast]);
 
   const sendPendingVoice = async () => {
     if (!pendingVoice) return;
@@ -2721,7 +2752,7 @@ export function ThreadPage() {
         ref={photoRef}
         data-testid="chat-photo-input"
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/*"
+        accept="image/jpeg,image/png,image/webp"
         multiple
         className="hidden"
         onChange={(e) => void onPhotoPicked(e.target.files)}
@@ -2744,7 +2775,7 @@ export function ThreadPage() {
         onUnavailable={onCameraUnavailable}
         onGallery={() => {
           setCameraOpen(false);
-          openPhotoGallery();
+          clickPhotoGallery();
         }}
         onDone={(files) => {
           setCameraOpen(false);
@@ -2791,9 +2822,17 @@ export function ThreadPage() {
                   onPick: () => goAttachStep('collection'),
                 },
                 {
+                  id: 'camera' as const,
+                  label: 'Camera',
+                  subtitle: 'Take photos',
+                  Icon: CameraIcon,
+                  iconClass: 'bg-foam text-muted',
+                  onPick: () => openCameraAttach(),
+                },
+                {
                   id: 'photos' as const,
                   label: 'Photos',
-                  subtitle: 'Take or pick photos',
+                  subtitle: 'From your gallery',
                   Icon: ImageIcon,
                   iconClass: 'bg-foam text-muted',
                   onPick: () => openPhotosAttach(),
@@ -2804,7 +2843,7 @@ export function ThreadPage() {
                         id: 'photo-order' as const,
                         label: 'Photo order',
                         subtitle: 'Order from photos',
-                        Icon: CameraIcon,
+                        Icon: OrdersIcon,
                         iconClass: 'bg-kind-order-soft text-kind-order',
                         onPick: () => {
                           closeAttachSheet();

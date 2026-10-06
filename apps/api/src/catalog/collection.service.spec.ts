@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import { CollectionService } from './collection.service';
@@ -181,8 +181,9 @@ describe('CollectionService.setProducts', () => {
     );
   });
 
-  it('does not bump when newly added designs are still draft', async () => {
+  it('promotes own drafts on a live pack and bumps exploreActivityAt', async () => {
     const collectionUpdate = vi.fn(async () => ({}));
+    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
     const transaction = vi.fn(async (ops: unknown[]) => ops);
     const prisma = {
       collection: {
@@ -190,6 +191,12 @@ describe('CollectionService.setProducts', () => {
           id: 'col-1',
           companyId: 'company-1',
           status: CollectionStatus.Published,
+          audience: 'connections',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
         }),
         update: collectionUpdate,
       },
@@ -206,6 +213,7 @@ describe('CollectionService.setProducts', () => {
           },
         ],
         count: vi.fn().mockResolvedValue(0),
+        updateMany: productUpdateMany,
       },
       collectionProduct: {
         findMany: async () => [],
@@ -225,17 +233,151 @@ describe('CollectionService.setProducts', () => {
     await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
 
     const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(3);
-    expect(collectionUpdate).toHaveBeenCalledWith(
+    expect(ops.length).toBe(4);
+    expect(productUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ updatedByUserId: 'u1' }),
+        where: expect.objectContaining({
+          id: { in: ['draft-1'] },
+          companyId: 'company-1',
+          status: ProductStatus.Draft,
+        }),
+        data: expect.objectContaining({
+          status: ProductStatus.Published,
+          audience: 'connections',
+        }),
       }),
     );
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.not.objectContaining({ exploreActivityAt: expect.any(Date) }),
+        data: expect.objectContaining({
+          updatedByUserId: 'u1',
+          exploreActivityAt: expect.any(Date),
+        }),
       }),
     );
+  });
+
+  it('promotes own drafts on a draft pack too (published is the default)', async () => {
+    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          audience: 'connections',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
+        }),
+        update: vi.fn(async () => ({})),
+      },
+      product: {
+        findMany: async () => [
+          {
+            id: 'draft-1',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+        ],
+        count: vi.fn().mockResolvedValue(0),
+        updateMany: productUpdateMany,
+      },
+      collectionProduct: {
+        findMany: async () => [],
+        deleteMany: vi.fn(async () => ({})),
+        createMany: vi.fn(async () => ({})),
+      },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+
+    await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
+
+    const ops = transaction.mock.calls[0][0] as unknown[];
+    expect(ops.length).toBe(4);
+    expect(productUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: ['draft-1'] },
+          status: ProductStatus.Draft,
+        }),
+        data: expect.objectContaining({ status: ProductStatus.Published }),
+      }),
+    );
+  });
+
+  it('does not reject a new own photo when an existing member is no longer discoverable', async () => {
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+          audience: 'followers',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
+        }),
+        update: vi.fn(async () => ({})),
+      },
+      product: {
+        findMany: async () => [
+          {
+            ...foreignPublishedProduct,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+          {
+            id: 'new-photo',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+        ],
+        count: vi.fn().mockResolvedValue(0),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      collectionProduct: {
+        findMany: async () => [{ productId: 'foreign-1' }],
+        deleteMany: vi.fn(async () => ({})),
+        createMany: vi.fn(async () => ({})),
+      },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+
+    await expect(
+      service.setProducts('company-1', 'u1', 'col-1', ['foreign-1', 'new-photo']),
+    ).resolves.toEqual({ id: 'col-1' });
+    expect(transaction).toHaveBeenCalled();
   });
 
   it('allows adding another company published forwardable product', async () => {
@@ -480,9 +622,16 @@ describe('CollectionService name uniqueness', () => {
       },
     } as unknown as PrismaService;
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
-    await expect(
-      service.create('company-1', 'u1', { name: 'wedding edit', categories: [] }),
-    ).rejects.toThrow(/already have a collection/i);
+    try {
+      await service.create('company-1', 'u1', { name: 'wedding edit', categories: [] });
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toMatchObject({
+        code: 'COLLECTION_NAME_TAKEN',
+        details: { collectionId: 'existing', name: 'Wedding Edit' },
+      });
+    }
   });
 });
 

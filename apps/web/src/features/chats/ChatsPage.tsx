@@ -234,7 +234,7 @@ export function ChatsPage() {
                   <Link
                     to={`/chats/find?kind=${item.kind}`}
                     data-testid={`chats-find-${item.kind}`}
-                    className="flex items-center gap-2.5 border-b border-line/70 px-4 py-2 last:border-b-0 hover:bg-canvas active:bg-canvas"
+                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-canvas active:bg-canvas"
                   >
                     <span
                       className={cx(
@@ -307,7 +307,7 @@ export function ChatsPage() {
                 ? (asks.data ?? []).map((ask) => (
                     <div
                       key={ask.company.id}
-                      className="flex flex-col gap-1.5 border-b border-line/70 px-4 py-3"
+                      className="flex flex-col gap-1.5 px-4 py-3"
                       data-testid={`chats-see-packs-ask-${ask.company.id}`}
                     >
                       <FollowAskHeader

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RateVisibility, Unit, unitValues, type CompanySettingsView } from '@ekum/domain-types';
+import { RateVisibility, Unit, type CompanySettingsView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, Field, InlineNotice, LoadingBlock, TextInput, cx } from '@/ui/kit';
+import { Button, InlineNotice, LoadingBlock, cx } from '@/ui/kit';
+import { OrderDispatchFields } from '@/features/catalog/OrderDispatchFields';
 import {
   readCompanyPublishDefaults,
   readCompanySellAsUsual,
@@ -19,6 +20,7 @@ export function CatalogDefaultsPage() {
   const [allowForward, setAllowForward] = useState(true);
   const [allowDownload, setAllowDownload] = useState(false);
   const [unit, setUnit] = useState(Unit.Set);
+  const [dispatchUnit, setDispatchUnit] = useState(Unit.Piece);
   const [piecesPerPack, setPiecesPerPack] = useState('');
   const [moq, setMoq] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export function CatalogDefaultsPage() {
     setAllowForward(pub.allowForward);
     setAllowDownload(pub.allowDownload);
     setUnit((sell.unit as typeof Unit.Set) || Unit.Set);
+    setDispatchUnit((sell.dispatchUnit as typeof Unit.Piece) || Unit.Piece);
     setPiecesPerPack(sell.piecesPerPack);
     setMoq(sell.moq);
   }, [settings.data]);
@@ -47,6 +50,7 @@ export function CatalogDefaultsPage() {
           },
           sellAsUsual: {
             unit,
+            dispatchUnit,
             piecesPerPack: piecesPerPack.trim() || undefined,
             moq: moq.trim() || undefined,
           },
@@ -122,36 +126,16 @@ export function CatalogDefaultsPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-ink">Design sell-as</h2>
-        <Field label="Unit">
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value as typeof Unit.Set)}
-            className="min-h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink"
-          >
-            {unitValues.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Pieces in one set">
-          <TextInput
-            value={piecesPerPack}
-            onChange={(e) => setPiecesPerPack(e.target.value)}
-            inputMode="numeric"
-            placeholder="e.g. 6"
-          />
-        </Field>
-        <Field label="Minimum order">
-          <TextInput
-            value={moq}
-            onChange={(e) => setMoq(e.target.value)}
-            inputMode="numeric"
-            placeholder={unit === Unit.Set ? 'Sets' : 'In this unit'}
-          />
-        </Field>
+        <OrderDispatchFields
+          orderUnit={unit}
+          piecesPerPack={piecesPerPack}
+          dispatchUnit={dispatchUnit}
+          moq={moq}
+          onOrderUnit={(next) => setUnit(next as typeof Unit.Set)}
+          onPiecesPerPack={setPiecesPerPack}
+          onDispatchUnit={(next) => setDispatchUnit(next as typeof Unit.Piece)}
+          onMoq={setMoq}
+        />
       </section>
 
       <Button fullWidth disabled={save.isPending} onClick={() => save.mutate()}>

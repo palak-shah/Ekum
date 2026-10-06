@@ -25,7 +25,7 @@ export function deleteNeedsMultiPackConfirm(
   );
 }
 
-/** Own designs among the selection (foreign curated → Remove only). */
+/** Own designs among the selection (mill designs stay references). */
 export function ownedSelectedIds(
   selectedIds: readonly string[],
   productCompanyById: ReadonlyMap<string, string>,
@@ -34,12 +34,9 @@ export function ownedSelectedIds(
   return selectedIds.filter((id) => productCompanyById.get(id) === myCompanyId);
 }
 
-export function canDeleteSelected(
-  selectedIds: readonly string[],
-  productCompanyById: ReadonlyMap<string, string>,
-  myCompanyId: string,
-): boolean {
-  return ownedSelectedIds(selectedIds, productCompanyById, myCompanyId).length > 0;
+/** Own library or mill designs you curated into this pack. */
+export function canDeleteSelected(selectedIds: readonly string[]): boolean {
+  return selectedIds.length > 0;
 }
 
 /** Remaining membership after removing selected ids. */
@@ -49,4 +46,20 @@ export function membershipAfterRemove(
 ): string[] {
   const drop = new Set(removeIds);
   return currentIds.filter((id) => !drop.has(id));
+}
+
+/** New members first (album order); existing keep their relative order. */
+export function membershipWithNewFirst(
+  currentIds: readonly string[],
+  addedIds: readonly string[],
+): string[] {
+  const added: string[] = [];
+  const seen = new Set<string>();
+  for (const id of addedIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    added.push(id);
+  }
+  const rest = currentIds.filter((id) => !seen.has(id));
+  return [...added, ...rest];
 }

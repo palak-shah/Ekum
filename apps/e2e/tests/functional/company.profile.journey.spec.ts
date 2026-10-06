@@ -23,7 +23,10 @@ test.describe('company profile shop chrome @functional @network', () => {
     await page.getByTestId('company-shop-search').fill('zzzz-no-match');
     await expect(page.getByText('No designs match.')).toBeVisible();
     await page.getByTestId('company-shop-search').fill('');
-    await expect(page.getByTestId('company-share')).toBeVisible();
+    await expect(page.getByTestId('company-more')).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+    await page.getByTestId('company-more').click();
+    await expect(page.getByTestId('company-overflow-share')).toBeVisible();
   });
 
   test('Select on shop shows Order dock and hides tab bar', async ({ page }) => {

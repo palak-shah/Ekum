@@ -8,6 +8,7 @@ const SOLD_AS: Record<string, string> = {
   dozen: 'Dozen',
   kg: 'Kg',
   box: 'Box',
+  bundle: 'Bundle',
 };
 
 /** Short sold-as on the name line — never a second title under a one-word name. */
@@ -83,13 +84,17 @@ export function howManyTotalPcsLabel(
   qty: number | null | undefined,
   unit: string | null | undefined,
   piecesPerPack?: number | null,
+  dispatchUnit?: string | null,
 ): string | null {
   if (qty == null || qty <= 0) return null;
   const key = unit?.trim();
-  if (key !== 'set' && key !== 'dozen' && key !== 'box') return null;
+  if (key !== 'set' && key !== 'dozen' && key !== 'box' && key !== 'bundle') return null;
   const pcs = howManyPcsPerUnit(unit, piecesPerPack);
   if (pcs == null) return null;
-  return `Total ${qty * pcs} pcs`;
+  const dispatch = dispatchUnit?.trim() || 'pc';
+  const noun =
+    dispatch === 'mtr' ? 'mtrs' : dispatch === 'pc' ? 'pcs' : dispatch;
+  return `Total ${qty * pcs} ${noun}`;
 }
 
 export function qtyCountNoun(unit: string | null | undefined): string {
@@ -106,6 +111,8 @@ export function qtyCountNoun(unit: string | null | undefined): string {
       return 'kg';
     case 'box':
       return 'boxes';
+    case 'bundle':
+      return 'bundles';
     default:
       return 'pieces';
   }

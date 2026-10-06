@@ -3,6 +3,7 @@ import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   membershipAfterRemove,
+  membershipWithNewFirst,
   otherPackCountFromNames,
   ownedSelectedIds,
 } from './ownerPackManage';
@@ -48,15 +49,31 @@ describe('ownedSelectedIds / canDeleteSelected', () => {
     ['foreign', 'co-2'],
   ]);
 
-  it('filters to own-company designs', () => {
+  it('allows Delete for mill designs you curated into this pack', () => {
     expect(ownedSelectedIds(['own', 'foreign'], companies, 'co-1')).toEqual(['own']);
-    expect(canDeleteSelected(['foreign'], companies, 'co-1')).toBe(false);
-    expect(canDeleteSelected(['own', 'foreign'], companies, 'co-1')).toBe(true);
+    expect(canDeleteSelected(['foreign'])).toBe(true);
+    expect(canDeleteSelected(['own', 'foreign'])).toBe(true);
+    expect(canDeleteSelected([])).toBe(false);
   });
 });
 
 describe('membershipAfterRemove', () => {
   it('drops selected ids and keeps order of the rest', () => {
     expect(membershipAfterRemove(['a', 'b', 'c'], ['b'])).toEqual(['a', 'c']);
+  });
+});
+
+describe('membershipWithNewFirst', () => {
+  it('puts newly added designs on top', () => {
+    expect(membershipWithNewFirst(['old-1', 'old-2'], ['new-a', 'new-b'])).toEqual([
+      'new-a',
+      'new-b',
+      'old-1',
+      'old-2',
+    ]);
+  });
+
+  it('moves a re-added design to the top', () => {
+    expect(membershipWithNewFirst(['a', 'b', 'c'], ['c'])).toEqual(['c', 'a', 'b']);
   });
 });

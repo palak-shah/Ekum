@@ -12,10 +12,11 @@ import {
 } from './collectionSameForAll';
 
 describe('unitAsksPiecesPerSet', () => {
-  it('is only for set', () => {
+  it('is for packed order units', () => {
     expect(unitAsksPiecesPerSet('set')).toBe(true);
+    expect(unitAsksPiecesPerSet('dozen')).toBe(true);
     expect(unitAsksPiecesPerSet('pc')).toBe(false);
-    expect(unitAsksPiecesPerSet('box')).toBe(false);
+    expect(unitAsksPiecesPerSet('box')).toBe(true);
   });
 });
 
@@ -33,6 +34,7 @@ describe('memberDiffersFromSameForAll', () => {
           name: 'A',
           rate: '900',
           unit: 'pc',
+          dispatchUnit: '',
           piecesPerPack: '',
           moq: '',
           notes: '',
@@ -50,6 +52,7 @@ describe('memberDiffersFromSameForAll', () => {
           name: 'A',
           rate: '900',
           unit: 'pc',
+          dispatchUnit: '',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -73,6 +76,7 @@ describe('collectSameForAllDiffIds', () => {
             name: 'A',
             rate: '900',
             unit: 'pc',
+            dispatchUnit: '',
             piecesPerPack: '',
             moq: '',
             notes: '',
@@ -91,6 +95,7 @@ describe('collectSameForAllDiffIds', () => {
           name: 'A',
           rate: '1200',
           unit: 'pc',
+          dispatchUnit: '',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -103,6 +108,7 @@ describe('collectSameForAllDiffIds', () => {
           name: 'B',
           rate: '900',
           unit: 'pc',
+          dispatchUnit: '',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -133,6 +139,7 @@ describe('applySameForAllToForm', () => {
           name: 'Keep',
           rate: '1',
           unit: 'pc',
+          dispatchUnit: '',
           piecesPerPack: '',
           moq: '',
           notes: 'old',
@@ -142,6 +149,7 @@ describe('applySameForAllToForm', () => {
           categories: ['B'],
           rate: '1200-1400',
           unit: 'mtr',
+          dispatchUnit: 'mtr',
           piecesPerPack: '6',
           moq: '50',
           notes: 'new',
@@ -151,6 +159,7 @@ describe('applySameForAllToForm', () => {
       name: 'Keep',
       rate: '1',
       unit: 'pc',
+      dispatchUnit: 'mtr',
       piecesPerPack: '6',
       moq: '50',
       notes: 'old',
@@ -165,6 +174,7 @@ describe('applySameForAllToForm', () => {
           name: 'Keep',
           rate: '1',
           unit: 'pc',
+          dispatchUnit: '',
           piecesPerPack: '2',
           moq: '',
           notes: 'old',
@@ -174,6 +184,7 @@ describe('applySameForAllToForm', () => {
           categories: ['B'],
           rate: '1200',
           unit: 'mtr',
+          dispatchUnit: 'mtr',
           piecesPerPack: '6',
           moq: '50',
           notes: '',
@@ -183,6 +194,7 @@ describe('applySameForAllToForm', () => {
       name: 'Keep',
       rate: '1200',
       unit: 'mtr',
+      dispatchUnit: 'mtr',
       piecesPerPack: '6',
       moq: '50',
       notes: 'old',
@@ -198,6 +210,7 @@ describe('productFieldsFromMember', () => {
         name: 'X',
         rate: '1200-1400',
         unit: 'pc',
+        dispatchUnit: 'pc',
         piecesPerPack: '6',
         moq: '10',
         notes: 'silk',
@@ -208,6 +221,7 @@ describe('productFieldsFromMember', () => {
       rate: 1200,
       rateMax: 1400,
       unit: 'pc',
+      dispatchUnit: 'pc',
       piecesPerPack: 6,
       moq: 10,
       categories: undefined,

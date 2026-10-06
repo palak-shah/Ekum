@@ -552,6 +552,8 @@ export interface OrderItemView {
   sku: string | null;
   rate: number | null;
   unit: string | null;
+  dispatchUnit?: string | null;
+  piecesPerPack?: number | null;
   image: string | null;
   images: string[];
   /** Current agreed / offered quantity. */

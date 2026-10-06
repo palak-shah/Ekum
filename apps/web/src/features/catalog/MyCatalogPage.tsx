@@ -22,7 +22,8 @@ import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, Sheet, cx } 
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { FilterIcon, PlusIcon } from '@/ui/icons';
+import { CollectionIcon, FilterIcon, PlusIcon, ProductIcon } from '@/ui/icons';
+import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
 import { collectionMosaicCount, packFeedCaption, packFeedDetailLine } from '@/ui/albumMosaic';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
@@ -178,18 +179,12 @@ function CatalogLayoutToggle({
   className?: string;
 }) {
   return (
-    <button
-      type="button"
-      data-testid="catalog-layout-toggle"
-      aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-      className={cx(
-        'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5',
-        className,
-      )}
-      onClick={onToggle}
-    >
-      {layout === 'feed' ? 'Grid' : 'Feed'}
-    </button>
+    <BrowseLayoutToggle
+      layout={layout}
+      onToggle={onToggle}
+      testId="catalog-layout-toggle"
+      className={className}
+    />
   );
 }
 
@@ -606,15 +601,7 @@ export function MyCatalogPage({
           onBack={onCatalogBack}
           action={
             tabHasItems ? (
-              <button
-                type="button"
-                data-testid="catalog-layout-toggle"
-                aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                onClick={toggleLayout}
-              >
-                {layout === 'feed' ? 'Grid' : 'Feed'}
-              </button>
+              <CatalogLayoutToggle layout={layout} onToggle={toggleLayout} />
             ) : null
           }
         />
@@ -628,7 +615,9 @@ export function MyCatalogPage({
             aria-label="Library"
             data-testid="you-library-kind-tabs"
           >
-            {(['collections', 'products'] as const).map((value) => (
+            {(['collections', 'products'] as const).map((value) => {
+              const TabIcon = value === 'products' ? ProductIcon : CollectionIcon;
+              return (
               <button
                 key={value}
                 type="button"
@@ -637,15 +626,17 @@ export function MyCatalogPage({
                 data-testid={value === 'products' ? 'you-tab-designs' : 'you-tab-collections'}
                 onClick={() => setTab(value)}
                 className={cx(
-                  'relative isolate h-10 shrink-0 border-b-2 px-0.5 text-[15px] tracking-tight touch-manipulation',
+                  'relative isolate inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-[15px] tracking-tight touch-manipulation',
                   tab === value
                     ? 'border-accent font-bold text-ink'
                     : 'border-transparent font-medium text-muted',
                 )}
               >
+                <TabIcon width={16} height={16} className="shrink-0" aria-hidden />
                 {value === 'products' ? 'Designs' : 'Collections'}
               </button>
-            ))}
+              );
+            })}
           </div>
         ) : null}
         <div className="relative z-0 ml-auto flex shrink-0 items-center gap-1">

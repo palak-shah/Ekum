@@ -6,6 +6,7 @@ const UNIT_LABEL: Record<string, string> = {
   dozen: 'dozen',
   kg: 'kg',
   box: 'box',
+  bundle: 'bundle',
 };
 
 /** Rate + unit, honouring the "on request" default when no rate is set. */

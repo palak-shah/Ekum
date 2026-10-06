@@ -141,7 +141,7 @@ Redirects to `/orders?kind=sample` (deep link only — not in You menu). Future:
 
 - Restricted audience without membership → cannot place trade (`CONNECTION_REQUIRED`). Open (discoverable) catalog lines order without connection — including published designs that are only reachable inside an openable album (not only standalone Explore market posts).
 - Quote with all lines “Can’t supply” → rejected; use **Decline order** instead. Untick restores a gray Declined row; sending a rate on it re-opens the line.
-- Pack size (`piecesPerPack`) lives on **each design**, not one shop overwrite. How many each / order lines show sold-as + pcs/set when set, plus min and rate.
+- Pack size lives on **each design** (`unit` = order taken in, `dispatchUnit`, `piecesPerPack`). How many each steps in the order unit with a quiet dispatch preview (`10 sets = 40 pcs`). Order lines snapshot those three plus rate.
 - Partial ship sets status `part_shipped` until fully out (`dispatched`) or **Settle order** (`settled`). After Settle, StatusPill is **Settled** (qty rewritten); Part shipped stays only as earlier Timeline rows.
 - Mark delivered retired for the happy path; full ship closes as `dispatched`.
 

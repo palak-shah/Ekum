@@ -25,7 +25,7 @@ describe('HomeAccountMenu', () => {
     expect(screen.getByTestId('home-account-profile')).toHaveTextContent('Profile');
     expect(screen.getByTestId('home-account-network')).toBeInTheDocument();
     expect(screen.getByTestId('home-account-my-collections')).toHaveTextContent('My Collections');
-    expect(screen.getByTestId('home-account-my-designs')).toHaveTextContent('My Designs');
+    expect(screen.queryByTestId('home-account-my-designs')).toBeNull();
     expect(screen.getByTestId('home-account-settings')).toBeInTheDocument();
     expect(screen.getByTestId('home-account-logout')).toHaveClass('text-danger');
     await user.click(screen.getByTestId('home-account-logout'));

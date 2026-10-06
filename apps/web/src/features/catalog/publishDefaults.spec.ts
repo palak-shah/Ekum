@@ -37,6 +37,7 @@ describe('publishDefaults', () => {
   it('defaults unsaved sell-as to set', () => {
     expect(readCompanySellAsUsual(null)).toEqual({
       unit: 'set',
+      dispatchUnit: 'pc',
       piecesPerPack: '',
       moq: '',
     });
@@ -49,6 +50,7 @@ describe('publishDefaults', () => {
       }),
     ).toEqual({
       unit: 'set',
+      dispatchUnit: 'pc',
       piecesPerPack: '6',
       moq: '12',
     });

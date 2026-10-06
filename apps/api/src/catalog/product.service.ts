@@ -16,6 +16,7 @@ import { CatalogSerializer, productActorInclude } from './catalog.serializer';
 import { rememberPublishDefaults } from './publish-policy';
 import { resolveProductSku } from './sku';
 import { draftPacksLeftWithoutPublishedDesign } from './draft-packs-after-design-hide';
+import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
 
 @Injectable()
 export class ProductService {
@@ -32,21 +33,26 @@ export class ProductService {
     const sku = await resolveProductSku(this.prisma, companyId, dto.sku);
     const name = dto.name?.trim() || sku;
     const product = await this.prisma.product.create({
-      data: {
-        companyId,
-        name,
-        sku,
-        description: dto.description ?? null,
-        moq: dto.moq ?? null,
-        rate: dto.rate ?? null,
-        rateMax: dto.rateMax ?? null,
-        unit: dto.unit ?? null,
-        piecesPerPack: dto.piecesPerPack ?? null,
-        categories: dto.categories,
-        images: dto.images,
-        createdByUserId: userId,
-        updatedByUserId: userId,
-      },
+      data: withPrismaField(
+        'Product',
+        'dispatchUnit',
+        {
+          companyId,
+          name,
+          sku,
+          description: dto.description ?? null,
+          moq: dto.moq ?? null,
+          rate: dto.rate ?? null,
+          rateMax: dto.rateMax ?? null,
+          unit: dto.unit ?? null,
+          piecesPerPack: dto.piecesPerPack ?? null,
+          categories: dto.categories,
+          images: dto.images,
+          createdByUserId: userId,
+          updatedByUserId: userId,
+        },
+        dto.dispatchUnit ?? null,
+      ),
       include: productActorInclude,
     });
     await ensureSellingEnabled(this.prisma, companyId);
@@ -93,6 +99,9 @@ export class ProductService {
         ...(dto.rateMax !== undefined ? { rateMax: dto.rateMax } : {}),
         unit: dto.unit,
         ...(dto.piecesPerPack !== undefined ? { piecesPerPack: dto.piecesPerPack } : {}),
+        ...(dto.dispatchUnit !== undefined && prismaModelHasField('Product', 'dispatchUnit')
+          ? { dispatchUnit: dto.dispatchUnit }
+          : {}),
         categories: dto.categories,
         images: dto.images,
         updatedByUserId: userId,

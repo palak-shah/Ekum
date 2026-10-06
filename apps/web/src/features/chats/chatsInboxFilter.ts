@@ -61,7 +61,7 @@ export function chatsInboxEmptyCopy(chip: ChatsInboxChip, searching: boolean) {
   if (chip === 'requests') {
     return {
       title: 'No requests',
-      message: 'First messages, connect invites, and See new packs asks land here.',
+      message: 'First messages, connect invites, and catalog access asks land here.',
     };
   }
   return { title: 'No chats yet', message: 'Find a business to start chatting.' };

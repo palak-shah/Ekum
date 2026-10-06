@@ -39,12 +39,10 @@ import {
   canViewCollectionProducts,
 } from '../catalog/audience-visibility';
 import {
-  collectionHasPublishedMember,
   hasPublishedDesignClause,
   isCollectionLiveForBuyers,
   liveWindowClauses,
 } from '../catalog/collection-schedule';
-import { draftPublishedPacksWithoutLiveDesign } from '../catalog/draft-packs-after-design-hide';
 import { collectionCardInclude, publishedCollectionMemberWhere } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import { rankWindowTake } from './rank-window';
@@ -952,12 +950,6 @@ export class ExploreService {
     }
 
     const isOwner = collection.companyId === viewerCompanyId;
-    if (isOwner && !collectionHasPublishedMember(collection.products)) {
-      const drafted = await draftPublishedPacksWithoutLiveDesign(this.prisma, [collection]);
-      if (drafted.has(collection.id)) {
-        collection = { ...collection, status: CollectionStatus.Draft };
-      }
-    }
     const connected =
       isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
     const following =

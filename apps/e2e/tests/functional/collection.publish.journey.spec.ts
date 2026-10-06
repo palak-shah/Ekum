@@ -10,22 +10,15 @@ test.describe('seller collection publish @functional @collections', () => {
     await expect(page.getByRole('link', { name: 'Chats' })).toHaveCount(0);
     await expect(page.getByLabel('Name')).toHaveAttribute('placeholder', 'Name this pack');
     await expect(page.getByLabel('Description')).toBeVisible();
-    await expect(page.getByTestId('tags-field-open')).toBeVisible();
-    const sameForAll = page.getByTestId('collection-same-for-all');
-    await expect(sameForAll).toBeVisible();
+    await expect(page.getByTestId('collection-tag-item')).toBeVisible();
+    await expect(page.getByTestId('collection-apply-all')).toBeVisible();
+    await expect(page.getByTestId('collection-order-dispatch')).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Same for new photos' })).toHaveCount(0);
     await expect(page.getByTestId('collection-who')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Create & Publish' })).toHaveCount(0);
 
-    await page.getByTestId('collection-same-for-all-toggle').click();
-    await expect(sameForAll.getByTestId('tags-field-open')).toHaveCount(0);
-    const unit = sameForAll.getByLabel('Unit');
-    if ((await unit.inputValue()) !== 'set') {
-      await expect(sameForAll.getByLabel('Pieces in one set')).toHaveCount(0);
-      await unit.selectOption('set');
-    }
-    await expect(sameForAll.getByLabel('Pieces in one set')).toBeVisible();
-    await sameForAll.getByTestId('collection-same-for-all-done').click();
+    await expect(page.getByTestId('collection-set-contains')).toBeVisible();
+    await expect(page.getByTestId('collection-order-preview')).toBeVisible();
 
     await page.getByTestId('collection-add-designs').click();
     const fromCamera = page.getByTestId('continuous-camera-designs');

@@ -18,10 +18,18 @@ import {
   PublishAudience,
   RateVisibility,
   Unit,
-  unitValues,
+  categoriesToTagSlots,
+  mainsForCompany,
+  parentKeysFromCompanyCategories,
+  tagSlotsToCategories,
+  unitsSuggestedByItem,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
+import {
+  readCollectionApplyToAll,
+  writeCollectionApplyToAll,
+} from '@/lib/collectionApplyToAll';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { acquireMediaStream } from '@/lib/mediaSession';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
@@ -39,11 +47,12 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
-import { TagsField } from './TagsField';
+import { CollectionExpandableSection } from './CollectionExpandableSection';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { applySelectingPill } from '@/features/browse/selectingPill';
 import { selectAllState } from '@/features/browse/selectAllState';
+import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
 import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
 import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
@@ -51,38 +60,49 @@ import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   membershipAfterRemove,
+  membershipWithNewFirst,
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots } from './collectionCreateHelpers';
+import { COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots, collectionNameClash } from './collectionCreateHelpers';
 import {
   createProductIdentity,
   nameForNewDesign,
   uniqueDraftSku,
 } from './designBatchHelpers';
 import {
+  collectRateConflicts,
   collectSameForAllDiffIds,
   emptySameForAll,
   forceSameForAllToForm,
   productFieldsFromMember,
   sameForAllIsEmpty,
   sameForAllSummary,
-  unitAsksPiecesPerSet,
   sortDiffFirst,
   unionTags,
   type MemberDesignForm,
+  type RateConflict,
   type SameForAllDetails,
 } from './collectionSameForAll';
-import { formatRateInput, rateFieldInputProps } from './rateInput';
+import { formatRateInput } from './rateInput';
+import { combineRateInput, splitRateInput } from './rateRange';
+import { RateRangeFields } from './RateRangeFields';
+import { CascadeTagsFields } from './CascadeTagsFields';
+import { OrderDispatchFields } from './OrderDispatchFields';
+import { collectionGalleryInputProps } from './collectionGalleryInput';
+import { AddDesignsControl } from './AddDesignsControl';
 import {
   CAMERA_APPEND_SOFT_MAX,
   morePhotosEntry,
 } from './designBatchHelpers';
 import { createPortal } from 'react-dom';
-import { CameraIcon, MoreHorizontalIcon } from '@/ui/icons';
+import { CameraIcon, CheckIcon, MoreHorizontalIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
-import { curatedMemberUnavailableReason } from '@/features/collections/curatedMemberAvailability';
+import {
+  canSetMemberLiveInPack,
+  curatedMemberUnavailableReason,
+} from '@/features/collections/curatedMemberAvailability';
 import { collectionStatusSummary } from './collectionStatusSummary';
 import { libraryAuditLine } from './productStatusSummary';
 import {
@@ -102,7 +122,7 @@ import {
   selectCreatedGroup,
   type PublishAudienceState,
 } from './PublishAudienceFields';
-import { CollectionExpandableSection } from './CollectionExpandableSection';
+
 function toDateInput(iso: string | null | undefined): string {
   if (!iso) return '';
   return iso.slice(0, 10);
@@ -125,6 +145,7 @@ type PendingPhoto = {
   sku: string;
   rate: string;
   unit: string;
+  dispatchUnit: string;
   piecesPerPack: string;
   moq: string;
   notes: string;
@@ -141,25 +162,6 @@ type CameraAppendTarget =
   | { kind: 'product'; productId: string };
 
 type MemberPhotoThumb = { id: string; url: string };
-
-function unitSelect(
-  value: string,
-  onChange: (next: string) => void,
-) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="min-h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink"
-    >
-      {unitValues.map((u) => (
-        <option key={u} value={u}>
-          {u}
-        </option>
-      ))}
-    </select>
-  );
-}
 
 export function CollectionEditorPage() {
   const { id: routeId } = useParams();
@@ -185,11 +187,15 @@ export function CollectionEditorPage() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
-  /** Desktop, or camera unavailable — Photo library / Designs. Not the OS picker. */
   const [sourceOpen, setSourceOpen] = useState(false);
   const [quickUploading, setQuickUploading] = useState(false);
   const [savingDesigns, setSavingDesigns] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [nameClash, setNameClash] = useState<{
+    collectionId: string;
+    name: string;
+    publish: boolean;
+  } | null>(null);
   const [designSearch, setDesignSearch] = useState('');
   const [manageSelecting, setManageSelecting] = useState(false);
   const [manageSelected, setManageSelected] = useState<Set<string>>(() => new Set());
@@ -221,6 +227,7 @@ export function CollectionEditorPage() {
     name: '',
     rate: '',
     unit: Unit.Set,
+    dispatchUnit: Unit.Piece,
     piecesPerPack: '',
     moq: '',
     notes: '',
@@ -231,10 +238,13 @@ export function CollectionEditorPage() {
   const [sameForAll, setSameForAll] = useState<SameForAllDetails>(() =>
     emptySameForAll(Unit.Set),
   );
-  const [sameForAllDraft, setSameForAllDraft] = useState<SameForAllDetails>(() =>
-    emptySameForAll(Unit.Set),
-  );
-  const [sameForAllExpanded, setSameForAllExpanded] = useState(false);
+  const [applyToAll, setApplyToAll] = useState(false);
+  const applyToAllHydrated = useRef(false);
+  const [rateFrom, setRateFrom] = useState('');
+  const [rateTo, setRateTo] = useState('');
+  const [rateConflicts, setRateConflicts] = useState<RateConflict[] | null>(null);
+  const [rateConflictKeepIds, setRateConflictKeepIds] = useState<Set<string>>(new Set());
+  const [pendingPublish, setPendingPublish] = useState(false);
   const [whoExpanded, setWhoExpanded] = useState(false);
   const [defaultsPrefillDone, setDefaultsPrefillDone] = useState(false);
   const cameraAppendRef = useRef<CameraAppendTarget | null>(null);
@@ -322,6 +332,25 @@ export function CollectionEditorPage() {
     if (!ownerId) return false;
     return selectedProducts.some((product) => product.companyId !== ownerId);
   }, [selectedProducts, company.data?.id]);
+  const memberSheetCanSetLive = useMemo(() => {
+    if (memberSheet?.kind !== 'product') return false;
+    const product =
+      selectedProducts.find((p) => p.id === memberSheet.productId) ??
+      selectableDesigns.find((p) => p.id === memberSheet.productId);
+    if (!product) return false;
+    return canSetMemberLiveInPack({
+      packPublished: isPublished,
+      productStatus: product.status,
+      productCompanyId: product.companyId,
+      ownerCompanyId: company.data?.id,
+    });
+  }, [
+    memberSheet,
+    selectedProducts,
+    selectableDesigns,
+    isPublished,
+    company.data?.id,
+  ]);
   const canPublishAlbum = selected.size >= 1;
   const readyCreatePhotos = useMemo(
     () =>
@@ -346,6 +375,7 @@ export function CollectionEditorPage() {
           name: nameForNewDesign(photo.name, photo.sku),
           rate: photo.rate,
           unit: photo.unit,
+          dispatchUnit: photo.dispatchUnit,
           piecesPerPack: photo.piecesPerPack,
           moq: photo.moq,
           notes: photo.notes,
@@ -361,6 +391,7 @@ export function CollectionEditorPage() {
           name: product.name,
           rate: formatRateInput(product.rate, product.rateMax ?? null),
           unit: product.unit || Unit.Set,
+          dispatchUnit: product.dispatchUnit || Unit.Piece,
           piecesPerPack:
             product.piecesPerPack != null ? String(product.piecesPerPack) : '',
           moq: product.moq != null ? String(product.moq) : '',
@@ -420,18 +451,32 @@ export function CollectionEditorPage() {
   }, [existing.data]);
 
   useEffect(() => {
+    if (!company.data?.id || applyToAllHydrated.current) return;
+    applyToAllHydrated.current = true;
+    setApplyToAll(readCollectionApplyToAll(company.data.id));
+  }, [company.data?.id]);
+
+  const setApplyToAllRemembered = (next: boolean) => {
+    setApplyToAll(next);
+    writeCollectionApplyToAll(company.data?.id, next);
+  };
+
+  useEffect(() => {
     if (!isCreate || defaultsPrefillDone || !settings.data) return;
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
     const sell = readCompanySellAsUsual(settings.data.tradeDefaults);
     setPublishAudience(emptyPublishAudienceState(usual));
     const nextSame: SameForAllDetails = {
       ...emptySameForAll(sell.unit || Unit.Set),
+      dispatchUnit: sell.dispatchUnit || Unit.Piece,
       piecesPerPack: sell.piecesPerPack,
       moq: sell.moq,
       categories: [],
     };
     setSameForAll(nextSame);
-    setSameForAllDraft(nextSame);
+    const parts = splitRateInput(nextSame.rate);
+    setRateFrom(parts.from);
+    setRateTo(parts.to);
     setDefaultsPrefillDone(true);
   }, [isCreate, defaultsPrefillDone, settings.data]);
 
@@ -533,17 +578,27 @@ export function CollectionEditorPage() {
   };
 
   const persistDesigns = async (productIds: string[], collectionId = id) => {
-    if (!collectionId) return;
+    if (!collectionId) return false;
     setSavingDesigns(true);
     try {
       await api.put(`/collections/${collectionId}/products`, { productIds });
       invalidate(collectionId);
+      return true;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not update designs.';
       showToast(message, 'danger');
+      return false;
     } finally {
       setSavingDesigns(false);
     }
+  };
+
+  const setMemberLiveInPack = async () => {
+    if (!id || !isPublished) return;
+    const saved = await persistDesigns([...selected]);
+    if (!saved) return;
+    showToast('Published');
+    setMemberSheet(null);
   };
 
   const scheduleDesignSave = (next: Set<string>) => {
@@ -560,17 +615,31 @@ export function CollectionEditorPage() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const unpublishedOwn = selectedProducts.filter(
+        (product) =>
+          product.status === ProductStatus.Draft && product.companyId === company.data?.id,
+      ).length;
+      const saved = await persistDesigns([...selected]);
+      if (!saved) {
+        return { unpublishedOwn: 0, designsFailed: true as const };
+      }
       const dto: CreateCollectionDto = {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         coverImage: form.coverImage.trim() || undefined,
         categories: form.categories,
       };
-      return api.patch<CollectionDetailView>(`/collections/${id}`, dto);
+      await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
+      return { unpublishedOwn, designsFailed: false as const };
     },
-    onSuccess: () => {
+    onSuccess: ({ unpublishedOwn, designsFailed }) => {
+      if (designsFailed) return;
       invalidate();
-      showToast('Updated');
+      showToast(unpublishedOwn > 0 ? 'Published' : 'Updated');
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not save.';
@@ -638,11 +707,21 @@ export function CollectionEditorPage() {
     },
   });
 
-  const openCollectionGallery = () => {
-    setError(null);
-    queueMicrotask(() => designFileRef.current?.click());
+  /** Sync click — same user gesture (Photos row / Gallery handoff). */
+  const clickCollectionGallery = () => {
+    designFileRef.current?.click();
   };
 
+  /** After async camera failure — gesture may already be gone. */
+  const openCollectionGalleryDeferred = () => {
+    setError(null);
+    queueMicrotask(() => clickCollectionGallery());
+  };
+
+  /**
+   * Camera UI only after getUserMedia succeeds — never paint the black shell
+   * then bounce to gallery on permission/device failure.
+   */
   const openCollectionCamera = (append: CameraAppendTarget | null = null) => {
     if (!append && pendingPhotos.length >= QUICK_PHOTO_CAP && !editing) {
       setError(`You can add up to ${QUICK_PHOTO_CAP} photos.`);
@@ -651,17 +730,47 @@ export function CollectionEditorPage() {
     setError(null);
     cameraAppendRef.current = append;
     setCameraAppend(append);
-    // Start getUserMedia in this tap. Phones ignore a later effect call.
-    void acquireMediaStream('camera', continuousCameraConstraints);
-    setCameraSession((n) => n + 1);
-    setCameraOpen(true);
+    void (async () => {
+      const acquired = await acquireMediaStream('camera', continuousCameraConstraints);
+      if (!acquired.ok) {
+        setError(acquired.message);
+        openCollectionGalleryDeferred();
+        return;
+      }
+      setCameraSession((n) => n + 1);
+      setCameraOpen(true);
+    })();
   };
 
-  /** Same camera on phone and desktop. Gallery and Designs live on that chrome. */
-  const openDesignPicker = () => {
-    cameraAppendRef.current = null;
-    setCameraAppend(null);
-    openCollectionCamera(null);
+  /** Existing designs only — never acquires the camera. */
+  const openLibraryDesigns = () => {
+    setError(null);
+    setLibraryOpen(true);
+  };
+
+  /** Photos = OS gallery only (no ContinuousCamera flash). */
+  const openPhotos = (_append: CameraAppendTarget | null = null) => {
+    setError(null);
+    if (_append) {
+      cameraAppendRef.current = _append;
+      setCameraAppend(_append);
+    }
+    clickCollectionGallery();
+  };
+
+  const openAddDesignsMenu = () => {
+    setError(null);
+    setSourceOpen(true);
+  };
+
+  const pickSourceDesigns = () => {
+    setSourceOpen(false);
+    openLibraryDesigns();
+  };
+
+  const pickSourcePhotos = () => {
+    setSourceOpen(false);
+    openCollectionCamera();
   };
 
   useEffect(() => {
@@ -680,7 +789,7 @@ export function CollectionEditorPage() {
         try {
           await api.put(`/collections/${id}/products`, { productIds: [] });
           invalidate(id);
-          openDesignPicker();
+          openPhotos();
         } catch (err) {
           showToast(err instanceof ApiError ? err.message : 'Could not clear designs.', 'danger');
         } finally {
@@ -689,7 +798,7 @@ export function CollectionEditorPage() {
       })();
       return;
     }
-    openDesignPicker();
+    openPhotos();
   }, [editing, existing.data, id, location.state, location.pathname, navigate]);
 
   const restoreMemberSheetAfterCamera = () => {
@@ -714,7 +823,7 @@ export function CollectionEditorPage() {
     }
     cameraAppendRef.current = append;
     setCameraAppend(append);
-    openCollectionGallery();
+    clickCollectionGallery();
   };
 
   const appendFilesToPending = async (localId: string, files: File[]) => {
@@ -844,6 +953,7 @@ export function CollectionEditorPage() {
         sku,
         rate: shared.rate,
         unit: shared.unit || Unit.Set,
+        dispatchUnit: shared.dispatchUnit || Unit.Piece,
         piecesPerPack: shared.piecesPerPack,
         moq: shared.moq,
         notes: shared.notes,
@@ -901,6 +1011,7 @@ export function CollectionEditorPage() {
           name: identity.name,
           rate: shared.rate,
           unit: shared.unit || Unit.Set,
+          dispatchUnit: shared.dispatchUnit || Unit.Piece,
           piecesPerPack: shared.piecesPerPack,
           moq: shared.moq,
           notes: shared.notes,
@@ -915,17 +1026,20 @@ export function CollectionEditorPage() {
           rate: parsed.rate ?? undefined,
           rateMax: parsed.rateMax ?? undefined,
           unit: parsed.unit as CreateProductDto['unit'],
+          dispatchUnit: parsed.dispatchUnit as CreateProductDto['dispatchUnit'],
           piecesPerPack: parsed.piecesPerPack,
           moq: parsed.moq ?? undefined,
         };
         const product = await api.post<ProductView>('/products', dto);
         createdIds.push(product.id);
       }
-      const next = new Set(selected);
-      for (const productId of createdIds) next.add(productId);
+      const next = new Set(membershipWithNewFirst([...selected], createdIds));
       setSelected(next);
-      await persistDesigns([...next]);
+      const saved = await persistDesigns([...next]);
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
+      if (saved && isPublished) {
+        showToast('Published');
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not add photos.');
     } finally {
@@ -939,7 +1053,7 @@ export function CollectionEditorPage() {
     await ingestPhotoFiles([...fileList]);
   };
 
-  const onCreate = async (opts?: { publish?: boolean }) => {
+  const onCreate = async (opts?: { publish?: boolean; keepRateIds?: Set<string> }) => {
     if (pendingPhotos.some((p) => p.images.some((img) => img.uploading))) {
       setError('Wait for photos to finish uploading.');
       return;
@@ -961,20 +1075,79 @@ export function CollectionEditorPage() {
         return;
       }
     }
+    const keepRateIds = opts?.keepRateIds ?? rateConflictKeepIds;
+    if (applyToAll && sameForAll.rate.trim() && !opts?.keepRateIds) {
+      const conflicts = collectRateConflicts(
+        sameForAll.rate,
+        createLibraryDesigns.map((product) => ({
+          id: product.id,
+          name: product.name,
+          rate: formatRateInput(product.rate, product.rateMax ?? null),
+          otherPacks: product.collectionNames ?? [],
+        })),
+      );
+      if (conflicts.length > 0) {
+        setPendingPublish(Boolean(opts?.publish));
+        setRateConflicts(conflicts);
+        setRateConflictKeepIds(new Set());
+        return;
+      }
+    }
     setCreating(true);
     setError(null);
     setSheetError(null);
     try {
-      const name = form.name.trim();
+      await completeCreate({
+        collectionId: undefined,
+        name: form.name.trim(),
+        publish: Boolean(opts?.publish),
+        keepRateIds,
+      });
+    } catch (err) {
+      const clash = collectionNameClash(err instanceof ApiError ? err : {});
+      if (clash) {
+        setNameClash({ ...clash, publish: Boolean(opts?.publish) });
+        return;
+      }
+      const message =
+        err instanceof ApiError ? err.message : (err as Error).message || 'Could not create.';
+      if (opts?.publish || publishOpen) {
+        setSheetError(message);
+      } else {
+        setError(message);
+      }
+      showToast(message, 'danger');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const completeCreate = async (opts: {
+    collectionId?: string;
+    name: string;
+    publish: boolean;
+    keepRateIds: Set<string>;
+  }) => {
       const coverRaw = createCoverUrl ? toAbsoluteMediaUrl(createCoverUrl) : '';
       const cover =
         coverRaw && /^https?:\/\//i.test(coverRaw) ? coverRaw : undefined;
-      const created = await api.post<CollectionDetailView>('/collections', {
-        name,
-        description: form.description.trim() || undefined,
-        categories: form.categories,
-        ...(cover ? { coverImage: cover } : {}),
-      } satisfies CreateCollectionDto);
+      let collectionId = opts.collectionId;
+      let existingIds: string[] = [];
+      if (collectionId) {
+        const pack = await api.get<CollectionDetailView>(`/collections/${collectionId}`);
+        existingIds = pack.products.map((product) => product.id);
+      } else {
+        const created = await api.post<CollectionDetailView>('/collections', {
+          name: opts.name,
+          description: form.description.trim() || undefined,
+          categories: form.categories,
+          ...(cover ? { coverImage: cover } : {}),
+        } satisfies CreateCollectionDto);
+        collectionId = created.id;
+      }
+      if (!collectionId) {
+        throw new Error('Could not create.');
+      }
       const createdIds: string[] = [];
       for (const photo of readyCreatePhotos) {
         const categories = unionTags(photo.categories, form.categories);
@@ -983,6 +1156,7 @@ export function CollectionEditorPage() {
           name: displayName,
           rate: photo.rate,
           unit: photo.unit,
+          dispatchUnit: photo.dispatchUnit,
           piecesPerPack: photo.piecesPerPack,
           moq: photo.moq,
           notes: photo.notes,
@@ -997,33 +1171,63 @@ export function CollectionEditorPage() {
           rate: fields.rate ?? undefined,
           rateMax: fields.rateMax ?? undefined,
           unit: fields.unit as CreateProductDto['unit'],
+          dispatchUnit: fields.dispatchUnit as CreateProductDto['dispatchUnit'],
           piecesPerPack: fields.piecesPerPack,
           moq: fields.moq ?? undefined,
         } satisfies CreateProductDto);
         createdIds.push(product.id);
       }
-      // Amend pack tags onto library picks (union — never overwrite).
+      // Pack tags union onto members when apply-to-all; rates confirm Change vs Keep.
       for (const productId of libraryPicks) {
         const product = selectableDesigns.find((p) => p.id === productId);
-        if (!product || form.categories.length === 0) continue;
-        const nextTags = unionTags(product.categories ?? [], form.categories);
-        if (nextTags.length === (product.categories ?? []).length) continue;
-        await api.patch(`/products/${productId}`, { categories: nextTags });
+        if (!product) continue;
+        const patch: Record<string, unknown> = {};
+        if (applyToAll || form.categories.length > 0) {
+          const nextTags = unionTags(product.categories ?? [], form.categories);
+          if (nextTags.length !== (product.categories ?? []).length) {
+            patch.categories = nextTags;
+          }
+        }
+        if (applyToAll) {
+          const parsed = productFieldsFromMember({
+            name: product.name,
+            rate: sameForAll.rate,
+            unit: sameForAll.unit,
+            dispatchUnit: sameForAll.dispatchUnit,
+            piecesPerPack: sameForAll.piecesPerPack,
+            moq: sameForAll.moq,
+            notes: sameForAll.notes,
+            categories: [],
+          });
+          if (!opts.keepRateIds.has(productId) && sameForAll.rate.trim()) {
+            patch.rate = parsed.rate;
+            patch.rateMax = parsed.rateMax;
+          }
+          if (parsed.unit) patch.unit = parsed.unit;
+          if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
+          if (parsed.piecesPerPack != null) patch.piecesPerPack = parsed.piecesPerPack;
+          if (parsed.moq != null) patch.moq = parsed.moq;
+        }
+        if (Object.keys(patch).length === 0) continue;
+        await api.patch(`/products/${productId}`, patch);
       }
-      const productIds = [...createdIds, ...libraryPicks];
+      const productIds = membershipWithNewFirst(existingIds, [...createdIds, ...libraryPicks]);
       await api.put<CollectionDetailView>(
-        `/collections/${created.id}/products`,
+        `/collections/${collectionId}/products`,
         { productIds },
       );
-      if (opts?.publish) {
-        await api.post(`/collections/${created.id}/publish`, {
-          audience: publishAudience.audience,
-          rateVisibility: publishAudience.rateVisibility,
-          allowForward: publishAudience.allowForward,
-          allowDownload: publishAudience.allowDownload,
-          ...publishAudienceDtoFields(publishAudience),
-          ...(canPublishAlready ? {} : { consentToSell: true }),
-        });
+      if (opts.publish) {
+        const pack = await api.get<CollectionDetailView>(`/collections/${collectionId}`);
+        if (pack.status !== CollectionStatus.Published) {
+          await api.post(`/collections/${collectionId}/publish`, {
+            audience: publishAudience.audience,
+            rateVisibility: publishAudience.rateVisibility,
+            allowForward: publishAudience.allowForward,
+            allowDownload: publishAudience.allowDownload,
+            ...publishAudienceDtoFields(publishAudience),
+            ...(canPublishAlready ? {} : { consentToSell: true }),
+          });
+        }
       }
       for (const photo of pendingPhotos) {
         for (const img of photo.images) {
@@ -1033,39 +1237,39 @@ export function CollectionEditorPage() {
       setPendingPhotos([]);
       setLibraryPicks(new Set());
       setPublishOpen(false);
+      setNameClash(null);
       leaveBypassRef.current = true;
-      showToast(opts?.publish ? 'Published' : 'Collection saved');
-      navigate('/catalog?tab=collections', {
-        replace: true,
-        state: {
-          collectionFilter: opts?.publish ? 'published' : 'draft',
-          productFilter: opts?.publish ? 'published' : 'draft',
-        },
-      });
+      const appended = Boolean(opts.collectionId);
+      showToast(
+        appended
+          ? `Added to ${opts.name}`
+          : opts.publish
+            ? 'Published'
+            : 'Collection saved',
+      );
+      navigate(
+        appended ? `/catalog/collections/${collectionId}` : '/catalog?tab=collections',
+        appended
+          ? { replace: true }
+          : {
+              replace: true,
+              state: {
+                collectionFilter: opts.publish ? 'published' : 'draft',
+                productFilter: opts.publish ? 'published' : 'draft',
+              },
+            },
+      );
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : (err as Error).message || 'Could not create.';
-      if (opts?.publish || publishOpen) {
-        setSheetError(message);
-      } else {
-        setError(message);
-      }
-      showToast(message, 'danger');
-    } finally {
-      setCreating(false);
-    }
   };
 
   const toggle = (productId: string) => {
     setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
+      const next = new Set(
+        prev.has(productId)
+          ? [...prev].filter((id) => id !== productId)
+          : membershipWithNewFirst([...prev], [productId]),
+      );
       scheduleDesignSave(next);
       return next;
     });
@@ -1081,11 +1285,7 @@ export function CollectionEditorPage() {
     [selectedProducts],
   );
   const manageSelectAll = selectAllState(memberIds, manageSelected);
-  const ownerCanDelete = canDeleteSelected(
-    manageSelectedIds,
-    productCompanyById,
-    company.data?.id ?? '',
-  );
+  const ownerCanDelete = canDeleteSelected(manageSelectedIds);
   const ownerCanRemove = manageSelectedIds.length > 0;
 
   useEffect(() => {
@@ -1120,9 +1320,8 @@ export function CollectionEditorPage() {
     setManageBusy(true);
     try {
       setSelected(new Set());
-      await persistDesigns([]);
       setReplaceSheetOpen(false);
-      openDesignPicker();
+      openAddDesignsMenu();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not replace.', 'danger');
     } finally {
@@ -1161,7 +1360,13 @@ export function CollectionEditorPage() {
       await persistDesigns(next);
       setDeleteSheetOpen(false);
       clearManageSelect();
-      showToast(mode === 'everywhere' ? 'Deleted' : 'Removed from collection');
+      showToast(
+        mode === 'everywhere' && owned.length > 0
+          ? 'Deleted'
+          : mode === 'everywhere'
+            ? 'Deleted from this pack'
+            : 'Removed from collection',
+      );
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
     } finally {
@@ -1170,12 +1375,13 @@ export function CollectionEditorPage() {
   };
 
   const onEditorDelete = async () => {
-    if (!ownerCanDelete || !id) {
-      showToast('You can only delete designs you own.');
-      return;
-    }
+    if (!ownerCanDelete || !id) return;
     const myId = company.data?.id ?? '';
     const owned = ownedSelectedIds(manageSelectedIds, productCompanyById, myId);
+    if (owned.length === 0) {
+      await finishEditorDelete('everywhere');
+      return;
+    }
     setManageBusy(true);
     try {
       const result = await api.post<OtherPackCountsView>(`/collections/${id}/other-pack-counts`, {
@@ -1269,6 +1475,7 @@ export function CollectionEditorPage() {
       name: product.name,
       rate: formatRateInput(product.rate, product.rateMax ?? null),
       unit: product.unit || Unit.Set,
+      dispatchUnit: product.dispatchUnit || Unit.Piece,
       piecesPerPack:
         product.piecesPerPack != null ? String(product.piecesPerPack) : '',
       moq: product.moq != null ? String(product.moq) : '',
@@ -1288,6 +1495,7 @@ export function CollectionEditorPage() {
       name: nameForNewDesign(photo.name, photo.sku),
       rate: photo.rate,
       unit: photo.unit || Unit.Set,
+      dispatchUnit: photo.dispatchUnit || Unit.Piece,
       piecesPerPack: photo.piecesPerPack,
       moq: photo.moq,
       notes: photo.notes,
@@ -1307,53 +1515,6 @@ export function CollectionEditorPage() {
     setMemberSheet({ kind: 'pending', localId });
   };
 
-  const confirmSameForAll = () => {
-    const next = {
-      ...sameForAllDraft,
-      categories: [] as string[],
-      piecesPerPack: unitAsksPiecesPerSet(sameForAllDraft.unit)
-        ? sameForAllDraft.piecesPerPack
-        : '',
-    };
-    const skipIds = diffIds;
-    setSameForAll(next);
-    setSameForAllDraft(next);
-    setSameForAllExpanded(false);
-
-    setPendingPhotos((prev) =>
-      prev.map((p) => {
-        if (skipIds.has(p.localId)) return p;
-        if (sameForAllIsEmpty(next)) return p;
-        return {
-          ...p,
-          rate: p.rate.trim() ? p.rate : next.rate.trim() ? next.rate : p.rate,
-          unit: p.unit.trim() ? p.unit : next.unit.trim() ? next.unit : p.unit,
-          piecesPerPack: p.piecesPerPack.trim()
-            ? p.piecesPerPack
-            : next.piecesPerPack.trim()
-              ? next.piecesPerPack
-              : p.piecesPerPack,
-          moq: p.moq.trim() ? p.moq : next.moq.trim() ? next.moq : p.moq,
-          notes: p.notes.trim() ? p.notes : next.notes.trim() ? next.notes : p.notes,
-        };
-      }),
-    );
-
-    if (sameForAllIsEmpty(next)) {
-      showToast('Same for all cleared');
-      return;
-    }
-
-    const pendingApplied = pendingPhotos.filter((p) => !skipIds.has(p.localId)).length;
-    showToast(
-      pendingApplied > 0
-        ? 'Saved for new photos · ' +
-            pendingApplied +
-            ' updated'
-        : 'Saved for new photos',
-    );
-  };
-
   const saveMemberSheet = async () => {
     if (!memberSheet) return;
     setMemberSaving(true);
@@ -1369,6 +1530,7 @@ export function CollectionEditorPage() {
                   name: memberForm.name.trim(),
                   rate: memberForm.rate,
                   unit: memberForm.unit,
+                  dispatchUnit: memberForm.dispatchUnit,
                   piecesPerPack: memberForm.piecesPerPack,
                   moq: memberForm.moq,
                   notes: memberForm.notes,
@@ -1411,6 +1573,7 @@ export function CollectionEditorPage() {
           rate: fields.rate,
           rateMax: fields.rateMax,
           unit: fields.unit,
+          dispatchUnit: fields.dispatchUnit ?? null,
           piecesPerPack: fields.piecesPerPack ?? null,
           moq: fields.moq ?? null,
           categories: memberForm.categories,
@@ -1453,7 +1616,7 @@ export function CollectionEditorPage() {
     ? diffIds.size > 0
       ? `New photos use shared details. ${diffIds.size} Diff — library kept its own; tap to change.`
       : 'New photos use shared details. Library designs keep their own rates.'
-    : 'Tap a design to edit details or tags.';
+    : 'Tap a design to add more photos of the same one.';
   const createAlbumTiles = sortDiffFirst(
     [
       ...pendingPhotos.map((photo) => ({
@@ -1469,97 +1632,24 @@ export function CollectionEditorPage() {
     ],
     diffIds,
   );
-  const sameForAllExpandable = (
-    <CollectionExpandableSection
-      title="Same for all designs"
-      summary={
-        sameForAllLine
-          ? `${sameForAllLine}${diffIds.size > 0 ? ` · ${diffIds.size} Diff` : ''}`
-          : 'Rate, unit, notes for new photos'
-      }
-      open={sameForAllExpanded}
-      onToggle={() => {
-        if (sameForAllExpanded) {
-          setSameForAllDraft(sameForAll);
-          setSameForAllExpanded(false);
-          return;
-        }
-        setSameForAllDraft({ ...sameForAll });
-        setSameForAllExpanded(true);
-      }}
-      testId="collection-same-for-all"
-    >
-      <div className="flex flex-col gap-3">
-        <p className="text-xs text-muted">
-          New photos pick these up. Library designs keep theirs unless you tap a design
-          and Use same as all. Pack tags apply to every design.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Rate">
-            <TextInput
-              value={sameForAllDraft.rate}
-              onChange={(e) =>
-                setSameForAllDraft((prev) => ({ ...prev, rate: e.target.value }))
-              }
-              {...rateFieldInputProps}
-            />
-          </Field>
-          <Field label="Unit">
-            {unitSelect(sameForAllDraft.unit, (unit) =>
-              setSameForAllDraft((prev) => ({
-                ...prev,
-                unit,
-                piecesPerPack: unitAsksPiecesPerSet(unit) ? prev.piecesPerPack : '',
-              })),
-            )}
-          </Field>
-        </div>
-        {unitAsksPiecesPerSet(sameForAllDraft.unit) ? (
-          <Field label="Pieces in one set">
-            <TextInput
-              value={sameForAllDraft.piecesPerPack}
-              onChange={(e) =>
-                setSameForAllDraft((prev) => ({
-                  ...prev,
-                  piecesPerPack: e.target.value,
-                }))
-              }
-              inputMode="numeric"
-              placeholder="e.g. 6"
-            />
-          </Field>
-        ) : null}
-        <Field label="Minimum order">
-          <TextInput
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={sameForAllDraft.moq}
-            onChange={(e) =>
-              setSameForAllDraft((prev) => ({ ...prev, moq: e.target.value }))
-            }
-            placeholder="100 pieces"
-          />
-        </Field>
-        <Field label="Notes">
-          <TextArea
-            value={sameForAllDraft.notes}
-            onChange={(e) =>
-              setSameForAllDraft((prev) => ({ ...prev, notes: e.target.value }))
-            }
-            placeholder="e.g. 44 inch, cotton"
-          />
-        </Field>
-        <Button
-          fullWidth
-          data-testid="collection-same-for-all-done"
-          onClick={() => confirmSameForAll()}
-        >
-          Done
-        </Button>
-      </div>
-    </CollectionExpandableSection>
+  const parentKeys = parentKeysFromCompanyCategories(
+    company.data?.sellCategories ?? [],
+    company.data?.superCategories ?? [],
   );
+  const tagSlots = categoriesToTagSlots(form.categories);
+  const setTagSlots = (next: { item: string; quality: string; size: string }) => {
+    setForm({ ...form, categories: tagSlotsToCategories(next) });
+    const suggested = unitsSuggestedByItem(mainsForCompany(parentKeys), next.item);
+    if (!suggested) return;
+    setSameForAll((prev) => ({
+      ...prev,
+      unit: prev.unit || suggested.orderUnit,
+      dispatchUnit: prev.dispatchUnit || suggested.dispatchUnit,
+      piecesPerPack:
+        prev.piecesPerPack.trim() ||
+        (suggested.piecesPerPack != null ? String(suggested.piecesPerPack) : ''),
+    }));
+  };
 
   const whoExpandable = (
     <CollectionExpandableSection
@@ -1586,6 +1676,93 @@ export function CollectionEditorPage() {
         onCreateGroup={() => setCreateGroupOpen(true)}
       />
     </CollectionExpandableSection>
+  );
+
+  const identityFields = (
+    <div className="flex flex-col gap-3">
+      <div>
+        <TextInput
+          aria-label="Name"
+          value={form.name}
+          onChange={(e) => {
+            setError(null);
+            setForm({ ...form, name: e.target.value });
+          }}
+          placeholder="Name this pack"
+          autoComplete="off"
+        />
+        {error ? (
+          <p className="mt-1.5 text-xs font-medium text-danger">{error}</p>
+        ) : null}
+      </div>
+      <RateRangeFields
+        from={rateFrom}
+        to={rateTo}
+        onFrom={(next) => {
+          setRateFrom(next);
+          setSameForAll((prev) => ({ ...prev, rate: combineRateInput(next, rateTo) }));
+        }}
+        onTo={(next) => {
+          setRateTo(next);
+          setSameForAll((prev) => ({ ...prev, rate: combineRateInput(rateFrom, next) }));
+        }}
+      />
+      <Field label="Description">
+        <TextArea
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          placeholder="Optional — what this pack is for"
+        />
+      </Field>
+      <CascadeTagsFields
+        item={tagSlots.item}
+        quality={tagSlots.quality}
+        size={tagSlots.size}
+        parentKeys={parentKeys}
+        onItem={(item) => setTagSlots({ ...tagSlots, item })}
+        onQuality={(quality) => setTagSlots({ ...tagSlots, quality })}
+        onSize={(size) => setTagSlots({ ...tagSlots, size })}
+      />
+      {isCreate ? whoExpandable : null}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={applyToAll}
+        data-testid="collection-apply-all"
+        className={cx(
+          'flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left text-sm',
+          applyToAll
+            ? 'border-accent bg-accent/5 font-medium text-ink'
+            : 'border-line text-ink',
+        )}
+        onClick={() => setApplyToAllRemembered(!applyToAll)}
+      >
+        <span
+          className={cx(
+            'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
+            applyToAll ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+          )}
+          aria-hidden
+        >
+          {applyToAll ? <CheckIcon width={14} height={14} strokeWidth={2.5} /> : null}
+        </span>
+        <span>Apply this info to all designs</span>
+      </button>
+      <OrderDispatchFields
+        orderUnit={sameForAll.unit || Unit.Set}
+        piecesPerPack={sameForAll.piecesPerPack}
+        dispatchUnit={sameForAll.dispatchUnit || Unit.Piece}
+        moq={sameForAll.moq}
+        onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
+        onPiecesPerPack={(piecesPerPack) =>
+          setSameForAll((prev) => ({ ...prev, piecesPerPack }))
+        }
+        onDispatchUnit={(dispatchUnit) =>
+          setSameForAll((prev) => ({ ...prev, dispatchUnit }))
+        }
+        onMoq={(moq) => setSameForAll((prev) => ({ ...prev, moq }))}
+      />
+    </div>
   );
 
   const canOpenCreatePublish =
@@ -1644,23 +1821,6 @@ export function CollectionEditorPage() {
                   }
                 >
                   {manageSelecting ? 'Selecting' : 'Select'}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-45"
-                disabled={!form.name.trim() || save.isPending}
-                onClick={() => save.mutate()}
-              >
-                {save.isPending ? 'Updating…' : 'Update'}
-              </button>
-              {id ? (
-                <button
-                  type="button"
-                  className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5"
-                  onClick={() => navigate(`/collections/${id}`)}
-                >
-                  Open
                 </button>
               ) : null}
               {showLifecycleMenu ? (
@@ -1725,19 +1885,16 @@ export function CollectionEditorPage() {
       {!editing ? (
         <>
           {pendingPhotos.length === 0 && createLibraryDesigns.length === 0 ? (
-            <button
-              type="button"
-              data-testid="collection-add-designs"
-              onClick={openDesignPicker}
+            <AddDesignsControl
+              open={sourceOpen}
+              size="hero"
+              uploading={quickUploading}
               disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
-              className="flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-3 text-muted disabled:opacity-40"
-            >
-              <CameraIcon width={32} height={32} />
-              <span className="text-base font-semibold text-ink">
-                {quickUploading ? 'Uploading…' : 'Designs'}
-              </span>
-              <span className="text-xs text-muted">Photos or from your library</span>
-            </button>
+              onOpen={openAddDesignsMenu}
+              onClose={() => setSourceOpen(false)}
+              onDesigns={pickSourceDesigns}
+              onPhotos={pickSourcePhotos}
+            />
           ) : (
             <CappedMediaGrid
               items={createAlbumTiles}
@@ -1849,77 +2006,29 @@ export function CollectionEditorPage() {
           )}
 
           {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
-            <button
-              type="button"
-              data-testid="collection-add-designs"
-              onClick={openDesignPicker}
-              disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm font-medium text-muted disabled:opacity-40"
-            >
-              <CameraIcon width={18} height={18} />
-              {quickUploading ? 'Adding…' : 'Add designs'}
-            </button>
+            <>
+              <AddDesignsControl
+                open={sourceOpen}
+                size="compact"
+                uploading={quickUploading}
+                disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
+                onOpen={openAddDesignsMenu}
+                onClose={() => setSourceOpen(false)}
+                onDesigns={pickSourceDesigns}
+                onPhotos={pickSourcePhotos}
+              />
+              <p className="text-xs text-muted" data-testid="collection-create-design-tip">
+                {albumTip}
+              </p>
+            </>
           ) : null}
 
-          <div className="flex flex-col gap-3">
-            <div>
-              <TextInput
-                aria-label="Name"
-                value={form.name}
-                onChange={(e) => {
-                  setError(null);
-                  setForm({ ...form, name: e.target.value });
-                }}
-                placeholder="Name this pack"
-                autoComplete="off"
-              />
-              {error ? (
-                <p className="mt-1.5 text-xs font-medium text-danger">{error}</p>
-              ) : null}
-            </div>
-            <Field label="Description">
-              <TextArea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Optional — what this pack is for"
-              />
-            </Field>
-            <TagsField
-              value={form.categories}
-              onChange={(categories) => setForm({ ...form, categories })}
-            />
-            {sameForAllExpandable}
-            {whoExpandable}
-          </div>
+          {identityFields}
         </>
       ) : null}
 
       {editing ? (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Field label="Name" error={error}>
-              <TextInput
-                value={form.name}
-                onChange={(e) => {
-                  setError(null);
-                  setForm({ ...form, name: e.target.value });
-                }}
-                placeholder="Festive 2026"
-              />
-            </Field>
-            <Field label="Description">
-              <TextArea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Optional — what this pack is for"
-              />
-            </Field>
-            <TagsField
-              value={form.categories}
-              onChange={(categories) => setForm({ ...form, categories })}
-            />
-          </div>
-
           <div className="flex items-center justify-between gap-2">
             <p className="text-base font-semibold text-ink">
               {selectedProducts.length} design{selectedProducts.length === 1 ? '' : 's'} in collection
@@ -1941,64 +2050,83 @@ export function CollectionEditorPage() {
               renderTile={(product) => {
                 const isDiff = diffIds.has(product.id);
                 const ended = curatedMemberUnavailableReason(product.status);
+                const canSetLive = canSetMemberLiveInPack({
+                  packPublished: isPublished,
+                  productStatus: product.status,
+                  productCompanyId: product.companyId,
+                  ownerCompanyId: company.data?.id,
+                });
                 return (
                 <div
                   className={cx(
                     'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
-                    isDiff ? 'border-2 border-accent' : 'border-2 border-line',
+                    !manageSelecting && (isDiff ? 'border-2 border-accent' : 'border-2 border-line'),
                   )}
                   data-testid={isDiff ? 'collection-diff-tile' : 'collection-member-tile-wrap'}
                 >
-                  <button
-                    type="button"
-                    className={cx(
-                      'absolute inset-0 block text-left',
-                      manageSelecting && manageSelected.has(product.id) && 'ring-2 ring-inset ring-accent',
-                    )}
-                    data-testid="collection-member-tile"
-                    onClick={() =>
-                      manageSelecting
-                        ? toggleManageSelect(product.id)
-                        : openMemberDesignSheet(product)
-                    }
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      setManageSelecting(true);
-                      toggleManageSelect(product.id);
-                    }}
-                    aria-label={
-                      manageSelecting
-                        ? `${manageSelected.has(product.id) ? 'Deselect' : 'Select'} ${product.name}`
-                        : `Edit design · ${product.name}`
-                    }
+                  <SelectableMediaFrame
+                    selectMode={manageSelecting}
+                    selected={manageSelected.has(product.id)}
+                    checkClassName="left-1.5 top-1.5"
                   >
-                    {product.images[0] ? (
-                      <img
-                        src={product.images[0]}
-                        alt=""
-                        className={cx(
-                          'absolute inset-0 h-full w-full object-cover',
-                          ended && 'opacity-45',
-                        )}
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
-                        {product.name.charAt(0)}
-                      </div>
-                    )}
-                    <span className="absolute inset-x-0 bottom-0 truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
-                      {product.name}
-                    </span>
-                    {ended ? (
-                      <span
-                        className="absolute left-1 top-1 z-[1] rounded bg-ink/75 px-1.5 py-0.5 text-[10px] font-bold text-white"
-                        data-testid="collection-member-unavailable"
-                      >
-                        {ended}
+                    <button
+                      type="button"
+                      className="relative block aspect-square w-full text-left"
+                      data-testid="collection-member-tile"
+                      onClick={() =>
+                        manageSelecting
+                          ? toggleManageSelect(product.id)
+                          : openMemberDesignSheet(product)
+                      }
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setManageSelecting(true);
+                        toggleManageSelect(product.id);
+                      }}
+                      aria-label={
+                        manageSelecting
+                          ? `${manageSelected.has(product.id) ? 'Deselect' : 'Select'} ${product.name}`
+                          : `Edit design · ${product.name}`
+                      }
+                    >
+                      {product.images[0] ? (
+                        <img
+                          src={product.images[0]}
+                          alt=""
+                          className={cx(
+                            'absolute inset-0 h-full w-full object-cover',
+                            ended && !canSetLive && 'opacity-45',
+                          )}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
+                          {product.name.charAt(0)}
+                        </div>
+                      )}
+                      <span className="absolute inset-x-0 bottom-0 truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
+                        {product.name}
                       </span>
-                    ) : null}
-                  </button>
-                  {isDiff ? (
+                      {canSetLive && !manageSelecting ? null : ended ? (
+                        <span
+                          className="absolute left-1 top-1 z-[1] rounded bg-ink/75 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                          data-testid="collection-member-unavailable"
+                        >
+                          {ended}
+                        </span>
+                      ) : null}
+                    </button>
+                  </SelectableMediaFrame>
+                  {canSetLive && !manageSelecting ? (
+                    <button
+                      type="button"
+                      data-testid="collection-member-set-live"
+                      className="absolute left-1 top-1 z-[2] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white disabled:opacity-45"
+                      disabled={savingDesigns || quickUploading}
+                      onClick={() => void setMemberLiveInPack()}
+                    >
+                      {savingDesigns ? 'Publishing…' : 'Publish'}
+                    </button>
+                  ) : !manageSelecting && isDiff ? (
                     <span
                       data-testid="collection-diff-badge"
                       className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
@@ -2006,38 +2134,39 @@ export function CollectionEditorPage() {
                       Diff
                     </span>
                   ) : null}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${product.name}`}
-                    className="absolute right-1 top-1 z-[1] flex h-7 w-7 items-center justify-center rounded-full bg-ink/75 text-sm leading-none text-white"
-                    onClick={() => toggle(product.id)}
-                  >
-                    ×
-                  </button>
+                  {!manageSelecting ? (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${product.name}`}
+                      className="absolute right-1 top-1 z-[1] flex h-7 w-7 items-center justify-center rounded-full bg-ink/75 text-sm leading-none text-white"
+                      onClick={() => toggle(product.id)}
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </div>
                 );
               }}
             />
           ) : (
-            <p className="text-sm text-muted">Add designs — photo or from your library.</p>
+            <p className="text-sm text-muted">Add designs from your Designs or Photos.</p>
           )}
 
-          <button
-            type="button"
-            onClick={openDesignPicker}
+          <AddDesignsControl
+            open={sourceOpen}
+            size="compact"
+            uploading={quickUploading}
             disabled={quickUploading}
-            className={cx(
-              'flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm font-medium text-muted',
-              'disabled:opacity-40',
-            )}
-          >
-            <CameraIcon width={18} height={18} />
-            {quickUploading ? 'Adding…' : 'Designs'}
-          </button>
+            onOpen={openAddDesignsMenu}
+            onClose={() => setSourceOpen(false)}
+            onDesigns={pickSourceDesigns}
+            onPhotos={pickSourcePhotos}
+          />
           {selectedProducts.length > 0 ? (
             <p className="text-xs text-muted">{albumTip}</p>
           ) : null}
-          {sameForAllExpandable}
+
+          {identityFields}
         </div>
       ) : null}
 
@@ -2056,6 +2185,20 @@ export function CollectionEditorPage() {
                 className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
                 style={{ top: morePos.top, right: morePos.right }}
               >
+                {id ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="collection-editor-open"
+                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      navigate(`/collections/${id}`);
+                    }}
+                  >
+                    Open
+                  </button>
+                ) : null}
                 {isArchived ? (
                   <button
                     type="button"
@@ -2125,6 +2268,17 @@ export function CollectionEditorPage() {
                     <button
                       type="button"
                       role="menuitem"
+                      className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        setReplaceSheetOpen(true);
+                      }}
+                    >
+                      Replace whole collection
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
                       disabled={lifecycle.isPending}
                       className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40"
                       onClick={() => {
@@ -2149,10 +2303,13 @@ export function CollectionEditorPage() {
             busy={manageBusy || savingDesigns || quickUploading}
             canDelete={ownerCanDelete}
             canRemove={ownerCanRemove}
-            onAdd={openDesignPicker}
+            onAdd={openAddDesignsMenu}
             onReplace={() => setReplaceSheetOpen(true)}
             onDelete={() => void onEditorDelete()}
             onRemove={() => void onEditorRemove()}
+            onUpdate={() => save.mutate()}
+            updatePending={save.isPending || savingDesigns}
+            updateDisabled={!form.name.trim() || selected.size < 1 || save.isPending || savingDesigns}
           />
           <OwnerPackReplaceSheet
             open={replaceSheetOpen}
@@ -2215,54 +2372,10 @@ export function CollectionEditorPage() {
           )
         : null}
 
-      {sourceOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close"
-                className="fixed inset-0 z-[80] cursor-default bg-ink/40"
-                onClick={() => setSourceOpen(false)}
-              />
-              <div
-                role="menu"
-                data-testid="collection-source-menu"
-                className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[81] mx-auto max-w-md overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full px-4 py-3.5 text-left text-[15px] font-semibold text-ink hover:bg-foam"
-                  onClick={() => {
-                    setSourceOpen(false);
-                    openCollectionGallery();
-                  }}
-                >
-                  Photo library
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="collection-source-designs"
-                  className="flex w-full border-t border-line px-4 py-3.5 text-left text-[15px] font-semibold text-ink hover:bg-foam"
-                  onClick={() => {
-                    setSourceOpen(false);
-                    setLibraryOpen(true);
-                  }}
-                >
-                  Designs
-                </button>
-              </div>
-            </>,
-            document.body,
-          )
-        : null}
-
       <input
         ref={designFileRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/*"
-        multiple
+        {...collectionGalleryInputProps}
+        data-testid="collection-gallery-input"
         className="hidden"
         onChange={(e) => void onQuickDesignFiles(e.target.files)}
       />
@@ -2283,6 +2396,7 @@ export function CollectionEditorPage() {
           setCameraAppend(null);
           restoreMemberSheetAfterCamera();
         }}
+        batchAsDesigns={!cameraAppend}
         onUnavailable={() => {
           setCameraOpen(false);
           if (cameraAppend) {
@@ -2291,20 +2405,13 @@ export function CollectionEditorPage() {
             setCameraAppend(null);
             return;
           }
-          setSourceOpen(true);
+          openCollectionGalleryDeferred();
         }}
         onGallery={() => {
           setCameraOpen(false);
-          openCollectionGallery();
+          setError(null);
+          clickCollectionGallery();
         }}
-        onDesigns={
-          cameraAppend
-            ? undefined
-            : () => {
-                setCameraOpen(false);
-                setLibraryOpen(true);
-              }
-        }
         onDone={(files) => {
           setCameraOpen(false);
           void ingestPhotoFiles(files);
@@ -2480,7 +2587,22 @@ export function CollectionEditorPage() {
         title="Update this design"
         footer={
           <div className="flex flex-col gap-2">
-            <Button fullWidth disabled={memberSaving} onClick={() => void saveMemberSheet()}>
+            {memberSheetCanSetLive ? (
+              <Button
+                fullWidth
+                disabled={memberSaving || savingDesigns}
+                data-testid="collection-member-sheet-set-live"
+                onClick={() => void setMemberLiveInPack()}
+              >
+                {savingDesigns ? 'Publishing…' : 'Publish'}
+              </Button>
+            ) : null}
+            <Button
+              fullWidth
+              variant={memberSheetCanSetLive ? 'secondary' : 'primary'}
+              disabled={memberSaving}
+              onClick={() => void saveMemberSheet()}
+            >
               {memberSaving ? 'Saving…' : 'Done'}
             </Button>
             {!sameForAllIsEmpty(sameForAll) &&
@@ -2565,50 +2687,63 @@ export function CollectionEditorPage() {
                 ) : null;
               })()
             : null}
-          <TagsField
-            value={memberForm.categories}
-            onChange={(categories) => setMemberForm({ ...memberForm, categories })}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Rate">
-              <TextInput
-                value={memberForm.rate}
-                onChange={(e) => setMemberForm({ ...memberForm, rate: e.target.value })}
-                {...rateFieldInputProps}
-              />
-            </Field>
-          <Field label="Unit">
-            {unitSelect(memberForm.unit, (unit) =>
+          <CascadeTagsFields
+            item={categoriesToTagSlots(memberForm.categories).item}
+            quality={categoriesToTagSlots(memberForm.categories).quality}
+            size={categoriesToTagSlots(memberForm.categories).size}
+            parentKeys={parentKeys}
+            onItem={(item) => {
+              const slots = categoriesToTagSlots(memberForm.categories);
               setMemberForm({
                 ...memberForm,
-                unit,
-                piecesPerPack: unitAsksPiecesPerSet(unit) ? memberForm.piecesPerPack : '',
-              }),
-            )}
-          </Field>
-        </div>
-          {unitAsksPiecesPerSet(memberForm.unit) ? (
-            <Field label="Pieces in one set">
-              <TextInput
-                value={memberForm.piecesPerPack}
-                onChange={(e) =>
-                  setMemberForm({ ...memberForm, piecesPerPack: e.target.value })
-                }
-                inputMode="numeric"
-                placeholder="e.g. 6"
-              />
-            </Field>
-          ) : null}
-          <Field label="Minimum order">
-            <TextInput
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={memberForm.moq}
-              onChange={(e) => setMemberForm({ ...memberForm, moq: e.target.value })}
-              placeholder="100 pieces"
-            />
-          </Field>
+                categories: tagSlotsToCategories({ ...slots, item }),
+              });
+            }}
+            onQuality={(quality) => {
+              const slots = categoriesToTagSlots(memberForm.categories);
+              setMemberForm({
+                ...memberForm,
+                categories: tagSlotsToCategories({ ...slots, quality }),
+              });
+            }}
+            onSize={(size) => {
+              const slots = categoriesToTagSlots(memberForm.categories);
+              setMemberForm({
+                ...memberForm,
+                categories: tagSlotsToCategories({ ...slots, size }),
+              });
+            }}
+          />
+          <RateRangeFields
+            from={splitRateInput(memberForm.rate).from}
+            to={splitRateInput(memberForm.rate).to}
+            onFrom={(next) =>
+              setMemberForm({
+                ...memberForm,
+                rate: combineRateInput(next, splitRateInput(memberForm.rate).to),
+              })
+            }
+            onTo={(next) =>
+              setMemberForm({
+                ...memberForm,
+                rate: combineRateInput(splitRateInput(memberForm.rate).from, next),
+              })
+            }
+          />
+          <OrderDispatchFields
+            orderUnit={memberForm.unit || Unit.Set}
+            piecesPerPack={memberForm.piecesPerPack}
+            dispatchUnit={memberForm.dispatchUnit || Unit.Piece}
+            moq={memberForm.moq}
+            onOrderUnit={(unit) => setMemberForm({ ...memberForm, unit })}
+            onPiecesPerPack={(piecesPerPack) =>
+              setMemberForm({ ...memberForm, piecesPerPack })
+            }
+            onDispatchUnit={(dispatchUnit) =>
+              setMemberForm({ ...memberForm, dispatchUnit })
+            }
+            onMoq={(moq) => setMemberForm({ ...memberForm, moq })}
+          />
           <Field label="Notes">
             <TextArea
               value={memberForm.notes}
@@ -2617,6 +2752,119 @@ export function CollectionEditorPage() {
             />
           </Field>
         </div>
+      </Sheet>
+
+      <Sheet
+        open={Boolean(nameClash)}
+        onClose={() => setNameClash(null)}
+        title="This pack already exists"
+        footer={
+          nameClash ? (
+            <div className="flex flex-col gap-2" data-testid="collection-name-clash">
+              <Button
+                fullWidth
+                data-testid="collection-name-clash-append"
+                disabled={creating}
+                onClick={() => {
+                  const clash = nameClash;
+                  setCreating(true);
+                  void (async () => {
+                    try {
+                      await completeCreate({
+                        collectionId: clash.collectionId,
+                        name: clash.name,
+                        publish: clash.publish,
+                        keepRateIds: rateConflictKeepIds,
+                      });
+                    } catch (err) {
+                      const message =
+                        err instanceof ApiError
+                          ? err.message
+                          : (err as Error).message || 'Could not add designs.';
+                      showToast(message, 'danger');
+                    } finally {
+                      setCreating(false);
+                    }
+                  })();
+                }}
+              >
+                Add to that pack
+              </Button>
+              <Button
+                fullWidth
+                variant="secondary"
+                data-testid="collection-name-clash-rename"
+                disabled={creating}
+                onClick={() => setNameClash(null)}
+              >
+                I’ll use another name
+              </Button>
+            </div>
+          ) : null
+        }
+      >
+        <p className="text-sm text-muted">
+          You already have “{nameClash?.name || form.name.trim()}”. Add these designs to that pack,
+          or type a new name.
+        </p>
+      </Sheet>
+
+      <Sheet
+        open={Boolean(rateConflicts && rateConflicts.length > 0)}
+        onClose={() => setRateConflicts(null)}
+        title="Different rate"
+        footer={
+          rateConflicts && rateConflicts[0] ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                fullWidth
+                data-testid="collection-rate-change"
+                onClick={() => {
+                  const rest = rateConflicts.slice(1);
+                  if (rest.length === 0) {
+                    const keep = rateConflictKeepIds;
+                    setRateConflicts(null);
+                    void onCreate({ publish: pendingPublish, keepRateIds: keep });
+                    return;
+                  }
+                  setRateConflicts(rest);
+                }}
+              >
+                Change
+              </Button>
+              <Button
+                variant="ghost"
+                fullWidth
+                data-testid="collection-rate-keep"
+                onClick={() => {
+                  const current = rateConflicts[0]!;
+                  const keep = new Set(rateConflictKeepIds);
+                  keep.add(current.id);
+                  setRateConflictKeepIds(keep);
+                  const rest = rateConflicts.slice(1);
+                  if (rest.length === 0) {
+                    setRateConflicts(null);
+                    void onCreate({ publish: pendingPublish, keepRateIds: keep });
+                    return;
+                  }
+                  setRateConflicts(rest);
+                }}
+              >
+                Keep as is
+              </Button>
+            </div>
+          ) : null
+        }
+      >
+        {rateConflicts && rateConflicts[0] ? (
+          <p className="text-sm text-ink" data-testid="collection-rate-conflict">
+            {rateConflicts[0].name} is {rateConflicts[0].existing}
+            {rateConflicts[0].otherPacks[0]
+              ? ` in ${rateConflicts[0].otherPacks[0]}`
+              : ''}
+            . Change to {rateConflicts[0].incoming}, or keep as is?
+          </p>
+        ) : null}
       </Sheet>
 
       <BuyerGroupFormSheet

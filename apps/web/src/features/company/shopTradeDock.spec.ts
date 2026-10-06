@@ -125,16 +125,13 @@ describe('shouldHideAppNav', () => {
     expect(shouldHideAppNav('/more', { thisShopSelectedCount: 0 })).toBe(false);
   });
 
-  it('hides on a shop while that seller has selected designs', () => {
+  it('hides on another shop profile even with nothing selected', () => {
+    expect(
+      shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 0 }),
+    ).toBe(true);
     expect(
       shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 1 }),
     ).toBe(true);
-  });
-
-  it('keeps nav on a shop with only other sellers in the pile', () => {
-    expect(
-      shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 0 }),
-    ).toBe(false);
   });
 
   it('keeps nav on own shop', () => {

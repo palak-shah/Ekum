@@ -26,3 +26,13 @@ export class CatalogTagController {
     return this.tags.create(companyId, dto);
   }
 }
+
+@Controller({ path: 'catalog/taxonomy', version: '1' })
+export class CatalogTaxonomyController {
+  constructor(private readonly tags: CatalogTagService) {}
+
+  @Get()
+  list(@CurrentCompanyId() companyId: string) {
+    return this.tags.taxonomy(companyId);
+  }
+}

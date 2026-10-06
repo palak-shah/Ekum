@@ -20,9 +20,9 @@ test.describe('follow-ask extra gate @functional @network', () => {
     await page.goto(`/company/${KAVITA_COMPANY}`);
     const follow = page.getByTestId('company-follow');
     await expect(follow).toBeVisible({ timeout: 15_000 });
-    await expect(follow).toHaveText('See new packs');
+    await expect(follow).toHaveText('Request catalog access');
     await follow.click();
-    await expect(follow).toHaveText('Asked to see packs', { timeout: 10_000 });
+    await expect(follow).toHaveText('Requested', { timeout: 10_000 });
 
     await loginAsKavita(page);
     await page.goto('/network/followers');
@@ -55,7 +55,7 @@ test.describe('follow-ask extra gate @functional @network', () => {
 
     await loginAsMeena(page);
     await page.goto(`/company/${KAVITA_COMPANY}`);
-    await expect(page.getByTestId('company-follow')).toHaveText('Seeing packs', { timeout: 15_000 });
+    await expect(page.getByTestId('company-follow')).toHaveText('Has access', { timeout: 15_000 });
 
     await loginAsKavita(page);
     await page.goto('/network/followers');
@@ -76,7 +76,9 @@ test.describe('follow-ask extra gate @functional @network', () => {
 
     await loginAsMeena(page);
     await page.goto(`/company/${KAVITA_COMPANY}`);
-    await expect(page.getByTestId('company-follow')).toHaveText('See new packs', { timeout: 15_000 });
+    await expect(page.getByTestId('company-follow')).toHaveText('Request catalog access', {
+      timeout: 15_000,
+    });
 
     await resetFollow(page, await accessTokenFromPage(page));
   });

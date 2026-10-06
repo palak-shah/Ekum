@@ -40,3 +40,17 @@ export function collectionCameraMaxShots(
 ): number {
   return Math.max(0, cap - pendingPhotoCount);
 }
+
+export function collectionNameClash(err: {
+  code?: string;
+  details?: unknown;
+}): { collectionId: string; name: string } | null {
+  if (err.code !== 'COLLECTION_NAME_TAKEN') return null;
+  const details = err.details;
+  if (!details || typeof details !== 'object') return null;
+  const row = details as { collectionId?: unknown; name?: unknown };
+  const collectionId = typeof row.collectionId === 'string' ? row.collectionId : '';
+  if (!collectionId) return null;
+  const name = typeof row.name === 'string' ? row.name : '';
+  return { collectionId, name };
+}

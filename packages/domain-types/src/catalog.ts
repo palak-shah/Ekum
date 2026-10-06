@@ -45,6 +45,8 @@ const createProductObjectSchema = z.object({
   /** Optional high end for display ranges (e.g. 1200–1400). Orders use `rate` only. */
   rateMax: z.number().nonnegative().nullable().optional(),
   unit: z.enum(unitValues).optional(),
+  /** Dispatch unit when it differs from order taken in (`unit`). */
+  dispatchUnit: z.enum(unitValues).optional().nullable(),
   /** Pieces in one set/dozen/box; null clears on update. */
   piecesPerPack: z.number().int().positive().max(1_000_000).nullable().optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
@@ -118,6 +120,9 @@ export interface CatalogTagView {
   status: string;
   createdAt: string;
 }
+
+/** Nested official drill-down (Main → Sub → Item + size/quality). */
+export type CatalogTaxonomyView = import('./category-taxonomy').TaxonomyMain[];
 
 /** Replaces the ordered set of products in a collection. */
 export const setCollectionProductsSchema = z.object({
@@ -217,6 +222,8 @@ export interface ProductView {
   /** High end when rate is a range; null for single / on request. */
   rateMax: number | null;
   unit: string | null;
+  /** How they dispatch (pcs / mtrs) when different from order unit. */
+  dispatchUnit?: string | null;
   /** Pieces in one set/dozen/box; null when not set. */
   piecesPerPack: number | null;
   categories: string[];
@@ -345,5 +352,7 @@ export interface ProductSnapshot {
   sku: string | null;
   rate: number | null;
   unit: string | null;
+  dispatchUnit?: string | null;
+  piecesPerPack?: number | null;
   image: string | null;
 }

@@ -47,7 +47,7 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 
 ## Where it lives
 
-- Web: `apps/web/src/lib/mediaUpload.ts`, `apps/web/src/lib/mediaSession.ts` (camera/mic permission reuse in-tab), `apps/web/src/ui/ContinuousCamera.tsx` (Add designs / Photo order / **chat ＋ Camera**), and feature call sites
-- Camera / mic: first allow in the tab is remembered for that session — reopening camera or holding mic again does not call a fresh permission prompt while tracks stay live (soft-release; hard-stop after ~5 min idle or tab close). Camera soft-release mutes tracks; microphone stays enabled so Safari MediaRecorder does not return empty clips after mute/unmute.
+- Web: `apps/web/src/lib/mediaUpload.ts`, `apps/web/src/lib/mediaSession.ts` (camera/mic permission reuse in-tab), `apps/web/src/ui/ContinuousCamera.tsx` (Add designs / Photo order / **chat ＋ Camera**; **chat ＋ Photos** is gallery-only), and feature call sites
+- Camera / mic: first allow in the tab is remembered for that session — reopening camera or holding mic again does not call a fresh permission prompt while tracks stay live (soft-release; hard-stop after ~5 min idle or tab close). Camera soft-release mutes tracks; microphone stays enabled so Safari MediaRecorder does not return empty clips after mute/unmute. **Gallery / Designs** on camera chrome **hard-stops** the stream and opens the file picker in the same tap (no viewfinder flash under the OS picker).
 - API: `apps/api/src/media/`; job `media.thumbnail` in `apps/api/src/jobs/`
 - Contracts: `packages/domain-types/src/media.ts`

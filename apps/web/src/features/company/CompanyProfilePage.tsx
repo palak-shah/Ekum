@@ -10,15 +10,24 @@ import {
   type CursorPage,
   type ExploreProductCard,
   type CreateOrdersBatchResult,
+  type MuteFor,
   type PublicCompanyProfile,
   type PublicCompanySummary,
   type ThreadSummary,
   categoryDisplayLabel,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { SEE_PACKS_HINT, seePacksShopLabel, shopWriteLabel } from './seePacksCopy';
+import { seePacksShopLabel, shopWriteLabel } from './seePacksCopy';
 import { shopShelfLoading } from './shopShelfLoading';
-import { ShareIcon } from '@/ui/icons';
+import {
+  ChatIcon,
+  CollectionIcon,
+  LockIcon,
+  MoreHorizontalIcon,
+  ProductIcon,
+  UnlockIcon,
+} from '@/ui/icons';
+import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
 import { useCompanyId } from '@/lib/auth';
 import {
   readDesignBrowseLayout,
@@ -55,9 +64,14 @@ import { Avatar, Button, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
+import { CompanyOverflowMenu } from './CompanyOverflowMenu';
 import { CompanyShareSheet } from './CompanyShareSheet';
 import { ShopCollectionCell, ShopPhotoCell, ShopPhotoGrid } from './ShopPhotoGrid';
 import { shopCollectionPhoto, shopDesignPhoto } from './shopPhoto';
+import {
+  findDirectThreadForCompany,
+  shopOverflowItems,
+} from './shopOverflowMenu';
 import {
   shouldShowShopTradeDock,
   shopAlbumEntries,
@@ -105,6 +119,7 @@ export function CompanyProfilePage() {
   const { trading } = useTradePresence();
   const { showToast } = useToast();
   const [shareOpen, setShareOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [curateOpen, setCurateOpen] = useState(false);
@@ -138,6 +153,11 @@ export function CompanyProfilePage() {
     queryKey: ['follows', 'following'],
     queryFn: () => api.get<PublicCompanySummary[]>('/follows/following'),
   });
+  const threads = useQuery({
+    queryKey: ['threads'],
+    queryFn: () => api.get<CursorPage<ThreadSummary>>('/threads', { limit: 50 }),
+    enabled: Boolean(id) && !isOwn,
+  });
   const shopCollections = useQuery({
     queryKey: ['company', id, 'collections'],
     queryFn: () =>
@@ -159,6 +179,13 @@ export function CompanyProfilePage() {
     profile.data?.following === true ||
     (following.data?.some((item) => item.id === id) ?? false);
   const isFollowPending = profile.data?.followPending === true;
+  const directThread = findDirectThreadForCompany(threads.data?.results, id);
+  const overflowItems = shopOverflowItems({
+    isOwn,
+    hasDirectThread: Boolean(directThread),
+    followPending: isFollowPending,
+    following: isFollowing,
+  });
 
   const contacts = useQuery({
     queryKey: ['company', id, 'contact'],
@@ -272,6 +299,37 @@ export function CompanyProfilePage() {
       setActionError(error instanceof ApiError ? error.message : 'Could not open chat.'),
   });
 
+  const setThreadAlert = useMutation({
+    mutationFn: (payload: { alertLevel: 'all' | 'muted'; muteFor?: MuteFor }) =>
+      api.patch(`/threads/${directThread!.id}/alert`, {
+        alertLevel: payload.alertLevel,
+        ...(payload.muteFor ? { muteFor: payload.muteFor } : {}),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      setMoreOpen(false);
+    },
+    onError: (error) =>
+      showToast(error instanceof ApiError ? error.message : 'Could not update mute.', 'danger'),
+  });
+
+  const blockShop = useMutation({
+    mutationFn: async () => {
+      await api.post(`/connections/company/${id}/block`, {});
+      if (directThread) {
+        await api.post(`/threads/${directThread.id}/decline`, {});
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      showToast('Blocked');
+      navigate(-1);
+    },
+    onError: (error) =>
+      showToast(error instanceof ApiError ? error.message : 'Could not block this shop.', 'danger'),
+  });
+
   const placeShopOrder = useMutation({
     mutationFn: (input: {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
@@ -350,15 +408,40 @@ export function CompanyProfilePage() {
                 }}
               />
             ) : null}
-            <button
-              type="button"
-              data-testid="company-share"
-              aria-label="Share"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam hover:text-ink"
-              onClick={() => setShareOpen(true)}
-            >
-              <ShareIcon width={18} height={18} />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                data-testid="company-more"
+                aria-label="More"
+                aria-expanded={moreOpen}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam hover:text-ink"
+                onClick={() => setMoreOpen((open) => !open)}
+              >
+                <MoreHorizontalIcon width={18} height={18} />
+              </button>
+              <CompanyOverflowMenu
+                open={moreOpen}
+                items={overflowItems}
+                muted={directThread?.alertLevel === 'muted'}
+                mutePending={setThreadAlert.isPending}
+                onClose={() => setMoreOpen(false)}
+                onShare={() => setShareOpen(true)}
+                onMute={() => setThreadAlert.mutate({ alertLevel: 'all' })}
+                onPickMute={(muteFor) =>
+                  setThreadAlert.mutate({ alertLevel: 'muted', muteFor })
+                }
+                onBlock={() => {
+                  if (
+                    typeof window !== 'undefined' &&
+                    !window.confirm(`Block ${company.name}? They won’t know.`)
+                  ) {
+                    return;
+                  }
+                  blockShop.mutate();
+                }}
+                onRemove={() => toggleFollow.mutate()}
+              />
+            </div>
           </div>
         }
         below={
@@ -407,11 +490,20 @@ export function CompanyProfilePage() {
             disabled={toggleFollow.isPending}
             className={cx(
               shopActionClass,
+              'gap-1.5',
               isFollowing && !isFollowPending
                 ? 'bg-accent text-white disabled:opacity-45'
-                : 'bg-foam text-ink disabled:opacity-45',
+                : isFollowPending
+                  ? 'border border-accent/40 bg-foam text-ink disabled:opacity-45'
+                  : 'bg-foam text-ink disabled:opacity-45',
             )}
           >
+            {!toggleFollow.isPending && isFollowing && !isFollowPending ? (
+              <UnlockIcon width={14} height={14} className="shrink-0" aria-hidden />
+            ) : null}
+            {!toggleFollow.isPending && !(isFollowing && !isFollowPending) ? (
+              <LockIcon width={14} height={14} className="shrink-0" aria-hidden />
+            ) : null}
             {toggleFollow.isPending
               ? 'Updating…'
               : seePacksShopLabel({ pending: isFollowPending, allowed: isFollowing })}
@@ -423,8 +515,11 @@ export function CompanyProfilePage() {
             data-testid="company-message"
             onClick={() => startChat.mutate()}
             disabled={startChat.isPending}
-            className={cx(shopActionClass, 'bg-foam text-ink disabled:opacity-45')}
+            className={cx(shopActionClass, 'gap-1.5 bg-foam text-ink disabled:opacity-45')}
           >
+            {!startChat.isPending ? (
+              <ChatIcon width={14} height={14} className="shrink-0" aria-hidden />
+            ) : null}
             {startChat.isPending ? 'Opening…' : shopWriteLabel(alreadyTalks)}
           </button>
         ) : null}
@@ -439,12 +534,6 @@ export function CompanyProfilePage() {
           </button>
         ) : null}
       </div>
-
-      {!isOwn ? (
-        <p className="text-xs text-muted" data-testid="company-follow-hint">
-          {SEE_PACKS_HINT}
-        </p>
-      ) : null}
 
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
@@ -464,35 +553,32 @@ export function CompanyProfilePage() {
               <div className="flex gap-2">
                 {(
                   [
-                    ['collections', 'Collections'],
-                    ['designs', 'Designs'],
+                    ['collections', 'Collections', CollectionIcon],
+                    ['designs', 'Designs', ProductIcon],
                   ] as const
-                ).map(([value, label]) => (
+                ).map(([value, label, TabIcon]) => (
                   <button
                     key={value}
                     type="button"
                     data-testid={`company-shop-tab-${value}`}
                     onClick={() => setShopTab(value)}
                     className={cx(
-                      'rounded-full px-3.5 py-1.5 text-sm font-medium',
+                      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium',
                       shopTab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
                     )}
                   >
+                    <TabIcon width={14} height={14} className="shrink-0" aria-hidden />
                     {label}
                   </button>
                 ))}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {tabHasItems ? (
-                  <button
-                    type="button"
-                    data-testid="company-shop-layout-toggle"
-                    aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                    onClick={toggleLayout}
-                  >
-                    {layout === 'feed' ? 'Grid' : 'Feed'}
-                  </button>
+                  <BrowseLayoutToggle
+                    layout={layout}
+                    onToggle={toggleLayout}
+                    testId="company-shop-layout-toggle"
+                  />
                 ) : null}
                 {canSelect ? (
                   <button

@@ -19,7 +19,7 @@ Replace the single Photos row with two peers (keep Design / Collection / Order):
 | **Camera** | Take photos | `CameraIcon` | Phone: close sheet → `ContinuousCamera`. Desktop: gallery multi-pick (same as Photo order). |
 | **Photos** | From your gallery | Distinct non-camera glyph (add `ImageIcon` or equivalent) | Close sheet → existing hidden `input[type=file]` multi-pick. |
 
-**Superseded menu shape (2026-09-13):** Chat ＋ uses a **single Photos** row (Add designs pattern: phone → ContinuousCamera with Gallery; desktop → gallery). Separate Camera row removed. Document remains its own row.
+**Superseded (2026-09-13) then restored (2026-10-06):** A single Photos→camera row flashed a black camera shell before gallery. Chat ＋ is again **Camera** + **Photos** peers (Photos = gallery only). Document remains its own row.
 
 ### Camera (phone)
 

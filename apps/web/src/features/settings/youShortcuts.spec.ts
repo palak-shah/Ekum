@@ -2,17 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { settingsBusinessRoleLinks, youShortcutItems } from './youShortcuts';
 
 describe('youShortcuts', () => {
-  it('orders Home account rows: Profile through Settings', () => {
+  it('orders Home account rows: Profile through Settings (Designs is a You tab)', () => {
     expect(youShortcutItems().map((item) => item.label)).toEqual([
       'Profile',
       'Network',
       'My Collections',
-      'My Designs',
       'Settings',
     ]);
-    expect(youShortcutItems().find((item) => item.testId === 'my-designs')?.to).toBe(
-      '/more?tab=products',
-    );
+    expect(youShortcutItems().find((item) => item.testId === 'my-designs')).toBeUndefined();
   });
 
   it('puts Team and Your paths under Settings when trading', () => {

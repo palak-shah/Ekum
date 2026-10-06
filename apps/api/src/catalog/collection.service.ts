@@ -42,7 +42,6 @@ import {
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
 import { shouldBumpExploreOnPublish } from './explore-activity-bump';
-import { draftPublishedPacksWithoutLiveDesign } from './draft-packs-after-design-hide';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
@@ -107,7 +106,8 @@ export class CollectionService {
         code: 'COLLECTION_NAME_TAKEN',
         message: opts.restoring
           ? `Restore blocked — a live collection already uses “${clash.name}”.`
-          : `You already have a collection named “${clash.name}”. Archive it or pick another name.`,
+          : `You already have a collection named “${clash.name}”.`,
+        details: { collectionId: clash.id, name: clash.name },
       });
     }
     return name;
@@ -155,14 +155,7 @@ export class CollectionService {
       orderBy: [...createdAtOrderBy(query.sort)],
       include: listInclude,
     });
-    const drafted = await draftPublishedPacksWithoutLiveDesign(this.prisma, collections);
-    return collections.map((collection) =>
-      this.serializer.toCollectionView(
-        drafted.has(collection.id)
-          ? { ...collection, status: CollectionStatus.Draft }
-          : collection,
-      ),
-    );
+    return collections.map((collection) => this.serializer.toCollectionView(collection));
   }
 
   async get(companyId: string, id: string): Promise<CollectionDetailView> {
@@ -552,35 +545,28 @@ export class CollectionService {
     const existing = await this.owned(companyId, id);
 
     const uniqueIds = [...new Set(productIds)];
+    const products =
+      uniqueIds.length === 0
+        ? []
+        : await this.prisma.product.findMany({
+            where: { id: { in: uniqueIds } },
+            select: {
+              id: true,
+              companyId: true,
+              audience: true,
+              audienceCompanyIds: true,
+              allowForward: true,
+              status: true,
+              postedToMarketAt: true,
+            },
+          });
     if (uniqueIds.length > 0) {
-      const products = await this.prisma.product.findMany({
-        where: { id: { in: uniqueIds } },
-        select: {
-          id: true,
-          companyId: true,
-          audience: true,
-          audienceCompanyIds: true,
-          allowForward: true,
-          status: true,
-          postedToMarketAt: true,
-        },
-      });
       if (products.length !== uniqueIds.length) {
         throw new BadRequestException({
           code: 'INVALID_PRODUCTS',
           message: 'One or more products could not be found.',
         });
       }
-      const discoverableIds = await this.discoverableProductIds(companyId, products);
-      const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
-      const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
-      assertProductsCuratable({
-        curatorCompanyId: companyId,
-        products,
-        discoverableIds,
-        relistGrantedIds,
-        lookOnlyOwnerIds,
-      });
     }
 
     const previousRows = await this.prisma.collectionProduct.findMany({
@@ -589,6 +575,25 @@ export class CollectionService {
     });
     const previousIds = new Set(previousRows.map((row) => row.productId));
     const newlyAddedIds = uniqueIds.filter((productId) => !previousIds.has(productId));
+    const addedProducts = products.filter((product) => newlyAddedIds.includes(product.id));
+    if (addedProducts.length > 0) {
+      const discoverableIds = await this.discoverableProductIds(companyId, addedProducts);
+      const relistGrantedIds = await this.relistGrantedProductIds(companyId, addedProducts);
+      const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, addedProducts);
+      assertProductsCuratable({
+        curatorCompanyId: companyId,
+        products: addedProducts,
+        discoverableIds,
+        relistGrantedIds,
+        lookOnlyOwnerIds,
+      });
+    }
+
+    const ownDraftIds = products
+      .filter(
+        (product) => product.companyId === companyId && product.status === ProductStatus.Draft,
+      )
+      .map((product) => product.id);
 
     let shouldBumpExplore = false;
     if (existing.status === CollectionStatus.Published && newlyAddedIds.length > 0) {
@@ -599,6 +604,11 @@ export class CollectionService {
         },
       });
       shouldBumpExplore = publishedNew > 0;
+    }
+    // Own drafts in a pack are Published for trade inside the pack (no Explore tiles).
+    const canPromoteOwnDrafts = existing.status !== CollectionStatus.Archived;
+    if (canPromoteOwnDrafts && ownDraftIds.length > 0 && existing.status === CollectionStatus.Published) {
+      shouldBumpExplore = true;
     }
 
     await this.prisma.$transaction([
@@ -621,6 +631,27 @@ export class CollectionService {
           ...(shouldBumpExplore ? { exploreActivityAt: new Date() } : {}),
         },
       }),
+      ...(canPromoteOwnDrafts && ownDraftIds.length > 0
+        ? [
+            this.prisma.product.updateMany({
+              where: {
+                id: { in: ownDraftIds },
+                companyId,
+                status: ProductStatus.Draft,
+              },
+              data: {
+                status: ProductStatus.Published,
+                audience: existing.audience,
+                rateVisibility: existing.rateVisibility,
+                audienceCompanyIds: existing.audienceCompanyIds,
+                audienceGroupIds: existing.audienceGroupIds,
+                allowForward: existing.allowForward,
+                allowDownload: existing.allowDownload,
+                updatedByUserId: userId,
+              },
+            }),
+          ]
+        : []),
     ]);
 
     return this.get(companyId, id);

@@ -72,8 +72,9 @@ export function shouldHideAppNav(
   const match = pathname.match(/^\/company\/([^/]+)/);
   if (!match) return false;
   const shopId = match[1]!;
+  // Own shop keeps the shell (like You). Other shops hide nav — Instagram / WhatsApp deep profile.
   if (options.myCompanyId && shopId === options.myCompanyId) return false;
-  return options.thisShopSelectedCount > 0;
+  return true;
 }
 
 export function companyIdFromPath(pathname: string): string | null {

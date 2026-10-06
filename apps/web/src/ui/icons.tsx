@@ -179,6 +179,14 @@ export const LockIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Unlocked padlock (Has access). */
+export const UnlockIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 7.5-1.9" />
+  </Icon>
+);
+
 export const UserIcon = (props: IconProps) => (
   <Icon {...props}>
     <circle cx="12" cy="8" r="4" />
@@ -201,22 +209,45 @@ export const PinIcon = (props: IconProps) => (
   </Icon>
 );
 
-/** Product / design card. */
+/**
+ * Design / product — triangle dress (client PDF 👗; chats + shop + library).
+ * Hanger straps + flared skirt — reads as a garment at 16px, not a lock.
+ */
 export const ProductIcon = (props: IconProps) => (
   <Icon {...props}>
-    <rect x="4" y="4" width="16" height="16" rx="2" />
-    <path d="M4 14h16" />
-    <path d="M9 4v4l3 2 3-2V4" />
+    <path d="M9 4h6" />
+    <path d="M12 4v5" />
+    <path d="M8 9h8L20 20.5H4L8 9Z" />
   </Icon>
 );
 
-/** Collection / album card. */
+/** Alias — same dress mark as ProductIcon. */
+export const DesignIcon = ProductIcon;
+
+/**
+ * Collection / album — folder (client PDF 📁; chats + shop + library).
+ */
 export const CollectionIcon = (props: IconProps) => (
   <Icon {...props}>
-    <rect x="3" y="3" width="8" height="8" rx="1.5" />
-    <rect x="13" y="3" width="8" height="8" rx="1.5" />
-    <rect x="3" y="13" width="8" height="8" rx="1.5" />
-    <rect x="13" y="13" width="8" height="8" rx="1.5" />
+    <path d="M3.5 8.5a2 2 0 0 1 2-2h4.2l1.6 1.8H18.5a2 2 0 0 1 2 2v7.2a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V8.5Z" />
+  </Icon>
+);
+
+/** Catalog Feed layout (single-column posts). */
+export const FeedLayoutIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="5" y="4" width="14" height="7" rx="1.5" />
+    <rect x="5" y="13" width="14" height="7" rx="1.5" />
+  </Icon>
+);
+
+/** Catalog Grid layout (tiles). */
+export const GridLayoutIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="4" y="4" width="7" height="7" rx="1.2" />
+    <rect x="13" y="4" width="7" height="7" rx="1.2" />
+    <rect x="4" y="13" width="7" height="7" rx="1.2" />
+    <rect x="13" y="13" width="7" height="7" rx="1.2" />
   </Icon>
 );
 

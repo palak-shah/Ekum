@@ -12,6 +12,7 @@ const baseProduct = {
   description: null,
   moq: null as number | null,
   unit: 'mtr',
+  dispatchUnit: null as string | null,
   piecesPerPack: null as number | null,
   categories: ['Sarees'],
   images: [],

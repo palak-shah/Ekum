@@ -34,6 +34,7 @@ import { sellerIdForEntries, useShortlistOrderFlow } from '@/features/browse/use
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useTradePresence } from '@/lib/tradePresence';
 import { LockIcon } from '@/ui/icons';
+import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 
 type SetTile =
@@ -238,15 +239,11 @@ export function DesignSetPage() {
               >
                 {selecting ? 'Selecting' : 'Select'}
               </button>
-              <button
-                type="button"
-                data-testid="design-set-layout-toggle"
-                aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                onClick={toggleLayout}
-              >
-                {layout === 'feed' ? 'Grid' : 'Feed'}
-              </button>
+              <BrowseLayoutToggle
+                layout={layout}
+                onToggle={toggleLayout}
+                testId="design-set-layout-toggle"
+              />
             </div>
           ) : null
         }
@@ -254,7 +251,7 @@ export function DesignSetPage() {
       <div
         className={cx(
           'pb-28 pt-2',
-          layout === 'feed' ? 'flex flex-col' : 'grid grid-cols-2 gap-2 px-3',
+          layout === 'feed' ? 'flex flex-col' : 'grid grid-cols-2 gap-3 px-3',
         )}
       >
         {tiles.map((tile) => {

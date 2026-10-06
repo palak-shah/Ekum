@@ -67,6 +67,64 @@ describe('ContinuousCamera shell', () => {
     expect(onDesigns).toHaveBeenCalled();
   });
 
+  it('Gallery hard-stops the stream then calls onGallery in the same tap', async () => {
+    const track = {
+      kind: 'video',
+      readyState: 'live' as MediaStreamTrackState,
+      enabled: true,
+      stop: vi.fn(function (this: { readyState: MediaStreamTrackState }) {
+        this.readyState = 'ended';
+      }),
+      getCapabilities: () => ({}),
+      applyConstraints: vi.fn(async () => undefined),
+    };
+    const stream = {
+      getTracks: () => [track],
+      getVideoTracks: () => [track],
+      getAudioTracks: () => [],
+    } as unknown as MediaStream;
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      mediaDevices: { getUserMedia },
+    });
+    HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
+
+    const onGallery = vi.fn();
+    render(
+      <ContinuousCamera
+        open
+        maxShots={3}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        onUnavailable={() => undefined}
+        onGallery={onGallery}
+      />,
+    );
+    await screen.findByTestId('continuous-camera');
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+
+    screen.getByRole('button', { name: 'Gallery' }).click();
+    expect(onGallery).toHaveBeenCalledTimes(1);
+    expect(track.stop).toHaveBeenCalled();
+  });
+
+  it('hides Designs when onDesigns is omitted', async () => {
+    render(
+      <ContinuousCamera
+        open
+        maxShots={3}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        onUnavailable={() => undefined}
+        batchAsDesigns
+      />,
+    );
+    await screen.findByTestId('continuous-camera');
+    expect(screen.queryByTestId('continuous-camera-designs')).toBeNull();
+    expect(screen.getByTestId('continuous-camera-done')).toHaveTextContent('Add design');
+  });
+
   it('does not re-call getUserMedia when onUnavailable identity changes while open', async () => {
     const track = {
       kind: 'video',

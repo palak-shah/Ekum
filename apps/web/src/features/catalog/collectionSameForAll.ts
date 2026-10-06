@@ -2,9 +2,9 @@ import { Unit } from '@ekum/domain-types';
 import type { SameForAllDetails } from './rateInput';
 import { parseRateInput, sameForAllIsEmpty, sameForAllSummary } from './rateInput';
 
-/** Pieces-per-set only matters when they sell as a set. */
+/** Packed order units show “1 set contains”. */
 export function unitAsksPiecesPerSet(unit: string): boolean {
-  return unit === Unit.Set;
+  return unit === Unit.Set || unit === Unit.Dozen || unit === Unit.Box || unit === Unit.Bundle;
 }
 
 export type { SameForAllDetails };
@@ -14,6 +14,7 @@ export const emptySameForAll = (unit = ''): SameForAllDetails => ({
   categories: [],
   rate: '',
   unit,
+  dispatchUnit: '',
   piecesPerPack: '',
   moq: '',
   notes: '',
@@ -23,6 +24,7 @@ export type MemberDesignForm = {
   name: string;
   rate: string;
   unit: string;
+  dispatchUnit: string;
   piecesPerPack: string;
   moq: string;
   notes: string;
@@ -52,6 +54,7 @@ export function memberDiffersFromSameForAll(
   if (sameForAllIsEmpty(shared)) return false;
   if (shared.rate.trim() && form.rate.trim() !== shared.rate.trim()) return true;
   if (shared.unit.trim() && form.unit !== shared.unit) return true;
+  if (shared.dispatchUnit.trim() && form.dispatchUnit !== shared.dispatchUnit) return true;
   if (
     shared.piecesPerPack.trim() &&
     form.piecesPerPack.trim() !== shared.piecesPerPack.trim()
@@ -108,6 +111,11 @@ export function applySameForAllToForm(
     ...form,
     rate: form.rate.trim() ? form.rate : shared.rate.trim() ? shared.rate : form.rate,
     unit: form.unit.trim() ? form.unit : shared.unit.trim() ? shared.unit : form.unit,
+    dispatchUnit: form.dispatchUnit.trim()
+      ? form.dispatchUnit
+      : shared.dispatchUnit.trim()
+        ? shared.dispatchUnit
+        : form.dispatchUnit,
     piecesPerPack: form.piecesPerPack.trim()
       ? form.piecesPerPack
       : shared.piecesPerPack.trim()
@@ -131,6 +139,7 @@ export function forceSameForAllToForm(
     ...form,
     rate: shared.rate.trim() ? shared.rate : form.rate,
     unit: shared.unit.trim() ? shared.unit : form.unit,
+    dispatchUnit: shared.dispatchUnit.trim() ? shared.dispatchUnit : form.dispatchUnit,
     piecesPerPack: shared.piecesPerPack.trim()
       ? shared.piecesPerPack
       : form.piecesPerPack,
@@ -152,6 +161,7 @@ export function productFieldsFromMember(
   rate?: number | null;
   rateMax?: number | null;
   unit?: string;
+  dispatchUnit?: string | null;
   piecesPerPack?: number | null;
   moq?: number;
   categories?: string[];
@@ -163,6 +173,7 @@ export function productFieldsFromMember(
     rate: parsed.rate,
     rateMax: parsed.rateMax,
     unit: form.unit || undefined,
+    dispatchUnit: form.dispatchUnit.trim() ? form.dispatchUnit : undefined,
     piecesPerPack:
       pcs != null && Number.isFinite(pcs) && pcs > 0 ? Math.floor(pcs) : undefined,
     moq: form.moq.trim() ? Number(form.moq) : undefined,
@@ -171,4 +182,43 @@ export function productFieldsFromMember(
         ? form.categories
         : undefined,
   };
+}
+
+export type RateConflict = {
+  id: string;
+  name: string;
+  existing: string;
+  incoming: string;
+  otherPacks: string[];
+};
+
+function rateKey(raw: string): string {
+  return raw.trim().replace(/\s+/g, '');
+}
+
+/** Library designs whose filled rate differs from the pack rate. */
+export function collectRateConflicts(
+  packRate: string,
+  members: Array<{
+    id: string;
+    name: string;
+    rate: string;
+    otherPacks?: string[];
+  }>,
+): RateConflict[] {
+  const incoming = rateKey(packRate);
+  if (!incoming) return [];
+  const out: RateConflict[] = [];
+  for (const member of members) {
+    const existing = rateKey(member.rate);
+    if (!existing || existing === incoming) continue;
+    out.push({
+      id: member.id,
+      name: member.name,
+      existing: member.rate.trim(),
+      incoming: packRate.trim(),
+      otherPacks: member.otherPacks ?? [],
+    });
+  }
+  return out;
 }

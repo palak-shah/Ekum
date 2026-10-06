@@ -8,6 +8,7 @@ export type PublishSheetPolicy = {
 
 export type SellAsUsual = {
   unit: string;
+  dispatchUnit: string;
   piecesPerPack: string;
   moq: string;
 };
@@ -30,6 +31,7 @@ export const DEFAULT_SELL_AS_UNIT = 'set';
 
 const EMPTY_SELL_AS: SellAsUsual = {
   unit: DEFAULT_SELL_AS_UNIT,
+  dispatchUnit: 'pc',
   piecesPerPack: '',
   moq: '',
 };
@@ -69,6 +71,10 @@ export function readCompanySellAsUsual(
   const blob = raw as Record<string, unknown>;
   return {
     unit: typeof blob.unit === 'string' && blob.unit.trim() ? blob.unit : DEFAULT_SELL_AS_UNIT,
+    dispatchUnit:
+      typeof blob.dispatchUnit === 'string' && blob.dispatchUnit.trim()
+        ? blob.dispatchUnit
+        : 'pc',
     piecesPerPack:
       typeof blob.piecesPerPack === 'string'
         ? blob.piecesPerPack

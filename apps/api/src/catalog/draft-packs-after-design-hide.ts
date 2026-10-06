@@ -2,12 +2,15 @@ import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import { collectionHasPublishedMember } from './collection-schedule';
 
-/** After this design leaves Published, no other Published member remains. */
-export function shouldDraftPackAfterDesignHide(remainingPublishedOthers: number): boolean {
-  return remainingPublishedOthers < 1;
+/**
+ * Auto-Hide of a live pack is off. Traders unpublish with **Hide from Explore**.
+ * Explore still omits packs with no published members.
+ */
+export function shouldDraftPackAfterDesignHide(_remainingPublishedOthers: number): boolean {
+  return false;
 }
 
-/** Hide a live pack when its last Published design is hidden or removed. */
+/** Kept for hide-design call sites; does not change pack status. */
 export async function draftPacksLeftWithoutPublishedDesign(
   prisma: Pick<PrismaService, 'collectionProduct' | 'collection'>,
   productId: string,
@@ -35,7 +38,7 @@ export async function draftPacksLeftWithoutPublishedDesign(
   return drafted;
 }
 
-/** Leftover Published packs with only draft members (hide ran before this rule). */
+/** Packs that are Published but have no published member (Explore omit — status unchanged). */
 export function publishedPackIdsWithoutLiveDesign(
   rows: Array<{
     id: string;
@@ -51,19 +54,14 @@ export function publishedPackIdsWithoutLiveDesign(
     .map((row) => row.id);
 }
 
+/** Does not write Draft. Callers may still omit these ids from Explore. */
 export async function draftPublishedPacksWithoutLiveDesign(
-  prisma: Pick<PrismaService, 'collection'>,
+  _prisma: Pick<PrismaService, 'collection'>,
   rows: Array<{
     id: string;
     status: string;
     products?: Array<{ product?: { status?: string } | null } | null> | null;
   }>,
 ): Promise<Set<string>> {
-  const ids = publishedPackIdsWithoutLiveDesign(rows);
-  if (ids.length === 0) return new Set();
-  await prisma.collection.updateMany({
-    where: { id: { in: ids }, status: CollectionStatus.Published },
-    data: { status: CollectionStatus.Draft, exploreActivityAt: null },
-  });
-  return new Set(ids);
+  return new Set(publishedPackIdsWithoutLiveDesign(rows));
 }

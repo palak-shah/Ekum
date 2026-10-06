@@ -22,4 +22,13 @@ describe('OFFICIAL_TAG_SEEDS', () => {
     );
     expect(new Set(keys).size).toBe(keys.length);
   });
+
+  it('includes drill-down item, size, and quality labels', () => {
+    const womens = OFFICIAL_TAG_SEEDS.filter((row) => row.parentKey === 'WOMENS WEAR').map(
+      (row) => row.label,
+    );
+    expect(womens).toEqual(
+      expect.arrayContaining(['Readymade', 'MM - Top/Bottom/Dupatta', 'S', 'Cotton']),
+    );
+  });
 });

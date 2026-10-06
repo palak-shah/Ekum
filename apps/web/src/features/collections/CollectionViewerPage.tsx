@@ -332,11 +332,7 @@ export function CollectionViewerPage() {
     isOwner ? manageSelected : shortlist.productIds,
   );
   const manageSelectedIds = useMemo(() => [...manageSelected], [manageSelected]);
-  const ownerCanDelete = canDeleteSelected(
-    manageSelectedIds,
-    productCompanyById,
-    me.data?.id ?? '',
-  );
+  const ownerCanDelete = canDeleteSelected(manageSelectedIds);
   const ownerCanRemove = manageSelectedIds.length > 0;
   const floatSelectedCount = isOwner ? manageSelected.size : selectedCount;
 
@@ -434,7 +430,13 @@ export function CollectionViewerPage() {
       await persistOwnerMembers(next);
       setDeleteSheetOpen(false);
       clearOwnerManageSelect();
-      showToast(mode === 'everywhere' ? 'Deleted' : 'Removed from collection');
+      showToast(
+        mode === 'everywhere' && owned.length > 0
+          ? 'Deleted'
+          : mode === 'everywhere'
+            ? 'Deleted from this pack'
+            : 'Removed from collection',
+      );
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
     } finally {
@@ -443,12 +445,13 @@ export function CollectionViewerPage() {
   };
 
   const onOwnerDelete = async () => {
-    if (!ownerCanDelete || !id) {
-      showToast('You can only delete designs you own.');
-      return;
-    }
+    if (!ownerCanDelete || !id) return;
     const myId = me.data?.id ?? '';
     const owned = ownedSelectedIds(manageSelectedIds, productCompanyById, myId);
+    if (owned.length === 0) {
+      await finishOwnerDelete('everywhere');
+      return;
+    }
     setManageBusy(true);
     try {
       const result = await api.post<OtherPackCountsView>(`/collections/${id}/other-pack-counts`, {
@@ -912,7 +915,7 @@ export function CollectionViewerPage() {
             {askToSee.isPending ? 'Asking…' : 'Ask to see this pack'}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-medium text-accent">
-            See new packs on their shop
+            Request catalog access on their shop
           </Link>
         </Card>
       )}
@@ -1122,7 +1125,7 @@ function AccessPendingCard({
         {opening ? 'Opening…' : 'Open chat'}
       </Button>
       <Link to={`/company/${companyId}`} className="text-xs font-medium text-accent">
-        See new packs on their shop
+        Request catalog access on their shop
       </Link>
     </Card>
   );

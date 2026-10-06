@@ -8,8 +8,8 @@ import {
 } from './draft-packs-after-design-hide';
 
 describe('shouldDraftPackAfterDesignHide', () => {
-  it('drafts when this was the last live design', () => {
-    expect(shouldDraftPackAfterDesignHide(0)).toBe(true);
+  it('does not auto-unpublish the pack when the last live design leaves', () => {
+    expect(shouldDraftPackAfterDesignHide(0)).toBe(false);
   });
 
   it('keeps the pack when another published design remains', () => {
@@ -18,7 +18,7 @@ describe('shouldDraftPackAfterDesignHide', () => {
 });
 
 describe('draftPacksLeftWithoutPublishedDesign', () => {
-  it('drafts a published pack whose only live design is this one', async () => {
+  it('does not draft a published pack whose only live design is this one', async () => {
     const updateMany = vi.fn(async () => ({ count: 1 }));
     const prisma = {
       collectionProduct: {
@@ -27,13 +27,8 @@ describe('draftPacksLeftWithoutPublishedDesign', () => {
       },
       collection: { updateMany },
     };
-    await expect(draftPacksLeftWithoutPublishedDesign(prisma, 'p1')).resolves.toBe(1);
-    expect(updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'col-1', status: CollectionStatus.Published },
-        data: expect.objectContaining({ status: CollectionStatus.Draft }),
-      }),
-    );
+    await expect(draftPacksLeftWithoutPublishedDesign(prisma, 'p1')).resolves.toBe(0);
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('does not draft when another published member remains', async () => {
@@ -63,6 +58,6 @@ describe('publishedPackIdsWithoutLiveDesign', () => {
       { collection: { updateMany } },
       [{ id: 'empty', status: CollectionStatus.Published, products: [] }],
     );
-    expect(updateMany).toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });

@@ -121,4 +121,22 @@ describe('CatalogTagService', () => {
       ConflictException,
     );
   });
+
+  it('returns official drill-down filtered by what the company deals in', async () => {
+    const prisma = {
+      company: {
+        findUnique: async () => ({
+          sellCategories: [],
+          superCategories: ['womens_apparel', 'accessories'],
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CatalogTagService(prisma);
+    const tree = await service.taxonomy('c1');
+    expect(tree.map((m) => m.key)).toEqual(['WOMENS WEAR', 'ACCESSORIES']);
+    const womens = tree.find((m) => m.key === 'WOMENS WEAR');
+    expect(womens?.subs.some((s) => s.label === 'Readymade')).toBe(true);
+    const ready = womens?.subs.find((s) => s.label === 'Readymade');
+    expect(ready?.items.some((i) => i.label === 'MM - Top/Bottom/Dupatta')).toBe(true);
+  });
 });

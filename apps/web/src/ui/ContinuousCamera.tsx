@@ -5,6 +5,7 @@ import { Button, cx } from '@/ui/kit';
 import {
   continuousCameraCanShoot,
   continuousCameraDoneEnabled,
+  continuousCameraDoneLabel,
 } from './continuousCameraModel';
 
 export interface ContinuousCameraProps {
@@ -24,6 +25,10 @@ export interface ContinuousCameraProps {
   onGallery?: () => void;
   /** Pick existing designs — discards in-progress shots and closes camera. */
   onDesigns?: () => void;
+  /**
+   * New-design batch: Done reads Add N designs (Photo order / append keep Done).
+   */
+  batchAsDesigns?: boolean;
   /**
    * Stay on this screen if the stream fails (error + Gallery / Designs).
    * Default closes via onUnavailable so other flows can fall back to the file picker.
@@ -120,6 +125,7 @@ export function ContinuousCamera({
   onUnavailable,
   onGallery,
   onDesigns,
+  batchAsDesigns = false,
   keepChromeOnFailure = false,
 }: ContinuousCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -141,14 +147,15 @@ export function ContinuousCamera({
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(
     null,
   );
+  /** Blank the shell immediately when handing off to Gallery / Designs (no camera flash). */
+  const [handoff, setHandoff] = useState(false);
 
-  const stopStream = useCallback(() => {
-    // Soft-release: keep session tracks so reopen does not re-prompt.
+  const stopStream = useCallback((mode: 'soft' | 'hard' = 'soft') => {
     streamRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    releaseMediaStream('camera');
+    releaseMediaStream('camera', mode === 'hard' ? { hard: true } : undefined);
     setReady(false);
     setTorchOn(false);
     setTorchSupported(false);
@@ -184,7 +191,8 @@ export function ContinuousCamera({
 
   useEffect(() => {
     if (!open) {
-      stopStream();
+      stopStream('soft');
+      setHandoff(false);
       setShots((prev) => {
         revokeShots(prev);
         return [];
@@ -195,6 +203,7 @@ export function ContinuousCamera({
     }
 
     let cancelled = false;
+    setHandoff(false);
     setShots((prev) => {
       revokeShots(prev);
       return [];
@@ -367,7 +376,7 @@ export function ContinuousCamera({
   const handleCancel = () => {
     revokeShots(shots);
     setShots([]);
-    stopStream();
+    stopStream('soft');
     onCancel();
   };
 
@@ -377,15 +386,17 @@ export function ContinuousCamera({
     const appendId = sessionAppendRef.current;
     revokeShots(shots);
     setShots([]);
-    stopStream();
+    stopStream('soft');
     onDone(files, appendId);
   };
 
+  /** Gallery / Designs: kill the stream now and call parent in this tap (sync file click). */
   const leaveFor = (action?: () => void) => {
     if (!action) return;
+    setHandoff(true);
     revokeShots(shots);
     setShots([]);
-    stopStream();
+    stopStream('hard');
     action();
   };
 
@@ -404,12 +415,16 @@ export function ContinuousCamera({
     >
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
+        className={cx(
+          'absolute inset-0 h-full w-full object-cover',
+          handoff && 'invisible',
+        )}
         playsInline
         muted
         autoPlay
       />
-      {!ready && !error ? (
+      {handoff ? <div className="absolute inset-0 bg-black" aria-hidden /> : null}
+      {!ready && !error && !handoff ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black text-sm text-white/80">
           Starting camera…
         </div>
@@ -450,8 +465,9 @@ export function ContinuousCamera({
           className="pointer-events-auto min-h-11 min-w-[4.5rem] px-3"
           disabled={!doneEnabled}
           onClick={handleDone}
+          data-testid="continuous-camera-done"
         >
-          Done
+          {continuousCameraDoneLabel(shots.length, batchAsDesigns)}
         </Button>
       </div>
 

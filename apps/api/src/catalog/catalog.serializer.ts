@@ -41,7 +41,7 @@ export const productActorInclude = {
   updatedByUser: { select: { id: true, name: true } },
   collections: {
     where: { collection: { status: { not: 'archived' } } },
-    select: { collection: { select: { name: true, status: true } } },
+    include: { collection: { select: { name: true, status: true } } },
   },
 } as const;
 
@@ -67,6 +67,7 @@ export class CatalogSerializer {
         ? null
         : product.rateMax.toNumber(),
       unit: product.unit,
+      dispatchUnit: (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
       piecesPerPack: product.piecesPerPack ?? null,
       categories: product.categories,
       images: product.images,

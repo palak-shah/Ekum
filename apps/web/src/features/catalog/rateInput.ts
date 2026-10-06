@@ -9,6 +9,7 @@ export type SameForAllDetails = {
   categories: string[];
   rate: string;
   unit: string;
+  dispatchUnit: string;
   /** Pieces in one set / dozen / box — empty when unset. */
   piecesPerPack: string;
   moq: string;
@@ -67,10 +68,13 @@ export function sameForAllSummary(details: SameForAllDetails): string | null {
   const rate = details.rate.trim();
   if (rate) parts.push(rate);
   if (details.unit.trim()) parts.push(details.unit.trim());
+  if (details.dispatchUnit.trim() && details.dispatchUnit !== details.unit) {
+    parts.push(`dispatch ${details.dispatchUnit.trim()}`);
+  }
   if (details.piecesPerPack.trim()) parts.push(`${details.piecesPerPack.trim()} pcs`);
   if (details.moq.trim()) parts.push(`MOQ ${details.moq.trim()}`);
   if (details.notes.trim()) parts.push(details.notes.trim());
-  if (details.categories.length === 1) parts.push(details.categories[0]);
+  if (details.categories.length === 1) parts.push(details.categories[0] ?? '');
   else if (details.categories.length > 1) {
     parts.push(`${details.categories[0]} +${details.categories.length - 1}`);
   }

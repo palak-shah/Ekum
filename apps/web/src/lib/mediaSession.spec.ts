@@ -79,6 +79,24 @@ describe('acquireMediaStream session reuse', () => {
     expect(track.stop).toHaveBeenCalled();
   });
 
+  it('hard-releases camera so Gallery handoff does not leave a live stream', async () => {
+    const track = fakeTrack('video');
+    const stream = fakeStream([track]);
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia },
+    });
+
+    await acquireMediaStream('camera', { video: true, audio: false });
+    releaseMediaStream('camera', { hard: true });
+    expect(track.stop).toHaveBeenCalled();
+
+    const again = await acquireMediaStream('camera', { video: true, audio: false });
+    expect(again.ok && again.reused).toBe(false);
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
   it('soft-releases microphone without disabling tracks (Safari MediaRecorder)', async () => {
     const track = fakeTrack('audio');
     const stream = fakeStream([track]);

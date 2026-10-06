@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ComplaintView, CursorPage, MessageView, OrderView } from '@ekum/domain-types';
-import { morePhotosEntry } from '@/features/catalog/designBatchHelpers';
 import {
   complaintOrderHaystack,
   complaintOrderThumb,
@@ -9,11 +8,10 @@ import {
   orderWhen,
 } from '@/features/chats/complaintOrderCue';
 import { api, ApiError } from '@/lib/apiClient';
-import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
+import { uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { statusLabel } from '@/lib/status';
 import { useToast } from '@/ui/Toast';
-import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import {
   Button,
   Field,
@@ -91,8 +89,6 @@ export function ChatComplaintSheet({
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraSession, setCameraSession] = useState(0);
   const [orderPickOpen, setOrderPickOpen] = useState(false);
   const [orderQuery, setOrderQuery] = useState('');
 
@@ -125,7 +121,6 @@ export function ChatComplaintSheet({
     setImages(initialImages);
     setError(null);
     setUploading(false);
-    setCameraOpen(false);
     setOrderPickOpen(false);
     setOrderQuery('');
   }, [open, initialOrderId, initialSubject, initialDetail, initialImages]);
@@ -149,13 +144,9 @@ export function ChatComplaintSheet({
     }
   };
 
+  /** Gallery in this tap — never mount ContinuousCamera first (black flash). */
   const openPhotos = () => {
     if (images.length >= MAX_PHOTOS) return;
-    if (morePhotosEntry(isPhoneLike()) === 'camera') {
-      setCameraSession((n) => n + 1);
-      setCameraOpen(true);
-      return;
-    }
     photoRef.current?.click();
   };
 
@@ -304,7 +295,7 @@ export function ChatComplaintSheet({
             <input
               ref={photoRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               multiple
               className="hidden"
               onChange={(event) => {
@@ -427,24 +418,6 @@ export function ChatComplaintSheet({
           )}
         </div>
       </Sheet>
-      <ContinuousCamera
-        key={cameraSession}
-        open={cameraOpen}
-        maxShots={MAX_PHOTOS - images.length}
-        onCancel={() => setCameraOpen(false)}
-        onUnavailable={() => {
-          setCameraOpen(false);
-          photoRef.current?.click();
-        }}
-        onGallery={() => {
-          setCameraOpen(false);
-          photoRef.current?.click();
-        }}
-        onDone={(files) => {
-          setCameraOpen(false);
-          void addFiles(files);
-        }}
-      />
     </>
   );
 }

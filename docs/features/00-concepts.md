@@ -69,7 +69,7 @@ flowchart LR
 
 | Mechanism | What it is |
 |-----------|------------|
-| **See new packs** | Shop ask (was Follow). Pending is **Asked to see packs** (tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Pack share is a later checkbox / Followers Change. Allowed is **Seeing packs** — tap off deletes the follow. No Followers feed or Followers shop packs after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. |
+| **Request catalog access** | Shop ask (was Follow / See new packs). Idle: lock + **Request catalog access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Pack share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — tap off deletes the follow. No Followers feed or Followers shop packs after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
 | **Message** | First shop chat. Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. No shop **Request** button. |
 | **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). |
 | **Collection view Ask** | **Ask to see this pack** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not pack/relist). Deny silent. |

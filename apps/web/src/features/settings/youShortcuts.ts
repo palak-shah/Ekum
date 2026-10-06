@@ -3,7 +3,6 @@ export function youShortcutItems(): { to: string; label: string; testId: string 
     { to: '/settings/profile', label: 'Profile', testId: 'profile' },
     { to: '/network', label: 'Network', testId: 'network' },
     { to: '/more?tab=collections', label: 'My Collections', testId: 'my-collections' },
-    { to: '/more?tab=products', label: 'My Designs', testId: 'my-designs' },
     { to: '/settings', label: 'Settings', testId: 'settings' },
   ];
 }

@@ -2,7 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { ProductController } from './product.controller';
 import { CollectionController } from './collection.controller';
 import { ShareLinkController } from './share-link.controller';
-import { CatalogTagController } from './catalog-tag.controller';
+import { CatalogTagController, CatalogTaxonomyController } from './catalog-tag.controller';
 import {
   CollectionViewGrantController,
   CollectionViewRequestController,
@@ -33,6 +33,7 @@ import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.
     ProductController,
     CollectionController,
     CatalogTagController,
+    CatalogTaxonomyController,
     ShareLinkController,
     CollectionViewRequestController,
     CollectionViewGrantController,

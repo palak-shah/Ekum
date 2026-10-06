@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { withPrismaField } from '../common/prisma-model-fields';
 import {
   JobType,
   MediaKind,
@@ -4369,19 +4370,31 @@ export class OrderService {
     opts: { allowForeignProducts?: boolean } = {},
   ): Promise<Prisma.OrderItemCreateWithoutOrderInput[]> {
     if (dto.kind === OrderKind.Photo) {
-      return dto.items.map((item) => ({
-        productId: null,
-        name: item.name ?? 'Photo request',
-        sku: null,
-        rate: null,
-        unit: item.unit ?? null,
-        image: item.images?.[0] ?? null,
-        images: item.images ?? [],
-        quantity: item.quantity,
-        requestedQuantity: item.quantity,
-        lineStatus: OrderLineStatus.Open,
-        note: item.note ?? null,
-      }));
+      return dto.items.map((item) =>
+        withPrismaField(
+          'OrderItem',
+          'piecesPerPack',
+          withPrismaField(
+            'OrderItem',
+            'dispatchUnit',
+            {
+              productId: null,
+              name: item.name ?? 'Photo request',
+              sku: null,
+              rate: null,
+              unit: item.unit ?? null,
+              image: item.images?.[0] ?? null,
+              images: item.images ?? [],
+              quantity: item.quantity,
+              requestedQuantity: item.quantity,
+              lineStatus: OrderLineStatus.Open,
+              note: item.note ?? null,
+            },
+            null,
+          ),
+          null,
+        ),
+      );
     }
 
     const productIds = dto.items
@@ -4404,19 +4417,29 @@ export class OrderService {
             : 'One or more products do not belong to this seller.',
         });
       }
-      return {
-        productId: product.id,
-        name: product.name,
-        sku: product.sku,
-        rate: product.rate,
-        unit: product.unit ?? item.unit ?? null,
-        image: product.images[0] ?? null,
-        images: product.images,
-        quantity: item.quantity,
-        requestedQuantity: item.quantity,
-        lineStatus: OrderLineStatus.Open,
-        note: item.note ?? null,
-      };
+      return withPrismaField(
+        'OrderItem',
+        'piecesPerPack',
+        withPrismaField(
+          'OrderItem',
+          'dispatchUnit',
+          {
+            productId: product.id,
+            name: product.name,
+            sku: product.sku,
+            rate: product.rate,
+            unit: product.unit ?? item.unit ?? null,
+            image: product.images[0] ?? null,
+            images: product.images,
+            quantity: item.quantity,
+            requestedQuantity: item.quantity,
+            lineStatus: OrderLineStatus.Open,
+            note: item.note ?? null,
+          },
+          (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+        ),
+        (product as { piecesPerPack?: number | null }).piecesPerPack ?? null,
+      );
     });
   }
 }

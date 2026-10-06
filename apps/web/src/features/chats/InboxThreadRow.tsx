@@ -133,7 +133,7 @@ export function InboxThreadRow({
         type="button"
         data-testid={`chats-select-row-${thread.id}`}
         aria-pressed={selected}
-        className={cx(rowClass, 'border-b border-line')}
+        className={rowClass}
         onClick={onToggle}
       >
         {body}
@@ -148,7 +148,7 @@ export function InboxThreadRow({
 
   return (
     <div
-      className="relative isolate overflow-hidden border-b border-line touch-pan-y"
+      className="relative isolate overflow-hidden touch-pan-y"
       data-testid={`chats-swipe-${thread.id}`}
     >
       <div className="absolute inset-y-0 right-0 z-0 flex">

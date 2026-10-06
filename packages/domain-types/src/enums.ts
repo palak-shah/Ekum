@@ -110,6 +110,7 @@ export const Unit = {
   Dozen: 'dozen',
   Kilogram: 'kg',
   Box: 'box',
+  Bundle: 'bundle',
 } as const;
 export type Unit = (typeof Unit)[keyof typeof Unit];
 export const unitValues = values(Unit);

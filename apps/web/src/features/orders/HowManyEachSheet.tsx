@@ -367,6 +367,7 @@ export function HowManyEachSheet({
                 quantity,
                 product.unit,
                 product.piecesPerPack,
+                product.dispatchUnit,
               );
               return (
                 <li

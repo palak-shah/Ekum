@@ -12,7 +12,7 @@ Any company can request / follow; the other Approves. Both use **Network → Con
 
 ### Follow
 
-1. On company / Explore → **See new packs** asks (same Follow API; sell-only shops still show it). Shop button: See new packs · **Asked to see packs** · **Seeing packs**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone (not on Publish) stays public.
+1. On company / Explore → **Request catalog access** asks (same Follow API; sell-only shops still show it). Shop button: lock + **Request catalog access** · lock + **Requested** (outline) · unlock + **Has access**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Shop **⋯ → Remove connection** is the same cancel. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone (not on Publish) stays public.
 2. Shop **You → Network → They see mine**: one list. **Find** filters name/city. Pending asks sit **on top, newest first**, with why-line **Wants to see your new packs** then Allow / Decline — not a tap-through screen. When asks exist, chips **All** | **Asked · N** (All = asks + who already sees you / Stopped). Home Needs `/network/followers?tab=asked` selects the Asked chip. Each allowed card has **See** / **Share** and quiet **Stop**. Stop keeps the card as **Stopped**. Tick See or Share to let them in again. **Decline** still clears the ask. The other shop never sees look vs pack. Chats **Requests** still has the same why-line + Allow / Decline for a new ask. If they ask again while Stopped, they return to the top as Asked.
 3. **You → Network → I see theirs**: allowed follows only — no grant type. Row action **Stop seeing**.
 4. Allowed follows see Followers-audience posts on Home Followed and Explore. Pending does not.
@@ -78,7 +78,7 @@ See [concepts](./00-concepts.md) for the trust ladder diagram.
 
 ## Seed walkthrough
 
-1. Seed: Meena **allowed follow** of Ravi (look); Ravi **allowed follow** of Kavita; **active** connections Ravi↔Meena and Ravi↔Kavita. Seeded shop catalogs are **Followers** (not Everyone) so Seeing packs off hides those packs.
+1. Seed: Meena **allowed follow** of Ravi (look); Ravi **allowed follow** of Kavita; **active** connections Ravi↔Meena and Ravi↔Kavita. Seeded shop catalogs are **Followers** (not Everyone) so Has access off hides those packs.
 2. As **Ravi**: Network → Connections — one Meena card (Connected).
 3. As **Meena**: Network → Connections — one Surat Silk House card (Connected).
 4. (Optional QA) Block as either side → other loses the shop (404); **only the blocker** can Unblock.

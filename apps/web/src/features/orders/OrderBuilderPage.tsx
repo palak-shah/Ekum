@@ -50,6 +50,7 @@ interface StandardLine {
   unit: string | null;
   categories: string[];
   piecesPerPack: number | null;
+  dispatchUnit: string | null;
   quantity: string;
   note: string;
 }
@@ -134,6 +135,7 @@ export function OrderBuilderPage() {
           unit: product.unit,
           categories: product.categories ?? [],
           piecesPerPack: product.piecesPerPack ?? null,
+          dispatchUnit: product.dispatchUnit ?? null,
           quantity: seedQty,
           note: '',
         })),
@@ -460,7 +462,7 @@ export function OrderBuilderPage() {
           >
             {standardLines.map((line, index) => {
               const qty = parseQtyDraft(line.quantity);
-              const totalPcs = howManyTotalPcsLabel(qty, line.unit, line.piecesPerPack);
+              const totalPcs = howManyTotalPcsLabel(qty, line.unit, line.piecesPerPack, line.dispatchUnit);
               const noun = qtyCountNoun(line.unit);
               return (
                 <li

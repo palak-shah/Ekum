@@ -142,8 +142,15 @@ async function requestFreshStream(
  * re-prompt. Camera mutes for privacy/LED; microphone stays enabled —
  * Safari MediaRecorder often returns an empty blob after mute → unmute.
  * Hard-stops after idle.
+ *
+ * Pass `{ hard: true }` when handing off to the OS gallery (or leaving the
+ * camera flow for good) so the viewfinder / privacy LED does not linger.
  */
-export function releaseMediaStream(kind: MediaKind) {
+export function releaseMediaStream(kind: MediaKind, options?: { hard?: boolean }) {
+  if (options?.hard) {
+    hardStop(kind);
+    return;
+  }
   const slot = slots[kind];
   if (!slot) return;
   if (kind === 'camera') {

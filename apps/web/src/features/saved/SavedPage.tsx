@@ -33,6 +33,7 @@ import {
   Sheet,
   cx,
 } from '@/ui/kit';
+import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
 import { catalogSearchMatches } from '@/features/catalog/catalogSearch';
 import { savedAlbumImageCount } from './savedAlbumCount';
 import { savedItemMeta } from './savedItemMeta';
@@ -260,14 +261,11 @@ export function SavedPage({
                   </button>
                 ) : null}
                 {showLayoutToggle ? (
-                  <button
-                    type="button"
-                    aria-label={layout === 'feed' ? 'Grid view' : 'Feed view'}
-                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/5"
-                    onClick={toggleLayout}
-                  >
-                    {layout === 'feed' ? 'Grid' : 'Feed'}
-                  </button>
+                  <BrowseLayoutToggle
+                    layout={layout}
+                    onToggle={toggleLayout}
+                    testId="saved-layout-toggle"
+                  />
                 ) : null}
               </div>
             ) : null

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   COLLECTION_QUICK_PHOTO_CAP,
   collectionCameraMaxShots,
+  collectionNameClash,
   coverUrlFromGrid,
   defaultCollectionName,
   itemKey,
@@ -52,5 +53,20 @@ describe('coverUrlFromGrid', () => {
 
   it('uses tagged library design', () => {
     expect(coverUrlFromGrid(items, itemKey(items[1]!))).toBe('https://cdn.example/b.jpg');
+  });
+});
+
+describe('collectionNameClash', () => {
+  it('reads existing pack id from the conflict', () => {
+    expect(
+      collectionNameClash({
+        code: 'COLLECTION_NAME_TAKEN',
+        details: { collectionId: 'col-1', name: 'Wedding Edit' },
+      }),
+    ).toEqual({ collectionId: 'col-1', name: 'Wedding Edit' });
+  });
+
+  it('ignores other errors', () => {
+    expect(collectionNameClash({ code: 'SKU_TAKEN', details: { collectionId: 'x' } })).toBeNull();
   });
 });

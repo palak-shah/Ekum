@@ -12,3 +12,13 @@ export function continuousCameraCanShoot(input: {
 export function continuousCameraDoneEnabled(shotsTaken: number): boolean {
   return shotsTaken > 0;
 }
+
+/** New-design batches teach via outcome: Add N designs (not bare Done). */
+export function continuousCameraDoneLabel(
+  shotsTaken: number,
+  batchAsDesigns?: boolean,
+): string {
+  if (!batchAsDesigns) return 'Done';
+  if (shotsTaken <= 1) return 'Add design';
+  return `Add ${shotsTaken} designs`;
+}

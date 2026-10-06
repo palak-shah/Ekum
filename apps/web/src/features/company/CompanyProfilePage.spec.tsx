@@ -16,7 +16,7 @@ import { CompanyProfilePage } from './CompanyProfilePage';
 import { api } from '@/lib/apiClient';
 
 vi.mock('@/lib/apiClient', () => ({
-  api: { get: vi.fn(), post: vi.fn(), del: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), del: vi.fn(), patch: vi.fn() },
   ApiError: class ApiError extends Error {},
 }));
 
@@ -143,9 +143,9 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(await screen.findByTestId('company-follow')).toBeInTheDocument();
     expect(screen.getByTestId('company-message')).toHaveTextContent('Message');
     expect(screen.queryByTestId('company-request')).toBeNull();
-    expect(screen.getByTestId('company-follow')).toHaveTextContent('See new packs');
-    expect(screen.getByTestId('company-follow-hint')).toHaveTextContent('Message');
-    expect(screen.getByTestId('company-share')).toHaveAttribute('aria-label', 'Share');
+    expect(screen.getByTestId('company-follow')).toHaveTextContent('Request catalog access');
+    expect(screen.queryByTestId('company-follow-hint')).toBeNull();
+    expect(screen.getByTestId('company-more')).toHaveAttribute('aria-label', 'More');
   });
 
   it('shows Message when not connected', async () => {
@@ -216,13 +216,72 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByText('Design', { exact: true })).toBeNull();
   });
 
-  it('shows Share in the header', async () => {
+  it('shows More in the header with Share and Block', async () => {
+    const user = userEvent.setup();
     renderPage(false);
-    expect(await screen.findByTestId('company-share')).toHaveAttribute('aria-label', 'Share');
+    expect(await screen.findByTestId('company-more')).toHaveAttribute('aria-label', 'More');
     expect(screen.queryByTestId('company-edit')).toBeNull();
+    await user.click(screen.getByTestId('company-more'));
+    expect(screen.getByTestId('company-overflow-share')).toBeInTheDocument();
+    expect(screen.getByTestId('company-overflow-block')).toBeInTheDocument();
+    expect(screen.queryByTestId('company-overflow-mute')).toBeNull();
+    expect(screen.queryByTestId('company-overflow-remove')).toBeNull();
   });
 
-  it('shows Edit and Share on own shop', async () => {
+  it('shows Mute and Remove connection when chat + Has access', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/companies/seed-company-ravi') {
+        return { ...company, following: true, hasChat: true };
+      }
+      if (path === '/connections') return [];
+      if (path === '/follows/following') return [company];
+      if (path === '/threads') {
+        return {
+          results: [
+            {
+              id: 't1',
+              type: 'direct',
+              visibility: 'shared',
+              title: null,
+              state: 'active',
+              alertLevel: 'all',
+              pinned: false,
+              unreadCount: 0,
+              lastMessage: null,
+              lastMessageAt: '2026-01-01T00:00:00.000Z',
+              counterpart: company,
+              participantCount: 2,
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path === '/companies/seed-company-ravi/collections') {
+        return { results: [], nextCursor: null };
+      }
+      if (path === '/companies/seed-company-ravi/designs') {
+        return { results: [], nextCursor: null };
+      }
+      return [];
+    });
+    renderPage(false);
+    const follow = await screen.findByTestId('company-follow');
+    expect(follow).toHaveTextContent('Has access');
+    expect(follow.querySelector('svg')).toBeTruthy();
+    await user.click(screen.getByTestId('company-more'));
+    const rows = screen.getAllByRole('menuitem').map((node) => node.textContent);
+    expect(rows).toEqual(['Share', 'Mute', 'Block', 'Remove connection']);
+  });
+
+  it('shows lock with Request catalog access when idle', async () => {
+    renderPage(false);
+    const follow = await screen.findByTestId('company-follow');
+    expect(follow).toHaveTextContent('Request catalog access');
+    expect(follow.querySelector('svg')).toBeTruthy();
+  });
+
+  it('shows Edit and More on own shop', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/companies/seed-company-meena') {
         return { ...company, id: 'seed-company-meena', name: 'Jaipur Emporium' };
@@ -249,8 +308,11 @@ describe('CompanyProfilePage shop chrome', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByTestId('company-edit')).toBeInTheDocument();
-    expect(screen.getByTestId('company-share')).toBeInTheDocument();
+    expect(screen.getByTestId('company-more')).toBeInTheDocument();
     expect(screen.queryByTestId('company-follow')).toBeNull();
+    await userEvent.click(screen.getByTestId('company-more'));
+    expect(screen.getByTestId('company-overflow-share')).toBeInTheDocument();
+    expect(screen.queryByTestId('company-overflow-block')).toBeNull();
   });
 
   it('opens the trade dock for this shops picks only', async () => {

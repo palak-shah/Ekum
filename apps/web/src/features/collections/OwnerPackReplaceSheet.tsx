@@ -29,7 +29,8 @@ export function OwnerPackReplaceSheet({
       }
     >
       <p className="text-sm text-muted">
-        Clears the designs in this pack, then you pick the new set. The pack itself stays.
+        Clears this pack, then you pick the new set. New photos are saved in Designs
+        and publish with a live pack.
       </p>
     </Sheet>
   );

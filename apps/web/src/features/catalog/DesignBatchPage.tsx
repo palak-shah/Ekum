@@ -1036,6 +1036,7 @@ export function DesignBatchPage() {
         open={cameraOpen}
         maxShots={cameraMaxShots}
         appendToDraftId={cameraGalleryDraftId}
+        batchAsDesigns={!cameraGalleryDraftId}
         onCancel={() => {
           pendingAppendDraftIdRef.current = null;
           closeCameraAndRestoreEdit();
