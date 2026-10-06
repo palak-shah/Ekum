@@ -257,6 +257,65 @@ describe('CollectionService.setProducts', () => {
     );
   });
 
+  it('does not bump exploreActivityAt when re-saving a live pack that already has own drafts', async () => {
+    const collectionUpdate = vi.fn(async () => ({}));
+    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+          audience: 'connections',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
+        }),
+        update: collectionUpdate,
+      },
+      product: {
+        findMany: async () => [
+          {
+            id: 'draft-1',
+            companyId: 'company-1',
+            audience: 'connections',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+          },
+        ],
+        count: vi.fn().mockResolvedValue(0),
+        updateMany: productUpdateMany,
+      },
+      collectionProduct: {
+        findMany: async () => [{ productId: 'draft-1' }],
+        deleteMany: vi.fn(async () => ({})),
+        createMany: vi.fn(async () => ({})),
+      },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+
+    await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
+
+    expect(productUpdateMany).toHaveBeenCalled();
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ exploreActivityAt: expect.any(Date) }),
+      }),
+    );
+  });
+
   it('promotes own drafts on a draft pack too (published is the default)', async () => {
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
     const transaction = vi.fn(async (ops: unknown[]) => ops);

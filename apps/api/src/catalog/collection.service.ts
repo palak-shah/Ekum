@@ -607,7 +607,14 @@ export class CollectionService {
     }
     // Own drafts in a pack are Published for trade inside the pack (no Explore tiles).
     const canPromoteOwnDrafts = existing.status !== CollectionStatus.Archived;
-    if (canPromoteOwnDrafts && ownDraftIds.length > 0 && existing.status === CollectionStatus.Published) {
+    const newlyAddedOwnDraftIds = ownDraftIds.filter((productId) =>
+      newlyAddedIds.includes(productId),
+    );
+    if (
+      canPromoteOwnDrafts &&
+      newlyAddedOwnDraftIds.length > 0 &&
+      existing.status === CollectionStatus.Published
+    ) {
       shouldBumpExplore = true;
     }
 
