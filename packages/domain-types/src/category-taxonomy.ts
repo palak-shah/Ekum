@@ -591,14 +591,60 @@ export function unitsSuggestedByItem(
   return null;
 }
 
-export function tagSlotsToCategories(slots: {
-  item: string;
-  quality: string;
+export type TagSlots = {
+  items: string[];
+  qualities: string[];
   size: string;
-}): string[] {
+};
+
+export function emptyTagSlots(): TagSlots {
+  return { items: [], qualities: [], size: '' };
+}
+
+function labelKeySet(labels: Iterable<string>): Set<string> {
+  const set = new Set<string>();
+  for (const label of labels) {
+    const key = label.trim().toLowerCase();
+    if (key) set.add(key);
+  }
+  return set;
+}
+
+function allItemLabels(mains: TaxonomyMain[]): Set<string> {
+  const labels: string[] = [];
+  for (const main of mains) {
+    for (const sub of main.subs) {
+      labels.push(sub.label);
+      for (const row of sub.items) labels.push(row.label);
+    }
+  }
+  return labelKeySet(labels);
+}
+
+function allQualityLabels(mains: TaxonomyMain[]): Set<string> {
+  const labels: string[] = [];
+  for (const main of mains) {
+    for (const sub of main.subs) {
+      for (const row of sub.items) labels.push(...(row.qualities ?? []));
+    }
+  }
+  return labelKeySet(labels);
+}
+
+function allSizeLabels(mains: TaxonomyMain[]): Set<string> {
+  const labels: string[] = [];
+  for (const main of mains) {
+    for (const sub of main.subs) {
+      for (const row of sub.items) labels.push(...(row.sizes ?? []));
+    }
+  }
+  return labelKeySet(labels);
+}
+
+export function tagSlotsToCategories(slots: TagSlots): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const raw of [slots.item, slots.quality, slots.size]) {
+  for (const raw of [...slots.items, ...slots.qualities, slots.size]) {
     const label = raw.trim();
     if (!label) continue;
     const key = label.toLowerCase();
@@ -609,14 +655,34 @@ export function tagSlotsToCategories(slots: {
   return out;
 }
 
-export function categoriesToTagSlots(categories: string[]): {
-  item: string;
-  quality: string;
-  size: string;
-} {
-  return {
-    item: categories[0] ?? '',
-    quality: categories[1] ?? '',
-    size: categories[2] ?? '',
-  };
+/** Official item/sub → Item tags; official quality-only → Quality / work; official size → Size; custom → Item tags. */
+export function categoriesToTagSlots(
+  categories: string[],
+  mains: TaxonomyMain[] = CATEGORY_TAXONOMY,
+): TagSlots {
+  const itemKeys = allItemLabels(mains);
+  const qualityKeys = allQualityLabels(mains);
+  const sizeKeys = allSizeLabels(mains);
+  const items: string[] = [];
+  const qualities: string[] = [];
+  let size = '';
+  for (const raw of categories) {
+    const label = raw.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (!size && sizeKeys.has(key)) {
+      size = label;
+      continue;
+    }
+    if (itemKeys.has(key)) {
+      items.push(label);
+      continue;
+    }
+    if (qualityKeys.has(key)) {
+      qualities.push(label);
+      continue;
+    }
+    items.push(label);
+  }
+  return { items, qualities, size };
 }

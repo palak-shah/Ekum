@@ -11,7 +11,7 @@ Verification: Functional · Regression · Unit-only · Untested
 |--------|------------|----------------|--------------|----------------------|-------|
 | Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
 | Orders | Per-line fulfill edit + Can’t supply on Dispatch sheet + packing PDF (phone viewer + quiet Share) | Works | Unit | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf |
-| Explore / Selection | Photos-style selected media (scale over teal + teal check; no grey-out) app-wide incl. pack viewer | Works | Unit | Required | Completeness 2026-10-05-selection-media-photos-look |
+| Explore / Selection | Selected media: little shrink over page surface + filled teal check (no teal frame); unselected full color | Works | Unit | Required | Completeness 2026-10-05-selection-media-photos-look; shrink-no-teal 2026-10-06 |
 | Explore | First-paint feed + end footer; virtual overscan; shop prefetch | Works | Unit | Required | Progressive `/explore/feed` + `sections=feed`; You've reached the end |
 | Orders | Cheap Needs you badge count (no full list walk) | Works | Unit | Required | Completeness 2026-10-04-orders-needs-you-count |
 | Notifications | Accuracy: tap mark-read, badge scope, who/what copy, deep links + push path | Works | Unit + Functional | Required | Completeness 2026-09-14-notifications-accuracy; return→order; SW `url` |
@@ -108,6 +108,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Seller create photos-first + cover tag | Works | Unit | Required | Slice 1 2026-08-12; Photos = ContinuousCamera like Add designs (2026-09-11) |
 | Collections | New collection one **Add designs** → sheet Designs · Photos (Gallery on camera) | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe; supersedes 3-door Camera · Photo library · Designs |
 | Collections | New collection cascade tags, From/To rate, apply-all + rate confirm, dual order/dispatch units | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe |
+| Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
 | Collections | Create polish (9-cap grid, publish-first, tags, no Everyone, tile→design sheet) | Works | Unit | Required | Completeness 2026-09-17-collection-create-polish |
 | Collections | Same for all + photos-first + rate range + unlimited design photos | Works | Unit + Functional | Required | Completeness 2026-09-18-collection-same-for-all-ux-simplify; Done = new photos only; library Diff; `collection.publish.journey` |
 | Collections | New collection redesign (always-visible · 3 expandables · Settings defaults · sticky / hide nav · merge Diff · piecesPerPack · allowDownload) | Works | Unit + Functional | Required | Completeness 2026-09-24-new-collection-redesign |

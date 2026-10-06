@@ -182,7 +182,8 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(await screen.findByRole('heading', { name: 'Surat Silk House' })).toBeInTheDocument();
     expect(screen.getAllByTestId('gst-tick')[0]).toHaveAttribute('aria-label', 'GST verified');
     expect(screen.getByTestId('shop-identity').textContent).toMatch(/Surat/);
-    expect(screen.getByTestId('shop-identity').textContent).toMatch(/Silk/);
+    expect(screen.getByTestId('shop-identity').textContent).not.toMatch(/Silk/);
+    expect(screen.getByTestId('shop-category-chips')).toHaveTextContent('Silk');
     expect(screen.queryByText('GST verified')).toBeNull();
   });
 

@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_TAXONOMY,
+  categoriesToTagSlots,
   itemSlotSuggestions,
   mainsForCompany,
   parentKeysFromCompanyCategories,
   qualitySlotSuggestions,
   sizeSlotSuggestions,
   SuperCategory,
+  tagSlotsToCategories,
 } from '@ekum/domain-types';
 
 describe('tag cascade', () => {
@@ -46,6 +48,22 @@ describe('tag cascade', () => {
       expect.arrayContaining(['Ready Made', 'Rugs', 'Bags', 'Belts']),
     );
     expect(labels).toContain('Suiting Fabric');
+  });
+
+  it('round-trips official item, quality, and size into the right slots', () => {
+    const slots = categoriesToTagSlots(['Readymade', 'Embroidered', 'S']);
+    expect(slots.items).toContain('Readymade');
+    expect(slots.qualities).toContain('Embroidered');
+    expect(slots.size).toBe('S');
+    expect(tagSlotsToCategories({ items: ['Readymade', 'Saree'], qualities: ['Embroidered', 'Printed'], size: 'M' })).toEqual(
+      ['Readymade', 'Saree', 'Embroidered', 'Printed', 'M'],
+    );
+  });
+
+  it('keeps custom labels on Item tags so search still has them', () => {
+    const slots = categoriesToTagSlots(['My own tag', 'S']);
+    expect(slots.items).toContain('My own tag');
+    expect(slots.size).toBe('S');
   });
 
   it('covers six mains', () => {

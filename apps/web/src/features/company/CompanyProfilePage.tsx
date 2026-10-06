@@ -59,7 +59,7 @@ import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
 import { GstTick, isGstVerified } from '@/ui/GstTick';
-import { shopIdentityLine, shopSellCategories } from '@/ui/shopIdentity';
+import { shopSellCategories } from '@/ui/shopIdentity';
 import { Avatar, Button, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
@@ -385,6 +385,7 @@ export function CompanyProfilePage() {
   const company = profile.data;
   const hasShop = designs.length > 0 || collections.length > 0;
   const contact = pickPrimaryContact(contacts.data ?? []);
+  const sellCats = shopSellCategories(company);
 
   return (
     <div className="flex flex-col gap-4">
@@ -468,12 +469,12 @@ export function CompanyProfilePage() {
             </p>
           ) : null}
           <p className="text-sm text-muted" data-testid="shop-identity">
-            {shopIdentityLine(company.city, shopSellCategories(company)) || company.city}
+            {company.city}
           </p>
           {company.about ? <p className="mt-2 text-sm text-ink">{company.about}</p> : null}
-          {company.categories.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {company.categories.map((category) => (
+          {sellCats.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="shop-category-chips">
+              {sellCats.map((category) => (
                 <Tag key={category}>{categoryDisplayLabel(category)}</Tag>
               ))}
             </div>

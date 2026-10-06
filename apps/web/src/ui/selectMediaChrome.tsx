@@ -3,8 +3,8 @@ import { CheckIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 
 /**
- * Photos-style select: selected media scales slightly (~3%) over accent teal
- * + filled teal check. Unselected stay full color — never greyed out.
+ * Selected media shrinks a little so pick is obvious. Gap is page surface — never teal.
+ * Unselected stay full color.
  */
 export function SelectableMediaFrame({
   selectMode,
@@ -23,19 +23,11 @@ export function SelectableMediaFrame({
 }) {
   return (
     <div
-      className={cx(
-        'relative overflow-hidden',
-        selectMode && selected ? 'bg-accent' : 'bg-surface',
-      )}
+      className="relative overflow-hidden bg-surface"
       data-testid={selectMode && selected ? 'selectable-media-selected' : 'selectable-media'}
       data-selected={selectMode && selected ? 'true' : 'false'}
     >
-      <div
-        className={cx(
-          'overflow-hidden transition-transform duration-150 ease-out',
-          selectMode && selected && 'origin-center scale-[0.97] rounded-xl',
-        )}
-      >
+      <div className={cx('overflow-hidden', selectMode && selected && 'scale-[0.97]')}>
         {children}
       </div>
       {selectMode ? (

@@ -14,7 +14,7 @@
 | Lens | Summary findings |
 |------|------------------|
 | Product Manager | Traders need to see at a glance which tiles are in the pile — check alone is easy to miss on busy mosaics. |
-| UX Designer | One shared media treatment: selected = shrink (surface gap) + white disc / ink check; unselected stay full color. No teal frame, no grey-out. |
+| UX Designer | One shared media treatment: selected = little shrink + filled teal check; gap is page surface (not teal). Unselected stay full color. No teal frame, no grey-out. |
 | Solution Architect | Shared `SelectableMediaChrome` in kit/cards path; wire Explore feed, DesignTile, CatalogFeedPost, Saved, shop grid, design set, You library. |
 
 ---
@@ -52,7 +52,7 @@
 
 ## Approved scope for this slice
 
-- Shared selectable-media chrome: selected → surface shrink + white disc / ink check; unselected stay full color. No accent/teal frame, no grey-out.  
+- Shared selectable-media chrome: selected → little shrink over page surface + filled teal check. Unselected stay full color. No accent/teal frame, no grey-out.  
 - Apply on Explore collection/design posts, DesignTile, CatalogFeedPost, Saved tiles, shop photo grid, design-set tiles, You library select tiles.  
 - Docs + unit asserting selected media chrome classes.
 

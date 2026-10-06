@@ -19,10 +19,12 @@ import {
   RateVisibility,
   Unit,
   categoriesToTagSlots,
+  emptyTagSlots,
   mainsForCompany,
   parentKeysFromCompanyCategories,
   tagSlotsToCategories,
   unitsSuggestedByItem,
+  type TagSlots,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
@@ -208,6 +210,8 @@ export function CollectionEditorPage() {
     coverImage: '',
     categories: [] as string[],
   });
+  const [tagSlots, setTagSlotsState] = useState<TagSlots>(() => emptyTagSlots());
+  const [memberTagSlots, setMemberTagSlots] = useState<TagSlots>(() => emptyTagSlots());
   const leaveBypassRef = useRef(false);
   const bootPickerRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -420,12 +424,14 @@ export function CollectionEditorPage() {
 
   useEffect(() => {
     if (existing.data) {
+      const loadedCategories = existing.data.categories ?? [];
       setForm({
         name: existing.data.name,
         description: existing.data.description ?? '',
         coverImage: existing.data.coverImage ?? '',
-        categories: existing.data.categories ?? [],
+        categories: loadedCategories,
       });
+      setTagSlotsState(categoriesToTagSlots(loadedCategories));
       setSelected(new Set(existing.data.products.map((product) => product.id)));
       setPublishAudience(
         restorePublishAudienceState({
@@ -1482,6 +1488,7 @@ export function CollectionEditorPage() {
       notes: product.description ?? '',
       categories: product.categories ?? [],
     });
+    setMemberTagSlots(categoriesToTagSlots(product.categories ?? []));
     setMemberPhotos(
       product.images.map((url) => ({ id: crypto.randomUUID(), url })),
     );
@@ -1491,6 +1498,10 @@ export function CollectionEditorPage() {
   const openPendingDesignSheet = (localId: string) => {
     const photo = pendingPhotos.find((p) => p.localId === localId);
     if (!photo) return;
+    const pendingCats =
+      photo.tagsDirty || photo.categories.length > 0
+        ? photo.categories
+        : [...form.categories];
     setMemberForm({
       name: nameForNewDesign(photo.name, photo.sku),
       rate: photo.rate,
@@ -1499,11 +1510,9 @@ export function CollectionEditorPage() {
       piecesPerPack: photo.piecesPerPack,
       moq: photo.moq,
       notes: photo.notes,
-      categories:
-        photo.tagsDirty || photo.categories.length > 0
-          ? photo.categories
-          : [...form.categories],
+      categories: pendingCats,
     });
+    setMemberTagSlots(categoriesToTagSlots(pendingCats));
     setMemberPhotos(
       photo.images
         .filter((img) => img.imageUrl || img.previewUrl)
@@ -1594,10 +1603,12 @@ export function CollectionEditorPage() {
   const useSameAsAllOnMember = () => {
     if (!memberSheet) return;
     const next = forceSameForAllToForm(memberForm, { ...sameForAll, categories: [] });
+    const categories = unionTags(memberForm.categories, form.categories);
     setMemberForm({
       ...next,
-      categories: unionTags(memberForm.categories, form.categories),
+      categories,
     });
+    setMemberTagSlots(categoriesToTagSlots(categories));
   };
 
   const sameForAllLine = sameForAllSummary(sameForAll);
@@ -1636,19 +1647,23 @@ export function CollectionEditorPage() {
     company.data?.sellCategories ?? [],
     company.data?.superCategories ?? [],
   );
-  const tagSlots = categoriesToTagSlots(form.categories);
-  const setTagSlots = (next: { item: string; quality: string; size: string }) => {
+  const setTagSlots = (next: TagSlots) => {
+    if (tagSlotsToCategories(next).length > 20) return;
+    setTagSlotsState(next);
     setForm({ ...form, categories: tagSlotsToCategories(next) });
-    const suggested = unitsSuggestedByItem(mainsForCompany(parentKeys), next.item);
-    if (!suggested) return;
-    setSameForAll((prev) => ({
-      ...prev,
-      unit: prev.unit || suggested.orderUnit,
-      dispatchUnit: prev.dispatchUnit || suggested.dispatchUnit,
-      piecesPerPack:
-        prev.piecesPerPack.trim() ||
-        (suggested.piecesPerPack != null ? String(suggested.piecesPerPack) : ''),
-    }));
+    for (const item of next.items) {
+      const suggested = unitsSuggestedByItem(mainsForCompany(parentKeys), item);
+      if (!suggested) continue;
+      setSameForAll((prev) => ({
+        ...prev,
+        unit: prev.unit || suggested.orderUnit,
+        dispatchUnit: prev.dispatchUnit || suggested.dispatchUnit,
+        piecesPerPack:
+          prev.piecesPerPack.trim() ||
+          (suggested.piecesPerPack != null ? String(suggested.piecesPerPack) : ''),
+      }));
+      break;
+    }
   };
 
   const whoExpandable = (
@@ -1715,12 +1730,12 @@ export function CollectionEditorPage() {
         />
       </Field>
       <CascadeTagsFields
-        item={tagSlots.item}
-        quality={tagSlots.quality}
+        items={tagSlots.items}
+        qualities={tagSlots.qualities}
         size={tagSlots.size}
         parentKeys={parentKeys}
-        onItem={(item) => setTagSlots({ ...tagSlots, item })}
-        onQuality={(quality) => setTagSlots({ ...tagSlots, quality })}
+        onItems={(items) => setTagSlots({ ...tagSlots, items })}
+        onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
         onSize={(size) => setTagSlots({ ...tagSlots, size })}
       />
       {isCreate ? whoExpandable : null}
@@ -2688,29 +2703,35 @@ export function CollectionEditorPage() {
               })()
             : null}
           <CascadeTagsFields
-            item={categoriesToTagSlots(memberForm.categories).item}
-            quality={categoriesToTagSlots(memberForm.categories).quality}
-            size={categoriesToTagSlots(memberForm.categories).size}
+            items={memberTagSlots.items}
+            qualities={memberTagSlots.qualities}
+            size={memberTagSlots.size}
             parentKeys={parentKeys}
-            onItem={(item) => {
-              const slots = categoriesToTagSlots(memberForm.categories);
+            onItems={(items) => {
+              const next = { ...memberTagSlots, items };
+              if (tagSlotsToCategories(next).length > 20) return;
+              setMemberTagSlots(next);
               setMemberForm({
                 ...memberForm,
-                categories: tagSlotsToCategories({ ...slots, item }),
+                categories: tagSlotsToCategories(next),
               });
             }}
-            onQuality={(quality) => {
-              const slots = categoriesToTagSlots(memberForm.categories);
+            onQualities={(qualities) => {
+              const next = { ...memberTagSlots, qualities };
+              if (tagSlotsToCategories(next).length > 20) return;
+              setMemberTagSlots(next);
               setMemberForm({
                 ...memberForm,
-                categories: tagSlotsToCategories({ ...slots, quality }),
+                categories: tagSlotsToCategories(next),
               });
             }}
             onSize={(size) => {
-              const slots = categoriesToTagSlots(memberForm.categories);
+              const next = { ...memberTagSlots, size };
+              if (tagSlotsToCategories(next).length > 20) return;
+              setMemberTagSlots(next);
               setMemberForm({
                 ...memberForm,
-                categories: tagSlotsToCategories({ ...slots, size }),
+                categories: tagSlotsToCategories(next),
               });
             }}
           />

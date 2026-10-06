@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { SelectableMediaFrame } from './selectMediaChrome';
 
 describe('SelectableMediaFrame', () => {
-  it('scales selected media over accent teal with filled check', () => {
+  it('shrinks selected media over page surface — check on, no teal frame', () => {
     const { container } = render(
       <SelectableMediaFrame selectMode selected>
         <img alt="" src="/x.jpg" />
@@ -11,9 +11,10 @@ describe('SelectableMediaFrame', () => {
     );
     const frame = screen.getByTestId('selectable-media-selected');
     expect(frame.getAttribute('data-selected')).toBe('true');
-    expect(frame.className).toContain('bg-accent');
+    expect(frame.className).toContain('bg-surface');
+    expect(frame.className).not.toContain('bg-accent');
     const media = container.querySelector('[data-testid="selectable-media-selected"] > div');
-    expect(media?.className).toContain('scale-[0.97]');
+    expect(media?.className ?? '').toContain('scale-[0.97]');
     const check = container.querySelector('[data-testid="selectable-media-selected"] > span');
     expect(check?.className).toContain('bg-accent');
   });
