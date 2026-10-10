@@ -39,7 +39,12 @@ const ORDER_INCLUDE = {
   buyer: true,
   seller: true,
   items: true,
-  shipments: { include: { items: { include: { orderItem: { select: { id: true, name: true } } } } } },
+  shipments: {
+    include: {
+      items: { include: { orderItem: { select: { id: true, name: true } } } },
+      legs: { orderBy: { sortOrder: 'asc' as const } },
+    },
+  },
   returns: { include: { items: true } },
   createdByUser: { select: { id: true, name: true } },
   updatedByUser: { select: { id: true, name: true } },
@@ -111,6 +116,7 @@ export class BuyForBuyerService {
           createdByUserId: userId,
           updatedByUserId: userId,
           note: dto.note ?? null,
+          transporter: dto.transporter?.trim() || null,
           items: { create: ownItems },
         },
         include: ORDER_INCLUDE,
@@ -167,6 +173,7 @@ export class BuyForBuyerService {
                 kind: OrderKind.Standard,
                 intent: OrderIntent.Order,
                 note: dto.note,
+                transporter: dto.transporter,
                 facilitatorCompanyId: actorCompanyId,
                 items: hopItems,
               },
@@ -186,6 +193,7 @@ export class BuyForBuyerService {
                 intent: OrderIntent.Order,
                 orderPathPreference: 'handle',
                 note: dto.note,
+                transporter: dto.transporter,
                 items: hopItems,
               },
               {

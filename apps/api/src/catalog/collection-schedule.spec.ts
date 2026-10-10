@@ -85,5 +85,17 @@ describe('collection-schedule', () => {
         now,
       ),
     ).toBe(true);
+    // Mosaic/bookmark selects may load images without status — do not false-fail.
+    expect(
+      isCollectionLiveForBuyers(
+        {
+          status: CollectionStatus.Published,
+          startsAt: null,
+          endsAt: null,
+          products: [{ product: { images: ['https://cdn/a.jpg'] } as { status?: string } }],
+        },
+        now,
+      ),
+    ).toBe(true);
   });
 });

@@ -67,6 +67,9 @@ export interface TradeCardActions {
     orderId: string | null,
     productIds?: string[] | null,
   ) => void;
+  /** Either party closes an open / responded complaint. */
+  onResolveComplaint?: (complaintId: string) => void;
+  resolvingComplaint?: boolean;
 }
 
 /** Strip a leading party name from compact-pulse body copy. */
@@ -172,11 +175,20 @@ function resolveThumbs(ref: MessageReference | null | undefined): {
   return { thumbs: images.filter(Boolean), overflow };
 }
 
+/** Typed ask attached to a catalog card (Explore / selection Message). */
+export function catalogEnquireNote(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const note = (metadata as { enquireNote?: unknown }).enquireNote;
+  return typeof note === 'string' && note.trim() ? note.trim() : null;
+}
+
 function catalogWhoLine(
   message: MessageView,
   senderLabel: string,
   ref: MessageReference | null | undefined,
 ): string | null {
+  // Enquire = note on the card; no "You asked" / "X asked" chrome.
+  if (catalogEnquireNote(message.metadata)) return null;
   const share = catalogShareSenderLabel({
     mine: message.mine,
     senderLabel,
@@ -308,8 +320,10 @@ export function buildCollectionTradeCard(
     : ref
       ? 'No longer available'
       : (message.body?.trim() || 'Collection');
+  const enquire = catalogEnquireNote(message.metadata);
   const details: string[] = [];
-  if (orderGoesTo) details.push(orderGoesTo);
+  // Enquire cards: note only — skip "Order goes to …".
+  if (orderGoesTo && !enquire) details.push(orderGoesTo);
   if (ref?.itemCount != null) {
     details.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
   }
@@ -321,6 +335,7 @@ export function buildCollectionTradeCard(
     thumbs,
     thumbOverflow: overflow,
     imagesLocked: Boolean(ref?.imagesLocked),
+    note: enquire ?? undefined,
     action: ref?.available
       ? { label: 'View collection →', to: actions.collectionPath, style: 'link' }
       : undefined,
@@ -354,6 +369,7 @@ export function buildDesignSetTradeCard(
     thumbs,
     thumbOverflow: overflow,
     imagesLocked: Boolean(ref?.imagesLocked),
+    note: catalogEnquireNote(message.metadata) ?? undefined,
     action:
       ref?.available && actions.designsPath
         ? { label: 'View designs →', to: actions.designsPath, style: 'link' }
@@ -377,7 +393,8 @@ export function buildDesignTradeCard(
     : ref
       ? 'No longer available'
       : (message.body?.trim() || 'Design');
-  const details = orderGoesTo ? [orderGoesTo] : [];
+  const enquire = catalogEnquireNote(message.metadata);
+  const details = orderGoesTo && !enquire ? [orderGoesTo] : [];
   const secondaryAction =
     !message.mine && ref?.available
       ? actions.curated
@@ -396,6 +413,7 @@ export function buildDesignTradeCard(
     thumbs,
     thumbOverflow: overflow,
     imagesLocked: Boolean(ref?.imagesLocked),
+    note: enquire ?? undefined,
     action: ref?.available
       ? { label: 'View design →', to: actions.productPath, style: 'link' }
       : undefined,
@@ -479,6 +497,33 @@ export function buildChatTradeCard(
               card.productIds?.length ? card.productIds : null,
             )
         : undefined;
+    const status = (ref?.status ?? '').toLowerCase();
+    const openish = status === 'open' || status === 'responded' || (!status && Boolean(ref?.available));
+    const resolve =
+      openish &&
+      message.referenceId &&
+      options.actions?.onResolveComplaint
+        ? () => options.actions?.onResolveComplaint?.(message.referenceId!)
+        : undefined;
+    const footerActions: ChatTradeCardAction[] = [];
+    if (resolve) {
+      footerActions.push({
+        label: options.actions?.resolvingComplaint ? 'Resolving…' : 'Resolve',
+        onClick: options.actions?.resolvingComplaint ? undefined : resolve,
+        style: 'link',
+        testId: 'complaint-resolve',
+        emphasis: 'quiet',
+      });
+    }
+    if (escalate) {
+      footerActions.push({
+        label: 'Send to supplier',
+        onClick: escalate,
+        style: 'link',
+        testId: 'complaint-send-supplier',
+        emphasis: 'quiet',
+      });
+    }
     return {
       kind: 'complaint',
       primary: ref?.name?.trim() || message.body?.trim() || 'Complaint',
@@ -492,9 +537,8 @@ export function buildChatTradeCard(
         card.orderId && options.actions?.openOrder
           ? { label: 'View order →', onClick: options.actions.openOrder, style: 'link' }
           : undefined,
-      secondaryAction: escalate
-        ? { label: 'Send to supplier', onClick: escalate }
-        : undefined,
+      secondaryAction: undefined,
+      actionRow: footerActions.length > 0 ? footerActions : undefined,
       createdAt: message.createdAt,
       mine: message.mine,
       variant: 'bubble',

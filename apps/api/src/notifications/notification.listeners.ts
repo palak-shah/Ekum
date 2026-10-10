@@ -76,7 +76,7 @@ export class NotificationListeners {
       this.notifications.create({
         recipientCompanyId: event.requesterCompanyId,
         type: NotificationType.Collection,
-        title: 'You can put this in your pack',
+        title: 'You can put this in your collection',
         body,
         refType: 'product',
         refId: event.productIds[0] ?? undefined,

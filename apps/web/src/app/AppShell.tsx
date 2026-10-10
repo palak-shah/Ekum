@@ -7,18 +7,28 @@ import { ordersNavAriaLabel, tabCountBadge, tabCountLabel } from './navCountBadg
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { cx } from '@/ui/kit';
-import { SHELL_X_CONTAIN_CLASS } from '@/ui/mobileOverflow';
-import { SelectionWorkspaceBar } from '@/features/browse/SelectionWorkspaceBar';
+import {
+  SHELL_FRAME_CLASS,
+  SHELL_MAIN_SCROLL_CLASS,
+  SHELL_X_CONTAIN_CLASS,
+} from '@/ui/mobileOverflow';
+import {
+  SelectionWorkspaceBar,
+  selectionWorkspaceDockUp,
+} from '@/features/browse/SelectionWorkspaceBar';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   companyIdFromPath,
   shouldHideAppNav,
+  shouldShowShopTradeDock,
   shopSelectedCount,
 } from '@/features/company/shopTradeDock';
 import {
   getPageOwnsBottomBand,
+  getPageSelecting,
   subscribePageOwnsBottomBand,
+  subscribePageSelecting,
 } from '@/features/browse/selectionBottomBand';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
 import {
@@ -57,7 +67,9 @@ const NAV = [
 ] as const;
 
 /**
- * Mobile-first shell: quiet header (no brand mark), glass bottom nav, centred ＋.
+ * Mobile-first shell: phone column (`max-w-md`), quiet header, glass bottom nav,
+ * centred ＋. Viewport-tall; scroll is in `main` so the scrollbar sits on the
+ * frame on laptop (window never scrolls).
  */
 export function AppShell() {
   const navigate = useNavigate();
@@ -83,12 +95,17 @@ export function AppShell() {
     canOrders: can('orders'),
   });
   const title = shellTitle(location.pathname);
-  const showHomeBack = shellShowsHomeBack(location.pathname);
+  const exploreSelecting =
+    location.pathname === '/explore' &&
+    (shortlist.count > 0 ||
+      albumPick.count > 0 ||
+      shortlist.selectMode ||
+      albumPick.selectMode);
+  const showHomeBack = shellShowsHomeBack(location.pathname, { exploreSelecting });
   const isHome = location.pathname === '/';
   const ownsTopChrome = pageOwnsTopChrome(location.pathname);
-  /** You scrolls in main so ← You never leaves a blank sticky offset above the shop card. */
+  /** My collections scrolls in main so ← title stays put above the library. */
   const youRoot = location.pathname === '/more';
-  const shellLocksHeight = ownsTopChrome || youRoot;
   const isChatThread = isChatThreadPath(location.pathname);
   const shopId = companyIdFromPath(location.pathname);
   const chatsInbox = useSyncExternalStore(
@@ -102,6 +119,19 @@ export function AppShell() {
     getOrderActionDockNavVisible,
   );
   const pageDockUp = useSyncExternalStore(subscribePageOwnsBottomBand, getPageOwnsBottomBand);
+  const pageSelecting = useSyncExternalStore(subscribePageSelecting, getPageSelecting);
+  const ownShop = Boolean(shopId && company.data?.id && shopId === company.data.id);
+  const shopDockUp = shouldShowShopTradeDock({
+    isOwn: ownShop,
+    shopSelectedCount: shopId
+      ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
+      : 0,
+  });
+  const selectionUp = selectionWorkspaceDockUp(
+    location.pathname,
+    shortlist.count + albumPick.count,
+    { shopDockUp, pageDockUp, ownShop, pageSelecting },
+  );
   const hideAppNav =
     shouldHideAppNav(location.pathname, {
       myCompanyId: company.data?.id,
@@ -110,6 +140,7 @@ export function AppShell() {
         : 0,
       search: location.search,
       pageDockUp,
+      selectionWorkspaceUp: selectionUp,
     }) ||
     orderDockHidesNav ||
     isChatThread;
@@ -136,16 +167,16 @@ export function AppShell() {
     <div
       className={cx(
         'mx-auto flex w-full max-w-md flex-col bg-canvas',
+        SHELL_FRAME_CLASS,
         SHELL_X_CONTAIN_CLASS,
-        shellLocksHeight ? 'h-full min-h-0 overflow-hidden' : 'min-h-full',
       )}
+      data-testid="app-shell-frame"
     >
       {!ownsTopChrome ? (
         <header
           className={cx(
-            youRoot
-              ? 'z-20 flex shrink-0 items-center border-b border-line bg-canvas px-4 py-2.5'
-              : 'sticky top-0 z-20 flex items-center border-b border-line bg-canvas px-4 py-2.5',
+            /* Outside the main scrollport — stays put; scroll is in main only. */
+            'z-20 flex shrink-0 items-center border-b border-line bg-canvas px-4 py-2.5',
             title ? 'justify-between' : 'justify-end',
           )}
         >
@@ -154,7 +185,7 @@ export function AppShell() {
               <button
                 type="button"
                 aria-label="Back"
-                data-testid="you-back-home"
+                data-testid={exploreSelecting ? 'explore-select-back' : 'you-back-home'}
                 className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"
                 onClick={() => navigate('/')}
               >
@@ -177,26 +208,26 @@ export function AppShell() {
               </>
             ) : null}
             {isHome ? (
-              <>
-                <button
-                  type="button"
-                  data-testid="notifications-bell"
-                  aria-label="Notifications"
-                  className="relative rounded-full p-2 text-slate hover:bg-foam"
-                  onClick={() => startTransition(() => navigate('/notifications'))}
-                >
-                  <BellIcon />
-                  {unread.data && unread.data.count > 0 ? (
-                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
-                      {tabCountLabel(unread.data.count)}
-                    </span>
-                  ) : null}
-                </button>
-                <HomeAccountMenu
-                  name={company.data?.name ?? session?.user.name ?? 'E'}
-                  imageUrl={company.data?.logoUrl}
-                />
-              </>
+              <button
+                type="button"
+                data-testid="notifications-bell"
+                aria-label="Notifications"
+                className="relative rounded-full p-2 text-slate hover:bg-foam"
+                onClick={() => startTransition(() => navigate('/notifications'))}
+              >
+                <BellIcon />
+                {unread.data && unread.data.count > 0 ? (
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
+                    {tabCountLabel(unread.data.count)}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
+            {isHome || youRoot ? (
+              <HomeAccountMenu
+                name={company.data?.name ?? session?.user.name ?? 'E'}
+                imageUrl={company.data?.logoUrl}
+              />
             ) : null}
           </div>
         </header>
@@ -204,20 +235,18 @@ export function AppShell() {
 
       <main
         className={cx(
-          'flex-1',
           SHELL_X_CONTAIN_CLASS,
           isChatThread
-            ? 'flex min-h-0 flex-col overflow-hidden px-0 pb-0 pt-0'
-            : ownsTopChrome || youRoot
-              ? // PageHeader pages + You: scroll in main so ← You / titles stay put.
-                // You page owns its own top pad (identity scrolls; shell title does not).
-                cx(
-                  'ekum-no-scrollbar min-h-0 overflow-y-auto overflow-x-clip px-4 pt-0',
-                  hideAppNav ? 'pb-8' : 'pb-28',
-                )
-              : hideAppNav
-                ? 'px-4 pb-8 pt-3'
-                : 'px-4 pb-28 pt-3',
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-0 pt-0'
+            : // All tab + detail pages scroll inside the phone column so the
+              // scrollbar sits on the frame (laptop), not the browser edge.
+              // Dock clearance: pages that own the band add their own pad (BM-07).
+              cx(
+                SHELL_MAIN_SCROLL_CLASS,
+                'px-4',
+                ownsTopChrome || youRoot ? 'pt-0' : 'pt-3',
+                hideAppNav ? 'pb-0' : 'pb-28',
+              ),
         )}
       >
         {/*

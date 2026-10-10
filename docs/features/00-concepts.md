@@ -22,6 +22,10 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 
 Membership roles (`owner` / `staff`) and five caps (`uploads` · `chats` · `orders` · `payments` · `team`) sit on the person × company seat. The **company** still trades. **Settings → Team** invites staff by phone. One **live** membership at a time; after archive, the same phone may join another shop (or create a company). Counterparties see the business name. New chats start with **owners**; staff see a thread only after an owner adds them. Do not label chats Private or Team.
 
+## App chrome (phone column)
+
+Ekum is **mobile-first**. On a laptop the app is a centred **phone column** (`max-w-md`) on a quiet stage; the **window does not scroll**. Scroll lives inside that column so the scrollbar sits on the phone frame, not the browser edge. On a real phone the stage matches the canvas (no side gutters).
+
 ## App updates (PWA)
 
 Installed Ekum keeps a service worker. After a deploy, the open screen shows **New version · Load** on its own (poll while visible). It never reloads by itself. See [Settings](./settings.md#app-update-installed--pwa).
@@ -40,13 +44,13 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Intent | Rule (much of this is **planned**, not shipped) |
 |--------|--------------------------------------------------|
 | Curate | Pick designs/collections from one or more suppliers into a **curated collection** for their buyers |
-| Saved | **Reference** shortlist of designs/collections (not a copy catalog); hub under You; feeds Curate pack — see Slice A design |
+| Saved | **Reference** shortlist of designs/collections (not a copy catalog); hub under You; feeds Curate collection — see Slice A design |
 | Publish | Same audience model as any publish — **Explore is not supplier-only** |
 | Permission ceiling | Cannot outrun the **original seller’s** audience / **buyers can forward** lock |
 | Forward vs Curate | **Forward** = share someone’s card as-is; **Curate** = assemble into **your** collection then publish (still under source ceiling) |
 | Stories | Viewer sees a company when they are an **allowed** follower or are connected and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
-| Surfaces | **Home** = light **New packs** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
+| Surfaces | **Home** = light **New collections** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** gates Curate + TradeLane (not a Profile switch). Product default off (QA may treat unset as on). Linking/split in Slice B |
 | Orders | First middle-hop pair: **I handle**, no group. Lane = **Buyer talks to** (You / mill) × **Share a group**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when group Off; group when On. Mill **Send** on the card; **Send quote** / Decline on the desk; **Handle myself** when flipping Direct to your desk |
 
@@ -69,11 +73,11 @@ flowchart LR
 
 | Mechanism | What it is |
 |-----------|------------|
-| **Request catalog access** | Shop ask (was Follow / See new packs). Idle: lock + **Request catalog access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Pack share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — tap off deletes the follow. No Followers feed or Followers shop packs after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
+| **Request catalog access** | Shop ask (was Follow / See new collections). Idle: lock + **Request catalog access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Collection share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — tap off deletes the follow. No Followers feed or Followers shop collections after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
 | **Message** | First shop chat. Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. No shop **Request** button. |
 | **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). |
-| **Collection view Ask** | **Ask to see this pack** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not pack/relist). Deny silent. |
-| **Pack / relist Ask** | **Ask to put in my pack** — unlock Curate when pack permission is off. Distinct chat card (“wants to put … in their pack”). Never bare **Ask**. Via **your** pack → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
+| **Collection view Ask** | **Ask to see this collection** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not collection/relist). Deny silent. |
+| **Collection / relist Ask** | **Ask to put in my collection** — unlock Curate when collection permission is off. Distinct chat card (“wants to put … in their collection”). Never bare **Ask**. Via **your** collection → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
 | **Connection** | After approve: **one mutual pair** (`active`) — both companies are Connected. Each can see the other’s published shop content that Connection unlocks (Connections-audience included; Selected stays Selected). **Either** side can **block** (silent). **Only the company that blocked can unblock.** Chat noise is **Mute**, not a Connection pause. |
 | **Block** | Other party is not told and does not see the connection row. Shop/API **404** where relevant. Approve never reactivates a block — the **blocker** must **unblock** first. |
@@ -100,7 +104,7 @@ Seller My Catalog badges: **Draft** · **Starts…** · **Live** (+ **Evergreen*
 
 | Action | Effect |
 |--------|--------|
-| **Publish** | Design or collection goes live for the chosen **audience**. **Design** Publish sets `postedToMarketAt` (standalone Explore tile). **Collection** Publish puts the **pack** on Explore and marks own draft members **Published** for trade inside the pack **without** setting `postedToMarketAt` (no design-tile flood). First-ever publish requires **consent to sell** → sets `canPublish`. |
+| **Publish** | Design or collection goes live for the chosen **audience**. **Design** Publish sets `postedToMarketAt` (standalone Explore tile). **Collection** Publish puts the **collection** on Explore and marks own draft members **Published** for trade inside the collection **without** setting `postedToMarketAt` (no design-tile flood). First-ever publish requires **consent to sell** → sets `canPublish`. |
 | **Visibility** | Same sheet as publish — change who can see it / rates / forward without a separate “post” step. |
 | **Hide / unpublish** | Returns to draft; design Explore post is cleared (`postedToMarketAt` null). Collection hide clears `exploreActivityAt`. |
 
@@ -121,11 +125,11 @@ When publishing (or updating visibility), the sheet sets:
 | Followers | Companies the seller **allowed** to follow (not pending asks; not necessarily connected) |
 | Selected | Listed companies / buyer groups |
 
-**Layers (simple):** company usual (last publish remembered in `tradeDefaults.publishDefaults`) → selected buyer-group override(s), **strictest wins** if several → this item’s Publish sheet. Snapshot on `Product.allowForward` / `Collection.allowForward`. `audienceGroupIds` restores which groups were chosen on **Visibility** (expand who later without a second pack). One collection may include many groups (member union); not per-group policies on one card.
+**Layers (simple):** company usual (last publish remembered in `tradeDefaults.publishDefaults`) → selected buyer-group override(s), **strictest wins** if several → this item’s Publish sheet. Snapshot on `Product.allowForward` / `Collection.allowForward`. `audienceGroupIds` restores which groups were chosen on **Visibility** (expand who later without a second collection). One collection may include many groups (member union); not per-group policies on one card.
 
 **Staff audit:** Product, Collection, and Order store `createdByUserId` / `updatedByUserId` (names on list/detail). Full AuditLog history UI is later.
 
-**Trust:** **Forward / Share** (pass the card as-is) is **free**. **View** is checked when they **open** the pack or design — ask the **catalog owner**, not the last forwarder. **Bookmark** (Saved) is a private shortlist and stays free. **Curate** puts designs in **your** album (My designs); that needs `allowForward` (product: **allowRelist**). Locked → `RELIST_NOT_ALLOWED`. Snapshot still stored as `allowForward` on Product / Collection. Never claim “exclusive” without the relist gate.
+**Trust:** **Forward / Share** (pass the card as-is) is **free**. **View** is checked when they **open** the collection or design — ask the **catalog owner**, not the last forwarder. **Bookmark** (Saved) is a private shortlist and stays free. **Curate** puts designs in **your** album (My designs); that needs `allowForward` (product: **allowRelist**). Locked → `RELIST_NOT_ALLOWED`. Snapshot still stored as `allowForward` on Product / Collection. Never claim “exclusive” without the relist gate.
 
 ## Designs vs collections
 
@@ -150,6 +154,7 @@ Everyday kit is **WhatsApp-tight**, not 48px everywhere:
 | `Chip` | 28px |
 | List square (search trailing / sheet Close) | 40×40 |
 | Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px** |
+| Sell-as (~80% sets / ~20% native) | Default **Order taken in = set**, dispatch **pc**; rate **per pc**, qty in **sets**. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
 | Nav ＋ / camera shutter | Stay 48px |
 
 Page gaps and one-off list rows may still be roomier until a later pass.

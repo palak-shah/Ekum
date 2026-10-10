@@ -65,6 +65,8 @@ describe('CatalogSerializer', () => {
       name: 'Summer Line',
       description: null,
       coverImage: null,
+      rate: { toNumber: () => 1200 },
+      rateMax: { toNumber: () => 1400 },
       categories: [] as string[],
       status: 'published',
       audience: 'connections',
@@ -81,6 +83,8 @@ describe('CatalogSerializer', () => {
       _count: { products: 3 },
     } as unknown as Collection & { _count: { products: number } };
     const view = serializer.toCollectionView(collection);
+    expect(view.rate).toBe(1200);
+    expect(view.rateMax).toBe(1400);
     expect(view.productCount).toBe(3);
     expect(view.companyId).toBe('company-1');
     expect(view.categories).toEqual([]);

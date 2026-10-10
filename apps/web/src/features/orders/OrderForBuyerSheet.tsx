@@ -15,11 +15,20 @@ type Props = {
   onClose: () => void;
   lines: Line[];
   productIds: string[];
+  transporter?: string;
   onInvite: (url: string) => void;
   onDone: () => void;
 };
 
-export function OrderForBuyerSheet({ open, onClose, lines, productIds, onInvite, onDone }: Props) {
+export function OrderForBuyerSheet({
+  open,
+  onClose,
+  lines,
+  productIds,
+  transporter,
+  onInvite,
+  onDone,
+}: Props) {
   const shortlist = useBrowseShortlist();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -56,6 +65,7 @@ export function OrderForBuyerSheet({ open, onClose, lines, productIds, onInvite,
     mutationFn: (orderLines: Line[]) => {
       const dto: CreateForBuyerDto = {
         items: orderLines,
+        ...(transporter?.trim() ? { transporter: transporter.trim() } : {}),
         ...(offApp
           ? { buyerName: buyerName.trim(), buyerPhone: buyerPhone.trim() }
           : { buyerCompanyId: buyerId ?? undefined }),

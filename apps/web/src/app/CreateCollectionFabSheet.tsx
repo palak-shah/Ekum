@@ -29,7 +29,7 @@ export function CreateCollectionFabSheet({
           }}
         >
           <p className="text-sm font-bold text-ink">Create new collection</p>
-          <p className="mt-0.5 text-xs text-muted">Start a new pack</p>
+          <p className="mt-0.5 text-xs text-muted">Start a new collection</p>
         </button>
         <button
           type="button"
@@ -41,7 +41,7 @@ export function CreateCollectionFabSheet({
           }}
         >
           <p className="text-sm font-bold text-ink">Update existing collection</p>
-          <p className="mt-0.5 text-xs text-muted">Add or change designs in a pack</p>
+          <p className="mt-0.5 text-xs text-muted">Add or change designs in a collection</p>
         </button>
       </div>
     </Sheet>

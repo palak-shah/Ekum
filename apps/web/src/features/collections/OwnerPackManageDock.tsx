@@ -1,18 +1,26 @@
 import { Button } from '@/ui/kit';
 import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
+import { CartIcon, ShareIcon, TrashIcon } from '@/ui/icons';
+
+const iconBtnClass =
+  'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface disabled:opacity-40';
 
 /**
- * Owner album viewer: Add · Replace (idle) or Delete · Remove (selecting).
- * Edit idle: Update only (Add designs lives on the page). Selecting same as viewer.
- * Replace lives in ⋯.
+ * Owner album viewer: Designs · Photos · Replace (idle, one row) or Cart · Share · Delete + Remove (selecting).
+ * Edit idle: Update only (membership / Add live on the album, not Edit).
  */
 export function OwnerPackManageDock({
   selecting,
   busy = false,
+  canAddToCart = false,
+  canShare = false,
   canDelete,
   canRemove,
-  onAdd,
+  onAddDesigns,
+  onAddPhotos,
   onReplace,
+  onAddToCart,
+  onShare,
   onDelete,
   onRemove,
   onUpdate,
@@ -21,10 +29,15 @@ export function OwnerPackManageDock({
 }: {
   selecting: boolean;
   busy?: boolean;
+  canAddToCart?: boolean;
+  canShare?: boolean;
   canDelete: boolean;
   canRemove: boolean;
-  onAdd: () => void;
-  onReplace: () => void;
+  onAddDesigns?: () => void;
+  onAddPhotos?: () => void;
+  onReplace?: () => void;
+  onAddToCart?: () => void;
+  onShare?: () => void;
   onDelete: () => void;
   onRemove: () => void;
   onUpdate?: () => void;
@@ -35,21 +48,44 @@ export function OwnerPackManageDock({
     <BottomTradeDock testId="owner-pack-manage-dock" aboveAppNav={false}>
       {selecting ? (
         <>
+          {onAddToCart ? (
+            <button
+              type="button"
+              aria-label="Add to cart"
+              disabled={!canAddToCart || busy}
+              data-testid="owner-pack-cart"
+              onClick={onAddToCart}
+              className={`${iconBtnClass} text-accent`}
+            >
+              <CartIcon width={22} height={22} />
+            </button>
+          ) : null}
+          {onShare ? (
+            <button
+              type="button"
+              aria-label="Share"
+              disabled={!canShare || busy}
+              data-testid="owner-pack-share"
+              onClick={onShare}
+              className={`${iconBtnClass} text-accent`}
+            >
+              <ShareIcon width={22} height={22} />
+            </button>
+          ) : null}
           {canDelete ? (
-            <Button
-              variant="secondary"
-              fullWidth
-              className="text-danger"
+            <button
+              type="button"
+              aria-label="Delete"
               disabled={busy}
               data-testid="owner-pack-delete"
               onClick={onDelete}
+              className={`${iconBtnClass} text-danger`}
             >
-              Delete
-            </Button>
+              <TrashIcon width={22} height={22} />
+            </button>
           ) : null}
           <Button
-            variant="secondary"
-            fullWidth
+            className="min-w-0 flex-1"
             disabled={!canRemove || busy}
             data-testid="owner-pack-remove"
             onClick={onRemove}
@@ -69,21 +105,29 @@ export function OwnerPackManageDock({
       ) : (
         <>
           <Button
-            fullWidth
-            disabled={busy}
-            data-testid="owner-pack-add"
-            onClick={onAdd}
+            className="min-w-0 flex-1"
+            disabled={busy || !onAddDesigns}
+            data-testid="owner-pack-add-designs"
+            onClick={onAddDesigns}
           >
-            Add designs
+            Designs
+          </Button>
+          <Button
+            className="min-w-0 flex-1"
+            disabled={busy || !onAddPhotos}
+            data-testid="owner-pack-add-photos"
+            onClick={onAddPhotos}
+          >
+            Photos
           </Button>
           <Button
             variant="secondary"
-            fullWidth
-            disabled={busy}
+            className="min-w-0 flex-1"
+            disabled={busy || !onReplace}
             data-testid="owner-pack-replace"
             onClick={onReplace}
           >
-            Replace whole collection
+            Replace
           </Button>
         </>
       )}

@@ -13,18 +13,19 @@ import { useTradePresence } from '@/lib/tradePresence';
 import { useMyCompany } from '@/lib/queries';
 import { pickSelectionLabel, shouldShowAlbumSelectActions } from '@/features/browse/albumSelectModel';
 import { selectionRowHref } from '@/features/browse/selectionRowHref';
-import { clearSelection } from '@/features/browse/clearSelection';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import {
-  writeBrowseAlbumPick,
-  type BrowseAlbumEntry,
-} from '@/features/browse/browseAlbumPick';
-import {
-  writeBrowseShortlist,
-  type BrowseShortlistEntry,
-} from '@/features/browse/browseShortlist';
+  clearBrowseCart,
+  readCartAlbums,
+  readCartDesigns,
+  writeCartAlbums,
+  writeCartDesigns,
+} from '@/features/browse/browseCart';
+import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
+import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import {
   CURATE_ASK_RELIST,
   curateAskAllLabel,
@@ -46,15 +47,19 @@ import {
   selectionListDesignChrome,
   type SelectionAvailability,
 } from '@/features/browse/selectionAvailability';
-import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
-import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { packHandlerName } from '@/features/browse/packOrderSource';
+import { addStagingToCart } from '@/features/browse/addStagingToCart';
+import {
+  collectionIdForPackOrder,
+  packHandlerName,
+} from '@/features/browse/packOrderSource';
 import { entriesAsProducts, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { SAVED_QUERY_KEY } from '@/features/saved/useSaveToggle';
 import { youSavedHref } from '@/features/saved/youSavedHref';
+import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
+import { BookmarkIcon, RepostIcon, ShareIcon } from '@/ui/icons';
 import { Button, EmptyState, LoadingBlock, cx } from '@/ui/kit';
 
 type DesignRow = BrowseShortlistEntry & { availability?: SelectionAvailability };
@@ -73,8 +78,17 @@ export function SelectionPage() {
   const { trading } = useTradePresence();
   const me = useMyCompany();
   const myCompanyId = me.data?.id;
-  const shortlist = useBrowseShortlist();
-  const albumPick = useBrowseAlbumPick();
+  const cart = useBrowseCart();
+  const shortlist = {
+    entries: cart.designs,
+    count: cart.designCount,
+    removeIds: cart.removeDesignIds,
+  };
+  const albumPick = {
+    entries: cart.albums,
+    count: cart.albumCount,
+    removeIds: cart.removeAlbumIds,
+  };
   const orderFlow = useShortlistOrderFlow();
   const [curateOpen, setCurateOpen] = useState(false);
   const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
@@ -213,7 +227,7 @@ export function SelectionPage() {
         })
         .map((p) => p.id);
       if (lockedIds.length < 1) {
-        showToast('Nothing to ask for in this pack.');
+        showToast('Nothing to ask for in this collection.');
         setAskingKey(null);
         return;
       }
@@ -300,7 +314,7 @@ export function SelectionPage() {
   };
 
   const onClear = () => {
-    clearSelection();
+    clearBrowseCart();
   };
 
   const onOrder = () => {
@@ -354,16 +368,20 @@ export function SelectionPage() {
     if (!state.openCurate && !state.openOrder) return;
     navigate(location.pathname + location.search, { replace: true, state: {} });
     clearResumeAfterAlbumPick();
+    // Resume pick-designs lands in staging — fold into cart before acting.
+    addStagingToCart();
+    const cartDesigns = readCartDesigns();
+    const cartAlbums = readCartAlbums();
     if (state.openCurate) {
-      const { allowed: packAlbums } = partitionRelistableAlbums(albumPick.entries);
+      const { allowed: packAlbums } = partitionRelistableAlbums(cartAlbums);
       if (packAlbums.length > 0) setCurateResolveOpen(true);
-      else if (shortlist.count > 0) openCurateWithDesigns(shortlist.entries, []);
+      else if (cartDesigns.length > 0) openCurateWithDesigns(cartDesigns, []);
       return;
     }
     if (state.openOrder) {
       orderFlow.setError(null);
-      if (albumPick.count > 0) setOrderResolveOpen(true);
-      else if (shortlist.count > 0) orderFlow.setQtyOpen(true);
+      if (cartAlbums.length > 0) setOrderResolveOpen(true);
+      else if (cartDesigns.length > 0) orderFlow.setQtyOpen(true);
     }
     // Intentionally once per nav state — not when shortlist/album counts change.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume handoff
@@ -392,7 +410,7 @@ export function SelectionPage() {
           ? youSavedHref({ collections: true })
           : youSavedHref();
       navigate(savedTo);
-      clearSelection();
+      clearBrowseCart();
       showToast(saved === 1 ? 'Bookmarked' : `${saved} bookmarked`, 'success');
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not bookmark.', 'danger');
@@ -402,13 +420,19 @@ export function SelectionPage() {
   };
 
   return (
-    <div className={cx('flex flex-col gap-4', total > 0 && 'pb-[calc(14rem+env(safe-area-inset-bottom))]')}>
-      <PageHeader title="Your selection" />
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        // Icons + Order + Clear cart (same band shape as Explore selecting dock).
+        total > 0 && 'pb-[calc(9.5rem+env(safe-area-inset-bottom))]',
+      )}
+    >
+      <PageHeader title="Cart" />
 
       {total < 1 ? (
         <EmptyState
-          title="Nothing selected"
-          message="Long-press designs or packs on Explore, then come back here."
+          title="Cart is empty"
+          message="On Explore, Select designs or collections, then tap Cart on the dock."
           action={
             <Button variant="secondary" onClick={() => navigate('/explore')}>
               Open Explore
@@ -514,8 +538,15 @@ export function SelectionPage() {
           </ul>
 
           {typeof document !== 'undefined' ? (
-            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <div className="mx-auto flex max-w-md flex-col gap-2.5">
+            <div
+              className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md"
+              data-testid="selection-cart-dock"
+            >
+              {/*
+                Phone-column dock (same as Explore selecting): chrome stays inside
+                max-w-md — never a full-laptop white bar when Cart opens on desktop.
+              */}
+              <div className="pointer-events-auto flex flex-col gap-2.5 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
                 {availableTotal < 1 && !resolving ? (
                   <p className="text-[13px] text-muted">Nothing available to act on</p>
                 ) : null}
@@ -550,17 +581,10 @@ export function SelectionPage() {
                       : curateAskAllLabel(packAskDesigns.length)}
                   </Button>
                 ) : null}
-                <div className="flex flex-col gap-2">
-                  {shown.order ? (
-                    <Button
-                      fullWidth
-                      disabled={availableTotal < 1 || savingPick}
-                      onClick={onOrder}
-                      data-testid="selection-order"
-                    >
-                      Order
-                    </Button>
-                  ) : null}
+                <div
+                  className="flex items-stretch gap-2"
+                  data-testid="selection-cart-actions"
+                >
                   {(() => {
                     const secondary = [shown.curate, shown.bookmark, shown.share].filter(Boolean)
                       .length;
@@ -568,49 +592,65 @@ export function SelectionPage() {
                     return (
                       <div
                         className={cx(
-                          'grid gap-2',
-                          secondary === 3 ? 'grid-cols-3' : secondary === 2 ? 'grid-cols-2' : 'grid-cols-1',
+                          'grid min-w-0 flex-1 gap-1.5',
+                          secondary === 3
+                            ? 'grid-cols-3'
+                            : secondary === 2
+                              ? 'grid-cols-2'
+                              : 'grid-cols-1',
                         )}
                       >
                         {shown.curate ? (
-                          <Button
-                            variant="secondary"
-                            className="min-w-0 px-2"
+                          <DockIconButton
+                            testId="selection-curate"
+                            label="Repost"
                             disabled={availableTotal < 1 || savingPick}
                             onClick={onCurate}
-                            data-testid="selection-curate"
                           >
-                            Curate
-                          </Button>
+                            <RepostIcon width={22} height={22} />
+                          </DockIconButton>
                         ) : null}
                         {shown.bookmark ? (
-                          <Button
-                            variant="secondary"
-                            className="min-w-0 px-2"
+                          <DockIconButton
+                            testId="selection-bookmark"
+                            label={savingPick ? 'Saving…' : 'Bookmark'}
                             disabled={availableTotal < 1 || savingPick}
                             onClick={() => void onBookmark()}
-                            data-testid="selection-bookmark"
                           >
-                            {savingPick ? 'Saving…' : 'Bookmark'}
-                          </Button>
+                            <BookmarkIcon width={22} height={22} />
+                          </DockIconButton>
                         ) : null}
                         {shown.share ? (
-                          <Button
-                            variant="secondary"
-                            className="min-w-0 px-2"
+                          <DockIconButton
+                            testId="selection-share"
+                            label="Share"
                             disabled={availableTotal < 1 || savingPick}
                             onClick={() => {
                               toastSkippedUnavailable();
                               setShareOpen(true);
                             }}
-                            data-testid="selection-share"
                           >
-                            Share
-                          </Button>
+                            <ShareIcon width={22} height={22} />
+                          </DockIconButton>
                         ) : null}
                       </div>
                     );
                   })()}
+                  {shown.order ? (
+                    <button
+                      type="button"
+                      data-testid="selection-order"
+                      disabled={availableTotal < 1 || savingPick}
+                      onClick={onOrder}
+                      className={cx(
+                        'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-4',
+                        'border border-accent bg-accent text-sm font-bold text-white',
+                        'disabled:opacity-40',
+                      )}
+                    >
+                      Order
+                    </button>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -618,7 +658,7 @@ export function SelectionPage() {
                   onClick={onClear}
                   data-testid="selection-clear"
                 >
-                  Clear selection
+                  Clear cart
                 </button>
               </div>
             </div>
@@ -640,8 +680,8 @@ export function SelectionPage() {
           const unavailableDesigns = shortlist.entries.filter(
             (entry) => availability.data?.designs.get(entry.productId)?.available === false,
           );
-          writeBrowseShortlist([...unavailableDesigns, ...nextShortlist]);
-          writeBrowseAlbumPick([...unavailableAlbums, ...remainingAlbums]);
+          writeCartDesigns([...unavailableDesigns, ...nextShortlist]);
+          writeCartAlbums([...unavailableAlbums, ...remainingAlbums]);
           setOrderResolveOpen(false);
           if (navigateToCollectionId) {
             writeResumeAfterAlbumPick('order');
@@ -675,12 +715,12 @@ export function SelectionPage() {
             (entry) => availability.data?.designs.get(entry.productId)?.available === false,
           );
           const lockedAlbums = partitionRelistableAlbums(albumPick.entries).locked;
-          writeBrowseShortlist([...unavailableDesigns, ...nextShortlist]);
+          writeCartDesigns([...unavailableDesigns, ...nextShortlist]);
           const keptAlbums = new Map<string, BrowseAlbumEntry>();
           for (const entry of [...unavailableAlbums, ...lockedAlbums, ...remainingAlbums]) {
             keptAlbums.set(entry.collectionId, entry);
           }
-          writeBrowseAlbumPick([...keptAlbums.values()]);
+          writeCartAlbums([...keptAlbums.values()]);
           setCurateResolveOpen(false);
           if (navigateToCollectionId) {
             writeResumeAfterAlbumPick('curate');
@@ -705,7 +745,7 @@ export function SelectionPage() {
           name: entry.name,
         }))}
         onShared={() => {
-          clearSelection();
+          clearBrowseCart();
         }}
       />
       <HowManyEachSheet
@@ -731,9 +771,21 @@ export function SelectionPage() {
         error={orderFlow.error}
         orderGoesToName={packHandlerName(resolving ? shortlist.entries : availableDesigns)}
         onRemoveProduct={(productId) => shortlist.removeIds([productId])}
-        onSendOrder={orderFlow.sendOrder}
-        onAskRates={orderFlow.askRates}
-        onShared={() => clearSelection()}
+        onSendOrder={(lines, place) => {
+          const linesForPath = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
+          orderFlow.sendOrder(lines, {
+            transporter: place?.transporter,
+            collectionId: collectionIdForPackOrder(linesForPath),
+          });
+        }}
+        onAskRates={(lines, place) => {
+          const linesForPath = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
+          orderFlow.askRates(lines, {
+            transporter: place?.transporter,
+            collectionId: collectionIdForPackOrder(linesForPath),
+          });
+        }}
+        sheetJob="order"
       />
       <CurateFromSelectionSheet
         open={curateOpen}
@@ -744,7 +796,7 @@ export function SelectionPage() {
         }}
         productIds={curateProductIds}
         defaultName={curateDefaultName}
-        onCurated={() => clearSelection()}
+        onCurated={() => clearBrowseCart()}
       />
     </div>
   );

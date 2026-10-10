@@ -6,6 +6,7 @@ import {
   shopAlbumEntries,
   shopSelectedCount,
   shopShortlistEntries,
+  shopTabSelectedCount,
 } from './shopTradeDock';
 
 const surat = {
@@ -90,6 +91,14 @@ describe('shopSelectedCount', () => {
   });
 });
 
+describe('shopTabSelectedCount', () => {
+  it('counts only the active tab so designs do not look like collections', () => {
+    expect(shopTabSelectedCount('designs', 3, 2)).toBe(3);
+    expect(shopTabSelectedCount('collections', 3, 2)).toBe(2);
+    expect(shopTabSelectedCount('collections', 3, 0)).toBe(0);
+  });
+});
+
 describe('shouldShowShopTradeDock', () => {
   it('shows only for another shop with picks', () => {
     expect(shouldShowShopTradeDock({ isOwn: false, shopSelectedCount: 1 })).toBe(true);
@@ -99,6 +108,15 @@ describe('shouldShowShopTradeDock', () => {
 });
 
 describe('shouldHideAppNav', () => {
+  it('hides when the Selection dock owns Explore', () => {
+    expect(
+      shouldHideAppNav('/explore', {
+        thisShopSelectedCount: 0,
+        selectionWorkspaceUp: true,
+      }),
+    ).toBe(true);
+  });
+
   it('hides on Your selection', () => {
     expect(shouldHideAppNav('/selection', { thisShopSelectedCount: 0 })).toBe(true);
   });

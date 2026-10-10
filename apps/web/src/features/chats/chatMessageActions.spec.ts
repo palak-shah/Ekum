@@ -8,6 +8,7 @@ import {
   canForwardMessage,
   copyTextForMessage,
   forwardPayload,
+  replyQuoteOpenPath,
 } from './chatMessageActions';
 
 function base(partial: Partial<MessageView> & Pick<MessageView, 'type'>): MessageView {
@@ -155,5 +156,37 @@ describe('edit / delete windows', () => {
       createdAt: new Date(Date.now() - 61 * 60 * 1000).toISOString(),
     });
     expect(canDeleteForEveryone(msg)).toBe(false);
+  });
+});
+
+describe('replyQuoteOpenPath', () => {
+  it('opens collection, design, or design set from reply preview', () => {
+    expect(
+      replyQuoteOpenPath({
+        id: 'm',
+        type: 'collection_card',
+        bodyPreview: 'Collection · Wedding',
+        available: true,
+        referenceId: 'col-1',
+      }),
+    ).toBe('/collections/col-1');
+    expect(
+      replyQuoteOpenPath({
+        id: 'm',
+        type: 'product_card',
+        bodyPreview: 'Design · Navy',
+        available: true,
+        referenceId: 'p1',
+      }),
+    ).toBe('/explore/products/p1');
+    expect(
+      replyQuoteOpenPath({
+        id: 'm',
+        type: 'design_album',
+        bodyPreview: '2 designs',
+        available: true,
+        productIds: ['p1', 'p2'],
+      }),
+    ).toContain('/designs/set');
   });
 });

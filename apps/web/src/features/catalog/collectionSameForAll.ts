@@ -1,6 +1,11 @@
 import { Unit } from '@ekum/domain-types';
 import type { SameForAllDetails } from './rateInput';
-import { parseRateInput, sameForAllIsEmpty, sameForAllSummary } from './rateInput';
+import {
+  formatRateInput,
+  parseRateInput,
+  sameForAllIsEmpty,
+  sameForAllSummary,
+} from './rateInput';
 
 /** Packed order units show “1 set contains”. */
 export function unitAsksPiecesPerSet(unit: string): boolean {
@@ -130,14 +135,17 @@ export function applySameForAllToForm(
   };
 }
 
-/** Force shared values onto member (Use same as all — explicit override). */
+/**
+ * Force shared units / MOQ / notes onto member (Apply / Use same as all).
+ * Rate never overwrites — pack rate and design rate stay separate; only empty design rates fill.
+ */
 export function forceSameForAllToForm(
   form: MemberDesignForm,
   shared: SameForAllDetails,
 ): MemberDesignForm {
   return {
     ...form,
-    rate: shared.rate.trim() ? shared.rate : form.rate,
+    rate: form.rate.trim() ? form.rate : shared.rate.trim() ? shared.rate : form.rate,
     unit: shared.unit.trim() ? shared.unit : form.unit,
     dispatchUnit: shared.dispatchUnit.trim() ? shared.dispatchUnit : form.dispatchUnit,
     piecesPerPack: shared.piecesPerPack.trim()
@@ -150,6 +158,51 @@ export function forceSameForAllToForm(
         ? unionTags(form.categories, shared.categories)
         : form.categories,
   };
+}
+
+/**
+ * New create-mode photos: pack Rate fills empty only (design’s own rate wins).
+ * Apply-to-all forces units / MOQ / notes — never a filled design rate.
+ */
+export function stampCreatePhotoMemberForm(
+  form: MemberDesignForm,
+  shared: SameForAllDetails,
+  applyToAll: boolean,
+): MemberDesignForm {
+  return applyToAll
+    ? forceSameForAllToForm(form, shared)
+    : applySameForAllToForm(form, shared);
+}
+
+/** True when the design already has a priced rate. */
+export function designHasOwnRate(rate: number | null | undefined): boolean {
+  return rate != null;
+}
+
+/**
+ * Design should take the pack rate when it has no rate, or still matches the
+ * previous pack rate (inherited — not a design-specific price).
+ */
+export function designFollowsPackRate(
+  design: { rate: number | null | undefined; rateMax?: number | null },
+  previousPackRate: string,
+): boolean {
+  if (design.rate == null) return true;
+  const prev = previousPackRate.trim();
+  if (!prev) return false;
+  return formatRateInput(design.rate, design.rateMax ?? null) === prev;
+}
+
+/** Shared pack rate string when every priced member matches; else ''. */
+export function unanimousMemberRate(
+  members: ReadonlyArray<{ rate: number | null; rateMax?: number | null }>,
+): string {
+  const priced = members
+    .map((row) => formatRateInput(row.rate, row.rateMax ?? null))
+    .filter((raw) => raw.trim());
+  if (priced.length === 0) return '';
+  const first = priced[0]!;
+  return priced.every((raw) => raw === first) ? first : '';
 }
 
 /** Product create/patch payload from rate text + member fields. */

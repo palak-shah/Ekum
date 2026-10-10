@@ -314,6 +314,7 @@ export class ReferenceResolver {
           designItems: media.designItems.length > 0 ? media.designItems : null,
           itemCount: media.images.length > 0 ? media.images.length : null,
           available: Boolean(row),
+          status: row?.status ?? null,
           orderLabel: complaintCardOrderLine(complaintAttachedOrderCue(row?.order)),
           orderId: row?.orderId ?? null,
         });
@@ -583,6 +584,7 @@ export const COMPLAINT_CARD_SELECT = {
   subject: true,
   detail: true,
   images: true,
+  status: true,
   orderId: true,
   order: {
     select: {

@@ -72,6 +72,14 @@ describe('OrderSerializer remainingQuantity', () => {
     expect(view.items[0]?.available).toBe(false);
   });
 
+  it('exposes order.transporter before any shipment', () => {
+    const base = orderWithItem(OrderLineStatus.Open) as never as { transporter: string | null };
+    base.transporter = 'VRL Logistics';
+    const view = serializer.toOrderView(base as never, 'buyer');
+    expect(view.transporter).toBe('VRL Logistics');
+    expect(view.dispatch).toBeNull();
+  });
+
   it('gives remaining qty only for confirmed lines', () => {
     const view = serializer.toOrderView(orderWithItem(OrderLineStatus.Confirmed) as never, 'seller');
     expect(view.items[0]?.remainingQuantity).toBe(10);
@@ -109,6 +117,59 @@ describe('OrderSerializer remainingQuantity', () => {
     expect(view.items[0]?.shippedQuantity).toBe(2);
     expect(view.items[0]?.remainingQuantity).toBe(0);
     expect(view.items[0]?.quantity).toBe(1);
+  });
+
+  it('exposes shipment legs and primary LR from first non-empty leg', () => {
+    const base = orderWithItem(OrderLineStatus.Dispatched) as never as {
+      shipments: unknown[];
+    };
+    base.shipments = [
+      {
+        id: 's1',
+        orderId: 'o1',
+        transporter: null,
+        lrNumber: 'STALE',
+        parcelCount: 2,
+        dispatchedAt: new Date(),
+        items: [
+          {
+            orderItemId: 'oi1',
+            quantity: { toNumber: () => 4 },
+            orderItem: { id: 'oi1', name: 'A' },
+          },
+        ],
+        legs: [
+          {
+            id: 'l1',
+            shipmentId: 's1',
+            lrNumber: null,
+            billNumber: 'B1',
+            imageUrls: ['https://a/lr.jpg'],
+            sortOrder: 0,
+          },
+          {
+            id: 'l2',
+            shipmentId: 's1',
+            lrNumber: 'LR-2',
+            billNumber: 'B2',
+            imageUrls: [],
+            sortOrder: 1,
+          },
+        ],
+      },
+    ];
+    const view = serializer.toOrderView(base as never, 'seller');
+    expect(view.shipments[0]?.lrNumber).toBe('LR-2');
+    expect(view.shipments[0]?.legs).toEqual([
+      {
+        id: 'l1',
+        lrNumber: null,
+        billNumber: 'B1',
+        imageUrls: ['https://a/lr.jpg'],
+        sortOrder: 0,
+      },
+      { id: 'l2', lrNumber: 'LR-2', billNumber: 'B2', imageUrls: [], sortOrder: 1 },
+    ]);
   });
 
   it('exposes part_shipped when confirmed has partial shipments', () => {

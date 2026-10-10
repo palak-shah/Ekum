@@ -23,6 +23,8 @@ export type PublishAudienceState = {
   rateVisibility: string;
   allowForward: boolean;
   allowDownload: boolean;
+  /** Curated packs: show From {mill} to buyers. Default off. */
+  showSourceShops: boolean;
   policyHint: string | null;
 };
 
@@ -37,6 +39,7 @@ export function emptyPublishAudienceState(
     rateVisibility: usual?.rateVisibility ?? RateVisibility.OnRequest,
     allowForward: usual?.allowForward !== false,
     allowDownload: usual?.allowDownload === true,
+    showSourceShops: false,
     policyHint: null,
   };
 }
@@ -49,6 +52,7 @@ export function restorePublishAudienceState(input: {
   rateVisibility: string;
   allowForward: boolean;
   allowDownload?: boolean;
+  showSourceShops?: boolean;
   maxAudience?: string | null;
 }): PublishAudienceState {
   const groupIds = input.audienceGroupIds ?? [];
@@ -62,6 +66,7 @@ export function restorePublishAudienceState(input: {
     rateVisibility: input.rateVisibility || RateVisibility.OnRequest,
     allowForward: input.allowForward !== false,
     allowDownload: input.allowDownload === true,
+    showSourceShops: input.showSourceShops === true,
     policyHint: null,
   };
 }
@@ -121,6 +126,8 @@ type Props = {
    * Wider options are faded + disabled. `null` = no ceiling.
    */
   maxAudience?: string | null;
+  /** Curated / Repost packs: Show supplier name toggle (default off). */
+  showSourceShopsOption?: boolean;
 };
 
 export function PublishAudienceFields({
@@ -138,6 +145,7 @@ export function PublishAudienceFields({
   onCreateGroup,
   isVisibilityUpdate = false,
   maxAudience = null,
+  showSourceShopsOption = false,
 }: Props) {
   const whoReady = Boolean(state.audience);
   const showSelectedExtras = state.audience === PublishAudience.Selected;
@@ -184,6 +192,7 @@ export function PublishAudienceFields({
       rateVisibility: usual.rateVisibility,
       allowForward: usual.allowForward,
       allowDownload: usual.allowDownload,
+      showSourceShops: state.showSourceShops,
       policyHint: null,
     });
   };
@@ -199,6 +208,7 @@ export function PublishAudienceFields({
       rateVisibility: usual.rateVisibility,
       allowForward: usual.allowForward,
       allowDownload: usual.allowDownload,
+      showSourceShops: state.showSourceShops,
       policyHint: null,
     });
   };
@@ -407,6 +417,31 @@ export function PublishAudienceFields({
             />
             <span>Buyers can download these designs</span>
           </label>
+          {showSourceShopsOption ? (
+            <label
+              className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink"
+              data-testid="publish-show-source-shops"
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={state.showSourceShops}
+                onChange={(event) =>
+                  onChange({
+                    ...state,
+                    showSourceShops: event.target.checked,
+                    policyHint: null,
+                  })
+                }
+              />
+              <span>
+                Show supplier name
+                <span className="mt-0.5 block text-xs font-normal text-muted">
+                  Buyers see which mill the designs came from. Off by default.
+                </span>
+              </span>
+            </label>
+          ) : null}
           {state.policyHint ? (
             <p className="text-xs text-muted">{state.policyHint}</p>
           ) : null}

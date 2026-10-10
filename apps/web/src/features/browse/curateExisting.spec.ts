@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CollectionStatus, type CollectionView } from '@ekum/domain-types';
 import {
   curateExistingTargets,
+  curatePublishedTargets,
   filterCurateTargetsByQuery,
   findOwnedPackByName,
   mergeCollectionProductIds,
@@ -21,6 +22,7 @@ function pack(
     audienceGroupIds: [],
     allowForward: true,
     allowDownload: false,
+    showSourceShops: false,
     categories: [],
     memberFind: [],
     orderPathPreference: null,
@@ -52,6 +54,18 @@ describe('curateExistingTargets', () => {
       pack({ id: 'r', name: 'Beta', status: CollectionStatus.Ready }),
     ]);
     expect(list.map((c) => c.id)).toEqual(['d', 'r', 'p']);
+  });
+});
+
+describe('curatePublishedTargets', () => {
+  it('keeps only published, sorted by name', () => {
+    const list = curatePublishedTargets([
+      pack({ id: 'p2', name: 'Zebra', status: CollectionStatus.Published }),
+      pack({ id: 'd', name: 'Alpha', status: CollectionStatus.Draft }),
+      pack({ id: 'p1', name: 'Mid', status: CollectionStatus.Published }),
+      pack({ id: 'a', name: 'Archived', status: CollectionStatus.Archived }),
+    ]);
+    expect(list.map((c) => c.id)).toEqual(['p1', 'p2']);
   });
 });
 

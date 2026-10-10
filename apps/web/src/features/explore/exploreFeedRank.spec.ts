@@ -12,12 +12,23 @@ function collectionOpportunity(
     collection: {
       id,
       name: id,
+      description: null,
       updatedAt,
       categories: [],
       memberFind: [],
       coverImage: null,
+      previewImages: [],
+      imageCount: 0,
       productCount: 1,
+      status: 'published',
       allowForward: true,
+      orderPathPreference: null,
+      rateMin: null,
+      rateMax: null,
+      rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
       company: {
         id: `co-${id}`,
         name: 'Co',
@@ -43,6 +54,10 @@ function designOpportunity(
       name: id,
       postedAt,
       images: [],
+      rate: null,
+      rateMax: null,
+      unit: null,
+      categories: [],
       allowForward: true,
       company: {
         id: `co-${id}`,
@@ -108,6 +123,19 @@ describe('exploreFeedRank', () => {
       { buyingFeed: true },
     );
     expect(feed.map((row) => row.id)).toEqual(['c:interest', 'd:design']);
+  });
+
+  it('buying feed keeps the viewer’s own packs even with weak relevance', () => {
+    const own = collectionOpportunity('wedding', 'Surat', '2026-10-08T10:00:00.000Z');
+    own.collection.company.id = 'co-me';
+    const feed = buildRankedPostFeed(
+      [],
+      [],
+      [own, collectionOpportunity('other', 'Surat', '2026-10-09T10:00:00.000Z')],
+      [],
+      { buyingFeed: true, viewerCompanyId: 'co-me' },
+    );
+    expect(feed.map((row) => row.id)).toEqual(['c:wedding']);
   });
 
   it('puts unseen posts above seen within the same tier', () => {

@@ -16,6 +16,7 @@ describe('OrderTrailService soft-hide', () => {
         note: null,
         noteVoiceUrl: null,
         noteVoiceDurationMs: null,
+        noteImageUrls: [],
       },
     ];
     const prisma = {
@@ -57,6 +58,7 @@ describe('OrderTrailService heal bare Quoted', () => {
         note: null,
         noteVoiceUrl: null,
         noteVoiceDurationMs: null,
+        noteImageUrls: [],
       },
       {
         id: 'q2',
@@ -69,6 +71,7 @@ describe('OrderTrailService heal bare Quoted', () => {
         note: null,
         noteVoiceUrl: null,
         noteVoiceDurationMs: null,
+        noteImageUrls: [],
       },
     ];
     const updates: { id: string; summary: string }[] = [];

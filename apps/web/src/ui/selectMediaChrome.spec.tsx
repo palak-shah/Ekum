@@ -14,9 +14,25 @@ describe('SelectableMediaFrame', () => {
     expect(frame.className).toContain('bg-surface');
     expect(frame.className).not.toContain('bg-accent');
     const media = container.querySelector('[data-testid="selectable-media-selected"] > div');
-    expect(media?.className ?? '').toContain('scale-[0.97]');
+    expect(media?.className ?? '').toContain('scale-[0.92]');
+    expect(media?.className ?? '').toContain('relative');
     const check = container.querySelector('[data-testid="selectable-media-selected"] > span');
     expect(check?.className).toContain('bg-accent');
+    expect(check?.className).toContain('h-[18px]');
+    expect(check?.className).toContain('w-[18px]');
+    expect(check?.className).toContain('ring-1');
+  });
+
+  it('keeps in-media overlays inside the scaled photo (rate chip)', () => {
+    const { container } = render(
+      <SelectableMediaFrame selectMode selected>
+        <img alt="" src="/x.jpg" />
+        <span data-testid="rate-overlay">₹160/mtr</span>
+      </SelectableMediaFrame>,
+    );
+    const media = container.querySelector('[data-testid="selectable-media-selected"] > div');
+    expect(media?.querySelector('[data-testid="rate-overlay"]')).toBeTruthy();
+    expect(media?.className ?? '').toContain('scale-[0.92]');
   });
 
   it('does not grey out or scale unselected media while Selecting', () => {

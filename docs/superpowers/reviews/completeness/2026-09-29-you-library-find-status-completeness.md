@@ -12,7 +12,7 @@
 | Lens | Summary findings |
 |------|------------------|
 | Product Manager | Everyday job is live packs/designs. Draft, archive, and bookmarks are hunt jobs — same door as Find. |
-| UX Designer | Resting chrome: Designs / Collections + Find + Grid + Add. Find open: field + chips **Draft · Archived · Saved**. Close Find returns to published. Save-in-draft still opens Find on Draft. `/saved` still lands Saved. |
+| UX Designer | Resting chrome: Designs / Collections + Find + Grid + Add. Find open: field + filter menu **Draft · Archived · Bookmark**. Close Find returns to published. Save-in-draft still opens Find on Draft. `/saved` still lands Bookmark. |
 | Solution Architect | Status filter state unchanged; persistence of last chip as You landing is dropped (it fought published-first). |
 
 ---
@@ -64,7 +64,7 @@
 ## Approved scope for this slice
 
 - You Designs / Collections: no status chips on the resting page.
-- Find opens **search + filter square** (Orders / Explore). Filter menu: **Draft · Archived · Saved**. No Published row. Close Find → published. Active filter: **Showing …** + Clear.
+- Find opens **search + filter square** (Orders / Explore). Filter menu: **Draft · Archived · Bookmark**. No Published row. Close Find → published. Active filter: **Showing …** + Clear.
 
 ## Explicitly deferred / rejected
 

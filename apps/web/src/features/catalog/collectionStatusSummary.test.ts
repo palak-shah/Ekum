@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CollectionStatus, PublishAudience } from '@ekum/domain-types';
 import { collectionScheduleBadge } from './collectionScheduleBadge';
-import { collectionStatusSummary, whoCanSeeLabel } from './collectionStatusSummary';
+import {
+  collectionListingCaption,
+  collectionSharedCompanyCount,
+  collectionStatusSummary,
+  whoCanSeeLabel,
+} from './collectionStatusSummary';
 
 describe('collectionStatusSummary', () => {
   const now = new Date('2026-09-15T12:00:00.000Z');
@@ -109,6 +114,75 @@ describe('whoCanSeeLabel', () => {
       'My connections',
     );
     expect(whoCanSeeLabel({ status: 'published', audience: 'followers' })).toBe('My followers');
+  });
+});
+
+describe('collectionListingCaption', () => {
+  const now = new Date('2026-09-15T12:00:00.000Z');
+
+  it('shows designs · shared with N for live Selected companies', () => {
+    expect(
+      collectionListingCaption(
+        {
+          status: CollectionStatus.Published,
+          productCount: 18,
+          audience: PublishAudience.Selected,
+          audienceCompanyIds: ['a', 'b', 'c', 'd'],
+        },
+        [],
+        now,
+      ),
+    ).toBe('18 designs · shared with 4');
+  });
+
+  it('omits shared-with for Followers and empty Selected', () => {
+    expect(
+      collectionListingCaption(
+        {
+          status: CollectionStatus.Published,
+          productCount: 10,
+          audience: PublishAudience.Followers,
+        },
+        [],
+        now,
+      ),
+    ).toBe('10 designs');
+    expect(
+      collectionSharedCompanyCount({
+        status: CollectionStatus.Published,
+        audience: PublishAudience.Selected,
+        audienceCompanyIds: [],
+      }),
+    ).toBeNull();
+    expect(
+      collectionListingCaption(
+        {
+          status: CollectionStatus.Published,
+          productCount: 1,
+          audience: PublishAudience.Selected,
+          audienceCompanyIds: [],
+        },
+        [],
+        now,
+      ),
+    ).toBe('1 design');
+  });
+
+  it('keeps Draft / Archived without Published or a date', () => {
+    expect(
+      collectionListingCaption(
+        { status: CollectionStatus.Draft, productCount: 3 },
+        [],
+        now,
+      ),
+    ).toBe('3 designs · Draft');
+    expect(
+      collectionListingCaption(
+        { status: CollectionStatus.Archived, productCount: 2 },
+        [],
+        now,
+      ),
+    ).toBe('2 designs · Archived');
   });
 });
 

@@ -1,4 +1,5 @@
 import { CollectionStatus, PublishAudience } from '@ekum/domain-types';
+import { designCountLabel } from '@/ui/albumMosaic';
 
 export type CollectionSummaryInput = {
   status: string;
@@ -166,4 +167,33 @@ export function collectionStatusSummary(
     scheduleLabel,
     phase,
   };
+}
+
+/** Selected company count for listing “shared with N”; null when not countable. */
+export function collectionSharedCompanyCount(
+  collection: CollectionSummaryInput,
+): number | null {
+  if (collection.audience !== PublishAudience.Selected) return null;
+  const n = collection.audienceCompanyIds?.length ?? 0;
+  return n > 0 ? n : null;
+}
+
+/**
+ * You / library collection tile caption — designs + optional shared-with.
+ * No Published, no created/updated date.
+ */
+export function collectionListingCaption(
+  collection: CollectionSummaryInput & { productCount: number },
+  groups: BuyerGroupName[] = [],
+  now: Date = new Date(),
+): string {
+  const designs = designCountLabel(collection.productCount);
+  const summary = collectionStatusSummary(collection, groups, now);
+  if (summary.phase === 'live') {
+    const shared = collectionSharedCompanyCount(collection);
+    return shared != null ? `${designs} · shared with ${shared}` : designs;
+  }
+  if (summary.phase === 'draft') return `${designs} · Draft`;
+  if (summary.phase === 'archived') return `${designs} · Archived`;
+  return joinParts([designs, summary.line]);
 }

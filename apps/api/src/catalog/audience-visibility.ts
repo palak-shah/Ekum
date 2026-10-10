@@ -65,10 +65,13 @@ export function canViewCollectionProducts(
 
 /**
  * Prisma `OR` for Explore/shop: posts visible to this viewer by audience.
+ * Always includes the viewer’s own published posts (Followers/Selected packs
+ * would otherwise vanish for the owner — they are not a follower of themselves).
  * Do not use `audience: { not: selected }` — that would leak followers posts.
  */
 export function audienceVisibilityOr(viewerCompanyId: string): object[] {
   return [
+    { companyId: viewerCompanyId },
     { audience: PublishAudience.Everyone },
     {
       audience: PublishAudience.Connections,

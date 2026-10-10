@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { cx } from '@/ui/kit';
+import { useEffect, useState } from 'react';
 import type { MuteFor } from '@ekum/domain-types';
-import { placeInboxRowMenu } from './placeInboxRowMenu';
-import { ChatMuteDurationFlyout } from './ChatMuteDurationFlyout';
-
-const ITEM =
-  'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
+import { MUTE_FOR_OPTIONS } from './ChatMuteDurationFlyout';
+import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
+import {
+  BellIcon,
+  CollectionIcon,
+  LockIcon,
+  PinIcon,
+  TrashIcon,
+} from '@/ui/icons';
 
 export function ChatsInboxRowMenu({
   isGroup,
@@ -15,7 +17,9 @@ export function ChatsInboxRowMenu({
   unread,
   archived,
   pending,
-  anchor,
+  open,
+  title = 'Chat',
+  anchor = null,
   onClose,
   onPin,
   onMute,
@@ -33,7 +37,11 @@ export function ChatsInboxRowMenu({
   unread?: boolean;
   archived?: boolean;
   pending?: boolean;
-  anchor: { top: number; bottom: number; right: number } | null;
+  /** When false, sheet is closed. Prefer over legacy `anchor`. */
+  open?: boolean;
+  title?: string;
+  /** @deprecated positioning unused — sheet is bottom-anchored. Kept for call-site compat. */
+  anchor?: { top: number; bottom: number; right: number } | null;
   onClose: () => void;
   onPin: () => void;
   onMute: () => void;
@@ -45,175 +53,120 @@ export function ChatsInboxRowMenu({
   onExitGroup: () => void;
   onBlock?: () => void;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [mutePick, setMutePick] = useState(false);
-  const [host, setHost] = useState<{
-    top: number;
-    left: number;
-    right: number;
-    bottom: number;
-  } | null>(null);
-  const [pos, setPos] = useState(() =>
-    placeInboxRowMenu(anchor ?? { top: 80, bottom: 120, right: 320 }, {
-      width: typeof window === 'undefined' ? 390 : window.innerWidth,
-      height: typeof window === 'undefined' ? 720 : window.innerHeight,
-    }),
+  const [step, setStep] = useState<'root' | 'mute'>('root');
+  const sheetOpen = open ?? Boolean(anchor);
+
+  useEffect(() => {
+    if (!sheetOpen) setStep('root');
+  }, [sheetOpen]);
+
+  const rootItems: MoreActionItem[] = [
+    {
+      id: 'pin',
+      label: pinned ? 'Unpin chat' : 'Pin chat',
+      icon: <PinIcon width={20} height={20} />,
+      testId: 'chats-row-pin',
+      disabled: pending,
+      onClick: onPin,
+    },
+    {
+      id: 'mute',
+      label: muted ? 'Unmute' : 'Mute',
+      icon: <BellIcon width={20} height={20} />,
+      testId: 'chats-row-mute',
+      disabled: pending,
+      active: !muted && step === 'mute',
+      onClick: () => {
+        if (muted) {
+          onMute();
+          return;
+        }
+        if (onPickMute) setStep('mute');
+        else onMute();
+      },
+    },
+  ];
+  if (!unread && onUnread) {
+    rootItems.push({
+      id: 'unread',
+      label: 'Mark as unread',
+      icon: <BellIcon width={20} height={20} />,
+      testId: 'chats-row-unread',
+      disabled: pending,
+      onClick: onUnread,
+    });
+  }
+  rootItems.push(
+    {
+      id: 'archive',
+      label: archived ? 'Unarchive' : 'Archive',
+      icon: <CollectionIcon width={20} height={20} />,
+      testId: archived ? 'chats-row-unarchive' : 'chats-row-archive',
+      disabled: pending,
+      onClick: onArchive,
+    },
+    {
+      id: 'clear',
+      label: 'Clear chat',
+      icon: <TrashIcon width={20} height={20} />,
+      testId: 'chats-row-clear',
+      disabled: pending,
+      onClick: onClear,
+    },
   );
-
-  useEffect(() => {
-    if (!anchor) return;
-    const place = () => {
-      const box = panelRef.current?.getBoundingClientRect();
-      setPos(
-        placeInboxRowMenu(anchor, {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        }, box ? { width: box.width, height: box.height } : undefined),
-      );
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [anchor, mutePick]);
-
-  useEffect(() => {
-    if (!mutePick) {
-      setHost(null);
-      return;
+  if (isGroup) {
+    rootItems.push({
+      id: 'exit',
+      label: 'Exit group',
+      icon: <TrashIcon width={20} height={20} />,
+      testId: 'chats-row-exit',
+      disabled: pending,
+      danger: true,
+      onClick: onExitGroup,
+    });
+  } else {
+    rootItems.push({
+      id: 'delete',
+      label: 'Delete chat',
+      icon: <TrashIcon width={20} height={20} />,
+      testId: 'chats-row-delete',
+      disabled: pending,
+      danger: true,
+      onClick: onDelete,
+    });
+    if (onBlock) {
+      rootItems.push({
+        id: 'block',
+        label: 'Block',
+        icon: <LockIcon width={20} height={20} />,
+        testId: 'chats-row-block',
+        disabled: pending,
+        danger: true,
+        onClick: onBlock,
+      });
     }
-    const box = panelRef.current?.getBoundingClientRect();
-    if (box) setHost({ top: box.top, left: box.left, right: box.right, bottom: box.bottom });
-  }, [mutePick, pos.top, pos.left]);
+  }
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (mutePick) {
-        setMutePick(false);
-        return;
-      }
-      onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, mutePick]);
+  const muteItems: MoreActionItem[] = MUTE_FOR_OPTIONS.map((row) => ({
+    id: row.id,
+    label: row.label,
+    icon: <BellIcon width={20} height={20} />,
+    testId: `chat-mute-${row.id}`,
+    disabled: pending,
+    onClick: () => {
+      setStep('root');
+      onPickMute?.(row.id);
+    },
+  }));
 
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <>
-      <button
-        type="button"
-        aria-label="Close menu"
-        className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-        onClick={onClose}
-      />
-      <div
-        ref={panelRef}
-        role="menu"
-        data-testid="chats-row-menu"
-        className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-        style={{ top: pos.top, left: pos.left }}
-      >
-        <button type="button" role="menuitem" data-testid="chats-row-pin" disabled={pending} className={ITEM} onClick={onPin}>
-          {pinned ? 'Unpin chat' : 'Pin chat'}
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="chats-row-mute"
-          disabled={pending}
-          aria-expanded={!muted && mutePick}
-          className={cx(ITEM, 'border-t border-line/70', mutePick && !muted ? 'bg-accent/5' : '')}
-          onClick={() => {
-            if (muted) {
-              onMute();
-              return;
-            }
-            setMutePick((open) => !open);
-          }}
-        >
-          {muted ? 'Unmute' : 'Mute'}
-        </button>
-        {!unread && onUnread ? (
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="chats-row-unread"
-            disabled={pending}
-            className={cx(ITEM, 'border-t border-line/70')}
-            onClick={onUnread}
-          >
-            Mark as unread
-          </button>
-        ) : null}
-        <button
-          type="button"
-          role="menuitem"
-          data-testid={archived ? 'chats-row-unarchive' : 'chats-row-archive'}
-          disabled={pending}
-          className={cx(ITEM, 'border-t border-line/70')}
-          onClick={onArchive}
-        >
-          {archived ? 'Unarchive' : 'Archive'}
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="chats-row-clear"
-          disabled={pending}
-          className={cx(ITEM, 'border-t border-line/70')}
-          onClick={onClear}
-        >
-          Clear chat
-        </button>
-        {isGroup ? (
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="chats-row-exit"
-            disabled={pending}
-            className={cx(ITEM, 'border-t border-line/70 text-danger')}
-            onClick={onExitGroup}
-          >
-            Exit group
-          </button>
-        ) : (
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="chats-row-delete"
-            disabled={pending}
-            className={cx(ITEM, 'border-t border-line/70 text-danger')}
-            onClick={onDelete}
-          >
-            Delete chat
-          </button>
-        )}
-        {onBlock ? (
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="chats-row-block"
-            disabled={pending}
-            className={cx(ITEM, 'border-t border-line/70 text-danger')}
-            onClick={onBlock}
-          >
-            Block
-          </button>
-        ) : null}
-      </div>
-      {mutePick && !muted && onPickMute ? (
-        <ChatMuteDurationFlyout
-          host={host}
-          pending={pending}
-          onPick={(muteFor) => {
-            setMutePick(false);
-            onPickMute(muteFor);
-          }}
-        />
-      ) : null}
-    </>,
-    document.body,
+  return (
+    <MoreActionsSheet
+      open={sheetOpen}
+      onClose={onClose}
+      title={step === 'mute' ? 'Mute for' : title}
+      testId="chats-row-menu"
+      onBack={step === 'mute' ? () => setStep('root') : undefined}
+      items={step === 'mute' ? muteItems : rootItems}
+    />
   );
 }

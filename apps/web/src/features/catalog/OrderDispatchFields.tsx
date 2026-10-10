@@ -11,6 +11,7 @@ export function OrderDispatchFields({
   onPiecesPerPack,
   onDispatchUnit,
   onMoq,
+  hideHeading = false,
 }: {
   orderUnit: string;
   piecesPerPack: string;
@@ -20,6 +21,8 @@ export function OrderDispatchFields({
   onPiecesPerPack: (next: string) => void;
   onDispatchUnit: (next: string) => void;
   onMoq: (next: string) => void;
+  /** When wrapped in CollectionExpandableSection (collection create/edit). */
+  hideHeading?: boolean;
 }) {
   const preview = orderDispatchPreview(
     orderUnit || Unit.Set,
@@ -36,8 +39,13 @@ export function OrderDispatchFields({
           : '1 set contains';
 
   return (
-    <section className="flex flex-col gap-3" data-testid="collection-order-dispatch">
-      <h2 className="text-sm font-semibold text-ink">Order and dispatch</h2>
+    <section
+      className="flex flex-col gap-3"
+      data-testid={hideHeading ? 'collection-order-dispatch-fields' : 'collection-order-dispatch'}
+    >
+      {hideHeading ? null : (
+        <h2 className="text-sm font-semibold text-ink">Order and dispatch</h2>
+      )}
       <Field label="Order taken in">
         <select
           data-testid="collection-order-unit"

@@ -39,6 +39,15 @@ export function shopSelectedCount(
   );
 }
 
+/** Select-all pill count for the active shop tab — designs and collections stay separate. */
+export function shopTabSelectedCount(
+  tab: 'designs' | 'collections',
+  designCount: number,
+  albumCount: number,
+): number {
+  return tab === 'designs' ? designCount : albumCount;
+}
+
 export function shouldShowShopTradeDock(options: {
   isOwn: boolean;
   shopSelectedCount: number;
@@ -54,8 +63,11 @@ export function shouldHideAppNav(
     thisShopSelectedCount: number;
     search?: string;
     pageDockUp?: boolean;
+    /** Traveling Selection dock owns the bottom band. */
+    selectionWorkspaceUp?: boolean;
   },
 ): boolean {
+  if (options.selectionWorkspaceUp) return true;
   if (isOwnProfileEditing(pathname, options.search)) return true;
   if (pathname === '/selection' || pathname.startsWith('/selection/')) return true;
   if (pathname.startsWith('/designs/set') && options.pageDockUp) return true;

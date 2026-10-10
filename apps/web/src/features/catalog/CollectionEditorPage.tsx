@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -51,10 +51,6 @@ import {
 } from '@/ui/kit';
 import { CollectionExpandableSection } from './CollectionExpandableSection';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
-import { applySelectingPill } from '@/features/browse/selectingPill';
-import { selectAllState } from '@/features/browse/selectAllState';
-import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
 import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
 import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
@@ -62,6 +58,7 @@ import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   membershipAfterRemove,
+  membershipForReplaceOrAppend,
   membershipWithNewFirst,
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
@@ -73,7 +70,6 @@ import {
   uniqueDraftSku,
 } from './designBatchHelpers';
 import {
-  collectRateConflicts,
   collectSameForAllDiffIds,
   emptySameForAll,
   forceSameForAllToForm,
@@ -81,16 +77,26 @@ import {
   sameForAllIsEmpty,
   sameForAllSummary,
   sortDiffFirst,
+  designFollowsPackRate,
+  stampCreatePhotoMemberForm,
+  unanimousMemberRate,
   unionTags,
   type MemberDesignForm,
   type RateConflict,
   type SameForAllDetails,
 } from './collectionSameForAll';
-import { formatRateInput } from './rateInput';
+import { formatRateInput, parseRateInput } from './rateInput';
 import { combineRateInput, splitRateInput } from './rateRange';
+import {
+  catalogRateDisplayUnit,
+  catalogRateFieldLabel,
+  isPackOrderUnit,
+} from '@/lib/catalogRate';
 import { RateRangeFields } from './RateRangeFields';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { OrderDispatchFields } from './OrderDispatchFields';
+import { orderDispatchSectionSummary } from './orderDispatchPreview';
+import { collectionEditShowsMemberGrid } from './collectionEditDetailsOnly';
 import { collectionGalleryInputProps } from './collectionGalleryInput';
 import { AddDesignsControl } from './AddDesignsControl';
 import {
@@ -98,15 +104,23 @@ import {
   morePhotosEntry,
 } from './designBatchHelpers';
 import { createPortal } from 'react-dom';
-import { CameraIcon, CheckIcon, MoreHorizontalIcon } from '@/ui/icons';
+import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
+import {
+  CameraIcon,
+  CheckIcon,
+  CollectionIcon,
+  LockIcon,
+  MegaphoneIcon,
+  MoreHorizontalIcon,
+  ShareIcon,
+  UnlockIcon,
+} from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import {
   canSetMemberLiveInPack,
   curatedMemberUnavailableReason,
 } from '@/features/collections/curatedMemberAvailability';
-import { collectionStatusSummary } from './collectionStatusSummary';
-import { libraryAuditLine } from './productStatusSummary';
 import {
   maxPublishAudienceForCuratedPack,
 } from './curationAudienceCeiling';
@@ -183,13 +197,9 @@ export function CollectionEditorPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreAnchorRef = useRef<HTMLButtonElement>(null);
-  const morePanelRef = useRef<HTMLDivElement>(null);
-  const [morePos, setMorePos] = useState({ top: 0, right: 0 });
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
-  const [sourceOpen, setSourceOpen] = useState(false);
   const [quickUploading, setQuickUploading] = useState(false);
   const [savingDesigns, setSavingDesigns] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -204,6 +214,12 @@ export function CollectionEditorPage() {
   const [manageBusy, setManageBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [replaceSheetOpen, setReplaceSheetOpen] = useState(false);
+  const [addDesignsOpen, setAddDesignsOpen] = useState(false);
+  /** Replace confirmed — wait for a non-empty save before changing membership. */
+  const [replacePending, setReplacePending] = useState(false);
+  const replacePendingRef = useRef(false);
+  /** Library picks while Replace is pending — not toggled against live members. */
+  const [replaceDraft, setReplaceDraft] = useState<Set<string> | null>(null);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -213,7 +229,11 @@ export function CollectionEditorPage() {
   const [tagSlots, setTagSlotsState] = useState<TagSlots>(() => emptyTagSlots());
   const [memberTagSlots, setMemberTagSlots] = useState<TagSlots>(() => emptyTagSlots());
   const leaveBypassRef = useRef(false);
+  /** Repost → Publish: land on My Collections (or Explore when asked). */
+  const afterPublishDestRef = useRef<'explore' | 'collections' | null>(null);
   const bootPickerRef = useRef(false);
+  /** Chooser closed because user opened Designs/Photos (do not treat as abandon). */
+  const replaceProceedPickRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -246,10 +266,12 @@ export function CollectionEditorPage() {
   const applyToAllHydrated = useRef(false);
   const [rateFrom, setRateFrom] = useState('');
   const [rateTo, setRateTo] = useState('');
+  const rateFieldsHydrated = useRef(false);
   const [rateConflicts, setRateConflicts] = useState<RateConflict[] | null>(null);
   const [rateConflictKeepIds, setRateConflictKeepIds] = useState<Set<string>>(new Set());
   const [pendingPublish, setPendingPublish] = useState(false);
   const [whoExpanded, setWhoExpanded] = useState(false);
+  const [orderDispatchExpanded, setOrderDispatchExpanded] = useState(false);
   const [defaultsPrefillDone, setDefaultsPrefillDone] = useState(false);
   const cameraAppendRef = useRef<CameraAppendTarget | null>(null);
   const [cameraAppend, setCameraAppend] = useState<CameraAppendTarget | null>(null);
@@ -295,9 +317,6 @@ export function CollectionEditorPage() {
   const isDraft =
     status === CollectionStatus.Draft || status === CollectionStatus.Ready;
   const isArchived = status === CollectionStatus.Archived;
-  const statusSummary = existing.data
-    ? collectionStatusSummary(existing.data, broadcastLists.data ?? [])
-    : null;
   const ownerSourceLine =
     existing.data && company.data?.id
       ? collectionOwnerSourceLine(
@@ -433,6 +452,27 @@ export function CollectionEditorPage() {
       });
       setTagSlotsState(categoriesToTagSlots(loadedCategories));
       setSelected(new Set(existing.data.products.map((product) => product.id)));
+      // Pack rate lives on the collection; fall back to unanimous members for older packs.
+      const loadedRate =
+        existing.data.rate != null
+          ? formatRateInput(existing.data.rate, existing.data.rateMax ?? null)
+          : unanimousMemberRate(existing.data.products);
+      if (loadedRate || !rateFieldsHydrated.current) {
+        const rateParts = splitRateInput(loadedRate);
+        setRateFrom(rateParts.from);
+        setRateTo(rateParts.to);
+        rateFieldsHydrated.current = true;
+      }
+      const first = existing.data.products[0];
+      setSameForAll((prev) => ({
+        ...prev,
+        rate: loadedRate || prev.rate,
+        unit: first?.unit || prev.unit || Unit.Set,
+        dispatchUnit: first?.dispatchUnit || prev.dispatchUnit || Unit.Piece,
+        piecesPerPack:
+          first?.piecesPerPack != null ? String(first.piecesPerPack) : prev.piecesPerPack,
+        moq: first?.moq != null ? String(first.moq) : prev.moq,
+      }));
       setPublishAudience(
         restorePublishAudienceState({
           audience: existing.data.audience || PublishAudience.Followers,
@@ -441,6 +481,7 @@ export function CollectionEditorPage() {
           rateVisibility: existing.data.rateVisibility,
           allowForward: existing.data.allowForward !== false,
           allowDownload: existing.data.allowDownload === true,
+          showSourceShops: existing.data.showSourceShops === true,
         }),
       );
       setStartsAt(toDateInput(existing.data.startsAt));
@@ -472,17 +513,14 @@ export function CollectionEditorPage() {
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
     const sell = readCompanySellAsUsual(settings.data.tradeDefaults);
     setPublishAudience(emptyPublishAudienceState(usual));
-    const nextSame: SameForAllDetails = {
-      ...emptySameForAll(sell.unit || Unit.Set),
-      dispatchUnit: sell.dispatchUnit || Unit.Piece,
-      piecesPerPack: sell.piecesPerPack,
-      moq: sell.moq,
-      categories: [],
-    };
-    setSameForAll(nextSame);
-    const parts = splitRateInput(nextSame.rate);
-    setRateFrom(parts.from);
-    setRateTo(parts.to);
+    // Merge habitual units only — never wipe a rate the trader already typed.
+    setSameForAll((prev) => ({
+      ...prev,
+      unit: prev.unit || sell.unit || Unit.Set,
+      dispatchUnit: prev.dispatchUnit || sell.dispatchUnit || Unit.Piece,
+      piecesPerPack: prev.piecesPerPack || sell.piecesPerPack,
+      moq: prev.moq || sell.moq,
+    }));
     setDefaultsPrefillDone(true);
   }, [isCreate, defaultsPrefillDone, settings.data]);
 
@@ -499,7 +537,7 @@ export function CollectionEditorPage() {
       allowForward: usual.allowForward,
       allowDownload: usual.allowDownload,
       policyHint: hasForeignMembers
-        ? 'Rates stay on request when this pack includes others’ designs.'
+        ? 'Rates stay on request when this collection includes others’ designs.'
         : null,
     }));
   }, [publishOpen, settings.data, existing.data?.status, hasForeignMembers]);
@@ -530,50 +568,19 @@ export function CollectionEditorPage() {
   }, []);
 
   useEffect(() => {
-    const state = location.state as { notice?: string; openPublish?: boolean } | null;
+    const state = location.state as {
+      notice?: string;
+      openPublish?: boolean;
+      afterPublish?: 'explore' | 'collections';
+    } | null;
     if (!state?.notice && !state?.openPublish) return;
     if (state.notice) showToast(state.notice);
     if (state.openPublish) setPublishOpen(true);
+    if (state.afterPublish === 'explore' || state.afterPublish === 'collections') {
+      afterPublishDestRef.current = state.afterPublish;
+    }
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, location.pathname, navigate, showToast]);
-
-  useLayoutEffect(() => {
-    if (!moreOpen) return;
-    const place = () => {
-      const anchor = moreAnchorRef.current;
-      if (!anchor) return;
-      const rect = anchor.getBoundingClientRect();
-      setMorePos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [moreOpen]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const close = () => setMoreOpen(false);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (morePanelRef.current?.contains(target)) return;
-      if (moreAnchorRef.current?.contains(target)) return;
-      close();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', close, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', close, true);
-    };
-  }, [moreOpen]);
 
   const invalidate = (collectionId?: string) => {
     void queryClient.invalidateQueries({ queryKey: ['collection', collectionId ?? id] });
@@ -633,11 +640,55 @@ export function CollectionEditorPage() {
       if (!saved) {
         return { unpublishedOwn: 0, designsFailed: true as const };
       }
+      const packRate = combineRateInput(rateFrom, rateTo).trim();
+      const previousPackRate = formatRateInput(
+        existing.data?.rate ?? null,
+        existing.data?.rateMax ?? null,
+      );
+      const packShared: SameForAllDetails = { ...sameForAll, rate: packRate };
+      if (packRate || applyToAll) {
+        for (const product of selectedProducts) {
+          if (product.companyId !== company.data?.id) continue;
+          const parsed = productFieldsFromMember({
+            name: product.name,
+            rate: packShared.rate,
+            unit: packShared.unit,
+            dispatchUnit: packShared.dispatchUnit,
+            piecesPerPack: packShared.piecesPerPack,
+            moq: packShared.moq,
+            notes: packShared.notes,
+            categories: [],
+          });
+          const patch: Record<string, unknown> = {};
+          // Empty or still on the old pack rate → follow the new pack rate.
+          if (
+            packRate &&
+            designFollowsPackRate(
+              { rate: product.rate, rateMax: product.rateMax },
+              previousPackRate,
+            )
+          ) {
+            patch.rate = parsed.rate;
+            patch.rateMax = parsed.rateMax;
+          }
+          if (applyToAll) {
+            if (parsed.unit) patch.unit = parsed.unit;
+            if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
+            if (parsed.piecesPerPack != null) patch.piecesPerPack = parsed.piecesPerPack;
+            if (parsed.moq != null) patch.moq = parsed.moq;
+          }
+          if (Object.keys(patch).length === 0) continue;
+          await api.patch(`/products/${product.id}`, patch);
+        }
+      }
+      const packParsed = parseRateInput(packRate);
       const dto: CreateCollectionDto = {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         coverImage: form.coverImage.trim() || undefined,
         categories: form.categories,
+        rate: packParsed.rate,
+        rateMax: packParsed.rateMax,
       };
       await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
       return { unpublishedOwn, designsFailed: false as const };
@@ -662,6 +713,7 @@ export function CollectionEditorPage() {
         rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
         allowForward: publishAudience.allowForward,
         allowDownload: publishAudience.allowDownload,
+        showSourceShops: hasForeignMembers ? publishAudience.showSourceShops : false,
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
         ...schedulePayload(),
@@ -674,6 +726,23 @@ export function CollectionEditorPage() {
       invalidate();
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       const scheduled = Boolean(startsAt && new Date(startsAt) > new Date());
+      const afterDest = afterPublishDestRef.current;
+      afterPublishDestRef.current = null;
+      if (afterDest && !isPublished && !scheduled) {
+        leaveBypassRef.current = true;
+        showToast(
+          !publishAudience.allowForward ? 'Buyers can’t forward this.' : 'Published',
+        );
+        if (afterDest === 'collections') {
+          navigate('/catalog?tab=collections', {
+            replace: true,
+            state: { collectionFilter: 'published', productFilter: 'published' },
+          });
+        } else {
+          navigate('/explore', { replace: true });
+        }
+        return;
+      }
       if (!publishAudience.allowForward) {
         showToast('Buyers can’t forward this.');
       } else {
@@ -751,6 +820,9 @@ export function CollectionEditorPage() {
   /** Existing designs only — never acquires the camera. */
   const openLibraryDesigns = () => {
     setError(null);
+    if (replacePendingRef.current) {
+      setReplaceDraft(new Set());
+    }
     setLibraryOpen(true);
   };
 
@@ -766,16 +838,30 @@ export function CollectionEditorPage() {
 
   const openAddDesignsMenu = () => {
     setError(null);
-    setSourceOpen(true);
+    setAddDesignsOpen(true);
+  };
+
+  const setReplacePendingFlag = (next: boolean) => {
+    replacePendingRef.current = next;
+    setReplacePending(next);
+  };
+
+  const beginReplacePick = () => {
+    setReplacePendingFlag(true);
+    setReplaceDraft(null);
+    openAddDesignsMenu();
+  };
+
+  const abandonReplaceIfPending = () => {
+    setReplacePendingFlag(false);
+    setReplaceDraft(null);
   };
 
   const pickSourceDesigns = () => {
-    setSourceOpen(false);
     openLibraryDesigns();
   };
 
   const pickSourcePhotos = () => {
-    setSourceOpen(false);
     openCollectionCamera();
   };
 
@@ -789,21 +875,11 @@ export function CollectionEditorPage() {
     bootPickerRef.current = true;
     navigate(location.pathname, { replace: true, state: {} });
     if (boot.replaceThenPick) {
-      void (async () => {
-        setSelected(new Set());
-        setSavingDesigns(true);
-        try {
-          await api.put(`/collections/${id}/products`, { productIds: [] });
-          invalidate(id);
-          openPhotos();
-        } catch (err) {
-          showToast(err instanceof ApiError ? err.message : 'Could not clear designs.', 'danger');
-        } finally {
-          setSavingDesigns(false);
-        }
-      })();
+      beginReplacePick();
       return;
     }
+    setReplacePendingFlag(false);
+    setReplaceDraft(null);
     openPhotos();
   }, [editing, existing.data, id, location.state, location.pathname, navigate]);
 
@@ -1003,6 +1079,7 @@ export function CollectionEditorPage() {
   const onEditQuickDesignFiles = async (files: File[]) => {
     if (!id || !files.length) return;
     const picked = files.slice(0, QUICK_PHOTO_CAP);
+    const replacing = replacePendingRef.current;
     setError(null);
     setQuickUploading(true);
     try {
@@ -1039,7 +1116,16 @@ export function CollectionEditorPage() {
         const product = await api.post<ProductView>('/products', dto);
         createdIds.push(product.id);
       }
-      const next = new Set(membershipWithNewFirst([...selected], createdIds));
+      const nextIds = membershipForReplaceOrAppend([...selected], createdIds, replacing);
+      if (nextIds === null) {
+        abandonReplaceIfPending();
+        return;
+      }
+      if (replacing) {
+        setReplacePendingFlag(false);
+        setReplaceDraft(null);
+      }
+      const next = new Set(nextIds);
       setSelected(next);
       const saved = await persistDesigns([...next]);
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
@@ -1076,29 +1162,13 @@ export function CollectionEditorPage() {
       const canPublishCreate =
         (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
       if (!canPublishCreate) {
-        setSheetError('Choose who can see this pack.');
+        setSheetError('Choose who can see this collection.');
         setCreating(false);
         return;
       }
     }
     const keepRateIds = opts?.keepRateIds ?? rateConflictKeepIds;
-    if (applyToAll && sameForAll.rate.trim() && !opts?.keepRateIds) {
-      const conflicts = collectRateConflicts(
-        sameForAll.rate,
-        createLibraryDesigns.map((product) => ({
-          id: product.id,
-          name: product.name,
-          rate: formatRateInput(product.rate, product.rateMax ?? null),
-          otherPacks: product.collectionNames ?? [],
-        })),
-      );
-      if (conflicts.length > 0) {
-        setPendingPublish(Boolean(opts?.publish));
-        setRateConflicts(conflicts);
-        setRateConflictKeepIds(new Set());
-        return;
-      }
-    }
+    const packRate = combineRateInput(rateFrom, rateTo);
     setCreating(true);
     setError(null);
     setSheetError(null);
@@ -1108,6 +1178,7 @@ export function CollectionEditorPage() {
         name: form.name.trim(),
         publish: Boolean(opts?.publish),
         keepRateIds,
+        packRate,
       });
     } catch (err) {
       const clash = collectionNameClash(err instanceof ApiError ? err : {});
@@ -1133,7 +1204,10 @@ export function CollectionEditorPage() {
     name: string;
     publish: boolean;
     keepRateIds: Set<string>;
+    packRate?: string;
   }) => {
+      const packRate = (opts.packRate ?? combineRateInput(rateFrom, rateTo)).trim();
+      const packShared: SameForAllDetails = { ...sameForAll, rate: packRate };
       const coverRaw = createCoverUrl ? toAbsoluteMediaUrl(createCoverUrl) : '';
       const cover =
         coverRaw && /^https?:\/\//i.test(coverRaw) ? coverRaw : undefined;
@@ -1143,10 +1217,13 @@ export function CollectionEditorPage() {
         const pack = await api.get<CollectionDetailView>(`/collections/${collectionId}`);
         existingIds = pack.products.map((product) => product.id);
       } else {
+        const packParsed = parseRateInput(packRate);
         const created = await api.post<CollectionDetailView>('/collections', {
           name: opts.name,
           description: form.description.trim() || undefined,
           categories: form.categories,
+          rate: packParsed.rate,
+          rateMax: packParsed.rateMax,
           ...(cover ? { coverImage: cover } : {}),
         } satisfies CreateCollectionDto);
         collectionId = created.id;
@@ -1158,16 +1235,21 @@ export function CollectionEditorPage() {
       for (const photo of readyCreatePhotos) {
         const categories = unionTags(photo.categories, form.categories);
         const displayName = nameForNewDesign(photo.name, photo.sku);
-        const fields = productFieldsFromMember({
-          name: displayName,
-          rate: photo.rate,
-          unit: photo.unit,
-          dispatchUnit: photo.dispatchUnit,
-          piecesPerPack: photo.piecesPerPack,
-          moq: photo.moq,
-          notes: photo.notes,
-          categories,
-        });
+        const stamped = stampCreatePhotoMemberForm(
+          {
+            name: displayName,
+            rate: photo.rate,
+            unit: photo.unit,
+            dispatchUnit: photo.dispatchUnit,
+            piecesPerPack: photo.piecesPerPack,
+            moq: photo.moq,
+            notes: photo.notes,
+            categories,
+          },
+          packShared,
+          applyToAll,
+        );
+        const fields = productFieldsFromMember(stamped);
         const product = await api.post<ProductView>('/products', {
           name: displayName,
           sku: photo.sku,
@@ -1183,7 +1265,7 @@ export function CollectionEditorPage() {
         } satisfies CreateProductDto);
         createdIds.push(product.id);
       }
-      // Pack tags union onto members when apply-to-all; rates confirm Change vs Keep.
+      // Pack Rate fills designs with no rate; design’s own rate wins. Apply stamps units/MOQ.
       for (const productId of libraryPicks) {
         const product = selectableDesigns.find((p) => p.id === productId);
         if (!product) continue;
@@ -1194,21 +1276,28 @@ export function CollectionEditorPage() {
             patch.categories = nextTags;
           }
         }
+        const parsed = productFieldsFromMember({
+          name: product.name,
+          rate: packShared.rate,
+          unit: packShared.unit,
+          dispatchUnit: packShared.dispatchUnit,
+          piecesPerPack: packShared.piecesPerPack,
+          moq: packShared.moq,
+          notes: packShared.notes,
+          categories: [],
+        });
+        if (
+          packRate &&
+          designFollowsPackRate(
+            { rate: product.rate, rateMax: product.rateMax },
+            '',
+          ) &&
+          !opts.keepRateIds.has(productId)
+        ) {
+          patch.rate = parsed.rate;
+          patch.rateMax = parsed.rateMax;
+        }
         if (applyToAll) {
-          const parsed = productFieldsFromMember({
-            name: product.name,
-            rate: sameForAll.rate,
-            unit: sameForAll.unit,
-            dispatchUnit: sameForAll.dispatchUnit,
-            piecesPerPack: sameForAll.piecesPerPack,
-            moq: sameForAll.moq,
-            notes: sameForAll.notes,
-            categories: [],
-          });
-          if (!opts.keepRateIds.has(productId) && sameForAll.rate.trim()) {
-            patch.rate = parsed.rate;
-            patch.rateMax = parsed.rateMax;
-          }
           if (parsed.unit) patch.unit = parsed.unit;
           if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
           if (parsed.piecesPerPack != null) patch.piecesPerPack = parsed.piecesPerPack;
@@ -1230,6 +1319,7 @@ export function CollectionEditorPage() {
             rateVisibility: publishAudience.rateVisibility,
             allowForward: publishAudience.allowForward,
             allowDownload: publishAudience.allowDownload,
+            showSourceShops: hasForeignMembers ? publishAudience.showSourceShops : false,
             ...publishAudienceDtoFields(publishAudience),
             ...(canPublishAlready ? {} : { consentToSell: true }),
           });
@@ -1270,6 +1360,16 @@ export function CollectionEditorPage() {
   };
 
   const toggle = (productId: string) => {
+    if (replaceDraft !== null) {
+      setReplaceDraft((prev) => {
+        const cur = prev ?? new Set<string>();
+        const next = new Set(cur);
+        if (next.has(productId)) next.delete(productId);
+        else next.add(productId);
+        return next;
+      });
+      return;
+    }
     setSelected((prev) => {
       const next = new Set(
         prev.has(productId)
@@ -1281,16 +1381,34 @@ export function CollectionEditorPage() {
     });
   };
 
+  const finishLibrarySheet = async () => {
+    setLibraryOpen(false);
+    setDesignSearch('');
+    if (replaceDraft === null) return;
+    const ids = [...replaceDraft];
+    setReplaceDraft(null);
+    if (ids.length === 0) {
+      abandonReplaceIfPending();
+      return;
+    }
+    const nextIds = membershipForReplaceOrAppend([...selected], ids, true);
+    if (nextIds === null) {
+      abandonReplaceIfPending();
+      return;
+    }
+    setReplacePendingFlag(false);
+    setSelected(new Set(nextIds));
+    const saved = await persistDesigns(nextIds);
+    if (saved && isPublished) {
+      showToast('Published');
+    }
+  };
+
   const manageSelectedIds = useMemo(() => [...manageSelected], [manageSelected]);
   const productCompanyById = useMemo(
     () => new Map(selectedProducts.map((product) => [product.id, product.companyId])),
     [selectedProducts],
   );
-  const memberIds = useMemo(
-    () => selectedProducts.map((product) => product.id),
-    [selectedProducts],
-  );
-  const manageSelectAll = selectAllState(memberIds, manageSelected);
   const ownerCanDelete = canDeleteSelected(manageSelectedIds);
   const ownerCanRemove = manageSelectedIds.length > 0;
 
@@ -1303,36 +1421,9 @@ export function CollectionEditorPage() {
     setManageSelecting(false);
   };
 
-  const onManageSelectAll = () => {
-    setManageSelecting(true);
-    setManageSelected(new Set(memberIds));
-  };
-
-  const onManageClear = () => {
-    clearManageSelect();
-  };
-
-  const toggleManageSelect = (productId: string) => {
-    setManageSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) next.delete(productId);
-      else next.add(productId);
-      return next;
-    });
-  };
-
-  const onEditorReplaceConfirm = async () => {
-    if (!id) return;
-    setManageBusy(true);
-    try {
-      setSelected(new Set());
-      setReplaceSheetOpen(false);
-      openAddDesignsMenu();
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Could not replace.', 'danger');
-    } finally {
-      setManageBusy(false);
-    }
+  const onEditorReplaceConfirm = () => {
+    setReplaceSheetOpen(false);
+    beginReplacePick();
   };
 
   const onEditorRemove = async () => {
@@ -1370,7 +1461,7 @@ export function CollectionEditorPage() {
         mode === 'everywhere' && owned.length > 0
           ? 'Deleted'
           : mode === 'everywhere'
-            ? 'Deleted from this pack'
+            ? 'Deleted from this collection'
             : 'Removed from collection',
       );
     } catch (err) {
@@ -1685,6 +1776,7 @@ export function CollectionEditorPage() {
         connectionsLoading={connections.isLoading}
         tradeDefaults={settings.data?.tradeDefaults}
         maxAudience={maxCuratedAudience}
+        showSourceShopsOption={hasForeignMembers}
         showConsent={!canPublishAlready}
         consent={consent}
         onConsent={setConsent}
@@ -1695,24 +1787,36 @@ export function CollectionEditorPage() {
 
   const identityFields = (
     <div className="flex flex-col gap-3">
-      <div>
+      <Field label="Collection name" error={error}>
         <TextInput
-          aria-label="Name"
+          aria-label="Collection name"
           value={form.name}
           onChange={(e) => {
             setError(null);
             setForm({ ...form, name: e.target.value });
           }}
-          placeholder="Name this pack"
+          placeholder="Name this collection"
           autoComplete="off"
         />
-        {error ? (
-          <p className="mt-1.5 text-xs font-medium text-danger">{error}</p>
-        ) : null}
-      </div>
+      </Field>
       <RateRangeFields
         from={rateFrom}
         to={rateTo}
+        rateUnit={
+          catalogRateDisplayUnit({
+            unit: sameForAll.unit || Unit.Set,
+            dispatchUnit: sameForAll.dispatchUnit || Unit.Piece,
+          }) ?? Unit.Piece
+        }
+        onRateUnit={(next) => {
+          setSameForAll((prev) => {
+            const orderUnit = prev.unit || Unit.Set;
+            if (isPackOrderUnit(orderUnit)) {
+              return { ...prev, dispatchUnit: next };
+            }
+            return { ...prev, unit: next };
+          });
+        }}
         onFrom={(next) => {
           setRateFrom(next);
           setSameForAll((prev) => ({ ...prev, rate: combineRateInput(next, rateTo) }));
@@ -1726,7 +1830,7 @@ export function CollectionEditorPage() {
         <TextArea
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Optional — what this pack is for"
+          placeholder="optional"
         />
       </Field>
       <CascadeTagsFields
@@ -1761,22 +1865,41 @@ export function CollectionEditorPage() {
         >
           {applyToAll ? <CheckIcon width={14} height={14} strokeWidth={2.5} /> : null}
         </span>
-        <span>Apply this info to all designs</span>
+        <span className="flex flex-col gap-0.5">
+          <span>Apply this info to all designs</span>
+          <span className="text-xs font-normal text-muted">
+            Units and MOQ — not rates. Designs keep their own rate.
+          </span>
+        </span>
       </button>
-      <OrderDispatchFields
-        orderUnit={sameForAll.unit || Unit.Set}
-        piecesPerPack={sameForAll.piecesPerPack}
-        dispatchUnit={sameForAll.dispatchUnit || Unit.Piece}
-        moq={sameForAll.moq}
-        onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
-        onPiecesPerPack={(piecesPerPack) =>
-          setSameForAll((prev) => ({ ...prev, piecesPerPack }))
-        }
-        onDispatchUnit={(dispatchUnit) =>
-          setSameForAll((prev) => ({ ...prev, dispatchUnit }))
-        }
-        onMoq={(moq) => setSameForAll((prev) => ({ ...prev, moq }))}
-      />
+      <CollectionExpandableSection
+        title="Order and dispatch"
+        summary={orderDispatchSectionSummary({
+          orderUnit: sameForAll.unit || Unit.Set,
+          piecesPerPack: sameForAll.piecesPerPack,
+          dispatchUnit: sameForAll.dispatchUnit || Unit.Piece,
+          moq: sameForAll.moq,
+        })}
+        open={orderDispatchExpanded}
+        onToggle={() => setOrderDispatchExpanded((v) => !v)}
+        testId="collection-order-dispatch"
+      >
+        <OrderDispatchFields
+          hideHeading
+          orderUnit={sameForAll.unit || Unit.Set}
+          piecesPerPack={sameForAll.piecesPerPack}
+          dispatchUnit={sameForAll.dispatchUnit || Unit.Piece}
+          moq={sameForAll.moq}
+          onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
+          onPiecesPerPack={(piecesPerPack) =>
+            setSameForAll((prev) => ({ ...prev, piecesPerPack }))
+          }
+          onDispatchUnit={(dispatchUnit) =>
+            setSameForAll((prev) => ({ ...prev, dispatchUnit }))
+          }
+          onMoq={(moq) => setSameForAll((prev) => ({ ...prev, moq }))}
+        />
+      </CollectionExpandableSection>
     </div>
   );
 
@@ -1807,6 +1930,98 @@ export function CollectionEditorPage() {
     );
   }
 
+  const lifecycleMoreItems: MoreActionItem[] = [];
+  if (id) {
+    lifecycleMoreItems.push({
+      id: 'open',
+      label: 'Open',
+      icon: <CollectionIcon width={20} height={20} />,
+      testId: 'collection-editor-open',
+      onClick: () => {
+        setMoreOpen(false);
+        navigate(`/collections/${id}`);
+      },
+    });
+  }
+  if (isArchived) {
+    lifecycleMoreItems.push({
+      id: 'restore',
+      label: 'Restore to draft',
+      icon: <UnlockIcon width={20} height={20} />,
+      disabled: lifecycle.isPending,
+      onClick: () => {
+        setMoreOpen(false);
+        lifecycle.mutate('unarchive');
+      },
+    });
+  } else if (isPublished) {
+    lifecycleMoreItems.push(
+      {
+        id: 'visibility',
+        label: 'Visibility',
+        icon: <MegaphoneIcon width={20} height={20} />,
+        onClick: () => {
+          setMoreOpen(false);
+          setPublishOpen(true);
+        },
+      },
+      {
+        id: 'share',
+        label: 'Share',
+        icon: <ShareIcon width={20} height={20} />,
+        onClick: () => {
+          setMoreOpen(false);
+          setShareOpen(true);
+        },
+      },
+      {
+        id: 'hide',
+        label: 'Hide from Explore',
+        icon: <LockIcon width={20} height={20} />,
+        disabled: lifecycle.isPending,
+        onClick: () => {
+          setMoreOpen(false);
+          lifecycle.mutate('unpublish');
+        },
+      },
+      {
+        id: 'archive',
+        label: 'Archive',
+        icon: <CollectionIcon width={20} height={20} />,
+        disabled: lifecycle.isPending,
+        danger: true,
+        onClick: () => {
+          setMoreOpen(false);
+          lifecycle.mutate('archive');
+        },
+      },
+    );
+  } else {
+    lifecycleMoreItems.push(
+      {
+        id: 'publish',
+        label: 'Publish',
+        icon: <MegaphoneIcon width={20} height={20} />,
+        disabled: !canPublishAlbum,
+        onClick: () => {
+          setMoreOpen(false);
+          setPublishOpen(true);
+        },
+      },
+      {
+        id: 'archive',
+        label: 'Archive',
+        icon: <CollectionIcon width={20} height={20} />,
+        disabled: lifecycle.isPending,
+        danger: true,
+        onClick: () => {
+          setMoreOpen(false);
+          lifecycle.mutate('archive');
+        },
+      },
+    );
+  }
+
   return (
     <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-52')}>
       <DiscardChangesSheet
@@ -1818,74 +2033,26 @@ export function CollectionEditorPage() {
         title={editing ? 'Edit collection' : 'New collection'}
         onBack={() => discard.tryLeave(() => navigate(-1))}
         action={
-          editing && existing.data ? (
-            <div className="flex items-center gap-1">
-              {selectedProducts.length > 0 ? (
-                <button
-                  type="button"
-                  data-testid="collection-editor-select"
-                  className={cx(
-                    'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
-                    manageSelecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                  )}
-                  onClick={() =>
-                    applySelectingPill(manageSelecting, manageSelected.size, {
-                      clear: onManageClear,
-                      setSelectMode: setManageSelecting,
-                    })
-                  }
-                >
-                  {manageSelecting ? 'Selecting' : 'Select'}
-                </button>
-              ) : null}
-              {showLifecycleMenu ? (
-                <button
-                  ref={moreAnchorRef}
-                  type="button"
-                  aria-label="More"
-                  aria-expanded={moreOpen}
-                  aria-haspopup="menu"
-                  onClick={() => setMoreOpen((open) => !open)}
-                  className={cx(
-                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                    moreOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam hover:text-ink',
-                  )}
-                >
-                  <MoreHorizontalIcon width={18} height={18} />
-                </button>
-              ) : null}
-            </div>
+          editing && existing.data && showLifecycleMenu ? (
+            <button
+              type="button"
+              aria-label="More"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((open) => !open)}
+              className={cx(
+                'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                moreOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam hover:text-ink',
+              )}
+            >
+              <MoreHorizontalIcon width={18} height={18} />
+            </button>
           ) : undefined
         }
       />
 
-      {editing ? (
-        <SelectAllFloat
-          open={manageSelecting && selectedProducts.length > 0}
-          count={manageSelected.size}
-          allSelected={manageSelectAll.allSelected}
-          onSelectAll={onManageSelectAll}
-          onClear={onManageClear}
-        />
-      ) : null}
-
-      {editing && existing.data && statusSummary ? (
+      {editing && existing.data && (ownerSourceLine || (isPublished && existing.data.rateVisibility === RateVisibility.OnRequest)) ? (
         <div className="-mt-2 flex flex-col gap-1">
-          {isPublished ? (
-            <button
-              type="button"
-              onClick={() => setPublishOpen(true)}
-              className="text-left text-sm text-muted"
-            >
-              {statusSummary.line}
-              {libraryAuditLine(existing.data) ? ` · ${libraryAuditLine(existing.data)}` : ''}
-            </button>
-          ) : (
-            <p className="text-sm text-muted">
-              {statusSummary.line}
-              {libraryAuditLine(existing.data) ? ` · ${libraryAuditLine(existing.data)}` : ''}
-            </p>
-          )}
           {ownerSourceLine ? (
             <p className="text-sm font-semibold tracking-tight text-ink" data-testid="collection-editor-source">
               {ownerSourceLine}
@@ -1897,16 +2064,14 @@ export function CollectionEditorPage() {
         </div>
       ) : null}
 
-      {!editing ? (
+      {collectionEditShowsMemberGrid(editing) ? (
         <>
           {pendingPhotos.length === 0 && createLibraryDesigns.length === 0 ? (
             <AddDesignsControl
-              open={sourceOpen}
               size="hero"
               uploading={quickUploading}
-              disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
-              onOpen={openAddDesignsMenu}
-              onClose={() => setSourceOpen(false)}
+              disabled={quickUploading}
+              photosDisabled={pendingPhotos.length >= QUICK_PHOTO_CAP}
               onDesigns={pickSourceDesigns}
               onPhotos={pickSourcePhotos}
             />
@@ -2023,12 +2188,10 @@ export function CollectionEditorPage() {
           {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
             <>
               <AddDesignsControl
-                open={sourceOpen}
                 size="compact"
                 uploading={quickUploading}
-                disabled={quickUploading || pendingPhotos.length >= QUICK_PHOTO_CAP}
-                onOpen={openAddDesignsMenu}
-                onClose={() => setSourceOpen(false)}
+                disabled={quickUploading}
+                photosDisabled={pendingPhotos.length >= QUICK_PHOTO_CAP}
                 onDesigns={pickSourceDesigns}
                 onPhotos={pickSourcePhotos}
               />
@@ -2043,273 +2206,18 @@ export function CollectionEditorPage() {
       ) : null}
 
       {editing ? (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-base font-semibold text-ink">
-              {selectedProducts.length} design{selectedProducts.length === 1 ? '' : 's'} in collection
-            </p>
-            <span className="text-sm text-muted">
-              {savingDesigns || quickUploading
-                ? quickUploading
-                  ? 'Adding…'
-                  : 'Saving…'
-                : null}
-            </span>
-          </div>
-
-          {selectedProducts.length > 0 ? (
-            <CappedMediaGrid
-              items={selectedProducts}
-              getKey={(product) => product.id}
-              overflowPreviewUrl={(product) => product.images[0] ?? null}
-              renderTile={(product) => {
-                const isDiff = diffIds.has(product.id);
-                const ended = curatedMemberUnavailableReason(product.status);
-                const canSetLive = canSetMemberLiveInPack({
-                  packPublished: isPublished,
-                  productStatus: product.status,
-                  productCompanyId: product.companyId,
-                  ownerCompanyId: company.data?.id,
-                });
-                return (
-                <div
-                  className={cx(
-                    'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
-                    !manageSelecting && (isDiff ? 'border-2 border-accent' : 'border-2 border-line'),
-                  )}
-                  data-testid={isDiff ? 'collection-diff-tile' : 'collection-member-tile-wrap'}
-                >
-                  <SelectableMediaFrame
-                    selectMode={manageSelecting}
-                    selected={manageSelected.has(product.id)}
-                    checkClassName="left-1.5 top-1.5"
-                  >
-                    <button
-                      type="button"
-                      className="relative block aspect-square w-full text-left"
-                      data-testid="collection-member-tile"
-                      onClick={() =>
-                        manageSelecting
-                          ? toggleManageSelect(product.id)
-                          : openMemberDesignSheet(product)
-                      }
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        setManageSelecting(true);
-                        toggleManageSelect(product.id);
-                      }}
-                      aria-label={
-                        manageSelecting
-                          ? `${manageSelected.has(product.id) ? 'Deselect' : 'Select'} ${product.name}`
-                          : `Edit design · ${product.name}`
-                      }
-                    >
-                      {product.images[0] ? (
-                        <img
-                          src={product.images[0]}
-                          alt=""
-                          className={cx(
-                            'absolute inset-0 h-full w-full object-cover',
-                            ended && !canSetLive && 'opacity-45',
-                          )}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
-                          {product.name.charAt(0)}
-                        </div>
-                      )}
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
-                        {product.name}
-                      </span>
-                      {canSetLive && !manageSelecting ? null : ended ? (
-                        <span
-                          className="absolute left-1 top-1 z-[1] rounded bg-ink/75 px-1.5 py-0.5 text-[10px] font-bold text-white"
-                          data-testid="collection-member-unavailable"
-                        >
-                          {ended}
-                        </span>
-                      ) : null}
-                    </button>
-                  </SelectableMediaFrame>
-                  {canSetLive && !manageSelecting ? (
-                    <button
-                      type="button"
-                      data-testid="collection-member-set-live"
-                      className="absolute left-1 top-1 z-[2] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white disabled:opacity-45"
-                      disabled={savingDesigns || quickUploading}
-                      onClick={() => void setMemberLiveInPack()}
-                    >
-                      {savingDesigns ? 'Publishing…' : 'Publish'}
-                    </button>
-                  ) : !manageSelecting && isDiff ? (
-                    <span
-                      data-testid="collection-diff-badge"
-                      className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
-                    >
-                      Diff
-                    </span>
-                  ) : null}
-                  {!manageSelecting ? (
-                    <button
-                      type="button"
-                      aria-label={`Remove ${product.name}`}
-                      className="absolute right-1 top-1 z-[1] flex h-7 w-7 items-center justify-center rounded-full bg-ink/75 text-sm leading-none text-white"
-                      onClick={() => toggle(product.id)}
-                    >
-                      ×
-                    </button>
-                  ) : null}
-                </div>
-                );
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted">Add designs from your Designs or Photos.</p>
-          )}
-
-          <AddDesignsControl
-            open={sourceOpen}
-            size="compact"
-            uploading={quickUploading}
-            disabled={quickUploading}
-            onOpen={openAddDesignsMenu}
-            onClose={() => setSourceOpen(false)}
-            onDesigns={pickSourceDesigns}
-            onPhotos={pickSourcePhotos}
-          />
-          {selectedProducts.length > 0 ? (
-            <p className="text-xs text-muted">{albumTip}</p>
-          ) : null}
-
+        <div className="flex flex-col gap-4" data-testid="collection-edit-details">
           {identityFields}
         </div>
       ) : null}
 
-      {moreOpen && showLifecycleMenu && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-                onClick={() => setMoreOpen(false)}
-              />
-              <div
-                ref={morePanelRef}
-                role="menu"
-                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-                style={{ top: morePos.top, right: morePos.right }}
-              >
-                {id ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="collection-editor-open"
-                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      navigate(`/collections/${id}`);
-                    }}
-                  >
-                    Open
-                  </button>
-                ) : null}
-                {isArchived ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={lifecycle.isPending}
-                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      lifecycle.mutate('unarchive');
-                    }}
-                  >
-                    Restore to draft
-                  </button>
-                ) : (
-                  <>
-                    {isPublished ? (
-                      <>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                          onClick={() => {
-                            setMoreOpen(false);
-                            setPublishOpen(true);
-                          }}
-                        >
-                          Visibility
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                          onClick={() => {
-                            setMoreOpen(false);
-                            setShareOpen(true);
-                          }}
-                        >
-                          Share
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          disabled={lifecycle.isPending}
-                          className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                          onClick={() => {
-                            setMoreOpen(false);
-                            lifecycle.mutate('unpublish');
-                          }}
-                        >
-                          Hide from Explore
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        disabled={!canPublishAlbum}
-                        className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                        onClick={() => {
-                          setMoreOpen(false);
-                          setPublishOpen(true);
-                        }}
-                      >
-                        Publish
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                      onClick={() => {
-                        setMoreOpen(false);
-                        setReplaceSheetOpen(true);
-                      }}
-                    >
-                      Replace whole collection
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={lifecycle.isPending}
-                      className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40"
-                      onClick={() => {
-                        setMoreOpen(false);
-                        lifecycle.mutate('archive');
-                      }}
-                    >
-                      Archive
-                    </button>
-                  </>
-                )}
-              </div>
-            </>,
-            document.body,
-          )
-        : null}
+      <MoreActionsSheet
+        open={moreOpen && showLifecycleMenu}
+        onClose={() => setMoreOpen(false)}
+        title={form.name.trim() || 'Collection'}
+        testId="collection-editor-more-sheet"
+        items={lifecycleMoreItems}
+      />
 
       {editing && existing.data ? (
         <>
@@ -2318,8 +2226,6 @@ export function CollectionEditorPage() {
             busy={manageBusy || savingDesigns || quickUploading}
             canDelete={ownerCanDelete}
             canRemove={ownerCanRemove}
-            onAdd={openAddDesignsMenu}
-            onReplace={() => setReplaceSheetOpen(true)}
             onDelete={() => void onEditorDelete()}
             onRemove={() => void onEditorRemove()}
             onUpdate={() => save.mutate()}
@@ -2358,12 +2264,12 @@ export function CollectionEditorPage() {
                       setError(
                         !canPublishAlready && !consent
                           ? 'Confirm you can sell on Ekum under Who can see this.'
-                          : 'Pick who can see this pack.',
+                          : 'Pick who can see this collection.',
                       );
                       showToast(
                         !canPublishAlready && !consent
                           ? 'Confirm you can sell on Ekum'
-                          : 'Pick who can see this pack',
+                          : 'Pick who can see this collection',
                         'danger',
                       );
                       return;
@@ -2409,6 +2315,7 @@ export function CollectionEditorPage() {
           setCameraOpen(false);
           cameraAppendRef.current = null;
           setCameraAppend(null);
+          if (!cameraAppend) abandonReplaceIfPending();
           restoreMemberSheetAfterCamera();
         }}
         batchAsDesigns={!cameraAppend}
@@ -2434,21 +2341,58 @@ export function CollectionEditorPage() {
       />
 
       <Sheet
+        open={addDesignsOpen}
+        onClose={() => {
+          setAddDesignsOpen(false);
+          if (replaceProceedPickRef.current) {
+            replaceProceedPickRef.current = false;
+            return;
+          }
+          abandonReplaceIfPending();
+        }}
+        title={replacePending ? 'Replace designs' : 'Add designs'}
+      >
+        <div className="flex flex-col gap-3" data-testid="collection-add-designs-sheet">
+          <p className="text-sm text-muted">
+            {replacePending
+              ? 'Choose photos or designs. The collection updates only after you save a new set.'
+              : 'Add from your library or take new photos.'}
+          </p>
+          <AddDesignsControl
+            size="hero"
+            uploading={quickUploading}
+            disabled={quickUploading}
+            onDesigns={() => {
+              replaceProceedPickRef.current = true;
+              setAddDesignsOpen(false);
+              openLibraryDesigns();
+            }}
+            onPhotos={() => {
+              replaceProceedPickRef.current = true;
+              setAddDesignsOpen(false);
+              openPhotos();
+            }}
+          />
+        </div>
+      </Sheet>
+
+      <Sheet
         open={libraryOpen}
         onClose={() => {
-          setLibraryOpen(false);
-          setDesignSearch('');
+          void finishLibrarySheet();
         }}
-        title="Add designs"
+        title={replaceDraft !== null ? 'Replace designs' : 'Add designs'}
         footer={
-          <Button fullWidth onClick={() => setLibraryOpen(false)}>
+          <Button fullWidth onClick={() => void finishLibrarySheet()}>
             Done
           </Button>
         }
       >
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
-            Tap to add. Added designs show in your album — Done when finished.
+            {replaceDraft !== null
+              ? 'Tap to pick the new set. Done with nothing selected keeps the collection as it is.'
+              : 'Tap to add. Added designs show in your album — Done when finished.'}
           </p>
           {myProducts.isLoading ? (
             <LoadingBlock label="Loading designs…" />
@@ -2459,6 +2403,8 @@ export function CollectionEditorPage() {
                 variant="secondary"
                 onClick={() => {
                   setLibraryOpen(false);
+                  setReplaceDraft(null);
+                  abandonReplaceIfPending();
                   navigate('/catalog/products/new');
                 }}
               >
@@ -2479,7 +2425,9 @@ export function CollectionEditorPage() {
                 loadMoreTestId="collection-library-load-more"
                 renderTile={(product) => {
                   const on = editing
-                    ? selected.has(product.id)
+                    ? replaceDraft !== null
+                      ? replaceDraft.has(product.id)
+                      : selected.has(product.id)
                     : libraryPicks.has(product.id);
                   return (
                     <button
@@ -2565,7 +2513,7 @@ export function CollectionEditorPage() {
             <p className="text-sm text-muted">
               {hasForeignMembers
                 ? 'You’re sharing others’ designs under their rules.'
-                : 'Publishing this pack puts the collection on Explore — not each design separately. Buyers can still order or share designs from inside the pack.'}
+                : 'Publishing this collection puts it on Explore — not each design separately. Buyers can still order or share designs from inside the collection.'}
             </p>
           ) : null}
 
@@ -2581,12 +2529,13 @@ export function CollectionEditorPage() {
             tradeDefaults={settings.data?.tradeDefaults}
             isVisibilityUpdate={editing && isPublished}
             maxAudience={maxCuratedAudience}
+            showSourceShopsOption={hasForeignMembers}
             showConsent={!canPublishAlready}
             consent={consent}
             onConsent={setConsent}
             consentLabel={
               hasForeignMembers
-                ? "You're sharing others' designs under their rules — publish this pack?"
+                ? "You're sharing others' designs under their rules — publish this collection?"
                 : 'Start selling — publish this collection?'
             }
             onCreateGroup={() => setCreateGroupOpen(true)}
@@ -2736,6 +2685,10 @@ export function CollectionEditorPage() {
             }}
           />
           <RateRangeFields
+            label={catalogRateFieldLabel(
+              memberForm.unit || Unit.Set,
+              memberForm.dispatchUnit || Unit.Piece,
+            )}
             from={splitRateInput(memberForm.rate).from}
             to={splitRateInput(memberForm.rate).to}
             onFrom={(next) =>
@@ -2778,7 +2731,7 @@ export function CollectionEditorPage() {
       <Sheet
         open={Boolean(nameClash)}
         onClose={() => setNameClash(null)}
-        title="This pack already exists"
+        title="This collection already exists"
         footer={
           nameClash ? (
             <div className="flex flex-col gap-2" data-testid="collection-name-clash">
@@ -2796,6 +2749,7 @@ export function CollectionEditorPage() {
                         name: clash.name,
                         publish: clash.publish,
                         keepRateIds: rateConflictKeepIds,
+                        packRate: combineRateInput(rateFrom, rateTo),
                       });
                     } catch (err) {
                       const message =
@@ -2809,7 +2763,7 @@ export function CollectionEditorPage() {
                   })();
                 }}
               >
-                Add to that pack
+                Add to that collection
               </Button>
               <Button
                 fullWidth
@@ -2825,7 +2779,7 @@ export function CollectionEditorPage() {
         }
       >
         <p className="text-sm text-muted">
-          You already have “{nameClash?.name || form.name.trim()}”. Add these designs to that pack,
+          You already have “{nameClash?.name || form.name.trim()}”. Add these designs to that collection,
           or type a new name.
         </p>
       </Sheet>

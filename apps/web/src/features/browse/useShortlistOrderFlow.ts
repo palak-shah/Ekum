@@ -9,6 +9,7 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { clearBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
+import { clearBrowseCart } from '@/features/browse/browseCart';
 import {
   clearBrowseShortlist,
   type BrowseShortlistEntry,
@@ -33,11 +34,13 @@ async function placeFromPackOrBatch(input: {
   lines: Array<{ productId: string; quantity: number; note?: string }>;
   collectionId?: string;
   facilitatorCompanyId?: string;
+  transporter?: string;
 }): Promise<CreateOrdersBatchResult> {
   const batchBody = {
     kind: OrderKind.Standard,
     intent: input.intent,
     facilitatorCompanyId: input.facilitatorCompanyId,
+    ...(input.transporter ? { transporter: input.transporter } : {}),
     items: toBatchItems(input.lines),
   };
   if (!input.collectionId) {
@@ -51,6 +54,7 @@ async function placeFromPackOrBatch(input: {
       collectionId: input.collectionId,
       kind: OrderKind.Standard,
       intent: input.intent,
+      ...(input.transporter ? { transporter: input.transporter } : {}),
       items: toBatchItems(input.lines),
     });
     return {
@@ -95,7 +99,14 @@ export function useShortlistOrderFlow() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [qtyOpen, setQtyOpen] = useState(false);
+  const [qtyJob, setQtyJob] = useState<'order' | 'ask'>('order');
   const [error, setError] = useState<string | null>(null);
+
+  const openQty = (job: 'order' | 'ask' = 'order') => {
+    setError(null);
+    setQtyJob(job);
+    setQtyOpen(true);
+  };
 
   const batch = useMutation({
     mutationFn: (input: {
@@ -103,6 +114,7 @@ export function useShortlistOrderFlow() {
       lines: Array<{ productId: string; quantity: number; note?: string }>;
       collectionId?: string;
       facilitatorCompanyId?: string;
+      transporter?: string;
     }) => {
       return placeFromPackOrBatch(input);
     },
@@ -126,9 +138,10 @@ export function useShortlistOrderFlow() {
           ? millsOnPack
           : undefined;
       if (payload.orders.length > 0) {
-        // Empty Selection after a successful order action (designs + collections).
+        // Empty staging + cart after a successful order action.
         clearBrowseShortlist();
         clearBrowseAlbumPick();
+        clearBrowseCart();
       } else if (removeIds.length > 0) {
         shortlist.removeIds(removeIds);
       }
@@ -161,6 +174,8 @@ export function useShortlistOrderFlow() {
     shortlist,
     qtyOpen,
     setQtyOpen,
+    qtyJob,
+    openQty,
     error,
     setError,
     sellerIdForQty,
@@ -169,7 +184,7 @@ export function useShortlistOrderFlow() {
     asking: batch.isPending && batch.variables?.intent === OrderIntent.Inquiry,
     sendOrder: (
       lines: Array<{ productId: string; quantity: number; note?: string }>,
-      opts?: { collectionId?: string; facilitatorCompanyId?: string },
+      opts?: { collectionId?: string; facilitatorCompanyId?: string; transporter?: string },
     ) => {
       setError(null);
       batch.mutate({
@@ -177,11 +192,12 @@ export function useShortlistOrderFlow() {
         lines,
         collectionId: opts?.collectionId ?? collectionIdForPackOrder(shortlist.entries),
         facilitatorCompanyId: opts?.facilitatorCompanyId,
+        transporter: opts?.transporter,
       });
     },
     askRates: (
       lines: Array<{ productId: string; quantity: number; note?: string }>,
-      opts?: { collectionId?: string; facilitatorCompanyId?: string },
+      opts?: { collectionId?: string; facilitatorCompanyId?: string; transporter?: string },
     ) => {
       setError(null);
       batch.mutate({
@@ -189,6 +205,7 @@ export function useShortlistOrderFlow() {
         lines,
         collectionId: opts?.collectionId ?? collectionIdForPackOrder(shortlist.entries),
         facilitatorCompanyId: opts?.facilitatorCompanyId,
+        transporter: opts?.transporter,
       });
     },
   };

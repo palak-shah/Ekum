@@ -234,6 +234,9 @@ function makeService(options: Options) {
         return { id: 'ship-1' };
       },
     },
+    orderCompanyNote: {
+      findUnique: async () => null,
+    },
     orderTrailEvent: {
       count: async () => 0,
     },
@@ -818,16 +821,17 @@ describe('OrderService decideLines', () => {
         status: OrderStatus.Requested,
         buyerCompanyId: 'buyer',
         sellerCompanyId: 'seller',
-        items: [openItem('oi1', 5), openItem('oi2', 5)],
+        items: [openItem('oi1', 5, 100), openItem('oi2', 5)],
       },
     });
     await service.decideLines('seller', 'u1', 'o1', {
       items: [
-        { orderItemId: 'oi1', action: 'confirm' },
+        { orderItemId: 'oi1', action: 'confirm', rate: 120 },
         { orderItemId: 'oi2', action: 'decline' },
       ],
     });
     expect(captured.updateData?.status).toBe(OrderStatus.Confirmed);
+    expect(captured.itemUpdates.some((u) => u.rate === 120 && u.quantity === 5)).toBe(true);
     expect(captured.messageCreate).toMatchObject({
       type: 'order_card',
       body: 'Seller confirmed 1 · declined 1',
@@ -849,17 +853,55 @@ describe('OrderService decideLines', () => {
         status: OrderStatus.Requested,
         buyerCompanyId: 'buyer',
         sellerCompanyId: 'seller',
-        items: [openItem('oi1', 5), openItem('oi2', 5)],
+        items: [openItem('oi1', 5, 80), openItem('oi2', 5, 90)],
       },
     });
     await service.decideLines('seller', 'u1', 'o1', {
       items: [
         { orderItemId: 'oi1', action: 'confirm' },
-        { orderItemId: 'oi2', action: 'confirm', quantity: 3 },
+        { orderItemId: 'oi2', action: 'confirm', quantity: 3, rate: 95 },
       ],
     });
     expect(captured.messageCreate?.body).toBe('Seller confirmed 2');
     expect(captured.messageCreate?.body).not.toMatch(/declined/i);
+  });
+
+  it('allows confirm qty above the buyer ask / line quantity', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 5, 100)],
+      },
+    });
+    await service.decideLines('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', action: 'confirm', quantity: 8, rate: 110 }],
+    });
+    expect(captured.itemUpdates.some((u) => u.quantity === 8 && u.rate === 110)).toBe(true);
+  });
+
+  it('rejects confirm without a rate', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    try {
+      await service.decideLines('seller', 'u1', 'o1', {
+        items: [{ orderItemId: 'oi1', action: 'confirm', quantity: 5 }],
+      });
+      throw new Error('expected RATE_REQUIRED');
+    } catch (error) {
+      expect((error as { getResponse?: () => unknown }).getResponse?.()).toMatchObject({
+        code: 'RATE_REQUIRED',
+      });
+    }
   });
 });
 
@@ -1013,10 +1055,53 @@ describe('OrderService state machine', () => {
     expect(captured.shipmentCreate).toMatchObject({
       lrNumber: 'LR-1',
       items: { create: [{ orderItemId: 'oi1', quantity: 4 }] },
+      legs: {
+        create: [{ lrNumber: 'LR-1', billNumber: null, sortOrder: 0 }],
+      },
     });
     expect(captured.updateData?.status).not.toBe(OrderStatus.Dispatched);
     expect(captured.updateData?.status).not.toBe(OrderStatus.Settled);
     expect(captured.updateData?.status).toBe(OrderStatus.PartShipped);
+  });
+
+  it('dispatch persists multi LR + bill legs and parcelCount', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Confirmed,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [],
+      },
+    });
+    await service.dispatch('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', quantity: 4 }],
+      parcelCount: 2,
+      legs: [
+        { lrNumber: 'LR-A', billNumber: 'B-1' },
+        { lrNumber: 'LR-B', billNumber: null },
+      ],
+    });
+    expect(captured.shipmentCreate).toMatchObject({
+      lrNumber: 'LR-A',
+      parcelCount: 2,
+      legs: {
+        create: [
+          { lrNumber: 'LR-A', billNumber: 'B-1', sortOrder: 0 },
+          { lrNumber: 'LR-B', billNumber: null, sortOrder: 1 },
+        ],
+      },
+    });
   });
 
   it('full dispatch completes as dispatched', async () => {

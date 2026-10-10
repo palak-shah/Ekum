@@ -23,6 +23,8 @@ import { TokenService } from '../auth/token.service';
 import { CompanySerializer } from '../access/company.serializer';
 import { VisibilityService } from '../access/visibility.service';
 import { collectionMemberFind } from '../catalog/collection-member-find';
+import { collectionCardRateFields } from '../discovery/collection-card-rate';
+import { collectionSourceShopNames } from '../discovery/discovery.serializer';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { shopPublishedDesignWhere } from './shop-design-list';
@@ -274,7 +276,9 @@ export class CompanyService {
       name: row.name,
       images: row.images,
       rate: row.rate === null ? null : row.rate.toNumber(),
+      rateMax: row.rateMax === null ? null : row.rateMax.toNumber(),
       unit: row.unit,
+      categories: row.categories ?? [],
       postedAt: (row.postedToMarketAt ?? row.createdAt).toISOString(),
       allowForward: row.allowForward !== false,
       company: this.serializer.toPublicSummary(row.company),
@@ -327,9 +331,14 @@ export class CompanyService {
     const live = rows.filter((row) => row._count.products > 0);
     return toCursorPage(live, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
+      const rate = collectionCardRateFields({
+        rateVisibility: row.rateVisibility,
+        products: row.products,
+      });
       return {
         id: row.id,
         name: row.name,
+        description: row.description?.trim() || null,
         categories: row.categories ?? [],
         memberFind: collectionMemberFind(row.products),
         coverImage: row.coverImage,
@@ -343,6 +352,16 @@ export class CompanyService {
           row.orderPathPreference === 'handle' || row.orderPathPreference === 'direct'
             ? row.orderPathPreference
             : null,
+        rateMin: rate.rateMin,
+        rateMax: rate.rateMax,
+        rateUnit: rate.rateUnit,
+        exploreNewDesignCount: row.exploreNewDesignCount ?? 0,
+        showSourceShops: row.showSourceShops === true,
+        sourceShopNames: collectionSourceShopNames(
+          row.companyId,
+          row.showSourceShops === true,
+          row.products,
+        ),
         company: this.serializer.toPublicSummary(row.company),
       };
     });

@@ -14,9 +14,12 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useMyCompany } from '@/lib/queries';
+import { curateSheetDesigns } from '@/features/browse/curateSheetDesigns';
+import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   curateExistingTargets,
+  curatePublishedTargets,
   filterCurateTargetsByQuery,
   findOwnedPackByName,
   mergeCollectionProductIds,
@@ -28,7 +31,6 @@ import {
   curateAskAllLabel,
   curateAskKind,
   curateBlockReason,
-  curateSaveDraftLabel,
   curateSkipSummary,
   groupRelistAskBatches,
   isCurateCeilingError,
@@ -36,7 +38,11 @@ import {
   partitionCurateByCheck,
 } from '@/features/browse/curateCheck';
 import { useToast } from '@/ui/Toast';
+import { DockIconButton } from '@/features/browse/BottomTradeDock';
+import { BookmarkIcon, CollectionIcon, PlusIcon } from '@/ui/icons';
 import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
+
+type RepostMode = 'choose' | 'existing' | 'new';
 
 function isHttpUrl(value: string | null | undefined): value is string {
   return Boolean(value && /^https?:\/\//i.test(value));
@@ -67,7 +73,7 @@ export function CurateFromSelectionSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  /** When omitted, uses the full traveling shortlist. */
+  /** When omitted, uses cart + traveling shortlist. */
   productIds?: string[];
   /** Prefill pack name (one album expand or single design). */
   defaultName?: string;
@@ -81,10 +87,11 @@ export function CurateFromSelectionSheet({
   const me = useMyCompany();
   const myCompanyId = me.data?.id;
   const shortlist = useBrowseShortlist();
+  const cart = useBrowseCart();
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [askingKey, setAskingKey] = useState<string | null>(null);
-  const [mode, setMode] = useState<'new' | 'existing'>('new');
+  const [mode, setMode] = useState<RepostMode>('choose');
   const [query, setQuery] = useState('');
   const [sheetError, setSheetError] = useState<string | null>(null);
 
@@ -94,26 +101,39 @@ export function CurateFromSelectionSheet({
     enabled: open,
   });
 
-  const targets = useMemo(
+  /** Name clash / Add to it — any live album. */
+  const nameTargets = useMemo(
     () => curateExistingTargets(owned.data ?? []),
     [owned.data],
   );
-  const filteredTargets = useMemo(
-    () => filterCurateTargetsByQuery(targets, query),
-    [targets, query],
+  /** Add to existing path — published only. */
+  const publishedTargets = useMemo(
+    () => curatePublishedTargets(owned.data ?? []),
+    [owned.data],
+  );
+  const filteredPublished = useMemo(
+    () => filterCurateTargetsByQuery(publishedTargets, query),
+    [publishedTargets, query],
   );
 
   useEffect(() => {
     if (!open) return;
     setName(defaultName?.trim() ?? '');
-    setMode('new');
+    setMode('choose');
     setQuery('');
     setSheetError(null);
     setAskingKey(null);
   }, [open, defaultName]);
 
-  const ids = productIds ?? shortlist.entries.map((entry) => entry.productId);
-  const entries = shortlist.entries.filter((entry) => ids.includes(entry.productId));
+  const { ids, entries } = useMemo(
+    () =>
+      curateSheetDesigns({
+        productIds,
+        staging: shortlist.entries,
+        cart: cart.designs,
+      }),
+    [productIds, shortlist.entries, cart.designs],
+  );
   const idKey = ids.join('|');
 
   const curateCheck = useQuery({
@@ -154,10 +174,12 @@ export function CurateFromSelectionSheet({
     }),
   );
 
-  const nameClash = findOwnedPackByName(targets, name);
-  const checkReady = !curateCheck.isLoading;
+  const nameClash = findOwnedPackByName(nameTargets, name);
+  /** Enable while check loads (entries stand in); after check, need ≥1 allowed. */
   const canSubmit =
-    allowed.length >= 1 && Boolean(name.trim()) && !nameClash && checkReady;
+    Boolean(name.trim()) &&
+    !nameClash &&
+    (allowed.length >= 1 || (entries.length >= 1 && curateCheck.isLoading));
 
   const askRelist = useMutation({
     mutationFn: async (rows: { productId: string; sourceCollectionId?: string }[]) => {
@@ -192,13 +214,20 @@ export function CurateFromSelectionSheet({
   };
 
   const createDraft = async (opts?: { openPublish?: boolean }) => {
-    if (allowed.length < 1) return;
     const packName = name.trim();
     if (!packName) {
-      setSheetError('Enter a pack name.');
+      setSheetError('Enter a collection name.');
       return;
     }
-    const existing = findOwnedPackByName(targets, packName);
+    if (allowed.length < 1) {
+      if (curateCheck.isLoading) {
+        setSheetError('Still checking which designs can go in…');
+        return;
+      }
+      setSheetError('No designs can go in a collection yet.');
+      return;
+    }
+    const existing = findOwnedPackByName(nameTargets, packName);
     if (existing) {
       setSheetError(CURATE_NAME_TAKEN);
       return;
@@ -210,6 +239,7 @@ export function CurateFromSelectionSheet({
     try {
       const created = await api.post<CollectionDetailView>('/collections', {
         name: packName,
+        categories: [],
         ...(firstThumb ? { coverImage: firstThumb } : {}),
       } satisfies CreateCollectionDto);
       createdId = created.id;
@@ -239,12 +269,22 @@ export function CurateFromSelectionSheet({
       shortlist.removeIds(detail.products.map((product) => product.id));
       onCurated?.();
       onClose();
-      navigate(`/catalog/collections/${created.id}`, {
+      if (opts?.openPublish) {
+        // Whom sheet opens on the pack; after live publish → My Collections.
+        navigate(`/catalog/collections/${created.id}`, {
+          replace: true,
+          state: {
+            notice: 'Draft ready — finish publish',
+            openPublish: true,
+            afterPublish: 'collections' as const,
+          },
+        });
+        return;
+      }
+      showToast('Collection draft saved');
+      navigate('/catalog?tab=collections', {
         replace: true,
-        state: {
-          notice: opts?.openPublish ? 'Draft ready — finish publish' : 'Pack draft saved',
-          ...(opts?.openPublish ? { openPublish: true } : {}),
-        },
+        state: { collectionFilter: 'draft', productFilter: 'draft' },
       });
     } catch (err) {
       if (createdId) {
@@ -260,7 +300,7 @@ export function CurateFromSelectionSheet({
         return;
       }
       const message =
-        err instanceof ApiError ? err.message : (err as Error).message || 'Could not save pack.';
+        err instanceof ApiError ? err.message : (err as Error).message || 'Could not save collection.';
       setSheetError(message);
     } finally {
       setSaving(false);
@@ -299,9 +339,19 @@ export function CurateFromSelectionSheet({
       onCurated?.();
       onClose();
       showToast(`Added to ${pack.name}`);
-      if (pack.status !== CollectionStatus.Published) {
-        navigate(`/catalog/collections/${pack.id}`, { replace: true });
+      if (pack.status === CollectionStatus.Published) {
+        void queryClient.invalidateQueries({ queryKey: ['explore'] });
       }
+      // Published → My Collections; draft/ready → Draft filter.
+      const inDrafts =
+        pack.status === CollectionStatus.Draft || pack.status === CollectionStatus.Ready;
+      navigate('/catalog?tab=collections', {
+        replace: true,
+        state: {
+          collectionFilter: inDrafts ? 'draft' : 'published',
+          productFilter: inDrafts ? 'draft' : 'published',
+        },
+      });
     } catch (err) {
       if (err instanceof ApiError && isCurateCeilingError(err)) {
         setSheetError(null);
@@ -311,7 +361,7 @@ export function CurateFromSelectionSheet({
       setSheetError(
         err instanceof ApiError
           ? err.message
-          : (err as Error).message || 'Could not add to pack.',
+          : (err as Error).message || 'Could not add to collection.',
       );
     } finally {
       setSaving(false);
@@ -399,40 +449,159 @@ export function CurateFromSelectionSheet({
       </div>
     ) : null;
 
+  const designSummary = (
+    <p className="text-sm text-muted" data-testid="repost-design-summary">
+      {entries.length} design{entries.length === 1 ? '' : 's'} from{' '}
+      {new Set(entries.map((entry) => entry.companyId)).size} business
+      {new Set(entries.map((entry) => entry.companyId)).size === 1 ? '' : 'es'}
+    </p>
+  );
+
+  const newActions =
+    mode === 'new' && !nameClash ? (
+      <div className="flex items-stretch gap-2" data-testid="repost-new-actions">
+        <div className="w-[4.75rem] shrink-0">
+          <DockIconButton
+            testId="curate-save-draft"
+            label={saving ? '…' : 'Save'}
+            disabled={saving || !canSubmit}
+            onClick={() => void createDraft()}
+          >
+            <BookmarkIcon width={22} height={22} />
+          </DockIconButton>
+        </div>
+        <button
+          type="button"
+          data-testid="repost-publish"
+          disabled={saving || !canSubmit}
+          onClick={() => void createDraft({ openPublish: true })}
+          className={cx(
+            'flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-xl px-4',
+            'border border-accent bg-accent text-sm font-bold text-white',
+            'disabled:opacity-40',
+          )}
+        >
+          {saving ? 'Saving…' : 'Publish'}
+        </button>
+      </div>
+    ) : mode === 'new' && nameClash ? (
+      <Button
+        fullWidth
+        disabled={saving || allowed.length < 1}
+        onClick={() => void addToExisting(nameClash)}
+      >
+        {saving ? 'Saving…' : CURATE_ADD_TO_IT}
+      </Button>
+    ) : null;
+
   return (
-    <Sheet open={open} onClose={onClose} title="Curate pack">
+    <Sheet open={open} onClose={onClose} title="Repost" footer={newActions}>
+      {mode === 'choose' ? (
+        <div className="flex flex-col gap-3">
+          {designSummary}
+          {curateCheck.isLoading ? (
+            <p className="text-sm text-muted">Checking which can go in…</p>
+          ) : (
+            skipChrome
+          )}
+          <div className="flex flex-col gap-2" data-testid="repost-path-choose">
+            <button
+              type="button"
+              data-testid="repost-path-existing"
+              disabled={saving || allowed.length < 1}
+              onClick={() => {
+                setQuery('');
+                setSheetError(null);
+                setMode('existing');
+              }}
+              className={cx(
+                'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
+                'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
+              )}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <CollectionIcon width={22} height={22} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-ink">Add to existing collection</span>
+                <span className="block text-xs font-medium text-muted">
+                  Pick a published collection
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              data-testid="repost-path-new"
+              disabled={saving || allowed.length < 1}
+              onClick={() => {
+                setSheetError(null);
+                setMode('new');
+              }}
+              className={cx(
+                'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
+                'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
+              )}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <PlusIcon width={22} height={22} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-ink">Add new</span>
+                <span className="block text-xs font-medium text-muted">
+                  Name it, then publish
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {mode === 'existing' ? (
         <div className="flex flex-col gap-3">
           <button
             type="button"
             className="self-start text-sm font-semibold text-accent"
             disabled={saving}
-            onClick={() => setMode('new')}
+            data-testid="repost-back-choose"
+            onClick={() => setMode('choose')}
           >
-            ← New pack
+            ← Back
           </button>
           <p className="text-sm text-muted">
-            {allowed.length} design{allowed.length === 1 ? '' : 's'} · pick a pack to add them
+            {allowed.length} design{allowed.length === 1 ? '' : 's'} · pick a published collection
           </p>
           {skipChrome}
           {sheetError ? <InlineNotice message={sheetError} tone="muted" /> : null}
-          {targets.length > 0 ? (
+          {publishedTargets.length > 0 ? (
             <TextInput
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search your packs"
+              placeholder="Search your collections"
               autoComplete="off"
             />
           ) : null}
           {owned.isLoading ? (
-            <p className="text-sm text-muted">Loading packs…</p>
-          ) : targets.length === 0 ? (
-            <p className="text-sm text-muted">No packs yet — create a new one.</p>
-          ) : filteredTargets.length === 0 ? (
-            <p className="text-sm text-muted">No packs match.</p>
+            <p className="text-sm text-muted">Loading collections…</p>
+          ) : publishedTargets.length === 0 ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted">No published collections yet.</p>
+              <Button
+                variant="secondary"
+                fullWidth
+                disabled={saving || allowed.length < 1}
+                onClick={() => setMode('new')}
+              >
+                Add new instead
+              </Button>
+            </div>
+          ) : filteredPublished.length === 0 ? (
+            <p className="text-sm text-muted">No collections match.</p>
           ) : (
-            <ul className="flex max-h-72 flex-col gap-2 overflow-y-auto">
-              {filteredTargets.map((pack) => (
+            <ul
+              className="flex max-h-72 flex-col gap-2 overflow-y-auto"
+              data-testid="repost-existing-list"
+            >
+              {filteredPublished.map((pack) => (
                 <li key={pack.id}>
                   <button
                     type="button"
@@ -460,13 +629,20 @@ export function CurateFromSelectionSheet({
             </ul>
           )}
         </div>
-      ) : (
+      ) : null}
+
+      {mode === 'new' ? (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted">
-            {entries.length} design{entries.length === 1 ? '' : 's'} from{' '}
-            {new Set(entries.map((entry) => entry.companyId)).size} business
-            {new Set(entries.map((entry) => entry.companyId)).size === 1 ? '' : 'es'}
-          </p>
+          <button
+            type="button"
+            className="self-start text-sm font-semibold text-accent"
+            disabled={saving}
+            data-testid="repost-back-choose"
+            onClick={() => setMode('choose')}
+          >
+            ← Back
+          </button>
+          {designSummary}
           {curateCheck.isLoading ? (
             <p className="text-sm text-muted">Checking which can go in…</p>
           ) : (
@@ -490,48 +666,8 @@ export function CurateFromSelectionSheet({
           {sheetError && !nameClash ? (
             <InlineNotice message={sheetError} tone="muted" />
           ) : null}
-          {nameClash ? (
-            <Button
-              fullWidth
-              disabled={saving || allowed.length < 1}
-              onClick={() => void addToExisting(nameClash)}
-            >
-              {saving ? 'Saving…' : CURATE_ADD_TO_IT}
-            </Button>
-          ) : (
-            <>
-              <Button
-                fullWidth
-                disabled={saving || !canSubmit}
-                onClick={() => void createDraft()}
-                data-testid="curate-save-draft"
-              >
-                {saving ? 'Saving…' : curateSaveDraftLabel(allowed.length, blocked.length)}
-              </Button>
-              <Button
-                variant="secondary"
-                fullWidth
-                disabled={saving || !canSubmit}
-                onClick={() => void createDraft({ openPublish: true })}
-              >
-                Publish to Collection
-              </Button>
-            </>
-          )}
-          {owned.isLoading ? null : targets.length > 0 ? (
-            <button
-              type="button"
-              className="text-center text-sm font-semibold text-accent"
-              disabled={saving}
-              onClick={() => setMode('existing')}
-            >
-              Add to existing pack
-            </button>
-          ) : (
-            <p className="text-center text-xs text-muted">No packs yet — name a new one above.</p>
-          )}
         </div>
-      )}
+      ) : null}
     </Sheet>
   );
 }

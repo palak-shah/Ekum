@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,12 +20,14 @@ import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { SaveOrDiscardSheet } from '@/ui/SaveOrDiscardSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
-import { CameraIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
+import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
+import { CameraIcon, CollectionIcon, LockIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
 import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
+import { catalogRateFieldLabel } from '@/lib/catalogRate';
 import { formatRateInput, parseRateInput, rateFieldInputProps } from './rateInput';
 import { generateDraftSku, nameForNewDesign } from './designBatchHelpers';
 import { TagsField } from './TagsField';
@@ -51,8 +53,6 @@ export function ProductEditorPage() {
   const company = useMyCompany();
   const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
-  const moreAnchorRef = useRef<HTMLButtonElement>(null);
-  const morePanelRef = useRef<HTMLDivElement>(null);
   /** Successful save/navigate must not trip the discard sheet. */
   const leaveBypassRef = useRef(false);
   const phone = isPhoneLike();
@@ -61,7 +61,6 @@ export function ProductEditorPage() {
   const [marketOpen, setMarketOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [morePos, setMorePos] = useState({ top: 0, right: 8 });
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
   const [uploading, setUploading] = useState(false);
@@ -182,44 +181,6 @@ export function ProductEditorPage() {
       policyHint: null,
     }));
   }, [marketOpen, settings.data, existing.data?.postedToMarketAt]);
-
-  useLayoutEffect(() => {
-    if (!moreOpen) return;
-    const place = () => {
-      const anchor = moreAnchorRef.current;
-      if (!anchor) return;
-      const rect = anchor.getBoundingClientRect();
-      setMorePos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [moreOpen]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const close = () => setMoreOpen(false);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (morePanelRef.current?.contains(target)) return;
-      if (moreAnchorRef.current?.contains(target)) return;
-      close();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', close, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', close, true);
-    };
-  }, [moreOpen]);
 
   const openPicker = () => {
     if (phone) {
@@ -444,6 +405,38 @@ export function ProductEditorPage() {
     return <LoadingBlock label="Loading design…" />;
   }
 
+  const lifecycleMoreItems: MoreActionItem[] = isArchived
+    ? [
+        {
+          id: 'restore',
+          label: 'Restore to draft',
+          icon: <CollectionIcon width={20} height={20} />,
+          disabled: restore.isPending,
+          onClick: () => restore.mutate(),
+        },
+      ]
+    : [
+        ...(isPublished
+          ? [
+              {
+                id: 'hide',
+                label: 'Hide · back to draft',
+                icon: <LockIcon width={20} height={20} />,
+                disabled: unpublish.isPending,
+                onClick: () => unpublish.mutate(),
+              } satisfies MoreActionItem,
+            ]
+          : []),
+        {
+          id: 'archive',
+          label: 'Archive',
+          icon: <CollectionIcon width={20} height={20} />,
+          disabled: archive.isPending,
+          danger: true,
+          onClick: () => archive.mutate(),
+        },
+      ];
+
   return (
     <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-8')}>
       {editing ? (
@@ -467,7 +460,6 @@ export function ProductEditorPage() {
         action={
           showLifecycleMenu ? (
             <button
-              ref={moreAnchorRef}
               type="button"
               aria-label="More"
               aria-expanded={moreOpen}
@@ -579,7 +571,7 @@ export function ProductEditorPage() {
         />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Rate" hint="Blank = on request">
+        <Field label={catalogRateFieldLabel(form.unit)} hint="Blank = on request">
           <TextInput
             value={form.rate}
             onChange={(e) => setForm({ ...form, rate: e.target.value })}
@@ -714,63 +706,13 @@ export function ProductEditorPage() {
           </Button>
         )}
 
-      {moreOpen && showLifecycleMenu && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-                onClick={() => setMoreOpen(false)}
-              />
-              <div
-                ref={morePanelRef}
-                role="menu"
-                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-                style={{ top: morePos.top, right: morePos.right }}
-              >
-                {isArchived ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={restore.isPending}
-                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                    onClick={() => restore.mutate()}
-                  >
-                    Restore to draft
-                  </button>
-                ) : (
-                  <>
-                    {isPublished ? (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        disabled={unpublish.isPending}
-                        className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                        onClick={() => unpublish.mutate()}
-                      >
-                        Hide · back to draft
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={archive.isPending}
-                      className={cx(
-                        'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40',
-                        isPublished && 'border-t border-line/70',
-                      )}
-                      onClick={() => archive.mutate()}
-                    >
-                      Archive
-                    </button>
-                  </>
-                )}
-              </div>
-            </>,
-            document.body,
-          )
-        : null}
+      <MoreActionsSheet
+        open={moreOpen && showLifecycleMenu}
+        onClose={() => setMoreOpen(false)}
+        title={form.name.trim() || 'Design'}
+        testId="product-editor-more-sheet"
+        items={lifecycleMoreItems}
+      />
 
       <input
         ref={fileRef}

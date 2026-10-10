@@ -130,4 +130,10 @@ describe('audience visibility', () => {
     ) as { company?: { followers?: { some?: { status?: string } } } };
     expect(clause.company?.followers?.some?.status).toBe('allowed');
   });
+
+  it('includes the viewer’s own company so Followers packs stay on their Explore', () => {
+    expect(audienceVisibilityOr('viewer')).toEqual(
+      expect.arrayContaining([{ companyId: 'viewer' }]),
+    );
+  });
 });

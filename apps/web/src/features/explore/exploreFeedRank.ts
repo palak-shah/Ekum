@@ -77,14 +77,19 @@ export function buildRankedPostFeed(
       activityAt,
     });
   }
+  const viewerCompanyId = options?.viewerCompanyId;
+
   for (const opportunity of forYouCollections) {
     if (networkCollectionIds.has(opportunity.collection.id)) continue;
     const activityAt = opportunity.collection.updatedAt;
+    const isOwn = Boolean(viewerCompanyId && opportunity.collection.company.id === viewerCompanyId);
     rows.push({
       kind: 'collection',
       id: `c:${opportunity.collection.id}`,
       opportunity,
-      tier: explorePostTier(opportunity.relevance),
+      // Own packs stay visible on Explore (Stories → You) even when buying
+      // interest would otherwise drop a city-only relevance line.
+      tier: isOwn ? 40 : explorePostTier(opportunity.relevance),
       at: Date.parse(activityAt) || 0,
       activityAt,
     });
@@ -92,18 +97,18 @@ export function buildRankedPostFeed(
   for (const opportunity of forYouDesigns) {
     if (networkDesignIds.has(opportunity.product.id)) continue;
     const activityAt = opportunity.product.postedAt;
+    const isOwn = Boolean(viewerCompanyId && opportunity.product.company.id === viewerCompanyId);
     rows.push({
       kind: 'design',
       id: `d:${opportunity.product.id}`,
       opportunity,
-      tier: explorePostTier(opportunity.relevance),
+      tier: isOwn ? 40 : explorePostTier(opportunity.relevance),
       at: Date.parse(activityAt) || 0,
       activityAt,
     });
   }
 
   const filtered = options?.buyingFeed ? rows.filter((row) => row.tier > 0) : rows;
-  const viewerCompanyId = options?.viewerCompanyId;
   const seenMap = options?.seenMap;
 
   return filtered.sort((a, b) => {

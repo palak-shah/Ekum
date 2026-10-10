@@ -48,7 +48,6 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
 import { timeAgo, formatFileSize } from '@/lib/format';
 import {
   classifyChatDocumentFile,
@@ -82,7 +81,9 @@ import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
 import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
 import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, SearchInput, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
+import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 import {
+  BellIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -94,11 +95,14 @@ import {
   MicIcon,
   OrdersIcon,
   MoreHorizontalIcon,
+  PinIcon,
   PlusIcon,
   ProductIcon,
   ReturnIcon,
   SearchIcon,
   SendIcon,
+  TrashIcon,
+  UserIcon,
 } from '@/ui/icons';
 import { morePhotosEntry } from '@/features/catalog/designBatchHelpers';
 import {
@@ -112,6 +116,7 @@ import {
   forwardPayload,
   replyComposerLabel,
   quotedComposerThumbUrl,
+  replyQuoteOpenPath,
 } from './chatMessageActions';
 import {
   resolveForwardFacilitator,
@@ -165,7 +170,7 @@ import {
 import { chatComposerHeightPx } from './chatComposerHeight';
 import { getChatDraft, setChatDraft } from './chatsDrafts';
 import { chatsInboxHref } from './chatsInboxFilter';
-import { ChatMuteDurationFlyout } from './ChatMuteDurationFlyout';
+import { MUTE_FOR_OPTIONS } from './ChatMuteDurationFlyout';
 import { ChatMentionPicker } from './ChatMentionPicker';
 import { highlightMentionText } from './chatMentions';
 
@@ -195,13 +200,7 @@ export function ThreadPage() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [mentionLocked, setMentionLocked] = useState(false);
   const [pendingMentions, setPendingMentions] = useState<MessageMention[]>([]);
-  const [mutePick, setMutePick] = useState(false);
-  const [muteHost, setMuteHost] = useState<{
-    top: number;
-    left: number;
-    right: number;
-    bottom: number;
-  } | null>(null);
+  const [moreStep, setMoreStep] = useState<'root' | 'mute'>('root');
   const [groupProfileOpen, setGroupProfileOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachStep, setAttachStep] = useState<AttachStep>('menu');
@@ -314,9 +313,6 @@ export function ThreadPage() {
     null,
   );
   const [confirmAction, setConfirmAction] = useState<'leave' | 'remove' | null>(null);
-  const [morePos, setMorePos] = useState({ top: 0, right: 0 });
-  const moreAnchorRef = useRef<HTMLButtonElement>(null);
-  const morePanelRef = useRef<HTMLDivElement>(null);
   const searchFilterAnchorRef = useRef<HTMLButtonElement>(null);
   const [searchFilterOpen, setSearchFilterOpen] = useState(false);
   const [searchView, setSearchView] = useState<ThreadMessageViewScope>('all');
@@ -494,67 +490,9 @@ export function ThreadPage() {
     }
   }, [searchOpen]);
 
-  useLayoutEffect(() => {
-    if (!moreOpen) return;
-    const place = () => {
-      const anchor = moreAnchorRef.current;
-      if (!anchor) return;
-      const rect = anchor.getBoundingClientRect();
-      setMorePos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [moreOpen]);
-
-  useLayoutEffect(() => {
-    if (!moreOpen || !mutePick) {
-      setMuteHost(null);
-      return;
-    }
-    const box = morePanelRef.current?.getBoundingClientRect();
-    if (box) setMuteHost({ top: box.top, left: box.left, right: box.right, bottom: box.bottom });
-  }, [moreOpen, mutePick, morePos.top, morePos.right]);
-
   useEffect(() => {
-    if (!moreOpen) setMutePick(false);
+    if (!moreOpen) setMoreStep('root');
   }, [moreOpen]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const close = () => setMoreOpen(false);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (mutePick) {
-          setMutePick(false);
-          return;
-        }
-        close();
-      }
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (morePanelRef.current?.contains(target)) return;
-      if (moreAnchorRef.current?.contains(target)) return;
-      if ((event.target as Element | null)?.closest?.('[data-testid="chat-mute-flyout"]')) return;
-      close();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    const onScroll = (event: Event) => {
-      if (isViewportChromeScroll(event)) return;
-      close();
-    };
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [moreOpen, mutePick]);
 
   useEffect(() => {
     setMoreOpen(false);
@@ -909,6 +847,19 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not accept.'),
+  });
+
+  const resolveComplaint = useMutation({
+    mutationFn: (complaintId: string) => api.post(`/complaints/${complaintId}/resolve`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      showToast('Complaint resolved.');
+      setError(null);
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not resolve complaint.'),
   });
 
   const viewRequestAllow = useMutation({
@@ -1905,6 +1856,98 @@ export function ThreadPage() {
           ? 'Share a collection'
           : 'Share an order';
 
+  const muted = detail.alertLevel === 'muted';
+  const threadMoreRootItems: MoreActionItem[] = [
+    {
+      id: 'pin',
+      label: detail.pinned ? 'Unpin chat' : 'Pin chat',
+      icon: <PinIcon width={20} height={20} />,
+      testId: 'thread-pin',
+      disabled: pinThread.isPending,
+      onClick: () => {
+        setMoreOpen(false);
+        pinThread.mutate(!detail.pinned);
+      },
+    },
+    {
+      id: 'mute',
+      label: muted ? 'Unmute' : 'Mute',
+      icon: <BellIcon width={20} height={20} />,
+      testId: 'thread-mute',
+      disabled: setAlert.isPending,
+      active: !muted && moreStep === 'mute',
+      onClick: () => {
+        if (muted) {
+          setAlert.mutate({ alertLevel: 'all' });
+          return;
+        }
+        setMoreStep('mute');
+      },
+    },
+  ];
+  if (detail.type === 'group' && detail.canManagePeople) {
+    threadMoreRootItems.push({
+      id: 'group-photo',
+      label: 'Group photo',
+      icon: <CameraIcon width={20} height={20} />,
+      testId: 'thread-group-profile',
+      onClick: () => {
+        setMoreOpen(false);
+        setGroupProfileOpen(true);
+      },
+    });
+  }
+  if (detail.canManagePeople) {
+    threadMoreRootItems.push({
+      id: 'people',
+      label: 'Team on chat',
+      icon: <UserIcon width={20} height={20} />,
+      testId: 'thread-people',
+      onClick: () => {
+        setMoreOpen(false);
+        setPeopleOpen(true);
+      },
+    });
+  }
+  if (detail.canLeave) {
+    threadMoreRootItems.push({
+      id: 'leave',
+      label: 'Leave',
+      icon: <TrashIcon width={20} height={20} />,
+      testId: 'thread-leave',
+      disabled: leaveThread.isPending,
+      onClick: () => {
+        setMoreOpen(false);
+        setConfirmAction('leave');
+      },
+    });
+  }
+  if (detail.canRemoveGroup) {
+    threadMoreRootItems.push({
+      id: 'remove-group',
+      label: 'Remove group',
+      icon: <TrashIcon width={20} height={20} />,
+      testId: 'thread-remove-group',
+      disabled: archiveGroup.isPending,
+      danger: true,
+      onClick: () => {
+        setMoreOpen(false);
+        setConfirmAction('remove');
+      },
+    });
+  }
+  const threadMuteItems: MoreActionItem[] = MUTE_FOR_OPTIONS.map((row) => ({
+    id: row.id,
+    label: row.label,
+    icon: <BellIcon width={20} height={20} />,
+    testId: `chat-mute-${row.id}`,
+    disabled: setAlert.isPending,
+    onClick: () => {
+      setMoreStep('root');
+      setAlert.mutate({ alertLevel: 'muted', muteFor: row.id });
+    },
+  }));
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
       <DiscardChangesSheet
@@ -2020,7 +2063,6 @@ export function ThreadPage() {
               <SearchIcon width={20} height={20} />
             </button>
             <button
-              ref={moreAnchorRef}
               type="button"
               data-testid="thread-more"
               aria-label="More"
@@ -2038,125 +2080,15 @@ export function ThreadPage() {
         }
       />
 
-      {moreOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-                onClick={() => setMoreOpen(false)}
-              />
-              <div
-                ref={morePanelRef}
-                role="menu"
-                data-testid="thread-more-menu"
-                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-                style={{ top: morePos.top, right: morePos.right }}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="thread-pin"
-                  disabled={pinThread.isPending}
-                  className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                  onClick={() => {
-                    setMoreOpen(false);
-                    pinThread.mutate(!detail.pinned);
-                  }}
-                >
-                  {detail.pinned ? 'Unpin chat' : 'Pin chat'}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="thread-mute"
-                  disabled={setAlert.isPending}
-                  aria-expanded={detail.alertLevel !== 'muted' && mutePick}
-                  className={cx(
-                    'flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40',
-                    mutePick && detail.alertLevel !== 'muted' ? 'bg-accent/5' : '',
-                  )}
-                  onClick={() => {
-                    if (detail.alertLevel === 'muted') {
-                      setAlert.mutate({ alertLevel: 'all' });
-                      return;
-                    }
-                    setMutePick((open) => !open);
-                  }}
-                >
-                  {detail.alertLevel === 'muted' ? 'Unmute' : 'Mute'}
-                </button>
-                {detail.type === 'group' && detail.canManagePeople ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="thread-group-profile"
-                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      setGroupProfileOpen(true);
-                    }}
-                  >
-                    Group photo
-                  </button>
-                ) : null}
-                {detail.canManagePeople ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="thread-people"
-                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      setPeopleOpen(true);
-                    }}
-                  >
-                    Team on chat
-                  </button>
-                ) : null}
-                {detail.canLeave ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="thread-leave"
-                    disabled={leaveThread.isPending}
-                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      setConfirmAction('leave');
-                    }}
-                  >
-                    Leave
-                  </button>
-                ) : null}
-                {detail.canRemoveGroup ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="thread-remove-group"
-                    disabled={archiveGroup.isPending}
-                    className="flex w-full border-t border-line/70 px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-danger hover:bg-foam/70 disabled:opacity-40"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      setConfirmAction('remove');
-                    }}
-                  >
-                    Remove group
-                  </button>
-                ) : null}
-              </div>
-              {mutePick && detail.alertLevel !== 'muted' ? (
-                <ChatMuteDurationFlyout
-                  host={muteHost}
-                  pending={setAlert.isPending}
-                  onPick={(muteFor) => setAlert.mutate({ alertLevel: 'muted', muteFor })}
-                />
-              ) : null}
-            </>,
-            document.body,
-          )
-        : null}
+      <MoreActionsSheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        title={moreStep === 'mute' ? 'Mute for' : title}
+        testId="thread-more-menu"
+        onBack={moreStep === 'mute' ? () => setMoreStep('root') : undefined}
+        backTestId="thread-mute-back"
+        items={moreStep === 'mute' ? threadMuteItems : threadMoreRootItems}
+      />
 
       {searchOpen ? (
         <div data-testid="thread-search-band" className="mb-2 flex shrink-0 flex-col gap-1.5">
@@ -2397,6 +2329,8 @@ export function ThreadPage() {
                 onEscalateComplaint={(complaintId, orderId, productIds) => {
                   void openEscalateToSupplier(complaintId, orderId, productIds);
                 }}
+                onResolveComplaint={(complaintId) => resolveComplaint.mutate(complaintId)}
+                resolvingComplaint={resolveComplaint.isPending}
                 onOpenCollection={(collectionId) => navigate(`/collections/${collectionId}`)}
                 onViewRequestAllow={(requestId) => viewRequestAllow.mutate(requestId)}
                 onViewRequestDeny={(requestId) => viewRequestDeny.mutate(requestId)}
@@ -2414,7 +2348,14 @@ export function ThreadPage() {
                   highlighted={highlightId === message.id}
                   onJumpToReply={
                     message.replyTo?.available !== false && message.replyTo?.id
-                      ? () => jumpToMessage(message.replyTo!.id)
+                      ? () => {
+                          const openPath = replyQuoteOpenPath(message.replyTo);
+                          if (openPath) {
+                            navigate(openPath);
+                            return;
+                          }
+                          void jumpToMessage(message.replyTo!.id);
+                        }
                       : undefined
                   }
                   onQuotePhoto={
@@ -3783,6 +3724,8 @@ function TimelineItem({
   accepting,
   onOpenOrder,
   onEscalateComplaint,
+  onResolveComplaint,
+  resolvingComplaint = false,
   onOpenCollection,
   onViewRequestAllow,
   onViewRequestDeny,
@@ -3816,6 +3759,8 @@ function TimelineItem({
     orderId: string | null,
     productIds?: string[] | null,
   ) => void;
+  onResolveComplaint?: (complaintId: string) => void;
+  resolvingComplaint?: boolean;
   onOpenCollection?: (collectionId: string) => void;
   onViewRequestAllow?: (requestId: string) => void;
   onViewRequestDeny?: (requestId: string) => void;
@@ -4106,10 +4051,10 @@ function TimelineItem({
           : ref?.name?.trim() || 'design';
     const askLine = pending
       ? isTarget
-        ? `Wants to put ${designLabel} in their pack`
+        ? `Wants to put ${designLabel} in their collection`
         : 'Waiting for Allow'
       : allowed
-        ? 'You can put this in your pack'
+        ? 'You can put this in your collection'
         : null;
     const model = buildDesignTradeCard(message, ref, senderLabel, null, {
       productPath: undefined,
@@ -4190,12 +4135,12 @@ function TimelineItem({
     const askLine = pending
       ? isDefaultAskBody || !rawBody
         ? isTarget
-          ? 'Asked to see this pack'
+          ? 'Asked to see this collection'
           : 'Waiting for Allow'
         : rawBody
       : allowed
         ? isDefaultAskBody || /^allowed\b/i.test(rawBody) || !rawBody
-          ? 'You can look through this pack'
+          ? 'You can look through this collection'
           : rawBody
         : null;
     const model = buildCollectionTradeCard(message, ref, senderLabel, null, {
@@ -4419,6 +4364,8 @@ function TimelineItem({
       curating,
       curated,
       onEscalateComplaint,
+      onResolveComplaint,
+      resolvingComplaint,
     },
   });
 

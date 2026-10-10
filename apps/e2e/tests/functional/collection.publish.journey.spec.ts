@@ -8,11 +8,27 @@ test.describe('seller collection publish @functional @collections', () => {
 
     await expect(page.getByTestId('collection-create-dock')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Chats' })).toHaveCount(0);
-    await expect(page.getByLabel('Name')).toHaveAttribute('placeholder', 'Name this pack');
+    await expect(page.getByLabel('Collection name')).toHaveAttribute(
+      'placeholder',
+      'Name this collection',
+    );
+    await expect(page.getByTestId('collection-rate-mode-single')).toBeVisible();
+    await expect(page.getByTestId('collection-rate-mode-range')).toBeVisible();
+    await expect(page.getByTestId('collection-rate-caption')).toHaveCount(0);
     await expect(page.getByLabel('Description')).toBeVisible();
     await expect(page.getByTestId('collection-tag-item')).toBeVisible();
     await expect(page.getByTestId('collection-apply-all')).toBeVisible();
     await expect(page.getByTestId('collection-order-dispatch')).toBeVisible();
+    await expect(page.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await expect(page.getByTestId('collection-set-contains')).toHaveCount(0);
+    await page.getByTestId('collection-order-dispatch-toggle').click();
+    await expect(page.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     await expect(page.getByRole('dialog', { name: 'Same for new photos' })).toHaveCount(0);
     await expect(page.getByTestId('collection-who')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Create & Publish' })).toHaveCount(0);
@@ -21,14 +37,7 @@ test.describe('seller collection publish @functional @collections', () => {
     await expect(page.getByTestId('collection-order-preview')).toBeVisible();
 
     await page.getByTestId('collection-add-designs').click();
-    const fromCamera = page.getByTestId('continuous-camera-designs');
-    const fromMenu = page.getByTestId('collection-source-designs');
-    await expect(fromCamera.or(fromMenu)).toBeVisible({ timeout: 8_000 });
-    if (await fromCamera.isVisible()) {
-      await fromCamera.click();
-    } else {
-      await fromMenu.click();
-    }
+    await expect(page.getByPlaceholder('Search by name')).toBeVisible({ timeout: 8_000 });
     await page.getByPlaceholder('Search by name').fill('Banarasi');
     await page
       .getByRole('dialog')
@@ -38,7 +47,8 @@ test.describe('seller collection publish @functional @collections', () => {
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
-    await expect(page.getByTestId('collection-add-designs')).toHaveText(/Add designs/i);
+    await expect(page.getByTestId('collection-add-designs')).toHaveText(/Add from existing designs/i);
+    await expect(page.getByTestId('collection-add-photos')).toHaveText(/Add photos/i);
 
     await page
       .getByTestId('collection-member-tile')
@@ -59,14 +69,7 @@ test.describe('seller collection publish @functional @collections', () => {
     await page.goto('/catalog/collections/new');
 
     await page.getByTestId('collection-add-designs').click();
-    const fromCamera = page.getByTestId('continuous-camera-designs');
-    const fromMenu = page.getByTestId('collection-source-designs');
-    await expect(fromCamera.or(fromMenu)).toBeVisible({ timeout: 8_000 });
-    if (await fromCamera.isVisible()) {
-      await fromCamera.click();
-    } else {
-      await fromMenu.click();
-    }
+    await expect(page.getByPlaceholder('Search by name')).toBeVisible({ timeout: 8_000 });
     await page.getByPlaceholder('Search by name').fill('Banarasi');
     await page
       .getByRole('dialog')
@@ -76,7 +79,7 @@ test.describe('seller collection publish @functional @collections', () => {
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
-    await page.getByLabel('Name').fill(collectionName);
+    await page.getByLabel('Collection name').fill(collectionName);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });

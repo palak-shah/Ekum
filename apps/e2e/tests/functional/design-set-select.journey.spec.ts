@@ -9,7 +9,7 @@ test.describe('design set select @functional @explore', () => {
     await expect(page.getByTestId('photo-viewer')).toHaveCount(0);
     await expect(page.getByTestId('design-set-select')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('design-set-select').click();
-    await expect(page.getByTestId('design-set-select')).toHaveText('Selecting');
+    await expect(page.getByTestId('select-all-float')).toBeVisible();
     await page.getByTestId('select-all-float-select-all').click();
     await expect(page.getByTestId('design-set-trade-dock')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('design-set-order')).toBeVisible();

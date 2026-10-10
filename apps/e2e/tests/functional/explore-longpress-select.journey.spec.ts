@@ -34,12 +34,26 @@ test.describe('explore long-press select @functional @explore', () => {
     await page.goto('/explore');
     await expect(page.getByTestId('explore-select')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('explore-select').click();
-    await expect(page.getByTestId('explore-select')).toHaveText('Selecting');
+    await expect(page.getByTestId('select-all-float')).toBeVisible();
+    await expect(page.getByTestId('select-all-float-clear')).toBeVisible();
+    await expect(page.getByTestId('explore-select')).toHaveCount(0);
+    await expect(page.getByTestId('explore-select-back')).toBeVisible();
 
     const media = page.locator('.ekum-long-press-surface').first();
     await expect(media).toBeVisible();
     await media.click();
     await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
     await expect(page).toHaveURL(/\/explore(?:\?|$)/);
+
+    // Clear exits Selecting and restores Select.
+    await page.getByTestId('select-all-float-clear').click();
+    await expect(page.getByTestId('explore-select')).toHaveText('Select');
+    await expect(page.getByTestId('explore-select-back')).toHaveCount(0);
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+
+    await page.getByTestId('explore-select').click();
+    await expect(page.getByTestId('explore-select-back')).toBeVisible();
+    await page.getByTestId('explore-select-back').click();
+    await expect(page).toHaveURL(/\/(?:\?|$)/);
   });
 });

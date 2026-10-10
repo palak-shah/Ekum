@@ -91,9 +91,81 @@ describe('OrderService.setLineSupply', () => {
       where: { id: 'oi1' },
       data: { lineStatus: OrderLineStatus.Declined },
     });
-    expect(postOrderCard).toHaveBeenCalled();
-    expect(trail.append).toHaveBeenCalled();
-    expect(String(postOrderCard.mock.calls[0]?.[3] ?? '')).toContain('Can’t supply');
+    expect(postOrderCard).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'Can’t supply',
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(trail.append).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: 'Can’t supply', detail: 'Cotton' }),
+    );
+  });
+
+  it('marks partially shipped line Can’t supply as Declined (not silent Dispatched)', async () => {
+    const item = {
+      id: 'oi1',
+      name: 'Cotton Grey Fabric',
+      lineStatus: OrderLineStatus.Dispatched,
+      quantity: { toNumber: () => 20 },
+      requestedQuantity: { toNumber: () => 20 },
+    };
+    const orderRow = {
+      id: 'ord-1',
+      sellerCompanyId: 'seller',
+      buyerCompanyId: 'buyer',
+      status: OrderStatus.Dispatched,
+      seller: { name: 'Seller Co' },
+      items: [item],
+      shipments: [{ id: 'sh1' }],
+      dispatchedAt: new Date('2026-01-01'),
+      closedAt: new Date('2026-01-01'),
+    };
+
+    const orderItem = { update: vi.fn(async () => ({})) };
+    const order = { update: vi.fn(async () => ({})) };
+    const prisma = { orderItem, order };
+    const trail = { append: vi.fn(async () => ({})) };
+    const postOrderCard = vi.fn(async () => undefined);
+    const emitAndGet = vi.fn(async () => ({ id: 'ord-1', status: OrderStatus.Dispatched }));
+    const shippedTotals = vi.fn(() => new Map([['oi1', 20]]));
+
+    const declinedItem = {
+      ...item,
+      lineStatus: OrderLineStatus.Declined,
+      quantity: { toNumber: () => 20 },
+    };
+    const after = { ...orderRow, items: [declinedItem] };
+
+    const service = Object.create(OrderService.prototype) as OrderService;
+    Object.assign(service, {
+      loadForParty: vi
+        .fn()
+        .mockResolvedValueOnce(orderRow)
+        .mockResolvedValueOnce(after),
+      prisma,
+      trail,
+      postOrderCard,
+      emitAndGet,
+      shippedTotals,
+      withActor: () => ({}),
+    });
+
+    await service.setLineSupply('seller', 'u1', 'ord-1', {
+      items: [{ orderItemId: 'oi1', cantSupply: true }],
+    });
+
+    expect(orderItem.update).toHaveBeenCalledWith({
+      where: { id: 'oi1' },
+      data: { quantity: 20, lineStatus: OrderLineStatus.Declined },
+    });
+    expect(order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: OrderStatus.Dispatched }),
+      }),
+    );
   });
 
   it('restores a declined line to confirmed', async () => {
@@ -145,6 +217,9 @@ describe('OrderService.setLineSupply', () => {
         lineStatus: OrderLineStatus.Confirmed,
       },
     });
-    expect(String(postOrderCard.mock.calls[0]?.[3] ?? '')).toContain('Back on order');
+    expect(trail.append).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: 'Back on order', detail: 'Cotton' }),
+    );
+    expect(String(postOrderCard.mock.calls[0]?.[3] ?? '')).toBe('Back on order');
   });
 });

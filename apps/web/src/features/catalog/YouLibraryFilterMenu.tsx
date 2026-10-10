@@ -11,7 +11,7 @@ export const YOU_LIBRARY_FIND_MENU: Array<{ id: YouLibraryFindScope; label: stri
     id: row.id as YouLibraryFindScope,
     label: row.label,
   })),
-  { id: 'saved', label: 'Saved' },
+  { id: 'saved', label: 'Bookmark' },
 ];
 
 export function YouLibraryFilterMenu({

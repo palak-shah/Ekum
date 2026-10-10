@@ -26,6 +26,7 @@ describe('shopPhoto', () => {
     const collection = {
       id: 'a',
       name: 'Wedding Edit',
+      description: null,
       categories: [],
       memberFind: [],
       coverImage: 'https://cdn/cover.jpg',
@@ -36,6 +37,12 @@ describe('shopPhoto', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       allowForward: true,
       orderPathPreference: null,
+      rateMin: null,
+      rateMax: null,
+      rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
       company,
     } satisfies CollectionCard;
     expect(shopCollectionPhoto(collection)).toBe('https://cdn/d1.jpg');

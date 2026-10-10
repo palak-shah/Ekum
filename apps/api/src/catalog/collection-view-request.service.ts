@@ -60,7 +60,7 @@ export class CollectionViewRequestService {
     if (existingGrant) {
       throw new ConflictException({
         code: 'ALREADY_GRANTED',
-        message: 'You can already look through this pack.',
+        message: 'You can already look through this collection.',
       });
     }
 
@@ -100,7 +100,7 @@ export class CollectionViewRequestService {
             threadId,
             senderCompanyId: requesterCompanyId,
             type: MessageType.CollectionCard,
-            body: 'Asked to see this pack',
+            body: 'Asked to see this collection',
             referenceId: collectionId,
             metadata: meta,
           },
@@ -152,7 +152,7 @@ export class CollectionViewRequestService {
         threadId,
         senderCompanyId: requesterCompanyId,
         type: MessageType.CollectionCard,
-        body: 'Asked to see this pack',
+        body: 'Asked to see this collection',
         referenceId: collectionId,
         metadata: meta,
       },

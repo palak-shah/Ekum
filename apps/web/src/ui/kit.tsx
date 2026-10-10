@@ -150,14 +150,18 @@ export function Field({ label, hint, error, required, children }: FieldProps) {
 }
 
 export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function TextInput({ className, ...props }, ref) {
+  function TextInput({ className, disabled, readOnly, ...props }, ref) {
+    const locked = Boolean(disabled || readOnly);
     return (
       <input
         ref={ref}
+        disabled={disabled}
+        readOnly={readOnly}
         className={cx(
           // text-base (16px) avoids iOS focus-zoom unless caller sets compact text-*;
           // width / pad / min-h merge via textInputChromeClass (BM-07 clipped nums).
-          textInputChromeClass(className),
+          // Locked (disabled / readOnly) = foam fill so editable fields stay obvious.
+          textInputChromeClass(className, { locked }),
           className,
         )}
         {...props}
@@ -204,7 +208,7 @@ export const TextArea = forwardRef<
       className={cx(
         formControlWidthClass(className),
         !hasMinH && 'min-h-24',
-        'rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+        'rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:italic placeholder:font-normal placeholder:text-muted/50 focus:border-accent',
         className,
       )}
       {...props}
@@ -449,7 +453,11 @@ export function Sheet({
           </div>
         ) : null}
         <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer ? <div className="mt-3 shrink-0 border-t border-line pt-3.5">{footer}</div> : null}
+        {footer ? (
+          <div className="ekum-no-scrollbar mt-3 max-h-[min(55dvh,24rem)] shrink-0 overflow-y-auto border-t border-line pt-3.5">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body,

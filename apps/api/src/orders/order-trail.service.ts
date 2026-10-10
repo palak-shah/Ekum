@@ -27,6 +27,7 @@ export type AppendTrailInput = {
   noteVoiceMediaId?: string | null;
   noteVoiceUrl?: string | null;
   noteVoiceDurationMs?: number | null;
+  noteImageUrls?: string[];
   payload?: Prisma.InputJsonValue;
 };
 
@@ -48,6 +49,7 @@ export class OrderTrailService {
         noteVoiceMediaId: input.noteVoiceMediaId ?? null,
         noteVoiceUrl: input.noteVoiceUrl ?? null,
         noteVoiceDurationMs: input.noteVoiceDurationMs ?? null,
+        noteImageUrls: input.noteImageUrls ?? [],
         payload: input.payload ?? undefined,
       },
     });
@@ -109,6 +111,7 @@ export class OrderTrailService {
         note: row.note,
         noteVoiceUrl: row.noteVoiceUrl,
         noteVoiceDurationMs: row.noteVoiceDurationMs,
+        noteImageUrls: row.noteImageUrls ?? [],
       };
     });
   }

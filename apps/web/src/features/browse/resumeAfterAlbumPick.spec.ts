@@ -36,7 +36,7 @@ describe('resumeAfterAlbumPick', () => {
   it('labels next vs finish', () => {
     expect(continueAfterAlbumPickLabel('curate', 2)).toBe('Next collection (2)');
     expect(continueAfterAlbumPickLabel('curate', 1)).toBe('Next collection');
-    expect(continueAfterAlbumPickLabel('curate', 0)).toBe('Continue Curate');
+    expect(continueAfterAlbumPickLabel('curate', 0)).toBe('Continue Repost');
     expect(continueAfterAlbumPickLabel('order', 0)).toBe('Continue Order');
   });
 });

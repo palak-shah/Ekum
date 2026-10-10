@@ -1,99 +1,54 @@
-import { useEffect, useRef } from 'react';
 import { cx } from '@/lib/cx';
 import { CameraIcon, ProductIcon } from '@/ui/icons';
 
 export function AddDesignsControl({
-  open,
   size,
   uploading,
   disabled,
-  onOpen,
-  onClose,
+  photosDisabled,
   onDesigns,
   onPhotos,
 }: {
-  open: boolean;
   size: 'hero' | 'compact';
   uploading?: boolean;
   disabled?: boolean;
-  onOpen: () => void;
-  onClose: () => void;
+  /** At photo cap on create — designs from library still allowed. */
+  photosDisabled?: boolean;
   onDesigns: () => void;
   onPhotos: () => void;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
   const hero = size === 'hero';
-  const icon = hero ? 28 : 18;
+  const icon = hero ? 22 : 18;
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (event: MouseEvent) => {
-      if (!wrapRef.current?.contains(event.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open, onClose]);
-
-  const shell = cx(
-    'w-full overflow-hidden border border-dashed border-line bg-foam',
-    hero ? 'min-h-40 rounded-2xl' : 'rounded-xl',
-    disabled ? 'opacity-40' : null,
+  const tileClass = cx(
+    'flex min-w-0 items-center justify-center border border-dashed border-line bg-foam font-semibold text-ink hover:bg-line/30 disabled:opacity-40',
+    hero
+      ? 'min-h-40 flex-col gap-2 rounded-2xl px-3 text-sm'
+      : 'min-h-12 gap-2 rounded-xl px-2 text-sm',
   );
-
-  const choiceClass = cx(
-    'flex w-full items-center justify-center gap-2 font-semibold text-ink hover:bg-line/30',
-    hero ? 'min-h-[5rem] flex-1 flex-col text-base' : 'min-h-12 text-sm',
-  );
-
-  if (open) {
-    return (
-      <div
-        ref={wrapRef}
-        role="menu"
-        data-testid="collection-source-menu"
-        className={cx(shell, hero ? 'flex flex-col' : null)}
-      >
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="collection-source-designs"
-          className={choiceClass}
-          onClick={onDesigns}
-        >
-          <ProductIcon width={icon} height={icon} className="text-muted" />
-          Designs
-        </button>
-        <div className="mx-8 h-px bg-line" />
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="collection-source-photos"
-          className={choiceClass}
-          onClick={onPhotos}
-        >
-          <CameraIcon width={icon} height={icon} className="text-muted" />
-          Photos
-        </button>
-      </div>
-    );
-  }
 
   return (
-    <div ref={wrapRef}>
+    <div className="grid w-full grid-cols-2 gap-3" data-testid="collection-add-doors">
       <button
         type="button"
         data-testid="collection-add-designs"
-        onClick={onOpen}
+        className={tileClass}
         disabled={disabled}
-        className={cx(
-          shell,
-          'flex items-center justify-center gap-2 text-muted disabled:opacity-40',
-          hero ? 'min-h-40 flex-col px-3' : 'min-h-12 text-sm font-medium',
-        )}
+        onClick={onDesigns}
       >
-        <ProductIcon width={hero ? 32 : 18} height={hero ? 32 : 18} />
-        <span className={hero ? 'text-base font-semibold text-ink' : undefined}>
-          {uploading ? (hero ? 'Uploading…' : 'Adding…') : 'Add designs'}
+        <ProductIcon width={icon} height={icon} className="shrink-0 text-muted" />
+        <span className="text-center leading-snug">Add from existing designs</span>
+      </button>
+      <button
+        type="button"
+        data-testid="collection-add-photos"
+        className={tileClass}
+        disabled={disabled || photosDisabled}
+        onClick={onPhotos}
+      >
+        <CameraIcon width={icon} height={icon} className="shrink-0 text-muted" />
+        <span className="truncate">
+          {uploading ? (hero ? 'Uploading…' : 'Adding…') : 'Add photos'}
         </span>
       </button>
     </div>

@@ -9,8 +9,10 @@ import {
   quotedDesignFromAlbum,
   quotedPhotoUrl,
   shortOrderLabel,
+  type MessageReplyPreview,
   type MessageView,
 } from '@ekum/domain-types';
+import { designSetPath } from '@/features/browse/designSetPath';
 
 export { MAX_FORWARD_BATCH };
 
@@ -290,4 +292,27 @@ export function quotedComposerThumbUrl(
     return quotedDesignFromAlbum(message.reference, productId)?.image ?? null;
   }
   return quotedPhotoUrl(message, photoIndex);
+}
+
+/**
+ * Open the collection / design(s) a reply quote is about — so months later
+ * a search hit still lands on the lot they were asking about.
+ */
+export function replyQuoteOpenPath(
+  preview: MessageReplyPreview | null | undefined,
+): string | null {
+  if (!preview?.available) return null;
+  if (preview.productId?.trim()) {
+    return `/explore/products/${preview.productId.trim()}`;
+  }
+  if (preview.type === 'collection_card' && preview.referenceId?.trim()) {
+    return `/collections/${preview.referenceId.trim()}`;
+  }
+  if (preview.type === 'product_card' && preview.referenceId?.trim()) {
+    return `/explore/products/${preview.referenceId.trim()}`;
+  }
+  if (preview.type === 'design_album' && preview.productIds && preview.productIds.length >= 1) {
+    return designSetPath(preview.productIds);
+  }
+  return null;
 }

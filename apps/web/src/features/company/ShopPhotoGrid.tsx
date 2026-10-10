@@ -66,7 +66,7 @@ export function ShopPhotoCell({
   }
 
   return (
-    <div className={CARD}>
+    <div className={cx(CARD, selecting && selected && 'border-accent')}>
       <button
         type="button"
         aria-label={selecting ? `Select ${label}` : label}
@@ -79,7 +79,7 @@ export function ShopPhotoCell({
           selectMode={selectMode}
           selected={selected}
           checkClassName="right-2 top-2"
-          idleCheckClassName="border-white bg-ink/30 text-transparent"
+          idleCheckClassName="border-2 border-white/95 bg-black/45 text-transparent shadow-sm"
         >
           {url ? (
             <img src={url} alt="" className={designBrowsePhotoClass('grid')} loading="lazy" />
@@ -158,7 +158,7 @@ export function ShopCollectionCell({
   }
 
   return (
-    <div className={CARD}>
+    <div className={cx(CARD, selecting && selected && 'border-accent')}>
       <button
         type="button"
         aria-label={selecting ? `Select ${collection.name}` : collection.name}
@@ -171,7 +171,7 @@ export function ShopCollectionCell({
           selectMode={selectMode}
           selected={selected}
           checkClassName="right-2 top-2"
-          idleCheckClassName="border-white bg-ink/30 text-transparent"
+          idleCheckClassName="border-2 border-white/95 bg-black/45 text-transparent shadow-sm"
         >
           <AlbumGrid
             images={images.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean)}

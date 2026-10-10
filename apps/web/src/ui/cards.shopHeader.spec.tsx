@@ -1,16 +1,20 @@
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { ExploreOpportunity } from '@ekum/domain-types';
+import { ToastProvider } from '@/ui/Toast';
 import { OpportunityCollectionCard, ProductTile } from './cards';
 
 function renderCard(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter>
+        <ToastProvider>{ui}</ToastProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -20,6 +24,7 @@ const opportunity: ExploreOpportunity = {
   collection: {
     id: 'col1',
     name: 'Wedding Edit',
+    description: null,
     categories: ['Sarees'],
     memberFind: [],
     coverImage: null,
@@ -30,6 +35,12 @@ const opportunity: ExploreOpportunity = {
     updatedAt: '2026-09-01T00:00:00.000Z',
     allowForward: true,
     orderPathPreference: null,
+    rateMin: null,
+    rateMax: null,
+    rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
     company: {
       id: 'co-1',
       name: 'Surat Silk House',
@@ -50,6 +61,30 @@ describe('Explore shop header chrome', () => {
     expect(screen.queryByText(/Connected/)).toBeNull();
     expect(screen.queryByText('GST verified')).toBeNull();
     expect(screen.getByText(/9 designs/)).toHaveTextContent(/ago|just now|\d/);
+    expect(screen.getByTestId('explore-feed-categories')).toHaveTextContent('Sarees');
+  });
+
+  it('shows teal rate and About when the pack has public rates and a note', async () => {
+    const user = userEvent.setup();
+    renderCard(
+      <OpportunityCollectionCard
+        opportunity={{
+          ...opportunity,
+          collection: {
+            ...opportunity.collection,
+            description: 'Festive cottons for monsoon counters.',
+            rateMin: 430,
+            rateMax: 1450,
+            rateUnit: 'pc',
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId('explore-feed-rate')).toHaveTextContent('₹430–₹1,450 /pc');
+    await user.click(screen.getByTestId('explore-feed-about'));
+    expect(screen.getByTestId('explore-feed-about-body')).toHaveTextContent(
+      'Festive cottons for monsoon counters.',
+    );
   });
 
   it('puts the shop name on a search design tile (sr 17 T3)', () => {
@@ -60,7 +95,9 @@ describe('Explore shop header chrome', () => {
           name: 'Banarasi Silk Saree',
           images: [],
           rate: 2450,
+          rateMax: null,
           unit: 'pc',
+          categories: [],
           company: {
             id: 'co-1',
             name: 'Surat Silk House',

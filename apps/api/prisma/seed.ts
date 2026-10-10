@@ -21,6 +21,7 @@ import {
   OrderTradeMode,
   ProductStatus,
   PublishAudience,
+  RateVisibility,
   SuperCategory,
   ThreadMemberState,
   ThreadParticipantState,
@@ -221,6 +222,19 @@ async function main(): Promise<void> {
       tradeDefaults: { tradingEnabled: true },
     },
   });
+  await prisma.companySettings.upsert({
+    where: { companyId: KAVITA },
+    create: {
+      id: 'seed-settings-kavita',
+      companyId: KAVITA,
+      tradeDefaults: { tradingEnabled: true },
+    },
+    update: {
+      tradeDefaults: { tradingEnabled: true },
+    },
+  });
+
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
 
   // --- Catalogue ----------------------------------------------------------
   // Enough distinct images for a WhatsApp-style Explore collage (+N overlay).
@@ -336,41 +350,119 @@ async function main(): Promise<void> {
     data: { sellCategories: ['Sarees', 'Dress Material', 'Salwar'] },
   });
 
+  // Newest members first — mosaic shows the 3 just-added designs; About names them.
+  const weddingMemberOrder = [
+    'seed-prod-7', // Linen Summer Saree — new
+    'seed-prod-8', // Organza Festive — new
+    'seed-prod-5', // Chiffon Evening Saree — new
+    'seed-prod-1',
+    'seed-prod-2',
+    'seed-prod-3',
+    'seed-prod-4',
+    'seed-prod-6',
+    'seed-prod-no-image',
+  ] as const;
+  const weddingAbout = [
+    'Bridal and festive picks for the season.',
+    '',
+    'Just added (3):',
+    '· Linen Summer Saree',
+    '· Organza Festive',
+    '· Chiffon Evening Saree',
+    '',
+    'Open the pack to view each design.',
+  ].join('\n');
   await prisma.collection.upsert({
     where: { id: 'seed-col-1' },
     create: {
       id: 'seed-col-1',
       companyId: RAVI,
       name: 'Wedding Edit 2026',
-      description: 'Hand-picked bridal and festive designs.',
+      description: weddingAbout,
       coverImage: img.wedding,
+      categories: ['Sarees', 'Bridal'],
       status: CollectionStatus.Published,
       audience: PublishAudience.Followers,
+      rateVisibility: RateVisibility.OnRequest,
       allowForward: true,
-      exploreActivityAt: postedAt,
+      exploreActivityAt: hoursAgo(1),
+      exploreNewDesignCount: 3,
     },
     update: {
+      name: 'Wedding Edit 2026',
+      description: weddingAbout,
       status: CollectionStatus.Published,
       coverImage: img.wedding,
+      categories: ['Sarees', 'Bridal'],
       audience: PublishAudience.Followers,
+      rateVisibility: RateVisibility.OnRequest,
       allowForward: true,
-      exploreActivityAt: postedAt,
+      exploreActivityAt: hoursAgo(1),
+      exploreNewDesignCount: 3,
     },
   });
-  const collectionProducts = products.map((product, index) => ({
-    id: `seed-cp-${index + 1}`,
-    productId: product.id,
-    position: index,
-  }));
-  for (const cp of collectionProducts) {
+  for (const [index, productId] of weddingMemberOrder.entries()) {
     await prisma.collectionProduct.upsert({
-      where: { collectionId_productId: { collectionId: 'seed-col-1', productId: cp.productId } },
-      create: { id: cp.id, collectionId: 'seed-col-1', productId: cp.productId, position: cp.position },
-      update: { position: cp.position },
+      where: { collectionId_productId: { collectionId: 'seed-col-1', productId } },
+      create: {
+        id: `seed-cp-wedding-${index + 1}`,
+        collectionId: 'seed-col-1',
+        productId,
+        position: index,
+      },
+      update: { position: index },
     });
   }
 
-  // Peer supplier catalog — gives Ravi Explore “New for you” / Stories / Businesses.
+  // Own-feed pack with a teal rate band (all /pc).
+  const raviDailyIds = ['seed-prod-1', 'seed-prod-2', 'seed-prod-4', 'seed-prod-5'] as const;
+  const dailyAbout =
+    'Everyday sarees with honest piece rates.\n\nBanarasi · Georgette · Kanjeevaram · Chiffon — tap a design for photos.';
+  await prisma.collection.upsert({
+    where: { id: 'seed-col-ravi-daily' },
+    create: {
+      id: 'seed-col-ravi-daily',
+      companyId: RAVI,
+      name: 'Saree Daily',
+      description: dailyAbout,
+      coverImage: img.banarasi,
+      categories: ['Sarees'],
+      status: CollectionStatus.Published,
+      audience: PublishAudience.Followers,
+      rateVisibility: RateVisibility.Visible,
+      allowForward: true,
+      exploreActivityAt: hoursAgo(20),
+      exploreNewDesignCount: 0,
+    },
+    update: {
+      name: 'Saree Daily',
+      description: dailyAbout,
+      coverImage: img.banarasi,
+      categories: ['Sarees'],
+      status: CollectionStatus.Published,
+      audience: PublishAudience.Followers,
+      rateVisibility: RateVisibility.Visible,
+      allowForward: true,
+      exploreActivityAt: hoursAgo(20),
+      exploreNewDesignCount: 0,
+    },
+  });
+  for (const [index, productId] of raviDailyIds.entries()) {
+    await prisma.collectionProduct.upsert({
+      where: {
+        collectionId_productId: { collectionId: 'seed-col-ravi-daily', productId },
+      },
+      create: {
+        id: `seed-cp-ravi-daily-${index + 1}`,
+        collectionId: 'seed-col-ravi-daily',
+        productId,
+        position: index,
+      },
+      update: { position: index },
+    });
+  }
+
+  // Peer supplier catalog — client-like Explore feed for Ravi (Stories + mosaics + rates).
   const fabricProducts = [
     {
       id: 'seed-prod-fabric-1',
@@ -399,6 +491,51 @@ async function main(): Promise<void> {
       categories: ['Fabric'],
       images: [img.geobase],
     },
+    {
+      id: 'seed-prod-fabric-4',
+      name: 'Silk Loom Cut',
+      sku: 'FAB-SL-04',
+      rate: 195,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: [img.banarasi],
+    },
+    {
+      id: 'seed-prod-fabric-5',
+      name: 'Chiffon Roll',
+      sku: 'FAB-CH-05',
+      rate: 128,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: [img.chiffon],
+    },
+    {
+      id: 'seed-prod-fabric-6',
+      name: 'Organza Base',
+      sku: 'FAB-OR-06',
+      rate: 160,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: [img.organza],
+    },
+    {
+      id: 'seed-prod-fabric-7',
+      name: 'Linen Mill Cloth',
+      sku: 'FAB-LN-07',
+      rate: 98,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: [img.linen],
+    },
+    {
+      id: 'seed-prod-fabric-8',
+      name: 'Georgette Party Cut',
+      sku: 'FAB-GP-08',
+      rate: 145,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: [img.georgette],
+    },
   ];
   for (const product of fabricProducts) {
     await prisma.product.upsert({
@@ -408,8 +545,9 @@ async function main(): Promise<void> {
         companyId: KAVITA,
         status: ProductStatus.Published,
         audience: PublishAudience.Followers,
+        rateVisibility: RateVisibility.Visible,
         allowForward: true,
-        postedToMarketAt: postedAt,
+        postedToMarketAt: hoursAgo(6),
       },
       update: {
         rate: product.rate,
@@ -418,46 +556,163 @@ async function main(): Promise<void> {
         categories: product.categories,
         companyId: KAVITA,
         audience: PublishAudience.Followers,
+        rateVisibility: RateVisibility.Visible,
         allowForward: true,
-        postedToMarketAt: postedAt,
+        postedToMarketAt: hoursAgo(6),
       },
     });
   }
-  await prisma.collection.upsert({
-    where: { id: 'seed-col-fabric' },
-    create: {
+
+  type ExplorePackSeed = {
+    id: string;
+    name: string;
+    description: string;
+    coverImage: string;
+    categories: string[];
+    rateVisibility: string;
+    exploreActivityAt: Date;
+    exploreNewDesignCount: number;
+    productIds: string[];
+  };
+
+  const kavitaNewCutAbout = [
+    'Fresh mill rolls for garment houses. Rates visible.',
+    '',
+    'Just added (4):',
+    '· Chiffon Roll',
+    '· Organza Base',
+    '· Linen Mill Cloth',
+    '· Georgette Party Cut',
+    '',
+    'Open the pack to view each design.',
+  ].join('\n');
+  const kavitaPacks: ExplorePackSeed[] = [
+    {
       id: 'seed-col-fabric',
-      companyId: KAVITA,
       name: 'Mill Lot — March',
-      description: 'Fresh grey and lining for garment houses.',
+      description:
+        'Fresh grey and lining for garment houses.\n\nCotton Grey · Soft Lining · Georgette Base — open any design for photos and rate.',
       coverImage: img.millot,
-      status: CollectionStatus.Published,
+      categories: ['Fabric'],
+      rateVisibility: RateVisibility.Visible,
+      exploreActivityAt: hoursAgo(40),
+      exploreNewDesignCount: 0,
+      productIds: ['seed-prod-fabric-1', 'seed-prod-fabric-2', 'seed-prod-fabric-3'],
+    },
+    {
+      id: 'seed-col-kavita-festive',
+      name: 'Festive Loom Cut',
+      description:
+        'Bright cuts for festive sets.\n\nSilk Loom · Chiffon · Organza · Linen · Georgette — tap a design inside the pack.',
+      coverImage: img.organza,
+      categories: ['Fabric', 'Festive'],
+      rateVisibility: RateVisibility.Visible,
+      exploreActivityAt: hoursAgo(14),
+      exploreNewDesignCount: 0,
+      productIds: [
+        'seed-prod-fabric-4',
+        'seed-prod-fabric-5',
+        'seed-prod-fabric-6',
+        'seed-prod-fabric-7',
+        'seed-prod-fabric-8',
+      ],
+    },
+    {
+      id: 'seed-col-kavita-newcut',
+      name: 'New Cut — This week',
+      description: kavitaNewCutAbout,
+      coverImage: img.greyfabric,
+      categories: ['Fabric'],
+      rateVisibility: RateVisibility.Visible,
+      exploreActivityAt: hoursAgo(0.5),
+      exploreNewDesignCount: 4,
+      // New four first so mosaic / pack list lead with what About names.
+      productIds: [
+        'seed-prod-fabric-5',
+        'seed-prod-fabric-6',
+        'seed-prod-fabric-7',
+        'seed-prod-fabric-8',
+        'seed-prod-fabric-1',
+        'seed-prod-fabric-3',
+      ],
+    },
+  ];
+
+  for (const pack of kavitaPacks) {
+    await prisma.collection.upsert({
+      where: { id: pack.id },
+      create: {
+        id: pack.id,
+        companyId: KAVITA,
+        name: pack.name,
+        description: pack.description,
+        coverImage: pack.coverImage,
+        categories: pack.categories,
+        status: CollectionStatus.Published,
+        audience: PublishAudience.Followers,
+        rateVisibility: pack.rateVisibility,
+        allowForward: true,
+        exploreActivityAt: pack.exploreActivityAt,
+        exploreNewDesignCount: pack.exploreNewDesignCount,
+      },
+      update: {
+        name: pack.name,
+        description: pack.description,
+        coverImage: pack.coverImage,
+        categories: pack.categories,
+        status: CollectionStatus.Published,
+        audience: PublishAudience.Followers,
+        rateVisibility: pack.rateVisibility,
+        allowForward: true,
+        exploreActivityAt: pack.exploreActivityAt,
+        exploreNewDesignCount: pack.exploreNewDesignCount,
+      },
+    });
+    for (const [index, productId] of pack.productIds.entries()) {
+      await prisma.collectionProduct.upsert({
+        where: {
+          collectionId_productId: { collectionId: pack.id, productId },
+        },
+        create: {
+          id: `seed-cp-${pack.id}-${index + 1}`,
+          collectionId: pack.id,
+          productId,
+          position: index,
+        },
+        update: { position: index },
+      });
+    }
+  }
+
+  // Solo Explore design tile (not only-in-pack).
+  await prisma.product.upsert({
+    where: { id: 'seed-prod-kavita-solo' },
+    create: {
+      id: 'seed-prod-kavita-solo',
+      companyId: KAVITA,
+      name: 'Sample Grey Swatch',
+      sku: 'FAB-SW-09',
+      rate: 55,
+      unit: 'mtr',
+      categories: ['Fabric'],
+      images: [img.millot, img.greyfabric],
+      status: ProductStatus.Published,
       audience: PublishAudience.Followers,
+      rateVisibility: RateVisibility.Visible,
       allowForward: true,
-      exploreActivityAt: postedAt,
+      postedToMarketAt: hoursAgo(5),
     },
     update: {
-      status: CollectionStatus.Published,
-      coverImage: img.millot,
+      name: 'Sample Grey Swatch',
+      rate: 55,
+      images: [img.millot, img.greyfabric],
+      status: ProductStatus.Published,
       audience: PublishAudience.Followers,
+      rateVisibility: RateVisibility.Visible,
       allowForward: true,
-      exploreActivityAt: postedAt,
+      postedToMarketAt: hoursAgo(5),
     },
   });
-  for (const [index, product] of fabricProducts.entries()) {
-    await prisma.collectionProduct.upsert({
-      where: {
-        collectionId_productId: { collectionId: 'seed-col-fabric', productId: product.id },
-      },
-      create: {
-        id: `seed-cp-fabric-${index + 1}`,
-        collectionId: 'seed-col-fabric',
-        productId: product.id,
-        position: index,
-      },
-      update: { position: index },
-    });
-  }
 
   // --- Discovery & Trust --------------------------------------------------
   await prisma.follow.upsert({
@@ -478,6 +733,19 @@ async function main(): Promise<void> {
     create: {
       id: 'seed-follow-2',
       followerCompanyId: RAVI,
+      followedCompanyId: KAVITA,
+      status: 'allowed',
+      accessKind: 'look',
+    },
+    update: { status: 'allowed', accessKind: 'look' },
+  });
+  await prisma.follow.upsert({
+    where: {
+      followerCompanyId_followedCompanyId: { followerCompanyId: MEENA, followedCompanyId: KAVITA },
+    },
+    create: {
+      id: 'seed-follow-meena-kavita',
+      followerCompanyId: MEENA,
       followedCompanyId: KAVITA,
       status: 'allowed',
       accessKind: 'look',

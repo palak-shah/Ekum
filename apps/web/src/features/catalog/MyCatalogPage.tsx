@@ -23,11 +23,10 @@ import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { CollectionIcon, FilterIcon, PlusIcon, ProductIcon } from '@/ui/icons';
-import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
-import { collectionMosaicCount, packFeedCaption, packFeedDetailLine } from '@/ui/albumMosaic';
+import { collectionMosaicCount, packFeedDetailLine } from '@/ui/albumMosaic';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
-import { collectionStatusSummary } from './collectionStatusSummary';
+import { collectionListingCaption } from './collectionStatusSummary';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
 import { libraryAuditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
@@ -51,11 +50,7 @@ import {
 } from './catalogListFilter';
 import { YouLibraryFilterMenu, type YouLibraryFindScope } from './YouLibraryFilterMenu';
 import { catalogSearchMatches, designFindParts } from './catalogSearch';
-import { CatalogFindToggle } from './catalogFindToggle';
-import {
-  SelectAllFloat,
-  SELECT_FLOAT_BELOW_YOU,
-} from '@/features/browse/SelectAllFloat';
+import { BrowseLotChrome } from '@/features/browse/BrowseLotChrome';
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
@@ -117,12 +112,12 @@ function emptyCollectionCopy(filter: CollectionFilter): { title: string; message
     case 'published':
       return {
         title: 'No collections',
-        message: 'Publish a pack so buyers can see it on Explore.',
+        message: 'Publish a collection so buyers can see it on Explore.',
       };
     case 'archived':
       return {
         title: 'No archived collections',
-        message: 'Archived packs stay here — restore anytime to draft.',
+        message: 'Archived collections stay here — restore anytime to draft.',
       };
     case 'draft':
       return {
@@ -138,7 +133,7 @@ function emptyProductCopy(filter: ProductFilter): { title: string; message: stri
       return {
         title: 'No designs',
         message:
-          'Publish a design for Explore, or publish a pack — pack designs show here too (not as separate Explore tiles).',
+          'Publish a design for Explore, or publish a collection — collection designs show here too (not as separate Explore tiles).',
       };
     case 'archived':
       return {
@@ -167,25 +162,6 @@ function isProductPublishable(product: ProductView): boolean {
 
 function tabFromSearch(params: URLSearchParams): Tab {
   return youLibraryTabFromSearch(params);
-}
-
-function CatalogLayoutToggle({
-  layout,
-  onToggle,
-  className,
-}: {
-  layout: DesignBrowseLayout;
-  onToggle: () => void;
-  className?: string;
-}) {
-  return (
-    <BrowseLayoutToggle
-      layout={layout}
-      onToggle={onToggle}
-      testId="catalog-layout-toggle"
-      className={className}
-    />
-  );
 }
 
 export function MyCatalogPage({
@@ -284,7 +260,7 @@ export function MyCatalogPage({
       : productFilter;
   const findFilterApplied = findScope !== 'published';
   const findFilterSummary =
-    findScope === 'saved' ? 'Saved' : findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Archived' : null;
+    findScope === 'saved' ? 'Bookmark' : findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Archived' : null;
 
   const applyFindScope = (scope: YouLibraryFindScope) => {
     if (scope === 'saved') {
@@ -595,17 +571,7 @@ export function MyCatalogPage({
         selecting && (hideableIds.length > 0 ? 'pb-40' : 'pb-28'),
       )}
     >
-      {embedded ? null : (
-        <PageHeader
-          title="My designs"
-          onBack={onCatalogBack}
-          action={
-            tabHasItems ? (
-              <CatalogLayoutToggle layout={layout} onToggle={toggleLayout} />
-            ) : null
-          }
-        />
-      )}
+      {embedded ? null : <PageHeader title="My designs" onBack={onCatalogBack} />}
 
       <div className="flex items-center gap-2.5">
         {embedded || catalogTabs ? (
@@ -639,101 +605,105 @@ export function MyCatalogPage({
             })}
           </div>
         ) : null}
-        <div className="relative z-0 ml-auto flex shrink-0 items-center gap-1">
-          {catalogTabs || youSaved || tabHasItems ? (
-            <>
-              <CatalogFindToggle
-                testId="you-library-search-toggle"
-                open={searchOpen}
-                label={tab === 'collections' ? 'Find collections' : 'Find designs'}
-                onToggle={() => {
-                  if (searchOpen) {
-                    closeLibraryFind();
-                    return;
-                  }
-                  setSearchOpen(true);
-                }}
-              />
-              <CatalogLayoutToggle layout={layout} onToggle={toggleLayout} />
-            </>
-          ) : null}
-          {selecting && !youSaved ? (
-            <button
-              type="button"
-              className="text-sm font-semibold text-accent"
-              onClick={exitSelect}
-            >
-              Cancel
-            </button>
-          ) : catalogTabs ? (
-            <button
-              type="button"
-              data-testid="you-library-add"
-              aria-label="Add"
-              onClick={() => setPostOpen(true)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_2px_8px_rgba(15,76,71,0.35)] hover:bg-accent-dark"
-            >
-              <PlusIcon width={20} height={20} />
-            </button>
-          ) : null}
-        </div>
+        {catalogTabs && !selecting ? (
+          <button
+            type="button"
+            data-testid="you-library-add"
+            aria-label="Add"
+            onClick={() => setPostOpen(true)}
+            className="relative z-0 ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_2px_8px_rgba(15,76,71,0.35)] hover:bg-accent-dark"
+          >
+            <PlusIcon width={20} height={20} />
+          </button>
+        ) : null}
       </div>
 
-      {searchOpen ? (
-        <div className="flex flex-col gap-1.5">
-          <ListSearchRow
-            search={
-              <SearchInput
-                data-testid="you-library-search"
-                aria-label={tab === 'collections' ? 'Find collections' : 'Find designs'}
-                placeholder={tab === 'collections' ? 'Find collections' : 'Find designs'}
-                value={listSearch}
-                onChange={(event) => setListSearch(event.target.value)}
+      {catalogTabs || youSaved || tabHasItems ? (
+        <BrowseLotChrome
+          findOpen={searchOpen}
+          findLabel={tab === 'collections' ? 'Find collections' : 'Find designs'}
+          findTestId="you-library-search-toggle"
+          onFindToggle={() => {
+            if (searchOpen) {
+              closeLibraryFind();
+              return;
+            }
+            setSearchOpen(true);
+          }}
+          findPanel={
+            <div className="flex flex-col gap-1.5">
+              <ListSearchRow
+                search={
+                  <SearchInput
+                    data-testid="you-library-search"
+                    aria-label={tab === 'collections' ? 'Find collections' : 'Find designs'}
+                    placeholder={tab === 'collections' ? 'Find collections' : 'Find designs'}
+                    value={listSearch}
+                    onChange={(event) => setListSearch(event.target.value)}
+                  />
+                }
+                action={
+                  <ListSquareButton
+                    ref={filterAnchorRef}
+                    data-testid="you-library-filter"
+                    data-filter-active={findFilterApplied ? 'true' : 'false'}
+                    aria-label="Filter"
+                    aria-expanded={filterMenuOpen}
+                    aria-haspopup="menu"
+                    aria-pressed={findFilterApplied}
+                    active={findFilterApplied || filterMenuOpen}
+                    onClick={() => setFilterMenuOpen((open) => !open)}
+                  >
+                    <FilterIcon
+                      width={20}
+                      height={20}
+                      className={findFilterApplied || filterMenuOpen ? 'text-white' : undefined}
+                    />
+                  </ListSquareButton>
+                }
               />
-            }
-            action={
-              <ListSquareButton
-                ref={filterAnchorRef}
-                data-testid="you-library-filter"
-                data-filter-active={findFilterApplied ? 'true' : 'false'}
-                aria-label="Filter"
-                aria-expanded={filterMenuOpen}
-                aria-haspopup="menu"
-                aria-pressed={findFilterApplied}
-                active={findFilterApplied || filterMenuOpen}
-                onClick={() => setFilterMenuOpen((open) => !open)}
-              >
-                <FilterIcon
-                  width={20}
-                  height={20}
-                  className={findFilterApplied || filterMenuOpen ? 'text-white' : undefined}
-                />
-              </ListSquareButton>
-            }
-          />
-          <YouLibraryFilterMenu
-            open={filterMenuOpen}
-            onClose={() => setFilterMenuOpen(false)}
-            anchorRef={filterAnchorRef}
-            value={findScope}
-            showSaved={embedded}
-            onChange={applyFindScope}
-          />
-          {findFilterSummary ? (
-            <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
-              <p className="text-xs font-medium text-muted">
-                Showing <span className="text-ink">{findFilterSummary}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => applyFindScope('published')}
-                className="inline-flex min-h-8 items-center text-xs font-bold tracking-tight text-accent"
-              >
-                Clear
-              </button>
+              <YouLibraryFilterMenu
+                open={filterMenuOpen}
+                onClose={() => setFilterMenuOpen(false)}
+                anchorRef={filterAnchorRef}
+                value={findScope}
+                showSaved={embedded}
+                onChange={applyFindScope}
+              />
+              {findFilterSummary ? (
+                <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
+                  <p className="text-xs font-medium text-muted">
+                    Showing <span className="text-ink">{findFilterSummary}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => applyFindScope('published')}
+                    className="inline-flex min-h-8 items-center text-xs font-bold tracking-tight text-accent"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          }
+          selecting={selecting}
+          selectedCount={selectedIds.size}
+          allSelected={selectAllState(visibleIds, selectedIds).allSelected}
+          onEnterSelect={() => setSelecting(true)}
+          onSelectAll={() => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              for (const id of visibleIds) next.add(id);
+              return next;
+            });
+          }}
+          onClear={exitSelect}
+          canSelect={!youSaved && tabHasItems}
+          selectTestId="you-library-select"
+          layout={layout}
+          layoutTestId="you-library-layout-toggle"
+          onLayoutToggle={toggleLayout}
+        />
       ) : null}
 
       {youSaved ? (
@@ -747,27 +717,6 @@ export function MyCatalogPage({
         />
       ) : (
         <>
-      <SelectAllFloat
-        open={selecting && visibleIds.length > 0}
-        count={selectedIds.size}
-        allSelected={selectAllState(visibleIds, selectedIds).allSelected}
-        offsetClass={embedded ? SELECT_FLOAT_BELOW_YOU : undefined}
-        onSelectAll={() => {
-          setSelectedIds((prev) => {
-            const next = new Set(prev);
-            for (const id of visibleIds) next.add(id);
-            return next;
-          });
-        }}
-        onClear={() => {
-          setSelectedIds((prev) => {
-            const next = new Set(prev);
-            for (const id of visibleIds) next.delete(id);
-            return next;
-          });
-        }}
-      />
-
       {tab === 'products' ? (
         <>
           {products.isLoading ? (
@@ -940,7 +889,7 @@ export function MyCatalogPage({
                       data-testid="catalog-curate"
                       onClick={() => sendToSelection('curate')}
                     >
-                      Curate
+                      Repost
                     </Button>
                   ) : null}
                   {publishableIds.length > 0 ? (
@@ -1148,7 +1097,6 @@ function SellerCollectionTile({
   onToggle: () => void;
   onLongSelect: () => void;
 }) {
-  const summary = collectionStatusSummary(collection, groups);
   const previews = collection.previewImages ?? [];
 
   const href =
@@ -1156,16 +1104,11 @@ function SellerCollectionTile({
       ? `/catalog/collections/${collection.id}`
       : `/collections/${collection.id}`;
 
-  const photos = collection.photoCount ?? collection.previewImages?.length ?? 0;
-  const designs = collection.productCount;
-  const density = `${photos === 1 ? '1 photo' : `${photos} photos`} · ${
-    designs === 1 ? '1 design' : `${designs} designs`
-  }`;
+  const caption = collectionListingCaption(collection, groups);
   const sourceLine = collectionOwnerSourceLine(
     collection.companyId,
     collection.memberShops ?? [],
   );
-  const whoWhen = libraryAuditLine(collection);
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const mosaicCount = collectionMosaicCount({
@@ -1174,14 +1117,6 @@ function SellerCollectionTile({
   });
   const feed = variant === 'feed';
   if (feed) {
-    const when = explorePostedWhen(collection.updatedAt ?? collection.createdAt);
-    const live = summary.phase === 'live';
-    const meta = packFeedCaption({
-      live,
-      productCount: designs,
-      when,
-      statusLine: live ? null : summary.line,
-    });
     const detail = packFeedDetailLine({
       tags: collection.categories,
     });
@@ -1189,7 +1124,7 @@ function SellerCollectionTile({
       <CatalogFeedPost
         name={collection.name}
         source={sourceLine}
-        meta={meta}
+        meta={caption}
         detail={detail}
         href={href}
         images={previews}
@@ -1224,10 +1159,9 @@ function SellerCollectionTile({
             {sourceLine}
           </p>
         ) : null}
-        <p className="line-clamp-2 text-xs text-muted">
-          {density} · {summary.line}
+        <p className="line-clamp-2 text-xs text-muted" data-testid="you-collection-caption">
+          {caption}
         </p>
-        {whoWhen ? <p className="text-[11px] text-muted">{whoWhen}</p> : null}
       </div>
     </>
   );

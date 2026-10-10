@@ -66,15 +66,17 @@ test.describe('orders chrome @functional @orders', () => {
     });
     await page.getByRole('button', { name: 'Order' }).click();
     await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId('how-many-share')).toBeVisible();
-    await expect(page.getByTestId('how-many-facts')).toContainText('Piece');
+    await expect(page.getByTestId('how-many-place-order')).toBeVisible();
+    await expect(page.getByTestId('how-many-share')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Ask rates' })).toHaveCount(0);
+    await expect(page.getByText('Piece').first()).toBeVisible();
     const qty = page.getByRole('group', { name: /Pieces for/i }).getByRole('textbox');
     await expect(qty).toHaveValue('');
-    await expect(page.getByRole('button', { name: 'Place Order' })).toBeDisabled();
+    await expect(page.getByTestId('how-many-place-order')).toBeDisabled();
     await qty.click();
     await qty.pressSequentially('15');
     await expect(qty).toHaveValue('15');
-    await expect(page.getByRole('button', { name: 'Place Order' })).toBeEnabled();
+    await expect(page.getByTestId('how-many-place-order')).toBeEnabled();
     await page.getByRole('button', { name: 'Close' }).click();
     await page.getByRole('button', { name: 'Order' }).click();
     await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
@@ -142,7 +144,7 @@ test.describe('orders chrome @functional @orders', () => {
     await expect(page).not.toHaveURL(/kind=return/);
   });
 
-  test('seller dock Confirm sits between Decline and Send quote', async ({ page }) => {
+  test('seller dock Confirm is primary; Send quote sits before it', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAsMeena(page);
     const buyerToken = await accessTokenFromPage(page);
@@ -170,8 +172,8 @@ test.describe('orders chrome @functional @orders', () => {
     const confirmBox = await confirm.boundingBox();
     const quoteBox = await quote.boundingBox();
     expect(declineBox && confirmBox && quoteBox).toBeTruthy();
-    expect(declineBox!.x).toBeLessThan(confirmBox!.x);
-    expect(confirmBox!.x).toBeLessThan(quoteBox!.x);
+    expect(declineBox!.x).toBeLessThan(quoteBox!.x);
+    expect(quoteBox!.x).toBeLessThan(confirmBox!.x);
 
     await confirm.click();
     await expect(page.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
@@ -184,6 +186,9 @@ test.describe('orders chrome @functional @orders', () => {
     const sheetDeclineBox = await sheetDecline.boundingBox();
     expect(sheetConfirmBox && sheetDeclineBox).toBeTruthy();
     expect(sheetDeclineBox!.x).toBeLessThan(sheetConfirmBox!.x);
+    await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toContainText('Asked');
+    await expect(sheet.locator('[data-testid^="order-lines-qty-"]')).toBeVisible();
+    await expect(sheet.locator('[data-testid^="order-lines-rate-"]')).toBeVisible();
   });
 
   test('buyer dock sticks Cancel and Edit', async ({ page }) => {

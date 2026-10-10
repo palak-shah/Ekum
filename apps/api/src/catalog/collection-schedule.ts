@@ -67,8 +67,15 @@ export function isCollectionLiveForBuyers(
   const endsAt = collection.endsAt ? new Date(collection.endsAt) : null;
   if (startsAt && startsAt.getTime() > now.getTime()) return false;
   if (endsAt && endsAt.getTime() < now.getTime()) return false;
-  if (collection.products !== undefined && !collectionHasPublishedMember(collection.products)) {
-    return false;
+  // Only enforce “has a live design” when member status is loaded.
+  // Thumb-only selects (images, no status) must not false-fail bookmark / cards.
+  if (collection.products != null) {
+    const statusKnown = collection.products.some(
+      (row) => row?.product?.status != null && row.product.status !== '',
+    );
+    if (statusKnown && !collectionHasPublishedMember(collection.products)) {
+      return false;
+    }
   }
   return true;
 }

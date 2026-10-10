@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-05 (orders timeline / complaint / dispatch edit / list sort)  
+**Updated:** 2026-10-10 (edit collection details only)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,8 +9,27 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Collections | Edit collection = pack details only (no member grid; membership on album) | Works | Unit | Required | Completeness 2026-10-10-edit-collection-details-only |
+| Collections | Create/edit Rate per + unit select (default pc; syncs dispatch/unit) | Works | Unit | Required | Completeness 2026-10-10-rate-per-unit-select |
+| Collections | Create/edit Order and dispatch collapsed accordion (pack page only) | Works | Unit | Required | Completeness 2026-10-10-order-dispatch-accordion |
+| Collections | Album facts rate: pack first, else design min–max; owner always sees; on_request for audience | Works | Unit | Required | Completeness 2026-10-10-album-rate-pack-then-designs |
+| Platform | App-wide ⋯ MoreActionsSheet (icon+text bottom sheet; mute as sheet step); filters/attach stay popovers | Works | Unit | Required | Completeness 2026-10-09-more-actions-sheet-appwide |
+| Collections | Album scan chrome: facts · About · grid rate · Order after Select · Message ⋯ · album-scoped picks | Works | Unit | Required | Completeness 2026-10-09-album-scan-chrome; no Ask rates on album |
+| Collections | Album pack details read-more (Rate · Size · Description · Item/Quality tags) | Works | Unit | Required | Completeness 2026-10-09-collection-details-read-more; Find/Select/grid unchanged |
+| Collections | Album tiles no rate chip; design sheet full labeled details | Works | Unit | Required | Completeness 2026-10-09-album-tile-no-rate-design-sheet-details |
+| Collections | Album design sheet → Edit design (own designs) | Works | Unit | Required | Completeness 2026-10-09-album-owner-tap-edit-design |
+| Browse | Shared SelectModeControls + BrowseLotChrome; half-size checks; Clear exits; You library second-row lot chrome | Works | Unit | Required | Completeness 2026-10-09-shared-select-mode-controls; Explore showSelectAll false; You tabs+＋ then Find·Select·layout |
+| Orders | Dispatch LR leg photos with visible thumbs | Works | Unit | Required | Completeness 2026-10-08-dispatch-lr-leg-photos; `LegPhotoAttach` |
+| Orders | Confirm primary dock CTA; Send quote secondary (soft offer kept) | Works | Unit + Functional | Required | Completeness 2026-10-08-confirm-primary-quote-secondary; `requestedDockPrimary` |
+| Orders | Send quote rows match Dispatch card chrome (not qty/rate table) | Works | Unit | Required | Completeness 2026-10-08-send-quote-dispatch-chrome |
+| Orders | Confirm / decline lines: Qty + Rate editable; Same for all | Works | Unit | Required | Completeness 2026-10-08-confirm-lines-qty; `decideLinesPayload` qty+rate |
+| Orders | Buyer transporter at place (type + MRU history); OrderView; Dispatch prefill | Works | Unit | Required | Completeness 2026-10-08-buyer-transporter; `transporterMemory` + `TransporterField` |
+| Orders | Line note always one-line; Edit order × (not Remove); matches How many | Works | Unit | Required | Completeness 2026-10-08-order-line-edit-chrome; `HowManyLineNote` |
+| Orders | Dispatch multi LR + bill legs; parcels syncs rows; + bumps parcels | Works | Unit | Required | Completeness 2026-10-08-dispatch-lr-bill-legs; `shipment-legs.spec.ts` + `dispatchSheet` resize |
+| Orders | Detail parties (Purchase/Selling party, chat icon); Manual order no. shared; Personal note private; action-note + voice/photo; amend line notes; no Your move | Works | Unit + Functional | Required | Completeness 2026-10-07-order-detail-parties-notes; `orders.detail-notes.journey.spec.ts` |
 | Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
 | Orders | Per-line fulfill edit + Can’t supply on Dispatch sheet + packing PDF (phone viewer + quiet Share) | Works | Unit | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf |
+| Orders | Packing slip options (buyer / photos) + order-unit qty + design thumbs | Works | Unit | Required | Completeness 2026-10-08-packing-slip-options-photos |
 | Explore / Selection | Selected media: little shrink over page surface + filled teal check (no teal frame); unselected full color | Works | Unit | Required | Completeness 2026-10-05-selection-media-photos-look; shrink-no-teal 2026-10-06 |
 | Explore | First-paint feed + end footer; virtual overscan; shop prefetch | Works | Unit | Required | Progressive `/explore/feed` + `sections=feed`; You've reached the end |
 | Orders | Cheap Needs you badge count (no full list walk) | Works | Unit | Required | Completeness 2026-10-04-orders-needs-you-count |
@@ -39,7 +58,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
 | Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Android left-swipe More/Archive; theme-color white |
-| Chat | 1:1 ＋ Complaint form (photos optional) + In chats / thread filter | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-complaint-form; View order if attached (2026-09-29-complaint-view-order); never View designs |
+| Chat | 1:1 ＋ Complaint form + Resolve on open card; In chats / thread filter | Works | Unit | Required | Completeness 2026-09-29-chat-complaint-form; resolve UI 2026-10-09-complaint-resolve-ui; View order if attached; never View designs |
 | Chat | No-photo avatars use name colours (WhatsApp-like) | Works | Unit | Required | Completeness 2026-09-28-chat-avatar-colors; pastel wash + ink 2026-09-30-avatar-pastel-wash; kit Avatar |
 | Chat | Requests inbox (unconnected + connect invite) | Works | Functional + Unit | Required | Approve / Ignore; see-packs Allow; `/chats?inbox=requests`; Completeness 2026-09-28-chats-requests-fold-access |
 | Chat | See-packs ask: see + share checkboxes, compact Allow / Decline | Works | Unit | Required | Completeness 2026-09-28-follow-ask-share-checkbox; see default on, share off → pack |
@@ -77,7 +96,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
 | Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
 | Orders | Orders More menu portal (Samples/Returns) | Works | Functional | Recommended | `orders.chrome.journey.spec.ts` |
-| Orders | List tabs Pending / Completed + inbox-geometry rows (Avatar, time, one preview; Needs you accent) | Works | Unit + Functional | Required | Completeness 2026-09-19-orders-list-tabs + 2026-09-30-orders-inbox-rows; no chat swipe/unread |
+| Orders | List tabs Pending / Completed + textile cards (fixed media, Placed pill, protocol, thumb→PhotoViewer) | Works | Unit | Required | Completeness 2026-10-09-orders-list-textile-card + list-photo-viewer; tabs 2026-09-19; inbox 2026-09-30 |
 | Orders | Filter Select Status = six only, scoped to Pending / Completed | Works | Unit + Functional | Required | Completeness 2026-09-30-orders-few-statuses; no Received/Approved/Resolved/Declined |
 | Orders | Returns removed from product | Works | Unit + Functional | Required | Completeness 2026-09-30-remove-returns; no Raise a return / Return type / Home Returns |
 | Orders | Bottom nav Needs you count (same teal pill as Chats unread) | Works | Unit | Required | Completeness 2026-09-26-orders-nav-needs-you; `GET /orders/needs-you-count` |
@@ -108,6 +127,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Seller create photos-first + cover tag | Works | Unit | Required | Slice 1 2026-08-12; Photos = ContinuousCamera like Add designs (2026-09-11) |
 | Collections | New collection one **Add designs** → sheet Designs · Photos (Gallery on camera) | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe; supersedes 3-door Camera · Photo library · Designs |
 | Collections | New collection cascade tags, From/To rate, apply-all + rate confirm, dual order/dispatch units | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe |
+| Collections | Collection name label; One rate / A range pill switch; no On request caption; italic light placeholders | Works | Unit + Functional | Required | Completeness 2026-10-09-collection-rate-mode-placeholders |
 | Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
 | Collections | Create polish (9-cap grid, publish-first, tags, no Everyone, tile→design sheet) | Works | Unit | Required | Completeness 2026-09-17-collection-create-polish |
 | Collections | Same for all + photos-first + rate range + unlimited design photos | Works | Unit + Functional | Required | Completeness 2026-09-18-collection-same-for-all-ux-simplify; Done = new photos only; library Diff; `collection.publish.journey` |
@@ -123,16 +143,18 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |
 | Explore | Design page Ask / Order dock visitors only | Works | Unit | Required | Owner never gets dock (even Selling/Trading); `exploreProductChrome` |
+| Explore | Instagram look + B2B: own feed, new-designs line, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look |
+| Explore | Per-post Repost sheet (Who / groups / 48h / forward·download) — not Your selection | Works | Unit | Required | Completeness 2026-10-08-explore-repost-publish-sheet |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
 | Collections | Hide last live design drafts the pack; viewer lists Published only | Later | Unit | Optional | Superseded 2026-10-06-pack-members-stay-published: pack stays Published; Hide is explicit |
 | Collections | Pack members stay published on add/replace photos; no auto-draft | Works | Unit | Required | Completeness 2026-10-06-pack-members-stay-published |
-| Collections | Own pack manage dock (Add/Replace; selecting Delete · Remove from this collection; hide owner name card) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock; 2026-10-06-owner-pack-select-dock-copy |
+| Collections | Own pack manage dock (Add/Replace; selecting Cart · Share · Delete icons · Remove from this collection; hide owner name card) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock; 2026-10-06-owner-pack-select-dock-copy; 2026-10-09-owner-pack-select-cart-icons |
 | Collections | Edit live pack: **Publish** on own unpublished photo tiles + design sheet | Works | Unit | Required | Completeness 2026-10-06-collection-photo-set-live; pack-only, not Explore tile; word is Publish |
 | Orders | Ordered design leftover says No longer available | Works | Unit | Required | Same leftover as Saved / share |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |
 | Catalog | Blank design name → SKU (create + pack photos + editor) | Works | Unit | Required | Completeness 2026-10-04-design-name-sku |
 | Catalog | Edit design dirty leave: Save or Discard | Works | Unit | Required | Completeness 2026-10-04-edit-design-save-or-discard; chat/orders keep Leave sheet |
-| Orders | How many each footer **Share** (same chat sheet) | Works | Unit | Required | Completeness 2026-09-29-how-many-share |
+| Orders | How many Share removed from Order sheet (Share = selection dock) | Works | Unit | Required | Superseded by 2026-10-09-how-many-order-only-footer; prior 2026-09-29-how-many-share |
 | Trader curation | Curate **Add to existing pack** (merge; draft→editor / published toast) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing; saved.md |
 | Collections | Ready status + seller badges/filters | Works | Unit | Required | 2026-08-13 Completeness |
 | Collections | Live window startsAt/endsAt + expire | Works | Unit | Required | 2026-08-13 Completeness |
@@ -144,7 +166,12 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Trade-side Buying / Selling (no All chip) | Works | Unit | Required | 2026-08-23 filter panels; dual Explore Buyers / Explore Suppliers; default Buying |
 | Explore | Filter: Change View + multi category/city | Works | Unit + Functional | Required | Popup B; Confirm closes; pin selected on reopen |
 | Explore | Search chrome: Filter square + Select pill (no Saved / Selection squares) | Works | Unit + Functional | Required | Completeness 2026-09-23-explore-chrome-cut; Select 2026-10-01-android-select-not-longpress |
-| Explore | Selection floater only on Explore / other shop / pack Selecting | Works | Unit + Functional | Required | Completeness 2026-09-30-selection-floater-allowlist; hide Home Chats Orders You |
+| Explore | Selection floater only on Explore / design set / collection·design Selecting (not company shop) | Works | Unit + Functional | Required | Completeness 2026-10-09-shop-select-clarity-dock; shop dock only when this seller has picks |
+| Explore | Cart: header opens cart; dock Cart adds + clears staging; Order right | Works | Unit | Required | Completeness 2026-10-09-explore-cart-dock |
+| Explore / Selection | Dock **Message · Share · Order**; Message compose text+cards, stay on page | Works | Unit + Functional | Required | Completeness 2026-10-09-selection-message-compose; prior attach 2026-10-09 |
+| Explore | Feed **Message** quick enquire (pack/design); stay on feed | Works | Unit | Required | Completeness 2026-10-09-explore-feed-message-enquire |
+| Orders | How many Order: Place + Order-for-buyer switch; no Share/Ask (Ask = own sheet job) | Works | Unit | Required | Completeness 2026-10-09-how-many-order-only-footer |
+| Orders / Catalog | Sets qty + rate per dispatch (~80% sets / ~20% native unit) | Works | Unit | Required | Completeness 2026-10-09-how-many-sets-rate-per-dispatch; `formatCatalogRate` |
 | Explore | Search hint: no GST (idle + field same line) | Works | Unit + Functional | Optional | Completeness 2026-09-24-explore-search-no-gst |
 | Explore | Category copy: Women’s apparel not womens_apparel | Works | Unit | Required | categoryDisplayLabel on feed / search / design / shop |
 | Explore | Hide solo design when live pack on same feed already has it; design card first photo | Works | Unit | Required | Completeness 2026-09-25-explore-pack-covered-designs |
@@ -222,7 +249,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog | Batch Add designs: SKU thumbs, 1 vs 2+ details, sheet always-open details | Works | Unit + Functional | Required | Completeness 2026-09-02-add-designs; not filename names; no chips |
 | Explore | Select preserves Design+Collection; Order resolves albums; Share/Bookmark keep types | Works | Unit | Required | Completeness 2026-09-03-explore-select-preserve-types; types preserved |
 | Browse | Order collections Continue expands packs then How many | Works | Unit | Required | 2026-09-28 Continue no-op: parent re-render must not wipe errors |
-| Browse | Company shop: this-seller Order · Curate · Ask dock; Share profile (chat + OS); hide nav while dock up | Works | Unit + Functional | Required | Completeness 2026-09-23-company-shop-trade-share; one pile, shop-scoped act |
+| Browse | Company shop: this-seller Message · Share · Order dock; Share profile (chat + OS); hide nav while dock up | Works | Unit + Functional | Required | Completeness 2026-10-09-company-shop-dock-message-share-order; one pile, shop-scoped act |
+| Catalog | Trader UI noun is **collection** (not pack) | Works | Unit | Required | Completeness 2026-10-09-collection-not-pack-copy; keep order-unit packs |
 | Browse | Company shop Collections: Explore mosaic + name; Select + same dock (resolve albums) | Works | Unit + Functional | Required | Completeness 2026-09-24-company-shop-collections |
 | Browse | Collection mosaic +N = leftover designs (not extra photos) | Works | Unit | Required | Completeness 2026-09-24-collection-mosaic-plus; 5 designs → +1 |
 | Collections | No pack cover — collage is member design thumbs only | Works | Unit + Functional | Required | Completeness 2026-09-24-no-collection-cover; `coverImage` silent fallback only |
@@ -241,18 +269,23 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Top-level Media tab | Rejected | — | Reject | |
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
-| You / Settings | You: identity + library; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
+| You / Settings | You: library (no identity card); shell **My collections** + Back + account avatar; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-09-my-collections-listing-chrome; 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
+| You / Catalog | Collection list: `N designs` · optional `shared with N` (Selected companies); no Published / date on listing | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
+| Collections | Owner Selecting dock: Cart · Share · Delete icons · Remove (Share = checked designs; Cart = published → trade cart) | Works | Unit | Required | Completeness 2026-10-09-owner-pack-select-share; 2026-10-09-owner-pack-select-cart-icons |
+| Collections | Owner album ⋯ bottom sheet: Share · Who · Add photos · Edit (icon+text) | Works | Unit | Required | Completeness 2026-10-09-owner-collection-more-sheet |
+
 | You / Company | Library tabs Collections first (You + shop) | Works | Unit + Functional | Required | Completeness 2026-09-30-library-collections-first; Designs writes `tab=products` (`youLibraryWriteSearch`) |
 | You / Company | Feed matches Explore (4∶5 single photo, inset mosaic) | Works | Unit | Required | Completeness 2026-09-30-library-feed-explore; Grid unchanged |
 | You / Settings | You shell Back → Home | Works | Unit | Required | Completeness 2026-09-30-you-back-home |
 | You / Settings | Shop Share on Business profile (not You library) | Works | Unit | Required | Completeness 2026-09-30-profile-share-icon |
 | Company | Own Business profile view until Edit; Update; hide tab bar | Works | Unit + Functional | Required | Completeness 2026-09-30-profile-view-then-edit; `?edit=1` / `focus=sell` |
-| You / Shop | Find designs / collections in place (You library + shop) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-shop-catalog-search; You Find + filter square Draft/Archived/Saved (2026-09-29-you-library-find-status); no Published chip |
+| You / Shop | Find designs / collections in place (You library + shop) | Works | Unit + Functional | Required | Completeness 2026-09-24-you-shop-catalog-search; You Find + filter square Draft/Archived/Bookmark (2026-09-29-you-library-find-status); no Published chip |
 | Collections | Album / list find (tags, design name, notes, SKU; not a permanent bar) | Works | Unit + Functional | Required | Completeness 2026-09-24-collection-on-demand-find |
 | Browse | Ask / Order / Designs taps (dock portal + How many on origin packs) | Works | Unit | Required | Pack qty sheet not curated-only; trade docks portaled; nav hidden while dock owns band |
 
 | Collections | Fixed select bar clips last card (BM-07) | Works | Untested (manual fix 2026-08-11) | Required | Padding clears nav + bar; add regression when practical |
 | Browse | Select all float as soon as select starts | Works | Unit | Required | Completeness 2026-08-21; spec select-all-float; not on Explore |
+| Browse | Repost sheet path-first (existing published · Add new → Publish + Save) | Works | Unit | Required | Completeness 2026-10-09-repost-sheet-path-first |
 
 ## Doc drift
 

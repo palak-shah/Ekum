@@ -28,13 +28,11 @@ const base = {
   photo: <span>thumb</span>,
   onToggle: vi.fn(),
   onCantSupply: vi.fn(),
-  onDispatch: vi.fn(),
   onSaveLastLr: vi.fn(),
 };
 
 describe('OrderLineFulfillExpand', () => {
-  it('shows Asked · Already shipped · Last LR · Ship now', () => {
-    const onDispatch = vi.fn();
+  it('shows edit icon · fact strip · Last LR — no inline Ship now / Dispatch', () => {
     const onSaveLastLr = vi.fn();
     render(
       <OrderLineFulfillExpand
@@ -43,20 +41,60 @@ describe('OrderLineFulfillExpand', () => {
         hasLastLr
         lastLrQty={8}
         expanded
-        onDispatch={onDispatch}
         onSaveLastLr={onSaveLastLr}
       />,
     );
-    expect(screen.getByText('Asked')).toBeTruthy();
-    expect(screen.getByText('Already shipped')).toBeTruthy();
+    expect(screen.getByTestId('order-line-facts')).toBeTruthy();
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20');
+    expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('15');
+    expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('-5');
+    expect(screen.queryByTestId('order-line-fact-pending')).toBeNull();
+    expect(screen.queryByText('Asked')).toBeNull();
+    expect(screen.queryByText('Already shipped')).toBeNull();
+    expect(screen.queryByTestId('order-line-ship-now')).toBeNull();
+    expect(screen.queryByTestId('order-line-dispatch')).toBeNull();
     expect(screen.getByText('Last LR')).toBeTruthy();
     expect((screen.getByTestId('order-line-last-lr-qty') as HTMLInputElement).value).toBe('8');
     fireEvent.change(screen.getByTestId('order-line-last-lr-qty'), { target: { value: '6' } });
     fireEvent.click(screen.getByTestId('order-line-last-lr-save'));
     expect(onSaveLastLr).toHaveBeenCalledWith(6);
-    fireEvent.change(screen.getByTestId('order-line-ship-now'), { target: { value: '10' } });
-    fireEvent.click(screen.getByTestId('order-line-dispatch'));
-    expect(onDispatch).toHaveBeenCalledWith(10);
+  });
+
+  it('opens expand from the pencil only — not the row body', () => {
+    const onToggle = vi.fn();
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        onToggle={onToggle}
+        item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
+        hasLastLr
+        lastLrQty={8}
+        expanded={false}
+      />,
+    );
+    expect(screen.getByTestId('order-line-edit-icon')).toBeTruthy();
+    expect(screen.queryByTestId('order-line-toggle')).toBeNull();
+    fireEvent.click(screen.getByText('Cotton Dress Material'));
+    expect(onToggle).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('order-line-edit-icon'));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a quiet close control when expanded', () => {
+    const onToggle = vi.fn();
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        onToggle={onToggle}
+        item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
+        hasLastLr
+        lastLrQty={8}
+        expanded
+      />,
+    );
+    expect(screen.queryByTestId('order-line-edit-icon')).toBeNull();
+    fireEvent.click(screen.getByTestId('order-line-close-edit'));
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Last LR draft when parent re-renders', () => {
@@ -82,12 +120,11 @@ describe('OrderLineFulfillExpand', () => {
     expect((screen.getByTestId('order-line-last-lr-qty') as HTMLInputElement).value).toBe('3');
   });
 
-  it('allows Last LR edit after complete; hides Ship now', () => {
+  it('allows Last LR edit after complete', () => {
     render(
       <OrderLineFulfillExpand
         {...base}
         item={item({ shippedQuantity: 20, remainingQuantity: 0 })}
-        canDispatch={false}
         hasLastLr
         lastLrQty={20}
         expanded
@@ -96,5 +133,52 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.getByTestId('order-line-last-lr-qty')).toBeTruthy();
     expect(screen.queryByTestId('order-line-ship-now')).toBeNull();
     expect(screen.queryByTestId('order-line-dispatch')).toBeNull();
+  });
+
+  it('hides Can’t supply toggle on grayed collapsed row — cue only', () => {
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        item={item({ lineStatus: 'declined', remainingQuantity: 0, shippedQuantity: 20 })}
+        hasLastLr={false}
+        lastLrQty={0}
+        expanded={false}
+      />,
+    );
+    expect(screen.queryByTestId('order-line-cant-supply-toggle')).toBeNull();
+    expect(screen.getByTestId('order-line-cant-supply-cue')).toHaveTextContent('Can’t supply');
+    const stack = screen.getByTestId('order-line-stack');
+    expect(stack.querySelector('.opacity-50')).toBeTruthy();
+  });
+
+  it('keeps Can’t supply switch only when expanded to edit', () => {
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        item={item({ lineStatus: 'declined', remainingQuantity: 0 })}
+        hasLastLr={false}
+        lastLrQty={0}
+        expanded
+      />,
+    );
+    expect(screen.getByTestId('order-line-cant-supply-toggle')).toBeTruthy();
+  });
+
+  it('opens Send quote from Can’t supply cue before lock', () => {
+    const onOpenQuote = vi.fn();
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        canEdit={false}
+        item={item({ lineStatus: 'declined', remainingQuantity: 0 })}
+        hasLastLr={false}
+        lastLrQty={0}
+        expanded={false}
+        onOpenQuote={onOpenQuote}
+      />,
+    );
+    expect(screen.queryByTestId('order-line-edit-icon')).toBeNull();
+    fireEvent.click(screen.getByTestId('order-line-cant-supply-cue'));
+    expect(onOpenQuote).toHaveBeenCalled();
   });
 });

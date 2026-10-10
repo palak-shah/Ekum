@@ -12,7 +12,7 @@
 | Lens | Summary findings |
 |------|------------------|
 | Product Manager | Same tickets. Glance like Chats: shop, one line, when. Job stays on the order page. |
-| UX Designer | 48 Avatar, name + time, one preview. Needs you stays left accent. No swipe / unread / pin. |
+| UX Designer | Quiet **card stack** (gap + rounded border). 48 Avatar, name + time, verb preview (not “Needs you ·” on every row), facts line. Needs you = left accent. Optional trailing design thumb. No swipe / unread / pin / Call / Reminder. |
 | Solution Architect | Preview helper. Dock visibility store so nav hides only while CTAs exist. |
 
 ---

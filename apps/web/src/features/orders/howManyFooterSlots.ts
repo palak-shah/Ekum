@@ -1,14 +1,17 @@
-export type HowManyFooterSlot = 'place' | 'share' | 'ask' | 'order-buyer';
+export type HowManyFooterSlot = 'place' | 'ask' | 'order-buyer-toggle';
 
-/** Place + Share first; Ask / Order for buyer stay the quieter row. */
+/**
+ * Order job: Place (+ optional Order for buyer switch). No Share / Ask.
+ * Ask job: Ask rates only.
+ */
 export function howManyFooterSlots(opts: {
-  showPlaceOrderAsk: boolean;
+  sheetJob: 'order' | 'ask';
+  showPlaceOrder: boolean;
   canOrderForBuyer: boolean;
 }): HowManyFooterSlot[] {
-  if (opts.showPlaceOrderAsk) {
-    return opts.canOrderForBuyer
-      ? ['place', 'share', 'ask', 'order-buyer']
-      : ['place', 'share', 'ask'];
+  if (opts.sheetJob === 'ask') return ['ask'];
+  if (opts.showPlaceOrder) {
+    return opts.canOrderForBuyer ? ['order-buyer-toggle', 'place'] : ['place'];
   }
-  return opts.canOrderForBuyer ? ['order-buyer', 'share'] : ['share'];
+  return opts.canOrderForBuyer ? ['order-buyer-toggle'] : [];
 }

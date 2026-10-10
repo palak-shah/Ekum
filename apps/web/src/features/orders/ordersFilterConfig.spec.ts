@@ -19,7 +19,7 @@ describe('tradeMenuFilterSummary', () => {
         kindFacet: 'sample',
         dateFacet: null,
       }),
-    ).toBe('Sample · Requested');
+    ).toBe('Sample · Placed');
   });
 
   it('returns empty when no menu facets', () => {
@@ -39,7 +39,7 @@ describe('tradeStatusLabel', () => {
   });
 
   it('returns label for known status', () => {
-    expect(tradeStatusLabel('requested')).toBe('Requested');
+    expect(tradeStatusLabel('requested')).toBe('Placed');
   });
 
   it('still labels legacy delivered when filtered', () => {

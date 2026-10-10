@@ -55,7 +55,7 @@ describe('FollowersPage inbox', () => {
     expect(screen.queryByRole('heading', { name: 'Asked' })).toBeNull();
     expect(await screen.findByTestId('follow-ask-row')).toBeInTheDocument();
     expect(screen.getByTestId('follow-ask-why')).toHaveTextContent(
-      'Wants to see your new packs',
+      'Wants to see your new collections',
     );
     expect(
       await screen.findByRole('checkbox', { name: 'They can see my collections' }),
@@ -108,7 +108,7 @@ describe('FollowersPage inbox', () => {
     expect(screen.queryByRole('button', { name: 'Change' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Stop them seeing' })).toBeInTheDocument();
     expect(screen.getByTestId('they-see-mine-search')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Seeing packs/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Seeing collections/ })).toBeNull();
   });
 
   it('keeps a stopped business on the list', async () => {

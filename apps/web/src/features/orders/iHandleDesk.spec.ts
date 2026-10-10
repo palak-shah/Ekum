@@ -28,6 +28,7 @@ import {
   millsObserveMode,
   heldMillDesks,
   orderActionDock,
+  requestedDockPrimary,
   showMillSendAll,
   showMillSendOnCard,
 } from './iHandleDesk';
@@ -108,7 +109,37 @@ describe('iHandleDesk', () => {
     ).toBe('1 confirmed · 1 can’t supply');
   });
 
-  it('docks Send all when two mills wait; quote is the teal when they do not', () => {
+  it('requested dock primary is Confirm or Send all — never Send quote', () => {
+    expect(
+      requestedDockPrimary({
+        kind: 'requested',
+        sendOrder: false,
+        sendQuote: true,
+        confirm: true,
+        quoted: false,
+      }),
+    ).toBe('confirm');
+    expect(
+      requestedDockPrimary({
+        kind: 'requested',
+        sendOrder: true,
+        sendQuote: true,
+        confirm: false,
+        quoted: false,
+      }),
+    ).toBe('sendOrder');
+    expect(
+      requestedDockPrimary({
+        kind: 'requested',
+        sendOrder: false,
+        sendQuote: true,
+        confirm: false,
+        quoted: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('docks Send all when two mills wait; Confirm stays off on the I-handle parent', () => {
     const waiting = [
       { held: true, sellerName: 'A' },
       { held: true, sellerName: 'B' },
@@ -220,6 +251,23 @@ describe('iHandleDesk', () => {
       sendQuote: true,
       confirm: true,
       quoted: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: true,
+        status: 'confirmed',
+        millDesks: [],
+        sendQuote: false,
+        openForDispatch: true,
+        hasRemaining: false,
+        hasDeclinedToRestore: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'fulfill',
+      dispatch: true,
+      dispatchMore: false,
+      settle: false,
     });
     expect(
       orderActionDock({

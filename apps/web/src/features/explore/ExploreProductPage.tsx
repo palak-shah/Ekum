@@ -11,7 +11,10 @@ import {
   type OrderView,
   type ProductView,
 } from '@ekum/domain-types';
-import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
+import {
+  BottomTradeDock,
+  SELECTION_DOCK_CLEARANCE_CLASS,
+} from '@/features/browse/BottomTradeDock';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { RELIST_LOCKED_TOAST } from '@/features/browse/forwardGate';
 import { DEFAULT_ACCESS_REQUEST_NOTE } from '@/lib/accessRequestNote';
@@ -24,7 +27,7 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api, ApiError } from '@/lib/apiClient';
-import { formatRate } from '@/lib/format';
+import { formatCatalogRate } from '@/lib/catalogRate';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useMyCompany } from '@/lib/queries';
@@ -56,6 +59,7 @@ export function ExploreProductPage() {
   const me = useMyCompany();
   const shortlist = useBrowseShortlist();
   const [qtyOpen, setQtyOpen] = useState(false);
+  const [qtyJob, setQtyJob] = useState<'order' | 'ask'>('order');
   const [curateOpen, setCurateOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -82,15 +86,19 @@ export function ExploreProductPage() {
   });
 
   const createOrder = useMutation({
-    mutationFn: (lines: Array<{ productId: string; quantity: number; note?: string }>) =>
+    mutationFn: (input: {
+      lines: Array<{ productId: string; quantity: number; note?: string }>;
+      transporter?: string;
+    }) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
         sellerCompanyId:
           handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
         kind: OrderKind.Standard,
+        ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
         ...(handlePath
           ? { orderPathPreference: 'handle' as const }
           : { facilitatorCompanyId }),
-        items: lines.map((line) => ({
+        items: input.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
           images: [],
@@ -109,17 +117,21 @@ export function ExploreProductPage() {
   });
 
   const askRates = useMutation({
-    mutationFn: (lines: Array<{ productId: string; quantity: number; note?: string }>) =>
+    mutationFn: (input: {
+      lines: Array<{ productId: string; quantity: number; note?: string }>;
+      transporter?: string;
+    }) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
         sellerCompanyId:
           handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
         kind: OrderKind.Standard,
         intent: OrderIntent.Inquiry,
         note: product.data?.name ? `Rates for ${product.data.name}` : undefined,
+        ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
         ...(handlePath
           ? { orderPathPreference: 'handle' as const }
           : { facilitatorCompanyId }),
-        items: lines.map((line) => ({
+        items: input.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
           images: [],
@@ -201,8 +213,9 @@ export function ExploreProductPage() {
     setCurateOpen(true);
   };
 
-  const openQty = () => {
+  const openQty = (job: 'order' | 'ask' = 'order') => {
     setOrderError(null);
+    setQtyJob(job);
     setQtyOpen(true);
   };
 
@@ -210,7 +223,7 @@ export function ExploreProductPage() {
     <div
       className={cx(
         'flex flex-col gap-3',
-        (canTrade || canCurate) && 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
+        (canTrade || canCurate) && SELECTION_DOCK_CLEARANCE_CLASS,
       )}
     >
       <PageHeader
@@ -258,7 +271,12 @@ export function ExploreProductPage() {
       {data.visible ? (
         <div className="flex flex-col gap-1.5">
           <p className="text-[15px] font-semibold tracking-tight text-ink">
-            {formatRate(data.rate, data.unit)}
+            {formatCatalogRate({
+              rate: data.rate,
+              rateMax: data.rateMax,
+              unit: data.unit,
+              dispatchUnit: data.dispatchUnit,
+            })}
             {data.moq != null && data.moq > 0 ? (
               <span className="ml-2 text-sm font-medium text-muted">· min {data.moq} pcs</span>
             ) : null}
@@ -297,15 +315,15 @@ export function ExploreProductPage() {
         <BottomTradeDock testId="explore-product-trade-dock" aboveAppNav={false}>
           {canCurate ? (
             <Button variant="secondary" fullWidth onClick={openCurate}>
-              Curate
+              Repost
             </Button>
           ) : null}
           {canTrade ? (
             <>
-              <Button variant="secondary" fullWidth onClick={openQty}>
+              <Button variant="secondary" fullWidth onClick={() => openQty('ask')}>
                 Ask for rates
               </Button>
-              <Button fullWidth onClick={openQty}>
+              <Button fullWidth onClick={() => openQty('order')}>
                 Order
               </Button>
             </>
@@ -321,18 +339,19 @@ export function ExploreProductPage() {
         submitting={createOrder.isPending}
         asking={askRates.isPending}
         error={orderError}
+        sheetJob={qtyJob}
         orderGoesToName={
           stampedHandle
             ? (readCatalogHandlerName('product', id) ?? null)
             : data.company.name
         }
-        onSendOrder={(lines) => {
+        onSendOrder={(lines, place) => {
           setOrderError(null);
-          createOrder.mutate(lines);
+          createOrder.mutate({ lines, transporter: place?.transporter });
         }}
-        onAskRates={(lines) => {
+        onAskRates={(lines, place) => {
           setOrderError(null);
-          askRates.mutate(lines);
+          askRates.mutate({ lines, transporter: place?.transporter });
         }}
       />
 

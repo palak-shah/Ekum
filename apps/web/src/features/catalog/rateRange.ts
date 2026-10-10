@@ -28,7 +28,7 @@ export function splitRateInput(raw: string): { from: string; to: string } {
 export function rateRangeCaption(from: string, to: string): string {
   const { rate, rateMax, invalid } = parseRateParts(from, to);
   if (invalid) return 'High rate must be at least the low rate.';
-  if (rate == null) return 'On request';
+  if (rate == null) return '';
   const low = `₹${rate.toLocaleString('en-IN')}`;
   if (rateMax != null) return `${low}–₹${rateMax.toLocaleString('en-IN')}`;
   return low;

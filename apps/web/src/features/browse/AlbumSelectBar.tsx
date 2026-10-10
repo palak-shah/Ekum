@@ -5,7 +5,7 @@ import { Button } from '@/ui/kit';
 import { pickSelectionLabel, shouldShowAlbumSelectActions } from './albumSelectModel';
 
 /**
- * Explore dock: Order · Curate · Bookmark · Share — same four verbs for
+ * Explore dock: Order · Repost · Bookmark · Share — same four verbs for
  * designs, collections, or mixed. Order resolve happens after Order is tapped.
  */
 export function AlbumSelectBar({
@@ -66,7 +66,7 @@ export function AlbumSelectBar({
           ) : null}
           {showCurate ? (
             <Button variant="secondary" className="min-w-0 flex-1" disabled={busy} onClick={onCurate}>
-              Curate
+              Repost
             </Button>
           ) : null}
           {showBookmark ? (

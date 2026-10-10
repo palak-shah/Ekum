@@ -2,12 +2,16 @@ import { test, expect } from '@playwright/test';
 import { loginAsRavi } from '../../helpers/persona';
 
 test.describe('You profile @functional @settings', () => {
-  test('You has library; Home avatar opens Profile with Share', async ({
+  test('My collections has library; avatar opens Profile with Share', async ({
     page,
   }) => {
     await loginAsRavi(page);
     await page.goto('/more');
-    await expect(page.getByRole('heading', { name: 'You' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'My collections' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('you-identity')).toHaveCount(0);
+    await expect(page.getByTestId('home-account')).toBeVisible();
     await expect(page.getByTestId('you-more')).toHaveCount(0);
     await expect(page.getByTestId('page-header-back')).toHaveCount(0);
     await expect(page.getByTestId('you-edit')).toHaveCount(0);

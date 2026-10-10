@@ -33,7 +33,7 @@ export type TradeSuggestion = {
 
 /** Statuses shown in Find — same six as the filter menu. */
 const PRIMARY_STATUS_LABELS = [
-  'Requested',
+  'Placed',
   'Confirmed',
   'Part shipped',
   'Dispatched',
@@ -220,7 +220,10 @@ function itemTextHaystack(item: TradeListItem): string {
 }
 
 function statusKeyFromLabel(label: string): string {
-  return label.trim().toLowerCase().replace(/\s+/g, '_');
+  const key = label.trim().toLowerCase().replace(/\s+/g, '_');
+  // List/detail pill says Placed; API status stays `requested`.
+  if (key === 'placed') return 'requested';
+  return key;
 }
 
 export function tradeMatchesFind(item: TradeListItem, find: TradeFindState): boolean {

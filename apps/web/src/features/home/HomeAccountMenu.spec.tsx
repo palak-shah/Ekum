@@ -21,7 +21,8 @@ describe('HomeAccountMenu', () => {
     );
     expect(screen.queryByRole('menuitem', { name: 'Settings' })).toBeNull();
     await user.click(screen.getByTestId('home-account'));
-    expect(screen.getByTestId('home-account-menu')).toHaveClass('w-64');
+    expect(screen.getByTestId('home-account-menu')).toHaveAttribute('role', 'menu');
+    expect(screen.getByRole('heading', { name: 'Surat Silk House' })).toBeInTheDocument();
     expect(screen.getByTestId('home-account-profile')).toHaveTextContent('Profile');
     expect(screen.getByTestId('home-account-network')).toBeInTheDocument();
     expect(screen.getByTestId('home-account-my-collections')).toHaveTextContent('My Collections');

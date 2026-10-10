@@ -17,7 +17,7 @@ Start with [Shared concepts](./00-concepts.md) before area docs.
 | **Home · Chats · ＋ · Explore · Orders** | Bottom nav (`AppShell`) |
 | **＋** | Selling + upload: **Collection** sheet — **Create new collection** or **Update existing collection** (You Collections). Add designs lives on **You** (My designs / collections **Add**). Photo order lives on **Orders ＋** and **chat ＋** (not nav ＋). Buy-only ＋ opens Orders. No cap → why-line toast. Invite lives on **Chats ⋯** and profile / Invites. Curate from **Your selection** (Trading on). |
 | **Bell** | Notifications only — not mirrored on Home |
-| **Avatar** | Home header — **Profile**, **Network**, **My Collections**, **Settings**, **Log out**. Designs is a You tab under My Collections. Not a tap-through to You. |
+| **Avatar** | Home and **My collections** header — **Profile**, **Network**, **My Collections**, **Settings**, **Log out**. Designs is a You tab under My Collections. Not a tap-through to You. |
 
 ## Seed personas
 

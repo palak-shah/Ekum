@@ -5,13 +5,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { ExploreDesignOpportunity, ExploreOpportunity } from '@ekum/domain-types';
+import { ToastProvider } from '@/ui/Toast';
 import { OpportunityCollectionCard, OpportunityDesignCard } from './cards';
 
 function wrap(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter>
+        <ToastProvider>{ui}</ToastProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -31,6 +34,7 @@ const collectionOpportunity: ExploreOpportunity = {
   collection: {
     id: 'col1',
     name: 'Wedding Edit',
+    description: null,
     categories: [],
     memberFind: [],
     coverImage: null,
@@ -41,6 +45,12 @@ const collectionOpportunity: ExploreOpportunity = {
     updatedAt: '2026-09-01T00:00:00.000Z',
     allowForward: true,
     orderPathPreference: null,
+    rateMin: null,
+    rateMax: null,
+    rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
     company,
   },
 };
@@ -52,7 +62,9 @@ const designOpportunity: ExploreDesignOpportunity = {
     name: 'Red silk saree',
     images: ['https://img.example/1.jpg', 'https://img.example/2.jpg', 'https://img.example/3.jpg'],
     rate: null,
+    rateMax: null,
     unit: null,
+    categories: [],
     postedAt: '2026-09-01T00:00:00.000Z',
     allowForward: true,
     company,

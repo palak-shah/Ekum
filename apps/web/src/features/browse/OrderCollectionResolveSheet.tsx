@@ -26,13 +26,13 @@ const RESOLVE_COPY = {
     emptyMessage: 'Pick at least one design to order.',
   },
   curate: {
-    title: 'Curate from collections',
-    prompt: 'How would you like to curate this collection?',
-    allTitle: 'Use whole pack',
-    allHint: 'Put every design from this pack into your Curate set',
+    title: 'Repost from collections',
+    prompt: 'How would you like to repost this collection?',
+    allTitle: 'Use whole collection',
+    allHint: 'Add every design from this collection to your Repost',
     chooseTitle: 'Pick designs',
     chooseHint: 'Open the collection and select specific designs',
-    emptyMessage: 'Pick at least one design to curate.',
+    emptyMessage: 'Pick at least one design to repost.',
   },
 } as const;
 

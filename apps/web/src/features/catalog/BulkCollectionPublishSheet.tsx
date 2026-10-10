@@ -125,7 +125,7 @@ export function BulkCollectionPublishSheet({ open, onClose, collectionIds, onDon
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">
-            Same visibility for all selected. Empty packs are skipped by the server.
+            Same visibility for all selected. Empty collections are skipped by the server.
           </p>
 
           <PublishAudienceFields

@@ -6,6 +6,7 @@ import type {
   OrderItem,
   OrderShipment,
   OrderShipmentItem,
+  OrderShipmentLeg,
   Prisma,
   Return,
   ReturnItem,
@@ -32,6 +33,7 @@ type ActorUser = { id: string; name: string | null };
 type ShipmentWithItems = OrderShipment & {
   dispatchedByUser?: ActorUser | null;
   items: (OrderShipmentItem & { orderItem: Pick<OrderItem, 'id' | 'name'> })[];
+  legs?: OrderShipmentLeg[];
 };
 
 type OrderWithRelations = Order & {
@@ -149,9 +151,20 @@ export class OrderSerializer {
       amendCount: order.amendCount ?? 0,
       direction: buying ? OrderDirection.Buying : OrderDirection.Selling,
       note: order.note,
+      transporter: order.transporter ?? null,
       noteVoiceUrl: order.noteVoiceUrl ?? null,
       noteVoiceDurationMs: order.noteVoiceDurationMs ?? null,
       noteVoiceMediaId: order.noteVoiceMediaId ?? null,
+      manualRef:
+        order.manualOrderNo ||
+        order.manualOrderNote ||
+        (order.manualOrderImages?.length ?? 0) > 0
+          ? {
+              manualOrderNo: order.manualOrderNo ?? null,
+              note: order.manualOrderNote ?? null,
+              images: order.manualOrderImages ?? [],
+            }
+          : null,
       buyerCompanyId: order.buyerCompanyId,
       sellerCompanyId: order.sellerCompanyId,
       buyerName: order.buyer.name,
@@ -337,10 +350,13 @@ export class OrderSerializer {
   }
 
   private toShipmentView(shipment: ShipmentWithItems): OrderShipmentView {
+    const legs = [...(shipment.legs ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    const primaryLr =
+      legs.find((leg) => leg.lrNumber?.trim())?.lrNumber?.trim() || shipment.lrNumber;
     return {
       id: shipment.id,
       transporter: shipment.transporter,
-      lrNumber: shipment.lrNumber,
+      lrNumber: primaryLr,
       parcelCount: shipment.parcelCount,
       dispatchedAt: shipment.dispatchedAt.toISOString(),
       updatedAt:
@@ -351,6 +367,13 @@ export class OrderSerializer {
         orderItemId: line.orderItemId,
         name: line.orderItem.name,
         quantity: line.quantity.toNumber(),
+      })),
+      legs: legs.map((leg) => ({
+        id: leg.id,
+        lrNumber: leg.lrNumber,
+        billNumber: leg.billNumber,
+        imageUrls: [...(leg.imageUrls ?? [])],
+        sortOrder: leg.sortOrder,
       })),
     };
   }

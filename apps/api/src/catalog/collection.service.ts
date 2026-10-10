@@ -42,6 +42,7 @@ import {
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
 import { shouldBumpExploreOnPublish } from './explore-activity-bump';
+import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
@@ -125,17 +126,27 @@ export class CollectionService {
       assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
     }
     const collection = await this.prisma.collection.create({
-      data: {
-        companyId,
-        name,
-        description: dto.description ?? null,
-        coverImage: dto.coverImage ?? null,
-        categories: dto.categories ?? [],
-        startsAt: startsAt === undefined ? null : startsAt,
-        endsAt: endsAt === undefined ? null : endsAt,
-        createdByUserId: userId,
-        updatedByUserId: userId,
-      },
+      data: withPrismaField(
+        'Collection',
+        'rateMax',
+        withPrismaField(
+          'Collection',
+          'rate',
+          {
+            companyId,
+            name,
+            description: dto.description ?? null,
+            coverImage: dto.coverImage ?? null,
+            categories: dto.categories ?? [],
+            startsAt: startsAt === undefined ? null : startsAt,
+            endsAt: endsAt === undefined ? null : endsAt,
+            createdByUserId: userId,
+            updatedByUserId: userId,
+          },
+          dto.rate ?? null,
+        ),
+        dto.rateMax ?? null,
+      ),
       include: listInclude,
     });
     await ensureSellingEnabled(this.prisma, companyId);
@@ -204,6 +215,12 @@ export class CollectionService {
         name: nextName,
         description: dto.description,
         coverImage: dto.coverImage,
+        ...(dto.rate !== undefined && prismaModelHasField('Collection', 'rate')
+          ? { rate: dto.rate }
+          : {}),
+        ...(dto.rateMax !== undefined && prismaModelHasField('Collection', 'rateMax')
+          ? { rateMax: dto.rateMax }
+          : {}),
         ...(dto.categories !== undefined ? { categories: dto.categories } : {}),
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
@@ -298,6 +315,7 @@ export class CollectionService {
     const memberIds = members.map((row) => row.productId);
     const allowForward = dto.allowForward !== false;
     const allowDownload = dto.allowDownload === true;
+    const showSourceShops = dto.showSourceShops === true;
     const now = new Date();
     await this.prisma.product.updateMany({
       where: {
@@ -341,10 +359,13 @@ export class CollectionService {
         audienceGroupIds,
         allowForward,
         allowDownload,
+        showSourceShops,
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),
-        ...(bumpExplore ? { exploreActivityAt: now } : {}),
+        ...(bumpExplore
+          ? { exploreActivityAt: now, exploreNewDesignCount: 0 }
+          : {}),
       },
       include: listInclude,
     });
@@ -595,7 +616,13 @@ export class CollectionService {
       )
       .map((product) => product.id);
 
+    // Own drafts in a pack are Published for trade inside the pack (no Explore tiles).
+    const canPromoteOwnDrafts = existing.status !== CollectionStatus.Archived;
+    const newlyAddedOwnDraftIds = ownDraftIds.filter((productId) =>
+      newlyAddedIds.includes(productId),
+    );
     let shouldBumpExplore = false;
+    let exploreNewDesignCount = 0;
     if (existing.status === CollectionStatus.Published && newlyAddedIds.length > 0) {
       const publishedNew = await this.prisma.product.count({
         where: {
@@ -603,19 +630,14 @@ export class CollectionService {
           status: ProductStatus.Published,
         },
       });
-      shouldBumpExplore = publishedNew > 0;
-    }
-    // Own drafts in a pack are Published for trade inside the pack (no Explore tiles).
-    const canPromoteOwnDrafts = existing.status !== CollectionStatus.Archived;
-    const newlyAddedOwnDraftIds = ownDraftIds.filter((productId) =>
-      newlyAddedIds.includes(productId),
-    );
-    if (
-      canPromoteOwnDrafts &&
-      newlyAddedOwnDraftIds.length > 0 &&
-      existing.status === CollectionStatus.Published
-    ) {
-      shouldBumpExplore = true;
+      // Published adds + own drafts that will promote count as “new designs”.
+      const newCount =
+        publishedNew +
+        (canPromoteOwnDrafts ? newlyAddedOwnDraftIds.length : 0);
+      if (newCount > 0) {
+        shouldBumpExplore = true;
+        exploreNewDesignCount = newCount;
+      }
     }
 
     await this.prisma.$transaction([
@@ -635,7 +657,9 @@ export class CollectionService {
         where: { id },
         data: {
           updatedByUserId: userId,
-          ...(shouldBumpExplore ? { exploreActivityAt: new Date() } : {}),
+          ...(shouldBumpExplore
+            ? { exploreActivityAt: new Date(), exploreNewDesignCount }
+            : {}),
         },
       }),
       ...(canPromoteOwnDrafts && ownDraftIds.length > 0

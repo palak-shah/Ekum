@@ -50,13 +50,21 @@ describe('OrderService.editShipment', () => {
       lineStatus: OrderLineStatus.Dispatched,
       quantity: { toNumber: () => 10 },
     };
+    const declined = {
+      id: 'oi2',
+      lineStatus: OrderLineStatus.Declined,
+      quantity: { toNumber: () => 20 },
+    };
     const shipment = {
       id: 'ship-1',
       orderId: 'ord-1',
       transporter: 'X',
       lrNumber: 'LR1',
       parcelCount: 1,
-      items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 5 } }],
+      items: [
+        { orderItemId: 'oi1', quantity: { toNumber: () => 5 } },
+        { orderItemId: 'oi2', quantity: { toNumber: () => 8 } },
+      ],
     };
     const orderRow = {
       id: 'ord-1',
@@ -64,7 +72,7 @@ describe('OrderService.editShipment', () => {
       buyerCompanyId: 'buyer',
       status: OrderStatus.PartShipped,
       seller: { name: 'Seller Co' },
-      items: [item],
+      items: [item, declined],
       shipments: [shipment],
       dispatchedAt: null,
       closedAt: null,
@@ -90,7 +98,7 @@ describe('OrderService.editShipment', () => {
     const trail = { append: vi.fn(async () => undefined) };
     const postOrderCard = vi.fn(async () => undefined);
     const emitAndGet = vi.fn(async () => ({ id: 'ord-1' }));
-    const shippedTotals = vi.fn(() => new Map([['oi1', 4]]));
+    const shippedTotals = vi.fn(() => new Map([['oi1', 4], ['oi2', 8]]));
     const withActor = vi.fn(() => ({ updatedByUserId: 'u1' }));
 
     const service = Object.create(OrderService.prototype) as OrderService;
@@ -104,9 +112,13 @@ describe('OrderService.editShipment', () => {
       loadForParty: vi.fn(async () => orderRow),
     });
 
+    // Editing Soft Lining while Georgette on the same LR is now Can’t supply must still save.
     await service.editShipment('seller', 'u1', 'ord-1', 'ship-1', {
       lrNumber: 'LR2',
-      items: [{ orderItemId: 'oi1', quantity: 4 }],
+      items: [
+        { orderItemId: 'oi1', quantity: 4 },
+        { orderItemId: 'oi2', quantity: 8 },
+      ],
     });
 
     expect(orderShipment.update).toHaveBeenCalled();

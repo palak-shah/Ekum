@@ -34,7 +34,7 @@ const EMPTY_COPY: Record<CrossChatFindKind, { title: string; message: string }> 
   },
   collections: {
     title: 'No collections in chats yet',
-    message: 'Packs shared in chats show up here.',
+    message: 'Collections shared in chats show up here.',
   },
   designs: {
     title: 'No designs in chats yet',

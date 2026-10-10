@@ -48,7 +48,7 @@ describe('productStatusLine', () => {
           postedToMarketAt: null,
         }),
       ),
-    ).toBe('In your packs');
+    ).toBe('In your collections');
   });
 
   it('does not say On Explore or who can see on a live design', () => {

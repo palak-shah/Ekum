@@ -30,3 +30,21 @@ export function orderDispatchPreview(
   const dispatchQty = sampleQty * pack;
   return `${sampleQty} ${orderNoun} (= ${dispatchQty} ${unitCountNoun(dispatchUnit, dispatchQty)})`;
 }
+
+/** Collapsed accordion summary — unit · contains · dispatch · MOQ. */
+export function orderDispatchSectionSummary(input: {
+  orderUnit: string;
+  piecesPerPack: string;
+  dispatchUnit: string;
+  moq: string;
+}): string {
+  const unit = input.orderUnit.trim() || 'pc';
+  const parts = [unit];
+  const pcs = input.piecesPerPack.trim();
+  if (pcs) parts.push(`${pcs} pcs`);
+  const dispatch = input.dispatchUnit.trim();
+  if (dispatch && dispatch !== unit) parts.push(`dispatch ${dispatch}`);
+  const moq = input.moq.trim();
+  if (moq) parts.push(`MOQ ${moq}`);
+  return parts.join(' · ');
+}

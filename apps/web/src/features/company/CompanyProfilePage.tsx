@@ -24,7 +24,9 @@ import {
   CollectionIcon,
   LockIcon,
   MoreHorizontalIcon,
+  OrdersIcon,
   ProductIcon,
+  ShareIcon,
   UnlockIcon,
 } from '@/ui/icons';
 import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
@@ -38,29 +40,32 @@ import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import { writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { writeBrowseShortlist } from '@/features/browse/browseShortlist';
-import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
-import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import {
+  BottomTradeDock,
+  DockIconButton,
+  SELECTION_DOCK_CLEARANCE_CLASS,
+} from '@/features/browse/BottomTradeDock';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import {
   clearResumeAfterAlbumPick,
   writeResumeAfterAlbumPick,
 } from '@/features/browse/resumeAfterAlbumPick';
+import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { entriesAsProducts, sellerIdForEntries } from '@/features/browse/useShortlistOrderFlow';
 import { packHandlerName } from '@/features/browse/packOrderSource';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import { selectAllState } from '@/features/browse/selectAllState';
-import { applySelectingPill } from '@/features/browse/selectingPill';
+import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
-import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
 import { GstTick, isGstVerified } from '@/ui/GstTick';
 import { shopSellCategories } from '@/ui/shopIdentity';
-import { Avatar, Button, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '@/ui/kit';
+import { Avatar, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
@@ -76,6 +81,7 @@ import {
   shouldShowShopTradeDock,
   shopAlbumEntries,
   shopShortlistEntries,
+  shopTabSelectedCount,
 } from './shopTradeDock';
 
 type ShopTab = 'designs' | 'collections';
@@ -116,15 +122,14 @@ export function CompanyProfilePage() {
   const isOwn = Boolean(id) && id === myCompanyId;
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
-  const { trading } = useTradePresence();
   const { showToast } = useToast();
   const [shareOpen, setShareOpen] = useState(false);
+  const [catalogShareOpen, setCatalogShareOpen] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
-  const [curateOpen, setCurateOpen] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
-  const [curateResolveOpen, setCurateResolveOpen] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
@@ -229,6 +234,11 @@ export function CompanyProfilePage() {
   const shopEntries = shopShortlistEntries(shortlist.entries, id, visibleShopIds);
   const shopAlbums = shopAlbumEntries(albumPick.entries, id, visibleAlbumIds);
   const thisShopCount = shopEntries.length + shopAlbums.length;
+  const tabSelectedCount = shopTabSelectedCount(
+    shopTab,
+    shopEntries.length,
+    shopAlbums.length,
+  );
   const shopDockUp = shouldShowShopTradeDock({
     isOwn,
     shopSelectedCount: thisShopCount,
@@ -237,10 +247,6 @@ export function CompanyProfilePage() {
   const selectAllDesigns = selectAllState(gridDesignIds, shortlist.productIds);
   const selectAllAlbums = selectAllState(gridAlbumIds, albumPick.collectionIds);
   const selectAll = shopTab === 'designs' ? selectAllDesigns : selectAllAlbums;
-  const shopSelectAllOpen =
-    selecting &&
-    ((shopTab === 'designs' && visibleDesigns.length > 0) ||
-      (shopTab === 'collections' && visibleCollections.length > 0));
   const canSelect =
     (shopTab === 'designs' && designs.length > 0) ||
     (shopTab === 'collections' && collections.length > 0);
@@ -255,13 +261,18 @@ export function CompanyProfilePage() {
   const floaterClearance =
     !isOwn && !shopDockUp && shortlist.count + albumPick.count > 0;
   const showMessage = !isOwn;
-  const lookOnlyFollow =
-    !isConnected &&
-    (isFollowPending || (isFollowing && profile.data?.canPutInPack !== true));
-  const canCurate = shopDockUp && trading && !lookOnlyFollow;
 
   const clearThisShop = () => {
     shortlist.removeIds(shopEntries.map((entry) => entry.productId));
+    albumPick.removeIds(shopAlbums.map((entry) => entry.collectionId));
+  };
+
+  /** Clear only the active tab — selected designs must not look like selected collections. */
+  const clearActiveTab = () => {
+    if (shopTab === 'designs') {
+      shortlist.removeIds(shopEntries.map((entry) => entry.productId));
+      return;
+    }
     albumPick.removeIds(shopAlbums.map((entry) => entry.collectionId));
   };
 
@@ -332,12 +343,13 @@ export function CompanyProfilePage() {
 
   const placeShopOrder = useMutation({
     mutationFn: (input: {
-      intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
       lines: Array<{ productId: string; quantity: number; note?: string }>;
+      transporter?: string;
     }) =>
       api.post<CreateOrdersBatchResult>('/orders/batch', {
         kind: OrderKind.Standard,
-        intent: input.intent,
+        intent: OrderIntent.Order,
+        ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
         items: input.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -360,14 +372,8 @@ export function CompanyProfilePage() {
         void navigateToOrderChat(navigate, queryClient, leave.order, { replace: true });
       }
     },
-    onError: (error, input) =>
-      setOrderError(
-        error instanceof ApiError
-          ? error.message
-          : input.intent === OrderIntent.Inquiry
-            ? 'Could not ask for rates.'
-            : 'Could not place the order.',
-      ),
+    onError: (error) =>
+      setOrderError(error instanceof ApiError ? error.message : 'Could not place the order.'),
   });
 
   if (profile.isLoading) {
@@ -422,6 +428,7 @@ export function CompanyProfilePage() {
               </button>
               <CompanyOverflowMenu
                 open={moreOpen}
+                title={company.name}
                 items={overflowItems}
                 muted={directThread?.alertLevel === 'muted'}
                 mutePending={setThreadAlert.isPending}
@@ -545,8 +552,7 @@ export function CompanyProfilePage() {
         <section
           className={cx(
             'flex flex-col gap-2',
-            shopDockUp && 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
-            floaterClearance && 'pb-[calc(5rem+5.5rem)]',
+            (shopDockUp || floaterClearance) && SELECTION_DOCK_CLEARANCE_CLASS,
           )}
         >
           <div className="flex flex-col gap-1.5">
@@ -582,49 +588,35 @@ export function CompanyProfilePage() {
                   />
                 ) : null}
                 {canSelect ? (
-                  <button
-                    type="button"
-                    className={cx(
-                      'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
-                      selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                    )}
-                    onClick={() =>
-                      applySelectingPill(selecting, thisShopCount, {
-                        clear: clearThisShop,
-                        setSelectMode: (on) => {
-                          shortlist.setSelectMode(on);
-                          albumPick.setSelectMode(on);
-                        },
-                      })
-                    }
-                  >
-                    {selecting ? 'Selecting' : 'Select'}
-                  </button>
+                  <SelectModeControls
+                    selectTestId="company-shop-select"
+                    selecting={selecting}
+                    count={tabSelectedCount}
+                    allSelected={selectAll.allSelected}
+                    onEnterSelect={() => {
+                      shortlist.setSelectMode(true);
+                      albumPick.setSelectMode(true);
+                    }}
+                    onSelectAll={() => {
+                      if (shopTab === 'designs') {
+                        shortlist.addMany(
+                          visibleDesigns.map((product) => toShopShortlistEntry(product, id)),
+                        );
+                        return;
+                      }
+                      albumPick.addMany(
+                        visibleCollections.map((collection) => toShopAlbumEntry(collection, id)),
+                      );
+                    }}
+                    onClear={() => {
+                      clearActiveTab();
+                      shortlist.setSelectMode(false);
+                      albumPick.setSelectMode(false);
+                    }}
+                  />
                 ) : null}
               </div>
             </div>
-            {shopSelectAllOpen ? (
-              <div className="flex justify-end">
-                <SelectAllFloat
-                  layout="pill"
-                  open
-                  count={thisShopCount}
-                  allSelected={selectAll.allSelected}
-                  onSelectAll={() => {
-                    if (shopTab === 'designs') {
-                      shortlist.addMany(
-                        visibleDesigns.map((product) => toShopShortlistEntry(product, id)),
-                      );
-                      return;
-                    }
-                    albumPick.addMany(
-                      visibleCollections.map((collection) => toShopAlbumEntry(collection, id)),
-                    );
-                  }}
-                  onClear={clearThisShop}
-                />
-              </div>
-            ) : null}
           </div>
           {hasShop ? (
             shopTab === 'designs' ? (
@@ -681,40 +673,34 @@ export function CompanyProfilePage() {
 
       {shopDockUp ? (
         <BottomTradeDock testId="company-shop-dock" aboveAppNav={false}>
-          {canCurate ? (
-            <Button
-              variant="secondary"
-              fullWidth
+          <div className="grid w-full grid-cols-3 gap-2" data-testid="company-shop-dock-actions">
+            <DockIconButton
+              testId="company-shop-message"
+              label="Message"
+              onClick={() => setMessageOpen(true)}
+            >
+              <ChatIcon width={22} height={22} />
+            </DockIconButton>
+            <DockIconButton
+              testId="company-shop-share"
+              label="Share"
+              onClick={() => setCatalogShareOpen(true)}
+            >
+              <ShareIcon width={22} height={22} />
+            </DockIconButton>
+            <DockIconButton
+              testId="company-shop-order"
+              label="Order"
+              primary
               onClick={() => {
-                if (shopAlbums.length > 0) setCurateResolveOpen(true);
-                else setCurateOpen(true);
+                setOrderError(null);
+                if (shopAlbums.length > 0) setOrderResolveOpen(true);
+                else setQtyOpen(true);
               }}
             >
-              Curate
-            </Button>
-          ) : null}
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={() => {
-              setOrderError(null);
-              if (shopAlbums.length > 0) setOrderResolveOpen(true);
-              else setQtyOpen(true);
-            }}
-          >
-            Ask for rates
-          </Button>
-          <Button
-            fullWidth
-            data-testid="company-shop-order"
-            onClick={() => {
-              setOrderError(null);
-              if (shopAlbums.length > 0) setOrderResolveOpen(true);
-              else setQtyOpen(true);
-            }}
-          >
-            Order
-          </Button>
+              <OrdersIcon width={22} height={22} />
+            </DockIconButton>
+          </div>
         </BottomTradeDock>
       ) : null}
 
@@ -743,30 +729,6 @@ export function CompanyProfilePage() {
           setQtyOpen(true);
         }}
       />
-      <OrderCollectionResolveSheet
-        intent="curate"
-        open={curateResolveOpen}
-        onClose={() => setCurateResolveOpen(false)}
-        albums={shopAlbums}
-        designCount={shopEntries.length}
-        existingShortlist={shopEntries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
-          const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
-          const otherAlbums = albumPick.entries.filter((entry) => entry.companyId !== id);
-          writeBrowseShortlist([...otherDesigns, ...nextShortlist]);
-          writeBrowseAlbumPick([...otherAlbums, ...remainingAlbums]);
-          setCurateResolveOpen(false);
-          if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('curate');
-            navigate(`/collections/${navigateToCollectionId}`, {
-              state: { enterSelect: true },
-            });
-            return;
-          }
-          clearResumeAfterAlbumPick();
-          setCurateOpen(true);
-        }}
-      />
 
       <HowManyEachSheet
         open={qtyOpen}
@@ -776,24 +738,49 @@ export function CompanyProfilePage() {
         }}
         sellerId={sellerIdForEntries(qtyEntries ?? shopEntries)}
         products={entriesAsProducts(qtyEntries ?? shopEntries)}
-        submitting={placeShopOrder.isPending && placeShopOrder.variables?.intent !== OrderIntent.Inquiry}
-        asking={placeShopOrder.isPending && placeShopOrder.variables?.intent === OrderIntent.Inquiry}
+        submitting={placeShopOrder.isPending}
         error={orderError}
         orderGoesToName={packHandlerName(qtyEntries ?? shopEntries) ?? company.name}
-        onSendOrder={(lines) => {
+        sheetJob="order"
+        onSendOrder={(lines, place) => {
           setOrderError(null);
-          placeShopOrder.mutate({ intent: OrderIntent.Order, lines });
+          placeShopOrder.mutate({
+            lines,
+            transporter: place?.transporter,
+          });
         }}
-        onAskRates={(lines) => {
-          setOrderError(null);
-          placeShopOrder.mutate({ intent: OrderIntent.Inquiry, lines });
-        }}
+        onAskRates={() => undefined}
       />
 
-      <CurateFromSelectionSheet
-        open={curateOpen}
-        onClose={() => setCurateOpen(false)}
-        productIds={shopEntries.map((entry) => entry.productId)}
+      <SelectionMessageSheet
+        open={messageOpen}
+        onClose={() => setMessageOpen(false)}
+        shopId={id}
+        shopName={company.name}
+        collections={shopAlbums.map((entry) => ({
+          collectionId: entry.collectionId,
+          name: entry.name,
+        }))}
+        products={shopEntries.map((entry) => ({
+          productId: entry.productId,
+          name: entry.name,
+        }))}
+      />
+
+      <CatalogShareSheet
+        open={catalogShareOpen}
+        onClose={() => setCatalogShareOpen(false)}
+        collections={shopAlbums.map((entry) => ({
+          collectionId: entry.collectionId,
+          name: entry.name,
+          image: entry.coverImage,
+        }))}
+        products={shopEntries.map((entry) => ({
+          productId: entry.productId,
+          name: entry.name,
+          image: entry.thumbUrl,
+        }))}
+        onShared={() => clearThisShop()}
       />
 
       <CompanyShareSheet

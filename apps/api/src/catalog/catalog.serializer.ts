@@ -106,6 +106,15 @@ export class CatalogSerializer {
       name: collection.name,
       description: collection.description,
       coverImage: collection.coverImage,
+      rate:
+        (collection as { rate?: { toNumber: () => number } | null }).rate == null
+          ? null
+          : (collection as { rate: { toNumber: () => number } }).rate.toNumber(),
+      rateMax:
+        (collection as { rateMax?: { toNumber: () => number } | null }).rateMax == null ||
+        (collection as { rateMax?: { toNumber: () => number } | null }).rateMax === undefined
+          ? null
+          : (collection as { rateMax: { toNumber: () => number } }).rateMax.toNumber(),
       categories: collection.categories ?? [],
       memberFind: collectionMemberFind(collection.products),
       status: collection.status,
@@ -115,6 +124,7 @@ export class CatalogSerializer {
       audienceGroupIds: collection.audienceGroupIds ?? [],
       allowForward: collection.allowForward !== false,
       allowDownload: collection.allowDownload === true,
+      showSourceShops: collection.showSourceShops === true,
       /** Legacy column ignored — path is TradeLane / Your paths. */
       orderPathPreference: null,
       productCount:

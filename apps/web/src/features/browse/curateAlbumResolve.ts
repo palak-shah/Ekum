@@ -34,8 +34,8 @@ export function partitionRelistableAlbums(entries: BrowseAlbumEntry[]) {
 }
 
 export function curateLockedSkipMessage(lockedCount: number): string {
-  if (lockedCount === 1) return '1 locked — seller doesn’t allow pack';
-  return `${lockedCount} locked — seller doesn’t allow pack`;
+  if (lockedCount === 1) return '1 locked — seller doesn’t allow collections';
+  return `${lockedCount} locked — seller doesn’t allow collections`;
 }
 
 export function curateDefaultPackName(input: {
@@ -62,5 +62,5 @@ export function packLockReason(
     return undefined;
   }
   if (opts?.waiting) return 'Waiting for Allow';
-  return "Can't put in a pack";
+  return "Can't put in a collection";
 }

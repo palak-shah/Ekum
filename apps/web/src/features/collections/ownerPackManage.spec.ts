@@ -3,9 +3,11 @@ import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   membershipAfterRemove,
+  membershipForReplaceOrAppend,
   membershipWithNewFirst,
   otherPackCountFromNames,
   ownedSelectedIds,
+  replaceBootClearsMembership,
 } from './ownerPackManage';
 
 describe('otherPackCountFromNames', () => {
@@ -75,5 +77,29 @@ describe('membershipWithNewFirst', () => {
 
   it('moves a re-added design to the top', () => {
     expect(membershipWithNewFirst(['a', 'b', 'c'], ['c'])).toEqual(['c', 'a', 'b']);
+  });
+});
+
+describe('replaceBootClearsMembership', () => {
+  it('never clears on Replace boot — wait for a non-empty save', () => {
+    expect(replaceBootClearsMembership()).toBe(false);
+  });
+});
+
+describe('membershipForReplaceOrAppend', () => {
+  it('append keeps existing and puts new first', () => {
+    expect(membershipForReplaceOrAppend(['a', 'b'], ['c'], false)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('replace with a non-empty set drops prior members', () => {
+    expect(membershipForReplaceOrAppend(['a', 'b'], ['c', 'd'], true)).toEqual(['c', 'd']);
+  });
+
+  it('replace with an empty pick does not PUT — returns null', () => {
+    expect(membershipForReplaceOrAppend(['a', 'b'], [], true)).toBeNull();
+  });
+
+  it('replace dedupes picked ids in pick order', () => {
+    expect(membershipForReplaceOrAppend(['old'], ['x', 'x', 'y'], true)).toEqual(['x', 'y']);
   });
 });

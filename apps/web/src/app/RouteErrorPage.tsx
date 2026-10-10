@@ -26,7 +26,7 @@ function RouteErrorView({
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))]">
+    <div className="ekum-shell-scroll mx-auto flex h-full min-h-0 w-full max-w-md flex-col overflow-y-auto bg-canvas px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))]">
       <p className="text-xs font-semibold text-accent">Ekum</p>
       <div className="flex flex-1 flex-col justify-center gap-4 py-8">
         <ErrorState message={message} />

@@ -187,7 +187,7 @@ export function buildOrderTimelineSteps(order: OrderTimelineInput): OrderTimelin
   const steps: OrderTimelineStep[] = [
     {
       key: 'requested',
-      label: 'Requested',
+      label: 'Placed',
       at: order.createdAt,
       done: true,
       current: order.status === 'requested' && !hasQuote,

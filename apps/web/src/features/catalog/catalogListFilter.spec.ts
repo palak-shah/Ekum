@@ -41,10 +41,10 @@ describe('publishedDesignsElsewhereHint', () => {
 
   it('points Draft-empty at pack designs on Published', () => {
     expect(publishedDesignsElsewhereHint(1)).toBe(
-      '1 design is already live (including packs).',
+      '1 design is already live (including collections).',
     );
     expect(publishedDesignsElsewhereHint(3)).toBe(
-      '3 designs are already live (including packs).',
+      '3 designs are already live (including collections).',
     );
   });
 });

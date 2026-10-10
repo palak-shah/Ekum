@@ -73,7 +73,7 @@ test.describe('relist Ask → Allow → Curate @functional @catalog', () => {
     });
     await page.goto('/selection');
     await expect(page.getByText(designName)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a pack");
+    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a collection");
     await page.getByTestId('selection-ask-relist').click();
     await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText('Waiting for Allow', {
       timeout: 15_000,
@@ -91,7 +91,7 @@ test.describe('relist Ask → Allow → Curate @functional @catalog', () => {
     await expect(page.getByTestId('relist-request-allow')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Wants to put/i)).toBeVisible();
     await page.getByTestId('relist-request-allow').click();
-    await expect(page.getByText(/You can put this in your pack/i).first()).toBeVisible({
+    await expect(page.getByText(/You can put this in your collection/i).first()).toBeVisible({
       timeout: 15_000,
     });
 
@@ -107,7 +107,7 @@ test.describe('relist Ask → Allow → Curate @functional @catalog', () => {
       timeout: 15_000,
     });
     await page.getByTestId('selection-curate').click();
-    await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Repost' })).toBeVisible({
       timeout: 15_000,
     });
 
@@ -146,7 +146,7 @@ test.describe('relist Ask → Allow → Curate @functional @catalog', () => {
       companyId: deniedProduct.companyId,
     });
     await page.goto('/selection');
-    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a pack", {
+    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a collection", {
       timeout: 15_000,
     });
 
@@ -164,7 +164,7 @@ test.describe('relist Ask → Allow → Curate @functional @catalog', () => {
       companyId: product.companyId,
     });
     await page.goto('/selection');
-    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a pack", {
+    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a collection", {
       timeout: 15_000,
     });
   });

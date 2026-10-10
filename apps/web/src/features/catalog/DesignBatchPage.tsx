@@ -34,6 +34,7 @@ import {
   type PublishAudienceState,
 } from './PublishAudienceFields';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
+import { catalogRateFieldLabel } from '@/lib/catalogRate';
 import { TagsField } from './TagsField';
 import {
   createProductIdentity,
@@ -922,7 +923,7 @@ export function DesignBatchPage() {
                 onChange={(tags) => setSharedCategory(tags.join(', '))}
               />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Rate">
+                <Field label={catalogRateFieldLabel(sharedUnit)}>
                   <TextInput
                     value={sharedRate}
                     onChange={(e) => setSharedRate(e.target.value)}
@@ -1143,7 +1144,7 @@ export function DesignBatchPage() {
                 onChange={(tags) => setSheetCategory(tags.join(', '))}
               />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Rate">
+                <Field label={catalogRateFieldLabel(sheetUnit)}>
                   <TextInput
                     value={sheetRate}
                     onChange={(e) => setSheetRate(e.target.value)}

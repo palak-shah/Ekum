@@ -21,7 +21,7 @@ const STATUS_RANK: Record<string, number> = {
   [CollectionStatus.Published]: 2,
 };
 
-/** Owned albums eligible for Curate → Existing: non-archived, drafts/ready before published. */
+/** Owned albums eligible for name-clash / Add to it: non-archived, drafts/ready before published. */
 export function curateExistingTargets(collections: CollectionView[]): CollectionView[] {
   return collections
     .filter((c) => c.status !== CollectionStatus.Archived)
@@ -31,6 +31,14 @@ export function curateExistingTargets(collections: CollectionView[]): Collection
       if (rankDiff !== 0) return rankDiff;
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
+}
+
+/** Repost → Add to existing: published only, A–Z. */
+export function curatePublishedTargets(collections: CollectionView[]): CollectionView[] {
+  return collections
+    .filter((c) => c.status === CollectionStatus.Published)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
 /** Exact name match in our shop (case-insensitive). Supplier packs are not in this list. */

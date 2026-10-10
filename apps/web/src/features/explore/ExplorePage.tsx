@@ -14,9 +14,11 @@ import {
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
+import { SELECTION_DOCK_CLEARANCE_CLASS } from '@/features/browse/BottomTradeDock';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
+import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { applySelectingPill } from '@/features/browse/selectingPill';
+import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { exploreShowSelectChrome } from './exploreSelectChrome';
 import {
   OpportunityBusinessCard,
@@ -26,7 +28,7 @@ import {
 } from '@/ui/cards';
 import { Avatar, Button, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { ListSquareButton, listSquareButtonClass } from '@/ui/ListSearchRow';
-import { BackIcon, FilterIcon, SearchIcon } from '@/ui/icons';
+import { BackIcon, CartIcon, FilterIcon, SearchIcon } from '@/ui/icons';
 import { ExploreSearchResults } from './ExploreSearchResults';
 import { exploreFeedFollowTrailing } from './exploreFeedFollowTrailing';
 import { useExploreCompanyRelationships } from './useExploreCompanyRelationships';
@@ -412,10 +414,12 @@ function StoriesRail({
   stories,
   activeId,
   onSelect,
+  myCompanyId,
 }: {
   stories: ExploreStory[];
   activeId: string | null;
   onSelect: (companyId: string) => void;
+  myCompanyId?: string | null;
 }) {
   if (stories.length === 0) return null;
   return (
@@ -423,12 +427,15 @@ function StoriesRail({
       <div className="flex gap-2.5">
         {stories.map((story) => {
           const active = story.company.id === activeId;
+          const isYou = Boolean(myCompanyId && story.company.id === myCompanyId);
+          const label = isYou ? 'You' : story.company.name;
           return (
             <button
               key={story.company.id}
               type="button"
               onClick={() => onSelect(story.company.id)}
               className="flex w-[52px] shrink-0 flex-col items-center gap-0.5"
+              data-testid={isYou ? 'explore-story-you' : undefined}
             >
               <span
                 className={cx(
@@ -441,7 +448,7 @@ function StoriesRail({
                 </span>
               </span>
               <span className="w-full truncate text-center text-[10px] font-medium leading-tight text-ink">
-                {story.company.name}
+                {label}
               </span>
             </button>
           );
@@ -457,6 +464,7 @@ export function ExplorePage() {
   const company = useMyCompany();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
+  const cart = useBrowseCart();
   const feedRelationships = useExploreCompanyRelationships();
   const [menuOpen, setMenuOpen] = useState(false);
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
@@ -788,7 +796,7 @@ export function ExplorePage() {
       className={cx(
         'flex flex-col',
         'gap-2.5',
-        (shortlist.count > 0 || albumPick.count > 0) && 'pb-[calc(5rem+5.5rem)]',
+        (shortlist.count > 0 || albumPick.count > 0) && SELECTION_DOCK_CLEARANCE_CLASS,
       )}
     >
       <div className="relative flex items-center gap-2">
@@ -833,29 +841,40 @@ export function ExplorePage() {
             >
               <FilterIcon width={20} height={20} />
             </ListSquareButton>
+            <button
+              type="button"
+              data-testid="explore-cart"
+              aria-label={cart.count > 0 ? `Cart, ${cart.count} items` : 'Cart'}
+              onClick={() => navigate('/selection')}
+              className={cx(listSquareButtonClass, 'relative text-slate')}
+            >
+              <CartIcon width={20} height={20} />
+              {cart.count > 0 ? (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                  {cart.count > 99 ? '99+' : cart.count}
+                </span>
+              ) : null}
+            </button>
             {showSelectChrome ? (
-              <button
-                type="button"
-                data-testid="explore-select"
-                className={cx(
-                  'inline-flex h-10 shrink-0 items-center rounded-full px-3.5 text-sm font-bold',
-                  selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                )}
-                onClick={() =>
-                  applySelectingPill(selecting, shortlist.count + albumPick.count, {
-                    clear: () => {
-                      shortlist.clear();
-                      albumPick.clear();
-                    },
-                    setSelectMode: (on) => {
-                      shortlist.setSelectMode(on);
-                      albumPick.setSelectMode(on);
-                    },
-                  })
-                }
-              >
-                {selecting ? 'Selecting' : 'Select'}
-              </button>
+              <SelectModeControls
+                selectTestId="explore-select"
+                showSelectAll={false}
+                selecting={selecting}
+                count={shortlist.count + albumPick.count}
+                allSelected={false}
+                onEnterSelect={() => {
+                  shortlist.setSelectMode(true);
+                  albumPick.setSelectMode(true);
+                }}
+                onSelectAll={() => undefined}
+                onClear={() => {
+                  shortlist.clear();
+                  albumPick.clear();
+                  shortlist.setSelectMode(false);
+                  albumPick.setSelectMode(false);
+                }}
+                className="text-sm"
+              />
             ) : null}
 
             <ExploreFilterMenu
@@ -948,6 +967,7 @@ export function ExplorePage() {
                 stories={data?.stories ?? []}
                 activeId={storyCompanyId}
                 onSelect={selectStory}
+                myCompanyId={company.data?.id}
               />
             )
           ) : null}
@@ -973,7 +993,7 @@ export function ExplorePage() {
                     data-testid="explore-more-posts"
                     onClick={() => setShowAllPosts(true)}
                   >
-                    More posts ({morePostsCount})
+                    More posts
                   </Button>
                 ) : null}
                 {showFeedEnd ? <ExploreFeedEnd /> : null}
@@ -986,7 +1006,7 @@ export function ExplorePage() {
             ) : (
               <EmptyState
                 title="No posts from other businesses yet"
-                message="See new packs from shops you buy from — they show up here when they allow."
+                message="See new collections from shops you buy from — they show up here when they allow."
               />
             )
           ) : null}

@@ -655,6 +655,10 @@ export interface MessageReplyPreview {
   photoUrl?: string | null;
   /** Quoted design in a design_album. */
   productId?: string | null;
+  /** Collection / product card id — open from reply quote months later. */
+  referenceId?: string | null;
+  /** design_album product ids — open Designs set from reply quote. */
+  productIds?: string[] | null;
 }
 
 export interface MessageView {

@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,18 +6,23 @@ import {
   CollectionStatus,
   OrderIntent,
   OrderKind,
+  ProductStatus,
+  Unit,
   type CollectionPreviewView,
   type CollectionViewGrantView,
   type CollectionViewRequestView,
   type CreateOrdersBatchResult,
   type CreateOrdersFromPackResult,
+  type CreateProductDto,
   type OrderView,
   type OtherPackCountsView,
   type ProductView,
   type ThreadSummary,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { formatRate } from '@/lib/format';
+import { formatCatalogRate } from '@/lib/catalogRate';
+import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
+import { acquireMediaStream } from '@/lib/mediaSession';
 import {
   designBrowsePhotoClass,
   readDesignBrowseLayout,
@@ -25,10 +30,14 @@ import {
   type DesignBrowseLayout,
 } from '@/lib/designBrowseLayout';
 import { useMyCompany } from '@/lib/queries';
-import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
+import {
+  BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
+  SELECTION_DOCK_CLEARANCE_CLASS,
+} from '@/features/browse/BottomTradeDock';
+import { addCartDesignsMany } from '@/features/browse/browseCart';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
-import { applySelectingPill } from '@/features/browse/selectingPill';
+import { BrowseLotChrome } from '@/features/browse/BrowseLotChrome';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
@@ -54,44 +63,65 @@ import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
-import { designCardShopLine, packHeaderSubtitle } from './packHeaderSubtitle';
-import { CompanyRow } from '@/ui/cards';
+import {
+  albumTileShopLine,
+  packHeaderSubtitleWithShop,
+  albumFactsRateBand,
+} from './packHeaderSubtitle';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
+import { exploreFeedSourceLine } from '@/features/explore/exploreFeedCaptionLines';
 import { usePageOwnsBottomBand, usePageSelecting } from '@/features/browse/selectionBottomBand';
 import {
+  collectionMoreMenuNote,
   collectionOwnerManageDock,
+  collectionOwnerCanEditDesign,
+  collectionPackDetailSections,
   collectionPackQtySheet,
   collectionPackTradeDock,
   collectionShowHandleCopy,
-  collectionShowOwnerCompanyRow,
-  collectionShowPackNote,
+  collectionThisPackSelectedIds,
   collectionViewerListedProducts,
-  collectionViewerPrimaryAction,
+  designSheetRateBand,
+  designTileMetaLine,
+  designTileRateOverlay,
 } from '@/features/collections/collectionViewerChrome';
-import { CollectionVisitorNote } from '@/features/collections/CollectionVisitorNote';
+import { CollectionPackDetails } from '@/features/collections/CollectionPackDetails';
+import { PackDetailBlocks } from '@/features/collections/PackDetailBlocks';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
+import { OwnerCollectionMoreSheet } from '@/features/collections/OwnerCollectionMoreSheet';
 import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
 import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
 import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   membershipAfterRemove,
+  membershipForReplaceOrAppend,
+  membershipWithNewFirst,
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
+import {
+  COLLECTION_QUICK_PHOTO_CAP,
+  collectionCameraMaxShots,
+} from '@/features/catalog/collectionCreateHelpers';
+import { collectionGalleryInputProps } from '@/features/catalog/collectionGalleryInput';
+import { createProductIdentity, uniqueDraftSku } from '@/features/catalog/designBatchHelpers';
+import { productFieldsFromMember } from '@/features/catalog/collectionSameForAll';
 import {
   Button,
   Card,
   ErrorState,
   LoadingBlock,
-  SearchInput,
   Sheet,
   StatusPill,
+  TextInput,
   cx,
 } from '@/ui/kit';
-import { LockIcon, MoreHorizontalIcon } from '@/ui/icons';
-import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
-import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
+import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
+import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
+import { BookmarkIcon, ChatIcon, LockIcon, MoreHorizontalIcon, ShareIcon } from '@/ui/icons';
+import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
+import { designMatchesFind } from '@/features/catalog/catalogSearch';
 import { useToast } from '@/ui/Toast';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
@@ -150,15 +180,24 @@ export function CollectionViewerPage() {
   const [qtyOpen, setQtyOpen] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  /** Album ⋯ vs Selecting dock — CatalogShareSheet payload. */
+  const [shareScope, setShareScope] = useState<'album' | 'designs'>('album');
   const [moreOpen, setMoreOpen] = useState(false);
-  const [morePos, setMorePos] = useState({ top: 0, right: 8 });
-  const moreAnchorRef = useRef<HTMLButtonElement>(null);
-  const morePanelRef = useRef<HTMLDivElement>(null);
   const [pageSelecting, setPageSelecting] = useState(false);
   const [manageSelected, setManageSelected] = useState<Set<string>>(() => new Set());
   const [manageBusy, setManageBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [replaceSheetOpen, setReplaceSheetOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [designSearch, setDesignSearch] = useState('');
+  const [replacePending, setReplacePending] = useState(false);
+  const replacePendingRef = useRef(false);
+  const [replaceDraft, setReplaceDraft] = useState<Set<string> | null>(null);
+  const [libraryPicks, setLibraryPicks] = useState<Set<string>>(() => new Set());
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSession, setCameraSession] = useState(0);
+  const [quickUploading, setQuickUploading] = useState(false);
+  const designFileRef = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const deferredListSearch = useDeferredValue(listSearch);
@@ -195,47 +234,14 @@ export function CollectionViewerPage() {
     });
   };
 
-  useLayoutEffect(() => {
-    if (!moreOpen) return;
-    const place = () => {
-      const anchor = moreAnchorRef.current;
-      if (!anchor) return;
-      const rect = anchor.getBoundingClientRect();
-      setMorePos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [moreOpen]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const close = () => setMoreOpen(false);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (morePanelRef.current?.contains(target)) return;
-      if (moreAnchorRef.current?.contains(target)) return;
-      close();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', close, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', close, true);
-    };
-  }, [moreOpen]);
-
   const collection = useQuery({
     queryKey: ['collection-preview', id],
     queryFn: () => api.get<CollectionPreviewView>(`/explore/collections/${id}`),
+  });
+  const myProducts = useQuery({
+    queryKey: ['my-products'],
+    queryFn: () => api.get<ProductView[]>('/products'),
+    enabled: libraryOpen,
   });
   const save = useSaveToggle({ collectionId: id });
   const outgoingAsks = useQuery({
@@ -246,25 +252,31 @@ export function CollectionViewerPage() {
 
   const products = collectionViewerListedProducts(collection.data?.products ?? []);
   const visibleProducts = useMemo(
-    () =>
-      products.filter((product) =>
-        catalogSearchMatches(deferredListSearch, ...designFindParts(product)),
-      ),
+    () => products.filter((product) => designMatchesFind(deferredListSearch, product)),
     [products, deferredListSearch],
   );
   const listSearchActive = Boolean(deferredListSearch.trim());
-  const selectedCount = shortlist.count;
   const selectMode = collectionPageIsSelecting({ enterSelect, pageSelecting });
   const resumeAfterPick = readResumeAfterAlbumPick();
   const showResumeContinue = Boolean(resumeAfterPick && selectMode);
   const companyId = collection.data?.company.id ?? '';
   const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+  const thisPackSelectedIds = useMemo(
+    () =>
+      collectionThisPackSelectedIds(
+        products.map((product) => product.id),
+        shortlist.productIds,
+      ),
+    [products, shortlist.productIds],
+  );
+  const thisPackSelectedCount = thisPackSelectedIds.length;
   const packTradeDock = collectionPackTradeDock({
     visitor: !isOwner,
     live: collection.data?.status === CollectionStatus.Published,
     hasProducts: products.length > 0,
     selecting: selectMode,
     resumeContinue: showResumeContinue,
+    thisPackSelectedCount,
   });
   const ownerManageDock = collectionOwnerManageDock(isOwner);
   usePageOwnsBottomBand(ownerManageDock || packTradeDock);
@@ -283,6 +295,8 @@ export function CollectionViewerPage() {
     if (!ownerId || products.length === 0) return false;
     return products.some((product) => product.companyId !== ownerId);
   }, [collection.data?.company.id, products]);
+  /** Tile shop line only when mills differ — single-shop packs already name the shop in the header. */
+  const creditTileMills = isCuratedPack && (isOwner || Boolean(collection.data?.showSourceShops));
   /** Place still from-pack with the pack owner. Copy follows Your paths ticket. */
   const handlePack = isCuratedPack;
   const viewerTicket = collection.data?.viewerTicket ?? null;
@@ -311,12 +325,16 @@ export function CollectionViewerPage() {
   const companyName = collection.data?.company.name ?? '';
 
   const ownerSourceLine = useMemo(() => {
-    if (!isOwner || !collection.data) return null;
-    const shops = products.map((product) => ({
-      id: product.companyId,
-      name: product.companyName?.trim() || 'a shop',
-    }));
-    return collectionOwnerSourceLine(collection.data.company.id, shops);
+    if (!collection.data) return null;
+    if (isOwner) {
+      const shops = products.map((product) => ({
+        id: product.companyId,
+        name: product.companyName?.trim() || 'a shop',
+      }));
+      return collectionOwnerSourceLine(collection.data.company.id, shops);
+    }
+    if (!collection.data.showSourceShops) return null;
+    return exploreFeedSourceLine(collection.data.sourceShopNames);
   }, [isOwner, collection.data, products]);
 
   const visibleDesignIds = visibleProducts.map((product) => product.id);
@@ -334,7 +352,21 @@ export function CollectionViewerPage() {
   const manageSelectedIds = useMemo(() => [...manageSelected], [manageSelected]);
   const ownerCanDelete = canDeleteSelected(manageSelectedIds);
   const ownerCanRemove = manageSelectedIds.length > 0;
-  const floatSelectedCount = isOwner ? manageSelected.size : selectedCount;
+  const ownerCanShare = manageSelectedIds.length > 0;
+  const ownerCanAddToCart = manageSelectedIds.length > 0;
+  const shareDesignItems = useMemo(() => {
+    if (shareScope !== 'designs') return [];
+    const selected = new Set(manageSelectedIds);
+    return visibleProducts
+      .filter((product) => selected.has(product.id))
+      .map((product) => ({
+        productId: product.id,
+        name: product.name,
+        image: product.images?.[0] ?? null,
+      }));
+  }, [shareScope, manageSelectedIds, visibleProducts]);
+  /** Visitor float = this album only (not Explore’s global pile). */
+  const floatSelectedCount = isOwner ? manageSelected.size : thisAlbumCount;
 
   const onSelectAllVisible = () => {
     if (isOwner) {
@@ -362,6 +394,12 @@ export function CollectionViewerPage() {
     }
     shortlist.removeIds(visibleDesignIds);
     setPageSelecting(false);
+    shortlist.setSelectMode(false);
+  };
+
+  const onEnterSelect = () => {
+    setPageSelecting(true);
+    if (!isOwner) shortlist.setSelectMode(true);
   };
 
   const invalidateOwnerPack = () => {
@@ -382,13 +420,205 @@ export function CollectionViewerPage() {
     setPageSelecting(false);
   };
 
-  const onOwnerAdd = () => {
-    navigate(`/catalog/collections/${id}`, { state: { openDesignPicker: true } });
+  const setReplacePendingFlag = (next: boolean) => {
+    replacePendingRef.current = next;
+    setReplacePending(next);
+  };
+
+  const abandonReplaceIfPending = () => {
+    setReplacePendingFlag(false);
+    setReplaceDraft(null);
+  };
+
+  const memberIds = useMemo(() => products.map((product) => product.id), [products]);
+  const memberIdSet = useMemo(() => new Set(memberIds), [memberIds]);
+
+  const selectableDesigns = useMemo(
+    () => (myProducts.data ?? []).filter((product) => product.status !== ProductStatus.Archived),
+    [myProducts.data],
+  );
+  const designQuery = designSearch.trim().toLowerCase();
+  const filteredDesigns = designQuery
+    ? selectableDesigns.filter((product) => product.name.toLowerCase().includes(designQuery))
+    : selectableDesigns;
+
+  const clickCollectionGallery = () => {
+    designFileRef.current?.click();
+  };
+
+  const openCollectionGalleryDeferred = () => {
+    voidMicrotask(() => clickCollectionGallery());
+  };
+
+  const openOwnerLibrary = () => {
+    if (replacePendingRef.current) {
+      setReplaceDraft(new Set());
+    } else {
+      setLibraryPicks(new Set());
+      setReplaceDraft(null);
+    }
+    setDesignSearch('');
+    setLibraryOpen(true);
+  };
+
+  const openOwnerPhotos = () => {
+    if (isPhoneLike()) {
+      void (async () => {
+        const acquired = await acquireMediaStream('camera', continuousCameraConstraints);
+        if (!acquired.ok) {
+          showToast(acquired.message, 'danger');
+          openCollectionGalleryDeferred();
+          return;
+        }
+        setCameraSession((n) => n + 1);
+        setCameraOpen(true);
+      })();
+      return;
+    }
+    clickCollectionGallery();
+  };
+
+  const onOwnerAddDesigns = () => {
+    openOwnerLibrary();
+  };
+
+  const onOwnerAddPhotos = () => {
+    openOwnerPhotos();
   };
 
   const onOwnerReplaceConfirm = () => {
     setReplaceSheetOpen(false);
-    navigate(`/catalog/collections/${id}`, { state: { replaceThenPick: true } });
+    setReplacePendingFlag(true);
+    setReplaceDraft(null);
+    showToast('Pick the new set — collection updates when you save');
+  };
+
+  const commitOwnerMembership = async (pickedIds: string[], replacing: boolean) => {
+    if (!id) return;
+    const nextIds = membershipForReplaceOrAppend(memberIds, pickedIds, replacing);
+    if (nextIds === null) {
+      abandonReplaceIfPending();
+      return;
+    }
+    setManageBusy(true);
+    try {
+      await persistOwnerMembers(nextIds);
+      if (replacing) setReplacePendingFlag(false);
+      if (collection.data?.status === CollectionStatus.Published) {
+        showToast(replacing ? 'Replaced' : 'Published');
+      } else {
+        showToast(replacing ? 'Replaced' : 'Added');
+      }
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not update designs.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
+  const finishOwnerLibrary = async () => {
+    setLibraryOpen(false);
+    setDesignSearch('');
+    if (replaceDraft !== null) {
+      const ids = [...replaceDraft];
+      setReplaceDraft(null);
+      if (ids.length === 0) {
+        abandonReplaceIfPending();
+        return;
+      }
+      await commitOwnerMembership(ids, true);
+      return;
+    }
+    const added = [...libraryPicks].filter((productId) => !memberIdSet.has(productId));
+    setLibraryPicks(new Set());
+    if (added.length === 0) return;
+    const next = membershipWithNewFirst(memberIds, added);
+    setManageBusy(true);
+    try {
+      await persistOwnerMembers(next);
+      showToast(
+        collection.data?.status === CollectionStatus.Published ? 'Published' : 'Added',
+      );
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not update designs.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
+  const toggleOwnerLibraryPick = (productId: string) => {
+    if (replaceDraft !== null) {
+      setReplaceDraft((prev) => {
+        const next = new Set(prev ?? []);
+        if (next.has(productId)) next.delete(productId);
+        else next.add(productId);
+        return next;
+      });
+      return;
+    }
+    if (memberIdSet.has(productId)) return;
+    setLibraryPicks((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  const onOwnerPhotoFiles = async (files: File[]) => {
+    if (!id || !files.length) return;
+    const replacing = replacePendingRef.current;
+    const picked = files.slice(0, COLLECTION_QUICK_PHOTO_CAP);
+    setQuickUploading(true);
+    setManageBusy(true);
+    try {
+      const createdIds: string[] = [];
+      const seed = products[0];
+      const takenSkus: string[] = [];
+      for (const file of picked) {
+        const imageUrl = await uploadImage(file);
+        const identity = createProductIdentity(uniqueDraftSku(takenSkus));
+        takenSkus.push(identity.sku);
+        const parsed = productFieldsFromMember({
+          name: identity.name,
+          rate:
+            seed?.rate != null
+              ? seed.rateMax != null && seed.rateMax !== seed.rate
+                ? `${seed.rate}-${seed.rateMax}`
+                : String(seed.rate)
+              : '',
+          unit: seed?.unit || Unit.Set,
+          dispatchUnit: seed?.dispatchUnit || Unit.Piece,
+          piecesPerPack: seed?.piecesPerPack != null ? String(seed.piecesPerPack) : '',
+          moq: seed?.moq != null ? String(seed.moq) : '',
+          notes: '',
+          categories: [],
+        });
+        const dto: CreateProductDto = {
+          name: identity.name,
+          sku: identity.sku,
+          images: [imageUrl],
+          categories: [],
+          description: parsed.description,
+          rate: parsed.rate ?? undefined,
+          rateMax: parsed.rateMax ?? undefined,
+          unit: parsed.unit as CreateProductDto['unit'],
+          dispatchUnit: parsed.dispatchUnit as CreateProductDto['dispatchUnit'],
+          piecesPerPack: parsed.piecesPerPack,
+          moq: parsed.moq ?? undefined,
+        };
+        const product = await api.post<ProductView>('/products', dto);
+        createdIds.push(product.id);
+      }
+      await commitOwnerMembership(createdIds, replacing);
+    } catch (err) {
+      if (replacing) abandonReplaceIfPending();
+      showToast(err instanceof ApiError ? err.message : 'Could not add photos.', 'danger');
+    } finally {
+      setQuickUploading(false);
+      setManageBusy(false);
+      if (designFileRef.current) designFileRef.current.value = '';
+    }
   };
 
   const onOwnerRemove = async () => {
@@ -434,7 +664,7 @@ export function CollectionViewerPage() {
         mode === 'everywhere' && owned.length > 0
           ? 'Deleted'
           : mode === 'everywhere'
-            ? 'Deleted from this pack'
+            ? 'Deleted from this collection'
             : 'Removed from collection',
       );
     } catch (err) {
@@ -498,7 +728,7 @@ export function CollectionViewerPage() {
       api.del(`/collections/${id}/view-grants/${granteeId}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collection-view-grants', id] });
-      showToast('Removed access to this pack.');
+      showToast('Removed access to this collection.');
     },
     onError: (error) =>
       showToast(error instanceof ApiError ? error.message : 'Could not remove.', 'danger'),
@@ -515,6 +745,7 @@ export function CollectionViewerPage() {
     mutationFn: async (input: {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
       lines: Array<{ productId: string; quantity: number; note?: string }>;
+      transporter?: string;
     }) => {
       const items = input.lines.map((line) => ({
         productId: line.productId,
@@ -522,9 +753,11 @@ export function CollectionViewerPage() {
         images: [] as string[],
         ...(line.note?.trim() ? { note: line.note.trim() } : {}),
       }));
+      const transporter = input.transporter?.trim() || undefined;
       const batchBody = {
         kind: OrderKind.Standard,
         intent: input.intent,
+        ...(transporter ? { transporter } : {}),
         items,
       };
       try {
@@ -532,6 +765,7 @@ export function CollectionViewerPage() {
           collectionId: id,
           kind: OrderKind.Standard,
           intent: input.intent,
+          ...(transporter ? { transporter } : {}),
           items,
         });
       } catch (err) {
@@ -627,185 +861,201 @@ export function CollectionViewerPage() {
     );
   }
 
-  const primaryAction = collectionViewerPrimaryAction(isOwner);
-
   const openAlbumShare = () => {
+    setShareScope('album');
     setShareOpen(true);
+  };
+
+  const openSelectedDesignsShare = () => {
+    if (manageSelectedIds.length < 1) return;
+    setShareScope('designs');
+    setShareOpen(true);
+  };
+
+  const addSelectedDesignsToCart = () => {
+    if (manageSelectedIds.length < 1) return;
+    const selected = new Set(manageSelectedIds);
+    const picked = visibleProducts.filter((product) => selected.has(product.id));
+    const published = picked.filter((product) => isPublishedForSelection(product.status));
+    const notice = selectionSkipToast(picked.length - published.length, published.length);
+    if (notice) showToast(notice);
+    if (published.length < 1) return;
+    addCartDesignsMany(
+      published.map((product) =>
+        toShortlistEntry(product, product.companyName ?? companyName, packStamp),
+      ),
+    );
+    setManageSelected(new Set());
+    setPageSelecting(false);
+    showToast(
+      published.length === 1 ? 'Added to cart' : `${published.length} added to cart`,
+      'success',
+    );
+  };
+
+  const openOwnerWhoHasAccess = () => {
+    if (!id) return;
+    navigate(`/catalog/collections/${id}`, { state: { openPublish: true } });
+  };
+
+  const openOwnerEditDetails = () => {
+    if (!id) return;
+    navigate(`/catalog/collections/${id}`);
   };
 
   const data = collection.data;
   const floaterClearance =
-    (!isOwner && selectMode && selectedCount + albumPick.count > 0) || showResumeContinue;
+    (!isOwner && selectMode && thisAlbumCount + albumPick.count > 0) || showResumeContinue;
+  // API: pack rate or design min–max; null for non-owners when on request.
+  const rateBand = albumFactsRateBand({
+    rateMin: data?.rateMin,
+    rateMax: data?.rateMax,
+    rateUnit: data?.rateUnit,
+  });
+  const packDetails = collectionPackDetailSections({
+    categories: data?.categories,
+    description: data?.description,
+    rateBand,
+  });
+  const moreMenuNote = collectionMoreMenuNote({
+    visitor: !isOwner,
+    // Grant / follow look-through without Connect — not gated Ask (no products).
+    lookOnly: Boolean(data?.products && !data.connected),
+    allowForward: data?.allowForward !== false,
+  });
+  const headerSubtitle = data
+    ? isOwner
+      ? packHeaderSubtitleWithShop(products.length, products, null)
+      : packHeaderSubtitleWithShop(products.length, products, data.company.name)
+    : undefined;
 
   return (
     <div
       className={cx(
         'flex flex-col gap-4',
-        floaterClearance && (showResumeContinue ? 'pb-[calc(5rem+10rem)]' : 'pb-[calc(5rem+5.5rem)]'),
-        (packTradeDock || ownerManageDock) &&
-          'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
+        // Nav is hidden whenever a dock/floater owns the band — do not add a phantom nav pad.
+        floaterClearance &&
+          (showResumeContinue
+            ? 'pb-[calc(10rem+env(safe-area-inset-bottom))]'
+            : SELECTION_DOCK_CLEARANCE_CLASS),
+        packTradeDock && BOTTOM_DOCK_CLEARANCE_CLASS,
+        ownerManageDock &&
+          (selectMode ? SELECTION_DOCK_CLEARANCE_CLASS : BOTTOM_DOCK_CLEARANCE_CLASS),
       )}
     >
+      {/*
+        PageHeader must be a direct sticky child of this full-height column. Nesting it
+        with facts/tools made sticky end when that short block scrolled away — then
+        SelectAllFloat stuck at top-[3.25rem] with feed cards peeking above (BM-07).
+      */}
       <PageHeader
+        className="mb-0"
         title={data.name}
-        subtitle={packHeaderSubtitle(products.length, products)}
+        subtitle={headerSubtitle}
+        titleTo={isOwner ? undefined : `/company/${data.company.id}`}
         action={
-          <div className="flex items-center gap-1">
-            {data.products ? (
-              <CatalogFindToggle
-                testId="collection-find-toggle"
-                open={searchOpen}
-                label="Find in this pack"
-                onToggle={() => {
-                  if (searchOpen) {
-                    setSearchOpen(false);
-                    setListSearch('');
-                    return;
-                  }
-                  setSearchOpen(true);
-                }}
-              />
-            ) : null}
-            {canSelectDesigns ? (
-              <button
-                type="button"
-                data-testid="collection-select"
-                className={cx(
-                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
-                  selectMode ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                )}
-                onClick={() =>
-                  applySelectingPill(selectMode, thisAlbumCount, {
-                    clear: onClearVisible,
-                    setSelectMode: (on) => {
-                      setPageSelecting(on);
-                      if (!isOwner) shortlist.setSelectMode(on);
-                      if (!on) setManageSelected(new Set());
-                    },
-                  })
-                }
-              >
-                {selectMode ? 'Selecting' : 'Select'}
-              </button>
-            ) : null}
-            {primaryAction === 'edit' ? (
-              <button
-                type="button"
-                className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5"
-                onClick={() => navigate(`/catalog/collections/${id}`)}
-              >
-                Edit
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-45"
-                disabled={!id || save.isPending}
-                onClick={() => save.toggle()}
-              >
-                {save.isSaved ? 'Bookmarked' : 'Bookmark'}
-              </button>
+          <button
+            type="button"
+            aria-label="More"
+            aria-expanded={moreOpen}
+            aria-haspopup="menu"
+            data-testid="collection-more"
+            onClick={() => setMoreOpen((open) => !open)}
+            className={cx(
+              'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+              moreOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam hover:text-ink',
             )}
-            <button
-              ref={moreAnchorRef}
-              type="button"
-              aria-label="More"
-              aria-expanded={moreOpen}
-              aria-haspopup="menu"
-              data-testid="collection-more"
-              onClick={() => setMoreOpen((open) => !open)}
-              className={cx(
-                'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                moreOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam hover:text-ink',
-              )}
-            >
-              <MoreHorizontalIcon width={18} height={18} />
-            </button>
-          </div>
+          >
+            <MoreHorizontalIcon width={18} height={18} />
+          </button>
         }
       />
 
-      {moreOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-                onClick={() => setMoreOpen(false)}
+      <div className="flex flex-col gap-1.5">
+        {packDetails.length > 0 ||
+        ownerSourceLine ||
+        (data.products && showHandleCopy) ? (
+          <div className="flex flex-col gap-1">
+            {packDetails.length > 0 ? (
+              <CollectionPackDetails
+                categories={data.categories}
+                description={data.description}
+                rateBand={rateBand}
               />
-              <div
-                ref={morePanelRef}
-                role="menu"
-                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-                style={{ top: morePos.top, right: morePos.right }}
+            ) : null}
+            {ownerSourceLine ? (
+              <p
+                className="px-0.5 text-sm font-semibold tracking-tight text-ink"
+                data-testid="collection-owner-source"
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={!id}
-                  className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                  onClick={() => {
-                    setMoreOpen(false);
-                    openAlbumShare();
-                  }}
-                >
-                  Share
-                </button>
-                {data.products ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      setLayout((prev) => {
-                        const next = prev === 'feed' ? 'grid' : 'feed';
-                        writeDesignBrowseLayout(myCompanyId, next);
-                        return next;
-                      });
-                    }}
-                  >
-                    {layout === 'feed' ? 'Grid view' : 'Feed view'}
-                  </button>
-                ) : null}
-                {isOwner ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!id || save.isPending}
-                    className="flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      save.toggle();
-                    }}
-                  >
-                    {save.isSaved ? 'Remove bookmark' : 'Bookmark'}
-                  </button>
-                ) : null}
+                {ownerSourceLine}
+              </p>
+            ) : null}
+            {data.products && showHandleCopy ? (
+              <div className="px-0.5" data-testid="collection-order-goes-to">
+                <p className="text-sm font-semibold text-ink">Order goes to {data.company.name}</p>
+                <p className="text-xs text-muted">You chat with them. They send the mill lots on.</p>
               </div>
-            </>,
-            document.body,
-          )
-        : null}
+            ) : null}
+          </div>
+        ) : null}
 
-      {searchOpen && data.products ? (
-        <SearchInput
-          data-testid="collection-find"
-          aria-label="Find in this pack"
-          placeholder="Find in this pack"
-          value={listSearch}
-          onChange={(event) => setListSearch(event.target.value)}
+      </div>
+
+      {isOwner ? (
+        <OwnerCollectionMoreSheet
+          open={moreOpen}
+          title={data.name}
+          onClose={() => setMoreOpen(false)}
+          onShare={openAlbumShare}
+          onWhoHasAccess={openOwnerWhoHasAccess}
+          onAddPhotos={onOwnerAddPhotos}
+          onEditDetails={openOwnerEditDetails}
         />
-      ) : null}
-
-      <SelectAllFloat
-        open={selectMode && visibleProducts.length > 0}
-        count={floatSelectedCount}
-        allSelected={selectAll.allSelected}
-        onSelectAll={onSelectAllVisible}
-        onClear={onClearVisible}
-      />
+      ) : (
+        <MoreActionsSheet
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          title={data.name}
+          testId="visitor-collection-more-sheet"
+          note={moreMenuNote}
+          noteTestId="collection-menu-note"
+          items={[
+            {
+              id: 'message',
+              label: startChat.isPending ? 'Opening…' : `Message ${data.company.name}`,
+              icon: <ChatIcon width={20} height={20} />,
+              testId: 'collection-menu-message',
+              disabled: startChat.isPending,
+              onClick: () => {
+                setMoreOpen(false);
+                startChat.mutate();
+              },
+            },
+            {
+              id: 'share',
+              label: 'Share',
+              icon: <ShareIcon width={20} height={20} />,
+              disabled: !id,
+              onClick: () => {
+                setMoreOpen(false);
+                openAlbumShare();
+              },
+            },
+            {
+              id: 'bookmark',
+              label: save.isSaved ? 'Remove bookmark' : 'Bookmark',
+              icon: <BookmarkIcon width={20} height={20} />,
+              testId: 'collection-menu-bookmark',
+              disabled: !id || save.isPending,
+              onClick: () => {
+                setMoreOpen(false);
+                save.toggle();
+              },
+            },
+          ]}
+        />
+      )}
 
       {showResumeContinue && resumeAfterPick && typeof document !== 'undefined'
         ? createPortal(
@@ -823,32 +1073,46 @@ export function CollectionViewerPage() {
           )
         : null}
 
-      {collectionShowOwnerCompanyRow(isOwner) ? (
-        <CompanyRow company={data.company} to={`/company/${data.company.id}`} />
-      ) : null}
-      {collectionShowPackNote(data.description) ? (
-        <CollectionVisitorNote text={data.description ?? ''} />
-      ) : null}
-      {ownerSourceLine ? (
-        <p
-          className="px-0.5 text-sm font-semibold tracking-tight text-ink"
-          data-testid="collection-owner-source"
-        >
-          {ownerSourceLine}
-        </p>
-      ) : null}
-      {data.products && showHandleCopy ? (
-        <div className="px-0.5" data-testid="collection-order-goes-to">
-          <p className="text-sm font-semibold text-ink">Order goes to {data.company.name}</p>
-          <p className="text-xs text-muted">You chat with them. They send the mill lots on.</p>
-        </div>
-      ) : null}
-
       {data.products ? (
-        visibleProducts.length === 0 && listSearchActive ? (
+        <div data-testid="collection-lot-tools">
+        <BrowseLotChrome
+          findOpen={searchOpen}
+          findLabel="Find in this collection"
+          findTestId="collection-find-toggle"
+          findInputTestId="collection-find"
+          findPlaceholder="Find in this collection"
+          findValue={listSearch}
+          onFindToggle={() => {
+            if (searchOpen) {
+              setSearchOpen(false);
+              setListSearch('');
+              return;
+            }
+            setSearchOpen(true);
+          }}
+          onFindChange={setListSearch}
+          selecting={selectMode}
+          selectedCount={floatSelectedCount}
+          allSelected={selectAll.allSelected}
+          onEnterSelect={onEnterSelect}
+          onSelectAll={onSelectAllVisible}
+          onClear={onClearVisible}
+          selectTestId="collection-select"
+          canSelect={canSelectDesigns}
+          layout={layout}
+          layoutTestId="collection-layout-toggle"
+          onLayoutToggle={() => {
+            setLayout((prev) => {
+              const next = prev === 'feed' ? 'grid' : 'feed';
+              writeDesignBrowseLayout(myCompanyId, next);
+              return next;
+            });
+          }}
+        >
+        {visibleProducts.length === 0 && listSearchActive ? (
           <p className="px-0.5 text-sm text-muted">No designs match.</p>
         ) : visibleProducts.length === 0 ? (
-          <p className="px-0.5 text-sm text-muted">No live designs in this pack.</p>
+          <p className="px-0.5 text-sm text-muted">No live designs in this collection.</p>
         ) : layout === 'feed' ? (
           <div className="flex flex-col gap-4">
             {visibleProducts.map((product) => (
@@ -862,8 +1126,12 @@ export function CollectionViewerPage() {
                       : shortlist.productIds.has(product.id)
                   }
                   selectMode={selectMode}
-                  shopName={product.companyName ?? data.company.name}
-                  curatedFrom={isOwner && product.companyId !== data.company.id}
+                  shopLine={albumTileShopLine({
+                    mixedSources: isCuratedPack,
+                    creditMills: creditTileMills,
+                    shopName: product.companyName,
+                    curatedFrom: product.companyId !== data.company.id,
+                  })}
                   onActivate={() => onDesignActivate(product)}
                   onOpen={() => openViewer(product, 0)}
                   onLongSelect={() => onDesignLongSelect(product)}
@@ -883,15 +1151,21 @@ export function CollectionViewerPage() {
                       : shortlist.productIds.has(product.id)
                   }
                   selectMode={selectMode}
-                  shopName={product.companyName ?? data.company.name}
-                  curatedFrom={isOwner && product.companyId !== data.company.id}
+                  shopLine={albumTileShopLine({
+                    mixedSources: isCuratedPack,
+                    creditMills: creditTileMills,
+                    shopName: product.companyName,
+                    curatedFrom: product.companyId !== data.company.id,
+                  })}
                   onActivate={() => onDesignActivate(product)}
                   onOpen={() => openViewer(product, 0)}
                   onLongSelect={() => onDesignLongSelect(product)}
                 />
             ))}
           </div>
-        )
+        )}
+        </BrowseLotChrome>
+        </div>
       ) : accessPending ? (
         <AccessPendingCard
           companyId={data.company.id}
@@ -905,14 +1179,14 @@ export function CollectionViewerPage() {
             <LockIcon />
           </span>
           <div>
-            <p className="text-sm font-semibold text-ink">Ask to see this pack</p>
+            <p className="text-sm font-semibold text-ink">Ask to see this collection</p>
             <p className="text-xs text-muted">
               Ask {data.company.name} to open these {data.productCount} designs so you can look
-              through them. Not connect, and not putting designs in your pack.
+              through them. Not connect, and not putting designs in your collection.
             </p>
           </div>
           <Button onClick={() => askToSee.mutate()} disabled={askToSee.isPending}>
-            {askToSee.isPending ? 'Asking…' : 'Ask to see this pack'}
+            {askToSee.isPending ? 'Asking…' : 'Ask to see this collection'}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-medium text-accent">
             Request catalog access on their shop
@@ -924,7 +1198,7 @@ export function CollectionViewerPage() {
         <Card className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">Message to order these designs</p>
           <p className="text-xs text-muted">
-            This pack mixes designs from more than one business. Chat to place an order.
+            This collection mixes designs from more than one business. Chat to place an order.
           </p>
           <Button
             fullWidth
@@ -940,7 +1214,7 @@ export function CollectionViewerPage() {
         <Card className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">Granted on request</p>
           <p className="text-xs text-muted">
-            Businesses you Allowed for this pack only — not Connections.
+            Businesses you Allowed for this collection only — not Connections.
           </p>
           <ul className="flex flex-col gap-2">
             {viewGrants.data!.map((grant) => (
@@ -968,11 +1242,16 @@ export function CollectionViewerPage() {
       {ownerManageDock ? (
         <OwnerPackManageDock
           selecting={selectMode}
-          busy={manageBusy}
+          busy={manageBusy || quickUploading}
+          canAddToCart={ownerCanAddToCart}
+          canShare={ownerCanShare}
           canDelete={ownerCanDelete}
           canRemove={ownerCanRemove}
-          onAdd={onOwnerAdd}
+          onAddDesigns={onOwnerAddDesigns}
+          onAddPhotos={onOwnerAddPhotos}
           onReplace={() => setReplaceSheetOpen(true)}
+          onAddToCart={addSelectedDesignsToCart}
+          onShare={openSelectedDesignsShare}
           onDelete={() => void onOwnerDelete()}
           onRemove={() => void onOwnerRemove()}
         />
@@ -980,16 +1259,6 @@ export function CollectionViewerPage() {
 
       {packTradeDock ? (
         <BottomTradeDock testId="collection-pack-trade-dock" aboveAppNav={false}>
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={() => {
-              setOrderError(null);
-              setQtyOpen(true);
-            }}
-          >
-            Ask for rates
-          </Button>
           <Button
             fullWidth
             onClick={() => {
@@ -1015,6 +1284,126 @@ export function CollectionViewerPage() {
         onOnlyThisCollection={() => void finishOwnerDelete('only-here')}
       />
 
+      <input
+        ref={designFileRef}
+        {...collectionGalleryInputProps}
+        data-testid="owner-album-gallery-input"
+        className="hidden"
+        onChange={(e) => void onOwnerPhotoFiles([...(e.target.files ?? [])])}
+      />
+
+      <ContinuousCamera
+        key={cameraSession}
+        open={cameraOpen}
+        maxShots={collectionCameraMaxShots(0)}
+        onCancel={() => {
+          setCameraOpen(false);
+          abandonReplaceIfPending();
+        }}
+        batchAsDesigns
+        onUnavailable={() => {
+          setCameraOpen(false);
+          openCollectionGalleryDeferred();
+        }}
+        onGallery={() => {
+          setCameraOpen(false);
+          clickCollectionGallery();
+        }}
+        onDone={(files) => {
+          setCameraOpen(false);
+          void onOwnerPhotoFiles(files);
+        }}
+      />
+
+      <Sheet
+        open={libraryOpen}
+        onClose={() => {
+          void finishOwnerLibrary();
+        }}
+        title={replaceDraft !== null || replacePending ? 'Replace designs' : 'Add designs'}
+        footer={
+          <Button fullWidth disabled={manageBusy || quickUploading} onClick={() => void finishOwnerLibrary()}>
+            Done
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3" data-testid="owner-album-library-sheet">
+          <p className="text-sm text-muted">
+            {replaceDraft !== null || replacePending
+              ? 'Tap to pick the new set. Done with nothing selected keeps the collection as it is.'
+              : 'Tap to add. Added designs show in your album — Done when finished.'}
+          </p>
+          {myProducts.isLoading ? (
+            <LoadingBlock label="Loading designs…" />
+          ) : selectableDesigns.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <p className="text-sm text-muted">No designs in your library yet.</p>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setLibraryOpen(false);
+                  setReplaceDraft(null);
+                  abandonReplaceIfPending();
+                  navigate('/catalog/products/new');
+                }}
+              >
+                Add a design
+              </Button>
+            </div>
+          ) : (
+            <>
+              <TextInput
+                value={designSearch}
+                onChange={(e) => setDesignSearch(e.target.value)}
+                placeholder="Search by name"
+              />
+              <CappedMediaGrid
+                items={filteredDesigns}
+                getKey={(product) => product.id}
+                overflowPreviewUrl={(product) => product.images[0] ?? null}
+                loadMoreTestId="owner-album-library-load-more"
+                renderTile={(product) => {
+                  const on =
+                    replaceDraft !== null
+                      ? replaceDraft.has(product.id)
+                      : libraryPicks.has(product.id) || memberIdSet.has(product.id);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => toggleOwnerLibraryPick(product.id)}
+                      className={cx(
+                        'relative aspect-square w-full min-w-0 overflow-hidden rounded-xl border-2 bg-foam text-left',
+                        on ? 'border-accent' : 'border-transparent',
+                      )}
+                    >
+                      {product.images[0] ? (
+                        <img
+                          src={product.images[0]}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-lg font-bold text-muted">
+                          {product.name.charAt(0)}
+                        </div>
+                      )}
+                      {on ? (
+                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
+                          ✓
+                        </span>
+                      ) : null}
+                      <span className="absolute inset-x-0 bottom-0 z-[1] truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
+                        {product.name}
+                      </span>
+                    </button>
+                  );
+                }}
+              />
+            </>
+          )}
+        </div>
+      </Sheet>
+
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
@@ -1022,11 +1411,16 @@ export function CollectionViewerPage() {
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         collections={
-          id && data
+          shareScope === 'album' && id && data
             ? [{ collectionId: id, name: data.name, image: data.coverImage }]
             : []
         }
-        products={[]}
+        products={shareScope === 'designs' ? shareDesignItems : []}
+        onShared={() => {
+          if (shareScope !== 'designs') return;
+          setManageSelected(new Set());
+          setPageSelecting(false);
+        }}
       />
 
       {collectionPackQtySheet({ visitor: !isOwner, hasProducts: products.length > 0 }) ? (
@@ -1034,54 +1428,65 @@ export function CollectionViewerPage() {
           open={qtyOpen}
           onClose={() => setQtyOpen(false)}
           sellerId={data.company.id}
-          products={(
-            products.filter(
+          products={products
+            .filter(
               (product) =>
                 isPublishedForSelection(product.status) &&
                 shortlist.productIds.has(product.id),
-            ).length > 0
-              ? products.filter(
-                  (product) =>
-                    isPublishedForSelection(product.status) &&
-                    shortlist.productIds.has(product.id),
-                )
-              : products.filter((product) => isPublishedForSelection(product.status))
-          ).map((product) => ({
-            ...product,
-            images: product.images ?? [],
-          }))}
+            )
+            .map((product) => ({
+              ...product,
+              images: product.images ?? [],
+            }))}
           submitting={packOrder.isPending && packOrder.variables?.intent !== OrderIntent.Inquiry}
-          asking={packOrder.isPending && packOrder.variables?.intent === OrderIntent.Inquiry}
+          asking={false}
           error={orderError}
           orderGoesToName={showHandleCopy ? data.company.name : null}
-          onSendOrder={(lines) => {
+          sheetJob="order"
+          onSendOrder={(lines, place) => {
             setOrderError(null);
-            packOrder.mutate({ intent: OrderIntent.Order, lines });
+            packOrder.mutate({
+              intent: OrderIntent.Order,
+              lines,
+              transporter: place?.transporter,
+            });
           }}
-          onAskRates={(lines) => {
-            setOrderError(null);
-            packOrder.mutate({ intent: OrderIntent.Inquiry, lines });
+          onAskRates={() => {
+            /* Album Order path — rates already on pack; Ask rates hidden. */
           }}
         />
       ) : null}
 
       <ProductPhotosSheet
         product={viewerProduct}
-        shopName={
+        shopLine={
           viewerProduct
-            ? (viewerProduct.companyName ?? data.company.name)
+            ? albumTileShopLine({
+                mixedSources: isCuratedPack,
+                creditMills: creditTileMills,
+                shopName: viewerProduct.companyName,
+                curatedFrom: viewerProduct.companyId !== data.company.id,
+              })
             : null
-        }
-        curatedFrom={
-          Boolean(
-            isOwner &&
-              viewerProduct &&
-              viewerProduct.companyId !== data.company.id,
-          )
         }
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerProduct(null)}
+        canEdit={
+          viewerProduct
+            ? collectionOwnerCanEditDesign({
+                isOwner,
+                myCompanyId: me.data?.id,
+                productCompanyId: viewerProduct.companyId,
+              })
+            : false
+        }
+        onEdit={() => {
+          if (!viewerProduct) return;
+          const id = viewerProduct.id;
+          setViewerProduct(null);
+          navigate(`/catalog/products/${id}`);
+        }}
         selectable={canSelectDesigns}
         selected={viewerProduct ? shortlist.productIds.has(viewerProduct.id) : false}
         onToggleSelect={() => {
@@ -1136,8 +1541,7 @@ function DesignTile({
   selected,
   selectMode,
   variant,
-  shopName,
-  curatedFrom = false,
+  shopLine = null,
   unavailableReason,
   onActivate,
   onOpen,
@@ -1147,8 +1551,7 @@ function DesignTile({
   selected: boolean;
   selectMode: boolean;
   variant: 'feed' | 'grid';
-  shopName?: string | null;
-  curatedFrom?: boolean;
+  shopLine?: string | null;
   unavailableReason?: string;
   onActivate: () => void;
   onOpen?: () => void;
@@ -1156,8 +1559,21 @@ function DesignTile({
 }) {
   const image = product.images[0] ?? null;
   const extraPhotos = Math.max(0, product.images.length - 1);
-  const meta = [product.sku, formatRate(product.rate, product.unit, product.rateMax)].filter(Boolean).join(' · ');
-  const shopLine = designCardShopLine(shopName ?? product.companyName, curatedFrom);
+  // Album thumbs never show a rate chip (designTileRateOverlay always null).
+  const rateOverlay = designTileRateOverlay(
+    formatCatalogRate({
+      rate: product.rate,
+      rateMax: product.rateMax,
+      unit: product.unit,
+      dispatchUnit: product.dispatchUnit,
+    }),
+  );
+  const meta = designTileMetaLine({
+    sku: product.sku,
+    rateLabel: rateOverlay,
+    variant,
+  });
+  const curatedFrom = Boolean(shopLine?.startsWith('From '));
   const longPress = useLongPress(onLongSelect);
 
   return (
@@ -1193,20 +1609,31 @@ function DesignTile({
               {product.name.charAt(0).toUpperCase()}
             </div>
           )}
+          {rateOverlay ? (
+            <span
+              className="absolute bottom-2 left-2 z-[1] rounded-md bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white"
+              data-testid="collection-tile-rate"
+            >
+              {rateOverlay}
+            </span>
+          ) : null}
+          {extraPhotos > 0 && !rateOverlay ? (
+            <span
+              className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
+              data-testid="collection-tile-extra-photos"
+            >
+              +{extraPhotos}
+            </span>
+          ) : null}
+          {unavailableReason ? (
+            <span
+              className="absolute left-2 top-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
+              data-testid="collection-member-unavailable"
+            >
+              {unavailableReason}
+            </span>
+          ) : null}
         </SelectableMediaFrame>
-        {extraPhotos > 0 ? (
-          <span className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
-            +{extraPhotos}
-          </span>
-        ) : null}
-        {unavailableReason ? (
-          <span
-            className="absolute left-2 top-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
-            data-testid="collection-member-unavailable"
-          >
-            {unavailableReason}
-          </span>
-        ) : null}
       </button>
       <button
         type="button"
@@ -1237,21 +1664,23 @@ function DesignTile({
 
 function ProductPhotosSheet({
   product,
-  shopName,
-  curatedFrom = false,
+  shopLine = null,
   index,
   onIndex,
   onClose,
+  canEdit = false,
+  onEdit,
   selectable,
   selected,
   onToggleSelect,
 }: {
   product: ProductView | null;
-  shopName?: string | null;
-  curatedFrom?: boolean;
+  shopLine?: string | null;
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
+  canEdit?: boolean;
+  onEdit?: () => void;
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
@@ -1265,6 +1694,7 @@ function ProductPhotosSheet({
   const urls = product.images;
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
   const current = urls[safeIndex] ?? null;
+  const curatedFrom = Boolean(shopLine?.startsWith('From '));
 
   return (
     <>
@@ -1274,9 +1704,23 @@ function ProductPhotosSheet({
         title={product.name}
         footer={
           <div className="flex flex-col gap-2">
+            {canEdit && onEdit ? (
+              <Button
+                variant="primary"
+                fullWidth
+                data-testid="collection-design-edit"
+                onClick={onEdit}
+              >
+                Edit design
+              </Button>
+            ) : null}
             <ProductSaveButton productId={product.id} />
             {selectable ? (
-              <Button variant={selected ? 'secondary' : 'primary'} fullWidth onClick={onToggleSelect}>
+              <Button
+                variant={selected || canEdit ? 'secondary' : 'primary'}
+                fullWidth
+                onClick={onToggleSelect}
+              >
                 {selected ? 'Selected' : 'Select design'}
               </Button>
             ) : null}
@@ -1284,12 +1728,14 @@ function ProductPhotosSheet({
         }
       >
         <div className="flex flex-col gap-3">
-          {designCardShopLine(shopName ?? product.companyName, curatedFrom) ? (
-            <p className={cx('text-sm', curatedFrom ? 'font-semibold text-ink' : 'font-medium text-ink')}>
-              {designCardShopLine(shopName ?? product.companyName, curatedFrom)}
+          {shopLine ? (
+            <p
+              className={cx('text-sm', curatedFrom ? 'font-semibold text-ink' : 'font-medium text-ink')}
+              data-testid={curatedFrom ? 'collection-design-from' : undefined}
+            >
+              {shopLine}
             </p>
           ) : null}
-          {product.sku ? <p className="text-xs font-medium text-muted">SKU {product.sku}</p> : null}
           {current ? (
             <button
               type="button"
@@ -1308,15 +1754,23 @@ function ProductPhotosSheet({
               No photos
             </div>
           )}
-          <p className="text-sm font-semibold text-ink">{formatRate(product.rate, product.unit, product.rateMax)}</p>
+          <PackDetailBlocks
+            testIdPrefix="collection-design-sheet"
+            sections={collectionPackDetailSections({
+              categories: product.categories,
+              description: product.description,
+              rateBand: designSheetRateBand(
+                formatCatalogRate({
+                  rate: product.rate,
+                  rateMax: product.rateMax,
+                  unit: product.unit,
+                  dispatchUnit: product.dispatchUnit,
+                }),
+              ),
+            })}
+          />
           {product.moq != null && product.moq > 0 ? (
             <p className="text-sm font-medium text-ink">Minimum order · {product.moq} pcs</p>
-          ) : null}
-          {product.description?.trim() ? (
-            <div className="flex flex-col gap-1">
-              <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
-              <p className="whitespace-pre-wrap text-sm text-ink">{product.description.trim()}</p>
-            </div>
           ) : null}
         </div>
       </Sheet>

@@ -11,9 +11,10 @@ export async function openYouLibraryFind(page: Page): Promise<void> {
 
 export async function pickYouLibraryFilter(
   page: Page,
-  which: 'Draft' | 'Archived' | 'Saved',
+  which: 'Draft' | 'Archived' | 'Bookmark',
 ): Promise<void> {
   await openYouLibraryFind(page);
   await page.getByTestId('you-library-filter').click();
-  await page.getByTestId(`you-library-filter-${which.toLowerCase()}`).click();
+  const id = which === 'Bookmark' ? 'saved' : which.toLowerCase();
+  await page.getByTestId(`you-library-filter-${id}`).click();
 }

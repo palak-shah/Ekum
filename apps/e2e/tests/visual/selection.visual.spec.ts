@@ -4,7 +4,7 @@ import { loginAsRavi } from '../../helpers/persona';
 test.describe('selection visual @visual', () => {
   test.skip(!process.env.EKUM_VISUAL, 'Set EKUM_VISUAL=1 to capture 390×844');
 
-  test('Your selection at 390×844', async ({ page }) => {
+  test('Cart at 390×844', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAsRavi(page);
 
@@ -33,12 +33,12 @@ test.describe('selection visual @visual', () => {
           allowForward: true,
         },
       ];
-      sessionStorage.setItem('ekum:browseShortlist', JSON.stringify(shortlist));
-      sessionStorage.setItem('ekum:browseAlbumPick', JSON.stringify(albums));
+      sessionStorage.setItem('ekum:browseCartDesigns', JSON.stringify(shortlist));
+      sessionStorage.setItem('ekum:browseCartAlbums', JSON.stringify(albums));
     });
 
     await page.goto('/selection');
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
       timeout: 15_000,
     });
     await page.waitForTimeout(600);

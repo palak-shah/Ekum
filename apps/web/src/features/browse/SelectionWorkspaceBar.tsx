@@ -1,5 +1,11 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useSyncExternalStore, useTransition } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getPageOwnsBottomBand,
@@ -14,26 +20,61 @@ import {
   companyIdFromPath,
 } from '@/features/company/shopTradeDock';
 import { useMyCompany } from '@/lib/queries';
+import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { prefetchSelectionPage } from '@/features/browse/prefetchSelectionPage';
 import { readResumeAfterAlbumPick } from '@/features/browse/resumeAfterAlbumPick';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import { clearSelection } from '@/features/browse/clearSelection';
+import { addStagingToCart } from '@/features/browse/addStagingToCart';
+import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
+import { useToast } from '@/ui/Toast';
+import { CartIcon, ChatIcon, ShareIcon } from '@/ui/icons';
+import { cx } from '@/ui/kit';
 
-/** Phone thumb target — match kit 40px controls; never shrink below this. */
+/** @deprecated floater height — dock uses BottomTradeDock. Kept for tests. */
 export const SELECTION_FLOATER_MIN_H = 'min-h-10';
 
+function selectionCompanyIds(
+  shortlist: ReturnType<typeof useBrowseShortlist>['entries'],
+  albums: ReturnType<typeof useBrowseAlbumPick>['entries'],
+): string[] {
+  return [
+    ...new Set([
+      ...albums.map((entry) => entry.companyId),
+      ...shortlist.map((entry) => entry.companyId),
+    ]),
+  ].filter(Boolean);
+}
+
+function selectionShopName(
+  shopId: string,
+  shortlist: ReturnType<typeof useBrowseShortlist>['entries'],
+  albums: ReturnType<typeof useBrowseAlbumPick>['entries'],
+): string {
+  return (
+    albums.find((entry) => entry.companyId === shopId)?.companyName ||
+    shortlist.find((entry) => entry.companyId === shopId)?.companyName ||
+    ''
+  );
+}
+
 /**
- * Compact floater: count + thumbs open the pile; Order starts the same path
- * as Your selection. Only Explore, another shop (no shop dock), and a design /
- * pack while Selecting. Hidden while album Pick-designs resume CTA owns the band.
+ * Explore Selecting dock: Add to cart · Message · Share + Order (right).
+ * Dock Add to cart merges staging into the cart and clears selection. Header Cart opens cart.
+ * No staging badge on Add to cart — count stays on SelectAllFloat; cart count stays on header.
  */
 export function SelectionWorkspaceBar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
   const [, startTransition] = useTransition();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const me = useMyCompany();
+  const [shareOpen, setShareOpen] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
   const shopId = companyIdFromPath(location.pathname);
   const ownShop = Boolean(shopId && me.data?.id && shopId === me.data.id);
   const shopDockUp = shouldShowShopTradeDock({
@@ -46,86 +87,145 @@ export function SelectionWorkspaceBar() {
   const pageDockUp = useSyncExternalStore(subscribePageOwnsBottomBand, getPageOwnsBottomBand);
   const pageSelecting = useSyncExternalStore(subscribePageSelecting, getPageSelecting);
 
+  const visible = shouldShowSelectionWorkspaceBar(location.pathname, total, {
+    shopDockUp,
+    pageDockUp,
+    ownShop,
+    pageSelecting,
+  });
+
   useEffect(() => {
     if (total > 0) prefetchSelectionPage();
   }, [total]);
 
+  const companyIds = useMemo(
+    () => selectionCompanyIds(shortlist.entries, albumPick.entries),
+    [shortlist.entries, albumPick.entries],
+  );
+  const singleShopId = companyIds.length === 1 ? companyIds[0]! : null;
+  const singleShopName = singleShopId
+    ? selectionShopName(singleShopId, shortlist.entries, albumPick.entries)
+    : '';
+
   if (typeof document === 'undefined') return null;
   if (readResumeAfterAlbumPick()) return null;
-  if (
-    !shouldShowSelectionWorkspaceBar(location.pathname, total, {
-      shopDockUp,
-      pageDockUp,
-      ownShop,
-      pageSelecting,
-    })
-  )
-    return null;
+  if (!visible) return null;
 
-  const thumbs = [
-    ...albumPick.entries.slice(0, 2).map((entry) => ({
-      key: `c-${entry.collectionId}`,
-      url: entry.coverImage,
-      name: entry.name,
-    })),
-    ...shortlist.entries.slice(0, 2).map((entry) => ({
-      key: `p-${entry.productId}`,
-      url: entry.thumbUrl,
-      name: entry.name,
-    })),
-  ].slice(0, 2);
+  const exitSelecting = () => {
+    shortlist.setSelectMode(false);
+    albumPick.setSelectMode(false);
+  };
 
-  const countLabel = total === 1 ? '1 in selection' : `${total} in selection`;
-  const openPile = () => startTransition(() => navigate('/selection'));
-  const startOrder = () =>
+  const addToCart = () => {
+    const { added } = addStagingToCart();
+    exitSelecting();
+    if (added > 0) {
+      showToast(added === 1 ? 'Added to cart' : `${added} added to cart`, 'success');
+    }
+  };
+
+  const startOrder = () => {
+    addStagingToCart();
+    exitSelecting();
     startTransition(() => navigate('/selection', { state: { openOrder: true } }));
+  };
 
-  return createPortal(
-    <div
-      className="pointer-events-none fixed inset-x-0 bottom-[5.25rem] z-30 flex justify-center px-4"
-      data-testid="selection-workspace-bar"
-    >
-      <div
-        className={`pointer-events-auto flex ${SELECTION_FLOATER_MIN_H} max-w-[min(100%,20rem)] items-stretch overflow-hidden rounded-full border border-ink/25 bg-surface shadow-[0_2px_12px_rgb(26_23_20/0.18)]`}
-      >
-        <button
-          type="button"
-          data-testid="selection-workspace-view"
-          className={`flex ${SELECTION_FLOATER_MIN_H} min-w-0 flex-1 items-center gap-2 py-1.5 pl-2 pr-3`}
-          onClick={openPile}
-          aria-label={`${countLabel}. Open Your selection`}
+  return (
+    <>
+      {createPortal(
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md"
+          data-testid="selection-workspace-bar"
         >
-          <div className="flex shrink-0 -space-x-2">
-            {thumbs.map((thumb) =>
-              thumb.url ? (
-                <img
-                  key={thumb.key}
-                  src={thumb.url}
-                  alt=""
-                  className="h-8 w-8 rounded-full border border-ink/15 object-cover"
-                />
-              ) : (
-                <span
-                  key={thumb.key}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/15 bg-foam text-[11px] font-bold text-ink"
+          <div className="pointer-events-auto border-t border-line bg-surface/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+            <div
+              className="flex items-stretch gap-2"
+              data-testid="selection-workspace-actions"
+            >
+              <div className="grid min-w-0 flex-1 grid-cols-3 gap-1.5">
+                <DockIconButton
+                  testId="selection-workspace-cart"
+                  label="Add to cart"
+                  onClick={addToCart}
                 >
-                  {thumb.name.slice(0, 1).toUpperCase()}
-                </span>
-              ),
-            )}
+                  <CartIcon width={22} height={22} />
+                </DockIconButton>
+                <DockIconButton
+                  testId="selection-workspace-message"
+                  label="Message"
+                  disabled={!singleShopId}
+                  onClick={() => setMessageOpen(true)}
+                >
+                  <ChatIcon width={22} height={22} />
+                </DockIconButton>
+                <DockIconButton
+                  testId="selection-workspace-share"
+                  label="Share"
+                  onClick={() => setShareOpen(true)}
+                >
+                  <ShareIcon width={22} height={22} />
+                </DockIconButton>
+              </div>
+              <button
+                type="button"
+                data-testid="selection-workspace-order"
+                onClick={startOrder}
+                className={cx(
+                  'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-4',
+                  'border border-accent bg-accent text-sm font-bold text-white',
+                )}
+              >
+                Order
+              </button>
+            </div>
           </div>
-          <span className="min-w-0 truncate text-sm font-semibold text-ink">{countLabel}</span>
-        </button>
-        <button
-          type="button"
-          data-testid="selection-workspace-order"
-          className={`shrink-0 border-l border-ink/15 px-4 text-sm font-bold text-accent ${SELECTION_FLOATER_MIN_H}`}
-          onClick={startOrder}
-        >
-          Order
-        </button>
-      </div>
-    </div>,
-    document.body,
+        </div>,
+        document.body,
+      )}
+      {singleShopId ? (
+        <SelectionMessageSheet
+          open={messageOpen}
+          onClose={() => setMessageOpen(false)}
+          shopId={singleShopId}
+          shopName={singleShopName}
+          collections={albumPick.entries.map((entry) => ({
+            collectionId: entry.collectionId,
+            name: entry.name,
+          }))}
+          products={shortlist.entries.map((entry) => ({
+            productId: entry.productId,
+            name: entry.name,
+          }))}
+        />
+      ) : null}
+      <CatalogShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        collections={albumPick.entries.map((entry) => ({
+          collectionId: entry.collectionId,
+          name: entry.name,
+        }))}
+        products={shortlist.entries.map((entry) => ({
+          productId: entry.productId,
+          name: entry.name,
+        }))}
+        onShared={() => clearSelection()}
+      />
+    </>
   );
+}
+
+/** True when SelectionWorkspaceBar dock is the bottom owner (hide app nav). */
+export function selectionWorkspaceDockUp(
+  pathname: string,
+  total: number,
+  options?: {
+    shopDockUp?: boolean;
+    pageDockUp?: boolean;
+    ownShop?: boolean;
+    pageSelecting?: boolean;
+  },
+): boolean {
+  if (readResumeAfterAlbumPick()) return false;
+  return shouldShowSelectionWorkspaceBar(pathname, total, options);
 }

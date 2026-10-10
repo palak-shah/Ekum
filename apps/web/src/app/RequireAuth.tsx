@@ -14,7 +14,7 @@ export function RequireAuth() {
 
   if (status === 'loading' || status === 'degraded') {
     return (
-      <div className="flex min-h-full flex-col items-center justify-center gap-4 px-6">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 px-6">
         <LoadingBlock
           label={status === 'degraded' ? 'Reconnecting to Ekum…' : 'Starting Ekum…'}
         />

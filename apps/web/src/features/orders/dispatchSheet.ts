@@ -1,5 +1,111 @@
-import type { OrderItemView } from '@ekum/domain-types';
+import type { OrderItemView, OrderShipmentView } from '@ekum/domain-types';
 import { formatUnit } from '@/lib/format';
+
+export type DispatchLegDraft = {
+  lrNumber: string;
+  billNumber: string;
+  /** LR / bill slip photo URLs (uploaded). */
+  imageUrls: string[];
+};
+
+const MAX_DISPATCH_LEGS = 50;
+export const MAX_LEG_PHOTOS = 3;
+
+export function emptyDispatchLeg(): DispatchLegDraft {
+  return { lrNumber: '', billNumber: '', imageUrls: [] };
+}
+
+/** Grow/shrink LR+Bill rows to match Parcels N (min 1). Shrink drops trailing empties first. */
+export function resizeDispatchLegs(legs: DispatchLegDraft[], n: number): DispatchLegDraft[] {
+  const target = Math.max(1, Math.min(MAX_DISPATCH_LEGS, Math.floor(Number(n)) || 1));
+  if (legs.length === target) return legs;
+  if (legs.length < target) {
+    return [
+      ...legs,
+      ...Array.from({ length: target - legs.length }, () => emptyDispatchLeg()),
+    ];
+  }
+  const next = [...legs];
+  while (next.length > target) {
+    let emptyIdx = -1;
+    for (let i = next.length - 1; i >= 0; i -= 1) {
+      const leg = next[i]!;
+      if (
+        !leg.lrNumber.trim() &&
+        !leg.billNumber.trim() &&
+        (leg.imageUrls?.length ?? 0) === 0
+      ) {
+        emptyIdx = i;
+        break;
+      }
+    }
+    if (emptyIdx >= 0) next.splice(emptyIdx, 1);
+    else next.pop();
+  }
+  return next.length > 0 ? next : [emptyDispatchLeg()];
+}
+
+/** Seed edit/open from API legs, legacy lrNumber, or parcelCount. */
+export function seedDispatchLegsFromShipment(
+  shipment: Pick<OrderShipmentView, 'legs' | 'lrNumber' | 'parcelCount'>,
+): DispatchLegDraft[] {
+  if (shipment.legs && shipment.legs.length > 0) {
+    return shipment.legs.map((leg) => ({
+      lrNumber: leg.lrNumber ?? '',
+      billNumber: leg.billNumber ?? '',
+      imageUrls: [...(leg.imageUrls ?? [])].slice(0, MAX_LEG_PHOTOS),
+    }));
+  }
+  if (shipment.lrNumber?.trim()) {
+    return [{ lrNumber: shipment.lrNumber.trim(), billNumber: '', imageUrls: [] }];
+  }
+  const n = Math.max(1, shipment.parcelCount ?? 1);
+  return resizeDispatchLegs([], n);
+}
+
+/** All LR slip photos on a shipment (for history thumbs). */
+export function shipmentLegImageUrls(
+  shipment: Pick<OrderShipmentView, 'legs'>,
+): string[] {
+  const next: string[] = [];
+  for (const leg of shipment.legs ?? []) {
+    for (const url of leg.imageUrls ?? []) {
+      if (url && !next.includes(url)) next.push(url);
+    }
+  }
+  return next;
+}
+
+/** Non-empty LR / bill lines for Shipments card + prior list. */
+export function shipmentLegDisplayLines(
+  shipment: Pick<OrderShipmentView, 'legs' | 'lrNumber'>,
+): string[] {
+  const legs = shipment.legs ?? [];
+  if (legs.length > 0) {
+    return legs
+      .map((leg) => {
+        const lr = leg.lrNumber?.trim() || '';
+        const bill = leg.billNumber?.trim() || '';
+        if (lr && bill) return `LR · ${lr} · Bill ${bill}`;
+        if (lr) return `LR · ${lr}`;
+        if (bill) return `Bill · ${bill}`;
+        return null;
+      })
+      .filter((line): line is string => Boolean(line));
+  }
+  const lr = shipment.lrNumber?.trim();
+  return lr ? [`LR · ${lr}`] : [];
+}
+
+export function shipmentPrimaryLabel(
+  shipment: Pick<OrderShipmentView, 'legs' | 'lrNumber'>,
+  fallback = 'Dispatch',
+): string {
+  const first = (shipment.legs ?? []).find((leg) => leg.lrNumber?.trim());
+  if (first?.lrNumber?.trim()) return `LR · ${first.lrNumber.trim()}`;
+  if (shipment.lrNumber?.trim()) return `LR · ${shipment.lrNumber.trim()}`;
+  return fallback;
+}
 
 export function shippableDispatchItems(items: OrderItemView[]): OrderItemView[] {
   return items.filter(
@@ -83,9 +189,10 @@ export function dispatchThisLrLabel(tally: { designs: number; pieces: number }):
   return `This LR · ${tally.designs} ${d} · ${tally.pieces} pcs`;
 }
 
-/** SKU · unit — same job as Unstitched · Box Pcs on a mill packing list. */
+/** SKU · per mtr — unit with the design, not glued to the Price box. */
 export function dispatchLineKindLine(item: Pick<OrderItemView, 'sku' | 'unit'>): string | null {
-  const bits = [item.sku?.trim(), formatUnit(item.unit)].filter(Boolean);
+  const unit = formatUnit(item.unit);
+  const bits = [item.sku?.trim(), unit ? `per ${unit}` : null].filter(Boolean);
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 

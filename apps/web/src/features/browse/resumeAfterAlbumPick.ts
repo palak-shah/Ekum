@@ -47,5 +47,5 @@ export function continueAfterAlbumPickLabel(
       ? 'Next collection'
       : `Next collection (${remainingAlbumCount})`;
   }
-  return resume === 'curate' ? 'Continue Curate' : 'Continue Order';
+  return resume === 'curate' ? 'Continue Repost' : 'Continue Order';
 }

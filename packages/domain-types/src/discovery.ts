@@ -105,6 +105,8 @@ export interface CompanyCard {
 export interface CollectionCard {
   id: string;
   name: string;
+  /** Pack notes when present — Explore “About this collection”. */
+  description: string | null;
   /** Pack tags when present. */
   categories: string[];
   /** Member name / SKU / notes / tags (preview include, typically 12). */
@@ -124,6 +126,26 @@ export interface CollectionCard {
    * Pack Direct | I handle override. null = use owner Profile default.
    */
   orderPathPreference: string | null;
+  /**
+   * Rate band for Explore when pack `rateVisibility` is visible.
+   * Null when on request, mixed units, or no priced members.
+   */
+  rateMin: number | null;
+  rateMax: number | null;
+  rateUnit: string | null;
+  /**
+   * Designs added on the last Explore activity bump. 0 → omit “N new designs” line.
+   */
+  exploreNewDesignCount: number;
+  /**
+   * Curated/Repost: show From {mill} to buyers. Default false.
+   */
+  showSourceShops: boolean;
+  /**
+   * Foreign mill names for the From line — only when showSourceShops.
+   * Empty otherwise (do not leak supplier credit).
+   */
+  sourceShopNames: string[];
   company: PublicCompanySummary;
 }
 
@@ -142,7 +164,10 @@ export interface ExploreProductCard {
   name: string;
   images: string[];
   rate: number | null;
+  rateMax: number | null;
   unit: string | null;
+  /** Design tags when present. */
+  categories: string[];
   postedAt: string;
   /** Relist/curate lock snapshot. Forward is free. */
   allowForward: boolean;
@@ -259,8 +284,6 @@ export interface UniversalSearchResults {
  */
 export interface CollectionPreviewView extends CollectionCard {
   connected: boolean;
-  /** Pack note for visitors. Omitted/empty when the seller left Description blank. */
-  description?: string | null;
   products: ProductView[] | null;
   /**
    * Visitor on a curated pack: Your paths ticket for this buyer × mills.
@@ -278,5 +301,4 @@ export interface ExploreProductPreviewView extends ExploreProductCard {
   moq?: number | null;
   /** Pcs inside one set / dozen / box. */
   piecesPerPack?: number | null;
-  categories?: string[];
 }

@@ -296,4 +296,171 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.products?.find((p) => p.id === 'own-1')?.rate).toBe(100);
     expect(view.products?.find((p) => p.id === 'foreign-1')?.rate).toBeNull();
   });
+
+  it('shows pack rate on owner album even when rates are on request for buyers', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'owner',
+        rateVisibility: 'on_request',
+        rate: 500,
+        rateMax: 700,
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'owner',
+              status: 'published',
+              rate: 800,
+              rateMax: 1000,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+      },
+      { blocked: false, connected: true },
+    );
+    const view = await service.collectionDetail('owner', 'col1');
+    expect(view.rateMin).toBe(500);
+    expect(view.rateMax).toBe(700);
+    expect(view.rateUnit).toBe('pc');
+  });
+
+  it('owner album uses design min–max when pack rate is unset', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'owner',
+        rateVisibility: 'on_request',
+        rate: null,
+        rateMax: null,
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'owner',
+              status: 'published',
+              rate: 200,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+          {
+            product: {
+              id: 'p2',
+              companyId: 'owner',
+              status: 'published',
+              rate: 500,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+          {
+            product: {
+              id: 'p3',
+              companyId: 'owner',
+              status: 'published',
+              rate: 700,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+          {
+            product: {
+              id: 'p4',
+              companyId: 'owner',
+              status: 'published',
+              rate: null,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+      },
+      { blocked: false, connected: true },
+    );
+    const view = await service.collectionDetail('owner', 'col1');
+    expect(view.rateMin).toBe(200);
+    expect(view.rateMax).toBe(700);
+    expect(view.rateUnit).toBe('pc');
+  });
+
+  it('hides album rate from other users when rates are on request', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        audience: 'everyone',
+        rateVisibility: 'on_request',
+        rate: null,
+        rateMax: null,
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'owner',
+              status: 'published',
+              rate: 200,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+          {
+            product: {
+              id: 'p2',
+              companyId: 'owner',
+              status: 'published',
+              rate: 700,
+              unit: 'pc',
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+      },
+      { blocked: false, connected: false },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.rateMin).toBeNull();
+    expect(view.rateMax).toBeNull();
+  });
+
+  it('pack rate beats member stamps on album detail', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'owner',
+        audience: 'everyone',
+        rateVisibility: 'visible',
+        rate: 500,
+        rateMax: 700,
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'owner',
+              status: 'published',
+              rate: 200,
+              unit: 'pc',
+              rateVisibility: 'visible',
+            },
+          },
+          {
+            product: {
+              id: 'p2',
+              companyId: 'owner',
+              status: 'published',
+              rate: 800,
+              unit: 'pc',
+              rateVisibility: 'visible',
+            },
+          },
+        ],
+      },
+      { blocked: false, connected: true },
+    );
+    const view = await service.collectionDetail('owner', 'col1');
+    expect(view.rateMin).toBe(500);
+    expect(view.rateMax).toBe(700);
+    expect(view.rateUnit).toBe('pc');
+  });
 });

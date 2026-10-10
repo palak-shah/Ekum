@@ -52,6 +52,8 @@ export const createOrderSchema = z
     /** Soft rate ask vs firm place-order. Default order. */
     intent: z.enum(orderIntentValues).default(OrderIntent.Order),
     note: z.string().trim().max(1000).optional(),
+    /** Optional preferred transporter (free text; buyer at place). */
+    transporter: z.string().trim().max(120).optional(),
     /** Optional voice clip beside the text note (media id after upload). */
     noteVoiceMediaId: z.string().min(1).optional(),
     noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
@@ -88,6 +90,8 @@ export const createForBuyerSchema = z
     buyerName: z.string().trim().min(1).max(200).optional(),
     buyerPhone: z.string().trim().min(8).max(20).optional(),
     note: z.string().trim().max(1000).optional(),
+    /** Optional preferred transporter (free text). */
+    transporter: z.string().trim().max(120).optional(),
     items: z
       .array(
         z.object({
@@ -115,6 +119,8 @@ export const createOrdersBatchSchema = z.object({
   kind: z.enum(orderKindValues).default(OrderKind.Standard),
   intent: z.enum(orderIntentValues).default(OrderIntent.Order),
   note: z.string().trim().max(1000).optional(),
+  /** Optional preferred transporter (applied to every ticket in the batch). */
+  transporter: z.string().trim().max(120).optional(),
   /** Direct mode: keep this company informed (must have trading on). */
   facilitatorCompanyId: z.string().min(1).optional(),
   items: z
@@ -134,6 +140,8 @@ export const createOrdersFromPackSchema = z.object({
   kind: z.enum(orderKindValues).default(OrderKind.Standard),
   intent: z.enum(orderIntentValues).default(OrderIntent.Order),
   note: z.string().trim().max(1000).optional(),
+  /** Optional preferred transporter. */
+  transporter: z.string().trim().max(120).optional(),
   items: z
     .array(
       orderItemInputSchema.extend({
@@ -166,14 +174,49 @@ export interface CreateOrdersBatchResult {
 
 /** Optional text + voice note fields shared by order update DTOs. */
 export const orderNoteVoiceFields = {
-  note: z.string().trim().max(1000).optional(),
-  noteVoiceMediaId: z.string().min(1).optional(),
-  noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
+    note: z.string().trim().max(1000).optional(),
+    noteVoiceMediaId: z.string().min(1).optional(),
+    noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
+    /** Optional photo URLs beside the note (after upload; cap 9). */
+    noteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
 } as const;
+
+/** Shared book / PO number both parties see. */
+export const updateManualOrderRefSchema = z.object({
+  manualOrderNo: z.string().trim().max(80).optional().nullable(),
+  note: z.string().trim().max(1000).optional().nullable(),
+  noteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
+});
+export type UpdateManualOrderRefDto = z.infer<typeof updateManualOrderRefSchema>;
+
+/** Private company scratch note on an order. */
+export const updatePersonalOrderNoteSchema = z.object({
+  note: z.string().trim().max(2000).optional().nullable(),
+  noteVoiceMediaId: z.string().min(1).optional().nullable(),
+  noteVoiceDurationMs: z.number().int().positive().max(120_000).optional().nullable(),
+  noteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
+});
+export type UpdatePersonalOrderNoteDto = z.infer<typeof updatePersonalOrderNoteSchema>;
+
+export type OrderPersonalNoteView = {
+  note: string | null;
+  noteVoiceUrl: string | null;
+  noteVoiceDurationMs: number | null;
+  noteVoiceMediaId: string | null;
+  images: string[];
+};
+
+export type OrderManualRefView = {
+  manualOrderNo: string | null;
+  note: string | null;
+  images: string[];
+};
 
 /** Buyer amends catalog lines before any seller quote/confirm/decline. */
 export const amendOrderSchema = z.object({
   ...orderNoteVoiceFields,
+  /** Optional preferred transporter (omit to leave unchanged; empty string clears). */
+  transporter: z.string().trim().max(120).optional().nullable(),
   items: z
     .array(
       orderItemInputSchema.extend({
@@ -335,11 +378,23 @@ export function suggestedPaymentAmount(
   return Math.round(total * 100) / 100;
 }
 
+/** One LR + bill pair on a dispatch. All fields optional. */
+export const shipmentLegSchema = z.object({
+  lrNumber: z.string().trim().max(80).optional().nullable(),
+  billNumber: z.string().trim().max(80).optional().nullable(),
+  /** Photos of the LR / bill slip (uploaded URLs; cap 3). */
+  imageUrls: z.array(z.string().trim().min(1).max(500)).max(3).optional(),
+});
+export type ShipmentLegDto = z.infer<typeof shipmentLegSchema>;
+
 /** Dispatch: omit items to ship all remaining confirmed qty; provide for partial. LR optional. */
 export const dispatchSchema = z.object({
   transporter: z.string().trim().max(160).optional(),
+  /** Legacy single LR — mapped to legs[0] when `legs` omitted. */
   lrNumber: z.string().trim().max(80).optional(),
   parcelCount: z.number().int().positive().max(100000).optional(),
+  /** Multi LR + bill rows; prefer parcelCount === legs.length when present. */
+  legs: z.array(shipmentLegSchema).max(50).optional(),
   items: z
     .array(
       z.object({
@@ -359,6 +414,7 @@ export const editShipmentSchema = z.object({
   transporter: z.string().trim().max(160).optional().nullable(),
   lrNumber: z.string().trim().max(80).optional().nullable(),
   parcelCount: z.number().int().positive().max(100000).optional().nullable(),
+  legs: z.array(shipmentLegSchema).max(50).optional(),
   items: z
     .array(
       z.object({
@@ -418,7 +474,10 @@ export const quoteOrderSchema = z
   });
 export type QuoteOrderDto = z.infer<typeof quoteOrderSchema>;
 
-/** Seller decides open lines without a rate quote (confirm / decline mix). */
+/**
+ * Seller confirms / declines open lines — may set qty + rate in one step
+ * (everyday path without Send quote).
+ */
 export const decideOrderLinesSchema = z.object({
   items: z
     .array(
@@ -426,6 +485,7 @@ export const decideOrderLinesSchema = z.object({
         orderItemId: z.string().min(1),
         action: z.enum(['confirm', 'decline']),
         quantity: z.number().positive().max(1_000_000).optional(),
+        rate: z.number().positive().max(10_000_000).optional(),
       }),
     )
     .min(1)
@@ -585,14 +645,26 @@ export interface OrderShipmentItemView {
   quantity: number;
 }
 
+export interface OrderShipmentLegView {
+  id: string;
+  lrNumber: string | null;
+  billNumber: string | null;
+  /** LR / bill slip photos when attached. */
+  imageUrls: string[];
+  sortOrder: number;
+}
+
 export interface OrderShipmentView {
   id: string;
   transporter: string | null;
+  /** First non-empty leg LR (list labels); legacy single-LR field. */
   lrNumber: string | null;
   parcelCount: number | null;
   dispatchedAt: string;
   updatedAt?: string;
   items: OrderShipmentItemView[];
+  /** LR + bill pairs for this dispatch (may be empty on older rows). */
+  legs: OrderShipmentLegView[];
 }
 
 export interface OrderRelatedOrderView {
@@ -653,14 +725,21 @@ export interface OrderView {
   /** Live: seller has posted at least one Rate card for this order. */
   hasSellerQuote?: boolean;
   note: string | null;
+  /** Preferred transporter (buyer at place / amend; also updated on dispatch). */
+  transporter: string | null;
   /** Playable URL when a voice note was attached at create. */
   noteVoiceUrl: string | null;
   noteVoiceDurationMs: number | null;
   noteVoiceMediaId: string | null;
+  /** Shared manual / book order number (both parties). */
+  manualRef?: OrderManualRefView | null;
+  /** Viewer company's private personal note only. */
+  personalNote?: OrderPersonalNoteView | null;
   /** Latest seller quote note (text), when quoted — not the create-order note. */
   quoteNote?: string | null;
   quoteNoteVoiceUrl?: string | null;
   quoteNoteVoiceDurationMs?: number | null;
+  quoteNoteImageUrls?: string[];
   buyerCompanyId: string;
   sellerCompanyId: string;
   counterpart: PublicCompanySummary;

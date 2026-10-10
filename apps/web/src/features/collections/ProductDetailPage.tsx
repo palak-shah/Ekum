@@ -32,7 +32,7 @@ export function ProductDetailPage() {
     mutationFn: (granteeId: string) => api.del(`/products/${id}/relist-grants/${granteeId}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['relist-grants', id] });
-      showToast('Removed pack permission');
+      showToast('Removed collection permission');
     },
     onError: (err) =>
       showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger'),
@@ -105,7 +105,7 @@ export function ProductDetailPage() {
       {isOwner && (relistGrants.data?.length ?? 0) > 0 ? (
         <div data-testid="product-relist-grants">
           <Card className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Who can put in pack</p>
+            <p className="text-sm font-semibold text-ink">Who can put in collection</p>
             <p className="text-xs text-muted">
               Businesses you Allowed for this design only — not Connections.
             </p>

@@ -43,6 +43,7 @@ import {
   isCollectionLiveForBuyers,
   liveWindowClauses,
 } from '../catalog/collection-schedule';
+import { collectionCardRateFields } from './collection-card-rate';
 import { collectionCardInclude, publishedCollectionMemberWhere } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import { rankWindowTake } from './rank-window';
@@ -324,6 +325,9 @@ export class ExploreService {
     const stories = this.buildStories({
       fromNetwork,
       designsFromNetwork,
+      forYou,
+      designsForYou,
+      viewerCompanyId,
       followedIds,
       connectedIds,
     });
@@ -373,13 +377,27 @@ export class ExploreService {
   private buildStories(input: {
     fromNetwork: ExploreHomeView['fromNetwork'];
     designsFromNetwork: ExploreHomeView['designsFromNetwork'];
+    forYou: ExploreHomeView['forYou'];
+    designsForYou: ExploreHomeView['designsForYou'];
+    viewerCompanyId: string;
     followedIds: Set<string>;
     connectedIds: Set<string>;
   }): ExploreStory[] {
     const latest = new Map<string, ExploreStory>();
-    const touch = (company: ExploreStory['company'], at: string | null | undefined) => {
+    const touch = (
+      company: ExploreStory['company'],
+      at: string | null | undefined,
+      allowOwn = false,
+    ) => {
       if (!company?.id || !at) return;
-      if (!isEligibleStoryPublisher(company.id, input.followedIds, input.connectedIds)) return;
+      const isOwn = company.id === input.viewerCompanyId;
+      if (
+        !isOwn &&
+        !isEligibleStoryPublisher(company.id, input.followedIds, input.connectedIds)
+      ) {
+        return;
+      }
+      if (isOwn && !allowOwn) return;
       const prev = latest.get(company.id);
       if (!prev || prev.latestPostedAt < at) {
         latest.set(company.id, { company, latestPostedAt: at });
@@ -392,10 +410,19 @@ export class ExploreService {
     for (const row of input.designsFromNetwork) {
       touch(row.product.company, row.product.postedAt);
     }
+    for (const row of input.forYou) {
+      touch(row.collection.company, row.collection.updatedAt, true);
+    }
+    for (const row of input.designsForYou) {
+      touch(row.product.company, row.product.postedAt, true);
+    }
 
-    return [...latest.values()]
-      .sort((a, b) => (a.latestPostedAt < b.latestPostedAt ? 1 : -1))
-      .slice(0, 16);
+    const stories = [...latest.values()].sort((a, b) =>
+      a.latestPostedAt < b.latestPostedAt ? 1 : -1,
+    );
+    const own = stories.find((s) => s.company.id === input.viewerCompanyId);
+    const others = stories.filter((s) => s.company.id !== input.viewerCompanyId).slice(0, 15);
+    return own ? [own, ...others] : others;
   }
 
   private async loadReceivedPacks(
@@ -443,7 +470,7 @@ export class ExploreService {
       });
   }
 
-  /** Published designs on Explore (posted to market), excluding the viewer. */
+  /** Published designs on Explore (posted to market), including the viewer’s own. */
   async designs(
     viewerCompanyId: string,
     query: ExploreQuery,
@@ -451,7 +478,6 @@ export class ExploreService {
     const baseWhere: Prisma.ProductWhereInput = {
       status: ProductStatus.Published,
       postedToMarketAt: { not: null },
-      companyId: { not: viewerCompanyId },
       company: this.companyFilter(viewerCompanyId, query),
       AND: [audienceVisibility(viewerCompanyId)],
     };
@@ -497,7 +523,7 @@ export class ExploreService {
       this.prisma.product.findMany({
         where: {
           ...baseWhere,
-          companyId: { notIn: [...followedIds, viewerCompanyId] },
+          companyId: { notIn: followedIds },
         },
         include: { company: true },
         orderBy,
@@ -519,14 +545,12 @@ export class ExploreService {
     const windowTake = rankWindowTake(query.limit);
     const collectionWhere: Prisma.CollectionWhereInput = {
       status: CollectionStatus.Published,
-      companyId: { not: viewerCompanyId },
       company: companyFilter,
       AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
     const productWhere: Prisma.ProductWhereInput = {
       status: ProductStatus.Published,
       postedToMarketAt: { not: null },
-      companyId: { not: viewerCompanyId },
       company: companyFilter,
       AND: [audienceVisibility(viewerCompanyId)],
     };
@@ -580,9 +604,7 @@ export class ExploreService {
         this.prisma.collection.findMany({
           where: {
             ...collectionWhere,
-            ...(followedIds.length > 0
-              ? { companyId: { notIn: [...followedIds, viewerCompanyId] } }
-              : {}),
+            ...(followedIds.length > 0 ? { companyId: { notIn: followedIds } } : {}),
           },
           include: collectionCardInclude,
           orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
@@ -599,9 +621,7 @@ export class ExploreService {
         this.prisma.product.findMany({
           where: {
             ...productWhere,
-            ...(followedIds.length > 0
-              ? { companyId: { notIn: [...followedIds, viewerCompanyId] } }
-              : {}),
+            ...(followedIds.length > 0 ? { companyId: { notIn: followedIds } } : {}),
           },
           include: { company: true },
           orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
@@ -641,7 +661,6 @@ export class ExploreService {
     const windowTake = rankWindowTake(query.limit);
     const baseWhere: Prisma.CollectionWhereInput = {
       status: CollectionStatus.Published,
-      companyId: { not: viewerCompanyId },
       company: this.companyFilter(viewerCompanyId, query),
       AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
@@ -683,9 +702,7 @@ export class ExploreService {
       this.prisma.collection.findMany({
         where: {
           ...baseWhere,
-          ...(followedIds.length > 0
-            ? { companyId: { notIn: [...followedIds, viewerCompanyId] } }
-            : {}),
+          ...(followedIds.length > 0 ? { companyId: { notIn: followedIds } } : {}),
         },
         include: collectionCardInclude,
         orderBy,
@@ -1025,12 +1042,21 @@ export class ExploreService {
       });
       const ownerName = new Map(ownerRows.map((row) => [row.id, row.name]));
 
+      const packOwnerName = collection.company.name;
+      const creditMills = collection.showSourceShops === true;
       products = collection.products
         .filter((entry) => entry.product.status === ProductStatus.Published)
         .map((entry) => {
+        const millName = ownerName.get(entry.product.companyId) ?? null;
+        const isForeign = entry.product.companyId !== collection.companyId;
+        // Buyers: mill credit only when the pack opts in; else pack shop name.
+        const companyName =
+          isOwner || creditMills || !isForeign
+            ? millName
+            : packOwnerName;
         const view = {
           ...this.catalog.toProductView(entry.product),
-          companyName: ownerName.get(entry.product.companyId) ?? null,
+          companyName,
         };
         if (isOwner) {
           return view;
@@ -1080,11 +1106,22 @@ export class ExploreService {
     }
 
     const card = this.discovery.toCollectionCard(collection);
+    // Album facts: pack rate first; else min–max priced designs. Owner always
+    // sees the band; on_request hides it from other users only.
+    const albumRate = collectionCardRateFields({
+      rateVisibility: isOwner ? RateVisibility.Visible : collection.rateVisibility,
+      rate: collection.rate,
+      rateMax: collection.rateMax,
+      products: collection.products,
+    });
     const description = collection.description?.trim() || null;
     // Locked pack: name + shop for Ask — no cover/design thumbs (or chat open is pointless).
     if (!showProducts) {
       return {
         ...card,
+        rateMin: albumRate.rateMin,
+        rateMax: albumRate.rateMax,
+        rateUnit: albumRate.rateUnit,
         description,
         coverImage: null,
         previewImages: [],
@@ -1096,6 +1133,9 @@ export class ExploreService {
     }
     return {
       ...card,
+      rateMin: albumRate.rateMin,
+      rateMax: albumRate.rateMax,
+      rateUnit: albumRate.rateUnit,
       description,
       connected,
       products,

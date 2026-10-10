@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BackIcon } from './icons';
+import { cx } from './kit';
 
 /**
  * The header for detail/secondary screens: a back affordance, a title, and an
@@ -15,6 +16,7 @@ export function PageHeader({
   action,
   below,
   onBack,
+  className,
 }: {
   title?: string;
   subtitle?: string;
@@ -27,6 +29,7 @@ export function PageHeader({
   /** Opens under the header actions (e.g. Find field under the search icon). */
   below?: ReactNode;
   onBack?: () => void;
+  className?: string;
 }) {
   const navigate = useNavigate();
   const showTitle = Boolean(title?.trim());
@@ -41,7 +44,12 @@ export function PageHeader({
   ) : null;
 
   return (
-    <header className="sticky top-0 z-30 -mx-4 mb-3 shrink-0 border-b border-line bg-canvas">
+    <header
+      className={cx(
+        'sticky top-0 z-30 -mx-4 shrink-0 border-b border-line bg-canvas',
+        className ?? 'mb-3',
+      )}
+    >
       <div className="flex items-center gap-2 px-4 py-2.5">
         <button
           aria-label="Back"

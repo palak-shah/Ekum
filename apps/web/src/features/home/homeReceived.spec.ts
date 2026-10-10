@@ -6,6 +6,7 @@ function pack(overrides: Partial<CollectionCard> = {}): CollectionCard {
   return {
     id: 'col1',
     name: 'Wedding Edit',
+    description: null,
     categories: [],
     memberFind: [],
     coverImage: null,
@@ -16,6 +17,12 @@ function pack(overrides: Partial<CollectionCard> = {}): CollectionCard {
     updatedAt: '2026-08-22T08:00:00.000Z',
     allowForward: true,
     orderPathPreference: null,
+    rateMin: null,
+    rateMax: null,
+    rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
     company: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', logoUrl: null, verification: 'gst' },
     ...overrides,
   };

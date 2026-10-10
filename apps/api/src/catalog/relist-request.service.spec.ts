@@ -264,7 +264,7 @@ describe('RelistRequestService', () => {
         sourceCollectionId: 'pack-1',
       }),
     ).rejects.toMatchObject({
-      response: { code: 'NOT_FOUND', message: 'Pack not found.' },
+      response: { code: 'NOT_FOUND', message: 'Collection not found.' },
     });
     expect(prisma.relistRequest.create).not.toHaveBeenCalled();
   });

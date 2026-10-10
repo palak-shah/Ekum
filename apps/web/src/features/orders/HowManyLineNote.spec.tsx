@@ -10,20 +10,20 @@ function NoteHarness({ initial = '' }: { initial?: string }) {
 }
 
 describe('HowManyLineNote', () => {
-  it('stays a quiet Add note until they tap — empty box is not the highlight', async () => {
+  it('always shows a one-line note field', async () => {
     const user = userEvent.setup();
     render(<NoteHarness />);
-    expect(screen.queryByTestId('how-many-note')).toBeNull();
-    await user.click(screen.getByTestId('how-many-add-note'));
+    expect(screen.queryByTestId('how-many-add-note')).toBeNull();
     const field = screen.getByTestId('how-many-note');
-    expect(field).toHaveAttribute('placeholder', 'Colour, packing…');
+    expect(field).toHaveAttribute('placeholder', 'Note');
     await user.type(field, 'Navy only');
     expect(field).toHaveValue('Navy only');
   });
 
-  it('keeps a filled note open', () => {
+  it('shows a filled note immediately', () => {
     render(<NoteHarness initial="4 pcs extra" />);
-    expect(screen.getByTestId('how-many-note')).toHaveValue('4 pcs extra');
-    expect(screen.queryByTestId('how-many-add-note')).toBeNull();
+    const field = screen.getByTestId('how-many-note');
+    expect(field).toHaveValue('4 pcs extra');
+    expect(field).toHaveAttribute('placeholder', 'Note');
   });
 });

@@ -609,7 +609,11 @@ export class MessageService {
       const photoUrl =
         parent.type === MessageType.Photo
           ? quotedPhotoUrl(parent, photoIndex)
-          : (quotedDesign?.image ?? null);
+          : (quotedDesign?.image ?? reference?.image ?? null);
+      const catalogIds =
+        parent.type === MessageType.DesignAlbum
+          ? (reference?.productIds ?? designAlbumProductIdsFromMessage(parent.metadata))
+          : null;
       result.set(message.id, {
         id: parent.id,
         type: parent.type,
@@ -618,6 +622,11 @@ export class MessageService {
         photoIndex,
         photoUrl,
         productId,
+        referenceId:
+          parent.type === MessageType.CollectionCard || parent.type === MessageType.ProductCard
+            ? (parent.referenceId ?? reference?.id ?? null)
+            : null,
+        productIds: catalogIds && catalogIds.length >= 2 ? catalogIds : null,
       });
     }
     return result;

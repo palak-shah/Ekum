@@ -64,14 +64,14 @@ describe('selectionListDesignChrome', () => {
     expect(
       selectionListDesignChrome({
         discoveryUnavailable: false,
-        packReason: "Can't put in a pack",
+        packReason: "Can't put in a collection",
       }),
-    ).toEqual({ packLocked: true, reason: "Can't put in a pack" });
+    ).toEqual({ packLocked: true, reason: "Can't put in a collection" });
     expect(
       selectionListDesignChrome({
         discoveryUnavailable: true,
         availabilityReason: 'No longer available',
-        packReason: "Can't put in a pack",
+        packReason: "Can't put in a collection",
       }),
     ).toEqual({ packLocked: false, reason: 'No longer available' });
   });

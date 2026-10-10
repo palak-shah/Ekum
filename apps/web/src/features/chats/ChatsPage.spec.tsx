@@ -209,7 +209,7 @@ describe('ChatsPage tabs', () => {
     });
     renderPage();
     await user.click(await screen.findByRole('button', { name: /Requests/ }));
-    expect(await screen.findByText('Wants to see your new packs')).toBeInTheDocument();
+    expect(await screen.findByText('Wants to see your new collections')).toBeInTheDocument();
     expect(
       screen.getByRole('checkbox', { name: 'They can see my collections' }),
     ).toHaveAttribute('aria-checked', 'true');
@@ -326,7 +326,7 @@ describe('ChatsPage inbox rows', () => {
     const row = await screen.findByTestId('chats-row-t1');
     fireEvent.contextMenu(row);
     expect(screen.getByTestId('chats-row-menu')).toHaveAttribute('role', 'menu');
-    expect(screen.queryByRole('heading', { name: 'Surat Silk' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Surat Silk' })).toBeInTheDocument();
     expect(screen.getByTestId('chats-row-pin')).toHaveTextContent('Pin chat');
     expect(screen.getByTestId('chats-row-mute')).toHaveTextContent('Mute');
     expect(screen.queryByTestId('chats-row-unread')).toBeNull();
@@ -426,11 +426,10 @@ describe('ChatsPage inbox rows', () => {
     fireEvent.contextMenu(await screen.findByTestId('chats-row-t1'));
     await user.click(screen.getByTestId('chats-row-mute'));
     expect(screen.getByTestId('chats-row-menu')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-mute-flyout')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Mute for' })).toBeInTheDocument();
     expect(screen.getByTestId('chat-mute-8h')).toHaveTextContent('8 hours');
     expect(screen.getByTestId('chat-mute-1w')).toHaveTextContent('1 week');
     expect(screen.getByTestId('chat-mute-always')).toHaveTextContent('Always');
-    expect(screen.queryByRole('heading', { name: 'Mute' })).not.toBeInTheDocument();
     await user.click(screen.getByTestId('chat-mute-8h'));
     expect(api.patch).toHaveBeenCalledWith('/threads/t1/alert', {
       alertLevel: 'muted',

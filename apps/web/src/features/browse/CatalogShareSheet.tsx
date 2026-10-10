@@ -4,11 +4,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   BroadcastListView,
   ConnectionView,
-  MessageView,
   ShareLinkView,
   StartDirectThreadResult,
 } from '@ekum/domain-types';
-import { MessageType } from '@ekum/domain-types';
 import {
   catalogShareCanLink,
   catalogShareCopiedToast,
@@ -21,6 +19,7 @@ import {
   dedupeCompanyIds,
   shouldOpenChatAfterCatalogShare,
 } from '@/features/browse/catalogShareTargets';
+import { postCatalogCardsToThread } from '@/features/browse/postCatalogCardsToThread';
 import { api, ApiError } from '@/lib/apiClient';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
@@ -116,32 +115,6 @@ export function CatalogShareSheet({
   const connectionName = (companyId: string) =>
     connections.data?.find((row) => row.company.id === companyId)?.company.name ?? null;
 
-  const postCardsToThread = async (threadId: string) => {
-    for (const item of albumItems) {
-      await api.post<MessageView>(`/threads/${threadId}/messages`, {
-        type: MessageType.CollectionCard,
-        referenceId: item.collectionId,
-        body: item.name,
-      });
-    }
-    if (designItems.length >= 2) {
-      const productIds = designItems.map((item) => item.productId);
-      await api.post<MessageView>(`/threads/${threadId}/messages`, {
-        type: MessageType.DesignAlbum,
-        metadata: { productIds },
-        body: `${productIds.length} designs`,
-      });
-    } else {
-      for (const item of designItems) {
-        await api.post<MessageView>(`/threads/${threadId}/messages`, {
-          type: MessageType.ProductCard,
-          referenceId: item.productId,
-          body: item.name,
-        });
-      }
-    }
-  };
-
   const share = useMutation({
     mutationFn: async (companyIds: string[]) => {
       const targets = dedupeCompanyIds(companyIds);
@@ -151,7 +124,10 @@ export function CatalogShareSheet({
       const threadIds: string[] = [];
       for (const companyId of targets) {
         const thread = await api.post<StartDirectThreadResult>('/threads/direct', { companyId });
-        await postCardsToThread(thread.id);
+        await postCatalogCardsToThread(thread.id, {
+          collections: albumItems,
+          products: designItems,
+        });
         threadIds.push(thread.id);
       }
       return {

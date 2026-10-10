@@ -33,7 +33,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     });
     await expect(page.getByText('Cover')).toHaveCount(0);
 
-    await page.getByLabel('Name').fill(name);
+    await page.getByLabel('Collection name').fill(name);
     await expect(page.getByTestId('collection-who')).toBeVisible();
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
@@ -50,14 +50,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await page.goto('/catalog/collections/new');
 
     await page.getByTestId('collection-add-designs').click();
-    const fromCamera = page.getByTestId('continuous-camera-designs');
-    const fromMenu = page.getByTestId('collection-source-designs');
-    await expect(fromCamera.or(fromMenu)).toBeVisible({ timeout: 8_000 });
-    if (await fromCamera.isVisible()) {
-      await fromCamera.click();
-    } else {
-      await fromMenu.click();
-    }
+    await expect(page.getByPlaceholder('Search by name')).toBeVisible({ timeout: 8_000 });
     await page.getByPlaceholder('Search by name').fill('Banarasi');
     await page
       .getByRole('dialog')
@@ -67,7 +60,7 @@ test.describe('collection creation @functional @media @creation @collections', (
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
-    await page.getByLabel('Name').fill(name);
+    await page.getByLabel('Collection name').fill(name);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 45_000 });
 
@@ -88,14 +81,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await expect(page.getByText('Cover')).toHaveCount(0);
 
     await page.getByTestId('collection-add-designs').click();
-    const fromCamera = page.getByTestId('continuous-camera-designs');
-    const fromMenu = page.getByTestId('collection-source-designs');
-    await expect(fromCamera.or(fromMenu)).toBeVisible({ timeout: 8_000 });
-    if (await fromCamera.isVisible()) {
-      await fromCamera.click();
-    } else {
-      await fromMenu.click();
-    }
+    await expect(page.getByPlaceholder('Search by name')).toBeVisible({ timeout: 8_000 });
     await page.getByPlaceholder('Search by name').fill('Banarasi');
     await page
       .getByRole('dialog')
@@ -110,7 +96,7 @@ test.describe('collection creation @functional @media @creation @collections', (
       timeout: 30_000,
     });
 
-    await page.getByLabel('Name').fill(name);
+    await page.getByLabel('Collection name').fill(name);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
 
@@ -125,14 +111,7 @@ test.describe('collection creation @functional @media @creation @collections', (
     await page.goto('/catalog/collections/new');
 
     await page.getByTestId('collection-add-designs').click();
-    const fromCamera = page.getByTestId('continuous-camera-designs');
-    const fromMenu = page.getByTestId('collection-source-designs');
-    await expect(fromCamera.or(fromMenu)).toBeVisible({ timeout: 8_000 });
-    if (await fromCamera.isVisible()) {
-      await fromCamera.click();
-    } else {
-      await fromMenu.click();
-    }
+    await expect(page.getByPlaceholder('Search by name')).toBeVisible({ timeout: 8_000 });
     await page.getByPlaceholder('Search by name').fill('Banarasi');
     await page
       .getByRole('dialog')
@@ -142,7 +121,7 @@ test.describe('collection creation @functional @media @creation @collections', (
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
-    await page.getByLabel('Name').fill(name);
+    await page.getByLabel('Collection name').fill(name);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText('Published').first()).toBeVisible({ timeout: 45_000 });

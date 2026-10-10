@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   agreementStepLabel,
@@ -9,13 +9,14 @@ import {
   type DecideOrderLinesDto,
   type DispatchDto,
   type EditShipmentDto,
+  type ComplaintView,
+  type CursorPage,
   type OrderItemView,
   type OrderView,
   type QuoteOrderDto,
   type SendUpOrderDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { auditLine } from '@/features/catalog/productStatusSummary';
 import {
   galleryIndexForItem,
   orderItemGalleryCaptions,
@@ -26,15 +27,13 @@ import {
 import { useCompanyId } from '@/lib/auth';
 import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { navigateBackOr } from '@/lib/navigateBackOr';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import {
-  ShipProgressHint,
-  SettleQtyColumns,
   SettlePendingSummary,
   fulfillmentRowClass,
   orderLineOverShipped,
-  orderLineShowsFulfillment,
   orderLineShowsPending,
 } from '@/features/orders/shipProgressLabel';
 import {
@@ -43,19 +42,23 @@ import {
   dispatchPayloadLines,
   dispatchThisLrLabel,
   dispatchThisLrTally,
+  emptyDispatchLeg,
   lineDispatchQty,
   lineDispatchOverBy,
+  resizeDispatchLegs,
+  seedDispatchLegsFromShipment,
+  shipmentLegDisplayLines,
+  shipmentLegImageUrls,
   shippableDispatchItems,
   cantSupplyDispatchItems,
   dispatchLineKindLine,
-  dispatchLineCountLine,
   previousDispatchesCue,
+  type DispatchLegDraft,
 } from '@/features/orders/dispatchSheet';
 import {
   latestShipmentForLine,
   lineShippedOnShipment,
   sellerCanFulfillEdit,
-  sellerCanNewDispatch,
 } from '@/features/orders/lineFulfillCard';
 import { OrderLineFulfillExpand } from '@/features/orders/OrderLineFulfillExpand';
 import {
@@ -66,6 +69,7 @@ import {
   decideLinesPayload,
   decideLinesTally,
   defaultLineActions,
+  qtysWithSharedValue,
 } from '@/features/orders/decideLinesSheet';
 import { partyCompanyHref } from '@/features/orders/partyCompanyHref';
 import {
@@ -73,17 +77,49 @@ import {
   packingSlipPdfBytes,
   openPackingSlipPdf,
   shareOrDownloadPdf,
+  type PackingSlipOptions,
 } from '@/features/orders/packingSlip';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { CheckIcon, ChevronRightIcon, CloseIcon, MoreHorizontalIcon, PencilIcon } from '@/ui/icons';
+import { tradeListStatusLabel } from '@/features/orders/tradeListProtocol';
+import {
+  ChatIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  CloseIcon,
+  DocumentIcon,
+  MegaphoneIcon,
+  MoreHorizontalIcon,
+  PdfIcon,
+  PencilIcon,
+} from '@/ui/icons';
+import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { useToast } from '@/ui/Toast';
 import {
   complaintAgainstTargets,
   complaintRoleCue,
   type ComplaintAgainstTarget,
 } from '@/features/orders/complaintAgainstTargets';
-import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
+import { LegPhotoAttach, LegPhotoThumbs } from '@/features/orders/LegPhotoAttach';
+import { NoteAttachField } from '@/features/voice/NoteAttachField';
+import { type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
+import { orderPartyLines } from '@/features/orders/orderPartyLines';
+import {
+  OrderLineFacts,
+  formatOrderLinePriceAmount,
+  orderLineBalance,
+  orderLineBalanceRowClass,
+  orderLineFactsWithThisLr,
+} from '@/features/orders/OrderLineFacts';
+import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { orderLineIdentitySecondary } from '@/features/orders/orderLineIdentity';
+import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
+import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
+import { TransporterField } from '@/features/orders/TransporterField';
+import { rememberTransporter } from '@/features/orders/transporterMemory';
+import { dispatchTransporterPrefill } from '@/features/orders/dispatchTransporterPrefill';
 import {
   itemsForMill,
   millCue,
@@ -94,24 +130,32 @@ import {
   millRevealLabel,
   actorSellsThisOrder,
   orderActionDock,
-  orderDetailNextCue,
   orderTicketMillLabel,
   orderTicketMillNames,
   quotePrefillFromMills,
+  requestedDockPrimary,
   showMillSendAll,
   showOrderParentItemsList,
   showSendQuoteOnDeskFace,
 } from '@/features/orders/iHandleDesk';
 import { setOrderActionDockNavVisible } from '@/features/orders/orderActionDockNav';
 import { TicketPathPick } from '@/features/orders/ticketPathPick';
-import { parseQuoteRateDraft, quoteRateNumber, ratesWithSharedValue, SameRateForAll, sanitizeQuoteRateInput } from '@/features/orders/quoteSameRate';
+import {
+  parseQuoteRateDraft,
+  quoteRateNumber,
+  ratesWithSharedValue,
+  SameQtyRateForAll,
+  SameRateForAll,
+  parseSharedQtyDraft,
+  sanitizeQuoteRateInput,
+} from '@/features/orders/quoteSameRate';
 import {
   orderLineCantSupplyCue,
   orderLineLeftoverCue,
-  quoteCantSupplyControlClass,
   quoteCantSupplyMutedClass,
   quoteCantSupplyRowClass,
   quoteSheetItems,
+  quoteSheetReferenceCue,
   quoteUnavailableOnOpen,
 } from '@/features/orders/quoteSheetItems';
 import {
@@ -178,15 +222,39 @@ function actionErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
+function TimelineExpandChevron({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="order-timeline-more"
+      aria-expanded={expanded}
+      aria-label={expanded ? 'Hide timeline details' : 'Show timeline details'}
+      className="shrink-0 rounded-lg p-1 text-accent hover:bg-foam"
+      onClick={onToggle}
+    >
+      {expanded ? <ChevronUpIcon width={20} height={20} /> : <ChevronDownIcon width={20} height={20} />}
+    </button>
+  );
+}
+
 function OrderTimeline({
   order,
   hidePriorQuotes = false,
+  onOpenNotePhotos,
 }: {
   order: OrderView;
   /** Buyer: one live quote + Edited. Seller keeps full quote history. */
   hidePriorQuotes?: boolean;
+  onOpenNotePhotos?: (urls: string[], index: number, caption: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const toggle = () => setExpanded((v) => !v);
   const rawTrail = order.trail ?? [];
   if (rawTrail.length > 0) {
     const { events: trailAsc, quoteEditCount } = hidePriorQuotes
@@ -194,54 +262,90 @@ function OrderTimeline({
       : { events: rawTrail, quoteEditCount: 0 };
     const trail = newestFirstTrail(trailAsc);
     const { visible, hiddenCount } = timelineVisibleSlice(trail, expanded);
+    const newest = trail[0];
+    const newestHasExtras = Boolean(
+      newest &&
+        (newest.who ||
+          newest.detail ||
+          newest.note ||
+          newest.noteVoiceUrl ||
+          (newest.noteImageUrls?.length ?? 0) > 0 ||
+          newest.at ||
+          (hidePriorQuotes && newest.type === 'quoted' && quoteEditCount > 0)),
+    );
+    const canExpand = hiddenCount > 0 || newestHasExtras || expanded;
     return (
       <Card className="flex flex-col gap-0" data-testid="order-timeline">
-        <p className="mb-3 text-sm font-semibold text-ink">Timeline</p>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-muted">Timeline</p>
+          {canExpand ? (
+            <TimelineExpandChevron expanded={expanded} onToggle={toggle} />
+          ) : null}
+        </div>
         <ol className="flex flex-col">
           {visible.map((step, index) => (
             <li key={step.id} className="flex gap-3">
               <div className="flex w-4 flex-col items-center">
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
+                <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
                 {index < visible.length - 1 ? (
                   <span className="my-1 min-h-4 w-px flex-1 bg-accent/40" />
                 ) : null}
               </div>
               <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
-                <p className="text-sm font-medium text-ink">{step.summary ?? step.type}</p>
-                <p className="text-xs text-muted">{formatDate(step.at)}</p>
-                {hidePriorQuotes && step.type === 'quoted' && quoteEditCount > 0 ? (
-                  <p className="text-xs text-muted">
-                    Edited
-                    {quoteEditCount > 1 ? ` · ${quoteEditCount} times` : ''}
-                  </p>
-                ) : null}
-                {step.who ? <p className="text-[11px] text-muted">{step.who}</p> : null}
-                {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
-                {step.note ? (
-                  <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted">{step.note}</p>
-                ) : null}
-                {step.noteVoiceUrl ? (
-                  <div className="mt-1">
-                    <VoicePlayer
-                      src={step.noteVoiceUrl}
-                      durationMs={step.noteVoiceDurationMs}
-                    />
-                  </div>
+                <p className="text-sm font-semibold text-ink">{step.summary ?? step.type}</p>
+                {expanded ? (
+                  <>
+                    <p className="text-xs text-muted">{formatDate(step.at)}</p>
+                    {hidePriorQuotes && step.type === 'quoted' && quoteEditCount > 0 ? (
+                      <p className="text-xs text-muted">
+                        Edited
+                        {quoteEditCount > 1 ? ` · ${quoteEditCount} times` : ''}
+                      </p>
+                    ) : null}
+                    {step.who ? <p className="text-[11px] text-muted">{step.who}</p> : null}
+                    {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
+                    {step.note ? (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted">{step.note}</p>
+                    ) : null}
+                    {step.noteVoiceUrl ? (
+                      <div className="mt-1">
+                        <VoicePlayer
+                          src={step.noteVoiceUrl}
+                          durationMs={step.noteVoiceDurationMs}
+                        />
+                      </div>
+                    ) : null}
+                    {(step.noteImageUrls?.length ?? 0) > 0 ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {step.noteImageUrls!.map((url, photoIndex) => (
+                          <button
+                            key={url}
+                            type="button"
+                            aria-label="View note photo"
+                            className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-foam"
+                            onClick={() =>
+                              onOpenNotePhotos?.(
+                                step.noteImageUrls!,
+                                photoIndex,
+                                step.summary ?? 'Note',
+                              )
+                            }
+                          >
+                            <img
+                              src={toAbsoluteMediaUrl(url)}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </li>
           ))}
         </ol>
-        {hiddenCount > 0 || expanded ? (
-          <button
-            type="button"
-            data-testid="order-timeline-more"
-            className="mt-2 self-start text-[15px] font-semibold text-accent"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? 'Less' : 'More'}
-          </button>
-        ) : null}
       </Card>
     );
   }
@@ -257,17 +361,27 @@ function OrderTimeline({
     order.amendCount > 0 ||
     (order.status === 'requested' &&
       new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime() > 2000);
+  const newest = steps[0];
+  const newestHasExtras = Boolean(
+    newest && (newest.at || newest.staffLine || newest.detail || (newest.key === 'requested' && amended)),
+  );
+  const canExpand = hiddenCount > 0 || newestHasExtras || expanded;
 
   return (
     <Card className="flex flex-col gap-0" data-testid="order-timeline">
-      <p className="mb-3 text-sm font-semibold text-ink">Timeline</p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted">Timeline</p>
+        {canExpand ? (
+          <TimelineExpandChevron expanded={expanded} onToggle={toggle} />
+        ) : null}
+      </div>
       <ol className="flex flex-col">
         {visible.map((step, index) => (
           <li key={step.key} className="flex gap-3">
             <div className="flex w-4 flex-col items-center">
               <span
                 className={cx(
-                  'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
+                  'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
                   step.done || step.current ? 'bg-accent' : 'bg-line',
                 )}
               />
@@ -278,82 +392,75 @@ function OrderTimeline({
             <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
               <p
                 className={cx(
-                  'text-sm font-medium',
+                  'text-sm font-semibold',
                   step.done || step.current ? 'text-ink' : 'text-muted',
                 )}
               >
                 {step.label}
               </p>
-              <p className="text-xs text-muted">{step.at ? formatDate(step.at) : '—'}</p>
-              {step.staffLine ? (
-                <p className="text-[11px] text-muted">{step.staffLine}</p>
-              ) : null}
-              {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
-              {step.key === 'requested' && amended ? (
-                <p className="text-xs text-muted">
-                  Updated
-                  {order.amendCount > 1 ? ` · ${order.amendCount} times` : ''} ·{' '}
-                  {formatDate(order.updatedAt)}
-                </p>
+              {expanded ? (
+                <>
+                  <p className="text-xs text-muted">{step.at ? formatDate(step.at) : '—'}</p>
+                  {step.staffLine ? (
+                    <p className="text-[11px] text-muted">{step.staffLine}</p>
+                  ) : null}
+                  {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
+                  {step.key === 'requested' && amended ? (
+                    <p className="text-xs text-muted">
+                      Updated
+                      {order.amendCount > 1 ? ` · ${order.amendCount} times` : ''} ·{' '}
+                      {formatDate(order.updatedAt)}
+                    </p>
+                  ) : null}
+                </>
               ) : null}
             </div>
           </li>
         ))}
       </ol>
-      {hiddenCount > 0 || expanded ? (
-        <button
-          type="button"
-          data-testid="order-timeline-more"
-          className="mt-2 self-start text-[15px] font-semibold text-accent"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? 'Less' : 'More'}
-        </button>
-      ) : null}
     </Card>
   );
 }
 
-function PartyShopName({
-  name,
-  you,
-  href,
-}: {
-  name: string;
-  you: boolean;
-  href: string | null;
-}) {
-  return (
-    <>
-      {href ? (
-        <Link to={href} data-testid="order-party-profile" className="font-medium text-accent">
-          {name}
-        </Link>
-      ) : (
-        <span className="font-medium text-ink">{name}</span>
-      )}
-      {you ? ' (you)' : null}
-    </>
+function PartyShopName({ name, href }: { name: string; href: string | null }) {
+  return href ? (
+    <Link to={href} data-testid="order-party-profile" className="font-medium text-accent">
+      {name}
+    </Link>
+  ) : (
+    <span className="font-medium text-ink">{name}</span>
   );
+}
+
+function noteAttachPayload(note: string, voice: NoteVoiceValue, images: string[]) {
+  return {
+    note: note.trim() || undefined,
+    noteVoiceMediaId: voice?.mediaId,
+    noteVoiceDurationMs: voice?.durationMs,
+    noteImageUrls: images.length > 0 ? images : undefined,
+  };
 }
 
 function OrderLinePhoto({
   item,
   items,
   onOpen,
-  size = 'md',
+  size = 'lg',
 }: {
   item: OrderItemView;
   items: OrderItemView[];
   onOpen: (index: number) => void;
-  size?: 'md' | 'sm';
+  /** lg = default beside stack; md/sm for tight chrome only. */
+  size?: 'lg' | 'md' | 'sm';
 }) {
   const raw = urlsForOrderItem(item)[0];
   const url = raw ? toAbsoluteMediaUrl(raw) : '';
   const box =
     size === 'sm'
-      ? 'h-12 w-12 min-h-12 min-w-12 shrink-0 rounded-lg'
-      : 'h-14 w-14 min-h-14 min-w-14 shrink-0 rounded-xl';
+      ? 'h-[3.15rem] w-[3.15rem] min-h-[3.15rem] min-w-[3.15rem] shrink-0 rounded-lg'
+      : size === 'md'
+        ? 'h-[3.675rem] w-[3.675rem] min-h-[3.675rem] min-w-[3.675rem] shrink-0 rounded-xl'
+        : 'h-16 w-16 min-h-16 min-w-16 shrink-0 rounded-xl';
   if (!url) {
     return (
       <div
@@ -391,49 +498,60 @@ function OrderLineCantSupplyFace({
   items,
   cantSupply,
   onOpen,
-  size = 'md',
+  size = 'lg',
   children,
 }: {
   item: OrderItemView;
   items: OrderItemView[];
   cantSupply: boolean;
   onOpen: (index: number) => void;
-  size?: 'md' | 'sm';
+  size?: 'lg' | 'md' | 'sm';
   children?: ReactNode;
 }) {
   const leftover = orderLineLeftoverCue(item);
   const faded = cantSupply || Boolean(leftover);
   const cue = orderLineCantSupplyCue(cantSupply);
+  const identity = orderLineIdentitySecondary(item);
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
-      <div className={cx('shrink-0', quoteCantSupplyMutedClass(faded))}>
-        <OrderLinePhoto item={item} items={items} onOpen={onOpen} size={size} />
-      </div>
-      <div className="min-w-0 flex-1">
+    <OrderLineStack
+      muted={faded}
+      photo={<OrderLinePhoto item={item} items={items} onOpen={onOpen} size={size} />}
+      title={
         <p
           className={cx(
-            'line-clamp-2 break-words text-sm font-medium',
+            'line-clamp-2 break-words text-sm font-semibold',
             faded ? 'text-muted' : 'text-ink',
-            quoteCantSupplyMutedClass(faded),
           )}
         >
           {item.name}
         </p>
-        {children ? (
-          <div className={quoteCantSupplyMutedClass(faded)}>{children}</div>
-        ) : null}
-        {leftover ? (
-          <p className="text-xs font-semibold text-ink" data-testid="order-line-no-longer-available">
-            {leftover}
+      }
+      secondary={
+        identity ? (
+          <p className="truncate text-[12px] font-medium text-slate" data-testid="order-line-identity">
+            {identity}
           </p>
-        ) : null}
-        {cue ? (
-          <p className="text-xs font-semibold text-ink" data-testid="order-line-cant-supply-cue">
-            {cue}
-          </p>
-        ) : null}
-      </div>
-    </div>
+        ) : null
+      }
+      cues={
+        <>
+          {leftover ? (
+            <p
+              className="text-xs font-semibold text-ink"
+              data-testid="order-line-no-longer-available"
+            >
+              {leftover}
+            </p>
+          ) : null}
+          {cue ? (
+            <p className="text-xs font-semibold text-ink" data-testid="order-line-cant-supply-cue">
+              {cue}
+            </p>
+          ) : null}
+        </>
+      }
+      facts={children}
+    />
   );
 }
 
@@ -441,7 +559,9 @@ export function OrderDetailPage() {
   const { id = '' } = useParams();
   const companyId = useCompanyId();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
+  const onOrderBack = () => navigateBackOr(navigate, location.key, '/orders');
   const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
@@ -453,11 +573,12 @@ export function OrderDetailPage() {
   const [changeRate, setChangeRate] = useState<Record<string, string>>({});
   const [amendQty, setAmendQty] = useState<Record<string, string>>({});
   const [amendRemoved, setAmendRemoved] = useState<Set<string>>(() => new Set());
+  const [amendTransporter, setAmendTransporter] = useState('');
   const [dispatch, setDispatch] = useState<{
     transporter?: string;
-    lrNumber?: string;
     parcelCount?: number;
-  }>({});
+    legs: DispatchLegDraft[];
+  }>({ legs: [emptyDispatchLeg()] });
   const [shipQty, setShipQty] = useState<Record<string, string>>({});
   const [shipOn, setShipOn] = useState<Record<string, boolean>>({});
   /** Inline expand of an earlier LR — separate from new-dispatch draft. */
@@ -467,44 +588,78 @@ export function OrderDetailPage() {
   const [editShipOn, setEditShipOn] = useState<Record<string, boolean>>({});
   const [editDispatch, setEditDispatch] = useState<{
     transporter?: string;
-    lrNumber?: string;
     parcelCount?: number;
-  }>({});
+    legs: DispatchLegDraft[];
+  }>({ legs: [emptyDispatchLeg()] });
   const [expandedLineId, setExpandedLineId] = useState<string | null>(null);
   const [lineFulfillError, setLineFulfillError] = useState<string | null>(null);
+  const [packingSlipShipmentId, setPackingSlipShipmentId] = useState<string | null>(null);
+  const [packingSlipOpts, setPackingSlipOpts] = useState<Required<PackingSlipOptions>>({
+    showBuyer: true,
+    showPhotos: true,
+  });
+  const [packingSlipBusy, setPackingSlipBusy] = useState(false);
   const [dispatchNote, setDispatchNote] = useState('');
   const [dispatchNoteVoice, setDispatchNoteVoice] = useState<NoteVoiceValue>(null);
+  const [dispatchNoteImages, setDispatchNoteImages] = useState<string[]>([]);
   const [amendNote, setAmendNote] = useState('');
   const [amendNoteVoice, setAmendNoteVoice] = useState<NoteVoiceValue>(null);
+  const [amendNoteImages, setAmendNoteImages] = useState<string[]>([]);
+  const [amendLineNotes, setAmendLineNotes] = useState<Record<string, string>>({});
   const [linesNote, setLinesNote] = useState('');
   const [linesNoteVoice, setLinesNoteVoice] = useState<NoteVoiceValue>(null);
+  const [linesNoteImages, setLinesNoteImages] = useState<string[]>([]);
   const [actionNoteOpen, setActionNoteOpen] = useState<'cancel' | 'decline' | null>(null);
   const [millDeclineDesk, setMillDeclineDesk] = useState<
     { all: true } | { all?: false; upstreamOrderId: string; sellerName: string } | null
   >(null);
   const [actionNote, setActionNote] = useState('');
   const [actionNoteVoice, setActionNoteVoice] = useState<NoteVoiceValue>(null);
+  const [actionNoteImages, setActionNoteImages] = useState<string[]>([]);
   const [quoteNote, setQuoteNote] = useState('');
   const [quoteNoteVoice, setQuoteNoteVoice] = useState<NoteVoiceValue>(null);
+  const [quoteNoteImages, setQuoteNoteImages] = useState<string[]>([]);
   const [quoteVoiceBusy, setQuoteVoiceBusy] = useState(false);
   const [settleNote, setSettleNote] = useState('');
   const [settleNoteVoice, setSettleNoteVoice] = useState<NoteVoiceValue>(null);
+  const [settleNoteImages, setSettleNoteImages] = useState<string[]>([]);
+  const [manualRefOpen, setManualRefOpen] = useState(false);
+  const [manualOrderNo, setManualOrderNo] = useState('');
+  const [manualNote, setManualNote] = useState('');
+  const [manualImages, setManualImages] = useState<string[]>([]);
+  const [personalNoteOpen, setPersonalNoteOpen] = useState(false);
+  const [personalNote, setPersonalNote] = useState('');
+  const [personalNoteVoice, setPersonalNoteVoice] = useState<NoteVoiceValue>(null);
+  const [personalNoteImages, setPersonalNoteImages] = useState<string[]>([]);
   const [rates, setRates] = useState<Record<string, string>>({});
   const [offerQty, setOfferQty] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState<Record<string, boolean>>({});
+  const [sharedQuoteQty, setSharedQuoteQty] = useState<number | null>(null);
   const [sharedQuoteRate, setSharedQuoteRate] = useState('');
   const [quoteSameOpen, setQuoteSameOpen] = useState(false);
+  const [quoteSameQtyDraft, setQuoteSameQtyDraft] = useState('');
   const [quoteSameDraft, setQuoteSameDraft] = useState('');
   const [sharedMillRate, setSharedMillRate] = useState('');
   const [millSameOpen, setMillSameOpen] = useState(false);
   const [millSameDraft, setMillSameDraft] = useState('');
   const [quoteRateDefaults, setQuoteRateDefaults] = useState<Record<string, string>>({});
+  const [quoteQtyDefaults, setQuoteQtyDefaults] = useState<Record<string, string>>({});
   const [millRateDefaults, setMillRateDefaults] = useState<Record<string, string>>({});
   const [lineActions, setLineActions] = useState<Record<string, 'confirm' | 'decline'>>({});
+  const [lineConfirmQty, setLineConfirmQty] = useState<Record<string, string>>({});
+  const [lineConfirmRates, setLineConfirmRates] = useState<Record<string, string>>({});
+  const [linesSameOpen, setLinesSameOpen] = useState(false);
+  const [linesSameQtyDraft, setLinesSameQtyDraft] = useState('');
+  const [linesSameRateDraft, setLinesSameRateDraft] = useState('');
+  const [sharedConfirmQty, setSharedConfirmQty] = useState<number | null>(null);
+  const [sharedConfirmRate, setSharedConfirmRate] = useState('');
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
   const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
+  /** When set, PhotoViewer shows these URLs instead of order-line gallery. */
+  const [noteViewerUrls, setNoteViewerUrls] = useState<string[] | null>(null);
+  const [noteViewerCaption, setNoteViewerCaption] = useState<string | null>(null);
   const [orderMenuOpen, setOrderMenuOpen] = useState(false);
   const [complaintAgainstOpen, setComplaintAgainstOpen] = useState(false);
   const [complaintTargets, setComplaintTargets] = useState<ComplaintAgainstTarget[]>([]);
@@ -513,6 +668,20 @@ export function OrderDetailPage() {
     queryKey: ['order', id],
     queryFn: () => api.get<OrderView>(`/orders/${id}`),
   });
+
+  const complaints = useQuery({
+    queryKey: ['complaints'],
+    queryFn: () => api.get<CursorPage<ComplaintView>>('/complaints', { limit: 50 }),
+  });
+
+  const openOrderComplaints = useMemo(() => {
+    if (!id) return [];
+    return (complaints.data?.results ?? []).filter(
+      (row) =>
+        row.orderId === id &&
+        (row.status === 'open' || row.status === 'responded'),
+    );
+  }, [complaints.data?.results, id]);
 
   useEffect(() => {
     const desk = order.data?.deskOrderId;
@@ -523,12 +692,23 @@ export function OrderDetailPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['order', id] });
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    void queryClient.invalidateQueries({ queryKey: ['complaints'] });
     void queryClient.invalidateQueries({ queryKey: ['threads'] });
     const threadId = order.data?.threadId;
     if (threadId) {
       void queryClient.invalidateQueries({ queryKey: ['thread', threadId, 'messages'] });
     }
   };
+
+  const resolveComplaint = useMutation({
+    mutationFn: (complaintId: string) => api.post(`/complaints/${complaintId}/resolve`, {}),
+    onSuccess: () => {
+      refresh();
+      showToast('Complaint resolved.');
+    },
+    onError: (err) =>
+      showToast(err instanceof ApiError ? err.message : 'Could not resolve complaint.', 'danger'),
+  });
 
   const act = useMutation({
     mutationFn: (action: string) => api.post<OrderView>(`/orders/${id}/${action}`, {}),
@@ -540,16 +720,16 @@ export function OrderDetailPage() {
     mutationFn: () => {
       const action = actionNoteOpen;
       if (!action) throw new Error('No action');
-      return api.post<OrderView>(`/orders/${id}/${action}`, {
-        note: actionNote.trim() || undefined,
-        noteVoiceMediaId: actionNoteVoice?.mediaId,
-        noteVoiceDurationMs: actionNoteVoice?.durationMs,
-      });
+      return api.post<OrderView>(
+        `/orders/${id}/${action}`,
+        noteAttachPayload(actionNote, actionNoteVoice, actionNoteImages),
+      );
     },
     onSuccess: () => {
       setActionNoteOpen(null);
       setActionNote('');
       setActionNoteVoice(null);
+      setActionNoteImages([]);
       refresh();
     },
     onError: (err) => showToast(actionErrorMessage(err, 'Action failed.'), 'danger'),
@@ -639,11 +819,17 @@ export function OrderDetailPage() {
   const openAmendSheet = () => {
     const items = order.data?.items ?? [];
     const qty: Record<string, string> = {};
+    const notes: Record<string, string> = {};
     for (const item of items) {
-      if (item.productId) qty[item.productId] = String(item.quantity);
+      if (item.productId) {
+        qty[item.productId] = String(item.quantity);
+        notes[item.productId] = item.note ?? '';
+      }
     }
     setAmendQty(qty);
+    setAmendLineNotes(notes);
     setAmendRemoved(new Set());
+    setAmendTransporter(order.data?.transporter?.trim() ?? '');
     setSheetError(null);
     setAmendOpen(true);
   };
@@ -652,11 +838,16 @@ export function OrderDetailPage() {
     mutationFn: () => {
       const items = (order.data?.items ?? [])
         .filter((item) => item.productId && !amendRemoved.has(item.productId))
-        .map((item) => ({
-          productId: item.productId!,
-          quantity: Number(amendQty[item.productId!] || item.quantity),
-          images: [] as string[],
-        }))
+        .map((item) => {
+          const pid = item.productId!;
+          const lineNote = (amendLineNotes[pid] ?? item.note ?? '').trim();
+          return {
+            productId: pid,
+            quantity: Number(amendQty[pid] || item.quantity),
+            images: [] as string[],
+            ...(lineNote ? { note: lineNote } : {}),
+          };
+        })
         .filter((line) => line.quantity > 0);
       if (items.length < 1) {
         throw new ApiError({
@@ -665,17 +856,22 @@ export function OrderDetailPage() {
           message: 'Keep at least one design.',
         });
       }
+      const trimmedTransporter = amendTransporter.trim();
+      if (trimmedTransporter && order.data?.sellerCompanyId) {
+        rememberTransporter(trimmedTransporter, order.data.sellerCompanyId);
+      }
       return api.post<OrderView>(`/orders/${id}/amend`, {
         items,
-        note: amendNote.trim() || undefined,
-        noteVoiceMediaId: amendNoteVoice?.mediaId,
-        noteVoiceDurationMs: amendNoteVoice?.durationMs,
+        transporter: trimmedTransporter || null,
+        ...noteAttachPayload(amendNote, amendNoteVoice, amendNoteImages),
       });
     },
     onSuccess: () => {
       setAmendOpen(false);
       setAmendNote('');
       setAmendNoteVoice(null);
+      setAmendNoteImages([]);
+      setAmendTransporter('');
       setSheetError(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       refresh();
@@ -703,7 +899,12 @@ export function OrderDetailPage() {
 
   const dispatchOrder = useMutation({
     mutationFn: () => {
-      const lrNumber = (dispatch.lrNumber ?? '').trim() || undefined;
+      const legs = dispatch.legs.map((leg) => ({
+        lrNumber: leg.lrNumber.trim() || undefined,
+        billNumber: leg.billNumber.trim() || undefined,
+        imageUrls: (leg.imageUrls?.length ?? 0) > 0 ? leg.imageUrls : undefined,
+      }));
+      const lrNumber = legs.find((leg) => leg.lrNumber)?.lrNumber;
       const items = dispatchPayloadLines(shippableItems, shipOn, shipQty);
       if (items.length < 1) {
         throw new ApiError({
@@ -712,14 +913,17 @@ export function OrderDetailPage() {
           message: 'Turn on at least one design for this LR.',
         });
       }
+      const trimmedTransporter = dispatch.transporter?.trim() || undefined;
+      if (trimmedTransporter && order.data?.sellerCompanyId) {
+        rememberTransporter(trimmedTransporter, order.data.sellerCompanyId);
+      }
       const dto: DispatchDto = {
         lrNumber,
-        transporter: dispatch.transporter?.trim() || undefined,
-        parcelCount: dispatch.parcelCount,
+        transporter: trimmedTransporter,
+        parcelCount: dispatch.legs.length,
+        legs,
         items,
-        note: dispatchNote.trim() || undefined,
-        noteVoiceMediaId: dispatchNoteVoice?.mediaId,
-        noteVoiceDurationMs: dispatchNoteVoice?.durationMs,
+        ...noteAttachPayload(dispatchNote, dispatchNoteVoice, dispatchNoteImages),
       };
       return api.post<OrderView>(`/orders/${id}/dispatch`, dto);
     },
@@ -759,10 +963,20 @@ export function OrderDetailPage() {
           message: 'Keep at least one design on this LR.',
         });
       }
+      const legs = editDispatch.legs.map((leg) => ({
+        lrNumber: leg.lrNumber.trim() || null,
+        billNumber: leg.billNumber.trim() || null,
+        imageUrls: leg.imageUrls ?? [],
+      }));
+      const trimmedTransporter = editDispatch.transporter?.trim() || null;
+      if (trimmedTransporter && order.data?.sellerCompanyId) {
+        rememberTransporter(trimmedTransporter, order.data.sellerCompanyId);
+      }
       const dto: EditShipmentDto = {
-        lrNumber: (editDispatch.lrNumber ?? '').trim() || null,
-        transporter: editDispatch.transporter?.trim() || null,
-        parcelCount: editDispatch.parcelCount ?? null,
+        lrNumber: legs.find((leg) => leg.lrNumber)?.lrNumber ?? null,
+        transporter: trimmedTransporter,
+        parcelCount: editDispatch.legs.length,
+        legs,
         items,
       };
       return api.patch<OrderView>(`/orders/${id}/shipments/${editingShipmentId}`, dto);
@@ -794,26 +1008,12 @@ export function OrderDetailPage() {
           }));
         }
       }
+      queryClient.setQueryData(['order', id], updated);
       refresh();
       showToast('Updated.');
     },
     onError: (err) =>
       setLineFulfillError(actionErrorMessage(err, 'Could not update Can’t supply.')),
-  });
-
-  const dispatchOneLine = useMutation({
-    mutationFn: (payload: { orderItemId: string; quantity: number }) =>
-      api.post<OrderView>(`/orders/${id}/dispatch`, {
-        items: [payload],
-      }),
-    onSuccess: () => {
-      setExpandedLineId(null);
-      setLineFulfillError(null);
-      refresh();
-      showToast('Dispatched.');
-    },
-    onError: (err) =>
-      setLineFulfillError(actionErrorMessage(err, 'Could not dispatch.')),
   });
 
   const saveLastLrQty = useMutation({
@@ -842,6 +1042,10 @@ export function OrderDetailPage() {
         lrNumber: shipment.lrNumber,
         transporter: shipment.transporter,
         parcelCount: shipment.parcelCount,
+        legs: (shipment.legs ?? []).map((leg) => ({
+          lrNumber: leg.lrNumber,
+          billNumber: leg.billNumber,
+        })),
       });
     },
     onSuccess: () => {
@@ -886,10 +1090,11 @@ export function OrderDetailPage() {
     setEditingShipmentId(shipment.id);
     setEditShipOn(on);
     setEditShipQty(qty);
+    const legs = seedDispatchLegsFromShipment(shipment);
     setEditDispatch({
-      lrNumber: shipment.lrNumber ?? undefined,
       transporter: shipment.transporter ?? undefined,
-      parcelCount: shipment.parcelCount ?? undefined,
+      parcelCount: shipment.parcelCount ?? legs.length,
+      legs,
     });
     setDispatchError(null);
   };
@@ -904,52 +1109,56 @@ export function OrderDetailPage() {
     loadShipmentIntoEdit(shipment);
   };
 
-  const packingSlipFile = (shipment: OrderView['shipments'][number]) => {
-    if (!order.data) return null;
+  const packingSlipShipment =
+    order.data?.shipments.find((row) => row.id === packingSlipShipmentId) ?? null;
+
+  const openPackingSlipSheet = (shipment: OrderView['shipments'][number]) => {
+    setPackingSlipOpts({ showBuyer: true, showPhotos: true });
+    setPackingSlipShipmentId(shipment.id);
+  };
+
+  const buildPackingSlipFile = async () => {
+    if (!order.data || !packingSlipShipment) return null;
     const input = {
       orderId: order.data.id,
       counterpartName: order.data.counterpart.name,
-      shipment,
+      shipment: packingSlipShipment,
       note: order.data.note,
       orderItems: order.data.items,
+      options: packingSlipOpts,
     };
-    const bytes = packingSlipPdfBytes(input);
+    const bytes = await packingSlipPdfBytes(input);
     return new File([Uint8Array.from(bytes)], packingSlipFileName(input), {
       type: 'application/pdf',
     });
   };
 
-  const openShipmentPdf = (shipment: OrderView['shipments'][number]) => {
+  const runPackingSlip = async (mode: 'open' | 'share') => {
+    setPackingSlipBusy(true);
     try {
-      const file = packingSlipFile(shipment);
+      const file = await buildPackingSlipFile();
       if (!file) return;
-      openPackingSlipPdf(file);
+      if (mode === 'open') openPackingSlipPdf(file);
+      else await shareOrDownloadPdf(file);
+      setPackingSlipShipmentId(null);
     } catch {
-      showToast('Could not open PDF.', 'danger');
-    }
-  };
-
-  const shareShipmentPdf = async (shipment: OrderView['shipments'][number]) => {
-    try {
-      const file = packingSlipFile(shipment);
-      if (!file) return;
-      await shareOrDownloadPdf(file);
-    } catch {
-      showToast('Could not share PDF.', 'danger');
+      showToast(mode === 'open' ? 'Could not open PDF.' : 'Could not share PDF.', 'danger');
+    } finally {
+      setPackingSlipBusy(false);
     }
   };
 
   const settleOrder = useMutation({
     mutationFn: () =>
-      api.post<OrderView>(`/orders/${id}/settle`, {
-        note: settleNote.trim() || undefined,
-        noteVoiceMediaId: settleNoteVoice?.mediaId,
-        noteVoiceDurationMs: settleNoteVoice?.durationMs,
-      }),
+      api.post<OrderView>(
+        `/orders/${id}/settle`,
+        noteAttachPayload(settleNote, settleNoteVoice, settleNoteImages),
+      ),
     onSuccess: (updated) => {
       setSettleOpen(false);
       setSettleNote('');
       setSettleNoteVoice(null);
+      setSettleNoteImages([]);
       setSheetError(null);
       queryClient.setQueryData(['order', id], updated);
       refresh();
@@ -963,12 +1172,67 @@ export function OrderDetailPage() {
     onError: (err) => setSheetError(actionErrorMessage(err, 'Could not settle.')),
   });
 
+  const saveManualRef = useMutation({
+    mutationFn: () =>
+      api.put<OrderView>(`/orders/${id}/manual-ref`, {
+        manualOrderNo: manualOrderNo.trim() || null,
+        note: manualNote.trim() || null,
+        noteImageUrls: manualImages,
+      }),
+    onSuccess: (updated) => {
+      setManualRefOpen(false);
+      queryClient.setQueryData(['order', id], updated);
+      showToast('Manual order no. saved');
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not save.'), 'danger'),
+  });
+
+  const savePersonalNote = useMutation({
+    mutationFn: () =>
+      api.put<OrderView>(`/orders/${id}/personal-note`, {
+        note: personalNote.trim() || null,
+        noteVoiceMediaId: personalNoteVoice?.mediaId ?? null,
+        noteVoiceDurationMs: personalNoteVoice?.durationMs ?? null,
+        noteImageUrls: personalNoteImages,
+      }),
+    onSuccess: (updated) => {
+      setPersonalNoteOpen(false);
+      queryClient.setQueryData(['order', id], updated);
+      showToast('Personal note saved');
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not save.'), 'danger'),
+  });
+
+  const openManualRefSheet = () => {
+    setOrderMenuOpen(false);
+    const ref = order.data?.manualRef;
+    setManualOrderNo(ref?.manualOrderNo ?? '');
+    setManualNote(ref?.note ?? '');
+    setManualImages(ref?.images ?? []);
+    setManualRefOpen(true);
+  };
+
+  const openPersonalNoteSheet = () => {
+    setOrderMenuOpen(false);
+    const note = order.data?.personalNote;
+    setPersonalNote(note?.note ?? '');
+    setPersonalNoteVoice(
+      note?.noteVoiceUrl && note.noteVoiceMediaId && note.noteVoiceDurationMs
+        ? {
+            mediaId: note.noteVoiceMediaId,
+            url: toAbsoluteMediaUrl(note.noteVoiceUrl),
+            durationMs: note.noteVoiceDurationMs,
+          }
+        : null,
+    );
+    setPersonalNoteImages(note?.images ?? []);
+    setPersonalNoteOpen(true);
+  };
+
   const sendQuote = useMutation({
     mutationFn: () => {
       const dto: QuoteOrderDto = {
-        note: quoteNote || undefined,
-        noteVoiceMediaId: quoteNoteVoice?.mediaId,
-        noteVoiceDurationMs: quoteNoteVoice?.durationMs,
+        ...noteAttachPayload(quoteNote, quoteNoteVoice, quoteNoteImages),
         items: quoteSheetItems(order.data?.items ?? [])
           .filter((item) => item.lineStatus === 'open' || !unavailable[item.id])
           .map((item) =>
@@ -987,6 +1251,7 @@ export function OrderDetailPage() {
       setQuoteOpen(false);
       setQuoteNote('');
       setQuoteNoteVoice(null);
+      setQuoteNoteImages([]);
       setQuoteVoiceBusy(false);
       setSheetError(null);
       refresh();
@@ -1000,14 +1265,21 @@ export function OrderDetailPage() {
 
   const decideLines = useMutation({
     mutationFn: (verb: 'confirm' | 'decline') => {
-      const ids = (order.data?.items ?? [])
-        .filter((item) => item.lineStatus === 'open')
-        .map((item) => item.id);
+      const open = (order.data?.items ?? []).filter((item) => item.lineStatus === 'open');
+      const ids = open.map((item) => item.id);
+      const lineQtyById: Record<string, number> = {};
+      for (const item of open) lineQtyById[item.id] = item.quantity;
       const dto: DecideOrderLinesDto = {
-        items: decideLinesPayload(ids, lineActions, verb),
-        note: linesNote.trim() || undefined,
-        noteVoiceMediaId: linesNoteVoice?.mediaId,
-        noteVoiceDurationMs: linesNoteVoice?.durationMs,
+        items: decideLinesPayload(
+          ids,
+          lineActions,
+          verb,
+          lineConfirmQty,
+          lineQtyById,
+          lineConfirmRates,
+          quoteRateNumber,
+        ),
+        ...noteAttachPayload(linesNote, linesNoteVoice, linesNoteImages),
       };
       return api.post<OrderView>(`/orders/${id}/lines/decide`, dto);
     },
@@ -1015,6 +1287,11 @@ export function OrderDetailPage() {
       setLinesOpen(false);
       setLinesNote('');
       setLinesNoteVoice(null);
+      setLineConfirmQty({});
+      setLineConfirmRates({});
+      setSharedConfirmQty(null);
+      setSharedConfirmRate('');
+      setLinesSameOpen(false);
       setSheetError(null);
       refresh();
     },
@@ -1034,9 +1311,12 @@ export function OrderDetailPage() {
     setRates(prefill.rates);
     setQuoteRateDefaults(prefill.rates);
     setOfferQty(prefill.qty);
+    setQuoteQtyDefaults(prefill.qty);
     setUnavailable((prev) => quoteUnavailableOnOpen(data.items, prev));
+    setSharedQuoteQty(null);
     setSharedQuoteRate(shared);
     setQuoteSameOpen(false);
+    setQuoteSameQtyDraft('');
     setQuoteSameDraft(shared);
     setQuoteNote('');
     setQuoteNoteVoice(null);
@@ -1046,10 +1326,22 @@ export function OrderDetailPage() {
   };
 
   const openLinesSheet = () => {
-    const ids = (order.data?.items ?? [])
-      .filter((item) => item.lineStatus === 'open')
-      .map((item) => item.id);
+    const open = (order.data?.items ?? []).filter((item) => item.lineStatus === 'open');
+    const ids = open.map((item) => item.id);
+    const qty: Record<string, string> = {};
+    const rateDefaults: Record<string, string> = {};
+    for (const item of open) {
+      qty[item.id] = String(item.quantity);
+      rateDefaults[item.id] = item.rate != null ? String(item.rate) : '';
+    }
     setLineActions(defaultLineActions(ids));
+    setLineConfirmQty(qty);
+    setLineConfirmRates(rateDefaults);
+    setSharedConfirmQty(null);
+    setSharedConfirmRate('');
+    setLinesSameOpen(false);
+    setLinesSameQtyDraft('');
+    setLinesSameRateDraft('');
     setSheetError(null);
     setLinesOpen(true);
   };
@@ -1090,7 +1382,10 @@ export function OrderDetailPage() {
     setPriorListOpen(false);
     setShipOn(defaultDispatchOn(pending));
     setShipQty(defaultDispatchQty(pending));
-    setDispatch({});
+    setDispatch({
+      legs: [emptyDispatchLeg()],
+      transporter: dispatchTransporterPrefill(order.data?.transporter),
+    });
     setDispatchNote('');
     setDispatchNoteVoice(null);
     setDispatchError(null);
@@ -1104,7 +1399,10 @@ export function OrderDetailPage() {
       const pending = shippableDispatchItems(order.data.items);
       setShipOn(defaultDispatchOn(pending));
       setShipQty(defaultDispatchQty(pending));
-      setDispatch({});
+      setDispatch({
+        legs: [emptyDispatchLeg()],
+        transporter: dispatchTransporterPrefill(order.data.transporter),
+      });
       setDispatchNote('');
       setDispatchNoteVoice(null);
       setDispatchOpen(true);
@@ -1143,6 +1441,30 @@ export function OrderDetailPage() {
     [openItemIds, lineActions],
   );
 
+  const linesConfirmReady = useMemo(() => {
+    const confirming = openItems.filter((item) => lineActions[item.id] !== 'decline');
+    if (confirming.length < 1) return false;
+    return confirming.every((item) => {
+      const qty = Number(lineConfirmQty[item.id] || item.quantity || 0);
+      const rateOk = quoteRateNumber(lineConfirmRates[item.id]) != null;
+      return qty > 0 && rateOk;
+    });
+  }, [openItems, lineActions, lineConfirmQty, lineConfirmRates]);
+
+  const confirmRateDefaults = useMemo(() => {
+    const next: Record<string, string> = {};
+    for (const item of openItems) {
+      next[item.id] = item.rate != null ? String(item.rate) : '';
+    }
+    return next;
+  }, [openItems]);
+
+  const confirmQtyDefaults = useMemo(() => {
+    const next: Record<string, string> = {};
+    for (const item of openItems) next[item.id] = String(item.quantity);
+    return next;
+  }, [openItems]);
+
   const quoteReady = useMemo(() => {
     const supplyable = quoteItems.filter((item) => !unavailable[item.id]);
     return (
@@ -1150,7 +1472,7 @@ export function OrderDetailPage() {
       supplyable.every((item) => {
         const rateOk = quoteRateNumber(rates[item.id]) != null;
         const qty = Number(offerQty[item.id] || item.quantity || 0);
-        return rateOk && qty > 0 && qty <= item.requestedQuantity;
+        return rateOk && qty > 0;
       })
     );
   }, [quoteItems, rates, offerQty, unavailable]);
@@ -1170,6 +1492,9 @@ export function OrderDetailPage() {
     if (!data) return 'none';
     const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
     const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
+    const hasDeclinedToRestore = data.items.some(
+      (item) => item.lineStatus === 'declined',
+    );
     const openForDispatch =
       data.status === 'confirmed' || data.status === 'part_shipped';
     const quoteOnFace = showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
@@ -1185,6 +1510,7 @@ export function OrderDetailPage() {
       createdBySeller: data.createdBySeller === true,
       openForDispatch,
       hasRemaining,
+      hasDeclinedToRestore,
       canSettle: data.canSettle === true,
       partiallyShipped: data.partiallyShipped,
     }).kind;
@@ -1201,18 +1527,33 @@ export function OrderDetailPage() {
   if (order.isError || !order.data) {
     return (
       <>
-        <PageHeader title="Order" />
+        <PageHeader title="Order" onBack={onOrderBack} />
         <ErrorState message="This order isn't available." />
       </>
     );
   }
 
   const data = order.data;
-  const photoGallery = orderItemGalleryUrls(data.items);
-  const photoCaptions = orderItemGalleryCaptions(data.items);
-  const photoDetails = orderItemGalleryDetails(data.items);
+  const lineGallery = orderItemGalleryUrls(data.items);
+  const lineCaptions = orderItemGalleryCaptions(data.items);
+  const lineDetails = orderItemGalleryDetails(data.items);
+  const photoGallery = noteViewerUrls ?? lineGallery;
+  const photoCaptions = noteViewerUrls
+    ? noteViewerUrls.map(() => noteViewerCaption ?? 'Photo')
+    : lineCaptions;
+  const photoDetails = noteViewerUrls ? noteViewerUrls.map(() => '') : lineDetails;
   const openPhotoViewer = (index: number) => {
+    setNoteViewerUrls(null);
+    setNoteViewerCaption(null);
     setPhotoViewerIndex(index);
+    setPhotoViewerOpen(true);
+  };
+  const openNotePhotos = (urls: string[], index: number, caption: string) => {
+    const absolute = urls.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean);
+    if (absolute.length < 1) return;
+    setNoteViewerUrls(absolute);
+    setNoteViewerCaption(caption);
+    setPhotoViewerIndex(Math.min(index, absolute.length - 1));
     setPhotoViewerOpen(true);
   };
   const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
@@ -1226,6 +1567,9 @@ export function OrderDetailPage() {
       }))
       .filter((row) => row.productId);
   const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
+  const hasDeclinedToRestore = data.items.some(
+    (item) => item.lineStatus === 'declined',
+  );
   const openForDispatch =
     data.status === 'confirmed' || data.status === 'part_shipped';
   const quoteOnFace = showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
@@ -1241,18 +1585,9 @@ export function OrderDetailPage() {
     createdBySeller: data.createdBySeller === true,
     openForDispatch,
     hasRemaining,
+    hasDeclinedToRestore,
     canSettle: data.canSettle === true,
     partiallyShipped: data.partiallyShipped,
-  });
-  const nextCue = orderDetailNextCue({
-    direction: isSeller ? 'selling' : 'buying',
-    status: data.status,
-    counterpartName: data.counterpart.name,
-    hasSellerQuote: data.hasSellerQuote === true,
-    millDesks: data.millDesks,
-    laneTicket: data.laneTicket,
-    partiallyShipped: data.partiallyShipped,
-    intent: data.intent,
   });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
@@ -1260,6 +1595,7 @@ export function OrderDetailPage() {
     data.tradeMode === 'direct' &&
     data.facilitatorCompanyId &&
     companyId === data.facilitatorCompanyId;
+  // Title already has the shop name — only keep a subtitle when role isn’t obvious.
   const roleSubtitle = sharedByYou
     ? `Shared · ${data.sellerName}`
     : isInquiry
@@ -1268,19 +1604,18 @@ export function OrderDetailPage() {
         : `Inquiry from ${data.counterpart.name}`
       : data.tradeMode === 'manage' && data.direction === 'selling'
         ? `Trading with ${data.counterpart.name}`
-        : data.direction === 'buying'
-          ? `You buy from ${data.counterpart.name}`
-          : `You sell to ${data.counterpart.name}`;
+        : undefined;
 
   return (
     <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && 'pb-24')}>
       <PageHeader
         title={`${idLabel} · ${data.counterpart.name}`}
         subtitle={roleSubtitle}
+        onBack={onOrderBack}
         action={
           <div className="flex items-start gap-1">
             <div className="flex flex-col items-end gap-0.5">
-              <StatusPill status={data.status} />
+              <StatusPill status={data.status} label={tradeListStatusLabel(data.status)} />
               {isInquiry ? (
                 <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
                   Inquiry
@@ -1295,35 +1630,102 @@ export function OrderDetailPage() {
                 </span>
               ) : null}
             </div>
-            <details
-              className="relative"
-              open={orderMenuOpen}
-              onToggle={(event) => setOrderMenuOpen((event.target as HTMLDetailsElement).open)}
+            <button
+              type="button"
+              className={cx(
+                'rounded-lg p-1.5 transition-colors',
+                orderMenuOpen ? 'bg-foam text-ink' : 'text-muted hover:bg-foam',
+              )}
+              data-testid="order-more-menu"
+              aria-label="More"
+              aria-expanded={orderMenuOpen}
+              aria-haspopup="menu"
+              onClick={() => setOrderMenuOpen((open) => !open)}
             >
-              <summary
-                className="cursor-pointer list-none rounded-lg p-1.5 text-muted hover:bg-foam"
-                data-testid="order-more-menu"
-                aria-label="More"
-              >
-                <MoreHorizontalIcon width={20} height={20} />
-              </summary>
-              <div className="absolute right-0 z-20 mt-1 min-w-[10rem] rounded-xl border border-line bg-surface p-1 shadow-sm">
-                <button
-                  type="button"
-                  data-testid="order-complaint"
-                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-foam"
-                  onClick={() => void openComplaintFromOrder()}
-                >
-                  Complaint
-                </button>
-              </div>
-            </details>
+              <MoreHorizontalIcon width={20} height={20} />
+            </button>
+            <MoreActionsSheet
+              open={orderMenuOpen}
+              onClose={() => setOrderMenuOpen(false)}
+              title={`${idLabel} · ${data.counterpart.name}`}
+              testId="order-more-sheet"
+              items={[
+                {
+                  id: 'manual-ref',
+                  label: 'Manual order no.',
+                  icon: <PencilIcon width={20} height={20} />,
+                  testId: 'order-manual-ref',
+                  onClick: openManualRefSheet,
+                },
+                {
+                  id: 'personal-note',
+                  label: 'Personal note',
+                  icon: <DocumentIcon width={20} height={20} />,
+                  testId: 'order-personal-note',
+                  onClick: openPersonalNoteSheet,
+                },
+                {
+                  id: 'complaint',
+                  label: 'Complaint',
+                  icon: <MegaphoneIcon width={20} height={20} />,
+                  testId: 'order-complaint',
+                  onClick: () => void openComplaintFromOrder(),
+                },
+              ]}
+            />
           </div>
         }
       />
 
-      {nextCue ? (
-        <p className="rounded-xl bg-foam px-3 py-2 text-sm font-medium text-ink">{nextCue}</p>
+      {data.personalNote &&
+      (data.personalNote.note ||
+        data.personalNote.noteVoiceUrl ||
+        (data.personalNote.images?.length ?? 0) > 0) ? (
+        <button
+          type="button"
+          data-testid="order-personal-note-preview"
+          className="w-full rounded-xl bg-foam px-3 py-2 text-left"
+          onClick={openPersonalNoteSheet}
+        >
+          {data.personalNote.note ? (
+            <p className="line-clamp-2 text-sm font-medium text-ink">{data.personalNote.note}</p>
+          ) : (
+            <p className="text-sm font-medium text-ink">Personal note</p>
+          )}
+          {data.personalNote.noteVoiceUrl && data.personalNote.noteVoiceDurationMs ? (
+            <div className="mt-1.5" onClick={(event) => event.stopPropagation()}>
+              <VoicePlayer
+                src={toAbsoluteMediaUrl(data.personalNote.noteVoiceUrl)}
+                durationMs={data.personalNote.noteVoiceDurationMs}
+              />
+            </div>
+          ) : null}
+          {(data.personalNote.images?.length ?? 0) > 0 ? (
+            <div
+              className="mt-1.5 flex gap-1.5"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {data.personalNote.images!.map((url, index) => (
+                <button
+                  key={url}
+                  type="button"
+                  data-testid="order-personal-note-photo"
+                  aria-label="View personal note photo"
+                  className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-line/40"
+                  onClick={() =>
+                    openNotePhotos(data.personalNote!.images, index, 'Personal note')
+                  }
+                >
+                  <img
+                    src={toAbsoluteMediaUrl(url)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </button>
       ) : null}
 
       {data.canFlipTicket ? (
@@ -1347,25 +1749,31 @@ export function OrderDetailPage() {
       ) : null}
 
       <Card className="flex flex-col gap-1 text-sm">
-        <p className="font-semibold text-ink">Parties</p>
-        <p className="text-muted">
-          Buyer ·{' '}
-          <PartyShopName
-            name={data.buyerName}
-            you={data.direction === 'buying'}
-            href={partyCompanyHref(data.direction === 'buying', data.buyerCompanyId)}
-          />
-        </p>
-        <p className="text-muted">
-          {data.tradeMode === 'manage' ? 'Trader' : 'Seller'} ·{' '}
-          <PartyShopName
-            name={data.sellerName}
-            you={data.direction === 'selling'}
-            href={partyCompanyHref(data.direction === 'selling', data.sellerCompanyId)}
-          />
-        </p>
-        {data.threadId ? (
-          <p className="pt-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 flex flex-col gap-1">
+            {orderPartyLines({
+              direction: data.direction,
+              tradeMode: data.tradeMode,
+              buyerName: data.buyerName,
+              sellerName: data.sellerName,
+              buyerCompanyId: data.buyerCompanyId,
+              sellerCompanyId: data.sellerCompanyId,
+              triVisible:
+                Boolean(data.millDesks?.some((desk) => desk.reveal)) ||
+                (data.tradeMode === 'direct' &&
+                  Boolean(data.facilitatorCompanyId) &&
+                  companyId === data.facilitatorCompanyId),
+            }).map((line) => (
+              <p key={line.label} className="leading-5 text-muted">
+                {line.label} ·{' '}
+                <PartyShopName
+                  name={line.name}
+                  href={partyCompanyHref(line.you, line.companyId)}
+                />
+              </p>
+            ))}
+          </div>
+          {data.threadId ? (
             <Link
               to={
                 data.livingMessageId
@@ -1373,12 +1781,13 @@ export function OrderDetailPage() {
                   : `/chats/${data.threadId}`
               }
               data-testid="order-open-chat"
-              className="font-medium text-accent"
+              aria-label="Open chat"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent hover:bg-foam"
             >
-              Open chat
+              <ChatIcon width={20} height={20} />
             </Link>
-          </p>
-        ) : null}
+          ) : null}
+        </div>
         {data.tradeMode === 'direct' &&
         data.facilitatorCompanyId &&
         companyId === data.facilitatorCompanyId ? (
@@ -1389,9 +1798,6 @@ export function OrderDetailPage() {
           <p className="pt-1 text-muted">
             {agreementStepLabel(data.confirmedByRole, data.confirmedByName)}
           </p>
-        ) : null}
-        {auditLine(data) ? (
-          <p className="text-xs text-muted">{auditLine(data)}</p>
         ) : null}
       </Card>
 
@@ -1434,7 +1840,12 @@ export function OrderDetailPage() {
                       </p>
                     </div>
                     {!desk.held && !millDropped ? (
-                      <StatusPill status={desk.status === 'requested' ? 'requested' : desk.status} />
+                      <StatusPill
+                        status={desk.status === 'requested' ? 'requested' : desk.status}
+                        label={tradeListStatusLabel(
+                          desk.status === 'requested' ? 'requested' : desk.status,
+                        )}
+                      />
                     ) : null}
                   </div>
                   {rows.map((item) => {
@@ -1444,7 +1855,8 @@ export function OrderDetailPage() {
                       <div
                         key={item.id}
                         className={cx(
-                          'flex items-center gap-3 border-t border-line pt-3',
+                          'flex items-center gap-3 rounded-xl px-1 pt-3',
+                          !cantSupply && orderLineBalanceRowClass(item),
                           quoteCantSupplyRowClass(cantSupply),
                         )}
                         data-testid={cantSupply ? 'order-line-cant-supply' : undefined}
@@ -1455,12 +1867,12 @@ export function OrderDetailPage() {
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
                         >
-                          <p className="text-xs text-muted">
-                            {item.quantity} × {formatRate(item.rate, item.unit)}
-                            {millLine?.millRate != null && desk.millQuoted
-                              ? ` · mill ₹${millLine.millRate.toLocaleString('en-IN')}`
-                              : ''}
-                          </p>
+                          <OrderLineFacts item={item} />
+                          {millLine?.millRate != null && desk.millQuoted ? (
+                            <p className="mt-1 text-[11px] text-muted">
+                              Mill ₹{millLine.millRate.toLocaleString('en-IN')}
+                            </p>
+                          ) : null}
                         </OrderLineCantSupplyFace>
                       </div>
                     );
@@ -1498,7 +1910,12 @@ export function OrderDetailPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     {!desk.held && !millDropped ? (
-                      <StatusPill status={desk.status === 'requested' ? 'requested' : desk.status} />
+                      <StatusPill
+                        status={desk.status === 'requested' ? 'requested' : desk.status}
+                        label={tradeListStatusLabel(
+                          desk.status === 'requested' ? 'requested' : desk.status,
+                        )}
+                      />
                     ) : null}
                     {!desk.held && !millDropped ? (
                       <details className="relative">
@@ -1674,19 +2091,17 @@ export function OrderDetailPage() {
                         })
                       : null;
                     const cantSupply = item.lineStatus === 'declined';
-                    const pending = item.remainingQuantity ?? 0;
                     const extra = orderLineOverShipped(item);
                     const showPending = !cantSupply && orderLineShowsPending(item);
                     const showExtra = !cantSupply && extra > 0;
-                    const showFulfillment = !cantSupply && orderLineShowsFulfillment(item);
+                    const isComplete =
+                      !cantSupply && orderLineBalance(item)?.tone === 'done';
                     return (
                       <div
                         key={item.id}
                         className={cx(
-                          'pt-3',
-                          showPending || showExtra
-                            ? 'rounded-xl border border-accent/40 bg-accent/5 px-2'
-                            : 'border-t border-line',
+                          'rounded-xl px-2 pt-3',
+                          !cantSupply && orderLineBalanceRowClass(item),
                           quoteCantSupplyRowClass(cantSupply),
                           cells
                             ? 'grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-center gap-2'
@@ -1695,11 +2110,13 @@ export function OrderDetailPage() {
                         data-testid={
                           cantSupply
                             ? 'order-line-cant-supply'
-                            : showPending
-                              ? 'order-line-pending'
-                              : showExtra
-                                ? 'order-line-extra'
-                                : undefined
+                            : isComplete
+                              ? 'order-line-complete'
+                              : showPending
+                                ? 'order-line-pending'
+                                : showExtra
+                                  ? 'order-line-extra'
+                                  : undefined
                         }
                       >
                         <OrderLineCantSupplyFace
@@ -1708,20 +2125,7 @@ export function OrderDetailPage() {
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
                         >
-                          {!cells ? (
-                            <p className="text-xs text-muted">
-                              {item.quantity} × {formatRate(item.rate, item.unit)}
-                            </p>
-                          ) : null}
-                          {showFulfillment ? (
-                            <p className="text-[11px] font-medium">
-                              <ShipProgressHint
-                                dispatched={item.shippedQuantity}
-                                pending={pending}
-                                extra={extra}
-                              />
-                            </p>
-                          ) : null}
+                          {!cells ? <OrderLineFacts item={item} /> : null}
                         </OrderLineCantSupplyFace>
                         {cells ? (
                           <>
@@ -1794,7 +2198,6 @@ export function OrderDetailPage() {
         {lineFulfillError ? <InlineNotice message={lineFulfillError} /> : null}
         {data.items.map((item) => {
           const canEdit = sellerCanFulfillEdit(data);
-          const canDispatch = sellerCanNewDispatch(data);
           const expanded = expandedLineId === item.id;
           const lastLr = latestShipmentForLine(data.shipments, item.id);
           const lastLrQty = lastLr ? lineShippedOnShipment(lastLr, item.id) : 0;
@@ -1803,15 +2206,10 @@ export function OrderDetailPage() {
               key={item.id}
               item={item}
               canEdit={canEdit}
-              canDispatch={canDispatch}
               hasLastLr={Boolean(lastLr)}
               lastLrQty={lastLrQty}
               expanded={expanded}
-              busy={
-                setLineSupply.isPending ||
-                dispatchOneLine.isPending ||
-                saveLastLrQty.isPending
-              }
+              busy={setLineSupply.isPending || saveLastLrQty.isPending}
               photo={
                 <OrderLinePhoto
                   item={item}
@@ -1826,10 +2224,9 @@ export function OrderDetailPage() {
                 setLineFulfillError(null);
                 setLineSupply.mutate({ orderItemId: item.id, cantSupply });
               }}
-              onDispatch={(quantity) => {
-                setLineFulfillError(null);
-                dispatchOneLine.mutate({ orderItemId: item.id, quantity });
-              }}
+              onOpenQuote={
+                isSeller && data.status === 'requested' ? openQuoteSheet : undefined
+              }
               onSaveLastLr={(quantity) => {
                 setLineFulfillError(null);
                 saveLastLrQty.mutate({ orderItemId: item.id, quantity });
@@ -1853,51 +2250,137 @@ export function OrderDetailPage() {
         </Card>
       ) : null}
 
-      <OrderTimeline order={data} hidePriorQuotes={isBuyer} />
+      {data.transporter?.trim() && data.shipments.length === 0 ? (
+        <p className="text-sm text-muted" data-testid="order-preferred-transporter">
+          Transporter · {data.transporter.trim()}
+        </p>
+      ) : null}
+
+      {openOrderComplaints.length > 0 ? (
+        <Card className="flex flex-col gap-2" data-testid="order-open-complaints">
+          <p className="text-xs font-medium text-muted">Open complaints</p>
+          {openOrderComplaints.map((row) => (
+            <div
+              key={row.id}
+              className="flex items-start justify-between gap-3 border-t border-line/70 pt-2 first:border-t-0 first:pt-0"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink">{row.subject}</p>
+                <StatusPill status={row.status} />
+              </div>
+              <button
+                type="button"
+                data-testid="order-complaint-resolve"
+                disabled={resolveComplaint.isPending}
+                className="shrink-0 text-sm font-semibold text-accent disabled:opacity-45"
+                onClick={() => resolveComplaint.mutate(row.id)}
+              >
+                Resolve
+              </button>
+            </div>
+          ))}
+        </Card>
+      ) : null}
+
+      <OrderTimeline
+        order={data}
+        hidePriorQuotes={isBuyer}
+        onOpenNotePhotos={openNotePhotos}
+      />
+
+      {(() => {
+        const ref = data.manualRef;
+        if (!ref?.manualOrderNo && !ref?.note && !(ref?.images?.length)) return null;
+        return (
+          <Card className="flex flex-col gap-1.5" data-testid="order-manual-ref-line">
+            <p className="text-xs font-medium text-muted">Manual order</p>
+            {ref.manualOrderNo ? (
+              <p className="text-sm font-semibold tracking-tight text-ink">{ref.manualOrderNo}</p>
+            ) : null}
+            {ref.note ? <p className="text-sm text-muted">{ref.note}</p> : null}
+            {(ref.images?.length ?? 0) > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {ref.images.map((url, index) => (
+                  <button
+                    key={url}
+                    type="button"
+                    data-testid="order-manual-ref-photo"
+                    aria-label="View manual order photo"
+                    className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-foam"
+                    onClick={() =>
+                      openNotePhotos(ref.images, index, ref.manualOrderNo ?? 'Manual order')
+                    }
+                  >
+                    <img
+                      src={toAbsoluteMediaUrl(url)}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </Card>
+        );
+      })()}
 
       {data.shipments.length > 0 ? (
         <Card className="flex flex-col gap-3 text-sm">
           <p className="font-semibold text-ink">Shipments</p>
-          {data.shipments.map((shipment) => (
+          {data.shipments.map((shipment) => {
+            const legLines = shipmentLegDisplayLines(shipment);
+            return (
             <div key={shipment.id} className="border-t border-line pt-2 first:border-0 first:pt-0">
-              <p className="font-medium text-ink">
-                {shipment.lrNumber ? `LR · ${shipment.lrNumber}` : 'Dispatch'}
-              </p>
+              {legLines.length > 0 ? (
+                legLines.map((line) => (
+                  <p key={line} className="font-medium text-ink">
+                    {line}
+                  </p>
+                ))
+              ) : (
+                <p className="font-medium text-ink">Dispatch</p>
+              )}
+              <LegPhotoThumbs
+                images={shipmentLegImageUrls(shipment)}
+                testId={`order-shipment-lr-photos-${shipment.id}`}
+              />
               {shipment.transporter ? (
                 <p className="text-muted">Transporter · {shipment.transporter}</p>
               ) : null}
-              <p className="text-muted">
-                {shipment.items.map((line) => `${line.name} × ${line.quantity}`).join(' · ')}
-              </p>
-              <p className="text-muted">Sent {formatDate(shipment.dispatchedAt)}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-1 flex flex-col gap-0.5" data-testid="order-shipment-lines">
+                {shipment.items.map((line) => (
+                  <p key={`${shipment.id}-${line.orderItemId}`} className="text-ink">
+                    <span className="font-medium">{line.name}</span>
+                    <span className="font-semibold tabular-nums"> × {line.quantity}</span>
+                  </p>
+                ))}
+              </div>
+              <p className="mt-1 text-[12px] text-muted">Sent {formatDate(shipment.dispatchedAt)}</p>
+              <div className="mt-1.5 flex items-center gap-0.5">
                 {data.status !== 'settled' && data.direction === 'selling' ? (
-                  <Button
-                    variant="secondary"
+                  <button
+                    type="button"
                     data-testid="order-shipment-edit"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
+                    aria-label="Edit dispatch"
                     onClick={() => openEditShipment(shipment)}
                   >
-                    Edit
-                  </Button>
+                    <PencilIcon width={18} height={18} />
+                  </button>
                 ) : null}
-                <Button
-                  variant="secondary"
-                  data-testid="order-shipment-pdf"
-                  onClick={() => openShipmentPdf(shipment)}
-                >
-                  PDF
-                </Button>
                 <button
                   type="button"
-                  data-testid="order-shipment-pdf-share"
-                  className="px-1 text-sm font-semibold text-accent"
-                  onClick={() => void shareShipmentPdf(shipment)}
+                  data-testid="order-shipment-pdf"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
+                  aria-label="Packing list PDF"
+                  onClick={() => openPackingSlipSheet(shipment)}
                 >
-                  Share
+                  <PdfIcon width={18} height={18} />
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </Card>
       ) : null}
 
@@ -2025,32 +2508,21 @@ export function OrderDetailPage() {
               >
                 Decline
               </Button>
-              {actionDock.confirm && !actionDock.quoted ? (
-                <Button
-                  variant="secondary"
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
-                  data-testid="order-dock-confirm"
-                  onClick={openLinesSheet}
-                >
-                  Confirm
-                </Button>
-              ) : null}
               {actionDock.sendQuote ? (
                 <Button
                   data-testid="order-send-quote"
-                  variant={
-                    actionDock.sendOrder || (actionDock.confirm && actionDock.quoted)
-                      ? 'secondary'
-                      : undefined
-                  }
+                  variant="secondary"
                   className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
                   onClick={openQuoteSheet}
                 >
                   Send quote
                 </Button>
               ) : null}
-              {actionDock.confirm && actionDock.quoted ? (
+              {actionDock.confirm ? (
                 <Button
+                  variant={
+                    requestedDockPrimary(actionDock) === 'confirm' ? undefined : 'secondary'
+                  }
                   className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
                   data-testid="order-dock-confirm"
                   onClick={openLinesSheet}
@@ -2060,6 +2532,9 @@ export function OrderDetailPage() {
               ) : null}
               {actionDock.sendOrder ? (
                 <Button
+                  variant={
+                    requestedDockPrimary(actionDock) === 'sendOrder' ? undefined : 'secondary'
+                  }
                   className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
                   data-testid="order-mill-send-all"
                   disabled={sendUp.isPending || millDecline.isPending}
@@ -2107,33 +2582,49 @@ export function OrderDetailPage() {
       ) : null}
 
       <Sheet open={quoteOpen} onClose={() => closeSheet('quote')} title="Send quote">
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
           <p className="text-sm text-muted">
             Quoting {quoteSummary.count} of {quoteSummary.of} · ₹
             {quoteSummary.total.toLocaleString('en-IN')}
           </p>
           {quoteItems.filter((item) => !unavailable[item.id]).length > 1 ? (
-            <SameRateForAll
+            <SameQtyRateForAll
               show
               open={quoteSameOpen}
-              draft={quoteSameDraft}
-              applied={sharedQuoteRate}
+              qtyDraft={quoteSameQtyDraft}
+              rateDraft={quoteSameDraft}
+              appliedQty={sharedQuoteQty}
+              appliedRate={sharedQuoteRate}
               onOpen={() => {
+                setQuoteSameQtyDraft(
+                  sharedQuoteQty != null ? String(sharedQuoteQty) : '',
+                );
                 setQuoteSameDraft(sharedQuoteRate);
                 setQuoteSameOpen(true);
               }}
-              onDraftChange={setQuoteSameDraft}
+              onQtyDraftChange={setQuoteSameQtyDraft}
+              onRateDraftChange={setQuoteSameDraft}
               onApply={() => {
+                const qtyN = parseSharedQtyDraft(quoteSameQtyDraft);
                 const parsed = parseQuoteRateDraft(quoteSameDraft);
-                if (!parsed) return;
+                if (qtyN == null && !parsed) return;
                 const ids = quoteItems
                   .filter((item) => !unavailable[item.id])
                   .map((item) => item.id);
-                setRates((prev) => ({
-                  ...prev,
-                  ...ratesWithSharedValue(ids, parsed, quoteRateDefaults),
-                }));
-                setSharedQuoteRate(parsed);
+                if (qtyN != null) {
+                  setOfferQty((prev) => ({
+                    ...prev,
+                    ...qtysWithSharedValue(ids, String(qtyN), quoteQtyDefaults),
+                  }));
+                  setSharedQuoteQty(qtyN);
+                }
+                if (parsed) {
+                  setRates((prev) => ({
+                    ...prev,
+                    ...ratesWithSharedValue(ids, parsed, quoteRateDefaults),
+                  }));
+                  setSharedQuoteRate(parsed);
+                }
                 setQuoteSameOpen(false);
               }}
               onCancel={() => setQuoteSameOpen(false)}
@@ -2141,27 +2632,9 @@ export function OrderDetailPage() {
           ) : null}
           {(() => {
             const showFrom = (data.millDesks ?? []).some((desk) => desk.millQuoted && !desk.held);
-            const cols = showFrom
-              ? 'grid-cols-[minmax(0,1fr)_3.75rem_4.5rem_7rem]'
-              : 'grid-cols-[minmax(0,1fr)_4.5rem_7rem]';
-            const span = showFrom ? 4 : 3;
             const lastOfferQtyId = quoteItems.filter((item) => !unavailable[item.id]).at(-1)?.id;
             return (
-              <div className={cx('grid gap-x-2 gap-y-0', cols)} {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-                <p className="pb-1 text-[10px] font-bold uppercase tracking-wide text-muted">
-                  Design
-                </p>
-                {showFrom ? (
-                  <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
-                    From
-                  </p>
-                ) : null}
-                <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
-                  Qty
-                </p>
-                <p className="pb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
-                  Rate
-                </p>
+              <div className="flex flex-col gap-2">
                 {quoteItems.map((item) => {
                   const millLine = (data.millDesks ?? [])
                     .filter((desk) => desk.millQuoted && !desk.held)
@@ -2170,143 +2643,178 @@ export function OrderDetailPage() {
                   const fromRate = millLine?.line?.millRate ?? null;
                   const fromUnit = fromRate != null ? rateUnitSuffix(item.unit) : '';
                   const cantSupply = Boolean(unavailable[item.id]);
+                  const identity = orderLineIdentitySecondary(item);
+                  const offerN = Number(offerQty[item.id]);
+                  const rateN = Number(rates[item.id]);
+                  const factsItem = {
+                    ...item,
+                    quantity:
+                      Number.isFinite(offerN) && offerN >= 1 ? offerN : item.quantity,
+                    rate: Number.isFinite(rateN) && rateN >= 0 ? rateN : item.rate,
+                  };
                   return (
                     <div
                       key={item.id}
                       className={cx(
-                        'grid grid-cols-subgrid items-center gap-x-2 border-t border-line py-2 px-1.5 -mx-1.5',
-                        quoteCantSupplyRowClass(cantSupply),
+                        'rounded-xl px-2 py-2',
+                        cantSupply
+                          ? quoteCantSupplyRowClass(true)
+                          : orderLineBalance(factsItem)
+                            ? orderLineBalanceRowClass(factsItem)
+                            : 'bg-accent/5',
                       )}
-                      data-testid={cantSupply ? `quote-row-declined-${item.id}` : undefined}
-                      style={{ gridColumn: `span ${span} / span ${span}` }}
+                      data-testid={
+                        cantSupply ? `quote-row-declined-${item.id}` : `quote-row-${item.id}`
+                      }
                     >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className={cx('shrink-0', quoteCantSupplyMutedClass(cantSupply))}>
+                      <OrderLineStack
+                        muted={cantSupply}
+                        photo={
                           <OrderLinePhoto
                             item={item}
                             items={data.items}
                             onOpen={openPhotoViewer}
-                            size="sm"
+                            size="lg"
                           />
-                        </div>
-                        <div className="min-w-0 flex-1">
+                        }
+                        title={
                           <p
                             className={cx(
-                              'line-clamp-2 break-words text-sm font-medium',
-                              quoteCantSupplyMutedClass(cantSupply),
+                              'line-clamp-2 break-words text-sm font-semibold',
                               cantSupply ? 'text-muted' : 'text-ink',
                             )}
                           >
                             {item.name}
                           </p>
-                          {orderLineLeftoverCue(item) ? (
-                            <p className="text-[11px] font-semibold text-ink">
-                              {orderLineLeftoverCue(item)}
+                        }
+                        secondary={
+                          identity ? (
+                            <p className="truncate text-[12px] font-medium text-slate">
+                              {identity}
                             </p>
-                          ) : null}
-                          {cantSupply ? (
-                            <p
-                              className={cx(
-                                'text-[11px] font-medium text-muted',
-                                quoteCantSupplyMutedClass(true),
-                              )}
-                            >
-                              Declined
-                            </p>
-                          ) : null}
-                          <label className={quoteCantSupplyControlClass(cantSupply)}>
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 shrink-0"
-                              data-testid={`quote-cant-supply-${item.id}`}
-                              checked={cantSupply}
-                              onChange={(event) =>
-                                setUnavailable((prev) => ({
-                                  ...prev,
-                                  [item.id]: event.target.checked,
-                                }))
-                              }
-                            />
-                            Can’t supply
-                          </label>
-                        </div>
-                      </div>
-                      {showFrom ? (
-                        cantSupply ? (
-                          <p
-                            className={cx(
-                              'text-center text-[11px] text-muted',
-                              quoteCantSupplyMutedClass(true),
-                            )}
-                          >
-                            —
-                          </p>
-                        ) : fromRate != null ? (
-                          <div className="text-center">
-                            <p className="text-sm font-semibold tabular-nums text-ink">
-                              {rateAmount(fromRate)}
-                            </p>
-                            {fromUnit ? (
-                              <p className="text-[10px] font-normal text-muted">{fromUnit}</p>
+                          ) : null
+                        }
+                        cues={
+                          <>
+                            {orderLineLeftoverCue(item) ? (
+                              <p className="truncate text-[11px] font-semibold text-ink">
+                                {orderLineLeftoverCue(item)}
+                              </p>
                             ) : null}
-                          </div>
-                        ) : (
-                          <p className="text-center text-[11px] text-muted">—</p>
-                        )
-                      ) : null}
-                      {!cantSupply ? (
-                        <TextInput
-                          type="number"
-                          min={1}
-                          max={item.requestedQuantity}
-                          className={COMPACT_SHEET_NUM_INPUT_CLASS}
-                          value={offerQty[item.id] ?? ''}
-                          onChange={(event) =>
-                            setOfferQty((prev) => ({ ...prev, [item.id]: event.target.value }))
-                          }
-                          aria-label={`Quantity for ${item.name}`}
-                          {...orderQtyInputProps(item.id === lastOfferQtyId)}
-                        />
-                      ) : (
-                        <p
-                          className={cx(
-                            'text-center text-[11px] text-muted',
-                            quoteCantSupplyMutedClass(true),
-                          )}
-                        >
-                          —
-                        </p>
-                      )}
-                      {cantSupply ? (
-                        <p className={cx('text-center text-[11px] text-muted', quoteCantSupplyMutedClass(true))}>
-                          —
-                        </p>
-                      ) : (
-                        <TextInput
-                          inputMode="decimal"
-                          className={COMPACT_SHEET_RATE_INPUT_CLASS}
-                          value={rates[item.id] ?? ''}
-                          onChange={(event) =>
-                            setRates((prev) => ({
+                            {cantSupply ? (
+                              <p
+                                className={cx(
+                                  'text-[11px] font-medium text-muted',
+                                  quoteCantSupplyMutedClass(true),
+                                )}
+                              >
+                                Declined
+                              </p>
+                            ) : null}
+                            {!cantSupply ? (
+                              <p
+                                className="truncate text-[11px] font-medium text-muted"
+                                data-testid={`quote-ref-${item.id}`}
+                              >
+                                {quoteSheetReferenceCue({
+                                  asked: item.requestedQuantity,
+                                  hasSellerQuote: data.hasSellerQuote === true,
+                                  quotedQty: item.quantity,
+                                  quotedRate: item.rate,
+                                  formatAmount: formatOrderLinePriceAmount,
+                                })}
+                              </p>
+                            ) : null}
+                            {showFrom && !cantSupply && fromRate != null ? (
+                              <p className="truncate text-[11px] font-medium text-muted">
+                                From {rateAmount(fromRate)}
+                                {fromUnit ? ` ${fromUnit}` : ''}
+                              </p>
+                            ) : null}
+                          </>
+                        }
+                        facts={
+                          !cantSupply ? (
+                            <div
+                              className="flex divide-x divide-line/80"
+                              data-testid={`quote-qty-rate-${item.id}`}
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <label
+                                  htmlFor={`quote-qty-${item.id}`}
+                                  className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                                >
+                                  Qty
+                                </label>
+                                <TextInput
+                                  id={`quote-qty-${item.id}`}
+                                  type="number"
+                                  min={1}
+                                  className={COMPACT_SHEET_NUM_INPUT_CLASS}
+                                  data-testid={`quote-qty-${item.id}`}
+                                  value={offerQty[item.id] ?? ''}
+                                  onChange={(event) =>
+                                    setOfferQty((prev) => ({
+                                      ...prev,
+                                      [item.id]: event.target.value,
+                                    }))
+                                  }
+                                  aria-label={`Quantity for ${item.name}`}
+                                  {...orderQtyInputProps(item.id === lastOfferQtyId)}
+                                />
+                              </div>
+                              <div className="min-w-0 flex-[1.4] pl-2">
+                                <label
+                                  htmlFor={`quote-rate-${item.id}`}
+                                  className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                                >
+                                  Rate
+                                </label>
+                                <TextInput
+                                  id={`quote-rate-${item.id}`}
+                                  inputMode="decimal"
+                                  className={COMPACT_SHEET_RATE_INPUT_CLASS}
+                                  data-testid={`quote-rate-${item.id}`}
+                                  value={rates[item.id] ?? ''}
+                                  onChange={(event) =>
+                                    setRates((prev) => ({
+                                      ...prev,
+                                      [item.id]: sanitizeQuoteRateInput(event.target.value),
+                                    }))
+                                  }
+                                  aria-label={`Rate for ${item.name}`}
+                                />
+                              </div>
+                            </div>
+                          ) : null
+                        }
+                      />
+                      <div className="mt-2">
+                        <CantSupplySwitch
+                          checked={cantSupply}
+                          testId={`quote-cant-supply-${item.id}`}
+                          onChange={(next) =>
+                            setUnavailable((prev) => ({
                               ...prev,
-                              [item.id]: sanitizeQuoteRateInput(event.target.value),
+                              [item.id]: next,
                             }))
                           }
-                          aria-label={`Rate for ${item.name}`}
                         />
-                      )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             );
           })()}
-          <NoteVoiceField
+          <NoteAttachField
             label="Note"
             note={quoteNote}
             onNoteChange={setQuoteNote}
             voice={quoteNoteVoice}
             onVoiceChange={setQuoteNoteVoice}
+            images={quoteNoteImages}
+            onImagesChange={setQuoteNoteImages}
             onBusyChange={setQuoteVoiceBusy}
           />
           {sheetError && quoteOpen ? <InlineNotice message={sheetError} /> : null}
@@ -2334,16 +2842,23 @@ export function OrderDetailPage() {
                 data-testid="order-lines-decline"
                 disabled={openItems.length === 0 || decideLines.isPending}
                 onClick={() => decideLines.mutate('decline')}
+                aria-label="Decline every open design"
               >
                 {decideLines.isPending && decideLines.variables === 'decline'
                   ? 'Saving…'
-                  : 'Decline'}
+                  : 'Decline all'}
               </Button>
               <Button
                 className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
                 data-testid="order-lines-confirm"
-                disabled={openItems.length === 0 || linesTally.confirm < 1 || decideLines.isPending}
+                disabled={
+                  openItems.length === 0 ||
+                  linesTally.confirm < 1 ||
+                  !linesConfirmReady ||
+                  decideLines.isPending
+                }
                 onClick={() => decideLines.mutate('confirm')}
+                aria-label={`Confirm ${linesTally.confirm} ticked design${linesTally.confirm === 1 ? '' : 's'}; unticked become decline`}
               >
                 {decideLines.isPending && decideLines.variables === 'confirm'
                   ? 'Saving…'
@@ -2353,9 +2868,10 @@ export function OrderDetailPage() {
           </div>
         }
       >
-        <div className="flex flex-col gap-2 pb-2">
-          <p className="text-sm text-muted">
-            Off is decline. Ship fewer pieces on Dispatch.
+        <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
+          <p className="text-sm text-muted" data-testid="order-lines-why">
+            Tick what you can supply; set qty and rate — Confirm locks the ticket. Send quote
+            is optional for a soft offer. Decline all drops every design.
           </p>
           {openItems.length > 0 ? (
             <div
@@ -2374,22 +2890,89 @@ export function OrderDetailPage() {
           ) : (
             <InlineNotice message="No open designs left." />
           )}
+          {openItems.filter((item) => lineActions[item.id] !== 'decline').length > 1 ? (
+            <SameQtyRateForAll
+              show
+              open={linesSameOpen}
+              alignWith="decideRows"
+              qtyDraft={linesSameQtyDraft}
+              rateDraft={linesSameRateDraft}
+              appliedQty={sharedConfirmQty}
+              appliedRate={sharedConfirmRate}
+              onOpen={() => {
+                setLinesSameQtyDraft(
+                  sharedConfirmQty != null ? String(sharedConfirmQty) : '',
+                );
+                setLinesSameRateDraft(sharedConfirmRate);
+                setLinesSameOpen(true);
+              }}
+              onQtyDraftChange={setLinesSameQtyDraft}
+              onRateDraftChange={setLinesSameRateDraft}
+              onApply={() => {
+                const qtyN = parseSharedQtyDraft(linesSameQtyDraft);
+                const parsed = parseQuoteRateDraft(linesSameRateDraft);
+                if (qtyN == null && !parsed) return;
+                const ids = openItems
+                  .filter((item) => lineActions[item.id] !== 'decline')
+                  .map((item) => item.id);
+                if (qtyN != null) {
+                  setLineConfirmQty((prev) => ({
+                    ...prev,
+                    ...qtysWithSharedValue(ids, String(qtyN), confirmQtyDefaults),
+                  }));
+                  setSharedConfirmQty(qtyN);
+                }
+                if (parsed) {
+                  setLineConfirmRates((prev) => ({
+                    ...prev,
+                    ...ratesWithSharedValue(ids, parsed, confirmRateDefaults),
+                  }));
+                  setSharedConfirmRate(parsed);
+                }
+                setLinesSameOpen(false);
+              }}
+              onCancel={() => setLinesSameOpen(false)}
+            />
+          ) : null}
           {openItems.map((item) => {
             const on = lineActions[item.id] !== 'decline';
+            const identity = orderLineIdentitySecondary(item);
+            const lastConfirmQtyId = openItems.filter(
+              (row) => lineActions[row.id] !== 'decline',
+            ).at(-1)?.id;
+            const typedQty = Number(lineConfirmQty[item.id]);
+            const typedRate = quoteRateNumber(lineConfirmRates[item.id]);
+            const factsQty =
+              on && Number.isFinite(typedQty) && typedQty >= 1 ? typedQty : item.quantity;
+            const factsItem = {
+              ...item,
+              quantity: factsQty,
+              rate: typedRate ?? item.rate,
+            };
             return (
               <div
                 key={item.id}
                 className={cx(
-                  'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
-                  on ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+                  'flex items-start gap-2 rounded-xl px-2 py-2',
+                  on
+                    ? orderLineBalance(factsItem)
+                      ? orderLineBalanceRowClass(factsItem)
+                      : 'bg-accent/5'
+                    : 'bg-foam/50',
                 )}
                 data-testid="order-lines-decide-row"
               >
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  className={cx(
+                    'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
+                    on
+                      ? 'border-accent bg-accent text-white'
+                      : 'border-line bg-surface text-transparent',
+                  )}
                   aria-pressed={on}
                   aria-label={on ? `Decline ${item.name}` : `Confirm ${item.name}`}
+                  data-testid="order-lines-decide-toggle"
                   onClick={() =>
                     setLineActions((prev) => ({
                       ...prev,
@@ -2397,49 +2980,200 @@ export function OrderDetailPage() {
                     }))
                   }
                 >
-                  <span
-                    className={cx(
-                      'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
-                      on
-                        ? 'border-accent bg-accent text-white'
-                        : 'border-line bg-surface text-transparent',
-                    )}
-                    aria-hidden
-                  >
-                    <CheckIcon width={12} height={12} />
-                  </span>
-                  <OrderLinePhoto
-                    item={item}
-                    items={data.items}
-                    onOpen={openPhotoViewer}
-                    size="sm"
-                  />
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
-                    {orderLineLeftoverCue(item) ? (
-                      <p className="mt-px truncate text-[11px] font-semibold text-ink">
-                        {orderLineLeftoverCue(item)}
-                      </p>
-                    ) : (
-                      <p className="mt-px truncate text-[11px] text-muted">
-                        {item.quantity} ordered
-                      </p>
-                    )}
-                  </div>
+                  <CheckIcon width={12} height={12} aria-hidden />
                 </button>
-                <span className="w-14 shrink-0 text-right text-[11px] font-medium text-muted">
-                  {on ? 'Confirm' : 'Decline'}
-                </span>
+                <OrderLineStack
+                  className="min-w-0 flex-1"
+                  muted={!on}
+                  photo={
+                    <OrderLinePhoto
+                      item={item}
+                      items={data.items}
+                      onOpen={openPhotoViewer}
+                      size="lg"
+                    />
+                  }
+                  title={
+                    <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                  }
+                  secondary={
+                    identity ? (
+                      <p className="truncate text-[12px] font-medium text-slate">{identity}</p>
+                    ) : null
+                  }
+                  cues={
+                    <>
+                      {orderLineLeftoverCue(item) ? (
+                        <p className="truncate text-[11px] font-semibold text-ink">
+                          {orderLineLeftoverCue(item)}
+                        </p>
+                      ) : null}
+                      {on ? (
+                        <p
+                          className="truncate text-[11px] font-medium text-muted"
+                          data-testid={`order-lines-asked-${item.id}`}
+                        >
+                          {quoteSheetReferenceCue({
+                            asked: item.requestedQuantity,
+                            hasSellerQuote: data.hasSellerQuote === true,
+                            quotedQty: item.quantity,
+                            quotedRate: item.rate,
+                            formatAmount: formatOrderLinePriceAmount,
+                          })}
+                        </p>
+                      ) : (
+                        <p className="truncate text-[11px] font-medium text-muted">Declined</p>
+                      )}
+                    </>
+                  }
+                  facts={
+                    on ? (
+                      <div
+                        className="flex divide-x divide-line/80"
+                        data-testid={`order-lines-qty-rate-${item.id}`}
+                      >
+                        <div className="min-w-0 flex-1 pr-2">
+                          <label
+                            htmlFor={`confirm-qty-${item.id}`}
+                            className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                          >
+                            Qty
+                          </label>
+                          <TextInput
+                            id={`confirm-qty-${item.id}`}
+                            type="number"
+                            min={1}
+                            data-testid={`order-lines-qty-${item.id}`}
+                            aria-label={`Quantity for ${item.name}`}
+                            className={COMPACT_SHEET_NUM_INPUT_CLASS}
+                            value={lineConfirmQty[item.id] ?? String(item.quantity)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) =>
+                              setLineConfirmQty((prev) => ({
+                                ...prev,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                            onBlur={() => {
+                              const raw = lineConfirmQty[item.id];
+                              const n = Number(raw);
+                              if (!Number.isFinite(n) || n < 1) {
+                                setLineConfirmQty((prev) => ({
+                                  ...prev,
+                                  [item.id]: String(item.quantity),
+                                }));
+                              }
+                            }}
+                            {...orderQtyInputProps(item.id === lastConfirmQtyId)}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-[1.4] pl-2">
+                          <label
+                            htmlFor={`confirm-rate-${item.id}`}
+                            className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                          >
+                            Rate
+                          </label>
+                          <TextInput
+                            id={`confirm-rate-${item.id}`}
+                            inputMode="decimal"
+                            data-testid={`order-lines-rate-${item.id}`}
+                            aria-label={`Rate for ${item.name}`}
+                            className={COMPACT_SHEET_RATE_INPUT_CLASS}
+                            value={lineConfirmRates[item.id] ?? ''}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) =>
+                              setLineConfirmRates((prev) => ({
+                                ...prev,
+                                [item.id]: sanitizeQuoteRateInput(event.target.value),
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    ) : null
+                  }
+                />
               </div>
             );
           })}
-          <NoteVoiceField
+          <NoteAttachField
             label="Note"
             note={linesNote}
             onNoteChange={setLinesNote}
             voice={linesNoteVoice}
             onVoiceChange={setLinesNoteVoice}
+            images={linesNoteImages}
+            onImagesChange={setLinesNoteImages}
           />
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={Boolean(packingSlipShipment)}
+        onClose={() => {
+          if (packingSlipBusy) return;
+          setPackingSlipShipmentId(null);
+        }}
+        title="Packing list"
+        footer={
+          <div className="flex flex-col gap-2">
+            <Button
+              fullWidth
+              data-testid="packing-slip-open"
+              disabled={packingSlipBusy || !packingSlipShipment}
+              onClick={() => void runPackingSlip('open')}
+            >
+              {packingSlipBusy ? 'Preparing…' : 'Open PDF'}
+            </Button>
+            <button
+              type="button"
+              data-testid="packing-slip-share"
+              className="py-1 text-center text-sm font-semibold text-accent disabled:opacity-45"
+              disabled={packingSlipBusy || !packingSlipShipment}
+              onClick={() => void runPackingSlip('share')}
+            >
+              Share
+            </button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted">Qty uses the order unit. Photos help match the bale.</p>
+          {(
+            [
+              {
+                key: 'showBuyer' as const,
+                label: 'Show buyer',
+                testId: 'packing-slip-show-buyer',
+              },
+              {
+                key: 'showPhotos' as const,
+                label: 'Show design photos',
+                testId: 'packing-slip-show-photos',
+              },
+            ] as const
+          ).map((row) => {
+            const on = packingSlipOpts[row.key];
+            return (
+              <button
+                key={row.key}
+                type="button"
+                data-testid={row.testId}
+                aria-pressed={on}
+                className={cx(
+                  'flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left',
+                  on ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+                )}
+                onClick={() =>
+                  setPackingSlipOpts((prev) => ({ ...prev, [row.key]: !prev[row.key] }))
+                }
+              >
+                <span className="text-sm font-semibold text-ink">{row.label}</span>
+                <span className="text-[12px] font-medium text-muted">{on ? 'On' : 'Off'}</span>
+              </button>
+            );
+          })}
         </div>
       </Sheet>
 
@@ -2449,40 +3183,93 @@ export function OrderDetailPage() {
         title="Dispatch"
         footer={
           editingShipmentId || shippableItems.length === 0 ? undefined : (
-          <div className="flex flex-col gap-2.5">
-            <Field label="LR number">
-              <TextInput
-                value={dispatch.lrNumber ?? ''}
-                placeholder="Optional"
-                onChange={(event) =>
-                  setDispatch((prev) => ({ ...prev, lrNumber: event.target.value }))
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <TransporterField
+                value={dispatch.transporter ?? ''}
+                onChange={(next) =>
+                  setDispatch((prev) => ({ ...prev, transporter: next }))
                 }
               />
-            </Field>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Transporter">
-                <TextInput
-                  value={dispatch.transporter ?? ''}
-                  placeholder="Optional"
-                  onChange={(event) =>
-                    setDispatch((prev) => ({ ...prev, transporter: event.target.value }))
-                  }
-                />
-              </Field>
               <Field label="Parcels">
                 <TextInput
                   type="number"
                   min={1}
                   value={dispatch.parcelCount ?? ''}
-                  placeholder="Optional"
-                  onChange={(event) =>
+                  placeholder="1"
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    if (!raw) {
+                      setDispatch((prev) => ({
+                        ...prev,
+                        parcelCount: undefined,
+                        legs: resizeDispatchLegs(prev.legs, 1),
+                      }));
+                      return;
+                    }
+                    const n = Number(raw);
                     setDispatch((prev) => ({
                       ...prev,
-                      parcelCount: event.target.value ? Number(event.target.value) : undefined,
-                    }))
-                  }
+                      parcelCount: n,
+                      legs: resizeDispatchLegs(prev.legs, n),
+                    }));
+                  }}
                 />
               </Field>
+            </div>
+            <div className="flex flex-col gap-1.5" data-testid="order-dispatch-legs">
+              <div className="grid grid-cols-2 gap-2">
+                <p className="text-sm font-semibold text-ink">LR number</p>
+                <p className="text-sm font-semibold text-ink">Bill no</p>
+              </div>
+              {dispatch.legs.map((leg, index) => (
+                <div
+                  key={index}
+                  className="flex flex-col gap-1.5"
+                  data-testid="order-dispatch-leg-row"
+                >
+                  <div className="grid grid-cols-2 gap-2">
+                    <TextInput
+                      value={leg.lrNumber}
+                      placeholder="Optional"
+                      aria-label={`LR number ${index + 1}`}
+                      onChange={(event) =>
+                        setDispatch((prev) => ({
+                          ...prev,
+                          legs: prev.legs.map((row, i) =>
+                            i === index ? { ...row, lrNumber: event.target.value } : row,
+                          ),
+                        }))
+                      }
+                    />
+                    <TextInput
+                      value={leg.billNumber}
+                      placeholder="Optional"
+                      aria-label={`Bill no ${index + 1}`}
+                      onChange={(event) =>
+                        setDispatch((prev) => ({
+                          ...prev,
+                          legs: prev.legs.map((row, i) =>
+                            i === index ? { ...row, billNumber: event.target.value } : row,
+                          ),
+                        }))
+                      }
+                    />
+                  </div>
+                  <LegPhotoAttach
+                    images={leg.imageUrls ?? []}
+                    testIdPrefix={`order-dispatch-leg-${index}`}
+                    onImagesChange={(imageUrls) =>
+                      setDispatch((prev) => ({
+                        ...prev,
+                        legs: prev.legs.map((row, i) =>
+                          i === index ? { ...row, imageUrls } : row,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
+              ))}
             </div>
             {dispatchError && !editingShipmentId ? (
               <InlineNotice message={dispatchError} />
@@ -2524,7 +3311,9 @@ export function OrderDetailPage() {
               {shippableItems.map((item) => {
                 const on = shipOn[item.id] !== false;
                 const kind = dispatchLineKindLine(item);
+                const thisLr = on ? lineDispatchQty(item, shipQty) : 0;
                 const overBy = on ? lineDispatchOverBy(item, shipQty) : 0;
+                const factsItem = orderLineFactsWithThisLr(item, thisLr, on);
                 const lastDispatchQtyId = shippableItems
                   .filter((line) => shipOn[line.id] !== false)
                   .at(-1)?.id;
@@ -2532,14 +3321,23 @@ export function OrderDetailPage() {
                   <div
                     key={item.id}
                     className={cx(
-                      'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
-                      on ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+                      'flex items-start gap-2 rounded-xl px-2 py-2',
+                      on
+                        ? orderLineBalance(factsItem)
+                          ? orderLineBalanceRowClass(factsItem)
+                          : 'bg-accent/5'
+                        : 'bg-foam/50',
                     )}
                     data-testid="order-dispatch-line"
                   >
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                      className={cx(
+                        'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
+                        on
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-line bg-surface text-transparent',
+                      )}
                       aria-pressed={on}
                       aria-label={on ? `Later ${item.name}` : `This LR ${item.name}`}
                       data-testid="order-dispatch-line-toggle"
@@ -2550,107 +3348,119 @@ export function OrderDetailPage() {
                         }))
                       }
                     >
-                      <span
-                        className={cx(
-                          'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
-                          on
-                            ? 'border-accent bg-accent text-white'
-                            : 'border-line bg-surface text-transparent',
-                        )}
+                      <CheckIcon
+                        width={12}
+                        height={12}
                         data-testid="order-dispatch-line-check"
                         aria-hidden
-                      >
-                        <CheckIcon width={12} height={12} />
-                      </span>
-                      <OrderLinePhoto
-                        item={item}
-                        items={data.items}
-                        onOpen={openPhotoViewer}
-                        size="sm"
                       />
-                      <div className="min-w-0 flex-1 leading-tight">
+                    </button>
+                    <OrderLineStack
+                      className="min-w-0 flex-1"
+                      photo={
+                        <OrderLinePhoto
+                          item={item}
+                          items={data.items}
+                          onOpen={openPhotoViewer}
+                          size="lg"
+                        />
+                      }
+                      title={
                         <p
                           data-testid="order-dispatch-line-name"
                           className="truncate text-sm font-semibold text-ink"
                         >
                           {item.name}
                         </p>
-                        {orderLineLeftoverCue(item) ? (
+                      }
+                      secondary={
+                        kind ? (
+                          <p
+                            className="truncate text-[12px] font-medium text-slate"
+                            data-testid="order-dispatch-line-kind"
+                          >
+                            {kind}
+                          </p>
+                        ) : null
+                      }
+                      cues={
+                        orderLineLeftoverCue(item) ? (
                           <p className="truncate text-[11px] font-semibold text-ink">
                             {orderLineLeftoverCue(item)}
                           </p>
-                        ) : null}
-                        <p className="mt-px truncate text-[11px] text-muted">
-                          {kind ? (
-                            <span data-testid="order-dispatch-line-kind">{kind}</span>
-                          ) : null}
-                          {kind ? ' · ' : null}
-                          <span data-testid="order-dispatch-line-counts">
-                            {dispatchLineCountLine(item)}
-                          </span>
-                        </p>
-                        {overBy > 0 ? (
-                          <p
-                            className="mt-px truncate text-[11px] font-semibold text-accent"
-                            data-testid="order-dispatch-line-extra"
-                          >
-                            Extra {overBy}
-                          </p>
-                        ) : null}
-                      </div>
-                    </button>
-                    <TextInput
-                      type="number"
-                      min={1}
-                      disabled={!on}
-                      data-testid="order-dispatch-line-qty"
-                      className={cx(
-                        COMPACT_QTY_INPUT_CLASS,
-                        overBy > 0 && 'border-accent ring-1 ring-accent/40',
-                      )}
-                      value={shipQty[item.id] ?? String(lineDispatchQty(item, shipQty))}
-                      onClick={(event) => event.stopPropagation()}
-                      onChange={(event) =>
-                        setShipQty((prev) => ({ ...prev, [item.id]: event.target.value }))
+                        ) : null
                       }
-                      {...orderQtyInputProps(item.id === lastDispatchQtyId)}
+                      facts={<OrderLineFacts item={factsItem} />}
+                      trailing={
+                        <div className="flex flex-col items-end gap-0.5">
+                          <label
+                            htmlFor={`dispatch-this-lr-${item.id}`}
+                            className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                          >
+                            This LR
+                          </label>
+                          <TextInput
+                            id={`dispatch-this-lr-${item.id}`}
+                            type="number"
+                            min={1}
+                            disabled={!on}
+                            data-testid="order-dispatch-line-qty"
+                            aria-label={`This LR quantity for ${item.name}`}
+                            className={cx(
+                              COMPACT_QTY_INPUT_CLASS,
+                              overBy > 0 && 'border-info ring-1 ring-info/40',
+                            )}
+                            value={shipQty[item.id] ?? String(lineDispatchQty(item, shipQty))}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) =>
+                              setShipQty((prev) => ({ ...prev, [item.id]: event.target.value }))
+                            }
+                            {...orderQtyInputProps(item.id === lastDispatchQtyId)}
+                          />
+                        </div>
+                      }
                     />
                   </div>
                 );
               })}
               {declinedDispatchItems.length > 0 ? (
                 <div className="flex flex-col gap-2 pt-1" data-testid="order-dispatch-cant-supply">
-                  <p className="text-xs font-semibold text-muted">Can’t supply</p>
                   {declinedDispatchItems.map((item) => (
                     <div
                       key={item.id}
                       className={cx(
-                        'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
+                        'rounded-xl px-2 py-1.5',
                         quoteCantSupplyRowClass(true),
                       )}
                       data-testid="order-dispatch-cant-supply-line"
                     >
-                      <OrderLinePhoto
-                        item={item}
-                        items={data.items}
-                        onOpen={openPhotoViewer}
-                        size="sm"
-                      />
-                      <div className="min-w-0 flex-1 leading-tight">
-                        <p className="truncate text-sm font-semibold text-muted">{item.name}</p>
-                        <p className="text-[11px] font-semibold text-ink">Can’t supply</p>
-                      </div>
-                      <Button
-                        variant="secondary"
-                        className="!min-h-8 h-8 shrink-0 px-2 text-[12px]"
-                        data-testid="order-dispatch-restore-supply"
-                        disabled={setLineSupply.isPending}
-                        onClick={() =>
-                          setLineSupply.mutate({ orderItemId: item.id, cantSupply: false })
+                      <OrderLineStack
+                        muted
+                        photo={
+                          <OrderLinePhoto
+                            item={item}
+                            items={data.items}
+                            onOpen={openPhotoViewer}
+                            size="sm"
+                          />
                         }
-                      >
-                        Restore
-                      </Button>
+                        title={
+                          <p className="truncate text-sm font-semibold text-muted">{item.name}</p>
+                        }
+                        trailing={
+                          <button
+                            type="button"
+                            className="shrink-0 px-1 text-[12px] font-semibold text-accent disabled:opacity-45"
+                            data-testid="order-dispatch-restore-supply"
+                            disabled={setLineSupply.isPending}
+                            onClick={() =>
+                              setLineSupply.mutate({ orderItemId: item.id, cantSupply: false })
+                            }
+                          >
+                            Restore
+                          </button>
+                        }
+                      />
                     </div>
                   ))}
                 </div>
@@ -2704,9 +3514,29 @@ export function OrderDetailPage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-ink">
-                              {shipment.lrNumber ? `LR · ${shipment.lrNumber}` : 'Previous dispatch'}
-                            </p>
+                            {(() => {
+                              const legLines = shipmentLegDisplayLines(shipment);
+                              if (legLines.length === 0) {
+                                return (
+                                  <p className="truncate text-sm font-medium text-ink">
+                                    Previous dispatch
+                                  </p>
+                                );
+                              }
+                              return (
+                                <>
+                                  {legLines.map((line) => (
+                                    <p key={line} className="truncate text-sm font-medium text-ink">
+                                      {line}
+                                    </p>
+                                  ))}
+                                  <LegPhotoThumbs
+                                    images={shipmentLegImageUrls(shipment)}
+                                    testId={`order-dispatch-prior-lr-photos-${shipment.id}`}
+                                  />
+                                </>
+                              );
+                            })()}
                             <p className="text-[11px] text-muted">
                               {formatDate(shipment.dispatchedAt)}
                             </p>
@@ -2747,10 +3577,8 @@ export function OrderDetailPage() {
                                   <div
                                     key={item.id}
                                     className={cx(
-                                      'flex items-center gap-1.5 rounded-xl border px-2 py-1.5',
-                                      active
-                                        ? 'border-accent bg-accent/5'
-                                        : 'border-line bg-surface opacity-60',
+                                      'flex items-center gap-1.5 rounded-lg px-1 py-1.5',
+                                      active ? '' : 'opacity-50',
                                     )}
                                     data-testid="order-dispatch-edit-line"
                                   >
@@ -2791,47 +3619,100 @@ export function OrderDetailPage() {
                                   </div>
                                 );
                               })}
-                            <Field label="LR number">
-                              <TextInput
-                                value={editDispatch.lrNumber ?? ''}
-                                placeholder="Optional"
-                                onChange={(event) =>
+                            <div className="grid grid-cols-2 gap-2">
+                              <TransporterField
+                                value={editDispatch.transporter ?? ''}
+                                onChange={(next) =>
                                   setEditDispatch((prev) => ({
                                     ...prev,
-                                    lrNumber: event.target.value,
+                                    transporter: next,
                                   }))
                                 }
+                                testId="edit-transporter-field"
                               />
-                            </Field>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Field label="Transporter">
-                                <TextInput
-                                  value={editDispatch.transporter ?? ''}
-                                  placeholder="Optional"
-                                  onChange={(event) =>
-                                    setEditDispatch((prev) => ({
-                                      ...prev,
-                                      transporter: event.target.value,
-                                    }))
-                                  }
-                                />
-                              </Field>
                               <Field label="Parcels">
                                 <TextInput
                                   type="number"
                                   min={1}
                                   value={editDispatch.parcelCount ?? ''}
-                                  placeholder="Optional"
-                                  onChange={(event) =>
+                                  placeholder="1"
+                                  onChange={(event) => {
+                                    const raw = event.target.value;
+                                    if (!raw) {
+                                      setEditDispatch((prev) => ({
+                                        ...prev,
+                                        parcelCount: undefined,
+                                        legs: resizeDispatchLegs(prev.legs, 1),
+                                      }));
+                                      return;
+                                    }
+                                    const n = Number(raw);
                                     setEditDispatch((prev) => ({
                                       ...prev,
-                                      parcelCount: event.target.value
-                                        ? Number(event.target.value)
-                                        : undefined,
-                                    }))
-                                  }
+                                      parcelCount: n,
+                                      legs: resizeDispatchLegs(prev.legs, n),
+                                    }));
+                                  }}
                                 />
                               </Field>
+                            </div>
+                            <div className="flex flex-col gap-1.5" data-testid="order-dispatch-edit-legs">
+                              <div className="grid grid-cols-2 gap-2">
+                                <p className="text-sm font-semibold text-ink">LR number</p>
+                                <p className="text-sm font-semibold text-ink">Bill no</p>
+                              </div>
+                              {editDispatch.legs.map((leg, index) => (
+                                <div
+                                  key={index}
+                                  className="flex flex-col gap-1.5"
+                                  data-testid="order-dispatch-edit-leg-row"
+                                >
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <TextInput
+                                      value={leg.lrNumber}
+                                      placeholder="Optional"
+                                      aria-label={`LR number ${index + 1}`}
+                                      onChange={(event) =>
+                                        setEditDispatch((prev) => ({
+                                          ...prev,
+                                          legs: prev.legs.map((row, i) =>
+                                            i === index
+                                              ? { ...row, lrNumber: event.target.value }
+                                              : row,
+                                          ),
+                                        }))
+                                      }
+                                    />
+                                    <TextInput
+                                      value={leg.billNumber}
+                                      placeholder="Optional"
+                                      aria-label={`Bill no ${index + 1}`}
+                                      onChange={(event) =>
+                                        setEditDispatch((prev) => ({
+                                          ...prev,
+                                          legs: prev.legs.map((row, i) =>
+                                            i === index
+                                              ? { ...row, billNumber: event.target.value }
+                                              : row,
+                                          ),
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                  <LegPhotoAttach
+                                    images={leg.imageUrls ?? []}
+                                    testIdPrefix={`order-dispatch-edit-leg-${index}`}
+                                    onImagesChange={(imageUrls) =>
+                                      setEditDispatch((prev) => ({
+                                        ...prev,
+                                        legs: prev.legs.map((row, i) =>
+                                          i === index ? { ...row, imageUrls } : row,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </div>
+                              ))}
                             </div>
                             {dispatchError && editingShipmentId === shipment.id ? (
                               <InlineNotice message={dispatchError} />
@@ -2855,12 +3736,14 @@ export function OrderDetailPage() {
                 : null}
             </div>
           ) : null}
-          <NoteVoiceField
+          <NoteAttachField
             label="Note"
             note={dispatchNote}
             onNoteChange={setDispatchNote}
             voice={dispatchNoteVoice}
             onVoiceChange={setDispatchNoteVoice}
+            images={dispatchNoteImages}
+            onImagesChange={setDispatchNoteImages}
           />
         </div>
       </Sheet>
@@ -2900,59 +3783,58 @@ export function OrderDetailPage() {
                   pendingPieces={pendingPieces}
                 />
                 {settleLines.map((item) => {
-                  const shipped = item.shippedQuantity ?? 0;
                   const pending = item.remainingQuantity ?? 0;
+                  const identity = orderLineIdentitySecondary(item);
                   return (
                     <div
                       key={item.id}
-                      className={cx(
-                        'flex items-center gap-2',
-                        fulfillmentRowClass(pending),
-                      )}
+                      className={cx('px-1 py-1', fulfillmentRowClass(pending))}
                       data-testid={
                         pending > 0 ? 'settle-line-pending' : 'settle-line-done'
                       }
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <OrderLinePhoto
-                          item={item}
-                          items={data.items}
-                          onOpen={openPhotoViewer}
-                          size="sm"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                          {orderLineLeftoverCue(item) ? (
+                      <OrderLineStack
+                        photo={
+                          <OrderLinePhoto
+                            item={item}
+                            items={data.items}
+                            onOpen={openPhotoViewer}
+                            size="lg"
+                          />
+                        }
+                        title={
+                          <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                        }
+                        secondary={
+                          identity ? (
+                            <p className="truncate text-[12px] font-medium text-slate">
+                              {identity}
+                            </p>
+                          ) : null
+                        }
+                        cues={
+                          orderLineLeftoverCue(item) ? (
                             <p className="truncate text-[11px] font-semibold text-ink">
                               {orderLineLeftoverCue(item)}
                             </p>
-                          ) : null}
-                          <SettleQtyColumns dispatched={shipped} pending={pending} />
-                        </div>
-                      </div>
-                      {pending > 0 ? (
-                        <p
-                          className="shrink-0 text-xl font-bold tabular-nums text-accent"
-                          data-testid="settle-line-pending-qty"
-                          aria-label={`${pending} pending`}
-                        >
-                          {pending}
-                        </p>
-                      ) : (
-                        <p className="shrink-0 text-[12px] font-medium text-muted">Done</p>
-                      )}
+                          ) : null
+                        }
+                        facts={<OrderLineFacts item={item} />}
+                      />
                     </div>
                   );
                 })}
               </>
             );
           })()}
-          <NoteVoiceField
+          <NoteAttachField
             label="Note"
             note={settleNote}
             onNoteChange={setSettleNote}
             voice={settleNoteVoice}
             onVoiceChange={setSettleNoteVoice}
+            images={settleNoteImages}
+            onImagesChange={setSettleNoteImages}
           />
           {sheetError && settleOpen ? <InlineNotice message={sheetError} /> : null}
         </div>
@@ -2964,9 +3846,6 @@ export function OrderDetailPage() {
         title={isInquiry ? 'Edit inquiry' : 'Edit order'}
       >
         <div className="flex flex-col gap-3" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          <p className="text-sm text-muted">
-            Change quantities or remove designs before they respond. Adds show in chat as Updated.
-          </p>
           {(data.items ?? [])
             .filter((item) => item.productId)
             .map((item) => {
@@ -2975,64 +3854,93 @@ export function OrderDetailPage() {
               const lastAmendPid = [...(data.items ?? [])]
                 .filter((line) => line.productId && !amendRemoved.has(line.productId))
                 .at(-1)?.productId;
+              const toggleRemoved = () =>
+                setAmendRemoved((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(pid)) next.delete(pid);
+                  else next.add(pid);
+                  return next;
+                });
               return (
                 <div
                   key={item.id}
                   className={cx(
-                    'flex items-center gap-2 rounded-xl border border-line p-3',
+                    'flex flex-col gap-1.5 rounded-xl bg-foam/40 p-3',
                     removed && 'opacity-50',
                   )}
+                  data-testid="order-amend-line"
                 >
-                  <OrderLinePhoto
-                    item={item}
-                    items={data.items}
-                    onOpen={openPhotoViewer}
-                    size="sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                    {item.sku ? <p className="text-[11px] text-muted">{item.sku}</p> : null}
+                  <div className="flex items-center gap-2">
+                    <OrderLinePhoto
+                      item={item}
+                      items={data.items}
+                      onOpen={openPhotoViewer}
+                      size="sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                      {item.sku ? <p className="truncate text-[11px] text-muted">{item.sku}</p> : null}
+                    </div>
+                    {!removed ? (
+                      <TextInput
+                        type="number"
+                        min={1}
+                        className={COMPACT_QTY_INPUT_CLASS}
+                        value={amendQty[pid] ?? String(item.quantity)}
+                        onChange={(event) =>
+                          setAmendQty((prev) => ({ ...prev, [pid]: event.target.value }))
+                        }
+                        {...orderQtyInputProps(pid === lastAmendPid)}
+                      />
+                    ) : null}
+                    {removed ? (
+                      <button
+                        type="button"
+                        className="shrink-0 px-1 text-[12px] font-semibold text-muted"
+                        data-testid="order-amend-undo"
+                        onClick={toggleRemoved}
+                      >
+                        Undo
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label={`Remove ${item.name}`}
+                        className="shrink-0 px-1 text-lg leading-none text-muted"
+                        data-testid="order-amend-remove"
+                        onClick={toggleRemoved}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                   {!removed ? (
-                    <TextInput
-                      type="number"
-                      min={1}
-                      className={COMPACT_QTY_INPUT_CLASS}
-                      value={amendQty[pid] ?? String(item.quantity)}
-                      onChange={(event) =>
-                        setAmendQty((prev) => ({ ...prev, [pid]: event.target.value }))
+                    <HowManyLineNote
+                      value={amendLineNotes[pid] ?? ''}
+                      onChange={(value) =>
+                        setAmendLineNotes((prev) => ({ ...prev, [pid]: value }))
                       }
-                      {...orderQtyInputProps(pid === lastAmendPid)}
+                      ariaLabel={`Note for ${item.name}`}
                     />
                   ) : null}
-                  <button
-                    type="button"
-                    className="shrink-0 text-xs font-bold text-accent"
-                    onClick={() =>
-                      setAmendRemoved((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(pid)) next.delete(pid);
-                        else next.add(pid);
-                        return next;
-                      })
-                    }
-                  >
-                    {removed ? 'Undo' : 'Remove'}
-                  </button>
                 </div>
               );
             })}
-          <p className="text-xs text-muted">
-            To add designs, open their collection, select more, and ask rates / order again — or keep
-            editing quantities here.
-          </p>
           {sheetError && amendOpen ? <InlineNotice message={sheetError} /> : null}
-          <NoteVoiceField
+          <TransporterField
+            value={amendTransporter}
+            onChange={setAmendTransporter}
+            disabled={amendOrder.isPending}
+            testId="amend-transporter-field"
+          />
+          <NoteAttachField
             label="Note"
             note={amendNote}
             onNoteChange={setAmendNote}
             voice={amendNoteVoice}
             onVoiceChange={setAmendNoteVoice}
+            images={amendNoteImages}
+            onImagesChange={setAmendNoteImages}
           />
           <Button fullWidth onClick={() => amendOrder.mutate()} disabled={amendOrder.isPending}>
             {amendOrder.isPending ? 'Saving…' : 'Save changes'}
@@ -3172,12 +4080,81 @@ export function OrderDetailPage() {
       >
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">Optional note for the other shop.</p>
-          <NoteVoiceField
+          <NoteAttachField
             label="Note"
             note={actionNote}
             onNoteChange={setActionNote}
             voice={actionNoteVoice}
             onVoiceChange={setActionNoteVoice}
+            images={actionNoteImages}
+            onImagesChange={setActionNoteImages}
+          />
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={manualRefOpen}
+        onClose={() => setManualRefOpen(false)}
+        title="Manual order no."
+        footer={
+          <Button
+            fullWidth
+            data-testid="order-manual-ref-save"
+            disabled={saveManualRef.isPending}
+            onClick={() => saveManualRef.mutate()}
+          >
+            {saveManualRef.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Field label="Order number">
+            <TextInput
+              value={manualOrderNo}
+              onChange={(event) => setManualOrderNo(event.target.value)}
+              placeholder="Your book / PO number"
+              data-testid="order-manual-ref-number"
+            />
+          </Field>
+          <NoteAttachField
+            label="Note"
+            note={manualNote}
+            onNoteChange={setManualNote}
+            voice={null}
+            onVoiceChange={() => undefined}
+            images={manualImages}
+            onImagesChange={setManualImages}
+            allowVoice={false}
+          />
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={personalNoteOpen}
+        onClose={() => setPersonalNoteOpen(false)}
+        title="Personal note"
+        footer={
+          <Button
+            fullWidth
+            data-testid="order-personal-note-save"
+            disabled={savePersonalNote.isPending}
+            onClick={() => savePersonalNote.mutate()}
+          >
+            {savePersonalNote.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Only your company sees this — not the other party.</p>
+          <NoteAttachField
+            label="Note"
+            note={personalNote}
+            onNoteChange={setPersonalNote}
+            voice={personalNoteVoice}
+            onVoiceChange={setPersonalNoteVoice}
+            images={personalNoteImages}
+            onImagesChange={setPersonalNoteImages}
+            optional={false}
           />
         </div>
       </Sheet>
@@ -3216,7 +4193,11 @@ export function OrderDetailPage() {
         urls={photoGallery}
         index={photoViewerIndex}
         onIndex={setPhotoViewerIndex}
-        onClose={() => setPhotoViewerOpen(false)}
+        onClose={() => {
+          setPhotoViewerOpen(false);
+          setNoteViewerUrls(null);
+          setNoteViewerCaption(null);
+        }}
         captions={photoCaptions}
         details={photoDetails}
       />

@@ -28,16 +28,16 @@ vi.mock('@/ui/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
-vi.mock('@/lib/tradePresence', () => ({
-  useTradePresence: () => ({ buying: true, selling: true, trading: true }),
-}));
-
 vi.mock('@/features/orders/HowManyEachSheet', () => ({
   HowManyEachSheet: () => null,
 }));
 
-vi.mock('@/features/browse/CurateFromSelectionSheet', () => ({
-  CurateFromSelectionSheet: () => null,
+vi.mock('@/features/browse/SelectionMessageSheet', () => ({
+  SelectionMessageSheet: () => null,
+}));
+
+vi.mock('@/features/browse/CatalogShareSheet', () => ({
+  CatalogShareSheet: () => null,
 }));
 
 vi.mock('./CompanyShareSheet', () => ({
@@ -104,6 +104,7 @@ describe('CompanyProfilePage shop chrome', () => {
             {
               id: 'col1',
               name: 'Wedding Edit',
+              description: null,
               categories: [],
               memberFind: [],
               coverImage: 'https://cdn/cover.jpg',
@@ -114,6 +115,12 @@ describe('CompanyProfilePage shop chrome', () => {
               updatedAt: '2026-01-01T00:00:00.000Z',
               allowForward: true,
               orderPathPreference: null,
+              rateMin: null,
+              rateMax: null,
+              rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
               company,
             },
           ],
@@ -128,6 +135,11 @@ describe('CompanyProfilePage shop chrome', () => {
               name: 'Red silk saree',
               images: ['https://cdn/d1.jpg'],
               rate: null,
+              rateMax: null,
+              unit: null,
+              categories: [],
+              postedAt: '2026-01-01T00:00:00.000Z',
+              allowForward: true,
               company,
             },
           ],
@@ -335,9 +347,11 @@ describe('CompanyProfilePage shop chrome', () => {
     ]);
     renderPage(false);
     expect(await screen.findByTestId('company-shop-dock')).toBeInTheDocument();
+    expect(screen.getByTestId('company-shop-message')).toBeInTheDocument();
+    expect(screen.getByTestId('company-shop-share')).toBeInTheDocument();
     expect(screen.getByTestId('company-shop-order')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ask for rates' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Curate' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ask for rates' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Curate' })).toBeNull();
   });
 
   it('shows collection name and mosaic on the Collections tab', async () => {
@@ -380,6 +394,36 @@ describe('CompanyProfilePage shop chrome', () => {
     await user.click(screen.getByTestId('select-all-float-clear'));
     expect(readBrowseAlbumPick()).toEqual([]);
     expect(screen.queryByTestId('company-shop-dock')).toBeNull();
+  });
+
+  it('Collections tab count ignores selected designs — Clear leaves designs', async () => {
+    writeBrowseShortlist([
+      {
+        productId: 'd1',
+        name: 'Red silk saree',
+        thumbUrl: null,
+        companyId: 'seed-company-ravi',
+        companyName: 'Surat Silk House',
+      },
+    ]);
+    writeBrowseAlbumPick([
+      {
+        collectionId: 'col1',
+        name: 'Wedding Edit',
+        coverImage: null,
+        companyId: 'seed-company-ravi',
+        companyName: 'Surat Silk House',
+      },
+    ]);
+    const user = userEvent.setup();
+    renderPage(false);
+    expect(await screen.findByTestId('company-shop-dock')).toBeInTheDocument();
+    await user.click(screen.getByTestId('company-shop-tab-collections'));
+    expect(screen.getByTestId('select-all-float')).toHaveTextContent('1 selected');
+    await user.click(screen.getByTestId('select-all-float-clear'));
+    expect(readBrowseAlbumPick()).toEqual([]);
+    expect(screen.getByTestId('company-shop-dock')).toBeInTheDocument();
+    expect(screen.getByTestId('select-all-float')).toHaveTextContent('0 selected');
   });
 
   it('opens the trade dock when this shops collection is selected', async () => {

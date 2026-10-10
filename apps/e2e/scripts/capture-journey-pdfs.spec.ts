@@ -115,7 +115,7 @@ test.describe('demo journey PDFs', () => {
 
       await softGoto(page, '/explore');
       await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 20_000 });
-      await shot(page, dir, shots, '02-explore.png', 'Explore', 'Browse packs and designs from connected sellers.');
+      await shot(page, dir, shots, '02-explore.png', 'Explore', 'Browse collections and designs from connected sellers.');
 
       const wedding = page.getByRole('link', { name: /Wedding Edit/i }).first();
       if (await wedding.count()) {
@@ -124,7 +124,7 @@ test.describe('demo journey PDFs', () => {
         await page.getByText(/Wedding Edit/i).first().click();
       }
       await expect(page).toHaveURL(/\/collections\//, { timeout: 15_000 });
-      await shot(page, dir, shots, '03-collection.png', 'Open a pack', 'Buyer opens a published collection (e.g. Wedding Edit).');
+      await shot(page, dir, shots, '03-collection.png', 'Open a collection', 'Buyer opens a published collection (e.g. Wedding Edit).');
 
       const designTile = page.locator('button').filter({ has: page.locator('img') }).first();
       if (await designTile.count()) {
@@ -138,17 +138,18 @@ test.describe('demo journey PDFs', () => {
 
       const bar = page.getByTestId('selection-workspace-bar');
       if (await bar.isVisible().catch(() => false)) {
-        await bar.click();
-        await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+        await page.getByTestId('selection-workspace-cart').click();
+        await page.goto('/selection');
+        await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
           timeout: 15_000,
         });
-        await shot(page, dir, shots, '05-selection.png', 'Your selection', 'Selection workspace: Order · Curate · Bookmark · Share.');
+        await shot(page, dir, shots, '05-selection.png', 'Cart', 'Cart workspace: Order · Curate · Bookmark · Share.');
 
         const orderBtn = page.getByTestId('selection-order');
         if (await orderBtn.isVisible().catch(() => false)) {
           await orderBtn.click();
           await settle(page, 1000);
-          await shot(page, dir, shots, '06-order-resolve.png', 'Order from selection', 'Resolve which designs/packs to order.');
+          await shot(page, dir, shots, '06-order-resolve.png', 'Order from selection', 'Resolve which designs/collections to order.');
         }
       }
 
@@ -186,26 +187,19 @@ test.describe('demo journey PDFs', () => {
       await shot(page, dir, shots, '02-you.png', 'You', 'Supplier hub into catalog and company tools.');
 
       await softGoto(page, '/catalog');
-      await shot(page, dir, shots, '03-catalog.png', 'My catalog', 'Own designs and packs the mill sells.');
+      await shot(page, dir, shots, '03-catalog.png', 'My catalog', 'Own designs and collections the mill sells.');
 
       await softGoto(page, '/collections/seed-col-1');
       await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 20_000 });
-      await shot(page, dir, shots, '04-pack.png', 'Supplier pack', 'Seeded Wedding Edit pack owned by the mill.');
+      await shot(page, dir, shots, '04-pack.png', 'Supplier collection', 'Seeded Wedding Edit collection owned by the mill.');
 
       await softGoto(page, '/catalog/collections/new');
       await settle(page, 1000);
-      await shot(page, dir, shots, '05-new-collection.png', 'New collection', 'Create a pack from own designs.');
+      await shot(page, dir, shots, '05-new-collection.png', 'New collection', 'Create a collection from own designs.');
 
       const addDesigns = page.getByTestId('collection-add-designs');
       if (await addDesigns.isVisible().catch(() => false)) {
         await addDesigns.click();
-        const fromCamera = page.getByTestId('continuous-camera-designs');
-        const fromMenu = page.getByTestId('collection-source-designs');
-        if (await fromCamera.isVisible({ timeout: 2_000 }).catch(() => false)) {
-          await fromCamera.click();
-        } else if (await fromMenu.isVisible().catch(() => false)) {
-          await fromMenu.click();
-        }
         await settle(page, 800);
         await shot(page, dir, shots, '06-add-designs.png', 'Add designs', 'Pick designs from the mill library.');
         const done = page.getByRole('button', { name: 'Done' });
@@ -220,14 +214,14 @@ test.describe('demo journey PDFs', () => {
           }
           await done.click();
         }
-        const nameField = page.getByLabel('Name');
+        const nameField = page.getByLabel('Collection name');
         if (await nameField.isVisible().catch(() => false)) {
           await nameField.fill(`Demo drop ${Date.now()}`);
           const createPublish = page.getByRole('button', { name: /Create & Publish|Publish/i }).first();
           if (await createPublish.isVisible().catch(() => false)) {
             await createPublish.click();
             await settle(page, 1200);
-            await shot(page, dir, shots, '07-publish-sheet.png', 'Publish', 'Choose who can see the pack, then publish.');
+            await shot(page, dir, shots, '07-publish-sheet.png', 'Publish', 'Choose who can see the collection, then publish.');
           }
         }
       }
@@ -295,18 +289,19 @@ test.describe('demo journey PDFs', () => {
       });
       await page.reload();
       await settle(page, 1000);
-      await shot(page, dir, shots, '02-explore-selection.png', 'Explore + selection', 'Trader shortlists supplier packs/designs.');
+      await shot(page, dir, shots, '02-explore-selection.png', 'Explore + selection', 'Trader shortlists supplier collections/designs.');
 
       if (await page.getByTestId('selection-workspace-bar').isVisible().catch(() => false)) {
-        await page.getByTestId('selection-workspace-view').click();
-        await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+        await page.getByTestId('selection-workspace-cart').click();
+        await page.goto('/selection');
+        await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
           timeout: 15_000,
         });
-        await shot(page, dir, shots, '03-selection.png', 'Your selection', 'Trader actions: Order, Curate, Bookmark, Share.');
+        await shot(page, dir, shots, '03-selection.png', 'Cart', 'Trader actions: Order, Curate, Bookmark, Share.');
 
         await page.getByTestId('selection-curate').click();
         await settle(page, 1000);
-        await shot(page, dir, shots, '04-curate-resolve.png', 'Curate from collections', 'Build a pack from supplier designs for own buyers.');
+        await shot(page, dir, shots, '04-curate-resolve.png', 'Repost from collections', 'Build a collection from supplier designs for own buyers.');
       }
 
       await softGoto(page, '/orders');

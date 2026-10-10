@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   applySameForAllToForm,
+  designFollowsPackRate,
+  designHasOwnRate,
+  stampCreatePhotoMemberForm,
+  unanimousMemberRate,
   collectSameForAllDiffIds,
   emptySameForAll,
   forceSameForAllToForm,
@@ -167,7 +171,7 @@ describe('applySameForAllToForm', () => {
     });
   });
 
-  it('forceSameForAll overwrites filled shared fields', () => {
+  it('forceSameForAll overwrites units but keeps the design’s own rate', () => {
     expect(
       forceSameForAllToForm(
         {
@@ -192,7 +196,7 @@ describe('applySameForAllToForm', () => {
       ),
     ).toEqual({
       name: 'Keep',
-      rate: '1200',
+      rate: '1',
       unit: 'mtr',
       dispatchUnit: 'mtr',
       piecesPerPack: '6',
@@ -200,6 +204,88 @@ describe('applySameForAllToForm', () => {
       notes: 'old',
       categories: ['A', 'B'],
     });
+  });
+});
+
+describe('stampCreatePhotoMemberForm', () => {
+  const emptyPhoto = {
+    name: 'New',
+    rate: '',
+    unit: 'set',
+    dispatchUnit: 'pc',
+    piecesPerPack: '',
+    moq: '',
+    notes: '',
+    categories: [] as string[],
+  };
+  const pack = {
+    categories: [] as string[],
+    rate: '1200-1400',
+    unit: 'set',
+    dispatchUnit: 'pc',
+    piecesPerPack: '4',
+    moq: '20',
+    notes: '',
+  };
+
+  it('fills empty photo rate/range from pack at save (photos added before rate)', () => {
+    expect(stampCreatePhotoMemberForm(emptyPhoto, pack, false).rate).toBe('1200-1400');
+    expect(stampCreatePhotoMemberForm(emptyPhoto, pack, false).piecesPerPack).toBe('4');
+  });
+
+  it('keeps a design’s own rate when Apply is off', () => {
+    expect(
+      stampCreatePhotoMemberForm({ ...emptyPhoto, rate: '900' }, pack, false).rate,
+    ).toBe('900');
+  });
+
+  it('keeps a design’s own rate when Apply is on', () => {
+    expect(
+      stampCreatePhotoMemberForm({ ...emptyPhoto, rate: '900' }, pack, true).rate,
+    ).toBe('900');
+    expect(
+      stampCreatePhotoMemberForm({ ...emptyPhoto, rate: '900' }, pack, true).piecesPerPack,
+    ).toBe('4');
+  });
+});
+
+describe('designHasOwnRate', () => {
+  it('is true only when rate is set', () => {
+    expect(designHasOwnRate(1200)).toBe(true);
+    expect(designHasOwnRate(0)).toBe(true);
+    expect(designHasOwnRate(null)).toBe(false);
+    expect(designHasOwnRate(undefined)).toBe(false);
+  });
+});
+
+describe('designFollowsPackRate', () => {
+  it('follows when empty or still on the previous pack rate', () => {
+    expect(designFollowsPackRate({ rate: null }, '1200')).toBe(true);
+    expect(designFollowsPackRate({ rate: 1200, rateMax: null }, '1200')).toBe(true);
+    expect(designFollowsPackRate({ rate: 1200, rateMax: 1400 }, '1200-1400')).toBe(true);
+  });
+
+  it('does not follow a design-specific rate', () => {
+    expect(designFollowsPackRate({ rate: 900, rateMax: null }, '1200')).toBe(false);
+    expect(designFollowsPackRate({ rate: 1200, rateMax: null }, '')).toBe(false);
+  });
+});
+
+describe('unanimousMemberRate', () => {
+  it('returns the shared rate/range or empty when mixed', () => {
+    expect(
+      unanimousMemberRate([
+        { rate: 1200, rateMax: 1400 },
+        { rate: 1200, rateMax: 1400 },
+      ]),
+    ).toBe('1200-1400');
+    expect(
+      unanimousMemberRate([
+        { rate: 1200, rateMax: null },
+        { rate: 900, rateMax: null },
+      ]),
+    ).toBe('');
+    expect(unanimousMemberRate([{ rate: null, rateMax: null }])).toBe('');
   });
 });
 

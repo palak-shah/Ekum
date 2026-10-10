@@ -229,3 +229,81 @@ describe('SavedService.create (connected audience)', () => {
     expect(upsert).toHaveBeenCalled();
   });
 });
+
+describe('SavedService.create (collection bookmark)', () => {
+  const liveCollection = {
+    id: 'col-1',
+    companyId: 'seller-co',
+    name: 'New Cut',
+    coverImage: null,
+    audience: 'followers',
+    audienceCompanyIds: [] as string[],
+    status: 'published',
+    startsAt: null,
+    endsAt: null,
+    company: { id: 'seller-co', name: 'Ahmedabad Loom Co' },
+    products: [
+      {
+        product: {
+          images: ['https://cdn/a.jpg'],
+          status: ProductStatus.Published,
+        },
+      },
+    ],
+    _count: { products: 1 },
+  };
+
+  it('bookmarks a Followers pack when the viewer follows (needs member status)', async () => {
+    const upsert = vi.fn(async () => ({
+      id: 'saved-col-1',
+      companyId: 'me',
+      productId: null,
+      collectionId: 'col-1',
+      createdAt: new Date(),
+      savedByUser: { id: 'u1', name: 'Ravi' },
+      product: null,
+      collection: liveCollection,
+    }));
+    const prisma = {
+      collection: { findUnique: async () => liveCollection },
+      connection: { findUnique: async () => null },
+      follow: { findMany: async () => [{ followedCompanyId: 'seller-co' }] },
+      savedItem: { upsert },
+    };
+    const service = makeService(prisma);
+
+    const view = await service.create('me', 'u1', { collectionId: 'col-1' });
+    expect(view.kind).toBe('collection');
+    expect(view.collectionId).toBe('col-1');
+    expect(upsert).toHaveBeenCalled();
+  });
+
+  it('still bookmarks when mosaic thumbs omit status (live check is defensive)', async () => {
+    const thumbsOnly = {
+      ...liveCollection,
+      products: [{ product: { images: ['https://cdn/a.jpg'] } }],
+    };
+    const upsert = vi.fn(async () => ({
+      id: 'saved-col-2',
+      companyId: 'me',
+      productId: null,
+      collectionId: 'col-1',
+      createdAt: new Date(),
+      savedByUser: null,
+      product: null,
+      collection: thumbsOnly,
+    }));
+    const prisma = {
+      collection: { findUnique: async () => thumbsOnly },
+      connection: { findUnique: async () => null },
+      follow: { findMany: async () => [{ followedCompanyId: 'seller-co' }] },
+      savedItem: { upsert },
+    };
+    const service = makeService(prisma);
+
+    await expect(service.create('me', 'u1', { collectionId: 'col-1' })).resolves.toMatchObject({
+      collectionId: 'col-1',
+    });
+    expect(upsert).toHaveBeenCalled();
+  });
+});

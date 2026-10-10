@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 import { pickYouLibraryFilter } from '../../helpers/youLibrary';
 
-async function seedSelection(page: import('@playwright/test').Page) {
+async function seedStaging(page: import('@playwright/test').Page) {
   await page.evaluate(() => {
     sessionStorage.setItem(
       'ekum:browseAlbumPick',
@@ -34,18 +34,52 @@ async function seedSelection(page: import('@playwright/test').Page) {
   });
 }
 
+async function seedCart(page: import('@playwright/test').Page) {
+  await page.evaluate(() => {
+    sessionStorage.setItem(
+      'ekum:browseCartAlbums',
+      JSON.stringify([
+        {
+          collectionId: 'seed-col-1',
+          name: 'Wedding Edit',
+          coverImage: null,
+          companyId: 'seed-company-kavita',
+          companyName: 'Ahmedabad Loom Co',
+          productCount: 3,
+          allowForward: true,
+        },
+      ]),
+    );
+    sessionStorage.setItem(
+      'ekum:browseCartDesigns',
+      JSON.stringify([
+        {
+          productId: 'seed-prod-1',
+          name: 'Design A',
+          thumbUrl: null,
+          companyId: 'seed-company-kavita',
+          companyName: 'Ahmedabad Loom Co',
+          allowForward: true,
+        },
+      ]),
+    );
+  });
+}
+
+const seedSelection = seedStaging;
+
 test.describe('selection workspace @functional @explore', () => {
   test('thumbnail opens the design', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
-    await seedSelection(page);
+    await seedCart(page);
     await page.goto('/selection');
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await page.getByRole('link', { name: 'Open Design A' }).click();
     await expect(page).toHaveURL(/\/explore\/products\/seed-prod-1/);
   });
 
-  test('floater and Your selection host Order resolve', async ({ page }) => {
+  test('floater Cart then header opens Cart for Order resolve', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -58,9 +92,9 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByTestId('selection-workspace-order')).toBeVisible();
     await expect(page.getByTestId('explore-selection')).toHaveCount(0);
 
-    // Count opens the pile; Order on the chip starts the sheet.
-    await page.getByTestId('selection-workspace-view').click();
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await page.getByTestId('selection-workspace-cart').click();
+    await page.getByTestId('explore-cart').click();
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(page.getByTestId('selection-order')).toBeVisible();
     await expect(page.getByTestId('selection-curate')).toBeVisible();
@@ -73,7 +107,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByText('Choose designs').first()).toBeVisible();
   });
 
-  test('floater Order opens Your selection and the order sheet', async ({ page }) => {
+  test('floater Order opens Cart and the order sheet', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -81,11 +115,11 @@ test.describe('selection workspace @functional @explore', () => {
     await page.reload();
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('selection-workspace-order').click();
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Order collections' })).toBeVisible();
   });
 
-  test('Curate on albums opens Use whole pack resolve', async ({ page }) => {
+  test('Curate on albums opens Use whole collection resolve', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -93,22 +127,23 @@ test.describe('selection workspace @functional @explore', () => {
     await page.reload();
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByTestId('selection-workspace-view').click();
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    await page.getByTestId('selection-workspace-cart').click();
+    await page.getByTestId('explore-cart').click();
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await page.getByTestId('selection-curate').click();
-    await expect(page.getByRole('heading', { name: 'Curate from collections' })).toBeVisible();
-    await expect(page.getByText('Use whole pack').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Repost from collections' })).toBeVisible();
+    await expect(page.getByText('Use whole collection').first()).toBeVisible();
     await expect(page.getByText('Pick designs').first()).toBeVisible();
   });
 
-  test('Curate Pick designs shows Continue Curate on the album', async ({ page }) => {
+  test('Repost Pick designs shows Continue Repost on the album', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
 
     await page.evaluate(() => {
       sessionStorage.setItem(
-        'ekum:browseAlbumPick',
+        'ekum:browseCartAlbums',
         JSON.stringify([
           {
             collectionId: 'seed-col-1',
@@ -121,20 +156,22 @@ test.describe('selection workspace @functional @explore', () => {
           },
         ]),
       );
+      sessionStorage.removeItem('ekum:browseCartDesigns');
       sessionStorage.removeItem('ekum:browseShortlist');
+      sessionStorage.removeItem('ekum:browseAlbumPick');
       sessionStorage.removeItem('ekum:resumeAfterAlbumPick');
     });
     await page.goto('/selection');
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
       timeout: 15_000,
     });
     await page.getByTestId('selection-curate').click();
-    await expect(page.getByRole('heading', { name: 'Curate from collections' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Repost from collections' })).toBeVisible();
     await page.getByTestId('resolve-pick-designs').click();
     await page.getByRole('button', { name: 'Continue' }).click();
     await expect(page).toHaveURL(/\/collections\/seed-col-1/);
     await expect(page.getByTestId('album-pick-continue')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('album-pick-continue')).toContainText('Continue Curate');
+    await expect(page.getByTestId('album-pick-continue')).toContainText('Continue Repost');
   });
 
   test('pack-locked design stays visible with reason', async ({ page }) => {
@@ -144,7 +181,7 @@ test.describe('selection workspace @functional @explore', () => {
 
     await page.evaluate(() => {
       sessionStorage.setItem(
-        'ekum:browseShortlist',
+        'ekum:browseCartDesigns',
         JSON.stringify([
           {
             productId: 'seed-prod-1',
@@ -156,36 +193,39 @@ test.describe('selection workspace @functional @explore', () => {
           },
         ]),
       );
+      sessionStorage.removeItem('ekum:browseCartAlbums');
+      sessionStorage.removeItem('ekum:browseShortlist');
       sessionStorage.removeItem('ekum:browseAlbumPick');
     });
     await page.goto('/selection');
     await expect(page.getByText('Locked design')).toBeVisible({ timeout: 15_000 });
     // Session allowForward:false drives pack-lock gray (separate from discovery unavailable).
-    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a pack", {
+    await expect(page.getByTestId('selection-pack-lock-reason')).toHaveText("Can't put in a collection", {
       timeout: 15_000,
     });
     await expect(page.getByTestId('selection-ask-relist')).toBeVisible();
   });
 
-  test('Clear selection empties the pile', async ({ page }) => {
+  test('Clear cart empties the pile', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
     await seedSelection(page);
     await page.reload();
-    await page.getByTestId('selection-workspace-view').click();
+    await page.getByTestId('selection-workspace-cart').click();
+    await page.getByTestId('explore-cart').click();
     await expect(page.getByTestId('selection-clear')).toBeVisible();
     await page.getByTestId('selection-clear').click();
-    await expect(page.getByText('Nothing selected')).toBeVisible();
+    await expect(page.getByText('Cart is empty')).toBeVisible();
   });
 
-  test('Bookmark opens Saved instead of empty Selection', async ({ page }) => {
+  test('Bookmark opens Saved instead of empty Cart', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
-    await seedSelection(page);
+    await seedCart(page);
     await page.goto('/selection');
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText('Checking availability…')).toHaveCount(0, { timeout: 15_000 });
@@ -195,17 +235,17 @@ test.describe('selection workspace @functional @explore', () => {
       timeout: 15_000,
     });
     await expect(page.getByText(/Showing\s+Saved/)).toBeVisible();
-    await expect(page.getByText('Nothing selected')).toHaveCount(0);
+    await expect(page.getByText('Cart is empty')).toHaveCount(0);
     await expect(page.getByTestId('app-toast')).toContainText(/bookmarked/i);
   });
 
-  test('Place Order opens the chat instead of empty Selection', async ({ page }) => {
+  test('Place Order opens the chat instead of empty Cart', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => {
       sessionStorage.setItem(
-        'ekum:browseShortlist',
+        'ekum:browseCartDesigns',
         JSON.stringify([
           {
             productId: 'seed-prod-1',
@@ -217,10 +257,12 @@ test.describe('selection workspace @functional @explore', () => {
           },
         ]),
       );
+      sessionStorage.removeItem('ekum:browseCartAlbums');
+      sessionStorage.removeItem('ekum:browseShortlist');
       sessionStorage.removeItem('ekum:browseAlbumPick');
     });
     await page.goto('/selection');
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText('Checking availability…')).toHaveCount(0, { timeout: 15_000 });
@@ -228,7 +270,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByRole('button', { name: 'Place Order' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Place Order' }).click();
     await expect(page).not.toHaveURL(/\/selection/, { timeout: 20_000 });
-    await expect(page.getByText('Nothing selected')).toHaveCount(0);
+    await expect(page.getByText('Cart is empty')).toHaveCount(0);
     await expect(page.getByTestId('app-toast')).toContainText(/order placed/i);
     await expect(page).toHaveURL(/\/(chats|orders)\//);
   });
@@ -240,7 +282,7 @@ test.describe('selection workspace @functional @explore', () => {
 
     await page.evaluate(() => {
       sessionStorage.setItem(
-        'ekum:browseShortlist',
+        'ekum:browseCartDesigns',
         JSON.stringify([
           {
             productId: 'missing-product-xyz',
@@ -252,6 +294,7 @@ test.describe('selection workspace @functional @explore', () => {
           },
         ]),
       );
+      sessionStorage.removeItem('ekum:browseCartAlbums');
     });
     await page.goto('/selection');
     await expect(page.getByText('Gone design')).toBeVisible({ timeout: 15_000 });
@@ -275,7 +318,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
   });
 
-  test('My designs Order for buyer handoff opens Your selection', async ({ page }) => {
+  test('My designs Order for buyer handoff opens Cart', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/catalog');
     await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });

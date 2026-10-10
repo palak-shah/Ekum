@@ -10,12 +10,11 @@ import {
   type DesignBrowseLayout,
 } from '@/lib/designBrowseLayout';
 import { formatRate } from '@/lib/format';
-import { SelectAllFloat } from '@/features/browse/SelectAllFloat';
 import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import { readBrowseAlbumPick, writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { selectAllState } from '@/features/browse/selectAllState';
-import { applySelectingPill } from '@/features/browse/selectingPill';
+import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { PageHeader } from '@/ui/PageHeader';
@@ -245,20 +244,39 @@ export function SavedPage({
             showSelectChrome || showLayoutToggle ? (
               <div className="flex items-center gap-1">
                 {showSelectChrome ? (
-                  <button
-                    type="button"
-                    className={cx(
-                      'rounded-full px-3 py-1.5 text-xs font-bold tracking-tight',
-                      activeSelect.selectMode
-                        ? 'bg-accent text-white'
-                        : 'text-accent hover:bg-accent/5',
-                    )}
-                    onClick={() =>
-                      applySelectingPill(activeSelect.selectMode, activeSelect.count, activeSelect)
+                  <SelectModeControls
+                    selectTestId="saved-select"
+                    selecting={activeSelect.selectMode}
+                    count={activeSelect.count}
+                    allSelected={
+                      tab === 'designs'
+                        ? designSelectAll.allSelected
+                        : albumSelectAll.allSelected
                     }
-                  >
-                    {activeSelect.selectMode ? 'Selecting' : 'Select'}
-                  </button>
+                    onEnterSelect={() => activeSelect.setSelectMode(true)}
+                    onSelectAll={() => {
+                      if (tab === 'designs') {
+                        shortlist.addMany(
+                          productItems
+                            .filter((item) => item.available !== false)
+                            .map(savedToEntry)
+                            .filter((entry): entry is BrowseShortlistEntry => Boolean(entry)),
+                        );
+                        return;
+                      }
+                      addAlbumMany(
+                        collectionItems
+                          .filter((item) => item.available !== false)
+                          .map(savedToAlbumEntry)
+                          .filter((entry): entry is BrowseAlbumEntry => Boolean(entry)),
+                      );
+                    }}
+                    onClear={() => {
+                      if (tab === 'designs') shortlist.removeIds(visibleSavedIds);
+                      else albumPick.removeIds(visibleCollectionIds);
+                      activeSelect.setSelectMode(false);
+                    }}
+                  />
                 ) : null}
                 {showLayoutToggle ? (
                   <BrowseLayoutToggle
@@ -272,36 +290,6 @@ export function SavedPage({
           }
         />
       )}
-
-      <SelectAllFloat
-        open={tab === 'designs' && shortlist.selectMode && visibleSavedIds.length > 0}
-        count={shortlist.count}
-        allSelected={designSelectAll.allSelected}
-        onSelectAll={() =>
-          shortlist.addMany(
-            productItems
-              .filter((item) => item.available !== false)
-              .map(savedToEntry)
-              .filter((entry): entry is BrowseShortlistEntry => Boolean(entry)),
-          )
-        }
-        onClear={() => shortlist.removeIds(visibleSavedIds)}
-      />
-
-      <SelectAllFloat
-        open={tab === 'collections' && albumPick.selectMode && visibleCollectionIds.length > 0}
-        count={albumPick.count}
-        allSelected={albumSelectAll.allSelected}
-        onSelectAll={() =>
-          addAlbumMany(
-            collectionItems
-              .filter((item) => item.available !== false)
-              .map(savedToAlbumEntry)
-              .filter((entry): entry is BrowseAlbumEntry => Boolean(entry)),
-          )
-        }
-        onClear={() => albumPick.removeIds(visibleCollectionIds)}
-      />
 
       {saved.isLoading ? (
         <LoadingBlock label="Loading saved…" />

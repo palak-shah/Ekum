@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { accessTokenFromPage } from '../../helpers/orders';
 import { API_URL } from '../../helpers/env';
 import { loginAsMeena } from '../../helpers/persona';
+import { publishRepostNew } from '../../helpers/repost';
 
 /**
  * C1 — Curate designs from two suppliers into one pack.
@@ -27,39 +28,23 @@ test.describe('multi-supplier curate @functional @trader @collections', () => {
     await page.locator('button').filter({ has: page.locator('img') }).first().click({
       button: 'right',
     });
-    await expect(page.getByTestId('selection-workspace-bar')).toContainText(/2 in selection/i, {
+    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({
       timeout: 10_000,
     });
 
-    await page.getByTestId('selection-workspace-view').click();
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({
+    await page.getByTestId('selection-workspace-cart').click();
+    await page.goto('/selection');
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByTestId('selection-list')).toContainText(/Surat Silk House/i);
     await expect(page.getByTestId('selection-list')).toContainText(/Ahmedabad Loom Co/i);
 
     await page.getByTestId('selection-curate').click();
-    await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Repost' })).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByLabel('Name').fill(packName);
-    await page.getByRole('button', { name: 'Publish to Collection' }).click();
-
-    await expect(page).toHaveURL(/\/catalog\/collections\//, { timeout: 20_000 });
-    const publishSheet = page.getByRole('dialog');
-    await expect(publishSheet.getByRole('heading', { name: 'Publish collection' })).toBeVisible({
-      timeout: 15_000,
-    });
-    await publishSheet.getByRole('button', { name: 'Everyone', exact: true }).click();
-    const consent = publishSheet.getByText(/Start selling/i);
-    if (await consent.isVisible()) {
-      await publishSheet.locator('input[type="checkbox"]').last().check();
-    }
-    await publishSheet.getByRole('button', { name: 'Publish', exact: true }).click();
-    await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });
-
-    const collectionId = page.url().match(/\/collections\/([^/?]+)/)?.[1];
-    expect(collectionId).toBeTruthy();
+    const collectionId = await publishRepostNew(page, packName);
 
     const token = await accessTokenFromPage(page);
     const detail = await page.request.get(`${API_URL}/collections/${collectionId}`, {
@@ -76,7 +61,9 @@ test.describe('multi-supplier curate @functional @trader @collections', () => {
 
     await page.goto(`/collections/${collectionId}`);
     await expect(page.getByRole('heading', { name: packName })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/From Surat Silk House/i).first()).toBeVisible();
-    await expect(page.getByText(/From Ahmedabad Loom Co/i).first()).toBeVisible();
+    const source = page.getByTestId('collection-owner-source');
+    await expect(source).toBeVisible();
+    await expect(source).toContainText(/Surat Silk House/i);
+    await expect(source).toContainText(/Ahmedabad Loom Co/i);
   });
 });

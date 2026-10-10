@@ -1,5 +1,5 @@
 import type { OrderItemView } from '@ekum/domain-types';
-import { formatRate } from '@/lib/format';
+import { orderLineQtyRateLine } from '@/features/orders/orderLineQtyRate';
 
 /** All image URLs on a line — prefers `images`, falls back to legacy `image`. */
 export function urlsForOrderItem(item: OrderItemView): string[] {
@@ -12,7 +12,9 @@ export function urlsForOrderItem(item: OrderItemView): string[] {
 export function orderLinePhotoInfo(
   item: Pick<OrderItemView, 'name' | 'sku' | 'quantity' | 'rate' | 'unit'>,
 ): { caption: string; detail: string } {
-  const bits = [`${item.quantity} × ${formatRate(item.rate, item.unit)}`];
+  const bits = [
+    orderLineQtyRateLine(item.quantity, item.rate, item.unit, item.dispatchUnit),
+  ];
   const sku = item.sku?.trim();
   if (sku) bits.push(sku);
   return { caption: item.name, detail: bits.join(' · ') };

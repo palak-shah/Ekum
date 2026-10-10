@@ -39,8 +39,8 @@ const EMPTY: Record<GroupMediaKind, { title: string; group: string; chat: string
   },
   collections: {
     title: 'No collections yet',
-    group: 'Packs shared in this group show up here.',
-    chat: 'Packs shared in this chat show up here.',
+    group: 'Collections shared in this group show up here.',
+    chat: 'Collections shared in this chat show up here.',
   },
 };
 

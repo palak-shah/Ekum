@@ -13,6 +13,7 @@ const collectionPost = {
   collection: {
     id: 'c1',
     name: 'Wedding',
+    description: null,
     categories: [],
     memberFind: [],
     coverImage: null,
@@ -23,6 +24,12 @@ const collectionPost = {
     updatedAt: '2026-10-01T10:00:00.000Z',
     allowForward: true,
     orderPathPreference: null,
+    rateMin: null,
+    rateMax: null,
+    rateUnit: null,
+    exploreNewDesignCount: 0,
+    showSourceShops: false,
+    sourceShopNames: [],
     company: {
       id: 'co1',
       name: 'Surat Silk',

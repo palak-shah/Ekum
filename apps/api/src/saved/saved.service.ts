@@ -167,7 +167,8 @@ export class SavedService {
         products: {
           orderBy: { position: 'asc' },
           take: 4,
-          include: { product: { select: { images: true } } },
+          // status required — live check skips packs with no published members
+          include: { product: { select: { images: true, status: true } } },
         },
         _count: { select: { products: true } },
       },

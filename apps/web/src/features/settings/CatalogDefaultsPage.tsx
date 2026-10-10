@@ -73,7 +73,7 @@ export function CatalogDefaultsPage() {
     <div className="flex flex-col gap-5 pb-8">
       <PageHeader title="Catalog defaults" />
       <p className="text-sm text-muted">
-        Usual Who and sell-as for new packs. Rate and notes stay on each pack or design.
+        Usual Who and sell-as for new collections. Rate and notes stay on each collection or design.
       </p>
       {error ? <InlineNotice message={error} /> : null}
       {saved ? <InlineNotice message="Saved" tone="muted" /> : null}

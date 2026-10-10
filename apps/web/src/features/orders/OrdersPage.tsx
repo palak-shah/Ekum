@@ -15,10 +15,11 @@ import type {
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { Avatar, Chip, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { Avatar, Chip, EmptyState, LoadingBlock, SearchInput, StatusPill, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   getOrdersDirection,
@@ -44,7 +45,21 @@ import {
   type TradeListItem,
 } from './tradeList';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
-import { tradeListFacts, tradeListPreview, tradeListWhen } from './tradeListPreview';
+import {
+  tradeListFacts,
+  tradeListPreview,
+  tradeListThumbs,
+  tradeListWhen,
+} from './tradeListPreview';
+import { tradeListProtocol, tradeListStatusLabel } from './tradeListProtocol';
+import { tradeListGallery, tradeListGalleryIndex } from './tradeListGallery';
+import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import {
+  TRADE_LIST_MEDIA_WIDTH,
+  TRADE_LIST_THUMB_SIZE,
+  TRADE_LIST_THUMB_STEP,
+  type TradeListThumbs,
+} from './tradeListThumbs';
 import { OrdersFilterMenu } from './OrdersFilterMenu';
 import {
   statusFitsTab,
@@ -452,7 +467,7 @@ export function OrdersPage() {
       ) : (
         <div className="min-h-[12rem]">
           {filtered.length > 0 ? (
-            <div className="-mx-4 overflow-x-hidden bg-surface">
+            <div className="flex flex-col gap-2" data-testid="orders-trade-list">
               {filtered.map((item) => (
                 <TradeRow
                   key={`${item.kind}-${item.id}`}
@@ -485,6 +500,84 @@ export function OrdersPage() {
   );
 }
 
+function TradeListMedia({
+  stack,
+  name,
+  logoUrl,
+  onOpenPhoto,
+}: {
+  stack: TradeListThumbs;
+  name: string;
+  logoUrl: string | null;
+  onOpenPhoto?: (stackIndex: number) => void;
+}) {
+  return (
+    <div
+      className="relative h-12 shrink-0"
+      style={{ width: TRADE_LIST_MEDIA_WIDTH }}
+      data-testid="trade-list-media"
+    >
+      {stack.urls.length < 1 ? (
+        <Avatar name={name} imageUrl={logoUrl} size={TRADE_LIST_THUMB_SIZE} />
+      ) : (
+        stack.urls.map((url, index) => {
+          const src = toAbsoluteMediaUrl(url) || url;
+          const last = index === stack.urls.length - 1;
+          const canOpen = Boolean(onOpenPhoto);
+          const sharedStyle = {
+            left: index * TRADE_LIST_THUMB_STEP,
+            zIndex: index + 1,
+            width: TRADE_LIST_THUMB_SIZE,
+            height: TRADE_LIST_THUMB_SIZE,
+          } as const;
+          const sharedClass =
+            'absolute top-0 overflow-hidden rounded-lg border-2 border-surface bg-foam';
+          const body = (
+            <>
+              <img src={src} alt="" className="h-full w-full object-cover" />
+              {last && stack.overflow > 0 ? (
+                <span className="absolute inset-0 flex items-center justify-center bg-ink/55 text-[10px] font-bold text-white">
+                  +{stack.overflow}
+                </span>
+              ) : null}
+            </>
+          );
+          if (canOpen) {
+            return (
+              <button
+                key={`${url}-${index}`}
+                type="button"
+                className={sharedClass}
+                style={sharedStyle}
+                data-testid={index === 0 ? 'trade-list-thumb' : `trade-list-thumb-${index}`}
+                aria-label={`View photos for ${name}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onOpenPhoto?.(index);
+                }}
+              >
+                {body}
+              </button>
+            );
+          }
+          return (
+            <div
+              key={`${url}-${index}`}
+              className={sharedClass}
+              style={sharedStyle}
+              data-testid={index === 0 ? 'trade-list-thumb' : undefined}
+              aria-hidden
+            >
+              {body}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 function TradeRow({
   item,
   companyId,
@@ -492,12 +585,24 @@ function TradeRow({
   item: TradeListItem;
   companyId: string | null;
 }) {
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+
   if (item.kind === 'return') return null;
 
   const needsLabel = tradeNeedsYouLabel(item);
   const { preview, accent } = tradeListPreview(item, companyId);
   const facts = tradeListFacts(item);
   const when = explorePostedWhen(tradeListWhen(item));
+  const stack = tradeListThumbs(item);
+  const gallery = tradeListGallery(item);
+  const protocol = tradeListProtocol(item);
+  const status =
+    item.kind === 'order'
+      ? item.order.status
+      : item.kind === 'sample'
+        ? item.sample.status
+        : item.complaint.status;
   const name =
     item.kind === 'order'
       ? item.order.counterpart.name
@@ -510,86 +615,140 @@ function TradeRow({
       : item.kind === 'sample'
         ? item.sample.counterpart.logoUrl
         : null;
+  // Quiet Shared / role context only — never a second Confirm verb (protocol owns that).
+  const showContext = Boolean(preview) && !accent && !needsLabel;
+  const openPhotos =
+    gallery.urls.length > 0
+      ? (stackIndex: number) => {
+          const stackUrl = stack.urls[stackIndex] ?? stack.urls[0] ?? '';
+          setPhotoIndex(tradeListGalleryIndex(gallery.urls, stackUrl));
+          setPhotoOpen(true);
+        }
+      : undefined;
+
   const rowClass = cx(
-    'flex w-full items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0',
-    needsLabel && 'border-l-[3px] border-l-accent bg-accent/[0.04] pl-[13px]',
+    'flex w-full flex-col gap-2 rounded-xl border bg-surface px-3 py-3 text-left',
+    needsLabel ? 'border-l-[3px] border-l-accent border-line' : 'border-line',
     (item.kind === 'order' || item.kind === 'complaint') &&
-      'hover:bg-canvas active:bg-canvas text-left',
+      'hover:border-accent/40 hover:bg-accent/[0.03] active:bg-accent/[0.05]',
   );
-  const body = (
-    <>
-      <Avatar name={name} imageUrl={logoUrl} size={48} />
+
+  const viewer = (
+    <PhotoViewer
+      open={photoOpen && gallery.urls.length > 0}
+      urls={gallery.urls}
+      index={photoIndex}
+      onIndex={setPhotoIndex}
+      onClose={() => setPhotoOpen(false)}
+      captions={gallery.captions}
+      details={gallery.details}
+    />
+  );
+
+  const media = (
+    <TradeListMedia
+      stack={stack}
+      name={name}
+      logoUrl={logoUrl}
+      onOpenPhoto={openPhotos}
+    />
+  );
+
+  const meta = (
+    <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="min-w-0 truncate text-[15px] font-semibold leading-tight tracking-[-0.02em] text-ink">
-            {name}
-          </p>
-          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted">{when}</span>
-        </div>
-        <p
-          data-testid={needsLabel ? 'orders-needs-you' : undefined}
-          className={cx(
-            'min-w-0 truncate text-[13px] leading-snug',
-            accent ? 'font-semibold tracking-tight text-accent' : 'font-normal text-muted',
-          )}
-        >
-          {preview}
+        <p className="min-w-0 truncate text-[15px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+          {name}
         </p>
         {facts ? (
           <p
             data-testid="trade-list-facts"
-            className="min-w-0 truncate text-[11px] font-medium leading-snug text-muted"
+            className="mt-0.5 min-w-0 truncate text-[11px] font-medium leading-snug text-muted"
           >
             {facts}
           </p>
         ) : null}
+        {showContext ? (
+          <p className="mt-0.5 min-w-0 truncate text-[12px] font-medium leading-snug text-muted">
+            {preview}
+          </p>
+        ) : null}
       </div>
-    </>
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        <StatusPill status={status} label={tradeListStatusLabel(status)} />
+        <span className="text-[11px] font-medium tabular-nums text-muted">{when}</span>
+      </div>
+    </div>
   );
+
+  const protocolEl = protocol ? (
+    <p
+      data-testid={needsLabel ? 'orders-needs-you' : 'trade-list-protocol'}
+      className={cx(
+        'border-t border-line/70 pt-2 text-[12px] font-semibold leading-snug',
+        needsLabel ? 'text-accent' : 'text-muted',
+      )}
+    >
+      {protocol}
+    </p>
+  ) : null;
 
   if (item.kind === 'sample') {
     return (
       <div data-needs-you={needsLabel ? 'true' : undefined} className={rowClass}>
-        {body}
+        <div className="flex w-full items-start gap-3">
+          {media}
+          <div className="min-w-0 flex-1">{meta}</div>
+        </div>
+        {protocolEl}
+        {viewer}
       </div>
     );
   }
 
-  if (item.kind === 'complaint') {
-    const to = item.complaint.threadId
-      ? item.complaint.messageId
-        ? `/chats/${item.complaint.threadId}?message=${encodeURIComponent(item.complaint.messageId)}`
-        : `/chats/${item.complaint.threadId}`
-      : item.complaint.orderId
-        ? `/orders/${item.complaint.orderId}`
-        : null;
-    if (!to) {
-      return (
-        <div data-testid="trade-list-row" className={rowClass}>
-          {body}
-        </div>
-      );
-    }
+  const to =
+    item.kind === 'complaint'
+      ? item.complaint.threadId
+        ? item.complaint.messageId
+          ? `/chats/${item.complaint.threadId}?message=${encodeURIComponent(item.complaint.messageId)}`
+          : `/chats/${item.complaint.threadId}`
+        : item.complaint.orderId
+          ? `/orders/${item.complaint.orderId}`
+          : null
+      : `/orders/${item.order.id}`;
+
+  if (!to) {
     return (
-      <Link
-        to={to}
-        data-testid="trade-list-row"
-        data-needs-you={needsLabel ? 'true' : undefined}
-        className={rowClass}
-      >
-        {body}
-      </Link>
+      <div data-testid="trade-list-row" className={rowClass}>
+        <div className="flex w-full items-start gap-3">
+          {media}
+          <div className="min-w-0 flex-1">{meta}</div>
+        </div>
+        {protocolEl}
+        {viewer}
+      </div>
     );
   }
 
+  // Media sits outside the Link so thumb taps open PhotoViewer without navigating.
   return (
-    <Link
-      to={`/orders/${item.order.id}`}
+    <div
       data-testid="trade-list-row"
       data-needs-you={needsLabel ? 'true' : undefined}
       className={rowClass}
     >
-      {body}
-    </Link>
+      <div className="flex w-full items-start gap-3">
+        {media}
+        <Link to={to} className="min-w-0 flex-1 text-inherit no-underline">
+          {meta}
+        </Link>
+      </div>
+      {protocol ? (
+        <Link to={to} className="block text-inherit no-underline">
+          {protocolEl}
+        </Link>
+      ) : null}
+      {viewer}
+    </div>
   );
 }

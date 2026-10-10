@@ -1,6 +1,6 @@
 import { Button, Sheet } from '@/ui/kit';
 
-/** Confirm clearing membership before picking a new set. */
+/** Confirm Replace — membership updates only after a non-empty new set is saved. */
 export function OwnerPackReplaceSheet({
   open,
   onClose,
@@ -28,9 +28,10 @@ export function OwnerPackReplaceSheet({
         </div>
       }
     >
-      <p className="text-sm text-muted">
-        Clears this pack, then you pick the new set. New photos are saved in Designs
-        and publish with a live pack.
+      <p className="text-sm text-muted" data-testid="owner-pack-replace-copy">
+        Pick the new set next. The collection updates only after you save at least one design.
+        Cancel or pick nothing keeps it unchanged. New photos are saved in Designs and publish
+        with a live collection.
       </p>
     </Sheet>
   );

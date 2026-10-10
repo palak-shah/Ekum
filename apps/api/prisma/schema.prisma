@@ -105,6 +105,7 @@ model Company {
   ordersAsBuyer   Order[]  @relation("OrderBuyer")
   ordersAsSeller  Order[]  @relation("OrderSeller")
   ordersFacilitated Order[] @relation("OrderFacilitator")
+  orderCompanyNotes OrderCompanyNote[]
   tradeLanesAsTrader TradeLane[] @relation("TradeLaneTrader")
   tradeLanesAsSeller TradeLane[] @relation("TradeLaneSeller")
   tradeLanesAsBuyer  TradeLane[] @relation("TradeLaneBuyer")
@@ -328,6 +329,10 @@ model Collection {
   name           String
   description    String?
   coverImage     String?
+  /** Pack rate for the album editor (members may keep their own rates). */
+  rate            Decimal? @db.Decimal(12, 2)
+  /** Optional high end when pack rate is a range. */
+  rateMax         Decimal? @db.Decimal(12, 2)
   /** Tag labels for Explore search (same bridge as Product.categories). */
   categories     String[] @default([])
   status         String   @default("draft") // CollectionStatus
@@ -349,6 +354,15 @@ model Collection {
    * a live collection — not on rename/remove-only/reshuffle.
    */
   exploreActivityAt   DateTime?
+  /**
+   * Designs newly added on the last exploreActivityAt bump (0 = omit “N new designs”).
+   */
+  exploreNewDesignCount Int      @default(0)
+  /**
+   * Curated / Repost packs: when false, buyers do not see From {mill} credit.
+   * Trader desk still knows mills. Default off (under my name).
+   */
+  showSourceShops     Boolean  @default(false)
   /** Live window start (UTC). null = live as soon as published. */
   startsAt            DateTime?
   /** Live window end (UTC). null = evergreen. When passed → Hide to draft. */
@@ -718,6 +732,11 @@ model Order {
   noteVoiceMediaId   String?
   noteVoiceUrl       String?
   noteVoiceDurationMs Int?
+  /// Shared book / PO number both parties see on the ticket.
+  manualOrderNo      String?
+  manualOrderNote    String?
+  /// Resolved image URLs for the shared manual ref (cap 9).
+  manualOrderImages  String[]  @default([])
   transporter        String?
   lrNumber           String?
   parcelCount        Int?
@@ -759,6 +778,7 @@ model Order {
   complaints       Complaint[]
   paymentRequests  PaymentRequest[]
   acceptInvites    OrderAcceptInvite[]
+  companyNotes     OrderCompanyNote[]
 
   @@index([buyerCompanyId, status])
   @@index([sellerCompanyId, status])
@@ -770,6 +790,26 @@ model Order {
   @@index([quotedByUserId])
   @@index([deliveredByUserId])
   @@index([settledByUserId])
+}
+
+/// Private scratch note for one company on an order (never shown to the other party).
+model OrderCompanyNote {
+  id                  String   @id @default(cuid())
+  orderId             String
+  companyId           String
+  note                String?
+  noteVoiceMediaId    String?
+  noteVoiceUrl        String?
+  noteVoiceDurationMs Int?
+  images              String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, companyId])
+  @@index([companyId])
 }
 
 /// Append-only fulfillment / lifecycle audit for Order detail Timeline.
@@ -786,6 +826,8 @@ model OrderTrailEvent {
   noteVoiceMediaId     String?
   noteVoiceUrl         String?
   noteVoiceDurationMs  Int?
+  /// Resolved image URLs attached to this trail note (cap 9).
+  noteImageUrls        String[] @default([])
   payload              Json?
   createdAt            DateTime @default(now())
 
@@ -828,6 +870,7 @@ model OrderShipment {
   id           String    @id @default(cuid())
   orderId      String
   transporter  String?
+  /// Denormalized from first non-empty leg LR (list labels).
   lrNumber     String?
   parcelCount  Int?
   dispatchedAt DateTime  @default(now())
@@ -838,8 +881,24 @@ model OrderShipment {
   order            Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   dispatchedByUser User? @relation("ShipmentDispatchedByUser", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
   items            OrderShipmentItem[]
+  legs             OrderShipmentLeg[]
 
   @@index([orderId])
+}
+
+/// One LR + bill pair on a dispatch (multi-parcel / multi-LR).
+model OrderShipmentLeg {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  lrNumber    String?
+  billNumber  String?
+  /** Optional photos of the physical LR / bill slip (URLs after upload). */
+  imageUrls   String[] @default([])
+  sortOrder   Int      @default(0)
+
+  shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
 }
 
 model OrderShipmentItem {

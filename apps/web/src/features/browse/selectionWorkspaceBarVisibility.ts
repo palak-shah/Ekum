@@ -24,8 +24,9 @@ export function isDesignOrPackPath(pathname: string): boolean {
 }
 
 /**
- * Floater only on pick surfaces: Explore; shared design set; other shop when
- * its dock is down; design / pack while Selecting.
+ * Floater only on pick surfaces: Explore; shared design set; design / collection
+ * while Selecting. Never on a company shop — Chat is on the profile; Message ·
+ * Share · Order is the shop dock only when **this** seller has picks.
  */
 export function shouldShowSelectionWorkspaceBar(
   pathname: string,
@@ -36,13 +37,10 @@ export function shouldShowSelectionWorkspaceBar(
   if (options?.shopDockUp || options?.pageDockUp) return false;
   if (pathOwnsBottomActionBand(pathname)) return false;
 
+  if (isCompanyShopPath(pathname)) return false;
+
   if (isExploreFeedPath(pathname)) return true;
   if (pathname.startsWith('/designs/set')) return true;
-
-  if (isCompanyShopPath(pathname)) {
-    if (options?.ownShop) return false;
-    return true;
-  }
 
   if (isDesignOrPackPath(pathname)) {
     return Boolean(options?.pageSelecting);

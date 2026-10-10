@@ -85,13 +85,17 @@ export type UpdateProductDto = z.infer<typeof updateProductSchema>;
 /** ISO datetime or YYYY-MM-DD; null clears. Parsed to UTC bounds in the API. */
 const optionalScheduleInstant = z.union([z.string().min(1).max(40), z.null()]).optional();
 
-export const createCollectionSchema = z.object({
+const createCollectionObjectSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
   description: z.string().trim().max(1000).optional(),
   coverImage: z
     .string()
     .url({ message: 'Photo isn’t ready yet. Remove it and add it again.' })
     .optional(),
+  /** Pack rate for the album (members may keep their own). null = clear / on request. */
+  rate: z.number().nonnegative().nullable().optional(),
+  /** Optional high end when pack rate is a range. */
+  rateMax: z.number().nonnegative().nullable().optional(),
   /** Tag labels for Explore search (official + company custom). */
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
   /** Live window start. null clears. */
@@ -101,9 +105,12 @@ export const createCollectionSchema = z.object({
   /** Direct | I handle; null/omit = use Profile default at order time. */
   orderPathPreference: z.enum(orderPathPreferenceValues).nullable().optional(),
 });
+export const createCollectionSchema = createCollectionObjectSchema.superRefine(refineRateRange);
 export type CreateCollectionDto = z.infer<typeof createCollectionSchema>;
 
-export const updateCollectionSchema = createCollectionSchema.partial();
+export const updateCollectionSchema = createCollectionObjectSchema
+  .partial()
+  .superRefine(refineRateRange);
 export type UpdateCollectionDto = z.infer<typeof updateCollectionSchema>;
 
 export const createCatalogTagSchema = z.object({
@@ -170,6 +177,11 @@ export const publishCollectionSchema = z
     allowForward: z.boolean().default(true),
     /** When false, buyers must not download / export design photos. */
     allowDownload: z.boolean().optional().default(false),
+    /**
+     * Curated / Repost: when true, buyers see From {mill} credit.
+     * Omit / false — hide supplier name on browse surfaces.
+     */
+    showSourceShops: z.boolean().optional(),
     /** Direct | I handle for orders from this pack; null = Profile default. */
     orderPathPreference: z.enum(orderPathPreferenceValues).nullable().optional(),
     /** Optional single buyer group (legacy / exactly-one convenience). */
@@ -260,6 +272,10 @@ export interface CollectionView {
   name: string;
   description: string | null;
   coverImage: string | null;
+  /** Pack rate for the album editor / identity; null when unset. */
+  rate: number | null;
+  /** High end when pack rate is a range. */
+  rateMax: number | null;
   /** Tag labels (search bridge; same shape as Product.categories). */
   categories: string[];
   /** Member name / SKU / notes / tags for in-list find. */
@@ -272,6 +288,10 @@ export interface CollectionView {
   audienceGroupIds: string[];
   allowForward: boolean;
   allowDownload: boolean;
+  /**
+   * Curated / Repost: buyers see From {mill} when true. Default false.
+   */
+  showSourceShops: boolean;
   /**
    * Direct | I handle for orders from this pack.
    * null = use pack owner Profile default at order time.

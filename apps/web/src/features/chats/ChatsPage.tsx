@@ -368,6 +368,8 @@ export function ChatsPage() {
 
       {menuThread ? (
         <ChatsInboxRowMenu
+          open
+          title={menuThread.title || menuThread.counterpart?.name || 'Chat'}
           isGroup={menuThread.type === 'group'}
           pinned={menuThread.pinned}
           muted={menuThread.alertLevel === 'muted'}

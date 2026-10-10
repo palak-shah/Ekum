@@ -1,8 +1,8 @@
-export const CURATE_NAME_TAKEN = 'You already have this pack.';
+export const CURATE_NAME_TAKEN = 'You already have this collection.';
 export const CURATE_ADD_TO_IT = 'Add to it';
 export const CURATE_NOT_VISIBLE_REASON = "Can't see this now";
-export const CURATE_PACK_LOCK_REASON = "Can't put in a pack";
-export const CURATE_ASK_RELIST = 'Ask to put in my pack';
+export const CURATE_PACK_LOCK_REASON = "Can't put in a collection";
+export const CURATE_ASK_RELIST = 'Ask to put in my collection';
 
 /** Pack Ask only when supplier locked “buyers can add to collections” — never look-only or view-Ask. */
 export function mayAskToPutInPack(input: {
@@ -43,15 +43,15 @@ export function curateSkipSummary(allowedCount: number, blockedCount: number): s
   if (blockedCount < 1) return null;
   if (allowedCount < 1) {
     return blockedCount === 1
-      ? 'This design can’t go in a pack yet.'
-      : 'These designs can’t go in a pack yet.';
+      ? 'This design can’t go in a collection yet.'
+      : 'These designs can’t go in a collection yet.';
   }
   return `${blockedCount} left out — save the rest.`;
 }
 
 export function curateSaveDraftLabel(allowedCount: number, blockedCount: number): string {
   if (blockedCount < 1 || allowedCount < 1) return 'Save draft';
-  return `Save ${allowedCount} in this pack`;
+  return `Save ${allowedCount} in this collection`;
 }
 
 export function isCurateCeilingError(err: { code?: string; message?: string }): boolean {
@@ -67,7 +67,7 @@ export function isCurateCeilingError(err: { code?: string; message?: string }): 
   const message = err.message ?? '';
   return (
     message.includes('not visible to you') ||
-    message.includes("doesn't allow putting this in a pack") ||
+    message.includes("doesn't allow putting this in a collection") ||
     message.includes("haven't allowed putting their designs")
   );
 }

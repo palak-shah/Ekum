@@ -24,7 +24,7 @@ export function CuratePackPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="Curate pack" onBack={() => navigate(-1)} />
+        <PageHeader title="Repost" onBack={() => navigate(-1)} />
         <LoadingBlock />
       </div>
     );
@@ -33,8 +33,8 @@ export function CuratePackPage() {
   if (!trading) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="Curate pack" onBack={() => navigate(-1)} />
-        <p className="text-sm text-muted">This shop is not set up to curate packs.</p>
+        <PageHeader title="Repost" onBack={() => navigate(-1)} />
+        <p className="text-sm text-muted">This shop is not set up to curate collections.</p>
       </div>
     );
   }
@@ -42,7 +42,7 @@ export function CuratePackPage() {
   if (shortlist.count < 1) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="Curate pack" onBack={() => navigate(-1)} />
+        <PageHeader title="Repost" onBack={() => navigate(-1)} />
         <LoadingBlock label="Opening Saved…" />
       </div>
     );
@@ -50,7 +50,7 @@ export function CuratePackPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Curate pack" onBack={() => navigate(-1)} />
+      <PageHeader title="Repost" onBack={() => navigate(-1)} />
       <CurateFromSelectionSheet
         open
         onClose={() => navigate(-1)}

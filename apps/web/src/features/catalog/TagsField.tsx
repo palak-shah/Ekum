@@ -65,7 +65,7 @@ export function TagsField({
     <>
       <Field
         label={label}
-        hint="Buyers find this pack by these tags. Pick from the list or add your own."
+        hint="Buyers find this collection by these tags. Pick from the list or add your own."
       >
         <button
           type="button"

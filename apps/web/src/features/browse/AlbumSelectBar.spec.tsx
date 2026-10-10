@@ -7,7 +7,7 @@ vi.mock('@/lib/tradePresence', () => ({
 }));
 
 describe('AlbumSelectBar', () => {
-  it('shows Order Curate Bookmark Share for designs only', () => {
+  it('shows Order Repost Bookmark Share for designs only', () => {
     render(
       <AlbumSelectBar
         albumCount={0}
@@ -20,7 +20,7 @@ describe('AlbumSelectBar', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Order' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Curate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Repost' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
   });
@@ -37,9 +37,9 @@ describe('AlbumSelectBar', () => {
         onShare={() => {}}
       />,
     );
-    expect(screen.getByText('1 collection selected')).toBeInTheDocument();
+    expect(screen.getByText('1 collection')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Order' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Curate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Repost' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe('AlbumSelectBar', () => {
     );
     expect(screen.getByText('4 designs · 1 collection')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Order' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Curate' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Repost' })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: 'Bookmark' })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: 'Share' })).toHaveLength(1);
   });

@@ -21,7 +21,7 @@ export function CollectionGrantsPage() {
         <p className="text-sm text-danger">Could not load grants.</p>
       ) : null}
       {grants.isSuccess && grants.data.length === 0 ? (
-        <EmptyState title="None yet" message="When a shop Allows a pack for you, it shows here." />
+        <EmptyState title="None yet" message="When a shop Allows a collection for you, it shows here." />
       ) : null}
       <ul className="flex flex-col gap-2">
         {(grants.data ?? []).map((grant) => (

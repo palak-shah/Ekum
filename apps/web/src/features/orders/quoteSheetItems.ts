@@ -5,9 +5,9 @@ export function quoteSheetItems(items: OrderItemView[]): OrderItemView[] {
   return items.filter((item) => item.lineStatus === 'open' || item.lineStatus === 'declined');
 }
 
-/** Soft declined wash — never fades the Can’t supply control. */
+/** Soft declined wash on Dispatch-style quote cards — never fades Can’t supply. */
 export function quoteCantSupplyRowClass(cantSupply: boolean): string {
-  return cantSupply ? 'rounded-lg bg-foam/90' : '';
+  return cantSupply ? 'bg-foam/90' : '';
 }
 
 /** Mute the design (thumb, name, qty/rate), not the toggle. */
@@ -29,6 +29,37 @@ export function orderLineCantSupplyCue(cantSupply: boolean): string | null {
 export function orderLineLeftoverCue(item: Pick<OrderItemView, 'unavailableReason'>): string | null {
   const reason = item.unavailableReason?.trim();
   return reason || null;
+}
+
+/**
+ * Quiet reference under the name on Send quote — buyer ask always;
+ * last sent quote only when this ticket already has a seller quote.
+ * Offer fields stay the live Qty | Rate (no second fact strip).
+ */
+/**
+ * Quiet reference under the name: buyer ask, then either the line’s set price
+ * (catalog / prior) or last Quoted offer — so Confirm can skip Send quote and
+ * still see what was on the ticket.
+ */
+export function quoteSheetReferenceCue(input: {
+  asked: number;
+  hasSellerQuote: boolean;
+  quotedQty: number;
+  quotedRate: number | null;
+  formatAmount: (rate: number) => string;
+}): string {
+  const bits = [`Asked ${input.asked}`];
+  if (!input.hasSellerQuote) {
+    if (input.quotedRate != null) bits.push(input.formatAmount(input.quotedRate));
+    return bits.join(' · ');
+  }
+  const qty = Number.isFinite(input.quotedQty) && input.quotedQty > 0 ? input.quotedQty : input.asked;
+  if (input.quotedRate != null) {
+    bits.push(`Quoted ${qty} · ${input.formatAmount(input.quotedRate)}`);
+  } else {
+    bits.push(`Quoted ${qty}`);
+  }
+  return bits.join(' · ');
 }
 
 /**

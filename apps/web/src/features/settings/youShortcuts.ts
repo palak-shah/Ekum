@@ -34,7 +34,7 @@ export function settingsBusinessRoleLinks(
           {
             to: '/settings/catalog-defaults',
             title: 'Catalog defaults',
-            hint: 'Usual Who · sell-as for new packs',
+            hint: 'Usual Who · sell-as for new collections',
           },
           {
             to: '/settings/units',

@@ -54,14 +54,14 @@ describe('mayAskToPutInPack', () => {
 describe('curateSkipSummary', () => {
   it('explains skip without trapping when some can save', () => {
     expect(curateSkipSummary(18, 2)).toBe('2 left out — save the rest.');
-    expect(curateSkipSummary(0, 2)).toBe('These designs can’t go in a pack yet.');
+    expect(curateSkipSummary(0, 2)).toBe('These designs can’t go in a collection yet.');
     expect(curateSkipSummary(5, 0)).toBeNull();
   });
 });
 
 describe('curateSaveDraftLabel', () => {
   it('names how many go in when some are skipped', () => {
-    expect(curateSaveDraftLabel(18, 2)).toBe('Save 18 in this pack');
+    expect(curateSaveDraftLabel(18, 2)).toBe('Save 18 in this collection');
     expect(curateSaveDraftLabel(0, 2)).toBe('Save draft');
   });
 });

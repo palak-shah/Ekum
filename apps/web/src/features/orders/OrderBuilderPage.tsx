@@ -26,9 +26,20 @@ import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from '@/features/orders/QtyStepper';
 import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
-import { howManyTotalPcsLabel, qtyCountNoun } from '@/features/orders/howManyLineMeta';
+import {
+  howManyOrderFooterSummary,
+  howManySetsBanner,
+  howManyTotalPcsLabel,
+  qtyCountNoun,
+  qtyStepperUnitLabel,
+} from '@/features/orders/howManyLineMeta';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
+import {
+  readLastTransporter,
+  rememberTransporter,
+} from '@/features/orders/transporterMemory';
+import { TransporterField } from '@/features/orders/TransporterField';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
 import { withPrefillSeller } from './orderBuilderPrefillSeller';
 import { navigateToOrderChat } from './navigateToOrderChat';
@@ -85,6 +96,13 @@ export function OrderBuilderPage() {
   const [sellerId, setSellerId] = useState(sellerFromUrl);
   const [note, setNote] = useState('');
   const [noteVoice, setNoteVoice] = useState<NoteVoiceValue>(null);
+  const [transporter, setTransporter] = useState(() =>
+    readLastTransporter(sellerFromUrl || 'multi') ?? '',
+  );
+
+  useEffect(() => {
+    setTransporter(readLastTransporter(sellerId || 'multi') ?? '');
+  }, [sellerId]);
   const [photos, setPhotos] = useState<PhotoLine[]>([]);
   const [standardLines, setStandardLines] = useState<StandardLine[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -184,11 +202,14 @@ export function OrderBuilderPage() {
 
   const create = useMutation({
     mutationFn: () => {
+      const trimmedTransporter = transporter.trim();
+      if (trimmedTransporter) rememberTransporter(trimmedTransporter, sellerId || 'multi');
       const dto: CreateOrderDto = isStandard
         ? {
             sellerCompanyId: sellerId,
             kind: OrderKind.Standard,
             note: note || undefined,
+            ...(trimmedTransporter ? { transporter: trimmedTransporter } : {}),
             noteVoiceMediaId: noteVoice?.mediaId,
             noteVoiceDurationMs: noteVoice?.durationMs,
             items: standardLines.map((line) => ({
@@ -202,6 +223,7 @@ export function OrderBuilderPage() {
             sellerCompanyId: sellerId,
             kind: OrderKind.Photo,
             note: note || undefined,
+            ...(trimmedTransporter ? { transporter: trimmedTransporter } : {}),
             noteVoiceMediaId: noteVoice?.mediaId,
             noteVoiceDurationMs: noteVoice?.durationMs,
             items: photos.map((line, index) => ({
@@ -455,6 +477,17 @@ export function OrderBuilderPage() {
               </button>
             )
           ) : null}
+          {(() => {
+            const banner = howManySetsBanner(standardLines);
+            return banner ? (
+              <p
+                data-testid="how-many-sets-banner"
+                className="text-[13px] font-medium leading-snug text-muted"
+              >
+                {banner}
+              </p>
+            ) : null;
+          })()}
           <ul
             className="overflow-hidden rounded-xl border border-line bg-surface"
             data-testid="order-builder-lines"
@@ -486,6 +519,7 @@ export function OrderBuilderPage() {
                         <HowManyLineHeading
                           name={line.name}
                           unit={line.unit}
+                          dispatchUnit={line.dispatchUnit}
                           piecesPerPack={line.piecesPerPack}
                           rate={line.rate}
                           rateMax={line.rateMax}
@@ -510,6 +544,7 @@ export function OrderBuilderPage() {
                       <QtyStepper
                         value={qty}
                         chainQty
+                        unitLabel={qtyStepperUnitLabel(line.unit)}
                         enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
                         aria-label={`${noun} for ${line.name}`}
                         onChange={(next) => {
@@ -679,6 +714,31 @@ export function OrderBuilderPage() {
           />
         </div>
       )}
+
+      {(() => {
+        const summary = howManyOrderFooterSummary(
+          standardLines.map((line) => ({
+            quantity: parseQtyDraft(line.quantity),
+            unit: line.unit,
+            piecesPerPack: line.piecesPerPack,
+            dispatchUnit: line.dispatchUnit,
+          })),
+        );
+        return summary ? (
+          <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
+            <p className="text-[15px] font-bold tracking-tight text-ink">{summary.primary}</p>
+            {summary.hint ? (
+              <p className="text-[12px] font-medium text-muted">{summary.hint}</p>
+            ) : null}
+          </div>
+        ) : null;
+      })()}
+
+      <TransporterField
+        value={transporter}
+        onChange={setTransporter}
+        disabled={create.isPending}
+      />
 
       <NoteVoiceField
         label="Note"

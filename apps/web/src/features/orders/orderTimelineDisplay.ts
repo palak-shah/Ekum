@@ -5,7 +5,7 @@ export function newestFirstTrail<T>(events: T[]): T[] {
   return [...events].reverse();
 }
 
-/** Default collapsed: only the newest row; More expands the rest. */
+/** Default collapsed: only the newest row; chevron expands the rest + details. */
 export function timelineVisibleSlice<T>(
   newestFirst: T[],
   expanded: boolean,

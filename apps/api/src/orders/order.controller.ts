@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import {
   amendOrderSchema,
   cancelOrderSchema,
@@ -19,6 +19,8 @@ import {
   sendUpOrderSchema,
   settleOrderSchema,
   setLineSupplySchema,
+  updateManualOrderRefSchema,
+  updatePersonalOrderNoteSchema,
   type AmendOrderDto,
   type CancelOrderDto,
   type CreateForBuyerDto,
@@ -38,6 +40,8 @@ import {
   type SendUpOrderDto,
   type SettleOrderDto,
   type SetLineSupplyDto,
+  type UpdateManualOrderRefDto,
+  type UpdatePersonalOrderNoteDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
@@ -130,6 +134,30 @@ export class OrderController {
   @Get(':id')
   get(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
     return this.orders.get(companyId, id);
+  }
+
+  @Put(':id/manual-ref')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  updateManualRef(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateManualOrderRefSchema)) dto: UpdateManualOrderRefDto,
+  ) {
+    return this.orders.updateManualRef(companyId, user.userId, id, dto);
+  }
+
+  @Put(':id/personal-note')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  updatePersonalNote(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updatePersonalOrderNoteSchema)) dto: UpdatePersonalOrderNoteDto,
+  ) {
+    return this.orders.updatePersonalNote(companyId, user.userId, id, dto);
   }
 
   @Post(':id/confirm')

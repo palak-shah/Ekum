@@ -2,19 +2,43 @@ import { describe, expect, it } from 'vitest';
 import { howManyFooterSlots } from './howManyFooterSlots';
 
 describe('howManyFooterSlots', () => {
-  it('puts Share with Place; Ask and Order for buyer after', () => {
-    expect(howManyFooterSlots({ showPlaceOrderAsk: true, canOrderForBuyer: true })).toEqual([
-      'place',
-      'share',
-      'ask',
-      'order-buyer',
-    ]);
+  it('order job: Place only for pure buyers', () => {
+    expect(
+      howManyFooterSlots({
+        sheetJob: 'order',
+        showPlaceOrder: true,
+        canOrderForBuyer: false,
+      }),
+    ).toEqual(['place']);
   });
 
-  it('keeps Share when they can only order for a buyer', () => {
-    expect(howManyFooterSlots({ showPlaceOrderAsk: false, canOrderForBuyer: true })).toEqual([
-      'order-buyer',
-      'share',
-    ]);
+  it('order job: Order for buyer switch then Place', () => {
+    expect(
+      howManyFooterSlots({
+        sheetJob: 'order',
+        showPlaceOrder: true,
+        canOrderForBuyer: true,
+      }),
+    ).toEqual(['order-buyer-toggle', 'place']);
+  });
+
+  it('order job: buyer-only own catalog is switch only', () => {
+    expect(
+      howManyFooterSlots({
+        sheetJob: 'order',
+        showPlaceOrder: false,
+        canOrderForBuyer: true,
+      }),
+    ).toEqual(['order-buyer-toggle']);
+  });
+
+  it('ask job: Ask rates only', () => {
+    expect(
+      howManyFooterSlots({
+        sheetJob: 'ask',
+        showPlaceOrder: true,
+        canOrderForBuyer: true,
+      }),
+    ).toEqual(['ask']);
   });
 });

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { loginAsRavi } from '../../helpers/persona';
 
 /**
- * Visual polish — Your selection → Order collections → How many each.
+ * Visual polish — Cart → Order collections → How many each.
  * Run: EKUM_VISUAL=1 pnpm exec playwright test tests/visual/order-flow-sheets.visual.spec.ts
  */
 const RUN = process.env.EKUM_VISUAL === '1';
@@ -12,7 +12,7 @@ const RUN = process.env.EKUM_VISUAL === '1';
 async function seedSelection(page: import('@playwright/test').Page) {
   await page.evaluate(() => {
     sessionStorage.setItem(
-      'ekum:browseAlbumPick',
+      'ekum:browseCartAlbums',
       JSON.stringify([
         {
           collectionId: 'seed-col-1',
@@ -26,7 +26,7 @@ async function seedSelection(page: import('@playwright/test').Page) {
       ]),
     );
     sessionStorage.setItem(
-      'ekum:browseShortlist',
+      'ekum:browseCartDesigns',
       JSON.stringify([
         {
           productId: 'seed-prod-1',
@@ -54,7 +54,7 @@ async function captureFlow(
   await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
   await seedSelection(page);
   await page.goto('/selection');
-  await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('selection-order')).toBeVisible();
   await page.screenshot({ path: join(outDir, '01-your-selection.png'), fullPage: true });
 

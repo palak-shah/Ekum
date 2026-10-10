@@ -266,7 +266,7 @@ function CardBody({
           {note ? (
             <p
               className={cx(
-                'mt-0.5 whitespace-pre-wrap break-words text-[12px] font-medium leading-snug',
+                'mt-1 whitespace-pre-wrap break-words text-[15px] font-semibold tracking-tight leading-snug',
                 chrome.note,
               )}
             >

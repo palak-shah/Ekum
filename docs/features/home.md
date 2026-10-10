@@ -17,7 +17,7 @@ Home composes data from follow asks, orders, returns, pending chat requests, fol
 | **Needs you** | There are actionable items | Follow asks, chat requests (Connect / first write), order/return verbs (Send rate, Confirm, Dispatch, …) |
 | **Followed hero** | Quiet needs + followed posts | Recent posts from companies with an **allowed** follow — **grouped by company** with a count when they posted more than once |
 | **From the market** | Quiet + market signal | Relevance-ranked opportunity posts — **grouped by company** (count when several) |
-| **New packs** | Curated packs received in the last 7 days | Pack name · publisher · day → album; See all → Explore Buying |
+| **New collections** | Curated collections received in the last 7 days | Collection name · publisher · day → album; See all → Explore Buying |
 | **Explore businesses** | Empty / cold start | Prompt to discover companies |
 
 Actions: open the related order, chat, buyer request, collection, or company; expand “show all” on long Needs lists.
@@ -31,7 +31,7 @@ Actions: open the related order, chat, buyer request, collection, or company; ex
 - **Viewed needs stay hidden** (device-local per company) until that bucket has newer activity. Rows also clear when the underlying work is done.
 - Blocked / invisible companies never appear in followed or market previews (server visibility).
 - Buying vs selling toggles influence which empty prompts and metrics feel relevant, but Needs still surfaces anything that requires the company.
-- **New packs:** light **received curated packs** (last 7 days, cap 5) — pack name · publisher · day. Not a dense shares-by-day inbox; that browse lives under Explore **Buying**. See [concepts](./00-concepts.md) (Platform & dual-network).
+- **New collections:** light **received curated collections** (last 7 days, cap 5) — collection name · publisher · day. Not a dense shares-by-day inbox; that browse lives under Explore **Buying**. See [concepts](./00-concepts.md) (Platform & dual-network).
 
 ## Edge cases / empty states
 

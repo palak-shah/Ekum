@@ -14,18 +14,27 @@ import type {
   ProductView,
   PublicCompanySummary,
 } from '@ekum/domain-types';
-import { formatRate, timeAgo } from '@/lib/format';
+import { formatCatalogRate } from '@/lib/catalogRate';
+import { timeAgo } from '@/lib/format';
 import { warmCompanyFromExplore } from '@/features/company/warmCompanyQueries';
 import { Avatar, Chip, cx } from './kit';
 import { ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
 import { shopIdentityLine, shopSellCategories } from './shopIdentity';
+import { ExploreFeedCaption } from '@/features/explore/ExploreFeedCaption';
+import { ExploreFeedActions } from '@/features/explore/ExploreFeedActions';
+import {
+  exploreFeedCategoryLine,
+  exploreFeedNewDesignsLine,
+  exploreFeedRateLine,
+  exploreFeedSourceLine,
+} from '@/features/explore/exploreFeedCaptionLines';
+import { useMyCompany } from '@/lib/queries';
 import {
   albumMediaAspectClass,
   albumOverflowLabel,
   collectionMosaicCount,
   designCountLabel,
-  packFeedDetailLine,
 } from './albumMosaic';
 import { SelectableMediaFrame } from './selectMediaChrome';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
@@ -38,7 +47,7 @@ export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 border-b border-line/70 pb-2.5'
 export const EXPLORE_POST_INSET_CLASS = 'px-4';
 /** Mosaic + pack name share the page gutter with the header (not under the avatar). */
 export const EXPLORE_POST_MEDIA_INSET_CLASS = EXPLORE_POST_INSET_CLASS;
-export const EXPLORE_POST_HEADER_CLASS = `flex items-center gap-2.5 ${EXPLORE_POST_INSET_CLASS} py-1.5`;
+export const EXPLORE_POST_HEADER_CLASS = `flex items-center gap-2.5 ${EXPLORE_POST_INSET_CLASS} pt-2 pb-2.5`;
 export const EXPLORE_POST_AVATAR = 36;
 
 function ShopName({
@@ -73,32 +82,38 @@ function ShopPostHeader({
     sellCategories?: string[];
     categories?: string[];
   };
-  to: string;
+  /** Omit on own Explore posts (“You”) — not a deep link to shop. */
+  to?: string;
   trailing?: ReactNode;
   nameClassName?: string;
 }) {
   const queryClient = useQueryClient();
   const identity = shopIdentityLine(company.city, shopSellCategories(company));
   const warm = () => warmCompanyFromExplore(queryClient, company.id);
+  const identityBlock = (
+    <>
+      <ShopName name={company.name} verification={company.verification} className={nameClassName} />
+      {identity ? <p className="truncate text-sm font-medium text-muted">{identity}</p> : null}
+    </>
+  );
   return (
     <div className={EXPLORE_POST_HEADER_CLASS}>
-      <Link
-        to={to}
-        className="shrink-0"
-        onPointerDown={warm}
-        onMouseEnter={warm}
-      >
-        <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
-      </Link>
-      <Link
-        to={to}
-        className="min-w-0 flex-1"
-        onPointerDown={warm}
-        onMouseEnter={warm}
-      >
-        <ShopName name={company.name} verification={company.verification} className={nameClassName} />
-        {identity ? <p className="truncate text-xs font-medium text-muted">{identity}</p> : null}
-      </Link>
+      {to ? (
+        <Link to={to} className="shrink-0" onPointerDown={warm} onMouseEnter={warm}>
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
+        </Link>
+      ) : (
+        <span className="shrink-0">
+          <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
+        </span>
+      )}
+      {to ? (
+        <Link to={to} className="min-w-0 flex-1" onPointerDown={warm} onMouseEnter={warm}>
+          {identityBlock}
+        </Link>
+      ) : (
+        <div className="min-w-0 flex-1">{identityBlock}</div>
+      )}
       {trailing}
     </div>
   );
@@ -167,6 +182,8 @@ export function OpportunityCollectionCard({
   const { collection } = opportunity;
   const company = collection.company;
   const when = postedWhen(collection.updatedAt);
+  const me = useMyCompany();
+  const isOwn = Boolean(me.data?.id && company.id === me.data.id);
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
   const selecting = selectMode && onToggleSelect;
@@ -179,13 +196,32 @@ export function OpportunityCollectionCard({
     if (selecting) onToggleSelect();
     else openAlbum();
   };
-  const detail = packFeedDetailLine({ tags: collection.categories });
+  const rateLine = exploreFeedRateLine({
+    rate: collection.rateMin,
+    rateMax: collection.rateMax,
+    unit: collection.rateUnit,
+  });
+  const categoryLine = exploreFeedCategoryLine(collection.categories);
+  const sourceLine = !isOwn
+    ? exploreFeedSourceLine(collection.sourceShopNames)
+    : null;
+  const newDesigns = exploreFeedNewDesignsLine({
+    count: collection.exploreNewDesignCount,
+    isOwn,
+  });
+  const meta = newDesigns
+    ? [newDesigns, when].filter(Boolean).join(' · ')
+    : [designCountLabel(collection.productCount), when].filter(Boolean).join(' · ');
+  const detailLine = [sourceLine, categoryLine].filter(Boolean).join(' · ') || null;
+  const headerCompany = isOwn
+    ? { ...company, name: 'You' }
+    : company;
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
-        company={company}
-        to={`/company/${company.id}`}
-        trailing={headerTrailing}
+        company={headerCompany}
+        to={isOwn ? undefined : `/company/${company.id}`}
+        trailing={isOwn ? undefined : headerTrailing}
       />
       <button
         type="button"
@@ -206,17 +242,22 @@ export function OpportunityCollectionCard({
           />
         </SelectableMediaFrame>
       </button>
+      <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+        <ExploreFeedActions collection={collection} selecting={Boolean(selectMode)} />
+      </div>
       <Link
         to={`/collections/${collection.id}`}
         data-testid={`explore-collection-open-${collection.id}`}
-        className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
+        className={cx('block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
         onClick={() => onOpen?.()}
       >
-        <p className="text-sm font-semibold tracking-tight text-ink">{collection.name}</p>
-        <p className="text-xs font-medium text-muted">
-          {[designCountLabel(collection.productCount), when].filter(Boolean).join(' · ')}
-        </p>
-        {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
+        <ExploreFeedCaption
+          title={collection.name}
+          meta={meta || designCountLabel(collection.productCount)}
+          rateLine={rateLine}
+          categoryLine={detailLine}
+          about={collection.description}
+        />
       </Link>
     </article>
   );
@@ -460,6 +501,8 @@ export function OpportunityDesignCard({
   const { product } = opportunity;
   const company = product.company;
   const when = postedWhen(product.postedAt);
+  const me = useMyCompany();
+  const isOwn = Boolean(me.data?.id && company.id === me.data.id);
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
   const selecting = selectMode && onToggleSelect;
@@ -476,9 +519,9 @@ export function OpportunityDesignCard({
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
-        company={company}
-        to={`/company/${company.id}`}
-        trailing={headerTrailing}
+        company={isOwn ? { ...company, name: 'You' } : company}
+        to={isOwn ? undefined : `/company/${company.id}`}
+        trailing={isOwn ? undefined : headerTrailing}
       />
       <button
         type="button"
@@ -496,21 +539,31 @@ export function OpportunityDesignCard({
           />
         </SelectableMediaFrame>
       </button>
+      <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+        <ExploreFeedActions product={product} selecting={Boolean(selectMode)} />
+      </div>
       <Link
         to={`/explore/products/${product.id}`}
         data-testid={`explore-design-open-${product.id}`}
-        className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
+        className={cx('block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
         onClick={() => onOpen?.()}
       >
-        <p className="text-sm font-semibold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">
-          {[
+        <ExploreFeedCaption
+          title={product.name}
+          meta={[
             product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design',
             when,
           ]
             .filter(Boolean)
             .join(' · ')}
-        </p>
+          rateLine={exploreFeedRateLine({
+            rate: product.rate,
+            rateMax: product.rateMax,
+            unit: product.unit,
+            dispatchUnit: product.dispatchUnit,
+          })}
+          categoryLine={exploreFeedCategoryLine(product.categories)}
+        />
       </Link>
     </article>
   );
@@ -883,7 +936,6 @@ function PostHeader({
 
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
-  const detail = packFeedDetailLine({ tags: collection.categories });
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <PostHeader company={collection.company} />
@@ -897,14 +949,20 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
           alt={collection.name}
         />
       </Link>
-      <Link to={`/collections/${collection.id}`} className={cx('mt-1.5 block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
-        <p className="text-sm font-bold tracking-tight text-ink">{collection.name}</p>
-        <p className="text-xs font-medium text-muted">
-          {[designCountLabel(collection.productCount), postedWhen(collection.updatedAt)]
+      <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
+        <ExploreFeedCaption
+          title={collection.name}
+          meta={[designCountLabel(collection.productCount), postedWhen(collection.updatedAt)]
             .filter(Boolean)
             .join(' · ')}
-        </p>
-        {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
+          rateLine={exploreFeedRateLine({
+            rate: collection.rateMin,
+            rateMax: collection.rateMax,
+            unit: collection.rateUnit,
+          })}
+          categoryLine={exploreFeedCategoryLine(collection.categories)}
+          about={collection.description}
+        />
       </Link>
     </article>
   );
@@ -922,16 +980,23 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
           alt={product.name}
         />
       </Link>
-      <Link to={`/explore/products/${product.id}`} className={cx('mt-1.5 block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
-        <p className="text-sm font-bold tracking-tight text-ink">{product.name}</p>
-        <p className="text-xs font-medium text-muted">
-          {[
+      <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
+        <ExploreFeedCaption
+          title={product.name}
+          meta={[
             product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design',
             postedWhen(product.postedAt),
           ]
             .filter(Boolean)
             .join(' · ')}
-        </p>
+          rateLine={exploreFeedRateLine({
+            rate: product.rate,
+            rateMax: product.rateMax,
+            unit: product.unit,
+            dispatchUnit: product.dispatchUnit,
+          })}
+          categoryLine={exploreFeedCategoryLine(product.categories)}
+        />
       </Link>
     </article>
   );
@@ -962,7 +1027,17 @@ export function ProductTile({
         ) : 'companyName' in product && product.companyName?.trim() ? (
           <p className="truncate text-xs font-medium text-muted">{product.companyName.trim()}</p>
         ) : null}
-        <p className="text-xs font-medium text-muted">{formatRate(product.rate, product.unit, product.rateMax)}</p>
+        <p className="text-xs font-medium text-muted">
+          {formatCatalogRate({
+            rate: product.rate,
+            rateMax: product.rateMax,
+            unit: product.unit,
+            dispatchUnit:
+              'dispatchUnit' in product
+                ? (product as { dispatchUnit?: string | null }).dispatchUnit
+                : undefined,
+          })}
+        </p>
       </div>
     </div>
   );

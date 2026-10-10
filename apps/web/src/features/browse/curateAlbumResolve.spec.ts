@@ -65,8 +65,8 @@ describe('partitionRelistableAlbums', () => {
 
 describe('curateLockedSkipMessage', () => {
   it('counts skipped locked lines', () => {
-    expect(curateLockedSkipMessage(1)).toBe('1 locked — seller doesn’t allow pack');
-    expect(curateLockedSkipMessage(3)).toBe('3 locked — seller doesn’t allow pack');
+    expect(curateLockedSkipMessage(1)).toBe('1 locked — seller doesn’t allow collections');
+    expect(curateLockedSkipMessage(3)).toBe('3 locked — seller doesn’t allow collections');
   });
 });
 
@@ -114,7 +114,7 @@ describe('curateResolveSummary', () => {
 
 describe('packLockReason', () => {
   it('returns reason only when allowForward is false', () => {
-    expect(packLockReason(false)).toBe("Can't put in a pack");
+    expect(packLockReason(false)).toBe("Can't put in a collection");
     expect(packLockReason(true)).toBeUndefined();
     expect(packLockReason(undefined)).toBeUndefined();
   });

@@ -85,7 +85,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]">
+    <div className="ekum-shell-scroll mx-auto flex h-full min-h-0 w-full max-w-md flex-col overflow-y-auto bg-canvas px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]">
       <div className="flex flex-1 flex-col justify-center">
         <div className={LOGIN_PANEL}>
         <div className="-mt-1 flex flex-col items-center gap-2">

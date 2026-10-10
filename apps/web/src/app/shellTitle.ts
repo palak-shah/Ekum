@@ -20,9 +20,17 @@ export function pageOwnsTopChrome(pathname: string): boolean {
   return false;
 }
 
-/** You is a Home destination — Back on the shell band, not history −1. */
-export function shellShowsHomeBack(pathname: string): boolean {
-  return pathname === '/more';
+/**
+ * Home destination Back on the shell band (beside the title), not history −1.
+ * You always; Explore only while Selecting (stay on Explore → Selecting pill clears).
+ */
+export function shellShowsHomeBack(
+  pathname: string,
+  options?: { exploreSelecting?: boolean },
+): boolean {
+  if (pathname === '/more') return true;
+  if (pathname === '/explore' && options?.exploreSelecting) return true;
+  return false;
 }
 
 /** Sticky shell h1 on tab roots. Nested/detail routes return null (PageHeader owns the title). */
@@ -33,7 +41,7 @@ export function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/explore') || pathname.startsWith('/search')) return 'Explore';
   if (pathname.startsWith('/notifications')) return 'Notifications';
   if (pathname.startsWith('/team')) return 'Team';
-  if (pathname === '/more') return 'You';
+  if (pathname === '/more') return 'My collections';
   if (pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
     return null;
   }

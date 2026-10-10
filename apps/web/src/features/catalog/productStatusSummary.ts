@@ -1,7 +1,7 @@
 import type { BuyerGroupName } from './collectionStatusSummary';
 import type { ProductView } from '@ekum/domain-types';
 import { ProductStatus } from '@ekum/domain-types';
-import { formatRate } from '@/lib/format';
+import { formatCatalogRate } from '@/lib/catalogRate';
 
 /** Draft / pack-only / archived only — not On Explore or who can see. */
 export function productStatusLine(
@@ -16,7 +16,7 @@ export function productStatusLine(
   }
   /** Pack publish marks designs Published without a solo Explore tile. */
   if (!product.postedToMarketAt) {
-    return 'In your packs';
+    return 'In your collections';
   }
   return '';
 }
@@ -24,7 +24,12 @@ export function productStatusLine(
 /** Glanceable tile: rate · SKU · photos (status is a separate line). */
 export function productTileSubtitle(product: ProductView): string {
   const bits: string[] = [];
-  const rate = formatRate(product.rate, product.unit, product.rateMax);
+  const rate = formatCatalogRate({
+    rate: product.rate,
+    rateMax: product.rateMax,
+    unit: product.unit,
+    dispatchUnit: product.dispatchUnit,
+  });
   bits.push(rate === 'On request' || product.rate == null ? 'Price on request' : rate);
   if (product.sku) bits.push(product.sku);
   const photos = product.images.length;

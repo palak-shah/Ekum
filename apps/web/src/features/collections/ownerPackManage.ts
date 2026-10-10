@@ -63,3 +63,34 @@ export function membershipWithNewFirst(
   const rest = currentIds.filter((id) => !seen.has(id));
   return [...added, ...rest];
 }
+
+/**
+ * Replace waits until a non-empty set is saved — boot must never clear members.
+ * (Regression guard for the old `productIds: []` PUT.)
+ */
+export function replaceBootClearsMembership(): boolean {
+  return false;
+}
+
+/**
+ * Replace → only the picked ids (deduped, pick order). Empty pick → null (keep current; do not PUT).
+ * Append → new ids first via {@link membershipWithNewFirst}.
+ */
+export function membershipForReplaceOrAppend(
+  currentIds: readonly string[],
+  pickedIds: readonly string[],
+  replace: boolean,
+): string[] | null {
+  if (replace) {
+    if (pickedIds.length === 0) return null;
+    const next: string[] = [];
+    const seen = new Set<string>();
+    for (const id of pickedIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      next.push(id);
+    }
+    return next;
+  }
+  return membershipWithNewFirst(currentIds, pickedIds);
+}

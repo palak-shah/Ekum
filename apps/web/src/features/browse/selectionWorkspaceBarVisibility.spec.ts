@@ -15,10 +15,11 @@ describe('shouldShowSelectionWorkspaceBar', () => {
     expect(shouldShowSelectionWorkspaceBar('/designs/set', 0)).toBe(false);
   });
 
-  it('shows on another shop only when that shop’s trade dock is down', () => {
-    expect(shouldShowSelectionWorkspaceBar('/company/abc', 1)).toBe(true);
+  it('never shows on a company shop — Chat is on the profile; shop dock owns picks', () => {
+    expect(shouldShowSelectionWorkspaceBar('/company/abc', 1)).toBe(false);
     expect(shouldShowSelectionWorkspaceBar('/company/abc', 4, { shopDockUp: true })).toBe(false);
     expect(shouldShowSelectionWorkspaceBar('/company/abc', 2, { ownShop: true })).toBe(false);
+    expect(shouldShowSelectionWorkspaceBar('/company/abc', 3, { shopDockUp: false })).toBe(false);
   });
 
   it('shows on a pack or design only while Selecting', () => {

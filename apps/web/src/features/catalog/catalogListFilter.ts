@@ -7,7 +7,7 @@ export const CATALOG_STATUS_FILTERS: { id: CatalogStatusFilter; label: string }[
   { id: 'archived', label: 'Archived' },
 ];
 
-/** Find-only chips on You (Draft / Archived). Saved is a separate Find chip. */
+/** Find-only chips on You (Draft / Archived). Bookmark (saved) is a separate Find row. */
 export const CATALOG_FIND_STATUS_FILTERS: { id: CatalogStatusFilter; label: string }[] = [
   { id: 'draft', label: 'Draft' },
   { id: 'archived', label: 'Archived' },
@@ -81,6 +81,6 @@ export function uniqueById<T extends { id: string }>(rows: T[]): T[] {
 export function publishedDesignsElsewhereHint(publishedCount: number): string | null {
   if (publishedCount < 1) return null;
   return publishedCount === 1
-    ? '1 design is already live (including packs).'
-    : `${publishedCount} designs are already live (including packs).`;
+    ? '1 design is already live (including collections).'
+    : `${publishedCount} designs are already live (including collections).`;
 }

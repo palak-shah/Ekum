@@ -22,9 +22,10 @@ test.describe('collections journey @functional @collections', () => {
     await page.getByTestId('select-all-float-select-all').click();
     await expect(page.getByTestId('select-all-float')).toContainText(/\d+ selected/);
 
-    // Order lives on Selection workspace, not the album chrome.
-    await page.getByTestId('selection-workspace-view').click();
-    await expect(page.getByRole('heading', { name: 'Your selection' })).toBeVisible();
+    // Order lives on Cart, not the album chrome.
+    await page.getByTestId('selection-workspace-cart').click();
+    await page.goto('/selection');
+    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await page.getByTestId('selection-order').click();
     await expect(page.getByRole('button', { name: 'Ask rates' })).toBeVisible();
     await page.getByRole('button', { name: 'Ask rates' }).click();

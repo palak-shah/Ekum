@@ -64,9 +64,15 @@ import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
 import { OrderTrailService } from './order-trail.service';
 import { resolveNoteVoiceFields } from './note-voice';
+import { normalizeNoteImageUrls } from './note-images';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
 import { isHeldFromSupplier } from './orderHold';
+import {
+  primaryLrFromLegs,
+  resolveParcelCount,
+  resolveShipmentLegs,
+} from './shipment-legs';
 
 const ORDER_RELATIONS = {
   buyer: true,
@@ -83,6 +89,7 @@ const ORDER_RELATIONS = {
     include: {
       dispatchedByUser: { select: { id: true, name: true } },
       items: { include: { orderItem: { select: { id: true, name: true } } } },
+      legs: { orderBy: { sortOrder: 'asc' as const } },
     },
   },
 } as const;
@@ -221,6 +228,7 @@ export class OrderService {
         createdByUserId: userId,
         updatedByUserId: userId,
         note: dto.note ?? null,
+        transporter: dto.transporter?.trim() || null,
         ...noteVoice,
         items: { create: items },
       },
@@ -384,6 +392,7 @@ export class OrderService {
             kind: dto.kind ?? OrderKind.Standard,
             intent: dto.intent ?? OrderIntent.Order,
             note: dto.note,
+            transporter: dto.transporter,
             items: group.items.map((item) => ({
               productId: item.productId,
               quantity: item.quantity,
@@ -438,7 +447,7 @@ export class OrderService {
       if (!memberIds.has(id)) {
         throw new BadRequestException({
           code: 'NOT_IN_PACK',
-          message: 'One or more designs are not in this pack.',
+          message: 'One or more designs are not in this collection.',
         });
       }
     }
@@ -463,7 +472,7 @@ export class OrderService {
       throw new BadRequestException({
         code: 'NOT_CURATED',
         message:
-          'This album is only the seller’s own designs — not a curated pack. Place Order again as a normal order to them.',
+          'This album is only the seller’s own designs — not a curated collection. Place Order again as a normal order to them.',
       });
     }
 
@@ -471,7 +480,7 @@ export class OrderService {
     if (!traderPresence.trading) {
       throw new BadRequestException({
         code: 'TRADING_REQUIRED',
-        message: 'This business is not taking pack orders right now.',
+        message: 'This business is not taking collection orders right now.',
       });
     }
 
@@ -487,6 +496,7 @@ export class OrderService {
         kind: dto.kind ?? OrderKind.Standard,
         intent: dto.intent ?? OrderIntent.Order,
         note: dto.note,
+        transporter: dto.transporter,
         items: dto.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -615,6 +625,10 @@ export class OrderService {
       data: {
         amendCount: { increment: 1 },
         note: dto.note !== undefined ? dto.note : undefined,
+        transporter:
+          dto.transporter === undefined
+            ? undefined
+            : dto.transporter?.trim() || null,
         items: {
           deleteMany: {},
           create: snapshots,
@@ -885,9 +899,12 @@ export class OrderService {
           quoteNote: null,
           quoteNoteVoiceUrl: null,
           quoteNoteVoiceDurationMs: null,
+          quoteNoteImageUrls: [] as string[],
         };
+    const personalNote = await this.loadPersonalNote(order.id, actorCompanyId);
     return {
       ...view,
+      personalNote,
       relatedOrders,
       millDesks,
       deskOrderId:
@@ -971,6 +988,7 @@ export class OrderService {
     quoteNote: string | null;
     quoteNoteVoiceUrl: string | null;
     quoteNoteVoiceDurationMs: number | null;
+    quoteNoteImageUrls: string[];
   }> {
     const row = await this.prisma.message.findFirst({
       where: {
@@ -991,6 +1009,7 @@ export class OrderService {
         quoteNote: null,
         quoteNoteVoiceUrl: null,
         quoteNoteVoiceDurationMs: null,
+        quoteNoteImageUrls: [],
       };
     }
     const meta =
@@ -1000,12 +1019,16 @@ export class OrderService {
     const body = row.body?.trim() || '';
     const quoteNote =
       body && !/^Quote\b/i.test(body) ? body : null;
+    const quoteNoteImageUrls = Array.isArray(meta?.noteImageUrls)
+      ? meta.noteImageUrls.filter((url): url is string => typeof url === 'string')
+      : [];
     return {
       quoteNote,
       quoteNoteVoiceUrl:
         typeof meta?.noteVoiceUrl === 'string' ? meta.noteVoiceUrl : null,
       quoteNoteVoiceDurationMs:
         typeof meta?.noteVoiceDurationMs === 'number' ? meta.noteVoiceDurationMs : null,
+      quoteNoteImageUrls,
     };
   }
 
@@ -1244,11 +1267,10 @@ export class OrderService {
         continue;
       }
       const nextQty = line.quantity ?? item.quantity.toNumber();
-      const requested = item.requestedQuantity.toNumber();
-      if (nextQty > requested) {
+      if (!Number.isFinite(nextQty) || nextQty < 1) {
         throw new BadRequestException({
-          code: 'QTY_TOO_HIGH',
-          message: 'Offer quantity cannot exceed the requested quantity.',
+          code: 'QTY_INVALID',
+          message: 'Offer quantity must be at least 1.',
         });
       }
       await this.prisma.orderItem.update({
@@ -1399,16 +1421,25 @@ export class OrderService {
         continue;
       }
       const nextQty = line.quantity ?? item.quantity.toNumber();
-      if (nextQty > item.requestedQuantity.toNumber()) {
+      if (!Number.isFinite(nextQty) || nextQty < 1) {
         throw new BadRequestException({
-          code: 'QTY_TOO_HIGH',
-          message: 'Confirm quantity cannot exceed the requested quantity.',
+          code: 'QTY_INVALID',
+          message: 'Confirm quantity must be at least 1.',
+        });
+      }
+      const existingRate = item.rate != null ? item.rate.toNumber() : null;
+      const nextRate = line.rate ?? existingRate;
+      if (nextRate == null || !Number.isFinite(nextRate) || nextRate <= 0) {
+        throw new BadRequestException({
+          code: 'RATE_REQUIRED',
+          message: 'Set a rate before confirming.',
         });
       }
       await this.prisma.orderItem.update({
         where: { id: item.id },
         data: {
           quantity: nextQty,
+          rate: nextRate,
           lineStatus: OrderLineStatus.Confirmed,
         },
       });
@@ -1501,7 +1532,7 @@ export class OrderService {
       await this.passMillLinesToParent(id, actorCompanyId, userId);
       return this.emitAndGet(actorCompanyId, id, nextStatus);
     }
-    if (dto.note?.trim() || dto.noteVoiceMediaId) {
+    if (dto.note?.trim() || dto.noteVoiceMediaId || (dto.noteImageUrls?.length ?? 0) > 0) {
       await this.trail.append({
         orderId: id,
         type: OrderTrailType.Updated,
@@ -1625,20 +1656,15 @@ export class OrderService {
             message: 'Only confirmed designs can be marked Can’t supply.',
           });
         }
-        if (shipped <= 0) {
-          await this.prisma.orderItem.update({
-            where: { id: item.id },
-            data: { lineStatus: OrderLineStatus.Declined },
-          });
-        } else {
-          await this.prisma.orderItem.update({
-            where: { id: item.id },
-            data: {
-              quantity: shipped,
-              lineStatus: OrderLineStatus.Dispatched,
-            },
-          });
-        }
+        // Cap agreed qty to what already left when some shipped — still Declined so
+        // the Can’t supply switch / Restore path stay honest (not silent Dispatched).
+        await this.prisma.orderItem.update({
+          where: { id: item.id },
+          data:
+            shipped > 0
+              ? { quantity: shipped, lineStatus: OrderLineStatus.Declined }
+              : { lineStatus: OrderLineStatus.Declined },
+        });
         changed.push({ name: item.name, cantSupply: true });
       } else {
         if (item.lineStatus !== OrderLineStatus.Declined) continue;
@@ -1673,9 +1699,13 @@ export class OrderService {
         );
       });
     const anyShipped = shippable.some((item) => (totals.get(item.id) ?? 0) > 0);
+    const anyShippedOnOrder = final.items.some((item) => (totals.get(item.id) ?? 0) > 0);
+    // All Can’t supply but goods already left → complete, not Declined.
     const nextStatus =
       shippable.length < 1
-        ? OrderStatus.Declined
+        ? anyShippedOnOrder
+          ? OrderStatus.Dispatched
+          : OrderStatus.Declined
         : allOut
           ? OrderStatus.Dispatched
           : anyShipped
@@ -1698,23 +1728,36 @@ export class OrderService {
 
     const actorLabel = order.seller.name;
     const orderLabel = shortOrderLabel(id);
-    const bits = changed.map((row) =>
-      row.cantSupply ? `Can’t supply · ${row.name}` : `Back on order · ${row.name}`,
-    );
-    const summary = bits.join(' · ');
+    // Status only on the card — shop is on the ticket; design sits in detail (expand).
+    const summary =
+      changed.length === 1
+        ? changed[0]!.cantSupply
+          ? 'Can’t supply'
+          : 'Back on order'
+        : [
+            ...changed
+              .filter((row) => row.cantSupply)
+              .map((row) => `Can’t supply · ${row.name}`),
+            ...changed
+              .filter((row) => !row.cantSupply)
+              .map((row) => `Back on order · ${row.name}`),
+          ].join(' · ');
+    const detail =
+      changed.length === 1 ? changed[0]!.name : changed.map((row) => row.name).join(' · ');
     await this.trail.append({
       orderId: id,
       type: OrderTrailType.Updated,
       at: now,
       actorCompanyId,
       actorUserId: userId,
-      summary: `${actorLabel} · ${summary}`,
+      summary,
+      detail,
     });
     await this.postOrderCard(
       order.buyerCompanyId,
       order.sellerCompanyId,
       actorCompanyId,
-      `${actorLabel} · ${summary}`,
+      summary,
       id,
       {
         status: nextStatus,
@@ -1787,14 +1830,16 @@ export class OrderService {
       // on serialize; line/order complete when shipped ≥ agreed quantity.
     }
 
-    const lrNumber = dto.lrNumber?.trim() || null;
+    const legs = resolveShipmentLegs({ legs: dto.legs, lrNumber: dto.lrNumber });
+    const lrNumber = primaryLrFromLegs(legs) ?? (dto.lrNumber?.trim() || null);
+    const parcelCount = resolveParcelCount(dto.parcelCount, legs);
     const now = new Date();
     await this.prisma.orderShipment.create({
       data: {
         orderId: id,
         transporter: dto.transporter ?? null,
         lrNumber,
-        parcelCount: dto.parcelCount ?? null,
+        parcelCount,
         dispatchedAt: now,
         dispatchedByUserId: userId,
         items: {
@@ -1803,38 +1848,66 @@ export class OrderService {
             quantity: line.quantity,
           })),
         },
+        ...(legs.length > 0
+          ? {
+              legs: {
+                create: legs.map((leg) => ({
+                  lrNumber: leg.lrNumber,
+                  billNumber: leg.billNumber,
+                  imageUrls: leg.imageUrls,
+                  sortOrder: leg.sortOrder,
+                })),
+              },
+            }
+          : {}),
       },
     });
 
-    // Refresh shipped totals and flip line/order status when fully out.
-    const after = await this.loadForParty(id, actorCompanyId);
-    const shippedAfter = this.shippedTotals(after);
-    for (const item of after.items) {
-      if (item.lineStatus === OrderLineStatus.Declined) continue;
-      if (item.lineStatus !== OrderLineStatus.Confirmed && item.lineStatus !== OrderLineStatus.Dispatched) {
-        continue;
-      }
-      const shipped = shippedAfter.get(item.id) ?? 0;
-      if (shipped + 1e-9 >= item.quantity.toNumber()) {
-        await this.prisma.orderItem.update({
-          where: { id: item.id },
-          data: { lineStatus: OrderLineStatus.Dispatched },
-        });
-      }
+    // In-memory shipped totals after this LR — avoids mid-dispatch reloads.
+    const shippedAfter = new Map(shippedByItem);
+    for (const line of candidates) {
+      shippedAfter.set(
+        line.orderItemId,
+        (shippedAfter.get(line.orderItemId) ?? 0) + line.quantity,
+      );
+    }
+    const fullyShippedIds = order.items
+      .filter((item) => {
+        if (item.lineStatus === OrderLineStatus.Declined) return false;
+        if (
+          item.lineStatus !== OrderLineStatus.Confirmed &&
+          item.lineStatus !== OrderLineStatus.Dispatched
+        ) {
+          return false;
+        }
+        const shipped = shippedAfter.get(item.id) ?? 0;
+        return shipped + 1e-9 >= item.quantity.toNumber();
+      })
+      .map((item) => item.id);
+    if (fullyShippedIds.length > 0) {
+      await this.prisma.orderItem.updateMany({
+        where: { id: { in: fullyShippedIds } },
+        data: { lineStatus: OrderLineStatus.Dispatched },
+      });
     }
 
-    const final = await this.loadForParty(id, actorCompanyId);
-    const shippable = final.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const fullyShipped = new Set(fullyShippedIds);
+    const shippable = order.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const lineStatusAfter = (item: (typeof order.items)[number]) =>
+      fullyShipped.has(item.id) ? OrderLineStatus.Dispatched : item.lineStatus;
     const allOut = shippable.every((item) => {
-      if (item.lineStatus === OrderLineStatus.Open) return false;
-      const shipped = this.shippedTotals(final).get(item.id) ?? 0;
+      const status = lineStatusAfter(item);
+      if (status === OrderLineStatus.Open) return false;
+      const shipped = shippedAfter.get(item.id) ?? 0;
       return (
-        item.lineStatus === OrderLineStatus.Dispatched ||
-        item.lineStatus === OrderLineStatus.Delivered ||
+        status === OrderLineStatus.Dispatched ||
+        status === OrderLineStatus.Delivered ||
         shipped + 1e-9 >= item.quantity.toNumber()
       );
     });
-    const hasConfirmed = shippable.some((item) => item.lineStatus === OrderLineStatus.Confirmed);
+    const hasConfirmed = shippable.some(
+      (item) => lineStatusAfter(item) === OrderLineStatus.Confirmed,
+    );
 
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
@@ -1854,7 +1927,7 @@ export class OrderService {
           closedAt: now,
           transporter: dto.transporter ?? order.transporter,
           lrNumber: lrNumber ?? order.lrNumber,
-          parcelCount: dto.parcelCount ?? order.parcelCount,
+          parcelCount: parcelCount ?? order.parcelCount,
           ...this.withActor(userId),
         },
       });
@@ -1899,7 +1972,7 @@ export class OrderService {
         status: OrderStatus.PartShipped,
         transporter: dto.transporter ?? order.transporter,
         lrNumber: lrNumber ?? order.lrNumber,
-        parcelCount: dto.parcelCount ?? order.parcelCount,
+        parcelCount: parcelCount ?? order.parcelCount,
         ...this.withActor(userId),
       },
     });
@@ -1984,7 +2057,9 @@ export class OrderService {
     }
     for (const line of kept) {
       const item = byId.get(line.orderItemId);
-      if (!item || item.lineStatus === OrderLineStatus.Declined) {
+      // Declined is OK here — a past LR may still carry a design later marked Can’t supply.
+      // (New dispatch still rejects declined; see dispatchOrder above.)
+      if (!item) {
         throw new NotFoundException({
           code: 'INVALID_ITEM',
           message: 'A dispatch line does not match this order.',
@@ -1992,17 +2067,31 @@ export class OrderService {
       }
     }
 
+    /** Only replace legs when the client sends `legs` (Dispatch / prior-edit). */
+    const legs =
+      dto.legs !== undefined
+        ? resolveShipmentLegs({ legs: dto.legs, lrNumber: dto.lrNumber })
+        : null;
     const lrNumber =
-      dto.lrNumber === undefined
-        ? shipment.lrNumber
-        : dto.lrNumber?.trim() || null;
+      legs != null
+        ? primaryLrFromLegs(legs) ?? (dto.lrNumber?.trim() || null)
+        : dto.lrNumber === undefined
+          ? shipment.lrNumber
+          : dto.lrNumber?.trim() || null;
     const transporter =
       dto.transporter === undefined ? shipment.transporter : dto.transporter;
     const parcelCount =
-      dto.parcelCount === undefined ? shipment.parcelCount : dto.parcelCount;
+      dto.parcelCount !== undefined
+        ? dto.parcelCount
+        : legs != null
+          ? resolveParcelCount(undefined, legs) ?? shipment.parcelCount
+          : shipment.parcelCount;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.orderShipmentItem.deleteMany({ where: { shipmentId } });
+      if (legs != null) {
+        await tx.orderShipmentLeg.deleteMany({ where: { shipmentId } });
+      }
       await tx.orderShipment.update({
         where: { id: shipmentId },
         data: {
@@ -2015,6 +2104,18 @@ export class OrderService {
               quantity: line.quantity,
             })),
           },
+          ...(legs != null && legs.length > 0
+            ? {
+                legs: {
+                  create: legs.map((leg) => ({
+                    lrNumber: leg.lrNumber,
+                    billNumber: leg.billNumber,
+                    imageUrls: leg.imageUrls,
+                    sortOrder: leg.sortOrder,
+                  })),
+                },
+              }
+            : {}),
         },
       });
     });
@@ -3004,17 +3105,139 @@ export class OrderService {
 
   private async trailVoiceFields(
     companyId: string,
-    dto: { noteVoiceMediaId?: string; noteVoiceDurationMs?: number },
+    dto: {
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
+    },
   ): Promise<{
     noteVoiceMediaId: string | null;
     noteVoiceUrl: string | null;
     noteVoiceDurationMs: number | null;
+    noteImageUrls: string[];
   }> {
     const resolved = await resolveNoteVoiceFields(this.prisma, companyId, dto);
     return {
       noteVoiceMediaId: resolved.noteVoiceMediaId,
       noteVoiceUrl: resolved.noteVoiceUrl,
       noteVoiceDurationMs: resolved.noteVoiceDurationMs,
+      noteImageUrls: normalizeNoteImageUrls(dto.noteImageUrls),
+    };
+  }
+
+  async updateManualRef(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: {
+      manualOrderNo?: string | null;
+      note?: string | null;
+      noteImageUrls?: string[];
+    },
+  ): Promise<OrderView> {
+    await this.loadForParty(id, actorCompanyId);
+    const images =
+      dto.noteImageUrls !== undefined ? normalizeNoteImageUrls(dto.noteImageUrls) : undefined;
+    await this.prisma.order.update({
+      where: { id },
+      data: {
+        ...(dto.manualOrderNo !== undefined
+          ? { manualOrderNo: dto.manualOrderNo?.trim() || null }
+          : {}),
+        ...(dto.note !== undefined ? { manualOrderNote: dto.note?.trim() || null } : {}),
+        ...(images !== undefined ? { manualOrderImages: images } : {}),
+        ...this.withActor(userId),
+      },
+    });
+    return this.get(actorCompanyId, id);
+  }
+
+  async updatePersonalNote(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: {
+      note?: string | null;
+      noteVoiceMediaId?: string | null;
+      noteVoiceDurationMs?: number | null;
+      noteImageUrls?: string[];
+    },
+  ): Promise<OrderView> {
+    await this.loadForParty(id, actorCompanyId);
+    const voice =
+      dto.noteVoiceMediaId === null
+        ? {
+            noteVoiceMediaId: null as string | null,
+            noteVoiceUrl: null as string | null,
+            noteVoiceDurationMs: null as number | null,
+          }
+        : dto.noteVoiceMediaId
+          ? await this.noteVoiceCreateFields(actorCompanyId, {
+              noteVoiceMediaId: dto.noteVoiceMediaId,
+              noteVoiceDurationMs: dto.noteVoiceDurationMs ?? undefined,
+            })
+          : undefined;
+    const images =
+      dto.noteImageUrls !== undefined ? normalizeNoteImageUrls(dto.noteImageUrls) : undefined;
+    const existing = await this.prisma.orderCompanyNote.findUnique({
+      where: { orderId_companyId: { orderId: id, companyId: actorCompanyId } },
+    });
+    const nextNote =
+      dto.note !== undefined ? dto.note?.trim() || null : existing?.note ?? null;
+    const nextVoice = voice ?? {
+      noteVoiceMediaId: existing?.noteVoiceMediaId ?? null,
+      noteVoiceUrl: existing?.noteVoiceUrl ?? null,
+      noteVoiceDurationMs: existing?.noteVoiceDurationMs ?? null,
+    };
+    const nextImages = images ?? existing?.images ?? [];
+    const empty =
+      !nextNote &&
+      !nextVoice.noteVoiceMediaId &&
+      nextImages.length === 0;
+    if (empty) {
+      if (existing) {
+        await this.prisma.orderCompanyNote.delete({ where: { id: existing.id } });
+      }
+    } else {
+      await this.prisma.orderCompanyNote.upsert({
+        where: { orderId_companyId: { orderId: id, companyId: actorCompanyId } },
+        create: {
+          orderId: id,
+          companyId: actorCompanyId,
+          note: nextNote,
+          noteVoiceMediaId: nextVoice.noteVoiceMediaId,
+          noteVoiceUrl: nextVoice.noteVoiceUrl,
+          noteVoiceDurationMs: nextVoice.noteVoiceDurationMs,
+          images: nextImages,
+        },
+        update: {
+          note: nextNote,
+          noteVoiceMediaId: nextVoice.noteVoiceMediaId,
+          noteVoiceUrl: nextVoice.noteVoiceUrl,
+          noteVoiceDurationMs: nextVoice.noteVoiceDurationMs,
+          images: nextImages,
+        },
+      });
+    }
+    void userId;
+    return this.get(actorCompanyId, id);
+  }
+
+  private async loadPersonalNote(
+    orderId: string,
+    companyId: string,
+  ): Promise<OrderView['personalNote']> {
+    const row = await this.prisma.orderCompanyNote.findUnique({
+      where: { orderId_companyId: { orderId, companyId } },
+    });
+    if (!row) return null;
+    if (!row.note && !row.noteVoiceUrl && row.images.length === 0) return null;
+    return {
+      note: row.note,
+      noteVoiceUrl: row.noteVoiceUrl,
+      noteVoiceDurationMs: row.noteVoiceDurationMs,
+      noteVoiceMediaId: row.noteVoiceMediaId,
+      images: row.images,
     };
   }
 
@@ -3043,15 +3266,22 @@ export class OrderService {
 
   private async noteVoiceMetadata(
     companyId: string,
-    dto: { noteVoiceMediaId?: string; noteVoiceDurationMs?: number },
+    dto: {
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
+    },
   ): Promise<Record<string, unknown>> {
     const voice = await this.resolveOwnedNoteVoice(companyId, dto);
-    if (!voice) return {};
-    return {
-      noteVoiceMediaId: voice.mediaId,
-      noteVoiceUrl: voice.url,
-      noteVoiceDurationMs: voice.durationMs,
-    };
+    const noteImageUrls = normalizeNoteImageUrls(dto.noteImageUrls);
+    const meta: Record<string, unknown> = {};
+    if (voice) {
+      meta.noteVoiceMediaId = voice.mediaId;
+      meta.noteVoiceUrl = voice.url;
+      meta.noteVoiceDurationMs = voice.durationMs;
+    }
+    if (noteImageUrls.length > 0) meta.noteImageUrls = noteImageUrls;
+    return meta;
   }
 
   private async resolveOwnedNoteVoice(

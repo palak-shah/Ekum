@@ -14,6 +14,7 @@ const shipment = {
   parcelCount: 2,
   dispatchedAt: '2026-09-21T10:00:00.000Z',
   items: [{ orderItemId: 'i1', name: 'Cotton Grey', quantity: 20 }],
+  legs: [{ id: 'leg1', lrNumber: 'LR-1', billNumber: null as string | null, sortOrder: 0 }],
 };
 
 describe('packingSlip', () => {
@@ -32,7 +33,34 @@ describe('packingSlip', () => {
     expect(lines.some((line) => line.includes('Cotton Grey'))).toBe(true);
   });
 
-  it('builds qty · name · sku · unit rows for the slip table', () => {
+  it('omits buyer when showBuyer is off', () => {
+    const lines = packingSlipLines({
+      orderId: 'cmorderabcdefghijk',
+      counterpartName: 'Jaipur Emporium',
+      shipment,
+      options: { showBuyer: false },
+    });
+    expect(lines.join('\n')).not.toMatch(/Jaipur Emporium/);
+    expect(lines.join('\n')).toMatch(/PACKING LIST/);
+  });
+
+  it('lists each LR + bill pair in the header', () => {
+    const lines = packingSlipLines({
+      orderId: 'cmorderabcdefghijk',
+      counterpartName: 'Jaipur Emporium',
+      shipment: {
+        ...shipment,
+        legs: [
+          { id: 'a', lrNumber: 'LR-1', billNumber: 'B-1', sortOrder: 0 },
+          { id: 'b', lrNumber: 'LR-2', billNumber: null, sortOrder: 1 },
+        ],
+      },
+    });
+    expect(lines.join('\n')).toMatch(/LR: LR-1  Bill: B-1/);
+    expect(lines.join('\n')).toMatch(/LR: LR-2/);
+  });
+
+  it('builds qty in the order unit · name · sku rows', () => {
     const rows = packingSlipRows({
       orderId: 'cmorderabcdefghijk',
       counterpartName: 'Jaipur Emporium',
@@ -43,6 +71,8 @@ describe('packingSlip', () => {
           name: 'Cotton Grey',
           sku: 'CG-01',
           unit: 'mtr',
+          image: 'https://example.com/a.jpg',
+          images: [],
           quantity: 20,
           requestedQuantity: 20,
           remainingQuantity: 0,
@@ -52,23 +82,42 @@ describe('packingSlip', () => {
       ],
     });
     expect(rows).toEqual([
-      { quantity: '20', name: 'Cotton Grey', sku: 'CG-01', unit: 'mtr' },
+      {
+        quantity: '20 mtr',
+        name: 'Cotton Grey',
+        sku: 'CG-01',
+        imageUrl: 'https://example.com/a.jpg',
+      },
     ]);
   });
 
-  it('builds a printable PDF header with Helvetica-Bold', () => {
-    const bytes = packingSlipPdfBytes({
+  it('builds a printable PDF header with Helvetica-Bold', async () => {
+    const bytes = await packingSlipPdfBytes({
       orderId: 'cmorderabcdefghijk',
       counterpartName: 'Jaipur Emporium',
       shipment,
+      options: { showPhotos: false },
     });
     const text = new TextDecoder('latin1').decode(bytes);
     expect(text.slice(0, 8)).toBe('%PDF-1.4');
     expect(text).toContain('/BaseFont /Helvetica-Bold');
     expect(text).toContain('PACKING LIST');
+    expect(text).toContain('To: Jaipur Emporium');
     expect(
       packingSlipFileName({ orderId: 'cmorderabcdefghijk', counterpartName: 'X', shipment }),
     ).toMatch(/\.pdf$/);
+  });
+
+  it('hides buyer line in the PDF when asked', async () => {
+    const bytes = await packingSlipPdfBytes({
+      orderId: 'cmorderabcdefghijk',
+      counterpartName: 'Jaipur Emporium',
+      shipment,
+      options: { showBuyer: false, showPhotos: false },
+    });
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain('PACKING LIST');
+    expect(text).not.toContain('To: Jaipur Emporium');
   });
 
   it('opens in a new tab for the phone PDF viewer; downloads when blocked', () => {

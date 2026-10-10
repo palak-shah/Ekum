@@ -9,7 +9,11 @@ import {
   dispatchSheetItems,
   dispatchThisLrLabel,
   dispatchThisLrTally,
+  emptyDispatchLeg,
   previousDispatchesCue,
+  resizeDispatchLegs,
+  seedDispatchLegsFromShipment,
+  shipmentLegDisplayLines,
   cantSupplyDispatchItems,
   lineDispatchOverBy,
   lineDispatchQty,
@@ -66,7 +70,7 @@ describe('dispatchSheet', () => {
   it('shows sku · unit and ordered / pending', () => {
     expect(
       dispatchLineKindLine(line({ id: 'a', sku: 'EK-AB12', unit: 'mtr', remainingQuantity: 20 })),
-    ).toBe('EK-AB12 · mtr');
+    ).toBe('EK-AB12 · per mtr');
     expect(
       dispatchLineCountLine(line({ id: 'a', requestedQuantity: 20, remainingQuantity: 8 })),
     ).toBe('20 ordered · pending 8');
@@ -96,5 +100,76 @@ describe('dispatchSheet', () => {
       { orderItemId: 'a', quantity: 2 },
     ]);
     expect(dispatchThisLrTally([one], { a: true }, { a: '2' }).pieces).toBe(2);
+  });
+
+  it('resizeDispatchLegs grows with blank pairs and shrinks trailing empties first', () => {
+    expect(resizeDispatchLegs([], 1)).toEqual([emptyDispatchLeg()]);
+    expect(resizeDispatchLegs([emptyDispatchLeg()], 3)).toHaveLength(3);
+    const filled = [
+      { lrNumber: 'A', billNumber: '1' },
+      { lrNumber: '', billNumber: '' },
+      { lrNumber: 'C', billNumber: '' },
+    ];
+    expect(resizeDispatchLegs(filled, 2)).toEqual([
+      { lrNumber: 'A', billNumber: '1' },
+      { lrNumber: 'C', billNumber: '' },
+    ]);
+  });
+
+  it('Parcels N alone grows and shrinks LR rows', () => {
+    const one = [emptyDispatchLeg()];
+    const three = resizeDispatchLegs(one, 3);
+    expect(three).toHaveLength(3);
+    expect(resizeDispatchLegs(three, 1)).toHaveLength(1);
+  });
+
+  it('seeds legs from API or legacy lrNumber', () => {
+    expect(
+      seedDispatchLegsFromShipment({
+        legs: [
+          { id: '1', lrNumber: 'L1', billNumber: 'B1', sortOrder: 0 },
+          { id: '2', lrNumber: 'L2', billNumber: null, sortOrder: 1 },
+        ],
+        lrNumber: 'L1',
+        parcelCount: 2,
+      }),
+    ).toEqual([
+      { lrNumber: 'L1', billNumber: 'B1', imageUrls: [] },
+      { lrNumber: 'L2', billNumber: '', imageUrls: [] },
+    ]);
+    expect(
+      seedDispatchLegsFromShipment({
+        legs: [
+          {
+            id: '1',
+            lrNumber: 'L1',
+            billNumber: 'B1',
+            imageUrls: ['https://a/lr.jpg'],
+            sortOrder: 0,
+          },
+        ],
+        lrNumber: 'L1',
+        parcelCount: 1,
+      }),
+    ).toEqual([{ lrNumber: 'L1', billNumber: 'B1', imageUrls: ['https://a/lr.jpg'] }]);
+    expect(
+      seedDispatchLegsFromShipment({
+        legs: [],
+        lrNumber: 'OLD',
+        parcelCount: null,
+      }),
+    ).toEqual([{ lrNumber: 'OLD', billNumber: '', imageUrls: [] }]);
+  });
+
+  it('formats shipment leg display lines with bill', () => {
+    expect(
+      shipmentLegDisplayLines({
+        lrNumber: 'L1',
+        legs: [
+          { id: '1', lrNumber: 'L1', billNumber: 'INV-9', imageUrls: [], sortOrder: 0 },
+          { id: '2', lrNumber: 'L2', billNumber: null, imageUrls: [], sortOrder: 1 },
+        ],
+      }),
+    ).toEqual(['LR · L1 · Bill INV-9', 'LR · L2']);
   });
 });

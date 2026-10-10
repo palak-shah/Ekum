@@ -6,6 +6,7 @@ import {
   quoteCantSupplyMutedClass,
   quoteCantSupplyRowClass,
   quoteSheetItems,
+  quoteSheetReferenceCue,
   quoteUnavailableOnOpen,
 } from './quoteSheetItems';
 import type { OrderItemView } from '@ekum/domain-types';
@@ -27,6 +28,7 @@ describe('quoteSheetItems', () => {
   });
 
   it('mutes the design, not the Can’t supply control', () => {
+    expect(quoteCantSupplyRowClass(true)).toContain('bg-foam');
     expect(quoteCantSupplyRowClass(true)).not.toContain('opacity');
     expect(quoteCantSupplyMutedClass(true)).toContain('opacity-50');
     expect(quoteCantSupplyControlClass(true)).toContain('text-ink');
@@ -37,5 +39,41 @@ describe('quoteSheetItems', () => {
       'No longer available',
     );
     expect(orderLineLeftoverCue({ unavailableReason: null })).toBeNull();
+  });
+
+  it('keeps declined lines for Dispatch-style quote cards', () => {
+    const items = [line('a', 'open'), line('b', 'declined')];
+    expect(quoteSheetItems(items)).toHaveLength(2);
+    expect(quoteUnavailableOnOpen(items, {})).toEqual({ a: false, b: true });
+  });
+
+  it('reference cue shows set price before a quote; Quoted after', () => {
+    expect(
+      quoteSheetReferenceCue({
+        asked: 50,
+        hasSellerQuote: false,
+        quotedQty: 50,
+        quotedRate: 2450,
+        formatAmount: (n) => `₹${n.toLocaleString('en-IN')}`,
+      }),
+    ).toBe('Asked 50 · ₹2,450');
+    expect(
+      quoteSheetReferenceCue({
+        asked: 50,
+        hasSellerQuote: false,
+        quotedQty: 50,
+        quotedRate: null,
+        formatAmount: (n) => `₹${n}`,
+      }),
+    ).toBe('Asked 50');
+    expect(
+      quoteSheetReferenceCue({
+        asked: 50,
+        hasSellerQuote: true,
+        quotedQty: 40,
+        quotedRate: 80,
+        formatAmount: (n) => `₹${n}`,
+      }),
+    ).toBe('Asked 50 · Quoted 40 · ₹80');
   });
 });

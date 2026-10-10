@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ReferralView } from '@ekum/domain-types';
@@ -8,13 +7,17 @@ import { useChatUnreadCount, useMyCompany } from '@/lib/queries';
 import { shareOpenConnectInvite } from '@/features/referrals/shareOpenConnectInvite';
 import { useToast } from '@/ui/Toast';
 import { cx } from '@/ui/kit';
-import { MoreHorizontalIcon } from '@/ui/icons';
-import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
+import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
+import {
+  BellIcon,
+  BookmarkIcon,
+  CheckIcon,
+  CollectionIcon,
+  MegaphoneIcon,
+  MoreHorizontalIcon,
+} from '@/ui/icons';
 
-const ITEM =
-  'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
-
-/** Inbox ⋯ — floating menu like WhatsApp / thread ⋯, not a sheet. */
+/** Inbox ⋯ — bottom sheet (app-wide more chrome). */
 export function ChatsHeaderMore() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -24,68 +27,21 @@ export function ChatsHeaderMore() {
   const [inviteSharing, setInviteSharing] = useState(false);
   const hasUnread = (chatUnread.data?.count ?? 0) > 0;
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pos, setPos] = useState({ top: 0, right: 8 });
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   const readAll = useMutation({
     mutationFn: () => api.post<{ ok: true }>('/threads/read-all', {}),
     onSuccess: () => {
-      setError(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
     },
     onError: (err) =>
-      setError(err instanceof ApiError ? err.message : 'Could not mark chats read.'),
+      showToast(err instanceof ApiError ? err.message : 'Could not mark chats read.', 'danger'),
   });
-
-  useEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const rect = anchorRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setPos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      if (anchorRef.current?.contains(target)) return;
-      close();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    const onScroll = (event: Event) => {
-      if (isViewportChromeScroll(event)) return;
-      close();
-    };
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open]);
 
   return (
     <>
       <button
-        ref={anchorRef}
         type="button"
         data-testid="chats-more"
         aria-label="More"
@@ -99,100 +55,76 @@ export function ChatsHeaderMore() {
       >
         <MoreHorizontalIcon width={22} height={22} />
       </button>
-      {open && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-                onClick={() => setOpen(false)}
-              />
-              <div
-                ref={panelRef}
-                role="menu"
-                data-testid="chats-more-menu"
-                className="fixed z-[61] min-w-[11rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-                style={{ top: pos.top, right: pos.right }}
-              >
-                {error ? (
-                  <p className="border-b border-line/70 px-3.5 py-2 text-sm text-danger">{error}</p>
-                ) : null}
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="chats-starred"
-                  className={ITEM}
-                  onClick={() => {
-                    setOpen(false);
-                    navigate('/chats/starred');
-                  }}
-                >
-                  Starred
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="chats-archived"
-                  className={cx(ITEM, 'border-t border-line/70')}
-                  onClick={() => {
-                    setOpen(false);
-                    navigate('/chats/archived');
-                  }}
-                >
-                  Archived
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="chats-mark-all-read"
-                  disabled={readAll.isPending || !hasUnread}
-                  className={cx(ITEM, 'border-t border-line/70')}
-                  onClick={() => {
-                    if (!hasUnread) return;
-                    readAll.mutate();
-                    setOpen(false);
-                  }}
-                >
-                  {readAll.isPending ? 'Reading…' : 'Mark all read'}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="chats-invite-connect"
-                  disabled={inviteSharing}
-                  className={cx(ITEM, 'border-t border-line/70')}
-                  onClick={() => {
-                    setOpen(false);
-                    void (async () => {
-                      if (inviteSharing) return;
-                      setInviteSharing(true);
-                      try {
-                        const result = await shareOpenConnectInvite({
-                          postReferral: () => api.post<ReferralView>('/referrals', {}),
-                          origin: window.location.origin,
-                          companyName: company.data?.name ?? '',
-                        });
-                        if (result === 'copied') showToast('Link copied');
-                      } catch (err) {
-                        if (err instanceof DOMException && err.name === 'AbortError') return;
-                        showToast(
-                          err instanceof ApiError ? err.message : 'Could not share the invite.',
-                          'danger',
-                        );
-                      } finally {
-                        setInviteSharing(false);
-                      }
-                    })();
-                  }}
-                >
-                  {inviteSharing ? 'Sharing…' : 'Invite to connect'}
-                </button>
-              </div>
-            </>,
-            document.body,
-          )
-        : null}
+      <MoreActionsSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Chats"
+        testId="chats-more-menu"
+        items={[
+          {
+            id: 'starred',
+            label: 'Starred',
+            icon: <BookmarkIcon width={20} height={20} />,
+            testId: 'chats-starred',
+            onClick: () => {
+              setOpen(false);
+              navigate('/chats/starred');
+            },
+          },
+          {
+            id: 'archived',
+            label: 'Archived',
+            icon: <CollectionIcon width={20} height={20} />,
+            testId: 'chats-archived',
+            onClick: () => {
+              setOpen(false);
+              navigate('/chats/archived');
+            },
+          },
+          {
+            id: 'read',
+            label: readAll.isPending ? 'Reading…' : 'Mark all read',
+            icon: <CheckIcon width={20} height={20} />,
+            testId: 'chats-mark-all-read',
+            disabled: readAll.isPending || !hasUnread,
+            onClick: () => {
+              if (!hasUnread) return;
+              readAll.mutate();
+              setOpen(false);
+            },
+          },
+          {
+            id: 'invite',
+            label: inviteSharing ? 'Sharing…' : 'Invite to connect',
+            icon: <MegaphoneIcon width={20} height={20} />,
+            testId: 'chats-invite-connect',
+            disabled: inviteSharing,
+            onClick: () => {
+              setOpen(false);
+              void (async () => {
+                if (inviteSharing) return;
+                setInviteSharing(true);
+                try {
+                  const result = await shareOpenConnectInvite({
+                    postReferral: () => api.post<ReferralView>('/referrals', {}),
+                    origin: window.location.origin,
+                    companyName: company.data?.name ?? '',
+                  });
+                  if (result === 'copied') showToast('Link copied');
+                } catch (err) {
+                  if (err instanceof DOMException && err.name === 'AbortError') return;
+                  showToast(
+                    err instanceof ApiError ? err.message : 'Could not share the invite.',
+                    'danger',
+                  );
+                } finally {
+                  setInviteSharing(false);
+                }
+              })();
+            },
+          },
+        ]}
+      />
     </>
   );
 }

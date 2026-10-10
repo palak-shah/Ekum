@@ -29,6 +29,7 @@ export type OrderTrailEventView = {
   note: string | null;
   noteVoiceUrl: string | null;
   noteVoiceDurationMs: number | null;
+  noteImageUrls?: string[];
 };
 
 export const ORDER_TRAIL_LABELS: Record<string, string> = {

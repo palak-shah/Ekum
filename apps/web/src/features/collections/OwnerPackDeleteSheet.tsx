@@ -48,7 +48,7 @@ export function OwnerPackDeleteSheet({
       }
     >
       <p className="text-sm text-muted">
-        Some of these designs are in other packs. Delete them everywhere, or only take them out of
+        Some of these designs are in other collections. Delete them everywhere, or only take them out of
         this collection?
       </p>
     </Sheet>

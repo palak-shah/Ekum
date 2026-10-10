@@ -21,13 +21,26 @@
   --color-accent-dark: #0b5357;
   --color-tangerine: #e88900;
   --color-success: #16a34a;
-  --color-success-soft: #e7f7ed;
+  --color-success-soft: #d4f3df;
   --color-success-ink: #166534;
   --color-warning: #eab308;
-  --color-warning-soft: #fef6d8;
+  --color-warning-soft: #fff0b8;
   --color-warning-ink: #854d0e;
   --color-danger: #dc2626;
-  --color-danger-soft: #fee2e2;
+  --color-danger-soft: #ffd6d6;
+  /* Informational over-ship / extra — not an error. */
+  --color-info: #1d6a9a;
+  --color-info-soft: #cfe9eb;
+  --color-info-ink: #0f6b70;
+  /* StatusPill lifecycle — each step its own hue (brighter softs). */
+  --color-placed-soft: #ffe6a8;
+  --color-placed-ink: #8a5a00;
+  --color-confirmed-soft: #d0e8fb;
+  --color-confirmed-ink: #1a567c;
+  --color-part-soft: #ffd4a8;
+  --color-part-ink: #9a3412;
+  --color-resolved-soft: #e2e8e6;
+  --color-resolved-ink: #3d5560;
   --color-kind-order: #1a6a6f;
   --color-kind-order-soft: #dce9e8;
   --color-kind-collection: #3d5560;
@@ -44,19 +57,21 @@ body,
 #root {
   height: 100%;
   max-width: 100%;
-  /* clip, not hidden — hidden forces overflow-y:auto and breaks sticky top chrome */
-  overflow-x: clip;
+  /* Window never scrolls — the phone column (`max-w-md` shell) owns the scrollport. */
+  overflow: hidden;
 }
 
+/*
+ * Laptop / wide: quiet stage beside the centred phone column.
+ * Phone / narrow: stage = canvas so edges match the shell.
+ */
 html {
-  background: var(--color-canvas);
-  /* Keep layout width stable when list height toggles the scrollbar (filter switches). */
-  scrollbar-gutter: stable;
+  background: #e8e6e1;
 }
 
 body {
   margin: 0;
-  background: var(--color-canvas);
+  background: transparent;
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -66,6 +81,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-synthesis: none;
+}
+
+#root {
+  background: transparent;
+}
+
+@media (max-width: 27.99rem) {
+  html {
+    background: var(--color-canvas);
+  }
 }
 
 :focus-visible {
@@ -126,6 +151,24 @@ body {
 }
 .ekum-no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * App shell main: scrollbar sits on the phone column (laptop).
+ * Touch devices keep overlay / hidden rails — no permanent gutter.
+ */
+.ekum-shell-scroll {
+  scrollbar-gutter: stable;
+}
+@media (pointer: coarse) {
+  .ekum-shell-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scrollbar-gutter: auto;
+  }
+  .ekum-shell-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* iOS PWA: a parent user-select:none can swallow keystrokes unless fields opt in. */

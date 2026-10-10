@@ -11,7 +11,7 @@ Every company. Open via header **bell** → `/notifications`.
 ## User flows
 
 1. Tap bell (badge = **exact** unread count for **this viewer** — not 9+).
-2. Browse list → tap a row → that item is **marked read**, then the app opens the related order / chat / pack / company / broadcast.
+2. Browse list → tap a row → that item is **marked read**, then the app opens the related order / chat / collection / company / broadcast.
 3. **Mark all read**, **Delete** one (×), **Clear read**, or **Clear all**.
 4. Adjust preferences (types / push) where settings expose them.
 5. Subscribe browser push when prompted / enabled; push click opens the same deep link as the in-app row.
@@ -24,7 +24,7 @@ Every company. Open via header **bell** → `/notifications`.
 | `return` | Return lifecycle (deep link uses the **order**) |
 | `request` | Access / view / relist grants |
 | `message` | Chat |
-| `collection` | Pack view granted (and later drops) |
+| `collection` | Collection view granted (and later drops) |
 | `broadcast` | Seller broadcast |
 | `complaint` | Escalations (emitter Later) |
 | `sample` | Sample lifecycle (emitter Later) |
@@ -33,7 +33,7 @@ Every company. Open via header **bell** → `/notifications`.
 - Notifications are **derived** — do not invent client-only alerts that the API did not emit.
 - Home Needs is separate (actions); bell is the alert log — see [home](./home.md).
 - **Unread badge** counts the same rows the list shows: company feed where `recipientUserId` is null or the current user (not other users’ private rows).
-- **Copy** uses plain trader language with **who** (company name) and **what** (order label / pack name / status) when known.
+- **Copy** uses plain trader language with **who** (company name) and **what** (order label / collection name / status) when known.
 
 ### Deep links (`refType` → path)
 

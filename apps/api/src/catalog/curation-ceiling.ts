@@ -61,7 +61,7 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
     if (lookOnlyOwnerIds?.has(product.companyId) === true) {
       throw new BadRequestException({
         code: 'FOLLOW_LOOK_ONLY',
-        message: "They haven't allowed putting their designs in a pack.",
+        message: "They haven't allowed putting their designs in a collection.",
       });
     }
 
@@ -69,7 +69,7 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
     if (!product.allowForward && !granted) {
       throw new BadRequestException({
         code: 'RELIST_NOT_ALLOWED',
-        message: "This seller doesn't allow putting this in a pack.",
+        message: "This seller doesn't allow putting this in a collection.",
       });
     }
 

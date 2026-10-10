@@ -9,7 +9,7 @@ import {
   firstSlideIndexForProduct,
 } from '@/features/browse/designSetSlides';
 import { designSetOpenIds, designSetToShortlist } from '@/features/browse/designSetShortlist';
-import { applySelectingPill } from '@/features/browse/selectingPill';
+import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
@@ -26,7 +26,11 @@ import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Button, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
-import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
+import {
+  BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
+  SELECTION_DOCK_CLEARANCE_CLASS,
+} from '@/features/browse/BottomTradeDock';
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { packHandlerName } from '@/features/browse/packOrderSource';
@@ -182,8 +186,8 @@ export function DesignSetPage() {
     <div
       className={cx(
         'flex min-h-full flex-col bg-canvas',
-        dockUp && 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]',
-        !dockUp && thisSetCount > 0 && 'pb-[calc(5rem+5.5rem)]',
+        dockUp && BOTTOM_DOCK_CLEARANCE_CLASS,
+        !dockUp && thisSetCount > 0 && SELECTION_DOCK_CLEARANCE_CLASS,
       )}
       data-testid="design-set-page"
     >
@@ -196,49 +200,26 @@ export function DesignSetPage() {
         action={
           visibleCount > 0 ? (
             <div className="flex items-center gap-2">
-              {selecting ? (
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    data-testid="select-all-float-select-all"
-                    disabled={selectAll.allSelected}
-                    className="text-xs font-bold text-accent disabled:opacity-40"
-                    onClick={() => {
-                      const openProducts = tiles.flatMap((tile) =>
-                        tile.status === 'ok' ? [tile.product] : [],
-                      );
-                      shortlist.addMany(openProducts.map(designSetToShortlist));
-                    }}
-                  >
-                    Select all
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="select-all-float-clear"
-                    className="text-xs font-bold text-accent"
-                    onClick={() => shortlist.removeIds(openIds)}
-                  >
-                    Clear
-                  </button>
-                </div>
-              ) : null}
-              <button
-                type="button"
-                data-testid="design-set-select"
-                className={cx(
-                  'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold',
-                  selecting ? 'bg-accent text-white' : 'text-accent hover:bg-accent/5',
-                )}
-                onClick={() => {
+              <SelectModeControls
+                selectTestId="design-set-select"
+                selecting={selecting}
+                count={thisSetCount}
+                allSelected={selectAll.allSelected}
+                onEnterSelect={() => {
                   setViewerOpen(false);
-                  applySelectingPill(selecting, thisSetCount, {
-                    clear: () => shortlist.removeIds(openIds),
-                    setSelectMode: shortlist.setSelectMode,
-                  });
+                  shortlist.setSelectMode(true);
                 }}
-              >
-                {selecting ? 'Selecting' : 'Select'}
-              </button>
+                onSelectAll={() => {
+                  const openProducts = tiles.flatMap((tile) =>
+                    tile.status === 'ok' ? [tile.product] : [],
+                  );
+                  shortlist.addMany(openProducts.map(designSetToShortlist));
+                }}
+                onClear={() => {
+                  shortlist.removeIds(openIds);
+                  shortlist.setSelectMode(false);
+                }}
+              />
               <BrowseLayoutToggle
                 layout={layout}
                 onToggle={toggleLayout}
@@ -317,8 +298,7 @@ export function DesignSetPage() {
             fullWidth
             onClick={() => {
               setViewerOpen(false);
-              orderFlow.setError(null);
-              orderFlow.setQtyOpen(true);
+              orderFlow.openQty('ask');
             }}
           >
             Ask for rates
@@ -328,8 +308,7 @@ export function DesignSetPage() {
             data-testid="design-set-order"
             onClick={() => {
               setViewerOpen(false);
-              orderFlow.setError(null);
-              orderFlow.setQtyOpen(true);
+              orderFlow.openQty('order');
             }}
           >
             Order
@@ -345,8 +324,13 @@ export function DesignSetPage() {
         asking={orderFlow.asking}
         error={orderFlow.error}
         orderGoesToName={packHandlerName(setEntries)}
-        onSendOrder={(lines) => orderFlow.sendOrder(lines, { collectionId: undefined })}
-        onAskRates={(lines) => orderFlow.askRates(lines, { collectionId: undefined })}
+        sheetJob={orderFlow.qtyJob}
+        onSendOrder={(lines, place) =>
+          orderFlow.sendOrder(lines, { collectionId: undefined, transporter: place?.transporter })
+        }
+        onAskRates={(lines, place) =>
+          orderFlow.askRates(lines, { collectionId: undefined, transporter: place?.transporter })
+        }
       />
       <CurateFromSelectionSheet
         open={curateOpen}
@@ -446,12 +430,12 @@ function DesignSetTile({
         <span className="relative block">
           <SelectableMediaFrame selectMode={selectMode} selected={selected}>
             <img src={thumb} alt="" className={designBrowsePhotoClass('grid')} />
+            {extraPhotos > 0 ? (
+              <span className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
+                +{extraPhotos}
+              </span>
+            ) : null}
           </SelectableMediaFrame>
-          {extraPhotos > 0 ? (
-            <span className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
-              +{extraPhotos}
-            </span>
-          ) : null}
         </span>
       ) : (
         <div className={designBrowsePhotoClass('grid', 'placeholder')}>

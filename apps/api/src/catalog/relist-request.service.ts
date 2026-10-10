@@ -84,19 +84,19 @@ export class RelistRequestService {
         },
       });
       if (!collection || !isCollectionLiveForBuyers(collection)) {
-        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Pack not found.' });
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Collection not found.' });
       }
       const inPack = new Set(collection.products.map((row) => row.productId));
       if (uniqueIds.some((id) => !inPack.has(id))) {
         throw new BadRequestException({
           code: 'NOT_IN_PACK',
-          message: 'Those designs are not in this pack.',
+          message: 'Those designs are not in this collection.',
         });
       }
       if (collection.allowForward) {
         throw new ConflictException({
           code: 'ALREADY_ALLOWED',
-          message: 'This pack already allows putting designs in a pack.',
+          message: 'This collection already allows putting designs in a collection.',
         });
       }
       targetCompanyId = collection.companyId;
@@ -126,7 +126,7 @@ export class RelistRequestService {
         if (product.allowForward) {
           throw new BadRequestException({
             code: 'ALREADY_ALLOWED',
-            message: 'This design can already go in a pack.',
+            message: 'This design can already go in a collection.',
           });
         }
       }
@@ -142,7 +142,7 @@ export class RelistRequestService {
     if (existingGrants.length > 0) {
       throw new ConflictException({
         code: 'ALREADY_GRANTED',
-        message: 'You can already put this in a pack.',
+        message: 'You can already put this in a collection.',
       });
     }
 
@@ -183,8 +183,8 @@ export class RelistRequestService {
     const primary = products[0]!;
     const caption =
       names.length === 1
-        ? `Wants to put ${names[0]} in their pack`
-        : `Wants to put ${names.length} designs in their pack`;
+        ? `Wants to put ${names[0]} in their collection`
+        : `Wants to put ${names.length} designs in their collection`;
 
     const meta = {
       kind: RELIST_REQUEST_META,
@@ -292,8 +292,8 @@ export class RelistRequestService {
     if (request.threadId) {
       const grantBody =
         names.length === 1
-          ? 'You can put this in your pack'
-          : `You can put these ${names.length} designs in your pack`;
+          ? 'You can put this in your collection'
+          : `You can put these ${names.length} designs in your collection`;
       await this.prisma.message.create({
         data: {
           threadId: request.threadId,
@@ -558,7 +558,7 @@ export class RelistRequestService {
     }
     throw new ForbiddenException({
       code: 'RELIST_NOT_ALLOWED',
-      message: "You can't allow putting this in a pack.",
+      message: "You can't allow putting this in a collection.",
     });
   }
 

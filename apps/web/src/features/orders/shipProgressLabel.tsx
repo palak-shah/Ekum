@@ -33,10 +33,8 @@ export function fulfillmentNeedsAttention(pending: number): boolean {
 
 export function fulfillmentRowClass(pending: number, className?: string): string {
   return cx(
-    'rounded-xl border p-3',
-    fulfillmentNeedsAttention(pending)
-      ? 'border-accent/40 bg-accent/5'
-      : 'border-line bg-surface',
+    'rounded-xl p-3',
+    fulfillmentNeedsAttention(pending) ? 'bg-accent/5' : 'bg-foam/40',
     className,
   );
 }

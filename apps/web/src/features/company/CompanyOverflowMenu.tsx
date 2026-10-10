@@ -1,12 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
 import type { MuteFor } from '@ekum/domain-types';
-import { ChatMuteDurationFlyout } from '@/features/chats/ChatMuteDurationFlyout';
-import { cx } from '@/ui/kit';
+import { MUTE_FOR_OPTIONS } from '@/features/chats/ChatMuteDurationFlyout';
+import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
+import { BellIcon, LockIcon, ShareIcon, TrashIcon } from '@/ui/icons';
 import type { ShopOverflowItem } from './shopOverflowMenu';
-
-const ITEM =
-  'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
 
 export function CompanyOverflowMenu({
   open,
@@ -19,6 +16,7 @@ export function CompanyOverflowMenu({
   onPickMute,
   onBlock,
   onRemove,
+  title = 'Shop',
 }: {
   open: boolean;
   items: ShopOverflowItem[];
@@ -30,153 +28,91 @@ export function CompanyOverflowMenu({
   onPickMute: (muteFor: MuteFor) => void;
   onBlock: () => void;
   onRemove: () => void;
+  title?: string;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [mutePick, setMutePick] = useState(false);
-  const [host, setHost] = useState<{
-    top: number;
-    left: number;
-    right: number;
-    bottom: number;
-  } | null>(null);
+  const [step, setStep] = useState<'root' | 'mute'>('root');
 
   useEffect(() => {
-    if (!open) setMutePick(false);
+    if (!open) setStep('root');
   }, [open]);
 
-  useEffect(() => {
-    if (!mutePick) {
-      setHost(null);
-      return;
+  const rootItems: MoreActionItem[] = items.map((item) => {
+    if (item === 'share') {
+      return {
+        id: 'share',
+        label: 'Share',
+        icon: <ShareIcon width={20} height={20} />,
+        testId: 'company-overflow-share',
+        onClick: () => {
+          onClose();
+          onShare();
+        },
+      };
     }
-    const box = panelRef.current?.getBoundingClientRect();
-    if (box) setHost({ top: box.top, left: box.left, right: box.right, bottom: box.bottom });
-  }, [mutePick]);
+    if (item === 'mute') {
+      return {
+        id: 'mute',
+        label: muted ? 'Unmute' : 'Mute',
+        icon: <BellIcon width={20} height={20} />,
+        testId: 'company-overflow-mute',
+        disabled: mutePending,
+        active: !muted && step === 'mute',
+        onClick: () => {
+          if (muted) {
+            onMute();
+            return;
+          }
+          setStep('mute');
+        },
+      };
+    }
+    if (item === 'block') {
+      return {
+        id: 'block',
+        label: 'Block',
+        icon: <LockIcon width={20} height={20} />,
+        testId: 'company-overflow-block',
+        danger: true,
+        onClick: () => {
+          onClose();
+          onBlock();
+        },
+      };
+    }
+    return {
+      id: 'remove',
+      label: 'Remove connection',
+      icon: <TrashIcon width={20} height={20} />,
+      testId: 'company-overflow-remove',
+      danger: true,
+      onClick: () => {
+        onClose();
+        onRemove();
+      },
+    };
+  });
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (mutePick) {
-        setMutePick(false);
-        return;
-      }
-      onClose();
-    };
-    const onPointer = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onPointer);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onPointer);
-    };
-  }, [open, onClose, mutePick]);
-
-  if (!open) return null;
+  const muteItems: MoreActionItem[] = MUTE_FOR_OPTIONS.map((row) => ({
+    id: row.id,
+    label: row.label,
+    icon: <BellIcon width={20} height={20} />,
+    testId: `chat-mute-${row.id}`,
+    disabled: mutePending,
+    onClick: () => {
+      setStep('root');
+      onPickMute(row.id);
+    },
+  }));
 
   return (
-    <>
-      <div
-        ref={panelRef}
-        role="menu"
-        data-testid="company-overflow-menu"
-        className="absolute right-0 top-full z-40 mt-1 min-w-[11.5rem] overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-      >
-        {items.map((item, index) => {
-          if (item === 'share') {
-            return (
-              <button
-                key={item}
-                type="button"
-                role="menuitem"
-                data-testid="company-overflow-share"
-                className={cx(ITEM, index > 0 ? 'border-t border-line/70' : '')}
-                onClick={() => {
-                  onClose();
-                  onShare();
-                }}
-              >
-                Share
-              </button>
-            );
-          }
-          if (item === 'mute') {
-            return (
-              <button
-                key={item}
-                type="button"
-                role="menuitem"
-                data-testid="company-overflow-mute"
-                disabled={mutePending}
-                aria-expanded={!muted && mutePick}
-                className={cx(
-                  ITEM,
-                  index > 0 ? 'border-t border-line/70' : '',
-                  mutePick && !muted ? 'bg-accent/5' : '',
-                )}
-                onClick={() => {
-                  if (muted) {
-                    onMute();
-                    return;
-                  }
-                  setMutePick((openMute) => !openMute);
-                }}
-              >
-                {muted ? 'Unmute' : 'Mute'}
-              </button>
-            );
-          }
-          if (item === 'block') {
-            return (
-              <button
-                key={item}
-                type="button"
-                role="menuitem"
-                data-testid="company-overflow-block"
-                className={cx(ITEM, index > 0 ? 'border-t border-line/70' : '', 'text-danger')}
-                onClick={() => {
-                  onClose();
-                  onBlock();
-                }}
-              >
-                Block
-              </button>
-            );
-          }
-          return (
-            <button
-              key={item}
-              type="button"
-              role="menuitem"
-              data-testid="company-overflow-remove"
-              className={cx(ITEM, index > 0 ? 'border-t border-line/70' : '', 'text-danger')}
-              onClick={() => {
-                onClose();
-                onRemove();
-              }}
-            >
-              Remove connection
-            </button>
-          );
-        })}
-      </div>
-      {mutePick && !muted
-        ? createPortal(
-            <ChatMuteDurationFlyout
-              host={host}
-              pending={mutePending}
-              onPick={(muteFor) => {
-                setMutePick(false);
-                onPickMute(muteFor);
-              }}
-            />,
-            document.body,
-          )
-        : null}
-    </>
+    <MoreActionsSheet
+      open={open}
+      onClose={onClose}
+      title={step === 'mute' ? 'Mute for' : title}
+      testId="company-overflow-menu"
+      onBack={step === 'mute' ? () => setStep('root') : undefined}
+      backTestId="company-overflow-mute-back"
+      items={step === 'mute' ? muteItems : rootItems}
+    />
   );
 }

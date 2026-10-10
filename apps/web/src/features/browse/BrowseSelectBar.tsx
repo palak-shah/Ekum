@@ -13,7 +13,7 @@ export function BrowseSelectBar({
   canCurate = true,
   canShare = true,
   orderLabel = 'Order',
-  curateLabel = 'Curate',
+  curateLabel = 'Repost',
   shareLabel = 'Share',
   sharing = false,
   extra,

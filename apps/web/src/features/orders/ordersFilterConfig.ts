@@ -4,7 +4,7 @@ export type OrdersAttentionTab = 'pending' | 'completed';
 
 /** Pending chip — open trade. */
 export const TRADE_FILTER_PENDING_STATUSES: ReadonlyArray<{ label: string; status: string }> = [
-  { label: 'Requested', status: 'requested' },
+  { label: 'Placed', status: 'requested' },
   { label: 'Confirmed', status: 'confirmed' },
   { label: 'Part shipped', status: 'part_shipped' },
 ];

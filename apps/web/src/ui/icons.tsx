@@ -57,6 +57,16 @@ export const OrdersIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Explore cart (header + dock Add to cart). */
+export const CartIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M6 7h15l-1.5 9h-12z" />
+    <path d="M6 7 5 3H2" />
+    <circle cx="9" cy="20" r="1.2" />
+    <circle cx="17" cy="20" r="1.2" />
+  </Icon>
+);
+
 export const PlusIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M12 5v14M5 12h14" />
@@ -276,10 +286,39 @@ export const DocumentIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Packing list / PDF — folded file with PDF letters (reads as PDF, not a generic doc). */
+export const PdfIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+    <path d="M14 3v5h5" />
+    <text
+      x="12"
+      y="17.8"
+      textAnchor="middle"
+      fill="currentColor"
+      stroke="none"
+      fontSize="6"
+      fontWeight="700"
+      fontFamily="ui-sans-serif, system-ui, sans-serif"
+      letterSpacing="-0.04em"
+    >
+      PDF
+    </text>
+  </Icon>
+);
+
 /** Saved / bookmark hub. */
 export const BookmarkIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.5L6 20V5a1 1 0 0 1 1-1Z" />
+  </Icon>
+);
+
+/** Explore / Selection Repost (publish under my name). */
+export const RepostIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M17 1v6h-6" />
+    <path d="M21 11a8 8 0 1 1-2.3-5.6L17 7" />
   </Icon>
 );
 

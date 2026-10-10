@@ -43,7 +43,7 @@ test.describe('follow-ask extra gate @functional @network', () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId('they-see-mine-search')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Seeing packs/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Seeing collections/ })).toHaveCount(0);
     const meenaRow = page.getByTestId('follow-allowed-row-seed-company-meena');
     await expect(meenaRow.getByText(/Jaipur Emporium/i)).toBeVisible();
     await expect(meenaRow.getByRole('button', { name: 'Stop them seeing' })).toBeVisible();

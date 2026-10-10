@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { accessTokenFromPage } from '../../helpers/orders';
 import { API_URL } from '../../helpers/env';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { publishRepostNew } from '../../helpers/repost';
 import { resetTradeLanesToMe } from '../../helpers/tradeLanes';
 
 /** Meena publishes A+B pack; Ravi places from-pack. Returns parent order id. */
@@ -22,33 +23,17 @@ async function placeCuratedABPack(page: Page): Promise<string> {
   await page.locator('button').filter({ has: page.locator('img') }).first().click({
     button: 'right',
   });
-  await expect(page.getByTestId('selection-workspace-bar')).toContainText(/2 in selection/i, {
+  await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({
     timeout: 10_000,
   });
 
-  await page.getByTestId('selection-workspace-view').click();
+  await page.getByTestId('selection-workspace-cart').click();
+  await page.goto('/selection');
   await page.getByTestId('selection-curate').click();
-  await expect(page.getByRole('heading', { name: 'Curate pack' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Repost' })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByLabel('Name').fill(packName);
-  await page.getByRole('button', { name: 'Publish to Collection' }).click();
-
-  await expect(page).toHaveURL(/\/catalog\/collections\//, { timeout: 20_000 });
-  const publishSheet = page.getByRole('dialog');
-  await expect(publishSheet.getByRole('heading', { name: 'Publish collection' })).toBeVisible({
-    timeout: 15_000,
-  });
-  await publishSheet.getByRole('button', { name: 'Everyone', exact: true }).click();
-  const consent = publishSheet.getByText(/Start selling/i);
-  if (await consent.isVisible()) {
-    await publishSheet.locator('input[type="checkbox"]').last().check();
-  }
-  await publishSheet.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });
-
-  const collectionId = page.url().match(/\/collections\/([^/?]+)/)?.[1];
-  expect(collectionId).toBeTruthy();
+  const collectionId = await publishRepostNew(page, packName);
 
   const meenaToken = await accessTokenFromPage(page);
   await resetTradeLanesToMe(page.request, meenaToken, 'seed-company-ravi');

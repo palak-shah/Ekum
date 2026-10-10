@@ -35,6 +35,7 @@ export function QtyStepper({
   enterKeyHint = 'done',
   chainQty = false,
   autoFocus = false,
+  unitLabel,
   'aria-label': ariaLabel = 'Pieces',
 }: {
   value: number | null;
@@ -47,6 +48,8 @@ export function QtyStepper({
   chainQty?: boolean;
   /** Land in the box (Same for all). Focus always selects so the next digit replaces. */
   autoFocus?: boolean;
+  /** Visible unit caption above the stepper (e.g. Sets). */
+  unitLabel?: string | null;
   'aria-label'?: string;
 }) {
   const [focused, setFocused] = useState(false);
@@ -61,6 +64,15 @@ export function QtyStepper({
   };
 
   return (
+    <div className="flex flex-col items-end gap-0.5">
+      {unitLabel?.trim() ? (
+        <span
+          className="text-[11px] font-semibold tracking-tight text-muted"
+          data-testid="qty-stepper-unit"
+        >
+          {unitLabel.trim()}
+        </span>
+      ) : null}
     <div className="flex items-center gap-1.5" role="group" aria-label={ariaLabel}>
       <button
         type="button"
@@ -112,6 +124,7 @@ export function QtyStepper({
         +
       </button>
     </div>
+    </div>
   );
 }
 
@@ -125,6 +138,18 @@ export function sameForAllRateChipLabel(appliedRate: string | null | undefined):
   const raw = appliedRate?.trim() ?? '';
   if (!raw || raw === '0') return 'Same for all';
   return `Same for all · ₹${raw}`;
+}
+
+/** Confirm / quote — one chip for shared qty and/or rate. */
+export function sameQtyRateForAllChipLabel(
+  appliedQty: number | null | undefined,
+  appliedRate: string | null | undefined,
+): string {
+  const bits = ['Same for all'];
+  if (appliedQty != null && appliedQty > 0) bits.push(String(appliedQty));
+  const raw = appliedRate?.trim() ?? '';
+  if (raw && raw !== '0') bits.push(`₹${raw}`);
+  return bits.join(' · ');
 }
 
 export const sameForAllChipClassName =
@@ -170,8 +195,7 @@ export function SameForAllEditor({
         </button>
         <button
           type="button"
-          disabled={disabled}
-          className="text-[13px] font-bold text-muted disabled:opacity-45"
+          className="text-[13px] font-bold text-muted"
           onClick={onCancel}
         >
           Cancel

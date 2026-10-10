@@ -1,15 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { youShortcutItems } from '@/features/settings/youShortcuts';
 import { useAuth } from '@/lib/auth';
-import { Avatar, cx } from '@/ui/kit';
-import { isViewportChromeScroll } from '@/ui/viewportChromeScroll';
+import { Avatar } from '@/ui/kit';
+import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
+import { CollectionIcon, LockIcon, PencilIcon, UserIcon } from '@/ui/icons';
 
-const ITEM =
-  'flex w-full px-4 py-3 text-left text-[15px] font-semibold tracking-tight text-ink hover:bg-foam/70';
+/** Map You menu rows to quiet icons (app-wide more chrome). */
+function shortcutIcon(testId: string) {
+  if (testId === 'profile') return <UserIcon width={20} height={20} />;
+  if (testId === 'network') return <UserIcon width={20} height={20} />;
+  if (testId === 'my-collections') return <CollectionIcon width={20} height={20} />;
+  if (testId === 'settings') return <PencilIcon width={20} height={20} />;
+  return <UserIcon width={20} height={20} />;
+}
 
-/** Home header avatar — Profile, Network, library, Settings, Log out. */
+/** Home / My collections avatar — Profile, Network, library, Settings, Log out. */
 export function HomeAccountMenu({
   name,
   imageUrl,
@@ -20,50 +26,6 @@ export function HomeAccountMenu({
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, right: 8 });
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const rect = anchorRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setPos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      if (anchorRef.current?.contains(target)) return;
-      close();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    const onScroll = (event: Event) => {
-      if (isViewportChromeScroll(event)) return;
-      close();
-    };
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open]);
 
   const onLogout = () => {
     void logout().then(() => navigate('/login', { replace: true }));
@@ -72,7 +34,6 @@ export function HomeAccountMenu({
   return (
     <>
       <button
-        ref={anchorRef}
         type="button"
         data-testid="home-account"
         aria-label="Account"
@@ -83,54 +44,35 @@ export function HomeAccountMenu({
       >
         <Avatar name={name} imageUrl={imageUrl} size={36} />
       </button>
-      {open && typeof document !== 'undefined'
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-[60] cursor-default bg-ink/15"
-                onClick={() => setOpen(false)}
-              />
-              <div
-                ref={panelRef}
-                role="menu"
-                data-testid="home-account-menu"
-                className="fixed z-[61] w-64 overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-soft)]"
-                style={{ top: pos.top, right: pos.right }}
-              >
-                {youShortcutItems().map((item, index) => (
-                  <button
-                    key={item.to}
-                    type="button"
-                    role="menuitem"
-                    data-testid={`home-account-${item.testId}`}
-                    className={cx(ITEM, index > 0 && 'border-t border-line/70')}
-                    onClick={() => {
-                      setOpen(false);
-                      navigate(item.to);
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid="home-account-logout"
-                  className={cx(ITEM, 'border-t border-line/70 text-danger')}
-                  onClick={() => {
-                    setOpen(false);
-                    onLogout();
-                  }}
-                >
-                  Log out
-                </button>
-              </div>
-            </>,
-            document.body,
-          )
-        : null}
+      <MoreActionsSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={name.trim() || 'Account'}
+        testId="home-account-menu"
+        items={[
+          ...youShortcutItems().map((item) => ({
+            id: item.testId,
+            label: item.label,
+            icon: shortcutIcon(item.testId),
+            testId: `home-account-${item.testId}`,
+            onClick: () => {
+              setOpen(false);
+              navigate(item.to);
+            },
+          })),
+          {
+            id: 'logout',
+            label: 'Log out',
+            icon: <LockIcon width={20} height={20} />,
+            testId: 'home-account-logout',
+            danger: true,
+            onClick: () => {
+              setOpen(false);
+              onLogout();
+            },
+          },
+        ]}
+      />
     </>
   );
 }

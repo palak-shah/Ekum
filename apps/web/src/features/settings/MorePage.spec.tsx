@@ -4,26 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { MorePage } from './MorePage';
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    logout: vi.fn(),
-    session: { user: { name: 'Ravi' } },
-  }),
-}));
-
-vi.mock('@/lib/queries', () => ({
-  useMyCompany: () => ({
-    data: {
-      id: 'seed-company-ravi',
-      name: 'Surat Silk House',
-      city: 'Surat',
-      contactPerson: 'Ravi',
-      logoUrl: null,
-      verification: 'gst_verified',
-    },
-  }),
-}));
-
 vi.mock('@/lib/tradePresence', () => ({
   useTradePresence: () => ({ buying: true, selling: true, trading: true, canPublish: true }),
 }));
@@ -34,7 +14,7 @@ vi.mock('@/features/catalog/MyCatalogPage', () => ({
 }));
 
 describe('MorePage', () => {
-  it('shows identity and library without a second title band', () => {
+  it('shows the library without a company identity card', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -43,7 +23,8 @@ describe('MorePage', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(screen.getByTestId('you-identity')).toHaveTextContent('Surat Silk House');
+    expect(screen.queryByTestId('you-identity')).toBeNull();
+    expect(screen.queryByText('Surat Silk House')).toBeNull();
     expect(screen.queryByTestId('you-edit')).toBeNull();
     expect(screen.queryByText('Edit profile')).toBeNull();
     expect(screen.queryByTestId('you-share')).toBeNull();
@@ -52,8 +33,9 @@ describe('MorePage', () => {
     expect(screen.queryByText('Buying')).toBeNull();
     expect(screen.queryByText('Selling')).toBeNull();
     expect(screen.queryByText('Can publish')).toBeNull();
-    // Title + Back live in AppShell — not a PageHeader on this page.
+    // Title + Back + avatar live in AppShell — not a PageHeader on this page.
     expect(screen.queryByRole('heading', { name: 'You' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'My collections' })).toBeNull();
     expect(screen.queryByTestId('you-more')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull();
   });

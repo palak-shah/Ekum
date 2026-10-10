@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { tradeListFacts, tradeListPreview, tradeListWhen } from './tradeListPreview';
+import {
+  tradeListFacts,
+  tradeListPreview,
+  tradeListThumbs,
+  tradeListWhen,
+} from './tradeListPreview';
 import type { TradeListItem } from './tradeList';
 
 function orderItem(partial: {
@@ -30,13 +35,11 @@ function orderItem(partial: {
 }
 
 describe('tradeListPreview', () => {
-  it('joins role and status when idle; facts carry id and design count', () => {
+  it('idle bilateral has no mid context; facts carry id and design count', () => {
     const item = orderItem({ status: 'confirmed', direction: 'buying' });
     const { preview, accent } = tradeListPreview(item, 'buyer-co');
     expect(accent).toBe(false);
-    expect(preview).toContain('You buy');
-    expect(preview).toMatch(/Confirmed/i);
-    expect(preview).not.toMatch(/Order #/);
+    expect(preview).toBe('');
     expect(tradeListFacts(item)).toMatch(/Order #/);
     expect(tradeListFacts(item)).toContain('1 design');
   });
@@ -47,10 +50,10 @@ describe('tradeListPreview', () => {
       direction: 'selling',
       tradeMode: 'manage',
     });
-    expect(tradeListPreview(item, 'trader').preview).toContain('Trading');
+    expect(tradeListPreview(item, 'trader').preview).toBe('Trading');
   });
 
-  it('uses Needs you as the only preview when they must act', () => {
+  it('Needs-you preview stays verb-only for helpers; list UI uses protocol', () => {
     const item = {
       kind: 'order',
       id: 'o1',
@@ -87,7 +90,7 @@ describe('tradeListPreview', () => {
     } as TradeListItem;
     const { preview, accent } = tradeListPreview(item, 'seller-co');
     expect(accent).toBe(true);
-    expect(preview).toBe('Needs you · Send quote');
+    expect(preview).toBe('Send quote');
     expect(tradeListFacts(item)).toMatch(/Order #/);
     expect(tradeListFacts(item)).toContain('1 design');
   });
@@ -97,5 +100,28 @@ describe('tradeListPreview', () => {
       updatedAt: '2026-09-08T12:00:00.000Z',
     });
     expect(tradeListWhen(item)).toBe('2026-09-08T12:00:00.000Z');
+  });
+
+  it('stacks design photos for the list collage', () => {
+    const item = {
+      kind: 'order',
+      id: 'o1',
+      createdAt: '2026-09-07T00:00:00.000Z',
+      updatedAt: '2026-09-07T00:00:00.000Z',
+      direction: 'selling',
+      order: {
+        id: 'o1',
+        items: [
+          { name: 'A', image: null, images: [] },
+          { name: 'B', image: 'https://cdn.example/b.jpg', images: [] },
+          { name: 'C', image: 'https://cdn.example/c.jpg', images: [] },
+        ],
+      },
+    } as TradeListItem;
+    expect(tradeListThumbs(item)).toEqual({
+      urls: ['https://cdn.example/b.jpg', 'https://cdn.example/c.jpg'],
+      overflow: 1,
+    });
+    expect(tradeListThumbs(orderItem({}))).toEqual({ urls: [], overflow: 0 });
   });
 });

@@ -275,7 +275,10 @@ export type OrderActionDock =
       sendOrder: boolean;
       sendQuote: boolean;
       confirm: boolean;
-      /** After a quote, Confirm is teal and Send quote sits in the middle. */
+      /**
+       * True after a seller Rate quote — buyer may Accept; Confirm stays the
+       * primary lock CTA (Send quote stays secondary).
+       */
       quoted: boolean;
     }
   | {
@@ -293,6 +296,18 @@ export type OrderActionDock =
       raiseReturn: boolean;
     };
 
+/**
+ * Teal primary on the requested dock — Confirm, else Send all.
+ * Send quote stays middle / secondary only (never the primary CTA).
+ */
+export function requestedDockPrimary(
+  dock: Extract<OrderActionDock, { kind: 'requested' }>,
+): 'confirm' | 'sendOrder' | null {
+  if (dock.confirm) return 'confirm';
+  if (dock.sendOrder) return 'sendOrder';
+  return null;
+}
+
 /** Sticky dock — seller and buyer, same row above the nav. */
 export function orderActionDock(input: {
   isSeller: boolean;
@@ -301,6 +316,8 @@ export function orderActionDock(input: {
   sendQuote: boolean;
   openForDispatch: boolean;
   hasRemaining: boolean;
+  /** Declined lines still restorable — keep Dispatch even when nothing left to ship. */
+  hasDeclinedToRestore?: boolean;
   canSettle: boolean;
   partiallyShipped?: boolean;
   hasSellerQuote?: boolean;
@@ -343,7 +360,10 @@ export function orderActionDock(input: {
       quoted,
     };
   }
-  if (input.openForDispatch && input.hasRemaining) {
+  const openDispatchSheet =
+    input.openForDispatch &&
+    (input.hasRemaining || input.hasDeclinedToRestore === true);
+  if (openDispatchSheet) {
     return {
       kind: 'fulfill',
       dispatch: true,

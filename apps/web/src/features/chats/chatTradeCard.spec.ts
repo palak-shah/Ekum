@@ -266,6 +266,65 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
     expect(model.action?.label).toBe('View designs →');
     expect(model.action?.to).toContain('/designs/set');
   });
+
+  it('enquire note sits on the designs card without You asked chrome', () => {
+    const message = textMessage({
+      id: 'd1',
+      type: 'design_album',
+      mine: true,
+      senderCompanyId: 'me',
+      metadata: { enquireNote: 'xyz test', productIds: ['p1', 'p2'] },
+      reference: {
+        id: 'p1',
+        kind: 'designs',
+        name: '2 designs',
+        image: null,
+        images: [],
+        productIds: ['p1', 'p2'],
+        itemCount: 2,
+        available: true,
+        ownerCompanyId: 'co-a',
+        ownerCompanyName: 'Mill',
+      },
+    });
+    const model = buildDesignSetTradeCard(message, message.reference, 'You', {
+      designsPath: '/designs/set?ids=p1,p2',
+    });
+    expect(model.who).toBeNull();
+    expect(model.note).toBe('xyz test');
+    expect(model.action?.label).toBe('View designs →');
+  });
+
+  it('enquire collection omits Order goes to', () => {
+    const message = textMessage({
+      id: 'c1',
+      type: 'collection_card',
+      mine: true,
+      senderCompanyId: 'me',
+      metadata: { enquireNote: 'abc' },
+      reference: {
+        id: 'col-1',
+        kind: 'collection',
+        name: 'New Cut — This week',
+        image: null,
+        images: [],
+        itemCount: 6,
+        available: true,
+        ownerCompanyId: 'co-a',
+        ownerCompanyName: 'Ahmedabad Loom Co',
+      },
+    });
+    const model = buildCollectionTradeCard(
+      message,
+      message.reference,
+      'You',
+      'Order goes to you',
+      { collectionPath: '/collections/col-1' },
+    );
+    expect(model.who).toBeNull();
+    expect(model.details).toEqual(['6 designs']);
+    expect(model.note).toBe('abc');
+  });
 });
 
 describe('buildChatTradeCard dispatcher', () => {
@@ -335,8 +394,9 @@ describe('buildChatTradeCard dispatcher', () => {
     expect(card?.action?.label).toBe('View order →');
   });
 
-  it('offers Send to supplier on inbound complaint with escalate handler', () => {
+  it('offers Resolve and Send to supplier on open inbound complaint', () => {
     const escalate = vi.fn();
+    const resolve = vi.fn();
     const card = buildChatTradeCard(
       textMessage({
         id: 'c-esc',
@@ -351,15 +411,41 @@ describe('buildChatTradeCard dispatcher', () => {
         name: 'Short qty',
         image: null,
         available: true,
+        status: 'open',
         orderId: 'ord-1',
         orderLabel: 'Silk · 5 Oct',
       },
       'Buyer',
-      { actions: { onEscalateComplaint: escalate } },
+      { actions: { onEscalateComplaint: escalate, onResolveComplaint: resolve } },
     );
-    expect(card?.secondaryAction?.label).toBe('Send to supplier');
-    card?.secondaryAction?.onClick?.();
+    expect(card?.actionRow?.map((a) => a.label)).toEqual(['Resolve', 'Send to supplier']);
+    card?.actionRow?.[0]?.onClick?.();
+    expect(resolve).toHaveBeenCalledWith('cmp-esc');
+    card?.actionRow?.[1]?.onClick?.();
     expect(escalate).toHaveBeenCalledWith('cmp-esc', 'ord-1', null);
+  });
+
+  it('hides Resolve when complaint is already resolved', () => {
+    const card = buildChatTradeCard(
+      textMessage({
+        id: 'c-done',
+        type: 'complaint',
+        body: 'Done',
+        mine: true,
+        referenceId: 'cmp-done',
+      }),
+      {
+        kind: 'complaint',
+        id: 'cmp-done',
+        name: 'Done',
+        image: null,
+        available: true,
+        status: 'resolved',
+      },
+      'You',
+      { actions: { onResolveComplaint: () => undefined } },
+    );
+    expect(card?.actionRow).toBeUndefined();
   });
 
   it('has no View designs and no View order when no ticket is attached', () => {

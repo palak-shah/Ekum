@@ -295,7 +295,7 @@ export function HomePage() {
       {packRows.length > 0 ? (
         <section className={`${hasNeeds ? 'mt-8' : 'mt-7'} flex flex-col gap-2.5`}>
           <SectionHeader
-            title="New packs"
+            title="New collections"
             action={
               <Link to="/explore?side=buying" className="text-[13px] font-semibold text-accent">
                 See all →

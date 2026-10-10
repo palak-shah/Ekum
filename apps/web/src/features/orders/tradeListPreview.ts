@@ -1,34 +1,47 @@
 import { shortOrderLabel } from '@ekum/domain-types';
-import { statusLabel } from '@/lib/status';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
 import { orderSheetTitle } from './orderQtyUi';
 import { orderListMillCue, orderListRoleBit } from './tradeListRole';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
+import { tradeListThumbs } from './tradeListThumbs';
 import type { TradeListItem } from './tradeList';
+
+export { tradeListThumbs } from './tradeListThumbs';
+export { tradeListShipLine } from './tradeListShipLine';
+export { tradeListBallStrip } from './tradeListBallStrip';
+export { tradeListProtocol, tradeListStatusLabel } from './tradeListProtocol';
 
 export function tradeListPreview(
   item: TradeListItem,
   companyId: string | null,
 ): { preview: string; accent: boolean } {
   const needs = tradeNeedsYouLabel(item);
-  if (needs) return { preview: needs, accent: true };
+  if (needs) {
+    // List already has a left accent for Needs you — show only the verb (Dispatch, Confirm…).
+    const verb = needs.replace(/^Needs you ·\s*/, '').trim() || needs;
+    return { preview: verb, accent: true };
+  }
 
   if (item.kind === 'order') {
     const order = item.order;
     const shared = orderViewerIsFacilitator(order, companyId);
-    const role = orderListRoleBit(order, shared);
+    // Quiet context only when it adds signal — no You buy/You sell (chrome + protocol cover that).
+    if (shared) return { preview: 'Shared', accent: false };
     const mills = orderListMillCue(order);
-    const parts = [role, mills, statusLabel(order.status)].filter(Boolean);
-    return { preview: parts.join(' · '), accent: false };
+    if (mills) return { preview: `Trading · ${mills}`, accent: false };
+    if (orderListRoleBit(order, false) === 'Trading') {
+      return { preview: 'Trading', accent: false };
+    }
+    return { preview: '', accent: false };
   }
 
   if (item.kind === 'sample') {
-    return { preview: `Sample · ${statusLabel(item.sample.status)}`, accent: false };
+    return { preview: '', accent: false };
   }
 
   if (item.kind === 'complaint') {
     return {
-      preview: `Complaint · ${statusLabel(item.complaint.status)}`,
+      preview: '',
       accent: item.complaint.status === 'open' && !item.complaint.mine,
     };
   }
@@ -58,4 +71,10 @@ export function tradeListWhen(item: TradeListItem): string {
   if (item.kind === 'sample') return item.sample.updatedAt || item.sample.createdAt;
   if (item.kind === 'complaint') return item.complaint.updatedAt || item.complaint.createdAt;
   return item.updatedAt || item.createdAt;
+}
+
+/** First URL only — prefer tradeListThumbs for the stack. */
+export function tradeListThumb(item: TradeListItem): string | null {
+  const { urls } = tradeListThumbs(item);
+  return urls[0] ?? null;
 }

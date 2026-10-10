@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderDispatchPreview } from './orderDispatchPreview';
+import { orderDispatchPreview, orderDispatchSectionSummary } from './orderDispatchPreview';
 import { collectionGalleryInputProps } from './collectionGalleryInput';
 import { parseRateParts, rateRangeCaption } from './rateRange';
 import { collectRateConflicts } from './collectionSameForAll';
@@ -7,6 +7,30 @@ import { collectRateConflicts } from './collectionSameForAll';
 describe('orderDispatchPreview', () => {
   it('shows 10 sets (= 40 pcs)', () => {
     expect(orderDispatchPreview('set', 4, 'pc')).toBe('10 sets (= 40 pcs)');
+  });
+});
+
+describe('orderDispatchSectionSummary', () => {
+  it('builds a quiet collapsed line from unit / contains / dispatch / MOQ', () => {
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'set',
+        piecesPerPack: '4',
+        dispatchUnit: 'pc',
+        moq: '10',
+      }),
+    ).toBe('set · 4 pcs · dispatch pc · MOQ 10');
+  });
+
+  it('omits dispatch when it matches order unit', () => {
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'pc',
+        piecesPerPack: '1',
+        dispatchUnit: 'pc',
+        moq: '',
+      }),
+    ).toBe('pc · 1 pcs');
   });
 });
 
@@ -22,7 +46,7 @@ describe('rate range', () => {
   it('captions single and range', () => {
     expect(rateRangeCaption('1200', '')).toBe('₹1,200');
     expect(rateRangeCaption('1200', '1400')).toBe('₹1,200–₹1,400');
-    expect(rateRangeCaption('', '')).toBe('On request');
+    expect(rateRangeCaption('', '')).toBe('');
   });
 
   it('flags inverted range', () => {

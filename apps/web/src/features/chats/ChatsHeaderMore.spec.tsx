@@ -52,7 +52,7 @@ describe('ChatsHeaderMore', () => {
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
     await user.click(screen.getByTestId('chats-more'));
     expect(screen.getByTestId('chats-more-menu')).toHaveAttribute('role', 'menu');
-    expect(screen.queryByRole('heading', { name: 'Chats' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Chats' })).toBeInTheDocument();
     expect(screen.getByTestId('chats-starred')).toBeInTheDocument();
     expect(screen.getByTestId('chats-archived')).toBeInTheDocument();
     expect(screen.getByTestId('chats-mark-all-read')).toBeInTheDocument();
