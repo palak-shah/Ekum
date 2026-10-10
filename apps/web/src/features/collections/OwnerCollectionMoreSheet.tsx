@@ -1,5 +1,5 @@
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
-import { CameraIcon, LockIcon, PencilIcon, ShareIcon } from '@/ui/icons';
+import { CameraIcon, LockIcon, PaperPlaneIcon, PencilIcon } from '@/ui/icons';
 
 /**
  * Owner album ⋯ — bottom sheet, icon then label (client prototype / app-wide more).
@@ -31,7 +31,7 @@ export function OwnerCollectionMoreSheet({
         {
           id: 'share',
           label: 'Share this collection',
-          icon: <ShareIcon width={20} height={20} />,
+          icon: <PaperPlaneIcon width={20} height={20} />,
           onClick: () => {
             onClose();
             onShare();

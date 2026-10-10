@@ -91,7 +91,7 @@ export function InboxThreadRow({
             {preview}
           </p>
           {thread.unreadCount > 0 ? (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-[11px] font-bold text-white">
               {thread.unreadCount}
             </span>
           ) : null}

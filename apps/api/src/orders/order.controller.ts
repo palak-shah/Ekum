@@ -153,11 +153,10 @@ export class OrderController {
   @RequirePermission('orders')
   updatePersonalNote(
     @CurrentCompanyId() companyId: string,
-    @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updatePersonalOrderNoteSchema)) dto: UpdatePersonalOrderNoteDto,
   ) {
-    return this.orders.updatePersonalNote(companyId, user.userId, id, dto);
+    return this.orders.updatePersonalNote(companyId, id, dto);
   }
 
   @Post(':id/confirm')

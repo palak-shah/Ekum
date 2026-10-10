@@ -1949,7 +1949,7 @@ export function ThreadPage() {
   }));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-chat px-4">
       <DiscardChangesSheet
         open={discard.confirmOpen}
         onCancel={discard.cancelLeave}
@@ -2511,7 +2511,7 @@ export function ThreadPage() {
 
       {canCompose && !selecting ? (
         <form
-          className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 bg-canvas px-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+          className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 bg-surface px-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
           onSubmit={(event) => {
             event.preventDefault();
             sendText();
@@ -3289,9 +3289,7 @@ function InCardActor({ message, label }: { message: MessageView; label: string }
   const line = inCardSenderLine(message, label);
   if (!line) return null;
   return (
-    <p className={cx('text-[11px] leading-tight', message.mine ? 'text-white/55' : 'text-muted')}>
-      {line}
-    </p>
+    <p className="text-[11px] leading-tight text-muted">{line}</p>
   );
 }
 
@@ -3301,16 +3299,14 @@ function ReplyQuote({
   onJump,
 }: {
   preview: NonNullable<MessageView['replyTo']>;
-  /** True when nested inside a solid-accent text bubble (not on white trade cards). */
+  /** Kept for call sites; both directions use ink-on-bubble reply chrome. */
   mine: boolean;
   onJump?: () => void;
 }) {
+  void mine;
   const className = cx(
-    'mb-1.5 w-full rounded-lg border-l-2 px-2 py-1.5 text-left text-sm',
-    mine
-      ? 'border-white/50 bg-white/10 text-white/85'
-      : 'border-accent bg-surface text-muted',
-    onJump && (mine ? 'hover:bg-white/20 active:bg-white/25' : 'hover:bg-canvas active:bg-canvas'),
+    'mb-1.5 w-full rounded-lg border-l-2 border-accent bg-surface/80 px-2 py-1.5 text-left text-sm text-muted',
+    onJump && 'hover:bg-canvas active:bg-canvas',
   );
   const thumb = preview.photoUrl ? toAbsoluteMediaUrl(preview.photoUrl) : null;
   const body = (
@@ -3319,7 +3315,7 @@ function ReplyQuote({
         <img src={thumb} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
       ) : null}
       <span className="min-w-0 flex-1">
-        <p className={cx('font-bold', mine ? 'text-white' : 'text-accent')}>Reply</p>
+        <p className="font-bold text-accent">Reply</p>
         <p className="truncate">{preview.bodyPreview ?? 'Message'}</p>
       </span>
     </span>
@@ -3786,7 +3782,7 @@ function TimelineItem({
         className="flex w-full justify-center py-1.5"
         data-testid={`chat-system-notice-${message.id}`}
       >
-        <p className="max-w-[90%] rounded-full bg-canvas px-3 py-1 text-center text-[12px] font-medium text-muted">
+        <p className="max-w-[90%] rounded-full bg-surface px-3 py-1 text-center text-[12px] font-medium text-muted">
           {message.body?.trim() || 'Notice'}
         </p>
       </div>
@@ -4245,8 +4241,10 @@ function TimelineItem({
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'w-full border border-line bg-surface px-3 py-2.5 text-left',
+            'w-full overflow-hidden border border-line text-left',
+            message.mine ? 'bg-chat-out' : 'bg-chat-in',
             chatBubbleCorners(message.mine),
+            !message.mine && 'border-l-[3px] border-l-accent',
           )}
         >
           <button
@@ -4256,11 +4254,13 @@ function TimelineItem({
               if (orderId) onOpenOrder(orderId);
             }}
           >
-            <p className="text-sm font-semibold text-ink">{title}</p>
-            {ref?.totalLabel ? (
-              <p className="text-xs text-muted">{ref.totalLabel}</p>
-            ) : null}
-            <p className="mt-1 text-xs font-medium text-accent">View order →</p>
+            <div className="border-b border-line/70 px-3 py-2">
+              <p className="text-sm font-semibold text-ink">{title}</p>
+              {ref?.totalLabel ? <p className="text-xs text-muted">{ref.totalLabel}</p> : null}
+            </div>
+            <p className="px-3 py-2 text-center text-[13px] font-semibold text-accent">
+              View order →
+            </p>
           </button>
         </div>
       </MessageChrome>
@@ -4277,6 +4277,7 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
+        actionsOnAccent={false}
         className="max-w-[85%]"
       >
         <div
@@ -4285,14 +4286,12 @@ function TimelineItem({
             'px-3.5 py-2 text-sm',
             chatBubbleCorners(message.mine),
             message.mine
-              ? 'bg-accent text-white'
-              : 'border border-line bg-foam text-ink',
+              ? 'bg-chat-out text-ink'
+              : 'border border-line bg-chat-in text-ink',
           )}
         >
           {message.deletedForEveryone ? (
-            <p className={cx('italic', message.mine ? 'text-white/75' : 'text-muted')}>
-              This message was deleted
-            </p>
+            <p className="italic text-muted">This message was deleted</p>
           ) : (
             <>
               <InCardActor message={message} label={senderLabel} />
@@ -4302,26 +4301,10 @@ function TimelineItem({
               <p className="whitespace-pre-wrap break-words">
                 {message.body?.trim() ? hl(message.body) : 'Message'}
               </p>
-              {message.editedAt ? (
-                <p
-                  className={cx(
-                    'mt-0.5 text-[10px]',
-                    message.mine ? 'text-white/55' : 'text-muted',
-                  )}
-                >
-                  Edited
-                </p>
-              ) : null}
+              {message.editedAt ? <p className="mt-0.5 text-[10px] text-muted">Edited</p> : null}
             </>
           )}
-            <p
-              className={cx(
-                'mt-0.5 text-right text-xs',
-                message.mine ? 'text-white/70' : 'text-muted',
-              )}
-            >
-              {timeAgo(message.createdAt)}
-            </p>
+          <p className="mt-0.5 text-right text-xs text-muted">{timeAgo(message.createdAt)}</p>
         </div>
       </MessageChrome>
     );
@@ -4379,7 +4362,7 @@ function TimelineItem({
         highlighted={highlighted}
         onToggleSelect={onToggleSelect}
         actions={actions}
-        actionsOnAccent={message.mine}
+        actionsOnAccent={false}
         className="max-w-[85%]"
       >
         <div className="flex flex-col gap-0.5">
@@ -4414,7 +4397,7 @@ function TimelineItem({
       highlighted={highlighted}
       onToggleSelect={onToggleSelect}
       actions={actions}
-      actionsOnAccent={message.mine}
+      actionsOnAccent={false}
       className="max-w-[85%]"
     >
       <div className="flex flex-col gap-0.5">
@@ -4424,47 +4407,24 @@ function TimelineItem({
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'overflow-hidden text-sm',
+            'overflow-hidden border border-line text-sm text-ink',
+            message.mine ? 'bg-chat-out' : 'bg-chat-in',
             chatBubbleCorners(message.mine),
-            message.mine
-              ? 'border border-accent/35 bg-accent text-white'
-              : 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+            !message.mine && 'border-l-[3px] border-l-accent',
           )}
           data-testid="chat-trade-card-fallback"
         >
-          <div
-            className={cx(
-              'flex items-center gap-1.5 border-b px-2.5 py-2',
-              message.mine ? 'border-white/20' : 'border-line/70',
-            )}
-          >
-            <TypeIcon
-              width={12}
-              height={12}
-              className={cx('shrink-0', message.mine ? 'text-white' : 'text-accent')}
-              aria-hidden
-            />
-            <p
-              className={cx(
-                'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
-                message.mine ? 'text-white' : 'text-ink',
-              )}
-            >
+          <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
+            <TypeIcon width={12} height={12} className="shrink-0 text-accent" aria-hidden />
+            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-ink">
               {typeMeta.label}
             </p>
           </div>
           <div className="px-2.5 py-2">
-            <p className={cx('text-[13px] font-medium', message.mine ? 'text-white' : 'text-ink')}>
+            <p className="text-[13px] font-medium text-ink">
               {hl(message.body?.trim() || 'Shared attachment')}
             </p>
-            <p
-              className={cx(
-                'mt-1 text-right text-[11px]',
-                message.mine ? 'text-white/65' : 'text-muted',
-              )}
-            >
-              {timeAgo(message.createdAt)}
-            </p>
+            <p className="mt-1 text-right text-[11px] text-muted">{timeAgo(message.createdAt)}</p>
           </div>
         </div>
       </div>

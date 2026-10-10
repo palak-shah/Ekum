@@ -10,7 +10,9 @@ import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import {
   Button,
+  Chip,
   Field,
+  FilterRail,
   InlineNotice,
   LoadingBlock,
   Sheet,
@@ -21,6 +23,14 @@ import { SuggestInput } from '@/ui/SuggestInput';
 import { useTradePresence } from '@/lib/tradePresence';
 import { SettingsDomainCard, SettingsDomainGroup } from '@/features/settings/SettingsDomainCard';
 import { settingsBusinessRoleLinks } from '@/features/settings/youShortcuts';
+import { useTheme } from '@/theme/ThemeProvider';
+import type { ThemePreference } from '@/theme/themePreference';
+
+const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+];
 
 const emptyAddress = (): UpsertAddressDto => ({
   label: '',
@@ -38,6 +48,7 @@ const emptyFirm = (): UpsertBillingFirmDto => ({
 
 export function SettingsPage() {
   const { trading, selling } = useTradePresence();
+  const { preference, setPreference } = useTheme();
   const queryClient = useQueryClient();
   const [addrOpen, setAddrOpen] = useState(false);
   const [firmOpen, setFirmOpen] = useState(false);
@@ -104,6 +115,26 @@ export function SettingsPage() {
           <SettingsDomainCard key={item.to} to={item.to} title={item.title} hint={item.hint} />
         ))}
       </SettingsDomainGroup>
+
+      <section className="flex flex-col gap-1.5" data-testid="settings-domain-appearance">
+        <h2 className="px-0.5 text-[13px] font-semibold tracking-tight text-ink">Appearance</h2>
+        <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
+          <p className="text-sm font-semibold text-ink">Theme</p>
+          <p className="mt-0.5 text-xs text-muted">Light, dark, or match this phone.</p>
+          <FilterRail className="mt-3">
+            {APPEARANCE_OPTIONS.map((option) => (
+              <Chip
+                key={option.value}
+                active={preference === option.value}
+                data-testid={`settings-theme-${option.value}`}
+                onClick={() => setPreference(option.value)}
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </FilterRail>
+        </div>
+      </section>
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-dispatch">
         <div className="flex items-center justify-between gap-3 px-0.5">

@@ -8,7 +8,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { BookmarkIcon, ChatIcon, RepostIcon, ShareIcon } from '@/ui/icons';
+import { BookmarkIcon, ChatIcon, PaperPlaneIcon, RepostIcon } from '@/ui/icons';
 
 /**
  * Instagram-placed icon row under Explore mosaics: left Repost · Message · Share,
@@ -104,7 +104,7 @@ export function ExploreFeedActions({
             </ActionIcon>
           ) : null}
           <ActionIcon testId="explore-feed-share" label="Share" onClick={() => setShareOpen(true)}>
-            <ShareIcon width={24} height={24} />
+            <PaperPlaneIcon width={24} height={24} />
           </ActionIcon>
         </div>
         {!isOwn ? (

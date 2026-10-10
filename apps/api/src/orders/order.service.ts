@@ -3154,7 +3154,6 @@ export class OrderService {
 
   async updatePersonalNote(
     actorCompanyId: string,
-    userId: string,
     id: string,
     dto: {
       note?: string | null;
@@ -3219,7 +3218,6 @@ export class OrderService {
         },
       });
     }
-    void userId;
     return this.get(actorCompanyId, id);
   }
 

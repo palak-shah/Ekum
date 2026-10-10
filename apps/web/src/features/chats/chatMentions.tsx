@@ -8,8 +8,9 @@ function escapeRegExp(value: string): string {
 export function highlightMentionText(
   text: string,
   mentions: MessageMention[],
-  tone: 'mine' | 'theirs',
+  _tone: 'mine' | 'theirs' = 'theirs',
 ): ReactNode {
+  void _tone;
   if (!text || mentions.length === 0) return text;
   const names = [...new Set(mentions.map((row) => row.name.trim()).filter(Boolean))].sort(
     (a, b) => b.length - a.length,
@@ -25,10 +26,7 @@ export function highlightMentionText(
           'span',
           {
             key: `${index}-${part}`,
-            className:
-              tone === 'mine'
-                ? 'font-semibold text-white underline decoration-white/70 underline-offset-2'
-                : 'font-semibold text-accent',
+            className: 'font-semibold text-accent underline decoration-accent/50 underline-offset-2',
           },
           part,
         )

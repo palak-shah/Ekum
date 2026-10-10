@@ -62,7 +62,7 @@ export function textInputChromeClass(
     !hasMinH ? 'min-h-10' : '',
     !hasRounded ? 'rounded-xl' : '',
     !hasBorder ? 'border border-line' : '',
-    locked ? 'bg-foam/90 text-muted' : !hasBg ? 'bg-surface text-ink' : 'text-ink',
+    locked ? 'bg-foam/90 text-muted' : !hasBg ? 'bg-input text-ink' : 'text-ink',
     !hasPad ? 'px-3.5' : '',
     !hasText ? 'text-base' : '',
     'select-text font-medium outline-none placeholder:italic placeholder:font-normal placeholder:text-muted/50',

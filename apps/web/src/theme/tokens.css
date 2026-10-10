@@ -1,0 +1,131 @@
+/*
+ * Master Ekum color tokens — edit hex values HERE only.
+ * Tailwind `@theme` in index.css maps these to utilities (bg-accent, bg-input, …).
+ * Light: :root · Dark: html.dark
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --ekum-ink: #1a1714;
+  --ekum-muted: #5a554c;
+  --ekum-slate: #2c2824;
+  --ekum-surface: #ffffff;
+  --ekum-canvas: #ffffff;
+  --ekum-foam: #dce9e8;
+  --ekum-linen: #e4e1d4;
+  --ekum-line: #ddd6c8;
+  --ekum-stage: #e8e6e1;
+
+  /* Actions — prototype greens (activated / hover / incomplete CTA) */
+  --ekum-accent: #007a5e;
+  --ekum-accent-hover: #00664f;
+  --ekum-accent-muted: #93c5bd;
+  --ekum-brand: #007a5e;
+
+  /* Count badges (nav / chips) — not alert tangerine */
+  --ekum-badge: #22c55e;
+
+  /* Form fields — subtle cool fill on white page */
+  --ekum-input: #f0f2f5;
+
+  /* Chat thread (theme wallpaper — not user-selectable) */
+  --ekum-chat-bg: #efeae2;
+  --ekum-chat-out: #dcf8c6;
+  --ekum-chat-in: #ffffff;
+
+  /* Alerts */
+  --ekum-tangerine: #e88900;
+
+  /* Lifecycle / status */
+  --ekum-success: #16a34a;
+  --ekum-success-soft: #d4f3df;
+  --ekum-success-ink: #166534;
+  --ekum-warning: #eab308;
+  --ekum-warning-soft: #fff0b8;
+  --ekum-warning-ink: #854d0e;
+  --ekum-danger: #dc2626;
+  --ekum-danger-soft: #ffd6d6;
+  --ekum-info: #1d6a9a;
+  --ekum-info-soft: #cfe9eb;
+  --ekum-info-ink: #007a5e;
+  --ekum-placed-soft: #ffe6a8;
+  --ekum-placed-ink: #8a5a00;
+  --ekum-confirmed-soft: #d0e8fb;
+  --ekum-confirmed-ink: #1a567c;
+  --ekum-part-soft: #ffd4a8;
+  --ekum-part-ink: #9a3412;
+  --ekum-resolved-soft: #e2e8e6;
+  --ekum-resolved-ink: #3d5560;
+
+  /* Kind hues (Order / Collection / Design) */
+  --ekum-kind-order: #1a6a6f;
+  --ekum-kind-order-soft: #dce9e8;
+  --ekum-kind-collection: #3d5560;
+  --ekum-kind-collection-soft: #dde7eb;
+  --ekum-kind-design: #7a4e32;
+  --ekum-kind-design-soft: #f0e4da;
+
+  --ekum-focus-ring: rgb(0 122 94 / 0.55);
+  --ekum-shadow-soft: 0 1px 2px rgb(26 23 20 / 0.06);
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --ekum-ink: #f5f2eb;
+  --ekum-muted: #a8a29a;
+  --ekum-slate: #e7e5e4;
+  --ekum-surface: #1c1917;
+  --ekum-canvas: #0c0a09;
+  --ekum-foam: #1a2e2c;
+  --ekum-linen: #292524;
+  --ekum-line: #3f3a36;
+  --ekum-stage: #0c0a09;
+
+  --ekum-accent: #1aa87a;
+  --ekum-accent-hover: #22c08a;
+  --ekum-accent-muted: #3d6b5f;
+  --ekum-brand: #1aa87a;
+
+  --ekum-badge: #22c55e;
+
+  --ekum-input: #292524;
+
+  --ekum-chat-bg: #0f1410;
+  --ekum-chat-out: #1a3d2e;
+  --ekum-chat-in: #1c1917;
+
+  --ekum-tangerine: #f59e0b;
+
+  --ekum-success: #22c55e;
+  --ekum-success-soft: #14532d;
+  --ekum-success-ink: #bbf7d0;
+  --ekum-warning: #eab308;
+  --ekum-warning-soft: #422006;
+  --ekum-warning-ink: #fde68a;
+  --ekum-danger: #ef4444;
+  --ekum-danger-soft: #450a0a;
+  --ekum-info: #38bdf8;
+  --ekum-info-soft: #0c4a6e;
+  --ekum-info-ink: #7dd3fc;
+  --ekum-placed-soft: #713f12;
+  --ekum-placed-ink: #fde68a;
+  --ekum-confirmed-soft: #0c4a6e;
+  --ekum-confirmed-ink: #bae6fd;
+  --ekum-part-soft: #7c2d12;
+  --ekum-part-ink: #fed7aa;
+  --ekum-resolved-soft: #292524;
+  --ekum-resolved-ink: #a8a29a;
+
+  --ekum-kind-order: #5eead4;
+  --ekum-kind-order-soft: #134e4a;
+  --ekum-kind-collection: #94a3b8;
+  --ekum-kind-collection-soft: #1e293b;
+  --ekum-kind-design: #d6a27a;
+  --ekum-kind-design-soft: #3f2a1e;
+
+  --ekum-focus-ring: rgb(26 168 122 / 0.55);
+  --ekum-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.35);
+}

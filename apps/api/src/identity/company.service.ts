@@ -333,6 +333,8 @@ export class CompanyService {
       const preview = collectionPreviewFromRow(row);
       const rate = collectionCardRateFields({
         rateVisibility: row.rateVisibility,
+        rate: row.rate,
+        rateMax: row.rateMax,
         products: row.products,
       });
       return {

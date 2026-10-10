@@ -1,55 +1,57 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
 @import 'tailwindcss';
+@import './theme/tokens.css';
 
 /*
- * Market-sharp tokens aligned to v5 HTML prototype + brand presentation.
- * Brand accent is teal; tangerine is alerts only.
- * Kind colors (Order / Collection / Design) are platform object hues — not status.
+ * Tailwind color registration — values come from --ekum-* in tokens.css.
+ * Change hex codes only in tokens.css (light :root / dark html.dark).
  */
 @theme {
-  /* Crisp / high-contrast tokens — white page canvas; ink & teal gain definition. */
-  --color-ink: #1a1714;
-  --color-muted: #5a554c;
-  --color-slate: #2c2824;
-  --color-surface: #ffffff;
-  --color-canvas: #ffffff;
-  --color-foam: #dce9e8;
-  --color-linen: #e4e1d4;
-  --color-line: #ddd6c8;
-  --color-brand: #0f6b70;
-  --color-accent: #0f6b70;
-  --color-accent-dark: #0b5357;
-  --color-tangerine: #e88900;
-  --color-success: #16a34a;
-  --color-success-soft: #d4f3df;
-  --color-success-ink: #166534;
-  --color-warning: #eab308;
-  --color-warning-soft: #fff0b8;
-  --color-warning-ink: #854d0e;
-  --color-danger: #dc2626;
-  --color-danger-soft: #ffd6d6;
-  /* Informational over-ship / extra — not an error. */
-  --color-info: #1d6a9a;
-  --color-info-soft: #cfe9eb;
-  --color-info-ink: #0f6b70;
-  /* StatusPill lifecycle — each step its own hue (brighter softs). */
-  --color-placed-soft: #ffe6a8;
-  --color-placed-ink: #8a5a00;
-  --color-confirmed-soft: #d0e8fb;
-  --color-confirmed-ink: #1a567c;
-  --color-part-soft: #ffd4a8;
-  --color-part-ink: #9a3412;
-  --color-resolved-soft: #e2e8e6;
-  --color-resolved-ink: #3d5560;
-  --color-kind-order: #1a6a6f;
-  --color-kind-order-soft: #dce9e8;
-  --color-kind-collection: #3d5560;
-  --color-kind-collection-soft: #dde7eb;
-  --color-kind-design: #7a4e32;
-  --color-kind-design-soft: #f0e4da;
+  --color-ink: var(--ekum-ink);
+  --color-muted: var(--ekum-muted);
+  --color-slate: var(--ekum-slate);
+  --color-surface: var(--ekum-surface);
+  --color-canvas: var(--ekum-canvas);
+  --color-foam: var(--ekum-foam);
+  --color-linen: var(--ekum-linen);
+  --color-line: var(--ekum-line);
+  --color-brand: var(--ekum-brand);
+  --color-accent: var(--ekum-accent);
+  --color-accent-dark: var(--ekum-accent-hover);
+  --color-accent-muted: var(--ekum-accent-muted);
+  --color-badge: var(--ekum-badge);
+  --color-input: var(--ekum-input);
+  --color-chat: var(--ekum-chat-bg);
+  --color-chat-out: var(--ekum-chat-out);
+  --color-chat-in: var(--ekum-chat-in);
+  --color-tangerine: var(--ekum-tangerine);
+  --color-success: var(--ekum-success);
+  --color-success-soft: var(--ekum-success-soft);
+  --color-success-ink: var(--ekum-success-ink);
+  --color-warning: var(--ekum-warning);
+  --color-warning-soft: var(--ekum-warning-soft);
+  --color-warning-ink: var(--ekum-warning-ink);
+  --color-danger: var(--ekum-danger);
+  --color-danger-soft: var(--ekum-danger-soft);
+  --color-info: var(--ekum-info);
+  --color-info-soft: var(--ekum-info-soft);
+  --color-info-ink: var(--ekum-info-ink);
+  --color-placed-soft: var(--ekum-placed-soft);
+  --color-placed-ink: var(--ekum-placed-ink);
+  --color-confirmed-soft: var(--ekum-confirmed-soft);
+  --color-confirmed-ink: var(--ekum-confirmed-ink);
+  --color-part-soft: var(--ekum-part-soft);
+  --color-part-ink: var(--ekum-part-ink);
+  --color-resolved-soft: var(--ekum-resolved-soft);
+  --color-resolved-ink: var(--ekum-resolved-ink);
+  --color-kind-order: var(--ekum-kind-order);
+  --color-kind-order-soft: var(--ekum-kind-order-soft);
+  --color-kind-collection: var(--ekum-kind-collection);
+  --color-kind-collection-soft: var(--ekum-kind-collection-soft);
+  --color-kind-design: var(--ekum-kind-design);
+  --color-kind-design-soft: var(--ekum-kind-design-soft);
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  /* Hairline lift — modern, not a card glow. */
-  --shadow-soft: 0 1px 2px rgb(26 23 20 / 0.06);
+  --shadow-soft: var(--ekum-shadow-soft);
 }
 
 html,
@@ -66,7 +68,7 @@ body,
  * Phone / narrow: stage = canvas so edges match the shell.
  */
 html {
-  background: #e8e6e1;
+  background: var(--ekum-stage);
 }
 
 body {
@@ -94,7 +96,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid rgb(26 106 111 / 0.55);
+  outline: 2px solid var(--ekum-focus-ring);
   outline-offset: 2px;
 }
 
@@ -125,7 +127,7 @@ body {
   }
   15%,
   70% {
-    box-shadow: 0 0 0 3px rgb(26 106 111 / 0.45);
+    box-shadow: 0 0 0 3px var(--ekum-focus-ring);
   }
 }
 
@@ -179,6 +181,12 @@ select {
   user-select: text;
 }
 
+/* Native checkboxes / radios follow accent token. */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--ekum-accent);
+}
+
 /* Long-press select surfaces — no iOS Safari link preview / callout. */
 .ekum-long-press-surface {
   -webkit-touch-callout: none;
@@ -189,7 +197,7 @@ select {
 
 /* Bottom nav / chrome — solid edge, not frosted haze. */
 .ekum-glass {
-  background: #ffffff;
+  background: var(--ekum-surface);
   border-color: var(--color-line);
 }
 

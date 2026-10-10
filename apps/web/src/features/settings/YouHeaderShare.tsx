@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CompanyShareSheet } from '@/features/company/CompanyShareSheet';
 import { useMyCompany } from '@/lib/queries';
-import { ShareIcon } from '@/ui/icons';
+import { PaperPlaneIcon } from '@/ui/icons';
 
 /** Business profile header Share — same icon + sheet as a shop. */
 export function YouHeaderShare() {
@@ -19,7 +19,7 @@ export function YouHeaderShare() {
         className="rounded-full p-2 text-slate hover:bg-foam hover:text-ink disabled:opacity-45"
         onClick={() => setOpen(true)}
       >
-        <ShareIcon width={20} height={20} />
+        <PaperPlaneIcon width={20} height={20} />
       </button>
       {companyId ? (
         <CompanyShareSheet

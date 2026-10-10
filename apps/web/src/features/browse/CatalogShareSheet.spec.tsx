@@ -94,7 +94,7 @@ describe('CatalogShareSheet empty network', () => {
     vi.clearAllMocks();
   });
 
-  it('shows Find on Ekum, Find in Explore, and 48h link when there are no connections', async () => {
+  it('shows Find on Ekum, Find in Explore, Create group, and native share when there are no connections', async () => {
     renderSheet([]);
 
     await waitFor(() => {
@@ -103,7 +103,9 @@ describe('CatalogShareSheet empty network', () => {
 
     const link = screen.getByTestId('find-in-explore-link');
     expect(link).toHaveAttribute('href', EXPLORE_BUSINESSES_SEARCH_HREF);
-    expect(screen.getByTestId('catalog-share-link')).toHaveTextContent(/Copy a link · 48 hours/i);
+    expect(screen.getByTestId('share-create-group')).toHaveTextContent(/Create group/i);
+    expect(screen.getByTestId('catalog-share-link')).toHaveAttribute('aria-label', 'Share outside');
+    expect(screen.getByTestId('catalog-share-send')).toBeDisabled();
   });
 });
 
@@ -281,7 +283,7 @@ describe('CatalogShareSheet multi-select share', () => {
     await waitFor(() => {
       expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('catalog-share-link')).toHaveTextContent(/Copy a link · 48 hours/i);
+    expect(screen.getByTestId('catalog-share-link')).toHaveAttribute('aria-label', 'Share outside');
 
     await user.click(screen.getByTestId('catalog-share-link'));
 
@@ -412,6 +414,38 @@ describe('CatalogShareSheet multi-select share', () => {
         expect.objectContaining({
           type: 'design_album',
           metadata: { productIds: ['p1', 'p2'] },
+        }),
+      );
+    });
+  });
+
+  it('sends optional composer note as enquireNote on the card', async () => {
+    vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
+      if (path === '/threads/direct') {
+        const companyId = (body as { companyId: string }).companyId;
+        return { id: `thread-${companyId}` } as never;
+      }
+      if (String(path).includes('/messages')) return { id: 'm1' } as never;
+      throw new Error(`unexpected post ${path}`);
+    });
+
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    renderSheet();
+
+    await waitFor(() => {
+      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /Jaipur Emporium/i }));
+    await user.type(screen.getByTestId('share-composer-text'), 'Have a look');
+    await user.click(screen.getByTestId('catalog-share-send'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/threads/thread-c1/messages',
+        expect.objectContaining({
+          referenceId: 'col1',
+          metadata: expect.objectContaining({ enquireNote: 'Have a look' }),
         }),
       );
     });

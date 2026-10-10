@@ -67,7 +67,7 @@ describe('mobileOverflow (BM-07)', () => {
     expect(chrome).toContain('select-text');
     expect(chrome).toContain('placeholder:italic');
     expect(chrome).toContain('placeholder:text-muted/50');
-    expect(chrome).toContain('bg-surface');
+    expect(chrome).toContain('bg-input');
     expect(chrome).toContain('border-line');
   });
 
@@ -75,6 +75,6 @@ describe('mobileOverflow (BM-07)', () => {
     const locked = textInputChromeClass(undefined, { locked: true });
     expect(locked).toContain('bg-foam/90');
     expect(locked).toContain('text-muted');
-    expect(locked).not.toContain('bg-surface');
+    expect(locked).not.toContain('bg-input');
   });
 });

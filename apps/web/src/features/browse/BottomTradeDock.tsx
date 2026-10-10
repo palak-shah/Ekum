@@ -80,7 +80,7 @@ export function DockIconButton({
       <span className={cx('relative', primary ? 'text-white' : 'text-accent')}>
         {children}
         {badge != null && badge > 0 ? (
-          <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+          <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-0.5 text-[10px] font-bold text-white">
             {badge > 99 ? '99+' : badge}
           </span>
         ) : null}

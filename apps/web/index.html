@@ -40,6 +40,38 @@
 
     <meta name="ekum-web-build" content="%VITE_WEB_BUILD%" />
     <title>Ekum</title>
+    <script>
+      (function () {
+        try {
+          var pref = 'system';
+          var last = localStorage.getItem('ekum.theme.last');
+          if (last) {
+            var parsed = JSON.parse(last);
+            if (
+              parsed &&
+              (parsed.preference === 'light' ||
+                parsed.preference === 'dark' ||
+                parsed.preference === 'system')
+            ) {
+              pref = parsed.preference;
+            }
+          }
+          var resolved =
+            pref === 'light' || pref === 'dark'
+              ? pref
+              : window.matchMedia &&
+                  window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.classList.add(resolved);
+          document.documentElement.style.colorScheme = resolved;
+          if (resolved === 'dark') {
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#0c0a09');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

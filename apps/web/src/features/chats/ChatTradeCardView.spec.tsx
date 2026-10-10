@@ -58,7 +58,7 @@ describe('ChatTradeCard voice note', () => {
 });
 
 describe('ChatTradeCard direction surface rule', () => {
-  it('incoming bubble: light surface + teal rail (not solid accent fill)', () => {
+  it('incoming bubble: chat-in surface + accent rail (not solid accent fill)', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -74,13 +74,13 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const card = screen.getByTestId('chat-trade-card');
     expect(card).toHaveAttribute('data-mine', 'false');
-    expect(card.className).toMatch(/bg-surface/);
+    expect(card.className).toMatch(/bg-chat-in/);
     expect(card.className).toMatch(/border-l-accent/);
     expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
     expect(screen.getByText('View inquiry →').className).toMatch(/text-accent/);
   });
 
-  it('outgoing bubble: solid Ekum teal + white View link (status does not change fill)', () => {
+  it('outgoing bubble: chat-out green + accent View link (not solid accent)', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -96,12 +96,13 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const card = screen.getByTestId('chat-trade-card');
     expect(card).toHaveAttribute('data-mine', 'true');
-    expect(card.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
-    expect(card.className).not.toMatch(/bg-surface/);
-    expect(screen.getByText('View order →').className).toMatch(/text-white/);
+    expect(card.className).toMatch(/bg-chat-out/);
+    expect(card.className).not.toMatch(/bg-chat-in/);
+    expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(screen.getByText('View order →').className).toMatch(/text-accent/);
   });
 
-  it('outgoing pulse (Dispatched) still uses solid teal — status is not a pale fill', () => {
+  it('outgoing pulse uses chat-out — status is not a solid accent fill', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -117,12 +118,12 @@ describe('ChatTradeCard direction surface rule', () => {
       </MemoryRouter>,
     );
     const card = screen.getByTestId('chat-trade-card-pulse');
-    expect(card.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
-    expect(card.className).not.toMatch(/bg-surface/);
-    expect(screen.getByText('View order →').className).toMatch(/text-white/);
+    expect(card.className).toMatch(/bg-chat-out/);
+    expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(screen.getByText('View order →').className).toMatch(/text-accent/);
   });
 
-  it('outgoing Accepted pulse forces solid teal fill (inline) + white View order', () => {
+  it('outgoing Accepted pulse paints chat-out via CSS var + accent View order', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -141,13 +142,13 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const card = screen.getByTestId('chat-trade-card-pulse');
     expect(card.tagName).toBe('DIV');
-    expect(card.style.backgroundColor).toBe('rgb(15, 107, 112)');
-    expect(card.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(card.style.backgroundColor).toBe('var(--ekum-chat-out)');
+    expect(card.className).toMatch(/bg-chat-out/);
     const link = screen.getByText('View order →');
-    expect(link).toHaveStyle({ color: '#ffffff' });
+    expect(link).toHaveStyle({ color: 'var(--ekum-accent)' });
   });
 
-  it('outgoing quote Accept CTA contrasts on teal fill', () => {
+  it('outgoing quote Accept CTA is solid accent on light card', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -162,11 +163,11 @@ describe('ChatTradeCard direction surface rule', () => {
       </MemoryRouter>,
     );
     const accept = screen.getByText('Accept quote');
-    expect(accept.className).toMatch(/bg-surface/);
-    expect(accept.className).toMatch(/text-ink/);
+    expect(accept.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
+    expect(accept.className).toMatch(/text-white/);
   });
 
-  it('incoming bubble and pulse share the same white + teal-rail surface', () => {
+  it('incoming bubble and pulse share the same chat-in + accent-rail surface', () => {
     const { rerender } = render(
       <MemoryRouter>
         <ChatTradeCard
@@ -181,7 +182,7 @@ describe('ChatTradeCard direction surface rule', () => {
       </MemoryRouter>,
     );
     const bubble = screen.getByTestId('chat-trade-card');
-    expect(bubble.className).toMatch(/bg-surface/);
+    expect(bubble.className).toMatch(/bg-chat-in/);
     expect(bubble.className).toMatch(/border-l-accent/);
 
     rerender(
@@ -198,7 +199,7 @@ describe('ChatTradeCard direction surface rule', () => {
       </MemoryRouter>,
     );
     const pulse = screen.getByTestId('chat-trade-card-pulse');
-    expect(pulse.className).toMatch(/bg-surface/);
+    expect(pulse.className).toMatch(/bg-chat-in/);
     expect(pulse.className).toMatch(/border-l-accent/);
     expect(pulse.className).not.toMatch(/bg-foam|bg-kind-order/);
   });
@@ -220,6 +221,89 @@ describe('ChatTradeCard direction surface rule', () => {
     const accept = screen.getByText('Accept quote');
     expect(accept.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
     expect(accept.className).toMatch(/text-white/);
+  });
+});
+
+describe('ChatTradeCard section order', () => {
+  it('orders header → images → note → actions; omits note when empty', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            primary: 'Order #1005 · Placed',
+            details: ['3 sets'],
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg'],
+            note: 'Please pack tight',
+            noteVoiceUrl: null,
+            action: { label: 'View order →', to: '/orders/1', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const card = screen.getByTestId('chat-trade-card');
+    const header = screen.getByTestId('chat-trade-card-header');
+    const images = screen.getByTestId('chat-trade-card-images');
+    const note = screen.getByTestId('chat-trade-card-note');
+    const actions = screen.getByTestId('chat-trade-card-actions');
+    expect(header.compareDocumentPosition(images) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(images.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.textContent).toContain('Please pack tight');
+  });
+
+  it('omits the note band when there is no user message', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            thumbs: ['https://img/a.jpg'],
+            note: '',
+            noteVoiceUrl: null,
+            action: { label: 'View order →', to: '/orders/1', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('chat-trade-card-note')).toBeNull();
+    expect(screen.getByTestId('chat-trade-card-header')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-trade-card-images')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-trade-card-actions')).toBeInTheDocument();
+  });
+
+  it('full-width divider above View action; time is its own bottom row', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'designs',
+            primary: '2 designs',
+            who: 'You forwarded',
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg'],
+            note: '',
+            noteVoiceUrl: null,
+            action: { label: 'View designs →', to: '/designs/set?ids=a,b', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const images = screen.getByTestId('chat-trade-card-images');
+    const actions = screen.getByTestId('chat-trade-card-actions');
+    const time = screen.getByTestId('chat-trade-card-time');
+    const view = screen.getByText('View designs →');
+
+    // Divider lives on the actions band (edge-to-edge), not under the thumb collage.
+    expect(images.className).not.toMatch(/border-b/);
+    expect(actions.className).toMatch(/w-full/);
+    expect(actions.className).toMatch(/border-t/);
+    expect(view.className).not.toMatch(/border-t/);
+
+    // Time is below View designs — never inside the action band.
+    expect(actions.contains(time)).toBe(false);
+    expect(actions.contains(view)).toBe(true);
+    expect(actions.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(time.className).toMatch(/text-right/);
   });
 });
 

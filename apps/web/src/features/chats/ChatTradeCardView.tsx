@@ -24,50 +24,20 @@ function isAmountLine(line: string): boolean {
   return /₹/.test(line);
 }
 
-/** Literal tokens — never rely on CSS vars alone for trade-card shells (Safari/PWA). */
-const SHELL_ACCENT = '#0f6b70';
-const SHELL_SURFACE = '#ffffff';
-const SHELL_INK = '#1a1714';
-
-/** Direction owns fill; status never picks a third surface. */
+/**
+ * Direction matches text bubbles: yours = chat-out, theirs = chat-in + rail.
+ * Never solid accent fills. CSS vars so Safari paint + theme stay one source.
+ */
 function directionChrome(mine: boolean) {
-  if (mine) {
-    return {
-      shell: 'border border-accent/35 bg-accent text-white',
-      pulseShell: 'border border-accent/35 bg-accent text-white',
-      /**
-       * Hex + !important via applyShellPaint — defeats preflight/transparency and any
-       * competing utility so Accepted/Dispatched never render pale with white links.
-       */
-      shellStyle: {
-        backgroundColor: SHELL_ACCENT,
-        color: '#ffffff',
-      } satisfies CSSProperties,
-      headerBorder: 'border-white/20',
-      title: 'text-white',
-      who: 'text-white/70',
-      detailMuted: 'text-white/70',
-      detailStrong: 'text-white',
-      note: 'text-white',
-      time: 'text-white/65',
-      link: 'text-white',
-      linkColor: '#ffffff',
-      footerBorder: 'border-white/20',
-      footerAccent: 'text-white',
-      footerQuiet: 'text-white/65',
-      primaryBtn:
-        'mt-1 w-full rounded-xl bg-surface px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-ink',
-      solidBtn:
-        'mt-1 w-full rounded-xl border border-white/35 bg-white/10 px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-white',
-      hoverOpen: 'hover:brightness-[0.97] active:brightness-[0.94]',
-    };
-  }
+  const shell = mine
+    ? 'border border-line bg-chat-out text-ink'
+    : 'border border-line border-l-[3px] border-l-accent bg-chat-in text-ink';
   return {
-    shell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
-    pulseShell: 'border border-line border-l-[3px] border-l-accent bg-surface text-ink',
+    shell,
+    pulseShell: shell,
     shellStyle: {
-      backgroundColor: SHELL_SURFACE,
-      color: SHELL_INK,
+      backgroundColor: mine ? 'var(--ekum-chat-out)' : 'var(--ekum-chat-in)',
+      color: 'var(--ekum-ink)',
     } satisfies CSSProperties,
     headerBorder: 'border-line/70',
     title: 'text-ink',
@@ -77,7 +47,7 @@ function directionChrome(mine: boolean) {
     note: 'text-ink',
     time: 'text-muted',
     link: 'text-accent',
-    linkColor: SHELL_ACCENT,
+    linkColor: 'var(--ekum-accent)',
     footerBorder: 'border-line/70',
     footerAccent: 'text-accent',
     footerQuiet: 'text-muted',
@@ -154,7 +124,10 @@ function renderAction(
         to={action.to}
         data-card-action
         onClick={(event) => event.stopPropagation()}
-        className={cx('mt-1 text-[13px] font-semibold tracking-tight', chrome.link)}
+        className={cx(
+          'block w-full px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight',
+          chrome.link,
+        )}
         style={{ color: chrome.linkColor }}
       >
         {action.label}
@@ -171,7 +144,10 @@ function renderAction(
           event.stopPropagation();
           action.onClick?.();
         }}
-        className={cx('mt-1 self-start text-[13px] font-semibold tracking-tight', chrome.link)}
+        className={cx(
+          'w-full px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight',
+          chrome.link,
+        )}
         style={{ color: chrome.linkColor }}
       >
         {action.label}
@@ -181,32 +157,57 @@ function renderAction(
   return null;
 }
 
-/** Header = primary title (order id + action / pack / design name); kind badge, no type word. */
+/** Section 1 — verbose header + id/status (+ who / details). */
 function PrimaryHeader({
   kind,
   primary,
+  who,
+  details,
   highlight,
   chrome,
-  onAccent,
 }: {
   kind: ChatTradeCardModel['kind'];
   primary: string;
+  who?: string | null;
+  details: string[];
   highlight: (text: string) => ReactNode;
   chrome: ReturnType<typeof directionChrome>;
-  onAccent: boolean;
 }) {
   return (
-    <div className={cx('flex items-center gap-2 border-b px-2.5 py-2', chrome.headerBorder)}>
-      <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={onAccent} />
-      <p
-        className={cx(
-          'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
-          chrome.title,
-          (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
-        )}
-      >
-        {highlight(primary)}
-      </p>
+    <div data-testid="chat-trade-card-header" className={cx('border-b px-2.5 py-2', chrome.headerBorder)}>
+      <div className="flex items-center gap-2">
+        <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={false} />
+        <p
+          className={cx(
+            'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
+            chrome.title,
+            (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
+          )}
+        >
+          {highlight(primary)}
+        </p>
+      </div>
+      {who ? (
+        <p className={cx('mt-0.5 text-[12px] font-medium leading-snug', chrome.who)}>
+          {highlight(who)}
+        </p>
+      ) : null}
+      {details.map((line, index) => {
+        const amount = isAmountLine(line);
+        return (
+          <p
+            key={index}
+            className={cx(
+              'whitespace-pre-wrap break-words leading-snug',
+              amount
+                ? cx('text-[15px] font-semibold tracking-tight tabular-nums', chrome.detailStrong)
+                : cx('text-[12px] font-medium', chrome.detailMuted),
+            )}
+          >
+            {highlight(line)}
+          </p>
+        );
+      })}
     </div>
   );
 }
@@ -223,50 +224,34 @@ function CardBody({
   const hasThumbs = model.thumbs.length > 0;
   const hasFooter = Boolean(model.actionRow && model.actionRow.length > 0);
   const note = model.note?.trim() || '';
+  const hasNote = Boolean(note || model.noteVoiceUrl);
+
+  const hasLinkActions = !hasFooter && Boolean(model.action || model.secondaryAction);
 
   return (
-    <div className="flex flex-col">
-      <div className={cx('flex gap-2.5 px-2.5 py-2', hasThumbs ? 'items-start' : 'items-stretch')}>
-        {hasThumbs ? (
-          <div
-            className="shrink-0 pt-0.5"
-            {...(model.kind === 'complaint' ? { 'data-card-action': true } : {})}
-          >
-            <PhotoAlbum
-              urls={model.thumbs}
-              overflowCount={model.thumbOverflow ?? 0}
-              size="thumb"
-              locked={Boolean(model.imagesLocked)}
-              interactive={model.kind === 'complaint'}
-            />
-          </div>
-        ) : null}
-        <div className="min-w-0 flex-1">
-          {model.who ? (
-            <p className={cx('text-[12px] font-medium leading-snug', chrome.who)}>
-              {highlight(model.who)}
-            </p>
-          ) : null}
-          {model.details.map((line, index) => {
-            const amount = isAmountLine(line);
-            return (
-              <p
-                key={index}
-                className={cx(
-                  'whitespace-pre-wrap break-words leading-snug',
-                  amount
-                    ? cx('text-[15px] font-semibold tracking-tight tabular-nums', chrome.detailStrong)
-                    : cx('text-[12px] font-medium', chrome.detailMuted),
-                )}
-              >
-                {highlight(line)}
-              </p>
-            );
-          })}
+    <div className="flex w-full min-w-0 flex-col">
+      {hasThumbs ? (
+        <div
+          data-testid="chat-trade-card-images"
+          className="w-full px-2.5 py-2"
+          {...(model.kind === 'complaint' ? { 'data-card-action': true } : {})}
+        >
+          <PhotoAlbum
+            urls={model.thumbs}
+            overflowCount={model.thumbOverflow ?? 0}
+            size="thumb"
+            locked={Boolean(model.imagesLocked)}
+            interactive={model.kind === 'complaint'}
+          />
+        </div>
+      ) : null}
+
+      {hasNote ? (
+        <div data-testid="chat-trade-card-note" className="w-full px-2.5 py-2">
           {note ? (
             <p
               className={cx(
-                'mt-1 whitespace-pre-wrap break-words text-[15px] font-semibold tracking-tight leading-snug',
+                'whitespace-pre-wrap break-words text-[15px] font-semibold tracking-tight leading-snug',
                 chrome.note,
               )}
             >
@@ -274,43 +259,48 @@ function CardBody({
             </p>
           ) : null}
           {model.noteVoiceUrl ? (
-            <div className="mt-1 min-w-0">
+            <div className={cx(note ? 'mt-1' : undefined, 'min-w-0')}>
               <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
             </div>
           ) : null}
-          {!hasFooter ? (
-            <>
-              {model.action ? renderAction(model.action, chrome) : null}
-              {model.secondaryAction ? (
-                model.secondaryAction.onClick ? (
-                  <button
-                    type="button"
-                    data-card-action
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      model.secondaryAction?.onClick?.();
-                    }}
-                    className={cx(
-                      'mt-1 self-start text-[13px] font-semibold tracking-tight',
-                      chrome.link,
-                    )}
-                  >
-                    {model.secondaryAction.label}
-                  </button>
-                ) : (
-                  <p className={cx('mt-1 text-[12px] font-medium', chrome.detailMuted)}>
-                    {model.secondaryAction.label}
-                  </p>
-                )
-              ) : null}
-            </>
-          ) : null}
-          <p className={cx('mt-1 text-right text-[11px]', chrome.time)}>{timeAgo(model.createdAt)}</p>
         </div>
-      </div>
+      ) : null}
+
+      {hasLinkActions ? (
+        <div
+          data-testid="chat-trade-card-actions"
+          className={cx('w-full border-t', chrome.footerBorder)}
+        >
+          {model.action ? renderAction(model.action, chrome) : null}
+          {model.secondaryAction ? (
+            model.secondaryAction.onClick ? (
+              <button
+                type="button"
+                data-card-action
+                onClick={(event) => {
+                  event.stopPropagation();
+                  model.secondaryAction?.onClick?.();
+                }}
+                className={cx(
+                  'w-full px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight',
+                  chrome.link,
+                )}
+              >
+                {model.secondaryAction.label}
+              </button>
+            ) : (
+              <p className={cx('px-2.5 py-1 text-[12px] font-medium', chrome.detailMuted)}>
+                {model.secondaryAction.label}
+              </p>
+            )
+          ) : null}
+        </div>
+      ) : null}
+
       {hasFooter ? (
         <div
-          className={cx('grid border-t', chrome.footerBorder)}
+          data-testid="chat-trade-card-actions"
+          className={cx('grid w-full border-t', chrome.footerBorder)}
           style={{ gridTemplateColumns: `repeat(${model.actionRow!.length}, minmax(0, 1fr))` }}
         >
           {model.actionRow!.map((action, index) => {
@@ -337,6 +327,18 @@ function CardBody({
           })}
         </div>
       ) : null}
+
+      <p
+        data-testid="chat-trade-card-time"
+        className={cx(
+          'w-full px-2.5 pb-2 text-right text-[11px]',
+          !hasNote && !hasThumbs && !hasLinkActions && !hasFooter && 'pt-2',
+          (hasLinkActions || hasFooter) && 'pt-1',
+          chrome.time,
+        )}
+      >
+        {timeAgo(model.createdAt)}
+      </p>
     </div>
   );
 }
@@ -380,9 +382,6 @@ export function ChatTradeCard({
     );
 
   if (model.variant === 'pulse') {
-    // Never use a native <button> shell — Tailwind preflight sets
-    // `button { background-color: transparent }`, which strips outgoing teal fill
-    // while leaving white link text (pale card + invisible "View order").
     const pulseClass = cx(
       MSG_BUBBLE_CLASS,
       'w-full px-2.5 py-2 text-left text-sm',
@@ -397,7 +396,7 @@ export function ChatTradeCard({
             messageType={typeKeyForKind(model.kind)}
             size={18}
             iconSize={12}
-            onAccent={model.mine}
+            onAccent={false}
           />
           <p
             className={cx(
@@ -434,24 +433,82 @@ export function ChatTradeCard({
             <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
           </div>
         ) : null}
-        {model.action ? <div className="mt-1">{renderAction(model.action, chrome)}</div> : null}
+        {model.action ? (
+          <div className="mt-1">
+            {model.action.to ? (
+              <Link
+                to={model.action.to}
+                data-card-action
+                onClick={(event) => event.stopPropagation()}
+                className={cx('text-[13px] font-semibold tracking-tight', chrome.link)}
+                style={{ color: chrome.linkColor }}
+              >
+                {model.action.label}
+              </Link>
+            ) : model.action.onClick ? (
+              <button
+                type="button"
+                data-card-action
+                onClick={(event) => {
+                  event.stopPropagation();
+                  model.action?.onClick?.();
+                }}
+                className={cx('text-[13px] font-semibold tracking-tight', chrome.link)}
+                style={{ color: chrome.linkColor }}
+              >
+                {model.action.label}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <p className={cx('mt-1 text-right text-[11px]', chrome.time)}>{timeAgo(model.createdAt)}</p>
       </>
     );
     return (
       <>
+        <div
+          role={open ? 'button' : undefined}
+          tabIndex={open ? 0 : undefined}
+          className={pulseClass}
+          ref={(el) => applyShellPaint(el, chrome.shellStyle)}
+          data-testid="chat-trade-card-pulse"
+          data-mine={model.mine ? 'true' : 'false'}
+          onClick={
+            open
+              ? (event) => {
+                  if ((event.target as HTMLElement).closest('[data-card-action]')) return;
+                  event.stopPropagation();
+                  open();
+                }
+              : undefined
+          }
+          onKeyDown={
+            open
+              ? (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    open();
+                  }
+                }
+              : undefined
+          }
+        >
+          {body}
+        </div>
+        {album}
+      </>
+    );
+  }
+
+  return (
+    <>
       <div
         role={open ? 'button' : undefined}
         tabIndex={open ? 0 : undefined}
-        className={pulseClass}
-        ref={(el) => applyShellPaint(el, chrome.shellStyle)}
-        data-testid="chat-trade-card-pulse"
-        data-mine={model.mine ? 'true' : 'false'}
         onClick={
           open
             ? (event) => {
                 if ((event.target as HTMLElement).closest('[data-card-action]')) return;
-                event.stopPropagation();
                 open();
               }
             : undefined
@@ -466,58 +523,28 @@ export function ChatTradeCard({
               }
             : undefined
         }
+        className={cx(
+          MSG_BUBBLE_CLASS,
+          'w-full overflow-hidden text-sm',
+          chatBubbleCorners(model.mine),
+          chrome.shell,
+          open && 'cursor-pointer',
+        )}
+        ref={(el) => applyShellPaint(el, chrome.shellStyle)}
+        data-testid="chat-trade-card"
+        data-mine={model.mine ? 'true' : 'false'}
       >
-        {body}
+        <PrimaryHeader
+          kind={model.kind}
+          primary={model.primary}
+          who={model.who}
+          details={model.details}
+          highlight={highlight}
+          chrome={chrome}
+        />
+        <CardBody model={model} highlight={highlight} chrome={chrome} />
       </div>
       {album}
-    </>
-    );
-  }
-
-  return (
-    <>
-    <div
-      role={open ? 'button' : undefined}
-      tabIndex={open ? 0 : undefined}
-      onClick={
-        open
-          ? (event) => {
-              if ((event.target as HTMLElement).closest('[data-card-action]')) return;
-              open();
-            }
-          : undefined
-      }
-      onKeyDown={
-        open
-          ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                open();
-              }
-            }
-          : undefined
-      }
-      className={cx(
-        MSG_BUBBLE_CLASS,
-        'w-full overflow-hidden text-sm',
-        chatBubbleCorners(model.mine),
-        chrome.shell,
-        open && 'cursor-pointer',
-      )}
-      ref={(el) => applyShellPaint(el, chrome.shellStyle)}
-      data-testid="chat-trade-card"
-      data-mine={model.mine ? 'true' : 'false'}
-    >
-      <PrimaryHeader
-        kind={model.kind}
-        primary={model.primary}
-        highlight={highlight}
-        chrome={chrome}
-        onAccent={model.mine}
-      />
-      <CardBody model={model} highlight={highlight} chrome={chrome} />
-    </div>
-    {album}
     </>
   );
 }

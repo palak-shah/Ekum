@@ -59,7 +59,7 @@ import { youSavedHref } from '@/features/saved/youSavedHref';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
-import { BookmarkIcon, RepostIcon, ShareIcon } from '@/ui/icons';
+import { BookmarkIcon, PaperPlaneIcon, RepostIcon } from '@/ui/icons';
 import { Button, EmptyState, LoadingBlock, cx } from '@/ui/kit';
 
 type DesignRow = BrowseShortlistEntry & { availability?: SelectionAvailability };
@@ -630,7 +630,7 @@ export function SelectionPage() {
                               setShareOpen(true);
                             }}
                           >
-                            <ShareIcon width={22} height={22} />
+                            <PaperPlaneIcon width={22} height={22} />
                           </DockIconButton>
                         ) : null}
                       </div>

@@ -5,6 +5,7 @@ import { AppShell } from './AppShell';
 import { RequireAuth } from './RequireAuth';
 import { NotFoundPage, RouteErrorPage } from './RouteErrorPage';
 import { AuthProvider } from '@/lib/auth';
+import { ThemeProvider } from '@/theme/ThemeProvider';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
 import { LoadingBlock } from '@/ui/kit';
@@ -142,7 +143,9 @@ const TeamInviteLandingPage = page(
 function AppRoot() {
   return (
     <AuthProvider>
-      <ToastRoot />
+      <ThemeProvider>
+        <ToastRoot />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

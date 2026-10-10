@@ -30,7 +30,7 @@ import { clearSelection } from '@/features/browse/clearSelection';
 import { addStagingToCart } from '@/features/browse/addStagingToCart';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { useToast } from '@/ui/Toast';
-import { CartIcon, ChatIcon, ShareIcon } from '@/ui/icons';
+import { CartIcon, ChatIcon, PaperPlaneIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 
 /** @deprecated floater height — dock uses BottomTradeDock. Kept for tests. */
@@ -163,7 +163,7 @@ export function SelectionWorkspaceBar() {
                   label="Share"
                   onClick={() => setShareOpen(true)}
                 >
-                  <ShareIcon width={22} height={22} />
+                  <PaperPlaneIcon width={22} height={22} />
                 </DockIconButton>
               </div>
               <button

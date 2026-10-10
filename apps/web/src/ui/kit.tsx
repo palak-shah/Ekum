@@ -22,7 +22,8 @@ export { cx } from '@/lib/cx';
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-dark active:bg-accent-dark disabled:opacity-45',
+  primary:
+    'bg-accent text-white hover:bg-accent-dark active:bg-accent-dark disabled:bg-accent-muted disabled:text-white disabled:opacity-100',
   secondary:
     'bg-surface text-accent border-[1.5px] border-accent hover:bg-foam active:bg-foam disabled:opacity-45',
   ghost: 'text-accent hover:bg-foam active:bg-foam disabled:opacity-45',
@@ -208,7 +209,7 @@ export const TextArea = forwardRef<
       className={cx(
         formControlWidthClass(className),
         !hasMinH && 'min-h-24',
-        'rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:italic placeholder:font-normal placeholder:text-muted/50 focus:border-accent',
+        'rounded-xl border border-line bg-input px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:italic placeholder:font-normal placeholder:text-muted/50 focus:border-accent',
         className,
       )}
       {...props}
@@ -392,6 +393,7 @@ export function Sheet({
   children,
   footer,
   panelClassName,
+  size = 'sheet',
 }: {
   open: boolean;
   onClose: () => void;
@@ -404,26 +406,39 @@ export function Sheet({
   footer?: ReactNode;
   /** Extra classes on the panel (e.g. a fixed height so select does not resize). */
   panelClassName?: string;
+  /** `full` = edge-to-edge height; default bottom sheet hugs content up to max-h. */
+  size?: 'sheet' | 'full';
 }) {
   if (!open || typeof document === 'undefined') {
     return null;
   }
+  const full = size === 'full';
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center"
+      className={cx(
+        'fixed inset-0 z-[80] flex justify-center',
+        full ? 'items-stretch' : 'items-end',
+      )}
       role="dialog"
       aria-modal="true"
     >
-      <button aria-label="Dismiss" className="absolute inset-0 bg-ink/35" onClick={onClose} />
+      {full ? null : (
+        <button aria-label="Dismiss" className="absolute inset-0 bg-ink/35" onClick={onClose} />
+      )}
       <div
         className={cx(
-          'ekum-sheet relative z-10 flex max-h-[min(92dvh,40rem)] w-full max-w-md flex-col rounded-t-2xl bg-surface px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
+          'ekum-sheet relative z-10 flex w-full max-w-md flex-col bg-surface',
+          full
+            ? 'h-[100dvh] max-h-[100dvh] rounded-none px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] shadow-none'
+            : 'max-h-[min(92dvh,40rem)] rounded-t-2xl px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
           panelClassName,
         )}
       >
-        <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
-        {title || onBack ? (
-          <div className="mb-4 flex shrink-0 items-center gap-2">
+        {full ? null : (
+          <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
+        )}
+        {title || onBack || full ? (
+          <div className={cx('flex shrink-0 items-center gap-2', full ? 'mb-3' : 'mb-4')}>
             {onBack ? (
               <button
                 type="button"
@@ -452,12 +467,33 @@ export function Sheet({
             </button>
           </div>
         ) : null}
-        <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer ? (
-          <div className="ekum-no-scrollbar mt-3 max-h-[min(55dvh,24rem)] shrink-0 overflow-y-auto border-t border-line pt-3.5">
-            {footer}
+        {full ? (
+          /**
+           * Pack body + footer under the header. Short lists leave empty space
+           * below the composer (not a dead band between list and actions).
+           * Long lists scroll; footer sticks to the bottom of the scrollport.
+           */
+          <div
+            className="ekum-no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto"
+            data-testid="sheet-full-scroll"
+          >
+            <div className="shrink-0">{children}</div>
+            {footer ? (
+              <div className="sticky bottom-0 z-[1] -mx-4 shrink-0 border-t border-line bg-canvas px-4 pt-3 pb-1">
+                {footer}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        ) : (
+          <>
+            <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {footer ? (
+              <div className="ekum-no-scrollbar mt-3 max-h-[min(55dvh,24rem)] shrink-0 overflow-y-auto border-t border-line pt-3.5">
+                {footer}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>,
     document.body,

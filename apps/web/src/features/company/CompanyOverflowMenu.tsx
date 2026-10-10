@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { MuteFor } from '@ekum/domain-types';
 import { MUTE_FOR_OPTIONS } from '@/features/chats/ChatMuteDurationFlyout';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
-import { BellIcon, LockIcon, ShareIcon, TrashIcon } from '@/ui/icons';
+import { BellIcon, LockIcon, PaperPlaneIcon, TrashIcon } from '@/ui/icons';
 import type { ShopOverflowItem } from './shopOverflowMenu';
 
 export function CompanyOverflowMenu({
@@ -41,7 +41,7 @@ export function CompanyOverflowMenu({
       return {
         id: 'share',
         label: 'Share',
-        icon: <ShareIcon width={20} height={20} />,
+        icon: <PaperPlaneIcon width={20} height={20} />,
         testId: 'company-overflow-share',
         onClick: () => {
           onClose();

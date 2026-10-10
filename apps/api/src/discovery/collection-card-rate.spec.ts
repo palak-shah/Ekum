@@ -57,4 +57,18 @@ describe('collectionCardRateFields', () => {
       }),
     ).toEqual({ rateMin: 1500, rateMax: null, rateUnit: 'pc' });
   });
+
+  it('pack rate with mixed member units omits rateUnit', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 1500,
+        rateMax: null,
+        products: [
+          { product: { rate: 1200, unit: 'pc' } },
+          { product: { rate: 800, unit: 'mtr' } },
+        ],
+      }),
+    ).toEqual({ rateMin: 1500, rateMax: null, rateUnit: null });
+  });
 });

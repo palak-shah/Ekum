@@ -10,7 +10,7 @@ export function KindIconBadge({
   messageType: string;
   size?: number;
   iconSize?: number;
-  /** White translucent badge when sitting on solid Ekum teal (outgoing). */
+  /** Translucent white icon when sitting on a solid dark accent fill (legacy). */
   onAccent?: boolean;
 }) {
   const { Icon } = chatTypeMeta(messageType);
@@ -18,8 +18,8 @@ export function KindIconBadge({
     <span
       className={cx(
         'inline-flex shrink-0 items-center justify-center rounded-md',
-        /* Avoid kind-order-soft / foam wash — that made incoming cards look pale green. */
-        onAccent ? 'bg-white/15 text-white' : 'bg-canvas text-accent',
+        /* Soft accent wash — not canvas white (clashes on chat-out green cards). */
+        onAccent ? 'bg-white/15 text-white' : 'bg-accent/10 text-accent',
       )}
       style={{ width: size, height: size }}
     >

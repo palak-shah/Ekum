@@ -112,7 +112,7 @@ import {
   LockIcon,
   MegaphoneIcon,
   MoreHorizontalIcon,
-  ShareIcon,
+  PaperPlaneIcon,
   UnlockIcon,
 } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
@@ -1968,7 +1968,7 @@ export function CollectionEditorPage() {
       {
         id: 'share',
         label: 'Share',
-        icon: <ShareIcon width={20} height={20} />,
+        icon: <PaperPlaneIcon width={20} height={20} />,
         onClick: () => {
           setMoreOpen(false);
           setShareOpen(true);
@@ -2452,7 +2452,7 @@ export function CollectionEditorPage() {
                         </div>
                       )}
                       {on ? (
-                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
+                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-bold text-white">
                           ✓
                         </span>
                       ) : null}

@@ -26,7 +26,7 @@ import {
   MoreHorizontalIcon,
   OrdersIcon,
   ProductIcon,
-  ShareIcon,
+  PaperPlaneIcon,
   UnlockIcon,
 } from '@/ui/icons';
 import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
@@ -686,7 +686,7 @@ export function CompanyProfilePage() {
               label="Share"
               onClick={() => setCatalogShareOpen(true)}
             >
-              <ShareIcon width={22} height={22} />
+              <PaperPlaneIcon width={22} height={22} />
             </DockIconButton>
             <DockIconButton
               testId="company-shop-order"

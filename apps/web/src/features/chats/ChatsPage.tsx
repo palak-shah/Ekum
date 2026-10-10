@@ -282,7 +282,7 @@ export function ChatsPage() {
                       <span
                         className={cx(
                           'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
-                          chip === value ? 'bg-white/25 text-white' : 'bg-accent text-white',
+                          chip === value ? 'bg-white/25 text-white' : 'bg-badge text-white',
                         )}
                       >
                         {badge}

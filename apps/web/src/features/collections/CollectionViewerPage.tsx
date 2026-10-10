@@ -119,7 +119,7 @@ import {
 } from '@/ui/kit';
 import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
-import { BookmarkIcon, ChatIcon, LockIcon, MoreHorizontalIcon, ShareIcon } from '@/ui/icons';
+import { BookmarkIcon, ChatIcon, LockIcon, MoreHorizontalIcon, PaperPlaneIcon } from '@/ui/icons';
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { designMatchesFind } from '@/features/catalog/catalogSearch';
 import { useToast } from '@/ui/Toast';
@@ -1035,7 +1035,7 @@ export function CollectionViewerPage() {
             {
               id: 'share',
               label: 'Share',
-              icon: <ShareIcon width={20} height={20} />,
+              icon: <PaperPlaneIcon width={20} height={20} />,
               disabled: !id,
               onClick: () => {
                 setMoreOpen(false);
@@ -1388,7 +1388,7 @@ export function CollectionViewerPage() {
                         </div>
                       )}
                       {on ? (
-                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
+                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-bold text-white">
                           ✓
                         </span>
                       ) : null}

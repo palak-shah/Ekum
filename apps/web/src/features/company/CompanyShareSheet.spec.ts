@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { companyProfileShareBody, companyProfileShareUrl } from './CompanyShareSheet';
+import { companyProfileShareBody, companyProfileShareUrl } from './companyProfileShare';
 
 describe('company profile share copy', () => {
   it('builds the public shop URL', () => {

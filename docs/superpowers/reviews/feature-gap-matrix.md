@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-10 (edit collection details only)  
+**Updated:** 2026-10-10 (theme system + chat visuals)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,8 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Platform | Master light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-10-theme-system; kit accent-muted / input / badge |
+| Chat | Theme wallpaper + chat-out/in bubbles; trade cards header→images→note→actions | Works | Unit | Required | Completeness 2026-10-10-chat-theme-cards; no wallpaper picker |
 | Collections | Edit collection = pack details only (no member grid; membership on album) | Works | Unit | Required | Completeness 2026-10-10-edit-collection-details-only |
 | Collections | Create/edit Rate per + unit select (default pc; syncs dispatch/unit) | Works | Unit | Required | Completeness 2026-10-10-rate-per-unit-select |
 | Collections | Create/edit Order and dispatch collapsed accordion (pack page only) | Works | Unit | Required | Completeness 2026-10-10-order-dispatch-accordion |
@@ -139,6 +141,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
 | Collections | Pack publish does not Explore-post member designs | Works | Unit | Required | Completeness 2026-09-11-collection-publish-no-design-explore |
 | Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; Publish-style group chips, unique shops) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share + 2026-10-04-share-buyer-groups + 2026-10-05-catalog-share-sheet-quiet |
+| Explore / Catalog / Company | Universal Share (content-height sheet; paper-plane; Create group quiet text; composer + primary Send; quieter native ShareIcon; catalog + company) | Works | Unit | Required | Completeness 2026-10-10-universal-share |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |

@@ -381,7 +381,7 @@ function NavItem({
             {badge != null && badge > 0 ? (
               <span
                 aria-hidden
-                className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white"
+                className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-1 text-[10px] font-bold text-white"
               >
                 {tabCountLabel(badge)}
               </span>

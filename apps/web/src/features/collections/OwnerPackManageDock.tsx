@@ -1,6 +1,6 @@
 import { Button } from '@/ui/kit';
 import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
-import { CartIcon, ShareIcon, TrashIcon } from '@/ui/icons';
+import { CartIcon, PaperPlaneIcon, TrashIcon } from '@/ui/icons';
 
 const iconBtnClass =
   'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface disabled:opacity-40';
@@ -69,7 +69,7 @@ export function OwnerPackManageDock({
               onClick={onShare}
               className={`${iconBtnClass} text-accent`}
             >
-              <ShareIcon width={22} height={22} />
+              <PaperPlaneIcon width={22} height={22} />
             </button>
           ) : null}
           {canDelete ? (

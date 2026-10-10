@@ -31,7 +31,7 @@ export function collectionCardRateFields(input: {
     const units = members.map((p) => p.unit ?? '').filter(Boolean);
     if (units.length === 0) return null;
     const unique = new Set(units);
-    return unique.size === 1 ? units[0]! : units[0]!;
+    return unique.size === 1 ? units[0]! : null;
   })();
 
   if (packRate != null) {

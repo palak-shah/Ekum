@@ -127,12 +127,23 @@ export const SearchIcon = (props: IconProps) => (
   </Icon>
 );
 
-/** Share shop / catalog (header). */
+/** Native / OS share (iOS upload arrow). */
 export const ShareIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M12 3v12" />
     <path d="m8 7 4-4 4 4" />
     <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+  </Icon>
+);
+
+/**
+ * Open in-app Share (rounded paper plane). Stroke via currentColor / theme.
+ * Distinct from SendIcon (chat send) and ShareIcon (native/OS).
+ */
+export const PaperPlaneIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M21 3 10.5 13.5" />
+    <path d="M21 3 14.2 21 10.5 13.5 3 9.8 21 3Z" />
   </Icon>
 );
 
