@@ -78,4 +78,52 @@ describe('OrderService.createBatch', () => {
       },
     ]);
   });
+
+  it('forwards common note attach onto every create call', async () => {
+    const prisma = {
+      product: {
+        findMany: vi.fn(async () => [
+          { id: 'p1', companyId: 'seller-a', company: { name: 'Ahmedabad Loom Co' } },
+        ]),
+      },
+    } as unknown as PrismaService;
+
+    const service = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      {} as TradeAccess,
+      {} as DomainEvents,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      {} as ThreadService,
+      stubTrail,
+    );
+
+    const create = vi.spyOn(service, 'create').mockResolvedValue({
+      id: 'order-a',
+      sellerCompanyId: 'seller-a',
+    } as OrderView);
+
+    await service.createBatch('buyer', 'user-1', {
+      kind: OrderKind.Standard,
+      intent: OrderIntent.Order,
+      note: 'Ship together',
+      noteVoiceMediaId: 'media-voice',
+      noteVoiceDurationMs: 1100,
+      noteImageUrls: ['https://cdn.example/n.jpg'],
+      items: [{ productId: 'p1', quantity: 10, images: [] }],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      'buyer',
+      'user-1',
+      expect.objectContaining({
+        note: 'Ship together',
+        noteVoiceMediaId: 'media-voice',
+        noteVoiceDurationMs: 1100,
+        noteImageUrls: ['https://cdn.example/n.jpg'],
+      }),
+      expect.anything(),
+    );
+  });
 });

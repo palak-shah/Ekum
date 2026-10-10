@@ -7,8 +7,8 @@ import * as chrome from '@/features/collections/collectionViewerChrome';
 
 afterEach(() => cleanup());
 
-describe('ExploreFeedCaption virtual remasure', () => {
-  it('asks the feed to remasure when read more expands', async () => {
+describe('ExploreFeedCaption virtual remeasure', () => {
+  it('asks the feed to remeasure when read more expands', async () => {
     const user = userEvent.setup();
     const remeasure = vi.fn();
     vi.spyOn(chrome, 'noteBlockOverflows').mockReturnValue(true);

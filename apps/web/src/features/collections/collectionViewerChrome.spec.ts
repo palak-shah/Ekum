@@ -76,6 +76,11 @@ describe('collectionOwnerManageDock / company row', () => {
     expect(collectionShowOwnerCompanyRow(false)).toBe(false);
   });
 
+  it('Explore own pack (!packManage) uses browse shortlist — not manage select', () => {
+    // Same gate as manage dock: browse own select = !collectionOwnerManageDock
+    expect(collectionOwnerManageDock({ isOwner: true, packManage: false })).toBe(false);
+  });
+
   it('offers Edit on the design sheet only for own designs on own pack', () => {
     expect(
       collectionOwnerCanEditDesign({

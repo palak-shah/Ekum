@@ -774,14 +774,14 @@ export function SelectionPage() {
         onSendOrder={(lines, place) => {
           const linesForPath = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
           orderFlow.sendOrder(lines, {
-            transporter: place?.transporter,
+            ...place,
             collectionId: collectionIdForPackOrder(linesForPath),
           });
         }}
         onAskRates={(lines, place) => {
           const linesForPath = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
           orderFlow.askRates(lines, {
-            transporter: place?.transporter,
+            ...place,
             collectionId: collectionIdForPackOrder(linesForPath),
           });
         }}

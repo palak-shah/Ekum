@@ -21,6 +21,8 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+const shortlistCompanyId = vi.hoisted(() => ({ current: 'c1' as string }));
+
 vi.mock('@/features/browse/useBrowseShortlist', () => ({
   useBrowseShortlist: () => ({
     count: 1,
@@ -29,8 +31,8 @@ vi.mock('@/features/browse/useBrowseShortlist', () => ({
         productId: 'p1',
         name: 'Navy',
         thumbUrl: null,
-        companyId: 'c1',
-        companyName: 'Mill',
+        companyId: shortlistCompanyId.current,
+        companyName: shortlistCompanyId.current === 'me' ? 'My shop' : 'Mill',
       },
     ],
     setSelectMode: setSelectModeShortlist,
@@ -73,6 +75,7 @@ vi.mock('@/lib/apiClient', () => ({
 describe('SelectionWorkspaceBar', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    shortlistCompanyId.current = 'c1';
     navigate.mockReset();
     addStagingToCart.mockClear();
     setSelectModeShortlist.mockClear();
@@ -163,5 +166,21 @@ describe('SelectionWorkspaceBar', () => {
     });
     expect(navigate).not.toHaveBeenCalledWith('/chats/thread-c1');
     expect(clearSelection).not.toHaveBeenCalled();
+  });
+
+  it('own-shop pile: Message disabled and Order for buyer', () => {
+    shortlistCompanyId.current = 'me';
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/explore']}>
+          <ToastProvider>
+            <SelectionWorkspaceBar />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('selection-workspace-message')).toBeDisabled();
+    expect(screen.getByTestId('selection-workspace-order')).toHaveTextContent('Order for buyer');
   });
 });

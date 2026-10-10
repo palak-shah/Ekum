@@ -390,6 +390,7 @@ export function Sheet({
   onBack,
   backTestId = 'sheet-back',
   title,
+  headerAction,
   children,
   footer,
   panelClassName,
@@ -401,6 +402,8 @@ export function Sheet({
   onBack?: () => void;
   backTestId?: string;
   title?: string;
+  /** Optional control before Close (e.g. ⋯). */
+  headerAction?: ReactNode;
   children: ReactNode;
   /** Pinned below the scroll region (e.g. primary action + compact fields). */
   footer?: ReactNode;
@@ -457,6 +460,7 @@ export function Sheet({
             ) : (
               <span className="min-w-0 flex-1" />
             )}
+            {headerAction}
             <button
               type="button"
               aria-label="Close"

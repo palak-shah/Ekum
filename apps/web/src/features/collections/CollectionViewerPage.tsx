@@ -61,6 +61,7 @@ import {
 } from '@/features/browse/forwardAttribution';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
+import { placeNoteAttachFields } from '@/features/orders/placeNoteAttach';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { PageHeader } from '@/ui/PageHeader';
 import {
@@ -88,7 +89,9 @@ import {
 import { CollectionPackDetails } from '@/features/collections/CollectionPackDetails';
 import { PackDetailBlocks } from '@/features/collections/PackDetailBlocks';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
+import { collectionDesignSheetMoreIds } from '@/features/collections/collectionDesignSheetMore';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
+import type { MoreActionItem } from '@/ui/MoreActionsSheet';
 import { OwnerCollectionMoreSheet } from '@/features/collections/OwnerCollectionMoreSheet';
 import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
 import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
@@ -120,8 +123,17 @@ import {
 } from '@/ui/kit';
 import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
-import { BookmarkIcon, ChatIcon, LockIcon, MoreHorizontalIcon, PaperPlaneIcon } from '@/ui/icons';
+import {
+  BookmarkIcon,
+  ChatIcon,
+  LockIcon,
+  MoreHorizontalIcon,
+  PaperPlaneIcon,
+  PencilIcon,
+  TrashIcon,
+} from '@/ui/icons';
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
+import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { designMatchesFind } from '@/features/catalog/catalogSearch';
 import { useToast } from '@/ui/Toast';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
@@ -218,7 +230,8 @@ export function CollectionViewerPage() {
   useEffect(() => {
     if (!enterSelect) return;
     setPageSelecting(true);
-    shortlist.setSelectMode(true);
+    // Browse own / visitor: shortlist. Manage (packManage): local manageSelected only.
+    if (!packManage) shortlist.setSelectMode(true);
     navigate(location.pathname + location.search, {
       replace: true,
       state: packManage ? { packManage: true } : {},
@@ -287,6 +300,8 @@ export function CollectionViewerPage() {
     thisPackSelectedCount,
   });
   const ownerManageDock = collectionOwnerManageDock({ isOwner, packManage });
+  /** You/＋ manage select vs Explore browse own / visitor shortlist. */
+  const useManageSelect = ownerManageDock;
   usePageOwnsBottomBand(ownerManageDock || packTradeDock);
   usePageSelecting(selectMode);
 
@@ -350,12 +365,12 @@ export function CollectionViewerPage() {
     () => new Map(products.map((product) => [product.id, product.companyId])),
     [products],
   );
-  const thisAlbumCount = isOwner
+  const thisAlbumCount = useManageSelect
     ? visibleDesignIds.filter((id) => manageSelected.has(id)).length
     : visibleDesignIds.filter((id) => shortlist.productIds.has(id)).length;
   const selectAll = selectAllState(
     visibleDesignIds,
-    isOwner ? manageSelected : shortlist.productIds,
+    useManageSelect ? manageSelected : shortlist.productIds,
   );
   const manageSelectedIds = useMemo(() => [...manageSelected], [manageSelected]);
   const ownerCanDelete = canDeleteSelected(manageSelectedIds);
@@ -373,11 +388,11 @@ export function CollectionViewerPage() {
         image: product.images?.[0] ?? null,
       }));
   }, [shareScope, manageSelectedIds, visibleProducts]);
-  /** Visitor float = this album only (not Explore’s global pile). */
-  const floatSelectedCount = isOwner ? manageSelected.size : thisAlbumCount;
+  /** Manage float = local set; browse/visitor = this album shortlist count. */
+  const floatSelectedCount = useManageSelect ? manageSelected.size : thisAlbumCount;
 
   const onSelectAllVisible = () => {
-    if (isOwner) {
+    if (useManageSelect) {
       setPageSelecting(true);
       setManageSelected(new Set(visibleDesignIds));
       return;
@@ -395,7 +410,7 @@ export function CollectionViewerPage() {
     );
   };
   const onClearVisible = () => {
-    if (isOwner) {
+    if (useManageSelect) {
       setManageSelected(new Set());
       setPageSelecting(false);
       return;
@@ -407,7 +422,7 @@ export function CollectionViewerPage() {
 
   const onEnterSelect = () => {
     setPageSelecting(true);
-    if (!isOwner) shortlist.setSelectMode(true);
+    if (!useManageSelect) shortlist.setSelectMode(true);
   };
 
   const invalidateOwnerPack = () => {
@@ -765,6 +780,10 @@ export function CollectionViewerPage() {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
       lines: Array<{ productId: string; quantity: number; note?: string }>;
       transporter?: string;
+      note?: string;
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
     }) => {
       const items = input.lines.map((line) => ({
         productId: line.productId,
@@ -773,10 +792,12 @@ export function CollectionViewerPage() {
         ...(line.note?.trim() ? { note: line.note.trim() } : {}),
       }));
       const transporter = input.transporter?.trim() || undefined;
+      const attach = placeNoteAttachFields(input);
       const batchBody = {
         kind: OrderKind.Standard,
         intent: input.intent,
         ...(transporter ? { transporter } : {}),
+        ...attach,
         items,
       };
       try {
@@ -785,6 +806,7 @@ export function CollectionViewerPage() {
           kind: OrderKind.Standard,
           intent: input.intent,
           ...(transporter ? { transporter } : {}),
+          ...attach,
           items,
         });
       } catch (err) {
@@ -830,7 +852,7 @@ export function CollectionViewerPage() {
   });
 
   const toggleProduct = (product: ProductView) => {
-    if (isOwner) {
+    if (useManageSelect) {
       setManageSelected((prev) => {
         const next = new Set(prev);
         if (next.has(product.id)) next.delete(product.id);
@@ -848,6 +870,27 @@ export function CollectionViewerPage() {
       return;
     }
     shortlist.toggle(toShortlistEntry(product, product.companyName ?? companyName, packStamp));
+  };
+
+  const designIsSelected = (productId: string) =>
+    useManageSelect ? manageSelected.has(productId) : shortlist.productIds.has(productId);
+
+  const onOwnerRemoveOne = async (productId: string) => {
+    if (!id) return;
+    setManageBusy(true);
+    try {
+      const next = membershipAfterRemove(
+        products.map((product) => product.id),
+        [productId],
+      );
+      await persistOwnerMembers(next);
+      setViewerProduct(null);
+      showToast('Removed from collection');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
   };
 
   const openViewer = (product: ProductView, index = 0) => {
@@ -924,7 +967,8 @@ export function CollectionViewerPage() {
 
   const data = collection.data;
   const floaterClearance =
-    (!isOwner && selectMode && thisAlbumCount + albumPick.count > 0) || showResumeContinue;
+    (!useManageSelect && selectMode && thisAlbumCount + albumPick.count > 0) ||
+    showResumeContinue;
   // API: pack rate or design min–max; null for non-owners when on request.
   const rateBand = albumFactsRateBand({
     rateMin: data?.rateMin,
@@ -1141,11 +1185,7 @@ export function CollectionViewerPage() {
                   key={product.id}
                   variant="feed"
                   product={product}
-                  selected={
-                    isOwner
-                      ? manageSelected.has(product.id)
-                      : shortlist.productIds.has(product.id)
-                  }
+                  selected={designIsSelected(product.id)}
                   selectMode={selectMode}
                   shopLine={albumTileShopLine({
                     mixedSources: isCuratedPack,
@@ -1166,11 +1206,7 @@ export function CollectionViewerPage() {
                   key={product.id}
                   variant="grid"
                   product={product}
-                  selected={
-                    isOwner
-                      ? manageSelected.has(product.id)
-                      : shortlist.productIds.has(product.id)
-                  }
+                  selected={designIsSelected(product.id)}
                   selectMode={selectMode}
                   shopLine={albumTileShopLine({
                     mixedSources: isCuratedPack,
@@ -1476,7 +1512,7 @@ export function CollectionViewerPage() {
             packOrder.mutate({
               intent: OrderIntent.Order,
               lines,
-              transporter: place?.transporter,
+              ...place,
             });
           }}
           onAskRates={() => {
@@ -1500,6 +1536,7 @@ export function CollectionViewerPage() {
         index={viewerIndex}
         onIndex={setViewerIndex}
         onClose={() => setViewerProduct(null)}
+        isOwner={isOwner}
         canEdit={
           viewerProduct
             ? collectionOwnerCanEditDesign({
@@ -1515,11 +1552,16 @@ export function CollectionViewerPage() {
           setViewerProduct(null);
           navigate(`/catalog/products/${id}`);
         }}
+        onRemove={() => {
+          if (!viewerProduct) return;
+          void onOwnerRemoveOne(viewerProduct.id);
+        }}
+        removeBusy={manageBusy}
         selectable={canSelectDesigns}
-        selected={viewerProduct ? shortlist.productIds.has(viewerProduct.id) : false}
+        selected={viewerProduct ? designIsSelected(viewerProduct.id) : false}
         onToggleSelect={() => {
           if (viewerProduct) {
-            if (!shortlist.productIds.has(viewerProduct.id)) setPageSelecting(true);
+            if (!designIsSelected(viewerProduct.id)) setPageSelecting(true);
             toggleProduct(viewerProduct);
           }
         }}
@@ -1696,8 +1738,11 @@ function ProductPhotosSheet({
   index,
   onIndex,
   onClose,
+  isOwner = false,
   canEdit = false,
   onEdit,
+  onRemove,
+  removeBusy = false,
   selectable,
   selected,
   onToggleSelect,
@@ -1707,15 +1752,22 @@ function ProductPhotosSheet({
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
+  isOwner?: boolean;
   canEdit?: boolean;
   onEdit?: () => void;
+  onRemove?: () => void;
+  removeBusy?: boolean;
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
 }) {
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => {
-    if (!product) setPhotoOpen(false);
+    if (!product) {
+      setPhotoOpen(false);
+      setMoreOpen(false);
+    }
   }, [product]);
 
   if (!product) return null;
@@ -1723,6 +1775,7 @@ function ProductPhotosSheet({
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
   const current = urls[safeIndex] ?? null;
   const curatedFrom = Boolean(shopLine?.startsWith('From '));
+  const showOwnerMore = isOwner && (canEdit || Boolean(onRemove));
 
   return (
     <>
@@ -1730,22 +1783,27 @@ function ProductPhotosSheet({
         open={Boolean(product)}
         onClose={onClose}
         title={product.name}
+        headerAction={
+          showOwnerMore ? (
+            <button
+              type="button"
+              aria-label="More"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              data-testid="collection-design-more"
+              onClick={() => setMoreOpen(true)}
+              className={cx(listSquareButtonClass, 'text-slate')}
+            >
+              <MoreHorizontalIcon width={20} height={20} />
+            </button>
+          ) : undefined
+        }
         footer={
           <div className="flex flex-col gap-2">
-            {canEdit && onEdit ? (
-              <Button
-                variant="primary"
-                fullWidth
-                data-testid="collection-design-edit"
-                onClick={onEdit}
-              >
-                Edit design
-              </Button>
-            ) : null}
             <ProductSaveButton productId={product.id} />
             {selectable ? (
               <Button
-                variant={selected || canEdit ? 'secondary' : 'primary'}
+                variant={selected ? 'secondary' : 'primary'}
                 fullWidth
                 onClick={onToggleSelect}
               >
@@ -1802,6 +1860,45 @@ function ProductPhotosSheet({
           ) : null}
         </div>
       </Sheet>
+      <MoreActionsSheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        title={product.name}
+        testId="collection-design-more-sheet"
+        items={collectionDesignSheetMoreIds(Boolean(canEdit && onEdit)).flatMap((id): MoreActionItem[] => {
+          if (id === 'edit' && onEdit) {
+            return [
+              {
+                id: 'edit',
+                label: 'Edit design',
+                icon: <PencilIcon width={20} height={20} />,
+                onClick: () => {
+                  setMoreOpen(false);
+                  onEdit();
+                },
+                testId: 'collection-design-edit',
+              },
+            ];
+          }
+          if (id === 'remove' && onRemove) {
+            return [
+              {
+                id: 'remove',
+                label: 'Remove from this collection',
+                icon: <TrashIcon width={20} height={20} />,
+                danger: true,
+                disabled: removeBusy,
+                onClick: () => {
+                  setMoreOpen(false);
+                  onRemove();
+                },
+                testId: 'collection-design-remove',
+              },
+            ];
+          }
+          return [];
+        })}
+      />
       <PhotoViewer
         open={photoOpen && urls.length > 0}
         urls={urls}

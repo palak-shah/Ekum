@@ -9,6 +9,7 @@ import { PhotoAlbum } from './PhotoAlbum';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import type { ChatTradeCardModel } from './chatTradeCard';
 import { MSG_BUBBLE_CLASS } from './messageChrome';
+import { useMessageBubbleChevronPad } from './messageBubbleChevronPad';
 import { chatBubbleCorners } from './chatBubbleCorners';
 
 function typeKeyForKind(kind: ChatTradeCardModel['kind']): string {
@@ -171,6 +172,7 @@ function PrimaryHeader({
   details,
   highlight,
   chrome,
+  chevronBleed,
 }: {
   kind: ChatTradeCardModel['kind'];
   primary: string;
@@ -178,13 +180,14 @@ function PrimaryHeader({
   details: string[];
   highlight: (text: string) => ReactNode;
   chrome: ReturnType<typeof directionChrome>;
+  chevronBleed: boolean;
 }) {
   return (
     <div
       data-testid="chat-trade-card-header"
-      className={cx('border-b', BLEED_CHEVRON_PAD, chrome.headerBorder)}
+      className={cx('border-b', chevronBleed && BLEED_CHEVRON_PAD, chrome.headerBorder)}
     >
-      <div className="px-2.5 py-2 pr-8">
+      <div className={cx('px-2.5 py-2', chevronBleed && 'pr-8')}>
         <div className="flex items-center gap-2">
           <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={false} />
           <p
@@ -227,15 +230,20 @@ function CardBody({
   model,
   highlight,
   chrome,
+  chevronBleed,
 }: {
   model: ChatTradeCardModel;
   highlight: (text: string) => ReactNode;
   chrome: ReturnType<typeof directionChrome>;
+  chevronBleed: boolean;
 }) {
   const hasThumbs = model.thumbs.length > 0;
   const hasFooter = Boolean(model.actionRow && model.actionRow.length > 0);
   const note = model.note?.trim() || '';
   const hasNote = Boolean(note || model.noteVoiceUrl);
+  const bleed = chevronBleed ? BLEED_CHEVRON_PAD : undefined;
+  /** Reserve space under chevron only when MessageChrome pads the bubble. */
+  const underChevron = chevronBleed ? 'pr-8' : undefined;
 
   const hasLinkActions = !hasFooter && Boolean(model.action || model.secondaryAction);
 
@@ -260,12 +268,13 @@ function CardBody({
       {hasNote ? (
         <div
           data-testid="chat-trade-card-note"
-          className={cx('relative px-2.5 py-2', BLEED_CHEVRON_PAD)}
+          className={cx('relative px-2.5 py-2', bleed)}
         >
           {note ? (
             <p
               className={cx(
-                'whitespace-pre-wrap break-words pr-8 text-[15px] font-semibold tracking-tight leading-snug',
+                'whitespace-pre-wrap break-words text-[15px] font-semibold tracking-tight leading-snug',
+                underChevron,
                 chrome.note,
               )}
             >
@@ -273,7 +282,7 @@ function CardBody({
             </p>
           ) : null}
           {model.noteVoiceUrl ? (
-            <div className={cx(note ? 'mt-1' : undefined, 'min-w-0 pr-8')}>
+            <div className={cx(note ? 'mt-1' : undefined, 'min-w-0', underChevron)}>
               <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
             </div>
           ) : null}
@@ -281,7 +290,8 @@ function CardBody({
           <p
             data-testid="chat-trade-card-time"
             className={cx(
-              'absolute bottom-2 right-3 text-[11px] tabular-nums leading-none',
+              'absolute bottom-2 text-[11px] tabular-nums leading-none',
+              chevronBleed ? 'right-3' : 'right-2.5',
               chrome.time,
             )}
           >
@@ -292,9 +302,9 @@ function CardBody({
         <p
           data-testid="chat-trade-card-time"
           className={cx(
-            'pb-2 pr-3 text-right text-[11px] tabular-nums',
-            BLEED_CHEVRON_PAD,
-            !hasThumbs && 'pt-2',
+            // Clear bottom-right bubble radius (incoming rounded-br-2xl).
+            'px-2.5 pb-2.5 pt-2 text-right text-[11px] tabular-nums',
+            bleed,
             hasThumbs && 'pt-0',
             chrome.time,
           )}
@@ -306,7 +316,7 @@ function CardBody({
       {hasLinkActions ? (
         <div
           data-testid="chat-trade-card-actions"
-          className={cx('border-t', BLEED_CHEVRON_PAD, chrome.footerBorder)}
+          className={cx('border-t', bleed, chrome.footerBorder)}
         >
           {model.action ? renderAction(model.action, chrome) : null}
           {model.secondaryAction ? (
@@ -337,7 +347,7 @@ function CardBody({
       {hasFooter ? (
         <div
           data-testid="chat-trade-card-actions"
-          className={cx('grid border-t', BLEED_CHEVRON_PAD, chrome.footerBorder)}
+          className={cx('grid border-t pb-0.5', bleed, chrome.footerBorder)}
           style={{ gridTemplateColumns: `repeat(${model.actionRow!.length}, minmax(0, 1fr))` }}
         >
           {model.actionRow!.map((action, index) => {
@@ -353,7 +363,7 @@ function CardBody({
                   action.onClick?.();
                 }}
                 className={cx(
-                  'px-2 py-2 text-center text-[12px] font-semibold leading-tight tracking-tight',
+                  'px-2 py-2.5 text-center text-[12px] font-semibold leading-tight tracking-tight',
                   index > 0 && cx('border-l', chrome.footerBorder),
                   accent ? chrome.footerAccent : chrome.footerQuiet,
                 )}
@@ -394,6 +404,7 @@ export function ChatTradeCard({
           ? onOpen
           : undefined;
   const chrome = directionChrome(model.mine);
+  const chevronBleed = useMessageBubbleChevronPad();
   const album =
     albumIndex === null || albumUrls.length === 0 ? null : (
       <PhotoViewer
@@ -550,7 +561,9 @@ export function ChatTradeCard({
         }
         className={cx(
           MSG_BUBBLE_CLASS,
-          'w-full overflow-hidden text-sm',
+          // No overflow-hidden: corner radius + clipped bleed/time/footer (BM-07).
+          // Thumbs already clip inside PhotoAlbum.
+          'w-full text-sm',
           chatBubbleCorners(model.mine),
           chrome.shell,
           open && 'cursor-pointer',
@@ -566,8 +579,14 @@ export function ChatTradeCard({
           details={model.details}
           highlight={highlight}
           chrome={chrome}
+          chevronBleed={chevronBleed}
         />
-        <CardBody model={model} highlight={highlight} chrome={chrome} />
+        <CardBody
+          model={model}
+          highlight={highlight}
+          chrome={chrome}
+          chevronBleed={chevronBleed}
+        />
       </div>
       {album}
     </>

@@ -146,6 +146,7 @@ import {
   messageChromeBubblePad,
   resolveMessageLongPress,
 } from './messageChrome';
+import { MessageBubbleChevronPadContext } from './messageBubbleChevronPad';
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
@@ -3402,6 +3403,7 @@ function MessageChrome({
       actions?.onEdit ||
       actions?.onDelete,
   );
+  const bubbleChevronPad = hasActions && !selecting;
   const chevronOnAccent = actionsOnAccent ?? mine;
   const longPressIntent = resolveMessageLongPress({
     selecting,
@@ -3615,7 +3617,7 @@ function MessageChrome({
         data-testid={canSwipeReply ? `message-swipe-${messageId}` : undefined}
         className={cx(
           'relative touch-pan-y',
-          messageChromeBubblePad(hasActions && !selecting),
+          messageChromeBubblePad(bubbleChevronPad),
           className,
         )}
         style={
@@ -3673,8 +3675,10 @@ function MessageChrome({
           setReveal(0);
         }}
       >
-        {children}
-        {hasActions && !selecting ? (
+        <MessageBubbleChevronPadContext.Provider value={bubbleChevronPad}>
+          {children}
+        </MessageBubbleChevronPadContext.Provider>
+        {bubbleChevronPad ? (
           <button
             ref={chevronRef}
             type="button"
@@ -4081,6 +4085,9 @@ function TimelineItem({
     model.note = undefined;
     model.secondaryAction = undefined;
     model.action = undefined;
+    // Ask / Allow cards are status chrome — no design collage (same density as collection ask).
+    model.thumbs = [];
+    model.thumbOverflow = 0;
     if (pending && isTarget && !selecting) {
       model.actionRow = [
         {

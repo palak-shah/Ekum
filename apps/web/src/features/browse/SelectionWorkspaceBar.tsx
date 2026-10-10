@@ -14,6 +14,7 @@ import {
   subscribePageSelecting,
 } from '@/features/browse/selectionBottomBand';
 import { shouldShowSelectionWorkspaceBar } from '@/features/browse/selectionWorkspaceBarVisibility';
+import { selectionOwnShopVerbs } from '@/features/browse/selectionOwnShopVerbs';
 import {
   shouldShowShopTradeDock,
   shopSelectedCount,
@@ -106,6 +107,10 @@ export function SelectionWorkspaceBar() {
   const singleShopName = singleShopId
     ? selectionShopName(singleShopId, shortlist.entries, albumPick.entries)
     : '';
+  const ownShopVerbs = selectionOwnShopVerbs({
+    singleShopId,
+    myCompanyId: me.data?.id,
+  });
 
   if (typeof document === 'undefined') return null;
   if (readResumeAfterAlbumPick()) return null;
@@ -153,7 +158,7 @@ export function SelectionWorkspaceBar() {
                 <DockIconButton
                   testId="selection-workspace-message"
                   label="Message"
-                  disabled={!singleShopId}
+                  disabled={ownShopVerbs.messageDisabled}
                   onClick={() => setMessageOpen(true)}
                 >
                   <ChatIcon width={22} height={22} />
@@ -171,11 +176,12 @@ export function SelectionWorkspaceBar() {
                 data-testid="selection-workspace-order"
                 onClick={startOrder}
                 className={cx(
-                  'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-4',
+                  'flex min-h-12 shrink-0 items-center justify-center rounded-xl px-3',
+                  ownShopVerbs.ownSelectionShop ? 'min-w-[7.5rem]' : 'min-w-[5.75rem]',
                   'border border-accent bg-accent text-sm font-bold text-white',
                 )}
               >
-                Order
+                {ownShopVerbs.orderLabel}
               </button>
             </div>
           </div>

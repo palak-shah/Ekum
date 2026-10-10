@@ -25,6 +25,7 @@ import {
 } from '@/features/browse/forwardAttribution';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import { placeNoteAttachFields } from '@/features/orders/placeNoteAttach';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatCatalogRate } from '@/lib/catalogRate';
@@ -89,12 +90,17 @@ export function ExploreProductPage() {
     mutationFn: (input: {
       lines: Array<{ productId: string; quantity: number; note?: string }>;
       transporter?: string;
+      note?: string;
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
     }) =>
       api.post<OrderView & { threadId?: string | null }>('/orders', {
         sellerCompanyId:
           handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
         kind: OrderKind.Standard,
         ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
+        ...placeNoteAttachFields(input),
         ...(handlePath
           ? { orderPathPreference: 'handle' as const }
           : { facilitatorCompanyId }),
@@ -120,13 +126,21 @@ export function ExploreProductPage() {
     mutationFn: (input: {
       lines: Array<{ productId: string; quantity: number; note?: string }>;
       transporter?: string;
-    }) =>
-      api.post<OrderView & { threadId?: string | null }>('/orders', {
+      note?: string;
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
+    }) => {
+      const attach = placeNoteAttachFields(input);
+      return api.post<OrderView & { threadId?: string | null }>('/orders', {
         sellerCompanyId:
           handlePath && facilitatorCompanyId ? facilitatorCompanyId : product.data!.company.id,
         kind: OrderKind.Standard,
         intent: OrderIntent.Inquiry,
-        note: product.data?.name ? `Rates for ${product.data.name}` : undefined,
+        note: attach.note ?? (product.data?.name ? `Rates for ${product.data.name}` : undefined),
+        noteVoiceMediaId: attach.noteVoiceMediaId,
+        noteVoiceDurationMs: attach.noteVoiceDurationMs,
+        noteImageUrls: attach.noteImageUrls,
         ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
         ...(handlePath
           ? { orderPathPreference: 'handle' as const }
@@ -137,7 +151,8 @@ export function ExploreProductPage() {
           images: [],
           ...(line.note?.trim() ? { note: line.note.trim() } : {}),
         })),
-      }),
+      });
+    },
     onSuccess: (order) => {
       setQtyOpen(false);
       setOrderError(null);
@@ -347,11 +362,11 @@ export function ExploreProductPage() {
         }
         onSendOrder={(lines, place) => {
           setOrderError(null);
-          createOrder.mutate({ lines, transporter: place?.transporter });
+          createOrder.mutate({ lines, ...place });
         }}
         onAskRates={(lines, place) => {
           setOrderError(null);
-          askRates.mutate({ lines, transporter: place?.transporter });
+          askRates.mutate({ lines, ...place });
         }}
       />
 

@@ -42,6 +42,9 @@ import {
 } from '@/features/orders/howManySheetPhotos';
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import { howManyFooterSlots } from '@/features/orders/howManyFooterSlots';
+import { NoteAttachField } from '@/features/voice/NoteAttachField';
+import type { NoteVoiceValue } from '@/features/voice/NoteVoiceField';
+import type { PlaceNoteAttach } from '@/features/orders/placeNoteAttach';
 import { OrderForBuyerSheet } from './OrderForBuyerSheet';
 
 export type HowManyLine = {
@@ -50,7 +53,7 @@ export type HowManyLine = {
   note?: string;
 };
 
-export type HowManyPlaceOpts = {
+export type HowManyPlaceOpts = PlaceNoteAttach & {
   transporter?: string;
 };
 
@@ -131,6 +134,10 @@ export function HowManyEachSheet({
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [transporter, setTransporter] = useState('');
+  const [note, setNote] = useState('');
+  const [noteVoice, setNoteVoice] = useState<NoteVoiceValue>(null);
+  const [noteImages, setNoteImages] = useState<string[]>([]);
+  const [attachBusy, setAttachBusy] = useState(false);
 
   const productKey = catalogProducts.map((product) => product.id).join(',');
   const qtyKey = sellerId || 'multi';
@@ -149,6 +156,10 @@ export function HowManyEachSheet({
     setForBuyer(false);
     setInviteUrl(null);
     setTransporter(readLastTransporter(qtyKey) ?? '');
+    setNote('');
+    setNoteVoice(null);
+    setNoteImages([]);
+    setAttachBusy(false);
   }, [open, qtyKey, productKey, sheetJob]);
 
   const activeProducts = useMemo(
@@ -202,8 +213,17 @@ export function HowManyEachSheet({
   const canPlace = lines.length > 0 && lines.every((line) => line.quantity != null && line.quantity >= 1);
 
   const placeOpts = (): HowManyPlaceOpts => {
+    const opts: HowManyPlaceOpts = {};
     const trimmed = transporter.trim();
-    return trimmed ? { transporter: trimmed } : {};
+    if (trimmed) opts.transporter = trimmed;
+    const trimmedNote = note.trim();
+    if (trimmedNote) opts.note = trimmedNote;
+    if (noteVoice?.mediaId && noteVoice.durationMs) {
+      opts.noteVoiceMediaId = noteVoice.mediaId;
+      opts.noteVoiceDurationMs = noteVoice.durationMs;
+    }
+    if (noteImages.length > 0) opts.noteImageUrls = noteImages;
+    return opts;
   };
 
   const persistTransporter = () => {
@@ -211,7 +231,7 @@ export function HowManyEachSheet({
     if (trimmed) rememberTransporter(trimmed, qtyKey);
   };
 
-  const busy = Boolean(submitting || asking);
+  const busy = Boolean(submitting || asking || attachBusy);
   const splitBanner = sellerId === 'multi' ? howManySplitBanner(activeProducts) : null;
   const goesTo =
     sellerId === 'multi'
@@ -286,10 +306,21 @@ export function HowManyEachSheet({
           ) : null}
         </div>
       ) : null}
-      {sheetJob === 'order' && (showPlaceOrder || canOrderForBuyer) ? (
-        <TransporterField value={transporter} onChange={setTransporter} disabled={busy} />
-      ) : sheetJob === 'ask' ? (
-        <TransporterField value={transporter} onChange={setTransporter} disabled={busy} />
+      {sheetJob === 'ask' ||
+      (sheetJob === 'order' && (showPlaceOrder || canOrderForBuyer)) ? (
+        <>
+          <NoteAttachField
+            label="Note"
+            note={note}
+            onNoteChange={setNote}
+            voice={noteVoice}
+            onVoiceChange={setNoteVoice}
+            images={noteImages}
+            onImagesChange={setNoteImages}
+            onBusyChange={setAttachBusy}
+          />
+          <TransporterField value={transporter} onChange={setTransporter} disabled={busy} />
+        </>
       ) : null}
       <div className="flex flex-col gap-3">
         {showBuyerToggle ? (
@@ -337,7 +368,14 @@ export function HowManyEachSheet({
 
   return (
     <>
-      <Sheet open={open} onClose={onClose} title={sheetTitle} footer={decideFooter}>
+      <Sheet
+        open={open}
+        onClose={onClose}
+        title={sheetTitle}
+        /** Hug content; raise ceiling like Share so tall lists use the viewport before body scrolls. */
+        panelClassName="max-h-[min(92dvh,100dvh)]"
+        footer={decideFooter}
+      >
         <div className="flex flex-col gap-4 pb-1">
           {splitBanner ? (
             <p

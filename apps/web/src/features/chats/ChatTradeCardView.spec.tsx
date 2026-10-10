@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ChatTradeCard } from './ChatTradeCardView';
 import type { ChatTradeCardModel } from './chatTradeCard';
+import { MessageBubbleChevronPadContext } from './messageBubbleChevronPad';
 
 function model(overrides: Partial<ChatTradeCardModel> = {}): ChatTradeCardModel {
   return {
@@ -18,6 +20,15 @@ function model(overrides: Partial<ChatTradeCardModel> = {}): ChatTradeCardModel 
     noteVoiceDurationMs: 1500,
     ...overrides,
   };
+}
+
+/** MessageChrome with ⋯ pads the bubble — section bleed must match. */
+function withChevronPad(ui: ReactNode, pad = true) {
+  return (
+    <MessageBubbleChevronPadContext.Provider value={pad}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </MessageBubbleChevronPadContext.Provider>
+  );
 }
 
 describe('ChatTradeCard voice note', () => {
@@ -274,7 +285,7 @@ describe('ChatTradeCard section order', () => {
 
   it('puts time at card-edge right-1 under the chevron; dividers bleed past chevron pad', () => {
     render(
-      <MemoryRouter>
+      withChevronPad(
         <ChatTradeCard
           model={model({
             kind: 'collection',
@@ -285,8 +296,8 @@ describe('ChatTradeCard section order', () => {
             noteVoiceUrl: null,
             action: { label: 'View collection →', to: '/collections/1', style: 'link' },
           })}
-        />
-      </MemoryRouter>,
+        />,
+      ),
     );
     const header = screen.getByTestId('chat-trade-card-header');
     const note = screen.getByTestId('chat-trade-card-note');
@@ -306,7 +317,7 @@ describe('ChatTradeCard section order', () => {
 
   it('full-width divider above View action; without note, time sits above the action band', () => {
     render(
-      <MemoryRouter>
+      withChevronPad(
         <ChatTradeCard
           model={model({
             kind: 'designs',
@@ -317,8 +328,8 @@ describe('ChatTradeCard section order', () => {
             noteVoiceUrl: null,
             action: { label: 'View designs →', to: '/designs/set?ids=a,b', style: 'link' },
           })}
-        />
-      </MemoryRouter>,
+        />,
+      ),
     );
     const images = screen.getByTestId('chat-trade-card-images');
     const actions = screen.getByTestId('chat-trade-card-actions');
@@ -336,6 +347,67 @@ describe('ChatTradeCard section order', () => {
     expect(actions.contains(view)).toBe(true);
     expect(time.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(time.className).toMatch(/text-right/);
+  });
+
+  it('no chevron pad (collection ask): no bleed — Deny/Allow and time stay inside the card', () => {
+    render(
+      withChevronPad(
+        <ChatTradeCard
+          model={model({
+            kind: 'collection',
+            primary: 'Wedding Edit 2026',
+            who: 'Ahmedabad Loom Co',
+            details: ['Asked to see this collection'],
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg'],
+            note: '',
+            noteVoiceUrl: null,
+            action: undefined,
+            actionRow: [
+              { label: 'Deny', onClick: () => undefined, style: 'link', emphasis: 'quiet' },
+              { label: 'Allow', onClick: () => undefined, style: 'link', emphasis: 'accent' },
+            ],
+          })}
+        />,
+        false,
+      ),
+    );
+    const card = screen.getByTestId('chat-trade-card');
+    const header = screen.getByTestId('chat-trade-card-header');
+    const actions = screen.getByTestId('chat-trade-card-actions');
+    const time = screen.getByTestId('chat-trade-card-time');
+    // Shell must not clip rounded-br time / Allow (overflow-hidden + radius).
+    expect(card.className).not.toMatch(/overflow-hidden/);
+    expect(header.className).not.toMatch(/-mr-8/);
+    expect(actions.className).not.toMatch(/-mr-8/);
+    expect(time.className).not.toMatch(/-mr-8/);
+    expect(screen.getByText('Deny')).toBeInTheDocument();
+    expect(screen.getByText('Allow')).toBeInTheDocument();
+  });
+
+  it('relist status (no thumbs/actions): time stays inside card — no chevron bleed', () => {
+    render(
+      withChevronPad(
+        <ChatTradeCard
+          model={model({
+            kind: 'design',
+            primary: 'Pack-lock 1788944895783',
+            who: 'Ahmedabad Loom Co',
+            details: ['You can put this in your collection'],
+            thumbs: [],
+            note: '',
+            noteVoiceUrl: null,
+            action: undefined,
+          })}
+        />,
+        false,
+      ),
+    );
+    const card = screen.getByTestId('chat-trade-card');
+    const time = screen.getByTestId('chat-trade-card-time');
+    expect(card.className).not.toMatch(/overflow-hidden/);
+    expect(time.className).not.toMatch(/-mr-8/);
+    expect(time.className).toMatch(/pb-2\.5/);
+    expect(screen.queryByTestId('chat-trade-card-actions')).toBeNull();
   });
 });
 

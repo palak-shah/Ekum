@@ -18,6 +18,10 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
+import {
+  placeNoteAttachFields,
+  type PlaceNoteAttach,
+} from '@/features/orders/placeNoteAttach';
 import { useToast } from '@/ui/Toast';
 
 function toBatchItems(lines: Array<{ productId: string; quantity: number; note?: string }>) {
@@ -29,18 +33,26 @@ function toBatchItems(lines: Array<{ productId: string; quantity: number; note?:
   }));
 }
 
+type PlaceFlowOpts = PlaceNoteAttach & {
+  collectionId?: string;
+  facilitatorCompanyId?: string;
+  transporter?: string;
+};
+
 async function placeFromPackOrBatch(input: {
   intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
   lines: Array<{ productId: string; quantity: number; note?: string }>;
   collectionId?: string;
   facilitatorCompanyId?: string;
   transporter?: string;
-}): Promise<CreateOrdersBatchResult> {
+} & PlaceNoteAttach): Promise<CreateOrdersBatchResult> {
+  const attach = placeNoteAttachFields(input);
   const batchBody = {
     kind: OrderKind.Standard,
     intent: input.intent,
     facilitatorCompanyId: input.facilitatorCompanyId,
     ...(input.transporter ? { transporter: input.transporter } : {}),
+    ...attach,
     items: toBatchItems(input.lines),
   };
   if (!input.collectionId) {
@@ -55,6 +67,7 @@ async function placeFromPackOrBatch(input: {
       kind: OrderKind.Standard,
       intent: input.intent,
       ...(input.transporter ? { transporter: input.transporter } : {}),
+      ...attach,
       items: toBatchItems(input.lines),
     });
     return {
@@ -112,10 +125,7 @@ export function useShortlistOrderFlow() {
     mutationFn: (input: {
       intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
       lines: Array<{ productId: string; quantity: number; note?: string }>;
-      collectionId?: string;
-      facilitatorCompanyId?: string;
-      transporter?: string;
-    }) => {
+    } & PlaceFlowOpts) => {
       return placeFromPackOrBatch(input);
     },
     onSuccess: (payload, variables) => {
@@ -184,28 +194,32 @@ export function useShortlistOrderFlow() {
     asking: batch.isPending && batch.variables?.intent === OrderIntent.Inquiry,
     sendOrder: (
       lines: Array<{ productId: string; quantity: number; note?: string }>,
-      opts?: { collectionId?: string; facilitatorCompanyId?: string; transporter?: string },
+      opts?: PlaceFlowOpts,
     ) => {
       setError(null);
+      const attach = placeNoteAttachFields(opts);
       batch.mutate({
         intent: OrderIntent.Order,
         lines,
         collectionId: opts?.collectionId ?? collectionIdForPackOrder(shortlist.entries),
         facilitatorCompanyId: opts?.facilitatorCompanyId,
         transporter: opts?.transporter,
+        ...attach,
       });
     },
     askRates: (
       lines: Array<{ productId: string; quantity: number; note?: string }>,
-      opts?: { collectionId?: string; facilitatorCompanyId?: string; transporter?: string },
+      opts?: PlaceFlowOpts,
     ) => {
       setError(null);
+      const attach = placeNoteAttachFields(opts);
       batch.mutate({
         intent: OrderIntent.Inquiry,
         lines,
         collectionId: opts?.collectionId ?? collectionIdForPackOrder(shortlist.entries),
         facilitatorCompanyId: opts?.facilitatorCompanyId,
         transporter: opts?.transporter,
+        ...attach,
       });
     },
   };

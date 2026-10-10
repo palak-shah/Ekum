@@ -61,6 +61,7 @@ import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
+import { placeNoteAttachFields } from '@/features/orders/placeNoteAttach';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
 import { GstTick, isGstVerified } from '@/ui/GstTick';
@@ -345,11 +346,16 @@ export function CompanyProfilePage() {
     mutationFn: (input: {
       lines: Array<{ productId: string; quantity: number; note?: string }>;
       transporter?: string;
+      note?: string;
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
     }) =>
       api.post<CreateOrdersBatchResult>('/orders/batch', {
         kind: OrderKind.Standard,
         intent: OrderIntent.Order,
         ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
+        ...placeNoteAttachFields(input),
         items: input.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -747,7 +753,7 @@ export function CompanyProfilePage() {
           setOrderError(null);
           placeShopOrder.mutate({
             lines,
-            transporter: place?.transporter,
+            ...place,
           });
         }}
         onAskRates={() => undefined}

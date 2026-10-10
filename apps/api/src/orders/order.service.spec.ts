@@ -432,6 +432,37 @@ describe('OrderService.create snapshots', () => {
     });
   });
 
+  it('persists create-order note photos on Requested trail and chat meta', async () => {
+    const { service, captured } = makeService({
+      products: [
+        { id: 'p1', name: 'Silk Saree', sku: 'S1', rate: { toNumber: () => 100 }, unit: 'mtr', images: [] },
+      ],
+    });
+    await service.create('buyer', 'user-1', {
+      sellerCompanyId: 'seller',
+      kind: OrderKind.Standard,
+      note: 'Match sample',
+      noteVoiceMediaId: 'media-voice',
+      noteVoiceDurationMs: 1200,
+      noteImageUrls: ['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg'],
+      items: [{ productId: 'p1', quantity: 1, images: [] }],
+    } as CreateOrderDto);
+    expect(captured.messageCreate).toMatchObject({
+      metadata: expect.objectContaining({
+        noteVoiceMediaId: 'media-voice',
+        noteImageUrls: ['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg'],
+      }),
+    });
+    expect(captured.trailAppends).toContainEqual(
+      expect.objectContaining({
+        type: 'requested',
+        note: 'Match sample',
+        noteVoiceMediaId: 'media-voice',
+        noteImageUrls: ['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg'],
+      }),
+    );
+  });
+
   it('posts an order card into the trade thread on create', async () => {
     const { service, captured } = makeService({
       products: [

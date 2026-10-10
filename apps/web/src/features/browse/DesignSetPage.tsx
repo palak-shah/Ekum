@@ -326,10 +326,10 @@ export function DesignSetPage() {
         orderGoesToName={packHandlerName(setEntries)}
         sheetJob={orderFlow.qtyJob}
         onSendOrder={(lines, place) =>
-          orderFlow.sendOrder(lines, { collectionId: undefined, transporter: place?.transporter })
+          orderFlow.sendOrder(lines, { ...place, collectionId: undefined })
         }
         onAskRates={(lines, place) =>
-          orderFlow.askRates(lines, { collectionId: undefined, transporter: place?.transporter })
+          orderFlow.askRates(lines, { ...place, collectionId: undefined })
         }
       />
       <CurateFromSelectionSheet

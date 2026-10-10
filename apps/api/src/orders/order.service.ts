@@ -212,6 +212,7 @@ export class OrderService {
     const inquiry = intent === OrderIntent.Inquiry;
     const tradeMode = resolvedOpts.tradeMode ?? OrderTradeMode.Bilateral;
     const noteVoice = await this.noteVoiceCreateFields(actorCompanyId, dto);
+    const noteImageUrls = normalizeNoteImageUrls(dto.noteImageUrls);
     const order = await this.prisma.order.create({
       data: {
         kind: dto.kind,
@@ -277,6 +278,7 @@ export class OrderService {
                 noteVoiceDurationMs: noteVoice.noteVoiceDurationMs,
               }
             : {}),
+          ...(noteImageUrls.length > 0 ? { noteImageUrls } : {}),
         },
         MessageType.OrderCard,
       );
@@ -303,6 +305,7 @@ export class OrderService {
       noteVoiceMediaId: noteVoice.noteVoiceMediaId,
       noteVoiceUrl: noteVoice.noteVoiceUrl,
       noteVoiceDurationMs: noteVoice.noteVoiceDurationMs,
+      noteImageUrls,
     });
 
     return this.toOrderView(order, actorCompanyId, threadId, livingMessageId);
@@ -393,6 +396,9 @@ export class OrderService {
             intent: dto.intent ?? OrderIntent.Order,
             note: dto.note,
             transporter: dto.transporter,
+            noteVoiceMediaId: dto.noteVoiceMediaId,
+            noteVoiceDurationMs: dto.noteVoiceDurationMs,
+            noteImageUrls: dto.noteImageUrls,
             items: group.items.map((item) => ({
               productId: item.productId,
               quantity: item.quantity,
@@ -497,6 +503,9 @@ export class OrderService {
         intent: dto.intent ?? OrderIntent.Order,
         note: dto.note,
         transporter: dto.transporter,
+        noteVoiceMediaId: dto.noteVoiceMediaId,
+        noteVoiceDurationMs: dto.noteVoiceDurationMs,
+        noteImageUrls: dto.noteImageUrls,
         items: dto.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -544,6 +553,9 @@ export class OrderService {
             kind: dto.kind ?? OrderKind.Standard,
             intent: dto.intent ?? OrderIntent.Order,
             note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
+            noteVoiceMediaId: dto.noteVoiceMediaId,
+            noteVoiceDurationMs: dto.noteVoiceDurationMs,
+            noteImageUrls: dto.noteImageUrls,
             items: group.items.map((item) => ({
               productId: item.productId,
               quantity: item.quantity,
@@ -4409,6 +4421,9 @@ export class OrderService {
             kind: dto.kind,
             intent: dto.intent ?? OrderIntent.Order,
             note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
+            noteVoiceMediaId: dto.noteVoiceMediaId,
+            noteVoiceDurationMs: dto.noteVoiceDurationMs,
+            noteImageUrls: dto.noteImageUrls,
             items,
           },
           { downstreamOrderId: downstreamId, holdUntilSend: true },

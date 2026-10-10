@@ -23,7 +23,8 @@ import { useToast } from '@/ui/Toast';
 import { CameraIcon } from '@/ui/icons';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
-import { NoteVoiceField, type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
+import { NoteAttachField } from '@/features/voice/NoteAttachField';
+import { type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from '@/features/orders/QtyStepper';
 import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
 import {
@@ -96,6 +97,8 @@ export function OrderBuilderPage() {
   const [sellerId, setSellerId] = useState(sellerFromUrl);
   const [note, setNote] = useState('');
   const [noteVoice, setNoteVoice] = useState<NoteVoiceValue>(null);
+  const [noteImages, setNoteImages] = useState<string[]>([]);
+  const [attachBusy, setAttachBusy] = useState(false);
   const [transporter, setTransporter] = useState(() =>
     readLastTransporter(sellerFromUrl || 'multi') ?? '',
   );
@@ -212,6 +215,7 @@ export function OrderBuilderPage() {
             ...(trimmedTransporter ? { transporter: trimmedTransporter } : {}),
             noteVoiceMediaId: noteVoice?.mediaId,
             noteVoiceDurationMs: noteVoice?.durationMs,
+            ...(noteImages.length > 0 ? { noteImageUrls: noteImages } : {}),
             items: standardLines.map((line) => ({
               productId: line.productId,
               quantity: Number(line.quantity),
@@ -226,6 +230,7 @@ export function OrderBuilderPage() {
             ...(trimmedTransporter ? { transporter: trimmedTransporter } : {}),
             noteVoiceMediaId: noteVoice?.mediaId,
             noteVoiceDurationMs: noteVoice?.durationMs,
+            ...(noteImages.length > 0 ? { noteImageUrls: noteImages } : {}),
             items: photos.map((line, index) => ({
               name: `Photo ${index + 1}`,
               quantity: Number(line.quantity),
@@ -737,21 +742,28 @@ export function OrderBuilderPage() {
       <TransporterField
         value={transporter}
         onChange={setTransporter}
-        disabled={create.isPending}
+        disabled={create.isPending || attachBusy}
       />
 
-      <NoteVoiceField
+      <NoteAttachField
         label="Note"
         note={note}
         onNoteChange={setNote}
         voice={noteVoice}
         onVoiceChange={setNoteVoice}
+        images={noteImages}
+        onImagesChange={setNoteImages}
+        onBusyChange={setAttachBusy}
       />
 
       {error ? <InlineNotice message={error} /> : null}
 
       <div className="border-t border-line pt-4">
-        <Button fullWidth disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
+        <Button
+          fullWidth
+          disabled={!canSubmit || create.isPending || attachBusy}
+          onClick={() => create.mutate()}
+        >
           {create.isPending
             ? 'Sending…'
             : isStandard

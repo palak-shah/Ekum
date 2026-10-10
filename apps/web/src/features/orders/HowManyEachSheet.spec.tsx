@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ProductView } from '@ekum/domain-types';
@@ -42,9 +42,13 @@ const product = {
   piecesPerPack: 4,
 } as ProductView;
 
-function renderSheet(props?: { sheetJob?: 'order' | 'ask' }) {
+function renderSheet(props?: {
+  sheetJob?: 'order' | 'ask';
+  onSendOrder?: ReturnType<typeof vi.fn>;
+}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const onSendOrder = props?.onSendOrder ?? vi.fn();
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <HowManyEachSheet
@@ -52,13 +56,14 @@ function renderSheet(props?: { sheetJob?: 'order' | 'ask' }) {
           onClose={vi.fn()}
           sellerId="c1"
           products={[product]}
-          onSendOrder={vi.fn()}
+          onSendOrder={onSendOrder}
           onAskRates={vi.fn()}
           sheetJob={props?.sheetJob ?? 'order'}
         />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, onSendOrder };
 }
 
 describe('HowManyEachSheet line chrome', () => {
@@ -74,6 +79,14 @@ describe('HowManyEachSheet line chrome', () => {
   it('shows optional Transporter in the footer', () => {
     renderSheet();
     expect(screen.getByTestId('transporter-field')).toBeInTheDocument();
+  });
+
+  it('raises sheet max-height like Share so the panel hugs toward the viewport', () => {
+    renderSheet();
+    const panel = document.querySelector('.ekum-sheet');
+    expect(panel).toBeTruthy();
+    expect(panel!.className).toMatch(/max-h-\[min\(92dvh,100dvh\)\]/);
+    expect(screen.queryByTestId('sheet-full-scroll')).toBeNull();
   });
 
   it('order job: Place Order only — no Share or Ask rates; Order for buyer is a switch', () => {
@@ -99,4 +112,31 @@ describe('HowManyEachSheet line chrome', () => {
     await user.click(screen.getByTestId('how-many-order-for-buyer'));
     expect(screen.getByRole('heading', { name: 'Order for buyer' })).toBeInTheDocument();
   });
+
+  it('shows sheet-level Note with Voice · Photo tray above Transporter', async () => {
+    const user = userEvent.setup();
+    renderSheet();
+    expect(screen.getByTestId('note-attach-plus')).toBeInTheDocument();
+    expect(screen.getByTestId('transporter-field')).toBeInTheDocument();
+    await user.click(screen.getByTestId('note-attach-plus'));
+    expect(screen.getByTestId('note-attach-menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Voice/i })).toBeInTheDocument();
+    expect(screen.getByTestId('note-attach-camera')).toBeInTheDocument();
+    expect(screen.getByTestId('note-attach-gallery')).toBeInTheDocument();
+  });
+
+  it('passes common note fields on Place Order', async () => {
+    const user = userEvent.setup();
+    const { onSendOrder } = renderSheet();
+    await user.click(screen.getByRole('button', { name: /Increase/i }));
+    const footer = screen.getByTestId('how-many-footer');
+    const sheetNote = within(footer).getAllByRole('textbox')[0]!;
+    await user.type(sheetNote, 'Match sample');
+    await user.click(screen.getByTestId('how-many-place-order'));
+    expect(onSendOrder).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ productId: 'p1' })]),
+      expect.objectContaining({ note: 'Match sample' }),
+    );
+  });
+
 });
