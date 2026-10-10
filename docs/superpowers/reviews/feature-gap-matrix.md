@@ -155,6 +155,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Hide last live design drafts the pack; viewer lists Published only | Later | Unit | Optional | Superseded 2026-10-06-pack-members-stay-published: pack stays Published; Hide is explicit |
 | Collections | Pack members stay published on add/replace photos; no auto-draft | Works | Unit | Required | Completeness 2026-10-06-pack-members-stay-published |
 | Collections | Own pack manage dock (Add/Replace; selecting Cart · Share · Delete icons · Remove from this collection; hide owner name card; dock only when packManage from You/＋/own shop; Explore own pack uses ⋯ manage trio) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock; 2026-10-06-owner-pack-select-dock-copy; 2026-10-09-owner-pack-select-cart-icons; 2026-10-11-own-pack-manage-entry |
+| Collections | Explore own pack browse select: shortlist + cart · Message (gray) · Share · Order for buyer; design ⋯ Edit · Remove | Works | Unit | Required | Completeness 2026-10-11-explore-own-pack-browse-select |
 | Collections | Edit live pack: **Publish** on own unpublished photo tiles + design sheet | Works | Unit | Required | Completeness 2026-10-06-collection-photo-set-live; pack-only, not Explore tile; word is Publish |
 | Orders | Ordered design leftover says No longer available | Works | Unit | Required | Same leftover as Saved / share |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |
@@ -236,6 +237,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Pack “Order goes to trader” follows Your paths ticket | Works | Unit | Required | sr 16; `viewerTicket` + `collectionShowHandleCopy` |
 | Orders place | How many each: tags + sold-as (Set / Dozen / Metre) · min · rate | Works | Unit | Required | Completeness 2026-09-24-how-many-line-meta; hydrate explore detail |
 | Orders place | How many note strip · qty step 1 · Total N pcs; Catalog default unit set | Works | Unit | Required | Completeness 2026-10-01-how-many-sets-note-strip; name+unit one line; note is Add note until tap |
+| Orders place | How many + Builder: sheet-level NoteAttachField (text + Voice · Photo); create/batch/from-pack persist | Works | Unit + API | Required | Completeness 2026-10-11-how-many-common-note-attach; per-line notes unchanged |
 | Orders / Catalog | Pack size (sets) per design, not one shop rule | Missing | — | Required | Completeness 2026-09-23-order-pack-size — model locked, build later |
 | Orders close | Full dispatch → `dispatched` complete; Settle only on qty mismatch → `settled` | Works | Unit | Required | Completeness 2026-09-07-dispatch-complete-vs-settle |
 | Orders part ship | Partial dispatch → main status `part_shipped` (not Confirmed cue) | Works | Unit | Required | Completeness 2026-09-07-part-shipped-main-status |

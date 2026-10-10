@@ -45,18 +45,24 @@ export const orderItemInputSchema = z.object({
 });
 export type OrderItemInput = z.infer<typeof orderItemInputSchema>;
 
+/** Optional text + voice + photo note fields shared by create and update DTOs. */
+export const orderNoteVoiceFields = {
+  note: z.string().trim().max(1000).optional(),
+  noteVoiceMediaId: z.string().min(1).optional(),
+  noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
+  /** Optional photo URLs beside the note (after upload; cap 9). */
+  noteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
+} as const;
+
 export const createOrderSchema = z
   .object({
     sellerCompanyId: z.string().min(1),
     kind: z.enum(orderKindValues).default(OrderKind.Standard),
     /** Soft rate ask vs firm place-order. Default order. */
     intent: z.enum(orderIntentValues).default(OrderIntent.Order),
-    note: z.string().trim().max(1000).optional(),
+    ...orderNoteVoiceFields,
     /** Optional preferred transporter (free text; buyer at place). */
     transporter: z.string().trim().max(120).optional(),
-    /** Optional voice clip beside the text note (media id after upload). */
-    noteVoiceMediaId: z.string().min(1).optional(),
-    noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
     /** Direct mode: keep this company informed (must have trading on). */
     facilitatorCompanyId: z.string().min(1).optional(),
     /** I handle: buyer ticket is with seller; foreign designs allowed + upstream. */
@@ -118,7 +124,7 @@ export type CreateForBuyerDto = z.infer<typeof createForBuyerSchema>;
 export const createOrdersBatchSchema = z.object({
   kind: z.enum(orderKindValues).default(OrderKind.Standard),
   intent: z.enum(orderIntentValues).default(OrderIntent.Order),
-  note: z.string().trim().max(1000).optional(),
+  ...orderNoteVoiceFields,
   /** Optional preferred transporter (applied to every ticket in the batch). */
   transporter: z.string().trim().max(120).optional(),
   /** Direct mode: keep this company informed (must have trading on). */
@@ -139,7 +145,7 @@ export const createOrdersFromPackSchema = z.object({
   collectionId: z.string().min(1),
   kind: z.enum(orderKindValues).default(OrderKind.Standard),
   intent: z.enum(orderIntentValues).default(OrderIntent.Order),
-  note: z.string().trim().max(1000).optional(),
+  ...orderNoteVoiceFields,
   /** Optional preferred transporter. */
   transporter: z.string().trim().max(120).optional(),
   items: z
@@ -171,15 +177,6 @@ export interface CreateOrdersBatchResult {
   orders: OrderView[];
   failures: CreateOrdersBatchFailure[];
 }
-
-/** Optional text + voice note fields shared by order update DTOs. */
-export const orderNoteVoiceFields = {
-    note: z.string().trim().max(1000).optional(),
-    noteVoiceMediaId: z.string().min(1).optional(),
-    noteVoiceDurationMs: z.number().int().positive().max(120_000).optional(),
-    /** Optional photo URLs beside the note (after upload; cap 9). */
-    noteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
-} as const;
 
 /** Shared book / PO number both parties see. */
 export const updateManualOrderRefSchema = z.object({
