@@ -94,18 +94,70 @@ describe('CatalogShareSheet empty network', () => {
     vi.clearAllMocks();
   });
 
-  it('shows Find on Ekum, Find in Explore, Create group, and native share when there are no connections', async () => {
+  it('shows Find on Ekum link, Find in Explore, Create group, and native share when there are no connections', async () => {
     renderSheet([]);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Find on Ekum')).toBeInTheDocument();
+      expect(screen.getByTestId('find-on-ekum-link')).toBeInTheDocument();
     });
+    // Link mode — no second idle Find field until tap with empty search.
+    expect(screen.queryByLabelText('Find on Ekum')).toBeNull();
 
     const link = screen.getByTestId('find-in-explore-link');
     expect(link).toHaveAttribute('href', EXPLORE_BUSINESSES_SEARCH_HREF);
     expect(screen.getByTestId('share-create-group')).toHaveTextContent(/Create group/i);
     expect(screen.getByTestId('catalog-share-link')).toHaveAttribute('aria-label', 'Share outside');
     expect(screen.getByTestId('catalog-share-send')).toBeDisabled();
+  });
+
+  it('after 2+ chars shows Find on Ekum link; tap uses the same query without a second Find field', async () => {
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    renderSheet();
+
+    await waitFor(() => {
+      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('find-on-ekum')).toBeNull();
+
+    // Extend after renderSheet’s default mock so Find can hit /search.
+    vi.mocked(api.get).mockImplementation(async (path: string, params?: unknown) => {
+      if (path === '/connections') return [jaipur, ahmedabad] as never;
+      if (path === '/broadcasts/lists') return [] as never;
+      if (path === '/access-requests/outgoing') return [] as never;
+      if (path === '/settings') {
+        return { tradeDefaults: { orderPathPreference: 'direct' } } as never;
+      }
+      if (path === '/search') {
+        expect((params as { q?: string }).q).toBe('Ka');
+        return {
+          results: [
+            {
+              id: 'co-new',
+              name: 'Kavita Textiles',
+              city: 'Surat',
+              verification: 'none',
+              logoUrl: null,
+              sellCategories: [],
+              buyCategories: [],
+            },
+          ],
+          nextCursor: null,
+        } as never;
+      }
+      if (path === '/threads') return { results: [], nextCursor: null } as never;
+      throw new Error(`unexpected get ${path}`);
+    });
+
+    await user.type(screen.getByPlaceholderText('Search name or city…'), 'Ka');
+    expect(screen.getByTestId('find-on-ekum-link')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('find-on-ekum-link'));
+    await waitFor(() => {
+      expect(screen.getByText('Kavita Textiles')).toBeInTheDocument();
+    });
+    // Query already ≥ 2 — no second Find TextInput to retype into.
+    expect(screen.queryByLabelText('Find on Ekum')).toBeNull();
   });
 });
 

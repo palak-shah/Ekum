@@ -4,11 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { OwnerCollectionMoreSheet } from './OwnerCollectionMoreSheet';
 
 describe('OwnerCollectionMoreSheet', () => {
-  it('lists Share · Who · Add photos · Edit with the collection title', async () => {
+  it('lists Share · Who · manage trio · Edit with the collection title', async () => {
     const user = userEvent.setup();
     const onShare = vi.fn();
     const onWho = vi.fn();
-    const onAdd = vi.fn();
+    const onAddDesigns = vi.fn();
+    const onAddPhotos = vi.fn();
+    const onReplace = vi.fn();
     const onEdit = vi.fn();
     const onClose = vi.fn();
     render(
@@ -18,18 +20,31 @@ describe('OwnerCollectionMoreSheet', () => {
         onClose={onClose}
         onShare={onShare}
         onWhoHasAccess={onWho}
-        onAddPhotos={onAdd}
+        onAddDesigns={onAddDesigns}
+        onAddPhotos={onAddPhotos}
+        onReplace={onReplace}
         onEditDetails={onEdit}
       />,
     );
     expect(screen.getByRole('heading', { name: 'Monsoon Cottons' })).toBeInTheDocument();
     expect(screen.getByTestId('collection-menu-share')).toHaveTextContent('Share this collection');
     expect(screen.getByTestId('collection-menu-who')).toHaveTextContent('Who has access');
+    expect(screen.getByTestId('collection-menu-add-designs')).toHaveTextContent(
+      'Add from existing designs',
+    );
     expect(screen.getByTestId('collection-menu-add-photos')).toHaveTextContent('Add photos');
+    expect(screen.getByTestId('collection-menu-replace')).toHaveTextContent(
+      'Replace entire collection',
+    );
     expect(screen.getByTestId('collection-menu-edit')).toHaveTextContent('Edit collection details');
 
-    await user.click(screen.getByTestId('collection-menu-share'));
+    await user.click(screen.getByTestId('collection-menu-add-designs'));
     expect(onClose).toHaveBeenCalled();
-    expect(onShare).toHaveBeenCalled();
+    expect(onAddDesigns).toHaveBeenCalled();
+
+    onClose.mockClear();
+    await user.click(screen.getByTestId('collection-menu-replace'));
+    expect(onClose).toHaveBeenCalled();
+    expect(onReplace).toHaveBeenCalled();
   });
 });

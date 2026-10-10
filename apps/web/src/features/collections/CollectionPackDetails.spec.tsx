@@ -50,9 +50,12 @@ describe('CollectionPackDetails', () => {
     );
     const more = screen.getByTestId('collection-pack-details-more');
     expect(more).toHaveTextContent('read more');
+    // On the last clamped line — not a new row under the block (BM-11).
+    expect(more.className).toMatch(/absolute/);
     await user.click(more);
     expect(more).toHaveTextContent('Show less');
     expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(more.className).not.toMatch(/absolute/);
   });
 
   it('collapses on whole line boxes — never mid-glyph max-height (BM-07)', () => {

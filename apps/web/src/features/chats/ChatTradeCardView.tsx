@@ -157,6 +157,12 @@ function renderAction(
   return null;
 }
 
+/**
+ * MessageChrome pads the bubble (`pr-8`) for the actions chevron. Bleed section
+ * chrome back to the painted card edge so dividers / time sit under the arrow.
+ */
+const BLEED_CHEVRON_PAD = '-mr-8 w-[calc(100%+2rem)] max-w-none';
+
 /** Section 1 — verbose header + id/status (+ who / details). */
 function PrimaryHeader({
   kind,
@@ -174,40 +180,45 @@ function PrimaryHeader({
   chrome: ReturnType<typeof directionChrome>;
 }) {
   return (
-    <div data-testid="chat-trade-card-header" className={cx('border-b px-2.5 py-2', chrome.headerBorder)}>
-      <div className="flex items-center gap-2">
-        <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={false} />
-        <p
-          className={cx(
-            'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
-            chrome.title,
-            (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
-          )}
-        >
-          {highlight(primary)}
-        </p>
-      </div>
-      {who ? (
-        <p className={cx('mt-0.5 text-[12px] font-medium leading-snug', chrome.who)}>
-          {highlight(who)}
-        </p>
-      ) : null}
-      {details.map((line, index) => {
-        const amount = isAmountLine(line);
-        return (
+    <div
+      data-testid="chat-trade-card-header"
+      className={cx('border-b', BLEED_CHEVRON_PAD, chrome.headerBorder)}
+    >
+      <div className="px-2.5 py-2 pr-8">
+        <div className="flex items-center gap-2">
+          <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={false} />
           <p
-            key={index}
             className={cx(
-              'whitespace-pre-wrap break-words leading-snug',
-              amount
-                ? cx('text-[15px] font-semibold tracking-tight tabular-nums', chrome.detailStrong)
-                : cx('text-[12px] font-medium', chrome.detailMuted),
+              'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
+              chrome.title,
+              (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
             )}
           >
-            {highlight(line)}
+            {highlight(primary)}
           </p>
-        );
-      })}
+        </div>
+        {who ? (
+          <p className={cx('mt-0.5 text-[12px] font-medium leading-snug', chrome.who)}>
+            {highlight(who)}
+          </p>
+        ) : null}
+        {details.map((line, index) => {
+          const amount = isAmountLine(line);
+          return (
+            <p
+              key={index}
+              className={cx(
+                'whitespace-pre-wrap break-words leading-snug',
+                amount
+                  ? cx('text-[15px] font-semibold tracking-tight tabular-nums', chrome.detailStrong)
+                  : cx('text-[12px] font-medium', chrome.detailMuted),
+              )}
+            >
+              {highlight(line)}
+            </p>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -247,11 +258,14 @@ function CardBody({
       ) : null}
 
       {hasNote ? (
-        <div data-testid="chat-trade-card-note" className="w-full px-2.5 py-2">
+        <div
+          data-testid="chat-trade-card-note"
+          className={cx('relative px-2.5 py-2', BLEED_CHEVRON_PAD)}
+        >
           {note ? (
             <p
               className={cx(
-                'whitespace-pre-wrap break-words text-[15px] font-semibold tracking-tight leading-snug',
+                'whitespace-pre-wrap break-words pr-8 text-[15px] font-semibold tracking-tight leading-snug',
                 chrome.note,
               )}
             >
@@ -259,17 +273,40 @@ function CardBody({
             </p>
           ) : null}
           {model.noteVoiceUrl ? (
-            <div className={cx(note ? 'mt-1' : undefined, 'min-w-0')}>
+            <div className={cx(note ? 'mt-1' : undefined, 'min-w-0 pr-8')}>
               <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
             </div>
           ) : null}
+          {/* Under chevron column, inset from the rim (chevron is right-1 / w-7). */}
+          <p
+            data-testid="chat-trade-card-time"
+            className={cx(
+              'absolute bottom-2 right-3 text-[11px] tabular-nums leading-none',
+              chrome.time,
+            )}
+          >
+            {timeAgo(model.createdAt)}
+          </p>
         </div>
-      ) : null}
+      ) : (
+        <p
+          data-testid="chat-trade-card-time"
+          className={cx(
+            'pb-2 pr-3 text-right text-[11px] tabular-nums',
+            BLEED_CHEVRON_PAD,
+            !hasThumbs && 'pt-2',
+            hasThumbs && 'pt-0',
+            chrome.time,
+          )}
+        >
+          {timeAgo(model.createdAt)}
+        </p>
+      )}
 
       {hasLinkActions ? (
         <div
           data-testid="chat-trade-card-actions"
-          className={cx('w-full border-t', chrome.footerBorder)}
+          className={cx('border-t', BLEED_CHEVRON_PAD, chrome.footerBorder)}
         >
           {model.action ? renderAction(model.action, chrome) : null}
           {model.secondaryAction ? (
@@ -300,7 +337,7 @@ function CardBody({
       {hasFooter ? (
         <div
           data-testid="chat-trade-card-actions"
-          className={cx('grid w-full border-t', chrome.footerBorder)}
+          className={cx('grid border-t', BLEED_CHEVRON_PAD, chrome.footerBorder)}
           style={{ gridTemplateColumns: `repeat(${model.actionRow!.length}, minmax(0, 1fr))` }}
         >
           {model.actionRow!.map((action, index) => {
@@ -327,18 +364,6 @@ function CardBody({
           })}
         </div>
       ) : null}
-
-      <p
-        data-testid="chat-trade-card-time"
-        className={cx(
-          'w-full px-2.5 pb-2 text-right text-[11px]',
-          !hasNote && !hasThumbs && !hasLinkActions && !hasFooter && 'pt-2',
-          (hasLinkActions || hasFooter) && 'pt-1',
-          chrome.time,
-        )}
-      >
-        {timeAgo(model.createdAt)}
-      </p>
     </div>
   );
 }

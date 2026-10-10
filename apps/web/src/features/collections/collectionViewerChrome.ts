@@ -46,9 +46,15 @@ export function collectionPackTradeDock(input: {
   );
 }
 
-/** Owner manage dock claims the bottom band (nav hidden). */
-export function collectionOwnerManageDock(isOwner: boolean): boolean {
-  return isOwner;
+/**
+ * Owner manage dock (Designs · Photos · Replace) — only when opened to manage
+ * (You / ＋ / own shop via `location.state.packManage`). Explore own pack: no dock.
+ */
+export function collectionOwnerManageDock(input: {
+  isOwner: boolean;
+  packManage: boolean;
+}): boolean {
+  return input.isOwner && input.packManage;
 }
 
 /** Shop card removed from album — visitors use subtitle from {shop}. */

@@ -77,7 +77,7 @@ Chat photo albums open the shared **PhotoViewer** (pinch / **vertical swipe** be
 ## Edge cases / empty states
 
 - Empty Chats → **Find businesses** → Explore (`Businesses Only` + search open).
-- Empty **New** (no connections) → **Find on Ekum** link immediately, then name / mobile / GST if they tap with an empty search; **Find in Explore**. Other pickers still use the Find on Ekum **field**.
+- Empty **New** (no connections) → **Find on Ekum** link immediately, then name / mobile / GST if they tap with an empty search; **Find in Explore**. **Share** uses the same Find-as-link + `externalQuery` pattern (one search filters connections; Find button after 2+ characters). Other pickers (orders, Publish, …) still use the Find on Ekum **field**.
 - Find on Ekum hit → **Request access** or **Message** (opens/starts a thread; not auto-connect). Already on the connection list → omitted from Find results (Add from the list above). Already in an **active chat** → **Message** only (no Request access; why-line **In chats**).
 - Chats ＋ **Send invite** (after Find is opened) → connect link via OS share. Other pickers: invite only on a phone-like miss.
 - Explore **Share** (Selection): **2+ designs** → one clubbed chat card (**View designs →** virtual set) and **48h link** kind `designs`; access stays per design. **1 collection + 1 design** → two chat cards and two 48h links (row stays).

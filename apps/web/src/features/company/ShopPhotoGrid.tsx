@@ -114,6 +114,8 @@ export function ShopCollectionCell({
   onLongSelect,
   onToggleSelect,
   layout = 'grid',
+  /** Own shop — open album with manage dock. */
+  packManage = false,
 }: {
   collection: CollectionCard;
   selected?: boolean;
@@ -121,6 +123,7 @@ export function ShopCollectionCell({
   onLongSelect?: () => void;
   onToggleSelect?: () => void;
   layout?: 'feed' | 'grid';
+  packManage?: boolean;
 }) {
   const navigate = useNavigate();
   const longPress = useLongPress(onLongSelect);
@@ -129,6 +132,7 @@ export function ShopCollectionCell({
   /** Preview thumbs only — do not size mosaic from productCount (leaks inventory). */
   const mosaicCount = images.length;
   const href = `/collections/${collection.id}`;
+  const openState = packManage ? { packManage: true as const } : undefined;
 
   const onMosaic = () => {
     if (isLongPressActivateSuppressed()) return;
@@ -136,7 +140,7 @@ export function ShopCollectionCell({
       onToggleSelect?.();
       return;
     }
-    navigate(href);
+    navigate(href, openState ? { state: openState } : undefined);
   };
   if (layout === 'feed') {
     return (
@@ -145,6 +149,7 @@ export function ShopCollectionCell({
         meta={explorePostedWhen(collection.updatedAt) ?? ''}
         detail={packFeedDetailLine({ tags: collection.categories })}
         href={href}
+        linkState={openState}
         images={images.map((url) => toAbsoluteMediaUrl(url)).filter((url): url is string => Boolean(url))}
         imageCount={mosaicCount}
         selected={selected}
@@ -182,6 +187,7 @@ export function ShopCollectionCell({
       </button>
       <Link
         to={href}
+        state={openState}
         data-testid={`company-shop-collection-open-${collection.id}`}
         className="flex min-w-0 flex-col gap-0.5 overflow-hidden p-3"
       >

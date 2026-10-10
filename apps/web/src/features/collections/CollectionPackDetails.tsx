@@ -36,7 +36,7 @@ export function CollectionPackDetails({
   const showToggle = open || overflows;
 
   return (
-    <div className="px-0.5" data-testid="collection-pack-details">
+    <div className="relative px-0.5" data-testid="collection-pack-details">
       <div
         ref={bodyRef}
         className={cx(
@@ -53,7 +53,13 @@ export function CollectionPackDetails({
         <button
           type="button"
           data-testid="collection-pack-details-more"
-          className="mt-1 text-sm font-semibold leading-normal text-accent"
+          className={cx(
+            'text-sm font-semibold leading-5 text-accent',
+            // Collapsed: sit on the last clamped line — no extra row (BM-11).
+            open
+              ? 'mt-1'
+              : 'absolute bottom-0 right-0 z-[1] bg-gradient-to-l from-canvas from-60% to-transparent pl-8',
+          )}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >

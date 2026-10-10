@@ -650,6 +650,7 @@ export function CompanyProfilePage() {
                     key={collection.id}
                     collection={collection}
                     layout={layout}
+                    packManage={isOwn}
                     selected={albumPick.collectionIds.has(collection.id)}
                     selectMode={selecting}
                     onLongSelect={() => toggleCollection(collection)}

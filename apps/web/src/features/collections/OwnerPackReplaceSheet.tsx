@@ -1,16 +1,24 @@
+import { AddDesignsControl } from '@/features/catalog/AddDesignsControl';
 import { Button, Sheet } from '@/ui/kit';
 
-/** Confirm Replace — membership updates only after a non-empty new set is saved. */
+/**
+ * Replace — ask Designs or Photos in the sheet, then open that picker.
+ * Membership updates only after a non-empty new set is saved.
+ */
 export function OwnerPackReplaceSheet({
   open,
   onClose,
   busy,
-  onConfirm,
+  uploading,
+  onDesigns,
+  onPhotos,
 }: {
   open: boolean;
   onClose: () => void;
   busy?: boolean;
-  onConfirm: () => void;
+  uploading?: boolean;
+  onDesigns: () => void;
+  onPhotos: () => void;
 }) {
   return (
     <Sheet
@@ -18,21 +26,31 @@ export function OwnerPackReplaceSheet({
       onClose={onClose}
       title="Replace whole collection?"
       footer={
-        <div className="flex flex-col gap-2" data-testid="owner-pack-replace-sheet">
-          <Button fullWidth disabled={busy} data-testid="owner-pack-replace-confirm" onClick={onConfirm}>
-            Replace
-          </Button>
-          <Button fullWidth variant="secondary" disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
+        <Button
+          fullWidth
+          variant="secondary"
+          disabled={busy}
+          data-testid="owner-pack-replace-cancel"
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
       }
     >
-      <p className="text-sm text-muted" data-testid="owner-pack-replace-copy">
-        Pick the new set next. The collection updates only after you save at least one design.
-        Cancel or pick nothing keeps it unchanged. New photos are saved in Designs and publish
-        with a live collection.
-      </p>
+      <div className="flex flex-col gap-3" data-testid="owner-pack-replace-sheet">
+        <p className="text-sm text-muted" data-testid="owner-pack-replace-copy">
+          Choose photos or designs for the new set. The collection updates only after you save.
+          Cancel or pick nothing keeps it unchanged. New photos are saved in Designs and publish
+          with a live collection.
+        </p>
+        <AddDesignsControl
+          size="hero"
+          uploading={uploading}
+          disabled={busy || uploading}
+          onDesigns={onDesigns}
+          onPhotos={onPhotos}
+        />
+      </div>
     </Sheet>
   );
 }

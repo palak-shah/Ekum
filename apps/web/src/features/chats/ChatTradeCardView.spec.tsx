@@ -272,7 +272,39 @@ describe('ChatTradeCard section order', () => {
     expect(screen.getByTestId('chat-trade-card-actions')).toBeInTheDocument();
   });
 
-  it('full-width divider above View action; time is its own bottom row', () => {
+  it('puts time at card-edge right-1 under the chevron; dividers bleed past chevron pad', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'collection',
+            primary: 'Ethnic collection',
+            details: [],
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg'],
+            note: 'hi',
+            noteVoiceUrl: null,
+            action: { label: 'View collection →', to: '/collections/1', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('chat-trade-card-header');
+    const note = screen.getByTestId('chat-trade-card-note');
+    const time = screen.getByTestId('chat-trade-card-time');
+    const actions = screen.getByTestId('chat-trade-card-actions');
+    expect(note.contains(time)).toBe(true);
+    expect(time.className).toMatch(/absolute/);
+    expect(time.className).toMatch(/right-3/);
+    // Cancel MessageChrome bubble pr-8 so rules / time reach the painted edge.
+    for (const el of [header, note, actions]) {
+      expect(el.className).toMatch(/-mr-8/);
+    }
+    expect(header.className).toMatch(/border-b/);
+    expect(actions.className).toMatch(/border-t/);
+    expect(note.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('full-width divider above View action; without note, time sits above the action band', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -295,14 +327,14 @@ describe('ChatTradeCard section order', () => {
 
     // Divider lives on the actions band (edge-to-edge), not under the thumb collage.
     expect(images.className).not.toMatch(/border-b/);
-    expect(actions.className).toMatch(/w-full/);
+    expect(actions.className).toMatch(/-mr-8/);
     expect(actions.className).toMatch(/border-t/);
     expect(view.className).not.toMatch(/border-t/);
 
-    // Time is below View designs — never inside the action band.
+    // Time is above View designs — never inside the action band.
     expect(actions.contains(time)).toBe(false);
     expect(actions.contains(view)).toBe(true);
-    expect(actions.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(time.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(time.className).toMatch(/text-right/);
   });
 });

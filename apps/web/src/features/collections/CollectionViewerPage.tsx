@@ -95,6 +95,7 @@ import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSh
 import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
+  libraryDesignsForPicker,
   membershipAfterRemove,
   membershipForReplaceOrAppend,
   membershipWithNewFirst,
@@ -202,9 +203,13 @@ export function CollectionViewerPage() {
   const [listSearch, setListSearch] = useState('');
   const deferredListSearch = useDeferredValue(listSearch);
 
-  const enterSelect = Boolean(
-    (location.state as { enterSelect?: boolean } | null)?.enterSelect,
-  );
+  const locationState = location.state as {
+    enterSelect?: boolean;
+    packManage?: boolean;
+  } | null;
+  const enterSelect = Boolean(locationState?.enterSelect);
+  /** You / ＋ / own shop — keep across enterSelect clear; Explore omits it. */
+  const packManage = Boolean(locationState?.packManage);
 
   useEffect(() => {
     setLayout(readDesignBrowseLayout(myCompanyId));
@@ -214,8 +219,11 @@ export function CollectionViewerPage() {
     if (!enterSelect) return;
     setPageSelecting(true);
     shortlist.setSelectMode(true);
-    navigate(location.pathname + location.search, { replace: true, state: {} });
-  }, [enterSelect, shortlist, navigate, location.pathname, location.search]);
+    navigate(location.pathname + location.search, {
+      replace: true,
+      state: packManage ? { packManage: true } : {},
+    });
+  }, [enterSelect, packManage, shortlist, navigate, location.pathname, location.search]);
 
   const onContinueAfterAlbumPick = () => {
     const resume = readResumeAfterAlbumPick();
@@ -278,7 +286,7 @@ export function CollectionViewerPage() {
     resumeContinue: showResumeContinue,
     thisPackSelectedCount,
   });
-  const ownerManageDock = collectionOwnerManageDock(isOwner);
+  const ownerManageDock = collectionOwnerManageDock({ isOwner, packManage });
   usePageOwnsBottomBand(ownerManageDock || packTradeDock);
   usePageSelecting(selectMode);
 
@@ -437,10 +445,15 @@ export function CollectionViewerPage() {
     () => (myProducts.data ?? []).filter((product) => product.status !== ProductStatus.Archived),
     [myProducts.data],
   );
+  const libraryPickerMode = replaceDraft !== null ? 'replace' : 'add';
+  const pickerDesigns = useMemo(
+    () => libraryDesignsForPicker(selectableDesigns, memberIdSet, libraryPickerMode),
+    [selectableDesigns, memberIdSet, libraryPickerMode],
+  );
   const designQuery = designSearch.trim().toLowerCase();
   const filteredDesigns = designQuery
-    ? selectableDesigns.filter((product) => product.name.toLowerCase().includes(designQuery))
-    : selectableDesigns;
+    ? pickerDesigns.filter((product) => product.name.toLowerCase().includes(designQuery))
+    : pickerDesigns;
 
   const clickCollectionGallery = () => {
     designFileRef.current?.click();
@@ -486,11 +499,17 @@ export function CollectionViewerPage() {
     openOwnerPhotos();
   };
 
-  const onOwnerReplaceConfirm = () => {
+  const beginOwnerReplaceFromDesigns = () => {
+    setReplaceSheetOpen(false);
+    setReplacePendingFlag(true);
+    openOwnerLibrary();
+  };
+
+  const beginOwnerReplaceFromPhotos = () => {
     setReplaceSheetOpen(false);
     setReplacePendingFlag(true);
     setReplaceDraft(null);
-    showToast('Pick the new set — collection updates when you save');
+    openOwnerPhotos();
   };
 
   const commitOwnerMembership = async (pickedIds: string[], replacing: boolean) => {
@@ -1009,7 +1028,9 @@ export function CollectionViewerPage() {
           onClose={() => setMoreOpen(false)}
           onShare={openAlbumShare}
           onWhoHasAccess={openOwnerWhoHasAccess}
+          onAddDesigns={onOwnerAddDesigns}
           onAddPhotos={onOwnerAddPhotos}
+          onReplace={() => setReplaceSheetOpen(true)}
           onEditDetails={openOwnerEditDetails}
         />
       ) : (
@@ -1274,7 +1295,10 @@ export function CollectionViewerPage() {
       <OwnerPackReplaceSheet
         open={replaceSheetOpen}
         onClose={() => setReplaceSheetOpen(false)}
-        onConfirm={onOwnerReplaceConfirm}
+        busy={manageBusy}
+        uploading={quickUploading}
+        onDesigns={beginOwnerReplaceFromDesigns}
+        onPhotos={beginOwnerReplaceFromPhotos}
       />
       <OwnerPackDeleteSheet
         open={deleteSheetOpen}
@@ -1350,6 +1374,10 @@ export function CollectionViewerPage() {
                 Add a design
               </Button>
             </div>
+          ) : pickerDesigns.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted">
+              All your designs are already in this collection.
+            </p>
           ) : (
             <>
               <TextInput
@@ -1366,7 +1394,7 @@ export function CollectionViewerPage() {
                   const on =
                     replaceDraft !== null
                       ? replaceDraft.has(product.id)
-                      : libraryPicks.has(product.id) || memberIdSet.has(product.id);
+                      : libraryPicks.has(product.id);
                   return (
                     <button
                       type="button"

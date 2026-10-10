@@ -68,9 +68,10 @@ describe('collectionPackTradeDock', () => {
 });
 
 describe('collectionOwnerManageDock / company row', () => {
-  it('claims the band for owners; never shows a shop card on the album', () => {
-    expect(collectionOwnerManageDock(true)).toBe(true);
-    expect(collectionOwnerManageDock(false)).toBe(false);
+  it('claims the band only for owners opened to manage (packManage)', () => {
+    expect(collectionOwnerManageDock({ isOwner: true, packManage: true })).toBe(true);
+    expect(collectionOwnerManageDock({ isOwner: true, packManage: false })).toBe(false);
+    expect(collectionOwnerManageDock({ isOwner: false, packManage: true })).toBe(false);
     expect(collectionShowOwnerCompanyRow(true)).toBe(false);
     expect(collectionShowOwnerCompanyRow(false)).toBe(false);
   });

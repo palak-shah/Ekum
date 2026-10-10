@@ -6,6 +6,12 @@ export function messageChromeBubblePad(hasActions: boolean): string | undefined 
   return hasActions ? '[&_.ekum-msg-bubble]:pr-8' : undefined;
 }
 
+/**
+ * Timestamp under the actions chevron: cancel bubble `pr-8`, then inset `pr-3`
+ * (same as trade-card time `right-3` after bleed).
+ */
+export const MSG_BUBBLE_TIME_CLASS = '-mr-8 pr-3 text-right tabular-nums';
+
 export type MessageLongPressIntent = 'toggle-select' | 'open-menu' | 'enter-select' | 'none';
 
 /** WhatsApp-style: photo long-press opens Ekum menu; other types enter Select. */

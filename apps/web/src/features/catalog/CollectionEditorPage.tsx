@@ -59,6 +59,7 @@ import {
   deleteNeedsMultiPackConfirm,
   membershipAfterRemove,
   membershipForReplaceOrAppend,
+  libraryDesignsForPicker,
   membershipWithNewFirst,
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
@@ -281,6 +282,8 @@ export function CollectionEditorPage() {
   /** Create mode: photos and/or library designs; Publish/Share after create. */
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
   const [libraryPicks, setLibraryPicks] = useState<Set<string>>(new Set());
+  /** Members present when Add designs opened — hide them for the session (not Replace). */
+  const [libraryExcludeIds, setLibraryExcludeIds] = useState<Set<string>>(() => new Set());
 
   const existing = useQuery({
     queryKey: ['collection', id],
@@ -333,10 +336,16 @@ export function CollectionEditorPage() {
   const selectableDesigns = (myProducts.data ?? []).filter(
     (product) => product.status !== ProductStatus.Archived,
   );
+  const libraryPickerMode = replaceDraft !== null ? 'replace' : 'add';
+  const pickerDesigns = libraryDesignsForPicker(
+    selectableDesigns,
+    libraryExcludeIds,
+    libraryPickerMode,
+  );
   const designQuery = designSearch.trim().toLowerCase();
   const filteredDesigns = designQuery
-    ? selectableDesigns.filter((p) => p.name.toLowerCase().includes(designQuery))
-    : selectableDesigns;
+    ? pickerDesigns.filter((p) => p.name.toLowerCase().includes(designQuery))
+    : pickerDesigns;
   /** Prefer collection-detail members (includes foreign curated designs) over own library. */
   const selectedProducts = useMemo(() => {
     const byId = new Map<string, ProductView>();
@@ -822,6 +831,9 @@ export function CollectionEditorPage() {
     setError(null);
     if (replacePendingRef.current) {
       setReplaceDraft(new Set());
+      setLibraryExcludeIds(new Set());
+    } else {
+      setLibraryExcludeIds(editing ? new Set(selected) : new Set());
     }
     setLibraryOpen(true);
   };
@@ -847,9 +859,20 @@ export function CollectionEditorPage() {
   };
 
   const beginReplacePick = () => {
+    setReplaceSheetOpen(true);
+  };
+
+  const beginReplaceFromDesigns = () => {
+    setReplaceSheetOpen(false);
+    setReplacePendingFlag(true);
+    openLibraryDesigns();
+  };
+
+  const beginReplaceFromPhotos = () => {
+    setReplaceSheetOpen(false);
     setReplacePendingFlag(true);
     setReplaceDraft(null);
-    openAddDesignsMenu();
+    openPhotos();
   };
 
   const abandonReplaceIfPending = () => {
@@ -1421,10 +1444,6 @@ export function CollectionEditorPage() {
     setManageSelecting(false);
   };
 
-  const onEditorReplaceConfirm = () => {
-    setReplaceSheetOpen(false);
-    beginReplacePick();
-  };
 
   const onEditorRemove = async () => {
     if (!ownerCanRemove) return;
@@ -2236,7 +2255,9 @@ export function CollectionEditorPage() {
             open={replaceSheetOpen}
             onClose={() => setReplaceSheetOpen(false)}
             busy={manageBusy}
-            onConfirm={() => void onEditorReplaceConfirm()}
+            uploading={quickUploading}
+            onDesigns={beginReplaceFromDesigns}
+            onPhotos={beginReplaceFromPhotos}
           />
           <OwnerPackDeleteSheet
             open={deleteSheetOpen}
@@ -2411,6 +2432,10 @@ export function CollectionEditorPage() {
                 Add a design
               </Button>
             </div>
+          ) : pickerDesigns.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted">
+              All your designs are already in this collection.
+            </p>
           ) : (
             <>
               <TextInput

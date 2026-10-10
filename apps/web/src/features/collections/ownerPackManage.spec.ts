@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
+  libraryDesignsForPicker,
   membershipAfterRemove,
   membershipForReplaceOrAppend,
   membershipWithNewFirst,
@@ -62,6 +63,18 @@ describe('ownedSelectedIds / canDeleteSelected', () => {
 describe('membershipAfterRemove', () => {
   it('drops selected ids and keeps order of the rest', () => {
     expect(membershipAfterRemove(['a', 'b', 'c'], ['b'])).toEqual(['a', 'c']);
+  });
+});
+
+describe('libraryDesignsForPicker', () => {
+  const designs = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+  it('hides album members in add mode', () => {
+    expect(libraryDesignsForPicker(designs, new Set(['a', 'c']), 'add')).toEqual([{ id: 'b' }]);
+  });
+
+  it('keeps the full library in replace mode', () => {
+    expect(libraryDesignsForPicker(designs, new Set(['a', 'c']), 'replace')).toEqual(designs);
   });
 });
 

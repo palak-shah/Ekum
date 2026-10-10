@@ -99,6 +99,14 @@ describe('ExploreFeedActions', () => {
     navigate.mockClear();
   });
 
+  it('always shows Repost · Message · Share · Bookmark', () => {
+    wrap(<ExploreFeedActions collection={collection} />);
+    expect(screen.getByTestId('explore-feed-repost')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-message')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
+  });
+
   it('opens Repost sheet on this page — does not navigate to Your selection', async () => {
     const user = userEvent.setup();
     wrap(<ExploreFeedActions collection={collection} />);
@@ -116,5 +124,37 @@ describe('ExploreFeedActions', () => {
     expect(navigate).not.toHaveBeenCalled();
     expect(screen.getByTestId('selection-message-sheet')).toBeTruthy();
     expect(screen.getByPlaceholderText('What do you think of this?')).toBeTruthy();
+  });
+
+  it('grays out Repost · Message · Bookmark on own posts; Share stays enabled', () => {
+    wrap(
+      <ExploreFeedActions
+        collection={{
+          ...collection,
+          company: { ...collection.company, id: 'me', name: 'My Shop' },
+        }}
+      />,
+    );
+    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-message')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+  });
+
+  it('grays out Repost when forward is locked; other actions stay enabled', () => {
+    wrap(<ExploreFeedActions collection={{ ...collection, allowForward: false }} />);
+    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-message')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
+  });
+
+  it('grays out all four while Selecting', () => {
+    wrap(<ExploreFeedActions collection={collection} selecting />);
+    expect(screen.getByTestId('explore-feed-actions')).toBeInTheDocument();
+    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-message')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-share')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeDisabled();
   });
 });

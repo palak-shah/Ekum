@@ -322,11 +322,8 @@ export function buildCollectionTradeCard(
       : (message.body?.trim() || 'Collection');
   const enquire = catalogEnquireNote(message.metadata);
   const details: string[] = [];
-  // Enquire cards: note only — skip "Order goes to …".
+  // Enquire cards: note only — skip "Order goes to …". Pack size is in the thumbs, not a subtitle.
   if (orderGoesTo && !enquire) details.push(orderGoesTo);
-  if (ref?.itemCount != null) {
-    details.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
-  }
   return {
     kind: 'collection',
     primary,

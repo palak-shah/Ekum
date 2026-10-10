@@ -1,8 +1,16 @@
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
-import { CameraIcon, LockIcon, PaperPlaneIcon, PencilIcon } from '@/ui/icons';
+import {
+  CameraIcon,
+  DesignIcon,
+  LockIcon,
+  PaperPlaneIcon,
+  PencilIcon,
+  RepostIcon,
+} from '@/ui/icons';
 
 /**
- * Owner album ⋯ — bottom sheet, icon then label (client prototype / app-wide more).
+ * Owner album ⋯ — Share · Who · Add from existing designs · Add photos ·
+ * Replace entire collection · Edit (everyday first; manage trio always listed).
  */
 export function OwnerCollectionMoreSheet({
   open,
@@ -10,7 +18,9 @@ export function OwnerCollectionMoreSheet({
   onClose,
   onShare,
   onWhoHasAccess,
+  onAddDesigns,
   onAddPhotos,
+  onReplace,
   onEditDetails,
 }: {
   open: boolean;
@@ -18,7 +28,9 @@ export function OwnerCollectionMoreSheet({
   onClose: () => void;
   onShare: () => void;
   onWhoHasAccess: () => void;
+  onAddDesigns: () => void;
   onAddPhotos: () => void;
+  onReplace: () => void;
   onEditDetails: () => void;
 }) {
   return (
@@ -49,6 +61,16 @@ export function OwnerCollectionMoreSheet({
           testId: 'collection-menu-who',
         },
         {
+          id: 'add-designs',
+          label: 'Add from existing designs',
+          icon: <DesignIcon width={20} height={20} />,
+          onClick: () => {
+            onClose();
+            onAddDesigns();
+          },
+          testId: 'collection-menu-add-designs',
+        },
+        {
           id: 'photos',
           label: 'Add photos',
           icon: <CameraIcon width={20} height={20} />,
@@ -57,6 +79,16 @@ export function OwnerCollectionMoreSheet({
             onAddPhotos();
           },
           testId: 'collection-menu-add-photos',
+        },
+        {
+          id: 'replace',
+          label: 'Replace entire collection',
+          icon: <RepostIcon width={20} height={20} />,
+          onClick: () => {
+            onClose();
+            onReplace();
+          },
+          testId: 'collection-menu-replace',
         },
         {
           id: 'edit',

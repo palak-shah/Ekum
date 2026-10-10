@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   exploreFeedAboutText,
   exploreFeedCategoryLine,
-  exploreFeedNewDesignsLine,
   exploreFeedRateLine,
   exploreFeedSourceLine,
 } from './exploreFeedCaptionLines';
@@ -37,28 +36,14 @@ describe('exploreFeedCategoryLine', () => {
 });
 
 describe('exploreFeedAboutText', () => {
-  it('trims description', () => {
+  it('trims ends but keeps internal newlines', () => {
     expect(exploreFeedAboutText('  Soft handloom.  ')).toBe('Soft handloom.');
+    expect(exploreFeedAboutText('Line one.\nLine two.\n')).toBe('Line one.\nLine two.');
   });
 
   it('is null when blank', () => {
     expect(exploreFeedAboutText('   ')).toBeNull();
     expect(exploreFeedAboutText(null)).toBeNull();
-  });
-});
-
-describe('exploreFeedNewDesignsLine', () => {
-  it('uses You added for own packs', () => {
-    expect(exploreFeedNewDesignsLine({ count: 6, isOwn: true })).toBe('You added 6 new designs');
-    expect(exploreFeedNewDesignsLine({ count: 1, isOwn: true })).toBe('You added 1 new design');
-  });
-
-  it('uses N new designs for others', () => {
-    expect(exploreFeedNewDesignsLine({ count: 6, isOwn: false })).toBe('6 new designs');
-  });
-
-  it('omits when zero', () => {
-    expect(exploreFeedNewDesignsLine({ count: 0, isOwn: true })).toBeNull();
   });
 });
 

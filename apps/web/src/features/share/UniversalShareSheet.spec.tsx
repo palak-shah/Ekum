@@ -80,8 +80,10 @@ describe('UniversalShareSheet', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Find on Ekum')).toBeInTheDocument();
+      expect(screen.getByText('Jaipur Emporium')).toBeInTheDocument();
     });
+    // Find is a link after typing — not a second idle Find field.
+    expect(screen.queryByLabelText('Find on Ekum')).toBeNull();
 
     const create = screen.getByTestId('share-create-group');
     expect(create.className).toMatch(/text-xs/);

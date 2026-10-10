@@ -1,4 +1,7 @@
-/** Place the inbox row action menu next to the pressed row (thread ⋯ chrome). */
+/**
+ * Place a message/inbox action menu below the anchor (chevron or row),
+ * or above when it would clip the viewport.
+ */
 export function placeInboxRowMenu(
   row: { top: number; bottom: number; right: number },
   viewport: { width: number; height: number },

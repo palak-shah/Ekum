@@ -437,7 +437,7 @@ export function UniversalShareSheet({
               value={selectedCompanyIds}
               onChange={setSelectedCompanyIds}
               emptyMessage="No connections yet — find a business below."
-              findOnEkum
+              findOnEkum="link"
               onMessageFound={(foundId) => {
                 if (companyId && foundId === companyId) return;
                 setSelectedCompanyIds((prev) => dedupeCompanyIds([...prev, foundId]));

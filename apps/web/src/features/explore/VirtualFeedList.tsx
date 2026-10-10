@@ -1,15 +1,46 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { ExploreFeedMeasureContext } from './exploreFeedMeasure';
 
 /** Approximate Explore post card height (header + square mosaic + caption). */
-export const EXPLORE_FEED_ESTIMATE_PX = 520;
+export const EXPLORE_FEED_ESTIMATE_PX = 640;
 
-/** Default overscan — tall cards need several rows ahead to avoid white canvas on fling. */
-export const EXPLORE_FEED_OVERSCAN = 6;
+/**
+ * Overscan both ways — tall mosaic cards need several rows or fling shows
+ * white canvas / overlapping captions.
+ */
+export const EXPLORE_FEED_OVERSCAN = 10;
+
+/**
+ * Real layout until the feed is long. The buying window (12) + a couple of
+ * More posts taps stays non-virtual — variable caption heights were leaving a
+ * blank band above More posts when getTotalSize overshot.
+ */
+export const EXPLORE_FEED_VIRTUALIZE_AFTER = 24;
+
+function listScrollMargin(node: HTMLElement): number {
+  return node.getBoundingClientRect().top + window.scrollY;
+}
+
+function mergeRefs<T>(...refs: Array<Ref<T> | undefined>) {
+  return (node: T | null) => {
+    for (const ref of refs) {
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as { current: T | null }).current = node;
+    }
+  };
+}
 
 /**
  * Window-scrolled virtual list for Explore feeds.
- * Only mounts rows near the viewport so cover images are not all requested at once.
+ * Outer node owns scrollMargin (Stories / filters above); inner owns total height.
  */
 export function VirtualFeedList<T>({
   items,
@@ -26,65 +57,114 @@ export function VirtualFeedList<T>({
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
+  const virtualize = items.length > EXPLORE_FEED_VIRTUALIZE_AFTER;
 
   useLayoutEffect(() => {
+    if (!virtualize) return;
     const node = listRef.current;
     if (!node) return;
     const update = () => {
-      const top = node.getBoundingClientRect().top + window.scrollY;
-      setScrollMargin(top);
+      const next = listScrollMargin(node);
+      setScrollMargin((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
     };
     update();
-    const ro =
-      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => update()) : null;
-    ro?.observe(node);
     window.addEventListener('resize', update);
     return () => {
-      ro?.disconnect();
       window.removeEventListener('resize', update);
     };
-  }, [items.length]);
+  }, [items.length, virtualize]);
 
   const virtualizer = useWindowVirtualizer({
-    count: items.length,
+    count: virtualize ? items.length : 0,
     estimateSize: () => estimateSize,
     overscan,
     scrollMargin,
   });
 
+  const remeasure = useCallback(() => {
+    if (!virtualize) return;
+    requestAnimationFrame(() => {
+      virtualizer.measure();
+    });
+  }, [virtualizer, virtualize]);
+
   if (items.length === 0) return null;
 
-  // Short lists: skip virtualizer chrome (Stories / filters stay simple).
-  if (items.length <= 6) {
+  // Normal More-posts windows: real document flow — no phantom list height.
+  if (!virtualize) {
     return (
-      <div ref={listRef} className="flex flex-col" data-testid="explore-feed-list">
-        {items.map((item, index) => (
-          <div key={getKey(item, index)}>{renderItem(item, index)}</div>
-        ))}
-      </div>
+      <ExploreFeedMeasureContext.Provider value={null}>
+        <div ref={listRef} className="flex flex-col" data-testid="explore-feed-list">
+          {items.map((item, index) => (
+            <div key={getKey(item, index)} className="bg-canvas">
+              {renderItem(item, index)}
+            </div>
+          ))}
+        </div>
+      </ExploreFeedMeasureContext.Provider>
     );
   }
 
+  // Window virtualizer item starts include scrollMargin; subtract so the spacer
+  // matches the laid-out rows (avoids a blank band before More posts).
+  const listHeight = Math.max(0, virtualizer.getTotalSize() - scrollMargin);
+
+  return (
+    <ExploreFeedMeasureContext.Provider value={remeasure}>
+      <div ref={listRef} data-testid="explore-feed-list">
+        <div className="relative w-full" style={{ height: listHeight }}>
+          {virtualizer.getVirtualItems().map((row) => (
+            <VirtualFeedRow
+              key={getKey(items[row.index]!, row.index)}
+              index={row.index}
+              start={row.start}
+              scrollMargin={scrollMargin}
+              measureElement={virtualizer.measureElement}
+            >
+              {renderItem(items[row.index]!, row.index)}
+            </VirtualFeedRow>
+          ))}
+        </div>
+      </div>
+    </ExploreFeedMeasureContext.Provider>
+  );
+}
+
+function VirtualFeedRow({
+  index,
+  start,
+  scrollMargin,
+  measureElement,
+  children,
+}: {
+  index: number;
+  start: number;
+  scrollMargin: number;
+  measureElement: (node: Element | null) => void;
+  children: ReactNode;
+}) {
+  const nodeRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const node = nodeRef.current;
+    if (!node) return;
+    const id = requestAnimationFrame(() => {
+      measureElement(node);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [measureElement, index]);
+
   return (
     <div
-      ref={listRef}
-      className="relative w-full"
-      data-testid="explore-feed-list"
-      style={{ height: virtualizer.getTotalSize() }}
+      data-index={index}
+      ref={mergeRefs(nodeRef, measureElement)}
+      className="absolute left-0 top-0 w-full bg-canvas"
+      style={{
+        transform: `translateY(${start - scrollMargin}px)`,
+        zIndex: index,
+      }}
     >
-      {virtualizer.getVirtualItems().map((row) => (
-        <div
-          key={getKey(items[row.index]!, row.index)}
-          data-index={row.index}
-          ref={virtualizer.measureElement}
-          className="absolute left-0 top-0 w-full"
-          style={{
-            transform: `translateY(${row.start - scrollMargin}px)`,
-          }}
-        >
-          {renderItem(items[row.index]!, row.index)}
-        </div>
-      ))}
+      {children}
     </div>
   );
 }

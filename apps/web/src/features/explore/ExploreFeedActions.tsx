@@ -12,8 +12,8 @@ import { BookmarkIcon, ChatIcon, PaperPlaneIcon, RepostIcon } from '@/ui/icons';
 
 /**
  * Instagram-placed icon row under Explore mosaics: left Repost · Message · Share,
- * Bookmark trailing right. Message = quick enquire (stay on feed). Icon-only;
- * muted while Selecting.
+ * Bookmark trailing right. Always show all four; gray out when not allowed
+ * (own post, no forward, not trading, Selecting). Message = quick enquire (stay on feed).
  */
 export function ExploreFeedActions({
   collection,
@@ -36,12 +36,17 @@ export function ExploreFeedActions({
   const companyId = collection?.company.id ?? product?.company.id;
   const companyName = collection?.company.name ?? product?.company.name ?? '';
   const isOwn = Boolean(me.data?.id && companyId === me.data.id);
-  if (selecting || !companyId) return null;
+  if (!companyId) return null;
 
+  const selectingMute = Boolean(selecting);
   const canRepost =
+    !selectingMute &&
     !isOwn &&
     trade.trading &&
     (collection ? collection.allowForward !== false : product?.allowForward !== false);
+  const canMessage = !selectingMute && !isOwn;
+  const canShare = !selectingMute;
+  const canBookmark = !selectingMute && !isOwn;
 
   const repostTarget: RepostSheetTarget | null = collection
     ? {
@@ -61,7 +66,7 @@ export function ExploreFeedActions({
       : null;
 
   const onBookmark = async () => {
-    if (bookmarkBusy) return;
+    if (bookmarkBusy || !canBookmark) return;
     setBookmarkBusy(true);
     try {
       if (collection) {
@@ -85,42 +90,41 @@ export function ExploreFeedActions({
         data-testid="explore-feed-actions"
       >
         <div className="flex items-center gap-0.5" data-testid="explore-feed-actions-lead">
-          {canRepost ? (
-            <ActionIcon
-              testId="explore-feed-repost"
-              label="Repost"
-              onClick={() => setRepostOpen(true)}
-            >
-              <RepostIcon width={24} height={24} />
-            </ActionIcon>
-          ) : null}
-          {!isOwn ? (
-            <ActionIcon
-              testId="explore-feed-message"
-              label="Message"
-              onClick={() => setMessageOpen(true)}
-            >
-              <ChatIcon width={24} height={24} />
-            </ActionIcon>
-          ) : null}
-          <ActionIcon testId="explore-feed-share" label="Share" onClick={() => setShareOpen(true)}>
+          <ActionIcon
+            testId="explore-feed-repost"
+            label="Repost"
+            disabled={!canRepost}
+            onClick={() => setRepostOpen(true)}
+          >
+            <RepostIcon width={24} height={24} />
+          </ActionIcon>
+          <ActionIcon
+            testId="explore-feed-message"
+            label="Message"
+            disabled={!canMessage}
+            onClick={() => setMessageOpen(true)}
+          >
+            <ChatIcon width={24} height={24} />
+          </ActionIcon>
+          <ActionIcon
+            testId="explore-feed-share"
+            label="Share"
+            disabled={!canShare}
+            onClick={() => setShareOpen(true)}
+          >
             <PaperPlaneIcon width={24} height={24} />
           </ActionIcon>
         </div>
-        {!isOwn ? (
-          <ActionIcon
-            testId="explore-feed-bookmark"
-            label="Bookmark"
-            disabled={bookmarkBusy}
-            onClick={() => void onBookmark()}
-          >
-            <BookmarkIcon width={24} height={24} />
-          </ActionIcon>
-        ) : (
-          <span className="min-w-9" aria-hidden />
-        )}
+        <ActionIcon
+          testId="explore-feed-bookmark"
+          label="Bookmark"
+          disabled={!canBookmark || bookmarkBusy}
+          onClick={() => void onBookmark()}
+        >
+          <BookmarkIcon width={24} height={24} />
+        </ActionIcon>
       </div>
-      {shareOpen ? (
+      {shareOpen && canShare ? (
         <CatalogShareSheet
           open={shareOpen}
           onClose={() => setShareOpen(false)}
@@ -130,7 +134,7 @@ export function ExploreFeedActions({
           products={product ? [{ productId: product.id, name: product.name }] : []}
         />
       ) : null}
-      {!isOwn && companyId ? (
+      {messageOpen && canMessage ? (
         <SelectionMessageSheet
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
@@ -142,7 +146,7 @@ export function ExploreFeedActions({
           products={product ? [{ productId: product.id, name: product.name }] : []}
         />
       ) : null}
-      {canRepost && repostTarget ? (
+      {repostOpen && canRepost && repostTarget ? (
         <RepostSheet
           open={repostOpen}
           onClose={() => setRepostOpen(false)}
@@ -171,13 +175,19 @@ function ActionIcon({
       type="button"
       data-testid={testId}
       aria-label={label}
+      aria-disabled={disabled || undefined}
       disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (disabled) return;
         onClick();
       }}
-      className="flex h-9 w-9 shrink-0 items-center justify-center text-ink disabled:opacity-40"
+      className={
+        disabled
+          ? 'flex h-9 w-9 shrink-0 items-center justify-center text-muted opacity-40'
+          : 'flex h-9 w-9 shrink-0 items-center justify-center text-ink'
+      }
     >
       {children}
     </button>

@@ -105,7 +105,7 @@ export interface CompanyCard {
 export interface CollectionCard {
   id: string;
   name: string;
-  /** Pack notes when present — Explore “About this collection”. */
+  /** Pack notes when present — Explore feed description (album-style clamp). */
   description: string | null;
   /** Pack tags when present. */
   categories: string[];

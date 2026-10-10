@@ -26,20 +26,10 @@ export function exploreFeedCategoryLine(tags: string[] | null | undefined): stri
   return line || null;
 }
 
+/** Trim ends only — keep internal newlines for feed description clamp. */
 export function exploreFeedAboutText(description: string | null | undefined): string | null {
   const text = description?.trim();
   return text ? text : null;
-}
-
-/** Meta activity line when a pack resurfaced from new members. */
-export function exploreFeedNewDesignsLine(input: {
-  count: number | null | undefined;
-  isOwn: boolean;
-}): string | null {
-  const n = input.count ?? 0;
-  if (n < 1) return null;
-  const noun = n === 1 ? 'design' : 'designs';
-  return input.isOwn ? `You added ${n} new ${noun}` : `${n} new ${noun}`;
 }
 
 /** Buyer-facing mill credit when the pack opts in (showSourceShops). */

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -53,19 +52,19 @@ const opportunity: ExploreOpportunity = {
 };
 
 describe('Explore shop header chrome', () => {
-  it('drops Connected, ticks GST, and puts date under the pack', () => {
+  it('drops Connected, ticks GST, and puts date beside the shop name', () => {
     renderCard(<OpportunityCollectionCard opportunity={opportunity} />);
     expect(screen.getByText('Surat Silk House')).toBeInTheDocument();
     expect(screen.getByTestId('gst-tick')).toBeInTheDocument();
     expect(screen.getByText('Surat · Fabric, Dress material')).toBeInTheDocument();
     expect(screen.queryByText(/Connected/)).toBeNull();
     expect(screen.queryByText('GST verified')).toBeNull();
-    expect(screen.getByText(/9 designs/)).toHaveTextContent(/ago|just now|\d/);
+    expect(screen.queryByText(/9 designs/)).toBeNull();
+    expect(screen.getByTestId('explore-post-when')).toHaveTextContent(/ago|just now|\d/);
     expect(screen.getByTestId('explore-feed-categories')).toHaveTextContent('Sarees');
   });
 
-  it('shows teal rate and About when the pack has public rates and a note', async () => {
-    const user = userEvent.setup();
+  it('shows teal rate and description when the pack has public rates and a note', () => {
     renderCard(
       <OpportunityCollectionCard
         opportunity={{
@@ -81,7 +80,6 @@ describe('Explore shop header chrome', () => {
       />,
     );
     expect(screen.getByTestId('explore-feed-rate')).toHaveTextContent('₹430–₹1,450 /pc');
-    await user.click(screen.getByTestId('explore-feed-about'));
     expect(screen.getByTestId('explore-feed-about-body')).toHaveTextContent(
       'Festive cottons for monsoon counters.',
     );

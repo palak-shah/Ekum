@@ -25,7 +25,6 @@ import { ExploreFeedCaption } from '@/features/explore/ExploreFeedCaption';
 import { ExploreFeedActions } from '@/features/explore/ExploreFeedActions';
 import {
   exploreFeedCategoryLine,
-  exploreFeedNewDesignsLine,
   exploreFeedRateLine,
   exploreFeedSourceLine,
 } from '@/features/explore/exploreFeedCaptionLines';
@@ -119,6 +118,24 @@ function ShopPostHeader({
   );
 }
 
+/** Relative time top-right beside shop name; optional Follow / Request after. */
+function explorePostHeaderTrailing(when: string, extra?: ReactNode) {
+  if (!when && !extra) return undefined;
+  return (
+    <div className="flex shrink-0 items-start gap-2">
+      {when ? (
+        <span
+          className="text-sm font-medium tabular-nums text-muted"
+          data-testid="explore-post-when"
+        >
+          {when}
+        </span>
+      ) : null}
+      {extra}
+    </div>
+  );
+}
+
 export function CompanyRow({
   company,
   to,
@@ -205,13 +222,6 @@ export function OpportunityCollectionCard({
   const sourceLine = !isOwn
     ? exploreFeedSourceLine(collection.sourceShopNames)
     : null;
-  const newDesigns = exploreFeedNewDesignsLine({
-    count: collection.exploreNewDesignCount,
-    isOwn,
-  });
-  const meta = newDesigns
-    ? [newDesigns, when].filter(Boolean).join(' · ')
-    : [designCountLabel(collection.productCount), when].filter(Boolean).join(' · ');
   const detailLine = [sourceLine, categoryLine].filter(Boolean).join(' · ') || null;
   const headerCompany = isOwn
     ? { ...company, name: 'You' }
@@ -221,7 +231,7 @@ export function OpportunityCollectionCard({
       <ShopPostHeader
         company={headerCompany}
         to={isOwn ? undefined : `/company/${company.id}`}
-        trailing={isOwn ? undefined : headerTrailing}
+        trailing={explorePostHeaderTrailing(when, isOwn ? undefined : headerTrailing)}
       />
       <button
         type="button"
@@ -253,7 +263,6 @@ export function OpportunityCollectionCard({
       >
         <ExploreFeedCaption
           title={collection.name}
-          meta={meta || designCountLabel(collection.productCount)}
           rateLine={rateLine}
           categoryLine={detailLine}
           about={collection.description}
@@ -521,7 +530,7 @@ export function OpportunityDesignCard({
       <ShopPostHeader
         company={isOwn ? { ...company, name: 'You' } : company}
         to={isOwn ? undefined : `/company/${company.id}`}
-        trailing={isOwn ? undefined : headerTrailing}
+        trailing={explorePostHeaderTrailing(when, isOwn ? undefined : headerTrailing)}
       />
       <button
         type="button"
@@ -550,12 +559,6 @@ export function OpportunityDesignCard({
       >
         <ExploreFeedCaption
           title={product.name}
-          meta={[
-            product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design',
-            when,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
           rateLine={exploreFeedRateLine({
             rate: product.rate,
             rateMax: product.rateMax,
@@ -848,6 +851,7 @@ export function CatalogFeedPost({
   source,
   detail,
   href,
+  linkState,
   images,
   imageCount,
   company,
@@ -865,6 +869,8 @@ export function CatalogFeedPost({
   source?: string | null;
   detail?: string;
   href: string;
+  /** Optional router state (e.g. `{ packManage: true }` from You). */
+  linkState?: Record<string, unknown>;
   images: string[];
   imageCount: number;
   company?: Parameters<typeof ShopPostHeader>[0]['company'];
@@ -901,6 +907,7 @@ export function CatalogFeedPost({
       </button>
       <Link
         to={href}
+        state={linkState}
         data-testid={openTestId}
         className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
       >
@@ -920,25 +927,17 @@ export function CatalogFeedPost({
   );
 }
 
-function PostHeader({
-  company,
-}: {
-  company: PublicCompanySummary;
-}) {
-  return (
-    <ShopPostHeader
-      company={company}
-      to={`/company/${company.id}`}
-      nameClassName="text-sm font-bold tracking-tight text-ink"
-    />
-  );
-}
-
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
+  const when = postedWhen(collection.updatedAt);
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <PostHeader company={collection.company} />
+      <ShopPostHeader
+        company={collection.company}
+        to={`/company/${collection.company.id}`}
+        nameClassName="text-sm font-bold tracking-tight text-ink"
+        trailing={explorePostHeaderTrailing(when)}
+      />
       <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={collection.previewImages}
@@ -952,9 +951,6 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <ExploreFeedCaption
           title={collection.name}
-          meta={[designCountLabel(collection.productCount), postedWhen(collection.updatedAt)]
-            .filter(Boolean)
-            .join(' · ')}
           rateLine={exploreFeedRateLine({
             rate: collection.rateMin,
             rateMax: collection.rateMax,
@@ -970,9 +966,15 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
 
 /** Single-design Explore post. */
 export function ProductPost({ product }: { product: ExploreProductCard }) {
+  const when = postedWhen(product.postedAt);
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <PostHeader company={product.company} />
+      <ShopPostHeader
+        company={product.company}
+        to={`/company/${product.company.id}`}
+        nameClassName="text-sm font-bold tracking-tight text-ink"
+        trailing={explorePostHeaderTrailing(when)}
+      />
       <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={product.images[0] ? [product.images[0]] : []}
@@ -983,12 +985,6 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
       <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <ExploreFeedCaption
           title={product.name}
-          meta={[
-            product.images.length > 1 ? `Design · ${product.images.length} photos` : 'Design',
-            postedWhen(product.postedAt),
-          ]
-            .filter(Boolean)
-            .join(' · ')}
           rateLine={exploreFeedRateLine({
             rate: product.rate,
             rateMax: product.rateMax,

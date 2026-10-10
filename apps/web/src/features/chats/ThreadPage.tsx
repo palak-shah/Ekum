@@ -140,7 +140,12 @@ import { showGroupSenderThumb } from './groupSenderThumb';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
-import { MSG_BUBBLE_CLASS, messageChromeBubblePad, resolveMessageLongPress } from './messageChrome';
+import {
+  MSG_BUBBLE_CLASS,
+  MSG_BUBBLE_TIME_CLASS,
+  messageChromeBubblePad,
+  resolveMessageLongPress,
+} from './messageChrome';
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
@@ -3380,6 +3385,7 @@ function MessageChrome({
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [replyReveal, setReplyReveal] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const chevronRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
@@ -3423,7 +3429,11 @@ function MessageChrome({
       return;
     }
     const place = () => {
-      const box = rootRef.current?.getBoundingClientRect();
+      // Anchor to the chevron (not the whole bubble) so tall trade cards don’t
+      // open the menu under the message body.
+      const box =
+        chevronRef.current?.getBoundingClientRect() ??
+        rootRef.current?.getBoundingClientRect();
       if (!box) return;
       const height = menuRef.current?.offsetHeight || 280;
       const width = menuRef.current?.offsetWidth || 160;
@@ -3666,6 +3676,7 @@ function MessageChrome({
         {children}
         {hasActions && !selecting ? (
           <button
+            ref={chevronRef}
             type="button"
             aria-label="Message actions"
             aria-expanded={menuOpen}
@@ -3906,7 +3917,7 @@ function TimelineItem({
               interactive={!selecting}
               onQuote={onQuotePhoto}
             />
-            <p className="px-3 py-1.5 text-right text-xs text-muted">
+            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'py-1.5 pl-3 text-xs text-muted')}>
               {timeAgo(message.createdAt)}
             </p>
           </div>
@@ -3982,7 +3993,7 @@ function TimelineItem({
                 </span>
               </span>
             </a>
-            <p className="px-3 py-1.5 text-right text-xs text-muted">
+            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'py-1.5 pl-3 text-xs text-muted')}>
               {timeAgo(message.createdAt)}
               {message.editedAt ? ' · Edited' : ''}
             </p>
@@ -4020,7 +4031,9 @@ function TimelineItem({
           <div className="min-w-0">
             <VoicePlayer src={message.body} durationMs={durationMs} />
           </div>
-          <p className="text-right text-xs text-muted">{timeAgo(message.createdAt)}</p>
+          <p className={cx(MSG_BUBBLE_TIME_CLASS, 'text-xs text-muted')}>
+            {timeAgo(message.createdAt)}
+          </p>
         </div>
       </MessageChrome>
     );
@@ -4304,7 +4317,9 @@ function TimelineItem({
               {message.editedAt ? <p className="mt-0.5 text-[10px] text-muted">Edited</p> : null}
             </>
           )}
-          <p className="mt-0.5 text-right text-xs text-muted">{timeAgo(message.createdAt)}</p>
+          <p className={cx(MSG_BUBBLE_TIME_CLASS, 'mt-0.5 text-xs text-muted')}>
+            {timeAgo(message.createdAt)}
+          </p>
         </div>
       </MessageChrome>
     );
@@ -4424,7 +4439,9 @@ function TimelineItem({
             <p className="text-[13px] font-medium text-ink">
               {hl(message.body?.trim() || 'Shared attachment')}
             </p>
-            <p className="mt-1 text-right text-[11px] text-muted">{timeAgo(message.createdAt)}</p>
+            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'mt-1 text-[11px] text-muted')}>
+              {timeAgo(message.createdAt)}
+            </p>
           </div>
         </div>
       </div>

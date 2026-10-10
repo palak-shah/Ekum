@@ -128,6 +128,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Buyer view Wedding Edit + shortlist clear | Works | Functional | Required | Green 2026-08-11 (BM-03) |
 | Collections | Seller create photos-first + cover tag | Works | Unit | Required | Slice 1 2026-08-12; Photos = ContinuousCamera like Add designs (2026-09-11) |
 | Collections | New collection one **Add designs** → sheet Designs · Photos (Gallery on camera) | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe; supersedes 3-door Camera · Photo library · Designs |
+| Collections | Add designs library hides designs already in the album (Replace = full library) | Works | Unit | Required | Completeness 2026-10-10-add-designs-hide-members |
+| Collections | Replace sheet chooses Designs or Photos (no dock hop after confirm) | Works | Unit | Required | Completeness 2026-10-10-replace-source-chooser |
 | Collections | New collection cascade tags, From/To rate, apply-all + rate confirm, dual order/dispatch units | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe |
 | Collections | Collection name label; One rate / A range pill switch; no On request caption; italic light placeholders | Works | Unit + Functional | Required | Completeness 2026-10-09-collection-rate-mode-placeholders |
 | Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
@@ -141,17 +143,18 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | QA: visibility CTA, Explore bump, chat-share discoverable, 2-tile mosaic, owner From on viewer | Works | Unit | Required | Completeness 2026-09-03-collection-qa-fixes; Share=chats not broadcast |
 | Collections | Pack publish does not Explore-post member designs | Works | Unit | Required | Completeness 2026-09-11-collection-publish-no-design-explore |
 | Explore / Catalog | Multi-buyer Share sheet (1·many companies, Find on Ekum, Clear, 48h link; Publish-style group chips, unique shops) | Works | Unit | Required | Completeness 2026-09-11-multi-buyer-catalog-share + 2026-10-04-share-buyer-groups + 2026-10-05-catalog-share-sheet-quiet |
-| Explore / Catalog / Company | Universal Share (content-height sheet; paper-plane; Create group quiet text; composer + primary Send; quieter native ShareIcon; catalog + company) | Works | Unit | Required | Completeness 2026-10-10-universal-share |
+| Explore / Catalog / Company | Universal Share (content-height sheet; one search + Find on Ekum link like New chat; Create group quiet text; composer + primary Send; quieter native ShareIcon; catalog + company) | Works | Unit | Required | Completeness 2026-10-10-universal-share; 2026-10-10-share-one-search |
 | Collections | Uniform album chrome + find My designs (Select+primary+⋯; no Catalog tab) | Works | Unit | Required | Completeness 2026-09-03-uniform-album-chrome |
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |
 | Explore | Design page Ask / Order dock visitors only | Works | Unit | Required | Owner never gets dock (even Selling/Trading); `exploreProductChrome` |
-| Explore | Instagram look + B2B: own feed, new-designs line, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look |
+| Explore | Instagram look + B2B: own feed, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look; new-designs meta retired 2026-10-10 |
+| Explore | Caption: album read more / Show less + newlines; no meta under title; time beside shop name | Works | Unit | Required | Completeness 2026-10-10-explore-caption-album-description |
 | Explore | Per-post Repost sheet (Who / groups / 48h / forward·download) — not Your selection | Works | Unit | Required | Completeness 2026-10-08-explore-repost-publish-sheet |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
 | Collections | Hide last live design drafts the pack; viewer lists Published only | Later | Unit | Optional | Superseded 2026-10-06-pack-members-stay-published: pack stays Published; Hide is explicit |
 | Collections | Pack members stay published on add/replace photos; no auto-draft | Works | Unit | Required | Completeness 2026-10-06-pack-members-stay-published |
-| Collections | Own pack manage dock (Add/Replace; selecting Cart · Share · Delete icons · Remove from this collection; hide owner name card) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock; 2026-10-06-owner-pack-select-dock-copy; 2026-10-09-owner-pack-select-cart-icons |
+| Collections | Own pack manage dock (Add/Replace; selecting Cart · Share · Delete icons · Remove from this collection; hide owner name card; dock only when packManage from You/＋/own shop; Explore own pack uses ⋯ manage trio) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock; 2026-10-06-owner-pack-select-dock-copy; 2026-10-09-owner-pack-select-cart-icons; 2026-10-11-own-pack-manage-entry |
 | Collections | Edit live pack: **Publish** on own unpublished photo tiles + design sheet | Works | Unit | Required | Completeness 2026-10-06-collection-photo-set-live; pack-only, not Explore tile; word is Publish |
 | Orders | Ordered design leftover says No longer available | Works | Unit | Required | Same leftover as Saved / share |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |

@@ -48,6 +48,19 @@ export function membershipAfterRemove(
   return currentIds.filter((id) => !drop.has(id));
 }
 
+/**
+ * Add designs library sheet: hide designs already in the album so they don’t
+ * block picking. Replace shows the full library (new set can include prior members).
+ */
+export function libraryDesignsForPicker<T extends { id: string }>(
+  designs: readonly T[],
+  memberIds: ReadonlySet<string>,
+  mode: 'add' | 'replace',
+): T[] {
+  if (mode === 'replace') return [...designs];
+  return designs.filter((design) => !memberIds.has(design.id));
+}
+
 /** New members first (album order); existing keep their relative order. */
 export function membershipWithNewFirst(
   currentIds: readonly string[],

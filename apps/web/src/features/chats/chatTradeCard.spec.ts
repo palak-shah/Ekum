@@ -189,7 +189,7 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
     );
     expect(model.primary).toBe('Mill Lot — March');
     expect(model.who).toBe('Jaipur Emporium');
-    expect(model.details).toEqual(['Order goes to Ahmedabad Loom Co', '3 designs']);
+    expect(model.details).toEqual(['Order goes to Ahmedabad Loom Co']);
     expect(model.action?.label).toBe('View collection →');
   });
 
@@ -322,7 +322,7 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
       { collectionPath: '/collections/col-1' },
     );
     expect(model.who).toBeNull();
-    expect(model.details).toEqual(['6 designs']);
+    expect(model.details).toEqual([]);
     expect(model.note).toBe('abc');
   });
 });

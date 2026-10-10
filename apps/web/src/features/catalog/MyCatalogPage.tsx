@@ -1103,6 +1103,9 @@ function SellerCollectionTile({
     collection.status === CollectionStatus.Archived
       ? `/catalog/collections/${collection.id}`
       : `/collections/${collection.id}`;
+  /** You / ＋ Collections → album with manage dock. */
+  const packManageState =
+    collection.status === CollectionStatus.Archived ? undefined : { packManage: true as const };
 
   const caption = collectionListingCaption(collection, groups);
   const sourceLine = collectionOwnerSourceLine(
@@ -1127,13 +1130,14 @@ function SellerCollectionTile({
         meta={caption}
         detail={detail}
         href={href}
+        linkState={packManageState}
         images={previews}
         imageCount={mosaicCount}
         selected={selected}
         selectMode={selecting}
         onMediaClick={() => {
           if (selecting) onToggle();
-          else navigate(href);
+          else navigate(href, packManageState ? { state: packManageState } : undefined);
         }}
         onLongSelect={selecting ? undefined : onLongSelect}
       />
@@ -1188,7 +1192,7 @@ function SellerCollectionTile({
         'overflow-hidden rounded-2xl border border-line bg-surface text-left',
         LONG_PRESS_SURFACE_CLASS,
       )}
-      onClick={() => navigate(href)}
+      onClick={() => navigate(href, packManageState ? { state: packManageState } : undefined)}
       {...longPress}
     >
       {body}

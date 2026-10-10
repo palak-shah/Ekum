@@ -28,4 +28,12 @@ describe('placeInboxRowMenu', () => {
     expect(pos.top + 280).toBeLessThanOrEqual(780 - 8);
     expect(pos.top).toBeLessThan(640);
   });
+
+  it('anchors to a small chevron box — not a tall trade-card bottom', () => {
+    // Tall collection card: message bottom is far below the chevron.
+    const chevron = { top: 120, bottom: 148, right: 360 };
+    const pos = placeInboxRowMenu(chevron, { width: 390, height: 800 }, { width: 160, height: 280 });
+    expect(pos.top).toBe(148 + 6);
+    expect(pos.top).toBeLessThan(200);
+  });
 });
