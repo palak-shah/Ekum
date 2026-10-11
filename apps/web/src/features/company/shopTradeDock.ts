@@ -48,11 +48,13 @@ export function shopTabSelectedCount(
   return tab === 'designs' ? designCount : albumCount;
 }
 
+/** Message · Share · Order when this shop has picks — own shop too (Message muted in UI). */
 export function shouldShowShopTradeDock(options: {
   isOwn: boolean;
   shopSelectedCount: number;
 }): boolean {
-  return !options.isOwn && options.shopSelectedCount > 0;
+  void options.isOwn;
+  return options.shopSelectedCount > 0;
 }
 
 /** Hide Home · Chats · ＋ · Explore · Orders when a focused job owns the bottom. */
@@ -84,8 +86,10 @@ export function shouldHideAppNav(
   const match = pathname.match(/^\/company\/([^/]+)/);
   if (!match) return false;
   const shopId = match[1]!;
-  // Own shop keeps the shell (like You). Other shops hide nav — Instagram / WhatsApp deep profile.
-  if (options.myCompanyId && shopId === options.myCompanyId) return false;
+  // Own shop keeps nav unless select dock is up; other shops always hide nav on profile.
+  if (options.myCompanyId && shopId === options.myCompanyId) {
+    return options.thisShopSelectedCount > 0;
+  }
   return true;
 }
 

@@ -325,11 +325,24 @@ export const BookmarkIcon = (props: IconProps) => (
   </Icon>
 );
 
-/** Explore / Selection Repost (publish under my name). */
+/** Explore / Selection Repost — Instagram-style dual loop arrows. */
 export const RepostIcon = (props: IconProps) => (
   <Icon {...props}>
-    <path d="M17 1v6h-6" />
-    <path d="M21 11a8 8 0 1 1-2.3-5.6L17 7" />
+    <polyline points="17 1 21 5 17 9" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <polyline points="7 23 3 19 7 15" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </Icon>
+);
+
+/** Explore: already reposted this peer post (arrows + mark inside). */
+export const RepostDoneIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <polyline points="17 1 21 5 17 9" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <polyline points="7 23 3 19 7 15" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    <path d="M8.5 12.5 11 15l4.5-5" strokeWidth={2.5} />
   </Icon>
 );
 

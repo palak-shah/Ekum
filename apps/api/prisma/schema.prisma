@@ -363,6 +363,12 @@ model Collection {
    * Trader desk still knows mills. Default off (under my name).
    */
   showSourceShops     Boolean  @default(false)
+  /**
+   * Explore Repost source — at most one of these set. Unique per owner when set
+   * (partial indexes in migration) so a peer post can be reposted once.
+   */
+  repostSourceCollectionId String?
+  repostSourceProductId    String?
   /** Live window start (UTC). null = live as soon as published. */
   startsAt            DateTime?
   /** Live window end (UTC). null = evergreen. When passed → Hide to draft. */
@@ -386,6 +392,8 @@ model Collection {
   @@index([status, startsAt])
   @@index([createdByUserId])
   @@index([updatedByUserId])
+  @@index([companyId, repostSourceCollectionId])
+  @@index([companyId, repostSourceProductId])
 }
 
 /// Official taxonomy tags (seeded) + company-private custom tags for catalog pickers.

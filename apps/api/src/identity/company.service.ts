@@ -271,6 +271,8 @@ export class CompanyService {
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     });
 
+    const productIds = rows.map((row) => row.id);
+    const repostedProducts = await this.viewerRepostedProductIds(viewerCompanyId, productIds);
     return toCursorPage(rows, query.limit, (row): ExploreProductCard => ({
       id: row.id,
       name: row.name,
@@ -281,6 +283,7 @@ export class CompanyService {
       categories: row.categories ?? [],
       postedAt: (row.postedToMarketAt ?? row.createdAt).toISOString(),
       allowForward: row.allowForward !== false,
+      viewerReposted: repostedProducts.has(row.id),
       company: this.serializer.toPublicSummary(row.company),
     }));
   }
@@ -329,6 +332,11 @@ export class CompanyService {
     });
 
     const live = rows.filter((row) => row._count.products > 0);
+    const collectionIds = live.map((row) => row.id);
+    const repostedCollections = await this.viewerRepostedCollectionIds(
+      viewerCompanyId,
+      collectionIds,
+    );
     return toCursorPage(live, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
       const rate = collectionCardRateFields({
@@ -364,8 +372,45 @@ export class CompanyService {
           row.showSourceShops === true,
           row.products,
         ),
+        viewerReposted: repostedCollections.has(row.id),
         company: this.serializer.toPublicSummary(row.company),
       };
     });
+  }
+
+  private async viewerRepostedCollectionIds(
+    viewerCompanyId: string,
+    collectionIds: string[],
+  ): Promise<Set<string>> {
+    if (collectionIds.length === 0) return new Set();
+    const mine = await this.prisma.collection.findMany({
+      where: {
+        companyId: viewerCompanyId,
+        repostSourceCollectionId: { in: collectionIds },
+      },
+      select: { repostSourceCollectionId: true },
+    });
+    return new Set(
+      mine
+        .map((row) => row.repostSourceCollectionId)
+        .filter((id): id is string => Boolean(id)),
+    );
+  }
+
+  private async viewerRepostedProductIds(
+    viewerCompanyId: string,
+    productIds: string[],
+  ): Promise<Set<string>> {
+    if (productIds.length === 0) return new Set();
+    const mine = await this.prisma.collection.findMany({
+      where: {
+        companyId: viewerCompanyId,
+        repostSourceProductId: { in: productIds },
+      },
+      select: { repostSourceProductId: true },
+    });
+    return new Set(
+      mine.map((row) => row.repostSourceProductId).filter((id): id is string => Boolean(id)),
+    );
   }
 }

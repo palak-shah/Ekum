@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -121,6 +121,7 @@ describe('CompanyProfilePage shop chrome', () => {
     exploreNewDesignCount: 0,
     showSourceShops: false,
     sourceShopNames: [],
+              viewerReposted: false,
               company,
             },
           ],
@@ -374,6 +375,18 @@ describe('CompanyProfilePage shop chrome', () => {
     );
     expect(screen.getByText('Wedding Edit')).toBeInTheDocument();
     expect(screen.queryByText(/^\d+ designs?$/)).toBeNull();
+  });
+
+  it('Selecting puts N selected · Select all · Clear on a pill row under the tabs (BM-07)', async () => {
+    const user = userEvent.setup();
+    renderPage(false);
+    await screen.findByTestId('company-shop-select');
+    await user.click(screen.getByTestId('company-shop-select'));
+    const pillRow = screen.getByTestId('company-shop-select-pill-row');
+    const chrome = within(pillRow).getByTestId('select-all-float');
+    expect(chrome.className).toMatch(/rounded-full/);
+    expect(within(pillRow).getByTestId('select-all-float-clear')).toHaveTextContent('Clear');
+    expect(screen.queryByTestId('company-shop-select')).toBeNull();
   });
 
   it('Clear unselects a collection on this shop even if stored under another company', async () => {

@@ -100,10 +100,11 @@ describe('shopTabSelectedCount', () => {
 });
 
 describe('shouldShowShopTradeDock', () => {
-  it('shows only for another shop with picks', () => {
+  it('shows for any shop with picks (own Message muted in UI)', () => {
     expect(shouldShowShopTradeDock({ isOwn: false, shopSelectedCount: 1 })).toBe(true);
     expect(shouldShowShopTradeDock({ isOwn: false, shopSelectedCount: 0 })).toBe(false);
-    expect(shouldShowShopTradeDock({ isOwn: true, shopSelectedCount: 2 })).toBe(false);
+    expect(shouldShowShopTradeDock({ isOwn: true, shopSelectedCount: 2 })).toBe(true);
+    expect(shouldShowShopTradeDock({ isOwn: true, shopSelectedCount: 0 })).toBe(false);
   });
 });
 
@@ -152,10 +153,13 @@ describe('shouldHideAppNav', () => {
     ).toBe(true);
   });
 
-  it('keeps nav on own shop', () => {
+  it('keeps nav on own shop until select dock is up', () => {
+    expect(
+      shouldHideAppNav('/company/meena', { myCompanyId: 'meena', thisShopSelectedCount: 0 }),
+    ).toBe(false);
     expect(
       shouldHideAppNav('/company/meena', { myCompanyId: 'meena', thisShopSelectedCount: 2 }),
-    ).toBe(false);
+    ).toBe(true);
   });
   it('hides on New collection and edit collection', () => {
     expect(shouldHideAppNav('/catalog/collections/new', { thisShopSelectedCount: 0 })).toBe(true);

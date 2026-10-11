@@ -21,6 +21,7 @@ export function SelectAllFloat({
   onClear,
   offsetClass = SELECT_FLOAT_BELOW_PAGE,
   layout = 'bar',
+  showSelectAll = true,
 }: {
   open: boolean;
   count: number;
@@ -30,28 +31,36 @@ export function SelectAllFloat({
   offsetClass?: string;
   /** `pill` sits under Selecting on shop. */
   layout?: 'bar' | 'pill';
+  showSelectAll?: boolean;
 }) {
   if (!open) return null;
 
   const actions = (
     <>
-      <p className={cx('font-semibold text-ink', layout === 'pill' ? 'text-xs' : 'text-sm')}>
+      <p
+        className={cx(
+          'shrink-0 whitespace-nowrap font-semibold text-ink',
+          layout === 'pill' ? 'text-xs' : 'text-sm',
+        )}
+      >
         {count} selected
       </p>
-      <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          data-testid="select-all-float-select-all"
-          disabled={allSelected}
-          className="text-xs font-bold text-accent disabled:opacity-40"
-          onClick={onSelectAll}
-        >
-          Select all
-        </button>
+      <div className="flex shrink-0 items-center gap-2.5">
+        {showSelectAll ? (
+          <button
+            type="button"
+            data-testid="select-all-float-select-all"
+            disabled={allSelected}
+            className="shrink-0 whitespace-nowrap text-xs font-bold text-accent disabled:opacity-40"
+            onClick={onSelectAll}
+          >
+            Select all
+          </button>
+        ) : null}
         <button
           type="button"
           data-testid="select-all-float-clear"
-          className="text-xs font-bold text-accent"
+          className="shrink-0 whitespace-nowrap text-xs font-bold text-accent"
           onClick={onClear}
         >
           Clear
@@ -64,7 +73,7 @@ export function SelectAllFloat({
     return (
       <div
         data-testid="select-all-float"
-        className="flex w-fit max-w-full items-center gap-3 rounded-full bg-foam px-3 py-1.5"
+        className="flex w-fit max-w-full shrink-0 items-center gap-3 rounded-full bg-foam px-3 py-1.5"
       >
         {actions}
       </div>

@@ -463,4 +463,64 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.rateMax).toBe(700);
     expect(view.rateUnit).toBe('pc');
   });
+
+  it('collections page stamps viewerReposted when I already reposted that pack', async () => {
+    const peerPack = {
+      id: 'peer-col',
+      companyId: 'peer',
+      name: 'Peer Pack',
+      status: 'published',
+      coverImage: null,
+      exploreActivityAt: new Date('2026-10-01T00:00:00.000Z'),
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      company: { id: 'peer', name: 'Peer Shop' },
+      products: [{ product: { id: 'p1', status: 'published' } }],
+      _count: { products: 1 },
+    };
+    let stampWhere: unknown;
+    const prisma = {
+      follow: { findMany: async () => [{ followedCompanyId: 'peer' }] },
+      company: {
+        findUnique: async () => ({
+          buyCategories: ['saree'],
+          superCategories: [],
+          city: 'Surat',
+        }),
+      },
+      collection: {
+        findMany: async (args: { where?: { companyId?: string; OR?: unknown } }) => {
+          if (args.where && 'OR' in (args.where as object)) {
+            stampWhere = args.where;
+            return [{ repostSourceCollectionId: 'peer-col', repostSourceProductId: null }];
+          }
+          return [peerPack];
+        },
+      },
+    } as unknown as PrismaService;
+    const discovery = {
+      toCollectionCard: (
+        row: { id: string; companyId: string; company?: { id: string }; _count: { products: number } },
+        opts?: { viewerReposted?: boolean },
+      ) => ({
+        id: row.id,
+        name: 'Peer Pack',
+        company: { id: row.company?.id ?? row.companyId },
+        productCount: row._count.products,
+        viewerReposted: opts?.viewerReposted === true,
+        updatedAt: new Date().toISOString(),
+      }),
+    } as unknown as DiscoverySerializer;
+    const service = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+    );
+    const page = await service.collections('me', { limit: 20, following: true });
+    expect(stampWhere).toMatchObject({
+      companyId: 'me',
+      OR: [{ repostSourceCollectionId: { in: ['peer-col'] } }],
+    });
+    expect(page.results[0]?.viewerReposted).toBe(true);
+  });
 });

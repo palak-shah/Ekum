@@ -73,6 +73,7 @@ const collection: CollectionCard = {
   exploreNewDesignCount: 0,
   showSourceShops: false,
   sourceShopNames: [],
+  viewerReposted: false,
   company: {
     id: 'mill',
     name: 'Ahmedabad Loom Co',
@@ -126,7 +127,7 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByPlaceholderText('What do you think of this?')).toBeTruthy();
   });
 
-  it('grays out Repost · Message · Bookmark on own posts; Share stays enabled', () => {
+  it('grays out Message and Repost on own posts; Share · Bookmark stay enabled', () => {
     wrap(
       <ExploreFeedActions
         collection={{
@@ -135,10 +136,22 @@ describe('ExploreFeedActions', () => {
         }}
       />,
     );
-    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
     expect(screen.getByTestId('explore-feed-message')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-bookmark')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
     expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+  });
+
+  it('shows done Repost icon when viewer already reposted — not gray; no sheet', async () => {
+    const user = userEvent.setup();
+    wrap(<ExploreFeedActions collection={{ ...collection, viewerReposted: true }} />);
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(repost).toHaveAttribute('data-repost', 'done');
+    expect(repost).toHaveAttribute('aria-label', 'Reposted');
+    expect(repost.className).not.toMatch(/opacity-40/);
+    expect(repost).not.toBeDisabled();
+    await user.click(repost);
+    expect(screen.queryByRole('heading', { name: 'Repost' })).toBeNull();
   });
 
   it('grays out Repost when forward is locked; other actions stay enabled', () => {

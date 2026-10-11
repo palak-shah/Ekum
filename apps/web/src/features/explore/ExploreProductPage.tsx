@@ -34,6 +34,7 @@ import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { useToast } from '@/ui/Toast';
 import { Button, ErrorState, LoadingBlock, Tag, cx } from '@/ui/kit';
 import { CompanyRow } from '@/ui/cards';
@@ -256,27 +257,20 @@ export function ExploreProductPage() {
       />
 
       {data.images.length > 0 ? (
-        <button
-          type="button"
-          data-testid="design-hero-photo"
-          aria-label="View photos"
-          className="relative -mx-4 h-[min(42vh,22rem)] overflow-hidden bg-linen"
-          onClick={() => {
-            setPhotoIndex(0);
-            setPhotoOpen(true);
-          }}
-        >
-          <img
-            src={toAbsoluteMediaUrl(data.images[0]) || data.images[0]}
-            alt=""
-            className="h-full w-full object-cover"
+        <div className="-mx-4" data-testid="design-hero-photo">
+          <DesignPhotoCarousel
+            urls={data.images.map((url) => toAbsoluteMediaUrl(url) || url)}
+            name={data.name}
+            photoClassName="h-[min(42vh,22rem)] w-full object-cover"
+            placeholderClassName="flex h-[min(42vh,22rem)] w-full items-center justify-center bg-linen text-3xl font-bold text-muted"
+            onActivate={(index) => {
+              setPhotoIndex(index);
+              setPhotoOpen(true);
+            }}
+            testId="design-hero-photos"
+            showExtraBadge={false}
           />
-          {data.images.length > 1 ? (
-            <span className="absolute bottom-2 right-2 rounded-full bg-ink/70 px-2 py-0.5 text-[11px] font-semibold text-white">
-              1/{data.images.length}
-            </span>
-          ) : null}
-        </button>
+        </div>
       ) : (
         <div className="-mx-4 flex h-[min(42vh,22rem)] items-center justify-center bg-linen text-3xl font-bold text-muted">
           {data.name.charAt(0).toUpperCase()}

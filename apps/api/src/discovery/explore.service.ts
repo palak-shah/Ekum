@@ -495,7 +495,7 @@ export class ExploreService {
         include: { company: true },
         ...args,
       });
-      return toCursorPage(rows, query.limit, (row) => this.discovery.toExploreProductCard(row));
+      return this.toProductCardPage(viewerCompanyId, rows, query.limit);
     }
 
     const followed = await this.prisma.follow.findMany({
@@ -510,7 +510,7 @@ export class ExploreService {
         include: { company: true },
         ...args,
       });
-      return toCursorPage(rows, query.limit, (row) => this.discovery.toExploreProductCard(row));
+      return this.toProductCardPage(viewerCompanyId, rows, query.limit);
     }
 
     const [followedRows, otherRows] = await Promise.all([
@@ -532,7 +532,7 @@ export class ExploreService {
     ]);
     const merged = [...followedRows, ...otherRows];
     const page = pageMerged(merged, query, (row) => row.id);
-    return toCursorPage(page, query.limit, (row) => this.discovery.toExploreProductCard(row));
+    return this.toProductCardPage(viewerCompanyId, page, query.limit);
   }
 
   /**
@@ -577,10 +577,11 @@ export class ExploreService {
         ].sort(byPostedAtDesc),
       );
       const page = pageMerged(merged, query, (row) => row.feedId);
+      const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
       return toCursorPage(
         page,
         query.limit,
-        (row) => this.toExplorePost(row),
+        (row) => this.toExplorePost(row, stamps),
         (row) => row.feedId,
       );
     }
@@ -648,10 +649,11 @@ export class ExploreService {
         ];
 
     const page = pageMerged(await this.hideDesignsCoveredByPacks(merged), query, (row) => row.feedId);
+    const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row),
+      (row) => this.toExplorePost(row, stamps),
       (row) => row.feedId,
     );
   }
@@ -677,7 +679,7 @@ export class ExploreService {
         take: query.limit + 1,
         ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       });
-      return toCursorPage(withLiveDesigns(rows), query.limit, (row) => this.discovery.toCollectionCard(row));
+      return this.toCollectionCardPage(viewerCompanyId, withLiveDesigns(rows), query.limit);
     }
 
     const followed = await this.prisma.follow.findMany({
@@ -721,12 +723,8 @@ export class ExploreService {
           ...[...otherFeed].sort((a, b) => compareByMarketRelevance(a, b, interest, city)),
         ];
     const page = pageMerged(mergedFeed, query, (row) => row.collection!.id);
-    return toCursorPage(
-      page,
-      query.limit,
-      (row) => this.discovery.toCollectionCard(row.collection!),
-      (row) => row.collection!.id,
-    );
+    const cards = page.map((row) => row.collection!);
+    return this.toCollectionCardPage(viewerCompanyId, cards, query.limit);
   }
 
   async companies(viewerCompanyId: string, query: ExploreQuery): Promise<CursorPage<CompanyCard>> {
@@ -1605,13 +1603,98 @@ export class ExploreService {
     };
   }
 
-  private toExplorePost(row: FeedRow): ExplorePost {
+  /** Stamp Explore cards so already-reposted peer posts show the done icon. */
+  private async toCollectionCardPage(
+    viewerCompanyId: string,
+    rows: CollectionCardRow[],
+    limit: number,
+  ): Promise<CursorPage<CollectionCard>> {
+    const stamps = await this.viewerRepostStamps(viewerCompanyId, {
+      collectionIds: rows.map((row) => row.id),
+      productIds: [],
+    });
+    return toCursorPage(rows, limit, (row) =>
+      this.discovery.toCollectionCard(row, {
+        viewerReposted: stamps.collections.has(row.id),
+      }),
+    );
+  }
+
+  private async toProductCardPage(
+    viewerCompanyId: string,
+    rows: ProductFeedRow[],
+    limit: number,
+  ): Promise<CursorPage<ExploreProductCard>> {
+    const stamps = await this.viewerRepostStamps(viewerCompanyId, {
+      collectionIds: [],
+      productIds: rows.map((row) => row.id),
+    });
+    return toCursorPage(rows, limit, (row) =>
+      this.discovery.toExploreProductCard(row, {
+        viewerReposted: stamps.products.has(row.id),
+      }),
+    );
+  }
+
+  private async viewerRepostStampsForFeed(
+    viewerCompanyId: string,
+    rows: FeedRow[],
+  ): Promise<{ collections: Set<string>; products: Set<string> }> {
+    return this.viewerRepostStamps(viewerCompanyId, {
+      collectionIds: rows.flatMap((row) =>
+        row.kind === 'collection' && row.collection ? [row.collection.id] : [],
+      ),
+      productIds: rows.flatMap((row) =>
+        row.kind === 'product' && row.product ? [row.product.id] : [],
+      ),
+    });
+  }
+
+  private async viewerRepostStamps(
+    viewerCompanyId: string,
+    ids: { collectionIds: string[]; productIds: string[] },
+  ): Promise<{ collections: Set<string>; products: Set<string> }> {
+    const collectionIds = [...new Set(ids.collectionIds)];
+    const productIds = [...new Set(ids.productIds)];
+    if (collectionIds.length === 0 && productIds.length === 0) {
+      return { collections: new Set(), products: new Set() };
+    }
+    const mine = await this.prisma.collection.findMany({
+      where: {
+        companyId: viewerCompanyId,
+        OR: [
+          ...(collectionIds.length > 0
+            ? [{ repostSourceCollectionId: { in: collectionIds } }]
+            : []),
+          ...(productIds.length > 0 ? [{ repostSourceProductId: { in: productIds } }] : []),
+        ],
+      },
+      select: { repostSourceCollectionId: true, repostSourceProductId: true },
+    });
+    return {
+      collections: new Set(
+        mine
+          .map((row) => row.repostSourceCollectionId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+      products: new Set(
+        mine.map((row) => row.repostSourceProductId).filter((id): id is string => Boolean(id)),
+      ),
+    };
+  }
+
+  private toExplorePost(
+    row: FeedRow,
+    stamps: { collections: Set<string>; products: Set<string> },
+  ): ExplorePost {
     if (row.kind === 'collection' && row.collection) {
       return {
         kind: 'collection',
         id: row.feedId,
         postedAt: row.postedAt.toISOString(),
-        collection: this.discovery.toCollectionCard(row.collection),
+        collection: this.discovery.toCollectionCard(row.collection, {
+          viewerReposted: stamps.collections.has(row.collection.id),
+        }),
       };
     }
     if (row.kind === 'product' && row.product) {
@@ -1619,7 +1702,9 @@ export class ExploreService {
         kind: 'product',
         id: row.feedId,
         postedAt: row.postedAt.toISOString(),
-        product: this.discovery.toExploreProductCard(row.product),
+        product: this.discovery.toExploreProductCard(row.product, {
+          viewerReposted: stamps.products.has(row.product.id),
+        }),
       };
     }
     throw new Error('Invalid feed row');

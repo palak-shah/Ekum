@@ -37,7 +37,12 @@ import {
 } from '@/features/orders/orderActionDockNav';
 import { CreateCollectionFabSheet } from './CreateCollectionFabSheet';
 import { createFabHref, createFabIntent, CREATE_FAB_EXPLAIN } from './createFabIntent';
-import { pageOwnsTopChrome, shellShowsHomeBack, shellTitle } from './shellTitle';
+import {
+  pageOwnsTopChrome,
+  shellShowsHomeAccount,
+  shellShowsHomeBack,
+  shellTitle,
+} from './shellTitle';
 import { useToast } from '@/ui/Toast';
 import {
   chatsInboxHref,
@@ -223,7 +228,7 @@ export function AppShell() {
                 ) : null}
               </button>
             ) : null}
-            {isHome || youRoot ? (
+            {shellShowsHomeAccount(location.pathname) ? (
               <HomeAccountMenu
                 name={company.data?.name ?? session?.user.name ?? 'E'}
                 imageUrl={company.data?.logoUrl}

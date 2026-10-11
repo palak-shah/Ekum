@@ -40,6 +40,7 @@ const opportunity: ExploreOpportunity = {
     exploreNewDesignCount: 0,
     showSourceShops: false,
     sourceShopNames: [],
+    viewerReposted: false,
     company: {
       id: 'co-1',
       name: 'Surat Silk House',

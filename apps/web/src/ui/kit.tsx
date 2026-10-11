@@ -409,7 +409,7 @@ export function Sheet({
   footer?: ReactNode;
   /** Extra classes on the panel (e.g. a fixed height so select does not resize). */
   panelClassName?: string;
-  /** `full` = edge-to-edge height; default bottom sheet hugs content up to max-h. */
+  /** `full` = edge-to-edge; default hugs content up to 100dvh, then body scrolls. */
   size?: 'sheet' | 'full';
 }) {
   if (!open || typeof document === 'undefined') {
@@ -433,7 +433,7 @@ export function Sheet({
           'ekum-sheet relative z-10 flex w-full max-w-md flex-col bg-surface',
           full
             ? 'h-[100dvh] max-h-[100dvh] rounded-none px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] shadow-none'
-            : 'max-h-[min(92dvh,40rem)] rounded-t-2xl px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
+            : 'max-h-[100dvh] rounded-t-2xl px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
           panelClassName,
         )}
       >
@@ -492,9 +492,7 @@ export function Sheet({
           <>
             <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
             {footer ? (
-              <div className="ekum-no-scrollbar mt-3 max-h-[min(55dvh,24rem)] shrink-0 overflow-y-auto border-t border-line pt-3.5">
-                {footer}
-              </div>
+              <div className="mt-3 shrink-0 border-t border-line pt-3.5">{footer}</div>
             ) : null}
           </>
         )}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { pageOwnsTopChrome, shellShowsHomeBack, shellTitle } from './shellTitle';
+import {
+  pageOwnsTopChrome,
+  shellShowsHomeAccount,
+  shellShowsHomeBack,
+  shellTitle,
+} from './shellTitle';
 
 describe('shellTitle', () => {
   it('labels Home like the other tab roots', () => {
@@ -21,6 +26,12 @@ describe('shellTitle', () => {
     expect(shellShowsHomeBack('/chats')).toBe(false);
     expect(shellShowsHomeBack('/explore')).toBe(false);
     expect(shellShowsHomeBack('/explore', { exploreSelecting: true })).toBe(true);
+  });
+
+  it('shows account avatar on Home only — not My collections', () => {
+    expect(shellShowsHomeAccount('/')).toBe(true);
+    expect(shellShowsHomeAccount('/more')).toBe(false);
+    expect(shellShowsHomeAccount('/explore')).toBe(false);
   });
 
   it('lets the shared design set own the top band (no empty shell line)', () => {

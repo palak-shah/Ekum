@@ -22,10 +22,10 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { CatalogFeedPost } from '@/ui/cards';
+import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Button, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
-import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import {
   BOTTOM_DOCK_CLEARANCE_CLASS,
   BottomTradeDock,
@@ -39,8 +39,6 @@ import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useTradePresence } from '@/lib/tradePresence';
 import { LockIcon } from '@/ui/icons';
 import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
-import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
-
 type SetTile =
   | { id: string; status: 'ok'; product: ExploreProductPreviewView }
   | { id: string; status: 'locked'; name: string }
@@ -383,7 +381,6 @@ function DesignSetTile({
   onLongSelect: () => void;
 }) {
   const images = product.images.map((url) => toAbsoluteMediaUrl(url) || url).filter(Boolean);
-  const thumb = images[0] ?? null;
   const { meta, detail } = designSetFactLines({
     images,
     companyName: product.company.name,
@@ -392,8 +389,6 @@ function DesignSetTile({
     moq: product.moq,
     categories: product.categories,
   });
-  const extraPhotos = Math.max(0, images.length - 1);
-  const longPress = useLongPress(onLongSelect);
 
   if (layout === 'feed') {
     return (
@@ -402,7 +397,7 @@ function DesignSetTile({
         meta={meta || undefined}
         detail={detail || undefined}
         href={`/explore/products/${product.id}`}
-        images={thumb ? [thumb] : []}
+        images={images}
         imageCount={1}
         company={product.company}
         selected={selected}
@@ -416,33 +411,22 @@ function DesignSetTile({
   }
 
   return (
-    <button
-      type="button"
-      onClick={onActivate}
-      className={cx(
-        'overflow-hidden rounded-2xl border border-line bg-surface text-left active:opacity-90',
-        LONG_PRESS_SURFACE_CLASS,
-      )}
+    <div
+      className="overflow-hidden rounded-2xl border border-line bg-surface text-left"
       data-testid="design-set-tile"
-      {...longPress}
     >
-      {thumb ? (
-        <span className="relative block">
-          <SelectableMediaFrame selectMode={selectMode} selected={selected}>
-            <img src={thumb} alt="" className={designBrowsePhotoClass('grid')} />
-            {extraPhotos > 0 ? (
-              <span className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white">
-                +{extraPhotos}
-              </span>
-            ) : null}
-          </SelectableMediaFrame>
-        </span>
-      ) : (
-        <div className={designBrowsePhotoClass('grid', 'placeholder')}>
-          {product.name.charAt(0).toUpperCase()}
-        </div>
-      )}
-      <div className="px-2.5 py-2">
+      <DesignPhotoCarousel
+        urls={images}
+        name={product.name}
+        photoClassName={designBrowsePhotoClass('grid')}
+        placeholderClassName={designBrowsePhotoClass('grid', 'placeholder')}
+        selectMode={selectMode}
+        selected={selected}
+        onActivate={() => onActivate()}
+        onLongSelect={onLongSelect}
+        testId="design-set-photos"
+      />
+      <button type="button" onClick={onActivate} className="block w-full px-2.5 py-2 text-left">
         <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
         {meta ? (
           <p className="truncate text-xs font-medium text-muted">{meta}</p>
@@ -450,7 +434,7 @@ function DesignSetTile({
         {detail ? (
           <p className="truncate text-xs font-medium text-muted">{detail}</p>
         ) : null}
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import type { CollectionCard } from '@ekum/domain-types';
 import { designBrowsePhotoClass } from '@/lib/designBrowseLayout';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { packFeedDetailLine } from '@/ui/albumMosaic';
 import { cx } from '@/ui/kit';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
@@ -15,6 +16,7 @@ const CARD =
 
 export function ShopPhotoCell({
   src,
+  images: imagesProp,
   label,
   to,
   selected = false,
@@ -26,6 +28,8 @@ export function ShopPhotoCell({
   layout = 'grid',
 }: {
   src: string | null;
+  /** All design photos — enables swipe when length > 1. */
+  images?: string[] | null;
   label: string;
   to?: string;
   selected?: boolean;
@@ -37,8 +41,9 @@ export function ShopPhotoCell({
   layout?: 'feed' | 'grid';
 }) {
   const navigate = useNavigate();
-  const longPress = useLongPress(onLongSelect);
-  const url = toAbsoluteMediaUrl(src);
+  const urls = (imagesProp?.length ? imagesProp : src ? [src] : [])
+    .map((url) => toAbsoluteMediaUrl(url) || url)
+    .filter(Boolean);
   const selecting = Boolean(selectMode && onToggleSelect);
   const onActivate = () => {
     if (isLongPressActivateSuppressed()) return;
@@ -53,7 +58,7 @@ export function ShopPhotoCell({
       <CatalogFeedPost
         name={label}
         href={to ?? '#'}
-        images={url ? [url] : []}
+        images={urls}
         imageCount={1}
         selected={selected}
         selectMode={selectMode}
@@ -67,29 +72,17 @@ export function ShopPhotoCell({
 
   return (
     <div className={cx(CARD, selecting && selected && 'border-accent')}>
-      <button
-        type="button"
-        aria-label={selecting ? `Select ${label}` : label}
-        data-testid={testId}
-        className={cx('relative block w-full text-left', LONG_PRESS_SURFACE_CLASS)}
-        onClick={onActivate}
-        {...longPress}
-      >
-        <SelectableMediaFrame
-          selectMode={selectMode}
-          selected={selected}
-          checkClassName="right-2 top-2"
-          idleCheckClassName="border-2 border-white/95 bg-black/45 text-transparent shadow-sm"
-        >
-          {url ? (
-            <img src={url} alt="" className={designBrowsePhotoClass('grid')} loading="lazy" />
-          ) : (
-            <div className={designBrowsePhotoClass('grid', 'placeholder')}>
-              {label.trim().charAt(0).toUpperCase() || '·'}
-            </div>
-          )}
-        </SelectableMediaFrame>
-      </button>
+      <DesignPhotoCarousel
+        urls={urls}
+        name={label}
+        photoClassName={designBrowsePhotoClass('grid')}
+        placeholderClassName={designBrowsePhotoClass('grid', 'placeholder')}
+        selectMode={selectMode}
+        selected={selected}
+        onActivate={() => onActivate()}
+        onLongSelect={onLongSelect}
+        testId={testId ?? 'shop-design-photos'}
+      />
       {showName ? (
         to ? (
           <Link

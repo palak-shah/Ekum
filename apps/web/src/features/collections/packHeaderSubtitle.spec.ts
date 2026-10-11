@@ -108,14 +108,22 @@ describe('albumTileShopLine', () => {
 });
 
 describe('packHeaderSubtitleWithShop', () => {
-  it('appends from {shop} for visitors without the rate band', () => {
+  it('owner keeps N designs; visitor gets from {shop} only (no inventory count)', () => {
+    expect(
+      packHeaderSubtitleWithShop(
+        6,
+        [{ rate: 85, rateMax: 160, unit: 'mtr' }],
+        null,
+      ),
+    ).toBe('6 designs');
     expect(
       packHeaderSubtitleWithShop(
         6,
         [{ rate: 85, rateMax: 160, unit: 'mtr' }],
         'Ahmedabad Loom Co',
+        { showCount: false },
       ),
-    ).toBe('6 designs · from Ahmedabad Loom Co');
-    expect(packHeaderSubtitleWithShop(2, [], '  ')).toBe('2 designs');
+    ).toBe('from Ahmedabad Loom Co');
+    expect(packHeaderSubtitleWithShop(2, [], '  ', { showCount: false })).toBe('');
   });
 });

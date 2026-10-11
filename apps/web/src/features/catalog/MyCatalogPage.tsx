@@ -1,5 +1,4 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -22,9 +21,24 @@ import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, Sheet, cx } 
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { CollectionIcon, FilterIcon, PlusIcon, ProductIcon } from '@/ui/icons';
+import {
+  CollectionIcon,
+  FilterIcon,
+  LockIcon,
+  MoreHorizontalIcon,
+  OrdersIcon,
+  PaperPlaneIcon,
+  PlusIcon,
+  ProductIcon,
+  RepostIcon,
+  ReturnIcon,
+} from '@/ui/icons';
+import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
+import { BottomTradeDock, DockIconButton } from '@/features/browse/BottomTradeDock';
+import { youLibraryPublishedSelectChrome } from '@/features/catalog/youLibrarySelectDock';
 import { collectionMosaicCount, packFeedDetailLine } from '@/ui/albumMosaic';
 import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { collectionListingCaption } from './collectionStatusSummary';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
@@ -210,6 +224,7 @@ export function MyCatalogPage({
   usePageOwnsBottomBand(selecting && !youSaved);
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [lifecycleMoreOpen, setLifecycleMoreOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(
     () =>
@@ -419,6 +434,15 @@ export function MyCatalogPage({
           .filter((c) => c.status === CollectionStatus.Archived)
           .map((c) => c.id)
       : selectedProducts.filter((p) => p.status === ProductStatus.Archived).map((p) => p.id);
+  const publishedSelectChrome = youLibraryPublishedSelectChrome({
+    hideableCount: hideableIds.length,
+    archivableCount: archivableIds.length,
+    canCurate: canCurateOwn,
+  });
+  const showPublishedTradeDock = publishedSelectChrome.dock.length > 0;
+  const showLifecycleMore =
+    publishedSelectChrome.more.length > 0 ||
+    (publishableIds.length > 0 && archivableIds.length > 0);
 
   useEffect(() => {
     setSelecting(false);
@@ -823,90 +847,120 @@ export function MyCatalogPage({
         </>
       )}
 
-      {selecting && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              data-testid="you-library-select-dock"
-              className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
-            >
-              <div className="mx-auto flex max-w-md flex-col gap-2">
-                {hideableIds.length > 0 ? (
-                  <div className="flex gap-2">
-                    <Button
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      data-testid="catalog-order-for-buyer"
-                      onClick={() => sendToSelection('order')}
-                    >
-                      Order for buyer
-                    </Button>
-                    <Button
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      data-testid="catalog-share"
-                      onClick={() => setShareOpen(true)}
-                    >
-                      Share
-                    </Button>
-                  </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
-                  {restorableIds.length > 0 ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      onClick={() => bulkRestore.mutate(restorableIds)}
-                    >
-                      {bulkRestore.isPending ? 'Restoring…' : `Restore ${restorableIds.length}`}
-                    </Button>
-                  ) : null}
-                  {hideableIds.length > 0 ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      onClick={() => bulkHide.mutate(hideableIds)}
-                    >
-                      {bulkHide.isPending ? 'Hiding…' : `Hide · draft ${hideableIds.length}`}
-                    </Button>
-                  ) : null}
-                  {archivableIds.length > 0 ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      onClick={() => bulkArchive.mutate(archivableIds)}
-                    >
-                      {bulkArchive.isPending ? 'Archiving…' : `Archive ${archivableIds.length}`}
-                    </Button>
-                  ) : null}
-                  {hideableIds.length > 0 && canCurateOwn ? (
-                    <Button
-                      variant="secondary"
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      data-testid="catalog-curate"
-                      onClick={() => sendToSelection('curate')}
-                    >
-                      Repost
-                    </Button>
-                  ) : null}
-                  {publishableIds.length > 0 ? (
-                    <Button
-                      className="min-w-0 flex-1"
-                      disabled={busy}
-                      onClick={() => setBulkPublishOpen(true)}
-                    >
-                      Publish {publishableIds.length}
-                    </Button>
-                  ) : null}
-                </div>
+      {selecting ? (
+        <BottomTradeDock testId="you-library-select-dock" aboveAppNav={false}>
+          <div className="flex w-full items-stretch gap-2">
+            {showPublishedTradeDock ? (
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+                <DockIconButton
+                  testId="catalog-share"
+                  label="Share"
+                  disabled={busy}
+                  onClick={() => setShareOpen(true)}
+                >
+                  <PaperPlaneIcon width={22} height={22} />
+                </DockIconButton>
+                <DockIconButton
+                  testId="catalog-order"
+                  label="Order"
+                  primary
+                  disabled={busy}
+                  onClick={() => sendToSelection('order')}
+                >
+                  <OrdersIcon width={22} height={22} />
+                </DockIconButton>
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            ) : publishableIds.length > 0 ? (
+              <Button
+                className="min-w-0 flex-1"
+                disabled={busy}
+                data-testid="catalog-publish"
+                onClick={() => setBulkPublishOpen(true)}
+              >
+                Publish {publishableIds.length}
+              </Button>
+            ) : restorableIds.length > 0 ? (
+              <Button
+                className="min-w-0 flex-1"
+                disabled={busy}
+                data-testid="catalog-restore"
+                onClick={() => bulkRestore.mutate(restorableIds)}
+              >
+                {bulkRestore.isPending ? 'Restoring…' : `Restore ${restorableIds.length}`}
+              </Button>
+            ) : (
+              <span className="min-w-0 flex-1" />
+            )}
+            {showLifecycleMore ? (
+              <button
+                type="button"
+                data-testid="you-library-select-more"
+                aria-label="More"
+                aria-expanded={lifecycleMoreOpen}
+                disabled={busy}
+                onClick={() => setLifecycleMoreOpen(true)}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink"
+              >
+                <MoreHorizontalIcon width={22} height={22} />
+              </button>
+            ) : null}
+          </div>
+        </BottomTradeDock>
+      ) : null}
+      <MoreActionsSheet
+        open={lifecycleMoreOpen}
+        onClose={() => setLifecycleMoreOpen(false)}
+        title={tab === 'collections' ? 'Collections' : 'Designs'}
+        testId="you-library-lifecycle-more"
+        items={[
+          ...(publishedSelectChrome.more.includes('hide')
+            ? [
+                {
+                  id: 'hide',
+                  label: 'Hide · draft',
+                  icon: <LockIcon width={20} height={20} />,
+                  disabled: busy,
+                  onClick: () => {
+                    setLifecycleMoreOpen(false);
+                    bulkHide.mutate(hideableIds);
+                  },
+                  testId: 'catalog-hide-draft',
+                },
+              ]
+            : []),
+          ...((publishedSelectChrome.more.includes('archive') ||
+            (publishableIds.length > 0 && archivableIds.length > 0))
+            ? [
+                {
+                  id: 'archive',
+                  label: 'Archive',
+                  icon: <ReturnIcon width={20} height={20} />,
+                  disabled: busy,
+                  onClick: () => {
+                    setLifecycleMoreOpen(false);
+                    bulkArchive.mutate(archivableIds);
+                  },
+                  testId: 'catalog-archive',
+                },
+              ]
+            : []),
+          ...(publishedSelectChrome.more.includes('repost')
+            ? [
+                {
+                  id: 'repost',
+                  label: 'Repost',
+                  icon: <RepostIcon width={20} height={20} />,
+                  disabled: busy,
+                  onClick: () => {
+                    setLifecycleMoreOpen(false);
+                    sendToSelection('curate');
+                  },
+                  testId: 'catalog-curate',
+                },
+              ]
+            : []),
+        ]}
+      />
         </>
       )}
 
@@ -1000,7 +1054,7 @@ function SellerProductTile({
         name={product.name}
         meta={meta}
         href={`/catalog/products/${product.id}`}
-        images={product.images[0] ? [product.images[0]] : []}
+        images={product.images}
         imageCount={1}
         selected={selected}
         selectMode={selecting}
@@ -1013,29 +1067,37 @@ function SellerProductTile({
       />
     );
   }
-  const body = (
-    <>
-      <div className="relative">
-        <SelectableMediaFrame
-          selectMode={selecting}
-          selected={selected}
-          checkClassName="right-2 top-2"
-          idleCheckClassName="border-white bg-ink/30 text-transparent"
-        >
-          {product.images[0] ? (
-            <img
-              src={product.images[0]}
-              alt=""
-              className={designBrowsePhotoClass(variant)}
-            />
-          ) : (
-            <div className={designBrowsePhotoClass(variant, 'placeholder')}>
-              {product.name.charAt(0)}
-            </div>
-          )}
-        </SelectableMediaFrame>
-      </div>
-      <div className={cx('flex min-w-0 flex-col gap-1 overflow-hidden', feed ? 'p-3' : 'p-2.5')}>
+  const open = () => {
+    if (selecting) onToggle();
+    else navigate(`/catalog/products/${product.id}`);
+  };
+
+  return (
+    <div
+      className="overflow-hidden rounded-2xl border border-line bg-surface text-left"
+      data-testid="catalog-product-tile"
+    >
+      <DesignPhotoCarousel
+        urls={product.images}
+        name={product.name}
+        photoClassName={designBrowsePhotoClass(variant)}
+        placeholderClassName={designBrowsePhotoClass(variant, 'placeholder')}
+        selectMode={selecting}
+        selected={selected}
+        onActivate={() => open()}
+        onLongSelect={selecting ? undefined : onLongSelect}
+        testId="catalog-product-photos"
+      />
+      <button
+        type="button"
+        onClick={open}
+        className={cx(
+          'flex w-full min-w-0 flex-col gap-1 overflow-hidden text-left',
+          feed ? 'p-3' : 'p-2.5',
+          LONG_PRESS_SURFACE_CLASS,
+        )}
+        {...longPress}
+      >
         <p className="truncate text-sm font-medium text-ink">{product.name}</p>
         {subtitle ? <p className="truncate text-xs text-muted">{subtitle}</p> : null}
         <p className="truncate text-xs font-medium text-ink" data-testid="catalog-product-status">
@@ -1044,39 +1106,8 @@ function SellerProductTile({
         {libraryAuditLine(product) ? (
           <p className="text-[11px] text-muted">{libraryAuditLine(product)}</p>
         ) : null}
-      </div>
-    </>
-  );
-
-  if (selecting) {
-    return (
-      <button
-        type="button"
-        data-testid="catalog-product-tile"
-        onClick={onToggle}
-        className={cx(
-          'overflow-hidden rounded-2xl border border-line bg-surface text-left',
-          LONG_PRESS_SURFACE_CLASS,
-        )}
-      >
-        {body}
       </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      data-testid="catalog-product-tile"
-      className={cx(
-        'overflow-hidden rounded-2xl border border-line bg-surface text-left',
-        LONG_PRESS_SURFACE_CLASS,
-      )}
-      onClick={() => navigate(`/catalog/products/${product.id}`)}
-      {...longPress}
-    >
-      {body}
-    </button>
+    </div>
   );
 }
 

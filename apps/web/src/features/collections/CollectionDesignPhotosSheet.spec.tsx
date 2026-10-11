@@ -5,10 +5,11 @@ import { collectionDesignSheetMoreIds } from '@/features/collections/collectionD
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { PencilIcon, TrashIcon } from '@/ui/icons';
 
-function renderOwnerDesignMore(opts: { canEdit: boolean }) {
+function renderOwnerDesignMore(opts: { canEdit: boolean; canDelete: boolean }) {
   const onEdit = vi.fn();
   const onRemove = vi.fn();
-  const items = collectionDesignSheetMoreIds(opts.canEdit).flatMap((id) => {
+  const onDelete = vi.fn();
+  const items = collectionDesignSheetMoreIds(opts).flatMap((id) => {
     if (id === 'edit') {
       return [
         {
@@ -20,12 +21,23 @@ function renderOwnerDesignMore(opts: { canEdit: boolean }) {
         },
       ];
     }
+    if (id === 'delete') {
+      return [
+        {
+          id: 'delete',
+          label: 'Delete design',
+          icon: <TrashIcon width={20} height={20} />,
+          danger: true as const,
+          onClick: onDelete,
+          testId: 'collection-design-delete',
+        },
+      ];
+    }
     return [
       {
         id: 'remove',
         label: 'Remove from this collection',
         icon: <TrashIcon width={20} height={20} />,
-        danger: true as const,
         onClick: onRemove,
         testId: 'collection-design-remove',
       },
@@ -40,26 +52,33 @@ function renderOwnerDesignMore(opts: { canEdit: boolean }) {
       items={items}
     />,
   );
-  return { onEdit, onRemove };
+  return { onEdit, onRemove, onDelete };
 }
 
 describe('collection design sheet ⋯', () => {
-  it('lists Edit design then Remove; Edit and Remove invoke', async () => {
+  it('lists Edit · Remove · Delete; Delete last', async () => {
     const user = userEvent.setup();
-    const { onEdit, onRemove } = renderOwnerDesignMore({ canEdit: true });
+    const { onEdit, onRemove, onDelete } = renderOwnerDesignMore({
+      canEdit: true,
+      canDelete: true,
+    });
     expect(screen.getByTestId('collection-design-edit')).toHaveTextContent('Edit design');
     expect(screen.getByTestId('collection-design-remove')).toHaveTextContent(
       'Remove from this collection',
     );
+    expect(screen.getByTestId('collection-design-delete')).toHaveTextContent('Delete design');
     await user.click(screen.getByTestId('collection-design-edit'));
     expect(onEdit).toHaveBeenCalled();
     await user.click(screen.getByTestId('collection-design-remove'));
     expect(onRemove).toHaveBeenCalled();
+    await user.click(screen.getByTestId('collection-design-delete'));
+    expect(onDelete).toHaveBeenCalled();
   });
 
   it('curated mill: Remove only', () => {
-    renderOwnerDesignMore({ canEdit: false });
+    renderOwnerDesignMore({ canEdit: false, canDelete: false });
     expect(screen.queryByTestId('collection-design-edit')).toBeNull();
+    expect(screen.queryByTestId('collection-design-delete')).toBeNull();
     expect(screen.getByTestId('collection-design-remove')).toBeInTheDocument();
   });
 });

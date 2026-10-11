@@ -41,23 +41,17 @@ describe('collectionViewerPrimaryAction', () => {
 });
 
 describe('collectionPackTradeDock', () => {
-  const base = {
-    visitor: true,
-    live: true,
-    hasProducts: true,
-    selecting: false,
-    resumeContinue: false,
-    thisPackSelectedCount: 2,
-  };
-
-  it('shows Order only when this pack has picks', () => {
-    expect(collectionPackTradeDock(base)).toBe(true);
-    expect(collectionPackTradeDock({ ...base, thisPackSelectedCount: 0 })).toBe(false);
-  });
-
-  it('hides while selecting or for the owner', () => {
-    expect(collectionPackTradeDock({ ...base, selecting: true })).toBe(false);
-    expect(collectionPackTradeDock({ ...base, visitor: false })).toBe(false);
+  it('always off — picks use SelectionWorkspaceBar, not an Order-only dock', () => {
+    expect(
+      collectionPackTradeDock({
+        visitor: true,
+        live: true,
+        hasProducts: true,
+        selecting: false,
+        resumeContinue: false,
+        thisPackSelectedCount: 2,
+      }),
+    ).toBe(false);
   });
 
   it('opens How many on origin packs, not only curated', () => {
@@ -68,16 +62,29 @@ describe('collectionPackTradeDock', () => {
 });
 
 describe('collectionOwnerManageDock / company row', () => {
-  it('claims the band only for owners opened to manage (packManage)', () => {
+  it('claims the band only for packManage idle (no picks / not selecting)', () => {
     expect(collectionOwnerManageDock({ isOwner: true, packManage: true })).toBe(true);
+    expect(
+      collectionOwnerManageDock({
+        isOwner: true,
+        packManage: true,
+        selecting: true,
+      }),
+    ).toBe(false);
+    expect(
+      collectionOwnerManageDock({
+        isOwner: true,
+        packManage: true,
+        thisPackSelectedCount: 2,
+      }),
+    ).toBe(false);
     expect(collectionOwnerManageDock({ isOwner: true, packManage: false })).toBe(false);
     expect(collectionOwnerManageDock({ isOwner: false, packManage: true })).toBe(false);
     expect(collectionShowOwnerCompanyRow(true)).toBe(false);
     expect(collectionShowOwnerCompanyRow(false)).toBe(false);
   });
 
-  it('Explore own pack (!packManage) uses browse shortlist — not manage select', () => {
-    // Same gate as manage dock: browse own select = !collectionOwnerManageDock
+  it('Explore own pack (!packManage) has no manage dock', () => {
     expect(collectionOwnerManageDock({ isOwner: true, packManage: false })).toBe(false);
   });
 

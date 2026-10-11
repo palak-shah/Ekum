@@ -162,6 +162,12 @@ export function HowManyEachSheet({
     setAttachBusy(false);
   }, [open, qtyKey, productKey, sheetJob]);
 
+  /** Own-catalog How many: Order for buyer on; Choose buyer CTA opens picker (not auto). */
+  useEffect(() => {
+    if (!open) return;
+    if (whoMode === 'buyer-only') setForBuyer(true);
+  }, [open, whoMode, productKey]);
+
   const activeProducts = useMemo(
     () => catalogProducts.filter((product) => !removed.has(product.id)),
     [catalogProducts, removed],
@@ -274,16 +280,15 @@ export function HowManyEachSheet({
 
   const setOrderForBuyer = (next: boolean) => {
     setForBuyer(next);
-    if (next) {
-      if (!canPlace) {
-        showToast('Enter how many on each design first.', 'danger');
-        setForBuyer(false);
-        return;
-      }
-      setBuyerOpen(true);
+    if (!next) setBuyerOpen(false);
+  };
+
+  const openChooseBuyer = () => {
+    if (!canPlace) {
+      showToast('Enter how many on each design first.', 'danger');
       return;
     }
-    setBuyerOpen(false);
+    setBuyerOpen(true);
   };
 
   const footerSummary = howManyOrderFooterSummary(
@@ -362,6 +367,21 @@ export function HowManyEachSheet({
             {submitting ? 'Sending…' : 'Place Order'}
           </Button>
         ) : null}
+        {forBuyer && canOrderForBuyer ? (
+          <Button
+            fullWidth
+            data-testid="how-many-choose-buyer"
+            disabled={busy || !canPlace}
+            onClick={() => {
+              const qty = lines[0]?.quantity;
+              if (qty != null) persistQty(qty);
+              persistTransporter();
+              openChooseBuyer();
+            }}
+          >
+            Choose buyer
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -372,8 +392,6 @@ export function HowManyEachSheet({
         open={open}
         onClose={onClose}
         title={sheetTitle}
-        /** Hug content; raise ceiling like Share so tall lists use the viewport before body scrolls. */
-        panelClassName="max-h-[min(92dvh,100dvh)]"
         footer={decideFooter}
       >
         <div className="flex flex-col gap-4 pb-1">
@@ -549,7 +567,7 @@ export function HowManyEachSheet({
         open={buyerOpen}
         onClose={() => {
           setBuyerOpen(false);
-          setForBuyer(false);
+          if (whoMode !== 'buyer-only') setForBuyer(false);
         }}
         lines={payload()}
         productIds={activeProducts.map((product) => product.id)}
@@ -557,13 +575,13 @@ export function HowManyEachSheet({
         onInvite={(url) => {
           persistTransporter();
           setBuyerOpen(false);
-          setForBuyer(false);
+          if (whoMode !== 'buyer-only') setForBuyer(false);
           setInviteUrl(url);
         }}
         onDone={() => {
           persistTransporter();
           setBuyerOpen(false);
-          setForBuyer(false);
+          if (whoMode !== 'buyer-only') setForBuyer(false);
           onClose();
         }}
       />

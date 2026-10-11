@@ -305,7 +305,7 @@ export class OrderService {
       noteVoiceMediaId: noteVoice.noteVoiceMediaId,
       noteVoiceUrl: noteVoice.noteVoiceUrl,
       noteVoiceDurationMs: noteVoice.noteVoiceDurationMs,
-      noteImageUrls,
+      ...(noteImageUrls.length > 0 ? { noteImageUrls } : {}),
     });
 
     return this.toOrderView(order, actorCompanyId, threadId, livingMessageId);

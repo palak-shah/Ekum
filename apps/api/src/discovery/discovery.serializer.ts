@@ -66,7 +66,10 @@ export class DiscoverySerializer {
     };
   }
 
-  toCollectionCard(collection: CollectionCardRow): CollectionCard {
+  toCollectionCard(
+    collection: CollectionCardRow,
+    opts?: { viewerReposted?: boolean },
+  ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
     const rate = collectionCardRateFields({
       rateVisibility: collection.rateVisibility,
@@ -100,6 +103,7 @@ export class DiscoverySerializer {
         collection.showSourceShops === true,
         collection.products,
       ),
+      viewerReposted: opts?.viewerReposted === true,
       company: this.companySerializer.toPublicSummary(collection.company),
     };
   }
@@ -115,7 +119,10 @@ export class DiscoverySerializer {
     };
   }
 
-  toExploreProductCard(product: ProductCardRow): ExploreProductCard {
+  toExploreProductCard(
+    product: ProductCardRow,
+    opts?: { viewerReposted?: boolean },
+  ): ExploreProductCard {
     return {
       id: product.id,
       name: product.name,
@@ -126,6 +133,7 @@ export class DiscoverySerializer {
       categories: product.categories ?? [],
       postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
       allowForward: product.allowForward,
+      viewerReposted: opts?.viewerReposted === true,
       company: this.companySerializer.toPublicSummary(product.company),
     };
   }

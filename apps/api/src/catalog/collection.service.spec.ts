@@ -1249,6 +1249,97 @@ describe('CollectionService categories', () => {
   });
 });
 
+describe('CollectionService.create repost source', () => {
+  it('stamps peer collection source on create', async () => {
+    const create = vi.fn(async (args: { data: Record<string, unknown> }) => ({
+      id: 'mine',
+      ...args.data,
+      products: [],
+      _count: { products: 0 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null) // name available
+          .mockResolvedValueOnce(null), // no prior repost
+        findUnique: async () => ({
+          id: 'src-col',
+          companyId: 'peer',
+          status: CollectionStatus.Published,
+        }),
+        create,
+      },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (row: { id: string }) => ({ id: row.id }),
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+    await service.create('me', 'u1', {
+      name: 'My Repost',
+      categories: [],
+      repostSourceCollectionId: 'src-col',
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          repostSourceCollectionId: 'src-col',
+          repostSourceProductId: null,
+        }),
+      }),
+    );
+  });
+
+  it('rejects second repost of the same collection', async () => {
+    const prisma = {
+      collection: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null) // name
+          .mockResolvedValueOnce({ id: 'already' }), // prior stamp
+        findUnique: async () => ({
+          id: 'src-col',
+          companyId: 'peer',
+          status: CollectionStatus.Published,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.create('me', 'u1', {
+        name: 'Again',
+        categories: [],
+        repostSourceCollectionId: 'src-col',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects reposting own pack', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => null,
+        findUnique: async () => ({
+          id: 'src-col',
+          companyId: 'me',
+          status: CollectionStatus.Published,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.create('me', 'u1', {
+        name: 'Own',
+        categories: [],
+        repostSourceCollectionId: 'src-col',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('CollectionService.otherPackCounts', () => {
   it('counts memberships in other non-archived packs', async () => {
     const prisma = {

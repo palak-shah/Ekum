@@ -105,11 +105,14 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.queryByTestId('how-many-share')).toBeNull();
   });
 
-  it('Order for buyer switch opens the buyer sheet', async () => {
+  it('Order for buyer on shows Choose buyer; does not auto-open picker', async () => {
     const user = userEvent.setup();
     renderSheet({ sheetJob: 'order' });
     await user.click(screen.getByRole('button', { name: /Increase/i }));
     await user.click(screen.getByTestId('how-many-order-for-buyer'));
+    expect(screen.queryByRole('heading', { name: 'Order for buyer' })).toBeNull();
+    expect(screen.getByTestId('how-many-choose-buyer')).toHaveTextContent('Choose buyer');
+    await user.click(screen.getByTestId('how-many-choose-buyer'));
     expect(screen.getByRole('heading', { name: 'Order for buyer' })).toBeInTheDocument();
   });
 

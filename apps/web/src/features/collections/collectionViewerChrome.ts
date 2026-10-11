@@ -25,10 +25,10 @@ export function collectionPackQtySheet(input: {
 }
 
 /**
- * Visitor Order dock — only when this pack has selected designs.
- * No Ask for rates on the album.
+ * @deprecated Idle Order-only dock removed — SelectionWorkspaceBar covers picks.
+ * Kept returning false so older call sites stay safe until deleted.
  */
-export function collectionPackTradeDock(input: {
+export function collectionPackTradeDock(_input: {
   visitor: boolean;
   live: boolean;
   hasProducts: boolean;
@@ -36,25 +36,23 @@ export function collectionPackTradeDock(input: {
   resumeContinue: boolean;
   thisPackSelectedCount: number;
 }): boolean {
-  return (
-    input.visitor &&
-    input.live &&
-    input.hasProducts &&
-    !input.selecting &&
-    !input.resumeContinue &&
-    input.thisPackSelectedCount > 0
-  );
+  return false;
 }
 
 /**
- * Owner manage dock (Designs · Photos · Replace) — only when opened to manage
- * (You / ＋ / own shop via `location.state.packManage`). Explore own pack: no dock.
+ * Owner manage dock (Designs · Photos · Replace) — packManage idle only.
+ * Selecting / this-album picks use SelectionWorkspaceBar (not a Delete dock).
  */
 export function collectionOwnerManageDock(input: {
   isOwner: boolean;
   packManage: boolean;
+  selecting?: boolean;
+  thisPackSelectedCount?: number;
 }): boolean {
-  return input.isOwner && input.packManage;
+  if (!input.isOwner || !input.packManage) return false;
+  if (input.selecting) return false;
+  if ((input.thisPackSelectedCount ?? 0) > 0) return false;
+  return true;
 }
 
 /** Shop card removed from album — visitors use subtitle from {shop}. */

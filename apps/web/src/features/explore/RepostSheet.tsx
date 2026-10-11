@@ -57,10 +57,13 @@ export type RepostSheetTarget =
 export function RepostSheet({
   open,
   onClose,
+  onReposted,
   target,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Fired after publish succeeds so the feed can show the done icon immediately. */
+  onReposted?: () => void;
   target: RepostSheetTarget | null;
 }) {
   const me = useMyCompany();
@@ -228,6 +231,9 @@ export function RepostSheet({
         name: packName,
         categories: [],
         ...(cover ? { coverImage: cover } : {}),
+        ...(target.kind === 'collection'
+          ? { repostSourceCollectionId: target.collectionId }
+          : { repostSourceProductId: target.productId }),
       } satisfies CreateCollectionDto);
       createdId = created.id;
       await api.put<CollectionDetailView>(`/collections/${created.id}/products`, {
@@ -249,6 +255,7 @@ export function RepostSheet({
       void queryClient.invalidateQueries({ queryKey: ['explore'] });
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+      onReposted?.();
       showToast(
         !publishAudience.allowForward
           ? 'Reposted · Buyers can’t add these to collections.'
@@ -289,7 +296,12 @@ export function RepostSheet({
     try {
       await runRepost(withLink);
     } catch (err) {
-      if (err instanceof ApiError && isCurateCeilingError(err)) {
+      if (err instanceof ApiError && err.code === 'ALREADY_REPOSTED') {
+        onReposted?.();
+        void queryClient.invalidateQueries({ queryKey: ['explore'] });
+        showToast('You already reposted this.');
+        onClose();
+      } else if (err instanceof ApiError && isCurateCeilingError(err)) {
         setSheetError(null);
         void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
       } else {

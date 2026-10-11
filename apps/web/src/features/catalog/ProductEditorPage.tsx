@@ -30,6 +30,7 @@ import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldM
 import { catalogRateFieldLabel } from '@/lib/catalogRate';
 import { formatRateInput, parseRateInput, rateFieldInputProps } from './rateInput';
 import { generateDraftSku, nameForNewDesign } from './designBatchHelpers';
+import { invalidateAfterProductEdit } from './productEditorInvalidate';
 import { TagsField } from './TagsField';
 import {
   emptyPublishAudienceState,
@@ -215,10 +216,7 @@ export function ProductEditorPage() {
   };
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['product', id] });
-    void queryClient.invalidateQueries({ queryKey: ['my-products'] });
-    void queryClient.invalidateQueries({ queryKey: ['explore', 'feed'] });
-    void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+    invalidateAfterProductEdit(queryClient, id);
   };
 
   const buildProductDto = (): CreateProductDto => {

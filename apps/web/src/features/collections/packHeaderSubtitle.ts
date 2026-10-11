@@ -77,14 +77,22 @@ export function packHeaderSubtitle(productCount: number, _products: PackRateMemb
   return designCountLabel(productCount);
 }
 
-/** Visitor album subtitle: count · from {shop}. */
+/**
+ * Album header subtitle.
+ * Owner: `N designs`. Visitor: `from {shop}` only — never inventory size for other shops.
+ */
 export function packHeaderSubtitleWithShop(
   productCount: number,
   products: PackRateMember[],
   shopName: string | null | undefined,
+  options?: { showCount?: boolean },
 ): string {
-  const base = packHeaderSubtitle(productCount, products);
+  const showCount = options?.showCount !== false;
   const shop = shopName?.trim();
+  if (!showCount) {
+    return shop ? `from ${shop}` : '';
+  }
+  const base = packHeaderSubtitle(productCount, products);
   return shop ? `${base} · from ${shop}` : base;
 }
 

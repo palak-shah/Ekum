@@ -232,6 +232,8 @@ export function CollectionEditorPage() {
   const leaveBypassRef = useRef(false);
   /** Repost → Publish: land on My Collections (or Explore when asked). */
   const afterPublishDestRef = useRef<'explore' | 'collections' | null>(null);
+  /** Album ⋯ Who has access — leave Edit when Visibility sheet closes. */
+  const returnAfterPublishRef = useRef<{ pathname: string; state?: object } | null>(null);
   const bootPickerRef = useRef(false);
   /** Chooser closed because user opened Designs/Photos (do not treat as abandon). */
   const replaceProceedPickRef = useRef(false);
@@ -581,18 +583,40 @@ export function CollectionEditorPage() {
       notice?: string;
       openPublish?: boolean;
       afterPublish?: 'explore' | 'collections';
+      returnTo?: string;
+      returnState?: object;
     } | null;
     if (!state?.notice && !state?.openPublish) return;
     if (state.notice) showToast(state.notice);
-    if (state.openPublish) setPublishOpen(true);
+    if (state.openPublish) {
+      setPublishOpen(true);
+      if (typeof state.returnTo === 'string' && state.returnTo.startsWith('/')) {
+        returnAfterPublishRef.current = {
+          pathname: state.returnTo,
+          state: state.returnState ?? {},
+        };
+      }
+    }
     if (state.afterPublish === 'explore' || state.afterPublish === 'collections') {
       afterPublishDestRef.current = state.afterPublish;
     }
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, location.pathname, navigate, showToast]);
 
+  const closePublishSheet = () => {
+    if (creating) return;
+    setPublishOpen(false);
+    setSheetError(null);
+    const back = returnAfterPublishRef.current;
+    if (!back) return;
+    returnAfterPublishRef.current = null;
+    leaveBypassRef.current = true;
+    navigate(back.pathname, { replace: true, state: back.state });
+  };
+
   const invalidate = (collectionId?: string) => {
     void queryClient.invalidateQueries({ queryKey: ['collection', collectionId ?? id] });
+    void queryClient.invalidateQueries({ queryKey: ['collection-preview'] });
     void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
     void queryClient.invalidateQueries({ queryKey: ['my-products'] });
     void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
@@ -738,6 +762,7 @@ export function CollectionEditorPage() {
       const afterDest = afterPublishDestRef.current;
       afterPublishDestRef.current = null;
       if (afterDest && !isPublished && !scheduled) {
+        returnAfterPublishRef.current = null;
         leaveBypassRef.current = true;
         showToast(
           !publishAudience.allowForward ? 'Buyers can’t forward this.' : 'Published',
@@ -763,6 +788,12 @@ export function CollectionEditorPage() {
               : 'Published',
         );
       }
+      const back = returnAfterPublishRef.current;
+      if (back) {
+        returnAfterPublishRef.current = null;
+        leaveBypassRef.current = true;
+        navigate(back.pathname, { replace: true, state: back.state });
+      }
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not publish.';
@@ -775,7 +806,6 @@ export function CollectionEditorPage() {
     mutationFn: (action: 'unpublish' | 'archive' | 'unarchive') =>
       api.post(`/collections/${id}/${action}`, {}),
     onSuccess: (_data, action) => {
-      setPublishOpen(false);
       setMoreOpen(false);
       invalidate();
       const messages: Record<string, string> = {
@@ -784,6 +814,7 @@ export function CollectionEditorPage() {
         unpublish: 'Hidden',
       };
       showToast(messages[action] ?? 'Updated');
+      closePublishSheet();
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not update status.';
@@ -1700,6 +1731,7 @@ export function CollectionEditorPage() {
         });
         void queryClient.invalidateQueries({ queryKey: ['my-products'] });
         void queryClient.invalidateQueries({ queryKey: ['collection', id] });
+        void queryClient.invalidateQueries({ queryKey: ['collection-preview'] });
         showToast('Design updated');
       }
       setMemberSheet(null);
@@ -2495,11 +2527,7 @@ export function CollectionEditorPage() {
 
       <Sheet
         open={publishOpen}
-        onClose={() => {
-          if (creating) return;
-          setPublishOpen(false);
-          setSheetError(null);
-        }}
+        onClose={closePublishSheet}
         title={
           !editing
             ? 'Create & Publish'

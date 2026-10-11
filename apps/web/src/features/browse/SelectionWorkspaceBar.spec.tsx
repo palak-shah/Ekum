@@ -168,7 +168,7 @@ describe('SelectionWorkspaceBar', () => {
     expect(clearSelection).not.toHaveBeenCalled();
   });
 
-  it('own-shop pile: Message disabled and Order for buyer', () => {
+  it('own-shop pile: Message disabled and Order label stays Order', () => {
     shortlistCompanyId.current = 'me';
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -181,6 +181,6 @@ describe('SelectionWorkspaceBar', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('selection-workspace-message')).toBeDisabled();
-    expect(screen.getByTestId('selection-workspace-order')).toHaveTextContent('Order for buyer');
+    expect(screen.getByTestId('selection-workspace-order')).toHaveTextContent('Order');
   });
 });

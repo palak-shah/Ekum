@@ -27,6 +27,10 @@ describe('shouldShowSelectionWorkspaceBar', () => {
     expect(
       shouldShowSelectionWorkspaceBar('/collections/seed-col-1', 2, { pageSelecting: true }),
     ).toBe(true);
+    // Album keeps the 4-button bar while this pack has picks (pageSelecting synced).
+    expect(
+      shouldShowSelectionWorkspaceBar('/collections/seed-col-1', 1, { pageSelecting: true }),
+    ).toBe(true);
     expect(shouldShowSelectionWorkspaceBar('/explore/products/seed-prod-1', 2)).toBe(false);
     expect(
       shouldShowSelectionWorkspaceBar('/explore/products/seed-prod-1', 2, { pageSelecting: true }),

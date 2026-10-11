@@ -146,6 +146,10 @@ export interface CollectionCard {
    * Empty otherwise (do not leak supplier credit).
    */
   sourceShopNames: string[];
+  /**
+   * Viewer already Reposted this pack (Explore once). False when unknown / anonymous.
+   */
+  viewerReposted: boolean;
   company: PublicCompanySummary;
 }
 
@@ -171,6 +175,10 @@ export interface ExploreProductCard {
   postedAt: string;
   /** Relist/curate lock snapshot. Forward is free. */
   allowForward: boolean;
+  /**
+   * Viewer already Reposted this design post (Explore once). False when unknown.
+   */
+  viewerReposted: boolean;
   company: PublicCompanySummary;
 }
 

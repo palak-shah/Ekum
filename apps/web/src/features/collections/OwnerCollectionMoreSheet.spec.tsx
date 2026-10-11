@@ -4,9 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { OwnerCollectionMoreSheet } from './OwnerCollectionMoreSheet';
 
 describe('OwnerCollectionMoreSheet', () => {
-  it('lists Share · Who · manage trio · Edit with the collection title', async () => {
+  it('lists Share · Bookmark · Who · manage trio · Edit with the collection title', async () => {
     const user = userEvent.setup();
     const onShare = vi.fn();
+    const onBookmark = vi.fn();
     const onWho = vi.fn();
     const onAddDesigns = vi.fn();
     const onAddPhotos = vi.fn();
@@ -19,6 +20,7 @@ describe('OwnerCollectionMoreSheet', () => {
         title="Monsoon Cottons"
         onClose={onClose}
         onShare={onShare}
+        onBookmark={onBookmark}
         onWhoHasAccess={onWho}
         onAddDesigns={onAddDesigns}
         onAddPhotos={onAddPhotos}
@@ -28,6 +30,9 @@ describe('OwnerCollectionMoreSheet', () => {
     );
     expect(screen.getByRole('heading', { name: 'Monsoon Cottons' })).toBeInTheDocument();
     expect(screen.getByTestId('collection-menu-share')).toHaveTextContent('Share this collection');
+    expect(screen.getByTestId('collection-menu-bookmark')).toHaveTextContent(
+      'Bookmark this collection',
+    );
     expect(screen.getByTestId('collection-menu-who')).toHaveTextContent('Who has access');
     expect(screen.getByTestId('collection-menu-add-designs')).toHaveTextContent(
       'Add from existing designs',

@@ -321,8 +321,6 @@ export function UniversalShareSheet({
           if (!send.isPending) onClose();
         }}
         title={sheetTitleFor(payload)}
-        /** Hug content height; scroll only after the list hits the viewport cap. */
-        panelClassName="max-h-[min(92dvh,100dvh)]"
         footer={
           emptyCatalog ? null : (
             <div className="-mx-1 rounded-xl bg-canvas px-1 py-1" data-testid="share-composer-band">

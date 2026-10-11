@@ -4,17 +4,12 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
-  OrderIntent,
-  OrderKind,
   ProductStatus,
   Unit,
   type CollectionPreviewView,
   type CollectionViewGrantView,
   type CollectionViewRequestView,
-  type CreateOrdersBatchResult,
-  type CreateOrdersFromPackResult,
   type CreateProductDto,
-  type OrderView,
   type OtherPackCountsView,
   type ProductView,
   type ThreadSummary,
@@ -32,17 +27,14 @@ import {
 import { useMyCompany } from '@/lib/queries';
 import {
   BOTTOM_DOCK_CLEARANCE_CLASS,
-  BottomTradeDock,
   SELECTION_DOCK_CLEARANCE_CLASS,
 } from '@/features/browse/BottomTradeDock';
-import { addCartDesignsMany } from '@/features/browse/browseCart';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { BrowseLotChrome } from '@/features/browse/BrowseLotChrome';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
-import { shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
 import {
   continueAfterAlbumPickLabel,
   nextStepAfterAlbumPick,
@@ -59,11 +51,20 @@ import {
   rememberForwardFacilitator,
   rememberOrderPath,
 } from '@/features/browse/forwardAttribution';
-import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
-import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
-import { placeNoteAttachFields } from '@/features/orders/placeNoteAttach';
-import { useSaveToggle } from '@/features/saved/useSaveToggle';
+import {
+  SAVED_QUERY_KEY,
+  toggleSavedDesigns,
+  useSavedList,
+  useSaveToggle,
+} from '@/features/saved/useSaveToggle';
+import { youSavedHref } from '@/features/saved/youSavedHref';
 import { PageHeader } from '@/ui/PageHeader';
+import { ownerCollectionSelectMoreIds } from '@/features/collections/ownerCollectionSelectMore';
+import {
+  savedProductIdSet,
+  selectDesignBookmarkLabel,
+  selectDesignsAllSaved,
+} from '@/features/collections/selectDesignBookmark';
 import {
   albumTileShopLine,
   packHeaderSubtitleWithShop,
@@ -77,8 +78,6 @@ import {
   collectionOwnerManageDock,
   collectionOwnerCanEditDesign,
   collectionPackDetailSections,
-  collectionPackQtySheet,
-  collectionPackTradeDock,
   collectionShowHandleCopy,
   collectionThisPackSelectedIds,
   collectionViewerListedProducts,
@@ -88,8 +87,12 @@ import {
 } from '@/features/collections/collectionViewerChrome';
 import { CollectionPackDetails } from '@/features/collections/CollectionPackDetails';
 import { PackDetailBlocks } from '@/features/collections/PackDetailBlocks';
+import { DesignSheetPhotoCarousel } from '@/features/collections/DesignSheetPhotoCarousel';
+import { FeedDesignPhotoCarousel } from '@/features/collections/FeedDesignPhotoCarousel';
+import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
 import { collectionDesignSheetMoreIds } from '@/features/collections/collectionDesignSheetMore';
+import { visitorCollectionMoreIds } from '@/features/collections/visitorCollectionMore';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
 import type { MoreActionItem } from '@/ui/MoreActionsSheet';
 import { OwnerCollectionMoreSheet } from '@/features/collections/OwnerCollectionMoreSheet';
@@ -136,8 +139,6 @@ import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { designMatchesFind } from '@/features/catalog/catalogSearch';
 import { useToast } from '@/ui/Toast';
-import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
-import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 
 type Layout = DesignBrowseLayout;
 
@@ -190,14 +191,11 @@ export function CollectionViewerPage() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
-  const [qtyOpen, setQtyOpen] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   /** Album ⋯ vs Selecting dock — CatalogShareSheet payload. */
   const [shareScope, setShareScope] = useState<'album' | 'designs'>('album');
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageSelecting, setPageSelecting] = useState(false);
-  const [manageSelected, setManageSelected] = useState<Set<string>>(() => new Set());
   const [manageBusy, setManageBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [replaceSheetOpen, setReplaceSheetOpen] = useState(false);
@@ -211,6 +209,7 @@ export function CollectionViewerPage() {
   const [cameraSession, setCameraSession] = useState(0);
   const [quickUploading, setQuickUploading] = useState(false);
   const designFileRef = useRef<HTMLInputElement>(null);
+  const deleteTargetRef = useRef<string[] | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const deferredListSearch = useDeferredValue(listSearch);
@@ -230,8 +229,7 @@ export function CollectionViewerPage() {
   useEffect(() => {
     if (!enterSelect) return;
     setPageSelecting(true);
-    // Browse own / visitor: shortlist. Manage (packManage): local manageSelected only.
-    if (!packManage) shortlist.setSelectMode(true);
+    shortlist.setSelectMode(true);
     navigate(location.pathname + location.search, {
       replace: true,
       state: packManage ? { packManage: true } : {},
@@ -264,7 +262,23 @@ export function CollectionViewerPage() {
     queryFn: () => api.get<ProductView[]>('/products'),
     enabled: libraryOpen,
   });
-  const save = useSaveToggle({ collectionId: id });
+  const saveCollection = useSaveToggle({ collectionId: id });
+  const savedList = useSavedList();
+  const bookmarkDesigns = useMutation({
+    mutationFn: (productIds: string[]) => toggleSavedDesigns(productIds, savedList.data),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: SAVED_QUERY_KEY });
+      if (result === 'removed') {
+        showToast('Removed bookmark');
+        return;
+      }
+      showToast('Bookmarked', 'success', {
+        action: { label: 'Open', to: youSavedHref() },
+      });
+    },
+    onError: (err) =>
+      showToast(err instanceof ApiError ? err.message : 'Could not update bookmark.', 'danger'),
+  });
   const outgoingAsks = useQuery({
     queryKey: ['collection-view-requests', 'outgoing'],
     queryFn: () =>
@@ -291,23 +305,32 @@ export function CollectionViewerPage() {
     [products, shortlist.productIds],
   );
   const thisPackSelectedCount = thisPackSelectedIds.length;
-  const packTradeDock = collectionPackTradeDock({
-    visitor: !isOwner,
-    live: collection.data?.status === CollectionStatus.Published,
-    hasProducts: products.length > 0,
+  const selectedDesignsAllSaved = selectDesignsAllSaved(
+    thisPackSelectedIds,
+    savedProductIdSet(savedList.data),
+  );
+  const selectedDesignBookmarkLabel = selectDesignBookmarkLabel({
+    count: thisPackSelectedCount,
+    allSaved: selectedDesignsAllSaved,
+  });
+  const onBookmarkSelectedDesigns = () => {
+    if (thisPackSelectedIds.length < 1) return;
+    bookmarkDesigns.mutate(thisPackSelectedIds);
+  };
+  /** Keep tools + workspace bar up whenever this album has picks (no stranded Order). */
+  useEffect(() => {
+    if (thisPackSelectedCount < 1) return;
+    setPageSelecting(true);
+    shortlist.setSelectMode(true);
+  }, [thisPackSelectedCount, shortlist]);
+  const ownerManageDock = collectionOwnerManageDock({
+    isOwner,
+    packManage,
     selecting: selectMode,
-    resumeContinue: showResumeContinue,
     thisPackSelectedCount,
   });
-  const ownerManageDock = collectionOwnerManageDock({ isOwner, packManage });
-  /** You/＋ manage select vs Explore browse own / visitor shortlist. */
-  const useManageSelect = ownerManageDock;
-  usePageOwnsBottomBand(ownerManageDock || packTradeDock);
-  usePageSelecting(selectMode);
-
-  useEffect(() => {
-    if (!selectMode) setManageSelected(new Set());
-  }, [selectMode]);
+  usePageOwnsBottomBand(ownerManageDock);
+  usePageSelecting(selectMode || thisPackSelectedCount > 0);
   const viewGrants = useQuery({
     queryKey: ['collection-view-grants', id],
     queryFn: () => api.get<CollectionViewGrantView[]>(`/collections/${id}/view-grants`),
@@ -365,21 +388,13 @@ export function CollectionViewerPage() {
     () => new Map(products.map((product) => [product.id, product.companyId])),
     [products],
   );
-  const thisAlbumCount = useManageSelect
-    ? visibleDesignIds.filter((id) => manageSelected.has(id)).length
-    : visibleDesignIds.filter((id) => shortlist.productIds.has(id)).length;
-  const selectAll = selectAllState(
-    visibleDesignIds,
-    useManageSelect ? manageSelected : shortlist.productIds,
-  );
-  const manageSelectedIds = useMemo(() => [...manageSelected], [manageSelected]);
-  const ownerCanDelete = canDeleteSelected(manageSelectedIds);
-  const ownerCanRemove = manageSelectedIds.length > 0;
-  const ownerCanShare = manageSelectedIds.length > 0;
-  const ownerCanAddToCart = manageSelectedIds.length > 0;
+  const thisAlbumCount = thisPackSelectedCount;
+  const selectAll = selectAllState(visibleDesignIds, shortlist.productIds);
+  const ownerCanDelete = canDeleteSelected(thisPackSelectedIds);
+  const ownerCanRemove = thisPackSelectedIds.length > 0;
   const shareDesignItems = useMemo(() => {
     if (shareScope !== 'designs') return [];
-    const selected = new Set(manageSelectedIds);
+    const selected = new Set(thisPackSelectedIds);
     return visibleProducts
       .filter((product) => selected.has(product.id))
       .map((product) => ({
@@ -387,16 +402,10 @@ export function CollectionViewerPage() {
         name: product.name,
         image: product.images?.[0] ?? null,
       }));
-  }, [shareScope, manageSelectedIds, visibleProducts]);
-  /** Manage float = local set; browse/visitor = this album shortlist count. */
-  const floatSelectedCount = useManageSelect ? manageSelected.size : thisAlbumCount;
+  }, [shareScope, thisPackSelectedIds, visibleProducts]);
+  const floatSelectedCount = thisAlbumCount;
 
   const onSelectAllVisible = () => {
-    if (useManageSelect) {
-      setPageSelecting(true);
-      setManageSelected(new Set(visibleDesignIds));
-      return;
-    }
     const published = visibleProducts.filter((product) => isPublishedForSelection(product.status));
     const skipped = visibleProducts.length - published.length;
     const notice = selectionSkipToast(skipped, published.length);
@@ -410,11 +419,6 @@ export function CollectionViewerPage() {
     );
   };
   const onClearVisible = () => {
-    if (useManageSelect) {
-      setManageSelected(new Set());
-      setPageSelecting(false);
-      return;
-    }
     shortlist.removeIds(visibleDesignIds);
     setPageSelecting(false);
     shortlist.setSelectMode(false);
@@ -422,7 +426,7 @@ export function CollectionViewerPage() {
 
   const onEnterSelect = () => {
     setPageSelecting(true);
-    if (!useManageSelect) shortlist.setSelectMode(true);
+    shortlist.setSelectMode(true);
   };
 
   const invalidateOwnerPack = () => {
@@ -439,8 +443,9 @@ export function CollectionViewerPage() {
   };
 
   const clearOwnerManageSelect = () => {
-    setManageSelected(new Set());
+    shortlist.removeIds(thisPackSelectedIds);
     setPageSelecting(false);
+    shortlist.setSelectMode(false);
   };
 
   const setReplacePendingFlag = (next: boolean) => {
@@ -475,7 +480,7 @@ export function CollectionViewerPage() {
   };
 
   const openCollectionGalleryDeferred = () => {
-    voidMicrotask(() => clickCollectionGallery());
+    queueMicrotask(() => clickCollectionGallery());
   };
 
   const openOwnerLibrary = () => {
@@ -655,16 +660,17 @@ export function CollectionViewerPage() {
     }
   };
 
-  const onOwnerRemove = async () => {
-    if (!ownerCanRemove || !id) return;
+  const onOwnerRemove = async (productIds: string[] = thisPackSelectedIds) => {
+    if (productIds.length < 1 || !id) return;
     setManageBusy(true);
     try {
       const next = membershipAfterRemove(
         products.map((product) => product.id),
-        manageSelectedIds,
+        productIds,
       );
       await persistOwnerMembers(next);
       clearOwnerManageSelect();
+      setViewerProduct(null);
       showToast('Removed from collection');
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger');
@@ -679,9 +685,13 @@ export function CollectionViewerPage() {
     }
   };
 
-  const finishOwnerDelete = async (mode: 'everywhere' | 'only-here') => {
+  const finishOwnerDelete = async (
+    mode: 'everywhere' | 'only-here',
+    productIds?: string[],
+  ) => {
+    const ids = productIds ?? deleteTargetRef.current ?? thisPackSelectedIds;
     const myId = me.data?.id ?? '';
-    const owned = ownedSelectedIds(manageSelectedIds, productCompanyById, myId);
+    const owned = ownedSelectedIds(ids, productCompanyById, myId);
     setManageBusy(true);
     try {
       if (mode === 'everywhere' && owned.length > 0) {
@@ -689,11 +699,13 @@ export function CollectionViewerPage() {
       }
       const next = membershipAfterRemove(
         products.map((product) => product.id),
-        manageSelectedIds,
+        ids,
       );
       await persistOwnerMembers(next);
       setDeleteSheetOpen(false);
+      deleteTargetRef.current = null;
       clearOwnerManageSelect();
+      setViewerProduct(null);
       showToast(
         mode === 'everywhere' && owned.length > 0
           ? 'Deleted'
@@ -708,12 +720,13 @@ export function CollectionViewerPage() {
     }
   };
 
-  const onOwnerDelete = async () => {
-    if (!ownerCanDelete || !id) return;
+  const onOwnerDelete = async (productIds: string[] = thisPackSelectedIds) => {
+    if (productIds.length < 1 || !id) return;
+    deleteTargetRef.current = productIds;
     const myId = me.data?.id ?? '';
-    const owned = ownedSelectedIds(manageSelectedIds, productCompanyById, myId);
+    const owned = ownedSelectedIds(productIds, productCompanyById, myId);
     if (owned.length === 0) {
-      await finishOwnerDelete('everywhere');
+      await finishOwnerDelete('everywhere', productIds);
       return;
     }
     setManageBusy(true);
@@ -731,7 +744,7 @@ export function CollectionViewerPage() {
       showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
       return;
     }
-    await finishOwnerDelete('everywhere');
+    await finishOwnerDelete('everywhere', productIds);
   };
 
   const accessPending =
@@ -775,92 +788,7 @@ export function CollectionViewerPage() {
       setActionError(error instanceof ApiError ? error.message : 'Could not open chat.'),
   });
 
-  const packOrder = useMutation({
-    mutationFn: async (input: {
-      intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
-      lines: Array<{ productId: string; quantity: number; note?: string }>;
-      transporter?: string;
-      note?: string;
-      noteVoiceMediaId?: string;
-      noteVoiceDurationMs?: number;
-      noteImageUrls?: string[];
-    }) => {
-      const items = input.lines.map((line) => ({
-        productId: line.productId,
-        quantity: line.quantity,
-        images: [] as string[],
-        ...(line.note?.trim() ? { note: line.note.trim() } : {}),
-      }));
-      const transporter = input.transporter?.trim() || undefined;
-      const attach = placeNoteAttachFields(input);
-      const batchBody = {
-        kind: OrderKind.Standard,
-        intent: input.intent,
-        ...(transporter ? { transporter } : {}),
-        ...attach,
-        items,
-      };
-      try {
-        return await api.post<CreateOrdersFromPackResult>('/orders/from-pack', {
-          collectionId: id,
-          kind: OrderKind.Standard,
-          intent: input.intent,
-          ...(transporter ? { transporter } : {}),
-          ...attach,
-          items,
-        });
-      } catch (err) {
-        if (err instanceof ApiError && shouldFallbackPackOrderToBatch(err.code)) {
-          const batch = await api.post<CreateOrdersBatchResult>('/orders/batch', batchBody);
-          const downstream = batch.orders[0] as OrderView | undefined;
-          if (!downstream) {
-            throw new ApiError({
-              statusCode: 400,
-              code: 'ORDER_FAILED',
-              message: 'Could not place the order.',
-            });
-          }
-          return {
-            downstream,
-            upstreams: [],
-            failures: batch.failures ?? [],
-          } satisfies CreateOrdersFromPackResult;
-        }
-        throw err;
-      }
-    },
-    onSuccess: (payload, variables) => {
-      setQtyOpen(false);
-      setOrderError(null);
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      if (variables.intent === OrderIntent.Inquiry) {
-        showToast('Rate request sent');
-      }
-      void navigateToOrderChat(navigate, queryClient, payload.downstream);
-    },
-    onError: (error, variables) => {
-      const inquiry = variables.intent === OrderIntent.Inquiry;
-      setOrderError(
-        error instanceof ApiError
-          ? error.message
-          : inquiry
-            ? 'Could not ask for rates.'
-            : 'Could not place the order.',
-      );
-    },
-  });
-
   const toggleProduct = (product: ProductView) => {
-    if (useManageSelect) {
-      setManageSelected((prev) => {
-        const next = new Set(prev);
-        if (next.has(product.id)) next.delete(product.id);
-        else next.add(product.id);
-        return next;
-      });
-      return;
-    }
     const gate = travelingSelectionToggleGate({
       status: product.status,
       alreadySelected: shortlist.productIds.has(product.id),
@@ -872,38 +800,19 @@ export function CollectionViewerPage() {
     shortlist.toggle(toShortlistEntry(product, product.companyName ?? companyName, packStamp));
   };
 
-  const designIsSelected = (productId: string) =>
-    useManageSelect ? manageSelected.has(productId) : shortlist.productIds.has(productId);
-
-  const onOwnerRemoveOne = async (productId: string) => {
-    if (!id) return;
-    setManageBusy(true);
-    try {
-      const next = membershipAfterRemove(
-        products.map((product) => product.id),
-        [productId],
-      );
-      await persistOwnerMembers(next);
-      setViewerProduct(null);
-      showToast('Removed from collection');
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger');
-    } finally {
-      setManageBusy(false);
-    }
-  };
+  const designIsSelected = (productId: string) => shortlist.productIds.has(productId);
 
   const openViewer = (product: ProductView, index = 0) => {
     setViewerProduct(product);
     setViewerIndex(index);
   };
 
-  const onDesignActivate = (product: ProductView) => {
+  const onDesignActivate = (product: ProductView, photoIndex = 0) => {
     if (selectMode) {
       toggleProduct(product);
       return;
     }
-    openViewer(product, 0);
+    openViewer(product, photoIndex);
   };
 
   const onDesignLongSelect = (product: ProductView) => {
@@ -928,36 +837,16 @@ export function CollectionViewerPage() {
     setShareOpen(true);
   };
 
-  const openSelectedDesignsShare = () => {
-    if (manageSelectedIds.length < 1) return;
-    setShareScope('designs');
-    setShareOpen(true);
-  };
-
-  const addSelectedDesignsToCart = () => {
-    if (manageSelectedIds.length < 1) return;
-    const selected = new Set(manageSelectedIds);
-    const picked = visibleProducts.filter((product) => selected.has(product.id));
-    const published = picked.filter((product) => isPublishedForSelection(product.status));
-    const notice = selectionSkipToast(picked.length - published.length, published.length);
-    if (notice) showToast(notice);
-    if (published.length < 1) return;
-    addCartDesignsMany(
-      published.map((product) =>
-        toShortlistEntry(product, product.companyName ?? companyName, packStamp),
-      ),
-    );
-    setManageSelected(new Set());
-    setPageSelecting(false);
-    showToast(
-      published.length === 1 ? 'Added to cart' : `${published.length} added to cart`,
-      'success',
-    );
-  };
-
   const openOwnerWhoHasAccess = () => {
     if (!id) return;
-    navigate(`/catalog/collections/${id}`, { state: { openPublish: true } });
+    navigate(`/catalog/collections/${id}`, {
+      state: {
+        openPublish: true,
+        /** Close Visibility sheet → back to this album (not stuck on Edit). */
+        returnTo: `/collections/${id}`,
+        returnState: packManage ? { packManage: true } : {},
+      },
+    });
   };
 
   const openOwnerEditDetails = () => {
@@ -967,8 +856,7 @@ export function CollectionViewerPage() {
 
   const data = collection.data;
   const floaterClearance =
-    (!useManageSelect && selectMode && thisAlbumCount + albumPick.count > 0) ||
-    showResumeContinue;
+    (selectMode && thisAlbumCount + albumPick.count > 0) || showResumeContinue;
   // API: pack rate or design min–max; null for non-owners when on request.
   const rateBand = albumFactsRateBand({
     rateMin: data?.rateMin,
@@ -989,7 +877,9 @@ export function CollectionViewerPage() {
   const headerSubtitle = data
     ? isOwner
       ? packHeaderSubtitleWithShop(products.length, products, null)
-      : packHeaderSubtitleWithShop(products.length, products, data.company.name)
+      : packHeaderSubtitleWithShop(products.length, products, data.company.name, {
+          showCount: false,
+        }) || undefined
     : undefined;
 
   return (
@@ -1001,9 +891,7 @@ export function CollectionViewerPage() {
           (showResumeContinue
             ? 'pb-[calc(10rem+env(safe-area-inset-bottom))]'
             : SELECTION_DOCK_CLEARANCE_CLASS),
-        packTradeDock && BOTTOM_DOCK_CLEARANCE_CLASS,
-        ownerManageDock &&
-          (selectMode ? SELECTION_DOCK_CLEARANCE_CLASS : BOTTOM_DOCK_CLEARANCE_CLASS),
+        ownerManageDock && BOTTOM_DOCK_CLEARANCE_CLASS,
       )}
     >
       {/*
@@ -1065,12 +953,68 @@ export function CollectionViewerPage() {
 
       </div>
 
-      {isOwner ? (
+      {isOwner && thisPackSelectedCount > 0 ? (
+        <MoreActionsSheet
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          title={data.name}
+          testId="owner-collection-select-more-sheet"
+          items={ownerCollectionSelectMoreIds().flatMap((action): MoreActionItem[] => {
+            if (action === 'bookmark') {
+              return [
+                {
+                  id: 'bookmark',
+                  label: selectedDesignBookmarkLabel,
+                  icon: <BookmarkIcon width={20} height={20} />,
+                  disabled: bookmarkDesigns.isPending,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    onBookmarkSelectedDesigns();
+                  },
+                  testId: 'collection-select-bookmark',
+                },
+              ];
+            }
+            if (action === 'remove') {
+              return [
+                {
+                  id: 'remove',
+                  label: 'Remove from this collection',
+                  icon: <TrashIcon width={20} height={20} />,
+                  disabled: manageBusy || !ownerCanRemove,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    void onOwnerRemove();
+                  },
+                  testId: 'collection-select-remove',
+                },
+              ];
+            }
+            return [
+              {
+                id: 'delete',
+                label: 'Delete selected',
+                icon: <TrashIcon width={20} height={20} />,
+                danger: true,
+                disabled: manageBusy || !ownerCanDelete,
+                onClick: () => {
+                  setMoreOpen(false);
+                  void onOwnerDelete();
+                },
+                testId: 'collection-select-delete',
+              },
+            ];
+          })}
+        />
+      ) : isOwner ? (
         <OwnerCollectionMoreSheet
           open={moreOpen}
           title={data.name}
           onClose={() => setMoreOpen(false)}
           onShare={openAlbumShare}
+          onBookmark={() => saveCollection.toggle()}
+          bookmarkSaved={saveCollection.isSaved}
+          bookmarkBusy={saveCollection.isPending}
           onWhoHasAccess={openOwnerWhoHasAccess}
           onAddDesigns={onOwnerAddDesigns}
           onAddPhotos={onOwnerAddPhotos}
@@ -1085,40 +1029,69 @@ export function CollectionViewerPage() {
           testId="visitor-collection-more-sheet"
           note={moreMenuNote}
           noteTestId="collection-menu-note"
-          items={[
-            {
-              id: 'message',
-              label: startChat.isPending ? 'Opening…' : `Message ${data.company.name}`,
-              icon: <ChatIcon width={20} height={20} />,
-              testId: 'collection-menu-message',
-              disabled: startChat.isPending,
-              onClick: () => {
-                setMoreOpen(false);
-                startChat.mutate();
+          items={visitorCollectionMoreIds({
+            tradeDockUp: thisPackSelectedCount > 0,
+          }).flatMap((action): MoreActionItem[] => {
+            if (action === 'message') {
+              return [
+                {
+                  id: 'message',
+                  label: startChat.isPending ? 'Opening…' : `Message ${data.company.name}`,
+                  icon: <ChatIcon width={20} height={20} />,
+                  testId: 'collection-menu-message',
+                  disabled: startChat.isPending,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    startChat.mutate();
+                  },
+                },
+              ];
+            }
+            if (action === 'share') {
+              return [
+                {
+                  id: 'share',
+                  label: 'Share this collection',
+                  icon: <PaperPlaneIcon width={20} height={20} />,
+                  disabled: !id,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    openAlbumShare();
+                  },
+                },
+              ];
+            }
+            if (thisPackSelectedCount > 0) {
+              return [
+                {
+                  id: 'bookmark',
+                  label: selectedDesignBookmarkLabel,
+                  icon: <BookmarkIcon width={20} height={20} />,
+                  testId: 'collection-select-bookmark',
+                  disabled: bookmarkDesigns.isPending,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    onBookmarkSelectedDesigns();
+                  },
+                },
+              ];
+            }
+            return [
+              {
+                id: 'bookmark',
+                label: saveCollection.isSaved
+                  ? 'Remove bookmark'
+                  : 'Bookmark this collection',
+                icon: <BookmarkIcon width={20} height={20} />,
+                testId: 'collection-menu-bookmark',
+                disabled: !id || saveCollection.isPending,
+                onClick: () => {
+                  setMoreOpen(false);
+                  saveCollection.toggle();
+                },
               },
-            },
-            {
-              id: 'share',
-              label: 'Share',
-              icon: <PaperPlaneIcon width={20} height={20} />,
-              disabled: !id,
-              onClick: () => {
-                setMoreOpen(false);
-                openAlbumShare();
-              },
-            },
-            {
-              id: 'bookmark',
-              label: save.isSaved ? 'Remove bookmark' : 'Bookmark',
-              icon: <BookmarkIcon width={20} height={20} />,
-              testId: 'collection-menu-bookmark',
-              disabled: !id || save.isPending,
-              onClick: () => {
-                setMoreOpen(false);
-                save.toggle();
-              },
-            },
-          ]}
+            ];
+          })}
         />
       )}
 
@@ -1193,7 +1166,7 @@ export function CollectionViewerPage() {
                     shopName: product.companyName,
                     curatedFrom: product.companyId !== data.company.id,
                   })}
-                  onActivate={() => onDesignActivate(product)}
+                  onActivate={(photoIndex) => onDesignActivate(product, photoIndex)}
                   onOpen={() => openViewer(product, 0)}
                   onLongSelect={() => onDesignLongSelect(product)}
                 />
@@ -1238,8 +1211,8 @@ export function CollectionViewerPage() {
           <div>
             <p className="text-sm font-semibold text-ink">Ask to see this collection</p>
             <p className="text-xs text-muted">
-              Ask {data.company.name} to open these {data.productCount} designs so you can look
-              through them. Not connect, and not putting designs in your collection.
+              Ask {data.company.name} to open this collection so you can look through it. Not
+              connect, and not putting designs in your collection.
             </p>
           </div>
           <Button onClick={() => askToSee.mutate()} disabled={askToSee.isPending}>
@@ -1298,34 +1271,16 @@ export function CollectionViewerPage() {
 
       {ownerManageDock ? (
         <OwnerPackManageDock
-          selecting={selectMode}
+          selecting={false}
           busy={manageBusy || quickUploading}
-          canAddToCart={ownerCanAddToCart}
-          canShare={ownerCanShare}
-          canDelete={ownerCanDelete}
-          canRemove={ownerCanRemove}
+          canDelete={false}
+          canRemove={false}
           onAddDesigns={onOwnerAddDesigns}
           onAddPhotos={onOwnerAddPhotos}
           onReplace={() => setReplaceSheetOpen(true)}
-          onAddToCart={addSelectedDesignsToCart}
-          onShare={openSelectedDesignsShare}
-          onDelete={() => void onOwnerDelete()}
-          onRemove={() => void onOwnerRemove()}
+          onDelete={() => undefined}
+          onRemove={() => undefined}
         />
-      ) : null}
-
-      {packTradeDock ? (
-        <BottomTradeDock testId="collection-pack-trade-dock" aboveAppNav={false}>
-          <Button
-            fullWidth
-            onClick={() => {
-              setOrderError(null);
-              setQtyOpen(true);
-            }}
-          >
-            Order
-          </Button>
-        </BottomTradeDock>
       ) : null}
 
       <OwnerPackReplaceSheet
@@ -1482,44 +1437,9 @@ export function CollectionViewerPage() {
         products={shareScope === 'designs' ? shareDesignItems : []}
         onShared={() => {
           if (shareScope !== 'designs') return;
-          setManageSelected(new Set());
-          setPageSelecting(false);
+          clearOwnerManageSelect();
         }}
       />
-
-      {collectionPackQtySheet({ visitor: !isOwner, hasProducts: products.length > 0 }) ? (
-        <HowManyEachSheet
-          open={qtyOpen}
-          onClose={() => setQtyOpen(false)}
-          sellerId={data.company.id}
-          products={products
-            .filter(
-              (product) =>
-                isPublishedForSelection(product.status) &&
-                shortlist.productIds.has(product.id),
-            )
-            .map((product) => ({
-              ...product,
-              images: product.images ?? [],
-            }))}
-          submitting={packOrder.isPending && packOrder.variables?.intent !== OrderIntent.Inquiry}
-          asking={false}
-          error={orderError}
-          orderGoesToName={showHandleCopy ? data.company.name : null}
-          sheetJob="order"
-          onSendOrder={(lines, place) => {
-            setOrderError(null);
-            packOrder.mutate({
-              intent: OrderIntent.Order,
-              lines,
-              ...place,
-            });
-          }}
-          onAskRates={() => {
-            /* Album Order path — rates already on pack; Ask rates hidden. */
-          }}
-        />
-      ) : null}
 
       <ProductPhotosSheet
         product={viewerProduct}
@@ -1546,15 +1466,28 @@ export function CollectionViewerPage() {
               })
             : false
         }
+        canDelete={
+          viewerProduct
+            ? collectionOwnerCanEditDesign({
+                isOwner,
+                myCompanyId: me.data?.id,
+                productCompanyId: viewerProduct.companyId,
+              })
+            : false
+        }
         onEdit={() => {
           if (!viewerProduct) return;
-          const id = viewerProduct.id;
+          const designId = viewerProduct.id;
           setViewerProduct(null);
-          navigate(`/catalog/products/${id}`);
+          navigate(`/catalog/products/${designId}`);
         }}
         onRemove={() => {
           if (!viewerProduct) return;
-          void onOwnerRemoveOne(viewerProduct.id);
+          void onOwnerRemove([viewerProduct.id]);
+        }}
+        onDelete={() => {
+          if (!viewerProduct) return;
+          void onOwnerDelete([viewerProduct.id]);
         }}
         removeBusy={manageBusy}
         selectable={canSelectDesigns}
@@ -1623,12 +1556,10 @@ function DesignTile({
   variant: 'feed' | 'grid';
   shopLine?: string | null;
   unavailableReason?: string;
-  onActivate: () => void;
+  onActivate: (photoIndex?: number) => void;
   onOpen?: () => void;
   onLongSelect?: () => void;
 }) {
-  const image = product.images[0] ?? null;
-  const extraPhotos = Math.max(0, product.images.length - 1);
   // Album thumbs never show a rate chip (designTileRateOverlay always null).
   const rateOverlay = designTileRateOverlay(
     formatCatalogRate({
@@ -1644,70 +1575,38 @@ function DesignTile({
     variant,
   });
   const curatedFrom = Boolean(shopLine?.startsWith('From '));
-  const longPress = useLongPress(onLongSelect);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface text-left">
-      <button
-        type="button"
-        onClick={onActivate}
-        className={cx('relative block w-full', LONG_PRESS_SURFACE_CLASS)}
-        {...longPress}
-      >
-        <SelectableMediaFrame
-          selectMode={selectMode && !unavailableReason}
+      {variant === 'feed' ? (
+        <FeedDesignPhotoCarousel
+          urls={product.images}
+          name={product.name}
+          selectMode={selectMode}
           selected={selected}
-          checkClassName="right-2 top-2"
-        >
-          {image ? (
-            <img
-              src={image}
-              alt={product.name}
-              className={cx(
-                designBrowsePhotoClass(variant),
-                unavailableReason && 'opacity-45',
-              )}
-              loading="lazy"
-            />
-          ) : (
-            <div
-              className={cx(
-                designBrowsePhotoClass(variant, 'placeholder'),
-                unavailableReason && 'opacity-45',
-              )}
-            >
-              {product.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          {rateOverlay ? (
-            <span
-              className="absolute bottom-2 left-2 z-[1] rounded-md bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white"
-              data-testid="collection-tile-rate"
-            >
-              {rateOverlay}
-            </span>
-          ) : null}
-          {extraPhotos > 0 && !rateOverlay ? (
-            <span
-              className="absolute bottom-2 left-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
-              data-testid="collection-tile-extra-photos"
-            >
-              +{extraPhotos}
-            </span>
-          ) : null}
-          {unavailableReason ? (
-            <span
-              className="absolute left-2 top-2 z-[1] rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-bold text-white"
-              data-testid="collection-member-unavailable"
-            >
-              {unavailableReason}
-            </span>
-          ) : null}
-        </SelectableMediaFrame>
-      </button>
+          unavailableReason={unavailableReason}
+          rateOverlay={rateOverlay}
+          onActivate={(photoIndex) => onActivate(photoIndex)}
+          onLongSelect={onLongSelect}
+        />
+      ) : (
+        <DesignPhotoCarousel
+          urls={product.images}
+          name={product.name}
+          photoClassName={designBrowsePhotoClass('grid')}
+          placeholderClassName={designBrowsePhotoClass('grid', 'placeholder')}
+          selectMode={selectMode}
+          selected={selected}
+          unavailableReason={unavailableReason}
+          rateOverlay={rateOverlay}
+          onActivate={(photoIndex) => onActivate(photoIndex)}
+          onLongSelect={onLongSelect}
+          testId="collection-grid-photo-carousel"
+        />
+      )}
       <button
         type="button"
-        onClick={onOpen ?? onActivate}
+        onClick={onOpen ?? (() => onActivate(0))}
         data-testid={`collection-design-open-${product.id}`}
         className={cx(
           'block w-full text-left',
@@ -1740,8 +1639,10 @@ function ProductPhotosSheet({
   onClose,
   isOwner = false,
   canEdit = false,
+  canDelete = false,
   onEdit,
   onRemove,
+  onDelete,
   removeBusy = false,
   selectable,
   selected,
@@ -1754,8 +1655,10 @@ function ProductPhotosSheet({
   onClose: () => void;
   isOwner?: boolean;
   canEdit?: boolean;
+  canDelete?: boolean;
   onEdit?: () => void;
   onRemove?: () => void;
+  onDelete?: () => void;
   removeBusy?: boolean;
   selectable: boolean;
   selected: boolean;
@@ -1773,9 +1676,8 @@ function ProductPhotosSheet({
   if (!product) return null;
   const urls = product.images;
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
-  const current = urls[safeIndex] ?? null;
   const curatedFrom = Boolean(shopLine?.startsWith('From '));
-  const showOwnerMore = isOwner && (canEdit || Boolean(onRemove));
+  const showOwnerMore = isOwner && (canEdit || Boolean(onRemove) || Boolean(onDelete));
 
   return (
     <>
@@ -1822,24 +1724,12 @@ function ProductPhotosSheet({
               {shopLine}
             </p>
           ) : null}
-          {current ? (
-            <button
-              type="button"
-              className="block w-full overflow-hidden rounded-2xl bg-foam"
-              onClick={() => setPhotoOpen(true)}
-              aria-label="View photo"
-            >
-              <img
-                src={current}
-                alt=""
-                className="max-h-[50vh] w-full object-contain"
-              />
-            </button>
-          ) : (
-            <div className="flex h-48 items-center justify-center rounded-2xl bg-foam text-muted">
-              No photos
-            </div>
-          )}
+          <DesignSheetPhotoCarousel
+            urls={urls}
+            index={safeIndex}
+            onIndex={onIndex}
+            onOpenFullscreen={() => setPhotoOpen(true)}
+          />
           <PackDetailBlocks
             testIdPrefix="collection-design-sheet"
             sections={collectionPackDetailSections({
@@ -1865,7 +1755,10 @@ function ProductPhotosSheet({
         onClose={() => setMoreOpen(false)}
         title={product.name}
         testId="collection-design-more-sheet"
-        items={collectionDesignSheetMoreIds(Boolean(canEdit && onEdit)).flatMap((id): MoreActionItem[] => {
+        items={collectionDesignSheetMoreIds({
+          canEdit: Boolean(canEdit && onEdit),
+          canDelete: Boolean(canDelete && onDelete),
+        }).flatMap((id): MoreActionItem[] => {
           if (id === 'edit' && onEdit) {
             return [
               {
@@ -1886,13 +1779,28 @@ function ProductPhotosSheet({
                 id: 'remove',
                 label: 'Remove from this collection',
                 icon: <TrashIcon width={20} height={20} />,
-                danger: true,
                 disabled: removeBusy,
                 onClick: () => {
                   setMoreOpen(false);
                   onRemove();
                 },
                 testId: 'collection-design-remove',
+              },
+            ];
+          }
+          if (id === 'delete' && onDelete) {
+            return [
+              {
+                id: 'delete',
+                label: 'Delete design',
+                icon: <TrashIcon width={20} height={20} />,
+                danger: true,
+                disabled: removeBusy,
+                onClick: () => {
+                  setMoreOpen(false);
+                  onDelete();
+                },
+                testId: 'collection-design-delete',
               },
             ];
           }

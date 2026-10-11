@@ -1,4 +1,5 @@
 import { cx } from '@/lib/cx';
+import { SelectAllFloat } from './SelectAllFloat';
 import {
   selectModeShowsActiveChrome,
   selectModeShowsEnter,
@@ -8,6 +9,7 @@ import {
 /**
  * Idle: Select. Selecting: N selected · Select all (optional) · Clear.
  * Clear always clears picks and exits Selecting.
+ * `pill` = foam chip under Select (shop catalog); `inline` = same row as siblings.
  */
 export function SelectModeControls({
   selecting,
@@ -18,6 +20,7 @@ export function SelectModeControls({
   onClear,
   showSelectAll = true,
   selectTestId = 'select-mode-enter',
+  activeLayout = 'inline',
   className,
 }: {
   selecting: boolean;
@@ -29,6 +32,8 @@ export function SelectModeControls({
   onClear: () => void;
   showSelectAll?: boolean;
   selectTestId?: string;
+  /** Shop: pill under the catalog row so Clear is not clipped beside tabs. */
+  activeLayout?: 'inline' | 'pill';
   className?: string;
 }) {
   if (selectModeShowsEnter(selecting)) {
@@ -49,21 +54,35 @@ export function SelectModeControls({
 
   if (!selectModeShowsActiveChrome(selecting)) return null;
 
+  if (activeLayout === 'pill') {
+    return (
+      <SelectAllFloat
+        layout="pill"
+        open
+        count={count}
+        allSelected={allSelected}
+        onSelectAll={onSelectAll}
+        onClear={onClear}
+        showSelectAll={selectModeShowsSelectAll(selecting, showSelectAll)}
+      />
+    );
+  }
+
   return (
     <div
       data-testid="select-all-float"
-      className={cx('flex min-w-0 flex-1 items-center gap-2.5', className)}
+      className={cx('flex shrink-0 items-center gap-2.5', className)}
     >
-      <p className="shrink-0 text-xs font-semibold text-ink" data-testid="select-mode-count">
+      <p className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink" data-testid="select-mode-count">
         {count} selected
       </p>
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-2.5">
         {selectModeShowsSelectAll(selecting, showSelectAll) ? (
           <button
             type="button"
             data-testid="select-all-float-select-all"
             disabled={allSelected}
-            className="text-xs font-bold text-accent disabled:opacity-40"
+            className="shrink-0 whitespace-nowrap text-xs font-bold text-accent disabled:opacity-40"
             onClick={onSelectAll}
           >
             Select all
@@ -72,7 +91,7 @@ export function SelectModeControls({
         <button
           type="button"
           data-testid="select-all-float-clear"
-          className="text-xs font-bold text-accent"
+          className="shrink-0 whitespace-nowrap text-xs font-bold text-accent"
           onClick={onClear}
         >
           Clear

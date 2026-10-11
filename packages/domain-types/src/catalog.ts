@@ -104,8 +104,22 @@ const createCollectionObjectSchema = z.object({
   endsAt: optionalScheduleInstant,
   /** Direct | I handle; null/omit = use Profile default at order time. */
   orderPathPreference: z.enum(orderPathPreferenceValues).nullable().optional(),
+  /** Explore Repost: source peer collection (at most one source field). */
+  repostSourceCollectionId: z.string().min(1).optional(),
+  /** Explore Repost: source peer design posted to market. */
+  repostSourceProductId: z.string().min(1).optional(),
 });
-export const createCollectionSchema = createCollectionObjectSchema.superRefine(refineRateRange);
+export const createCollectionSchema = createCollectionObjectSchema
+  .superRefine(refineRateRange)
+  .superRefine((value, ctx) => {
+    if (value.repostSourceCollectionId && value.repostSourceProductId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Pick one source post to repost.',
+        path: ['repostSourceCollectionId'],
+      });
+    }
+  });
 export type CreateCollectionDto = z.infer<typeof createCollectionSchema>;
 
 export const updateCollectionSchema = createCollectionObjectSchema

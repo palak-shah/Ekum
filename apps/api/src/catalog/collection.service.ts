@@ -125,32 +125,131 @@ export class CollectionService {
     if (startsAt !== undefined || endsAt !== undefined) {
       assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
     }
-    const collection = await this.prisma.collection.create({
-      data: withPrismaField(
-        'Collection',
-        'rateMax',
-        withPrismaField(
+    const repostSource = await this.resolveRepostSource(companyId, dto);
+    try {
+      const collection = await this.prisma.collection.create({
+        data: withPrismaField(
           'Collection',
-          'rate',
-          {
-            companyId,
-            name,
-            description: dto.description ?? null,
-            coverImage: dto.coverImage ?? null,
-            categories: dto.categories ?? [],
-            startsAt: startsAt === undefined ? null : startsAt,
-            endsAt: endsAt === undefined ? null : endsAt,
-            createdByUserId: userId,
-            updatedByUserId: userId,
-          },
-          dto.rate ?? null,
+          'rateMax',
+          withPrismaField(
+            'Collection',
+            'rate',
+            {
+              companyId,
+              name,
+              description: dto.description ?? null,
+              coverImage: dto.coverImage ?? null,
+              categories: dto.categories ?? [],
+              startsAt: startsAt === undefined ? null : startsAt,
+              endsAt: endsAt === undefined ? null : endsAt,
+              createdByUserId: userId,
+              updatedByUserId: userId,
+              ...repostSource,
+            },
+            dto.rate ?? null,
+          ),
+          dto.rateMax ?? null,
         ),
-        dto.rateMax ?? null,
-      ),
-      include: listInclude,
+        include: listInclude,
+      });
+      await ensureSellingEnabled(this.prisma, companyId);
+      return this.serializer.toCollectionView(collection, 0);
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code?: string }).code === 'P2002'
+      ) {
+        throw new ConflictException({
+          code: 'ALREADY_REPOSTED',
+          message: 'You already reposted this.',
+        });
+      }
+      throw err;
+    }
+  }
+
+  /** Explore Repost stamps — validate peer source + once-per-owner. */
+  private async resolveRepostSource(
+    companyId: string,
+    dto: CreateCollectionDto,
+  ): Promise<{
+    repostSourceCollectionId?: string | null;
+    repostSourceProductId?: string | null;
+  }> {
+    if (!dto.repostSourceCollectionId && !dto.repostSourceProductId) {
+      return {};
+    }
+    if (dto.repostSourceCollectionId && dto.repostSourceProductId) {
+      throw new BadRequestException({
+        code: 'INVALID_REPOST_SOURCE',
+        message: 'Pick one source post to repost.',
+      });
+    }
+    if (dto.repostSourceCollectionId) {
+      const source = await this.prisma.collection.findUnique({
+        where: { id: dto.repostSourceCollectionId },
+        select: { id: true, companyId: true, status: true },
+      });
+      if (!source || source.status !== CollectionStatus.Published) {
+        throw new NotFoundException({
+          code: 'NOT_FOUND',
+          message: 'That pack is not available to repost.',
+        });
+      }
+      if (source.companyId === companyId) {
+        throw new BadRequestException({
+          code: 'OWN_POST',
+          message: 'You can’t repost your own pack.',
+        });
+      }
+      const existing = await this.prisma.collection.findFirst({
+        where: {
+          companyId,
+          repostSourceCollectionId: source.id,
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new ConflictException({
+          code: 'ALREADY_REPOSTED',
+          message: 'You already reposted this.',
+        });
+      }
+      return { repostSourceCollectionId: source.id, repostSourceProductId: null };
+    }
+    const productId = dto.repostSourceProductId!;
+    const source = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, companyId: true, status: true, postedToMarketAt: true },
     });
-    await ensureSellingEnabled(this.prisma, companyId);
-    return this.serializer.toCollectionView(collection, 0);
+    if (!source || source.status !== ProductStatus.Published || !source.postedToMarketAt) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'That design is not available to repost.',
+      });
+    }
+    if (source.companyId === companyId) {
+      throw new BadRequestException({
+        code: 'OWN_POST',
+        message: 'You can’t repost your own design.',
+      });
+    }
+    const existing = await this.prisma.collection.findFirst({
+      where: {
+        companyId,
+        repostSourceProductId: source.id,
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: 'ALREADY_REPOSTED',
+        message: 'You already reposted this.',
+      });
+    }
+    return { repostSourceCollectionId: null, repostSourceProductId: source.id };
   }
 
   async list(

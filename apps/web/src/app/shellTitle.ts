@@ -33,6 +33,11 @@ export function shellShowsHomeBack(
   return false;
 }
 
+/** Account avatar on Home only — not My collections (`/more`). */
+export function shellShowsHomeAccount(pathname: string): boolean {
+  return pathname === '/';
+}
+
 /** Sticky shell h1 on tab roots. Nested/detail routes return null (PageHeader owns the title). */
 export function shellTitle(pathname: string): string | null {
   if (pathname === '/') return 'Home';

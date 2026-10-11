@@ -1,5 +1,6 @@
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import {
+  BookmarkIcon,
   CameraIcon,
   DesignIcon,
   LockIcon,
@@ -9,14 +10,17 @@ import {
 } from '@/ui/icons';
 
 /**
- * Owner album ⋯ — Share · Who · Add from existing designs · Add photos ·
- * Replace entire collection · Edit (everyday first; manage trio always listed).
+ * Owner album idle ⋯ — Share · Bookmark · Who · Add designs · Add photos ·
+ * Replace · Edit (everyday first; manage trio always listed).
  */
 export function OwnerCollectionMoreSheet({
   open,
   title,
   onClose,
   onShare,
+  onBookmark,
+  bookmarkSaved = false,
+  bookmarkBusy = false,
   onWhoHasAccess,
   onAddDesigns,
   onAddPhotos,
@@ -27,6 +31,9 @@ export function OwnerCollectionMoreSheet({
   title: string;
   onClose: () => void;
   onShare: () => void;
+  onBookmark: () => void;
+  bookmarkSaved?: boolean;
+  bookmarkBusy?: boolean;
   onWhoHasAccess: () => void;
   onAddDesigns: () => void;
   onAddPhotos: () => void;
@@ -49,6 +56,17 @@ export function OwnerCollectionMoreSheet({
             onShare();
           },
           testId: 'collection-menu-share',
+        },
+        {
+          id: 'bookmark',
+          label: bookmarkSaved ? 'Remove bookmark' : 'Bookmark this collection',
+          icon: <BookmarkIcon width={20} height={20} />,
+          disabled: bookmarkBusy,
+          onClick: () => {
+            onClose();
+            onBookmark();
+          },
+          testId: 'collection-menu-bookmark',
         },
         {
           id: 'who',

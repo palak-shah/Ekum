@@ -176,8 +176,7 @@ export function SelectionWorkspaceBar() {
                 data-testid="selection-workspace-order"
                 onClick={startOrder}
                 className={cx(
-                  'flex min-h-12 shrink-0 items-center justify-center rounded-xl px-3',
-                  ownShopVerbs.ownSelectionShop ? 'min-w-[7.5rem]' : 'min-w-[5.75rem]',
+                  'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3',
                   'border border-accent bg-accent text-sm font-bold text-white',
                 )}
               >

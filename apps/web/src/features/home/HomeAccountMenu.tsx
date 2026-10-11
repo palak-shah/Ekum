@@ -15,7 +15,7 @@ function shortcutIcon(testId: string) {
   return <UserIcon width={20} height={20} />;
 }
 
-/** Home / My collections avatar — Profile, Network, library, Settings, Log out. */
+/** Home avatar — Profile, Network, library, Settings, Log out. */
 export function HomeAccountMenu({
   name,
   imageUrl,

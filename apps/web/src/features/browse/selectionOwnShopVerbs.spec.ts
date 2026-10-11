@@ -12,11 +12,11 @@ describe('selectionOwnShopVerbs', () => {
     });
   });
 
-  it('own shop pile: Message gray, Order for buyer', () => {
+  it('own shop pile: Message gray, Order label stays Order', () => {
     expect(selectionOwnShopVerbs({ singleShopId: 'me', myCompanyId: 'me' })).toEqual({
       ownSelectionShop: true,
       messageDisabled: true,
-      orderLabel: 'Order for buyer',
+      orderLabel: 'Order',
     });
   });
 

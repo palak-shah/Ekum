@@ -51,6 +51,7 @@ const collectionOpportunity: ExploreOpportunity = {
     exploreNewDesignCount: 0,
     showSourceShops: false,
     sourceShopNames: [],
+    viewerReposted: false,
     company,
   },
 };
@@ -109,8 +110,8 @@ describe('Explore cards open while Selecting', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Select Red silk saree' }));
     expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('explore-design-open-d1')).toHaveTextContent('Design · 3 photos');
-    expect(screen.queryByText('+2')).not.toBeInTheDocument();
+    expect(screen.getByTestId('explore-design-open-d1')).toHaveTextContent('Red silk saree');
+    expect(screen.getByTestId('collection-tile-extra-photos')).toHaveTextContent('+2');
     expect(screen.getByTestId('selectable-media-selected')).toBeTruthy();
   });
 });

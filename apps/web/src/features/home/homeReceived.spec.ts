@@ -23,6 +23,7 @@ function pack(overrides: Partial<CollectionCard> = {}): CollectionCard {
     exploreNewDesignCount: 0,
     showSourceShops: false,
     sourceShopNames: [],
+    viewerReposted: false,
     company: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', logoUrl: null, verification: 'gst' },
     ...overrides,
   };

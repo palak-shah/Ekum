@@ -29,13 +29,9 @@ import {
   exploreFeedSourceLine,
 } from '@/features/explore/exploreFeedCaptionLines';
 import { useMyCompany } from '@/lib/queries';
-import {
-  albumMediaAspectClass,
-  albumOverflowLabel,
-  collectionMosaicCount,
-  designCountLabel,
-} from './albumMosaic';
+import { albumMediaAspectClass, albumOverflowLabel } from './albumMosaic';
 import { SelectableMediaFrame } from './selectMediaChrome';
+import { DesignPhotoCarousel } from './DesignPhotoCarousel';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 /** CoverImage IO prefetch — ahead of tall Explore cards. */
@@ -243,10 +239,7 @@ export function OpportunityCollectionCard({
         <SelectableMediaFrame selectMode={selectMode} selected={selected}>
           <AlbumGrid
             images={collection.previewImages}
-            imageCount={collectionMosaicCount({
-              productCount: collection.productCount,
-              previewCount: collection.previewImages.length,
-            })}
+            imageCount={collection.previewImages.length}
             alt={collection.name}
             priority={priority}
           />
@@ -513,13 +506,12 @@ export function OpportunityDesignCard({
   const me = useMyCompany();
   const isOwn = Boolean(me.data?.id && company.id === me.data.id);
   const navigate = useNavigate();
-  const longPress = useLongPress(onLongSelect);
   const selecting = selectMode && onToggleSelect;
   const openDesign = () => {
     onOpen?.();
     navigate(`/explore/products/${product.id}`);
   };
-  const onMediaClick = () => {
+  const onMediaActivate = () => {
     if (isLongPressActivateSuppressed()) return;
     if (selecting) onToggleSelect();
     else openDesign();
@@ -532,22 +524,19 @@ export function OpportunityDesignCard({
         to={isOwn ? undefined : `/company/${company.id}`}
         trailing={explorePostHeaderTrailing(when, isOwn ? undefined : headerTrailing)}
       />
-      <button
-        type="button"
-        aria-label={selecting ? `Select ${product.name}` : product.name}
-        className={cx('relative block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS, LONG_PRESS_SURFACE_CLASS)}
-        onClick={onMediaClick}
-        {...longPress}
-      >
-        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
-          <AlbumGrid
-            images={product.images[0] ? [product.images[0]] : []}
-            imageCount={1}
-            alt={product.name}
-            priority={priority}
-          />
-        </SelectableMediaFrame>
-      </button>
+      <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+        <DesignPhotoCarousel
+          urls={product.images}
+          name={product.name}
+          photoClassName="aspect-[4/5] w-full object-cover object-center"
+          placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted"
+          selectMode={selectMode}
+          selected={selected}
+          onActivate={() => onMediaActivate()}
+          onLongSelect={onLongSelect}
+          testId={`explore-design-photos-${product.id}`}
+        />
+      </div>
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
         <ExploreFeedActions product={product} selecting={Boolean(selectMode)} />
       </div>
@@ -712,10 +701,8 @@ export function CollectionTile({
       <div className="p-1.5">
         <AlbumGrid
           images={images}
-          imageCount={collectionMosaicCount({
-            productCount: collection.productCount,
-            previewCount: images.length,
-          })}
+          /** Preview thumbs only — never size mosaic from productCount (leaks inventory). */
+          imageCount={images.length}
           alt={collection.name}
         />
       </div>
@@ -724,9 +711,6 @@ export function CollectionTile({
         {showCompany ? (
           <p className="truncate text-xs text-muted">{collection.company.name}</p>
         ) : null}
-        <p className="truncate text-xs text-muted">
-          {collection.productCount} design{collection.productCount === 1 ? '' : 's'}
-        </p>
       </div>
     </Link>
   );
@@ -745,7 +729,6 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-ink">{collection.name}</p>
         <p className="truncate text-xs text-muted">{collection.company.name}</p>
-        <p className="text-xs text-muted">{designCountLabel(collection.productCount)}</p>
       </div>
       <ChevronRightIcon className="shrink-0 text-muted" />
     </Link>
@@ -884,27 +867,44 @@ export function CatalogFeedPost({
 }) {
   const longPress = useLongPress(onLongSelect);
   const shopTo = companyTo ?? (company ? `/company/${company.id}` : undefined);
+  const swipePhotos = images.length > 1 && imageCount <= 1;
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       {company && shopTo ? (
         <ShopPostHeader company={company} to={shopTo} />
       ) : null}
-      <button
-        type="button"
-        aria-label={selectMode ? `Select ${name}` : name}
-        data-testid={mediaTestId}
-        className={cx(
-          'relative block w-full text-left',
-          EXPLORE_POST_MEDIA_INSET_CLASS,
-          LONG_PRESS_SURFACE_CLASS,
-        )}
-        onClick={onMediaClick}
-        {...longPress}
-      >
-        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
-          <AlbumGrid images={images} imageCount={imageCount} alt={name} frame="feed" />
-        </SelectableMediaFrame>
-      </button>
+      {swipePhotos ? (
+        <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+          <DesignPhotoCarousel
+            urls={images}
+            name={name}
+            photoClassName="aspect-[4/5] w-full object-cover object-center"
+            placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted"
+            selectMode={selectMode}
+            selected={selected}
+            onActivate={() => onMediaClick()}
+            onLongSelect={onLongSelect}
+            testId={mediaTestId ?? 'catalog-feed-photos'}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          aria-label={selectMode ? `Select ${name}` : name}
+          data-testid={mediaTestId}
+          className={cx(
+            'relative block w-full text-left',
+            EXPLORE_POST_MEDIA_INSET_CLASS,
+            LONG_PRESS_SURFACE_CLASS,
+          )}
+          onClick={onMediaClick}
+          {...longPress}
+        >
+          <SelectableMediaFrame selectMode={selectMode} selected={selected}>
+            <AlbumGrid images={images} imageCount={imageCount} alt={name} frame="feed" />
+          </SelectableMediaFrame>
+        </button>
+      )}
       <Link
         to={href}
         state={linkState}
@@ -941,10 +941,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <AlbumGrid
           images={collection.previewImages}
-          imageCount={collectionMosaicCount({
-            productCount: collection.productCount,
-            previewCount: collection.previewImages.length,
-          })}
+          imageCount={collection.previewImages.length}
           alt={collection.name}
         />
       </Link>
@@ -967,6 +964,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
 /** Single-design Explore post. */
 export function ProductPost({ product }: { product: ExploreProductCard }) {
   const when = postedWhen(product.postedAt);
+  const navigate = useNavigate();
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
@@ -975,13 +973,16 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
         nameClassName="text-sm font-bold tracking-tight text-ink"
         trailing={explorePostHeaderTrailing(when)}
       />
-      <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
-        <AlbumGrid
-          images={product.images[0] ? [product.images[0]] : []}
-          imageCount={1}
-          alt={product.name}
+      <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+        <DesignPhotoCarousel
+          urls={product.images}
+          name={product.name}
+          photoClassName="aspect-[4/5] w-full object-cover object-center"
+          placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted"
+          onActivate={() => navigate(`/explore/products/${product.id}`)}
+          testId={`explore-product-photos-${product.id}`}
         />
-      </Link>
+      </div>
       <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         <ExploreFeedCaption
           title={product.name}

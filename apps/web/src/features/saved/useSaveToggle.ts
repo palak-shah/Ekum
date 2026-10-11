@@ -27,6 +27,32 @@ function findSavedItem(items: SavedItemView[] | undefined, target: SaveTarget) {
   );
 }
 
+/**
+ * Bookmark or remove bookmarks for selected designs.
+ * When every id is already saved → unsave all; otherwise save any missing.
+ */
+export async function toggleSavedDesigns(
+  productIds: readonly string[],
+  items: SavedItemView[] | undefined,
+): Promise<'saved' | 'removed'> {
+  const matches = productIds.map((productId) => ({
+    productId,
+    match: findSavedItem(items, { productId }),
+  }));
+  const allSaved = matches.length > 0 && matches.every((row) => Boolean(row.match));
+  if (allSaved) {
+    for (const row of matches) {
+      if (row.match) await api.del(`/saved/${row.match.id}`);
+    }
+    return 'removed';
+  }
+  for (const row of matches) {
+    if (row.match) continue;
+    await api.post<SavedItemView>('/saved', { productId: row.productId });
+  }
+  return 'saved';
+}
+
 type SaveToggleCopy = {
   toastSaved?: string;
   toastRemoved?: string;

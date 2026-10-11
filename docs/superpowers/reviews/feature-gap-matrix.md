@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-10 (theme system + chat visuals)  
+**Updated:** 2026-10-11 (collection ⋯ polish)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Collections | Album ⋯ idle collection bookmark; select bookmarks designs; You no account avatar | Works | Unit | Required | Completeness 2026-10-11-collection-chrome-polish |
 | Platform | Master light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-10-theme-system; kit accent-muted / input / badge |
 | Chat | Theme wallpaper + chat-out/in bubbles; trade cards header→images→note→actions | Works | Unit | Required | Completeness 2026-10-10-chat-theme-cards; no wallpaper picker |
 | Collections | Edit collection = pack details only (no member grid; membership on album) | Works | Unit | Required | Completeness 2026-10-10-edit-collection-details-only |
@@ -151,11 +152,13 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Instagram look + B2B: own feed, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look; new-designs meta retired 2026-10-10 |
 | Explore | Caption: album read more / Show less + newlines; no meta under title; time beside shop name | Works | Unit | Required | Completeness 2026-10-10-explore-caption-album-description |
 | Explore | Per-post Repost sheet (Who / groups / 48h / forward·download) — not Your selection | Works | Unit | Required | Completeness 2026-10-08-explore-repost-publish-sheet |
+| Explore | Repost once per peer post; own gray; done icon (not gray) when viewerReposted | Works | Unit + API | Required | Completeness 2026-10-11-explore-repost-once |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
 | Collections | Hide last live design drafts the pack; viewer lists Published only | Later | Unit | Optional | Superseded 2026-10-06-pack-members-stay-published: pack stays Published; Hide is explicit |
 | Collections | Pack members stay published on add/replace photos; no auto-draft | Works | Unit | Required | Completeness 2026-10-06-pack-members-stay-published |
 | Collections | Own pack manage dock (Add/Replace; selecting Cart · Share · Delete icons · Remove from this collection; hide owner name card; dock only when packManage from You/＋/own shop; Explore own pack uses ⋯ manage trio) | Works | Unit | Required | Completeness 2026-10-04-own-pack-manage-dock; 2026-10-06-owner-pack-select-dock-copy; 2026-10-09-owner-pack-select-cart-icons; 2026-10-11-own-pack-manage-entry |
 | Collections | Explore own pack browse select: shortlist + cart · Message (gray) · Share · Order for buyer; design ⋯ Edit · Remove | Works | Unit | Required | Completeness 2026-10-11-explore-own-pack-browse-select |
+| Collections | Universal collection chrome: shop Message·Share·Order; You Share·Order + ⋯ Hide/Archive; detail 4-button when picks; packManage idle dock only | Works | Unit | Required | Completeness 2026-10-11-universal-collection-chrome |
 | Collections | Edit live pack: **Publish** on own unpublished photo tiles + design sheet | Works | Unit | Required | Completeness 2026-10-06-collection-photo-set-live; pack-only, not Explore tile; word is Publish |
 | Orders | Ordered design leftover says No longer available | Works | Unit | Required | Same leftover as Saved / share |
 | Catalog | You published select: **Order · Share** teal, **Curate** last | Works | Unit | Required | Completeness 2026-09-29-you-library-share-dock |
@@ -278,7 +281,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
 | You / Settings | You: library (no identity card); shell **My collections** + Back + account avatar; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-09-my-collections-listing-chrome; 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
-| You / Catalog | Collection list: `N designs` · optional `shared with N` (Selected companies); no Published / date on listing | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
+| You / Catalog | Collection list: `N designs` only when live; no shared-with count / Published / date on listing | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
 | Collections | Owner Selecting dock: Cart · Share · Delete icons · Remove (Share = checked designs; Cart = published → trade cart) | Works | Unit | Required | Completeness 2026-10-09-owner-pack-select-share; 2026-10-09-owner-pack-select-cart-icons |
 | Collections | Owner album ⋯ bottom sheet: Share · Who · Add photos · Edit (icon+text) | Works | Unit | Required | Completeness 2026-10-09-owner-collection-more-sheet |
 

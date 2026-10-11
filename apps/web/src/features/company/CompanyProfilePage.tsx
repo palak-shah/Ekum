@@ -260,7 +260,7 @@ export function CompanyProfilePage() {
     });
   };
   const floaterClearance =
-    !isOwn && !shopDockUp && shortlist.count + albumPick.count > 0;
+    !shopDockUp && shortlist.count + albumPick.count > 0;
   const showMessage = !isOwn;
 
   const clearThisShop = () => {
@@ -275,6 +275,25 @@ export function CompanyProfilePage() {
       return;
     }
     albumPick.removeIds(shopAlbums.map((entry) => entry.collectionId));
+  };
+
+  const enterSelectMode = () => {
+    shortlist.setSelectMode(true);
+    albumPick.setSelectMode(true);
+  };
+
+  const selectAllOnActiveTab = () => {
+    if (shopTab === 'designs') {
+      shortlist.addMany(visibleDesigns.map((product) => toShopShortlistEntry(product, id)));
+      return;
+    }
+    albumPick.addMany(visibleCollections.map((collection) => toShopAlbumEntry(collection, id)));
+  };
+
+  const clearActiveTabAndExitSelect = () => {
+    clearActiveTab();
+    shortlist.setSelectMode(false);
+    albumPick.setSelectMode(false);
   };
 
   const toggleDesign = (product: ExploreProductCard) => {
@@ -563,7 +582,7 @@ export function CompanyProfilePage() {
         >
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex gap-2">
+              <div className="flex min-w-0 gap-2">
                 {(
                   [
                     ['collections', 'Collections', CollectionIcon],
@@ -593,36 +612,36 @@ export function CompanyProfilePage() {
                     testId="company-shop-layout-toggle"
                   />
                 ) : null}
-                {canSelect ? (
+                {canSelect && !selecting ? (
                   <SelectModeControls
                     selectTestId="company-shop-select"
-                    selecting={selecting}
+                    selecting={false}
                     count={tabSelectedCount}
                     allSelected={selectAll.allSelected}
-                    onEnterSelect={() => {
-                      shortlist.setSelectMode(true);
-                      albumPick.setSelectMode(true);
-                    }}
-                    onSelectAll={() => {
-                      if (shopTab === 'designs') {
-                        shortlist.addMany(
-                          visibleDesigns.map((product) => toShopShortlistEntry(product, id)),
-                        );
-                        return;
-                      }
-                      albumPick.addMany(
-                        visibleCollections.map((collection) => toShopAlbumEntry(collection, id)),
-                      );
-                    }}
-                    onClear={() => {
-                      clearActiveTab();
-                      shortlist.setSelectMode(false);
-                      albumPick.setSelectMode(false);
-                    }}
+                    onEnterSelect={enterSelectMode}
+                    onSelectAll={selectAllOnActiveTab}
+                    onClear={clearActiveTabAndExitSelect}
                   />
                 ) : null}
               </div>
             </div>
+            {canSelect && selecting ? (
+              <div
+                className="flex min-w-0 justify-end overflow-x-auto scrollbar-gutter-stable"
+                data-testid="company-shop-select-pill-row"
+              >
+                <SelectModeControls
+                  selectTestId="company-shop-select"
+                  activeLayout="pill"
+                  selecting
+                  count={tabSelectedCount}
+                  allSelected={selectAll.allSelected}
+                  onEnterSelect={enterSelectMode}
+                  onSelectAll={selectAllOnActiveTab}
+                  onClear={clearActiveTabAndExitSelect}
+                />
+              </div>
+            ) : null}
           </div>
           {hasShop ? (
             shopTab === 'designs' ? (
@@ -632,6 +651,7 @@ export function CompanyProfilePage() {
                     <ShopPhotoCell
                       key={product.id}
                       src={shopDesignPhoto(product)}
+                      images={product.images}
                       label={product.name}
                       to={`/explore/products/${product.id}`}
                       showName
@@ -684,6 +704,7 @@ export function CompanyProfilePage() {
             <DockIconButton
               testId="company-shop-message"
               label="Message"
+              disabled={isOwn}
               onClick={() => setMessageOpen(true)}
             >
               <ChatIcon width={22} height={22} />

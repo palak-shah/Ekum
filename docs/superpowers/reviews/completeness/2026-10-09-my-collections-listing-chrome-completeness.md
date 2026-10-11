@@ -70,7 +70,7 @@
 - Shell title `/more` → **My collections**; keep Back → Home.
 - Show `HomeAccountMenu` on `/more` (top right).
 - Collection Feed + Grid listing: no dates; no **Published** on list cards.
-- Subtitle: `N designs` · `shared with N` when live Selected with ≥1 company; else designs only (plus Draft/Archived/scheduled status when not live).
+- Subtitle: `N designs` when live (no audience count — Who has access is on the album ⋯); Draft/Archived/scheduled status when not live.
 - Update `docs/features/settings.md` + collections listing line; units + More/shell specs.
 
 ## Explicitly deferred / rejected

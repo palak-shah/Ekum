@@ -74,4 +74,26 @@ describe('SelectModeControls', () => {
     expect(screen.queryByTestId('select-all-float-select-all')).toBeNull();
     expect(screen.getByTestId('select-all-float-clear')).toBeTruthy();
   });
+
+  it('pill active chrome keeps Clear as a full word (BM-07)', () => {
+    render(
+      <SelectModeControls
+        selecting
+        activeLayout="pill"
+        count={0}
+        allSelected={false}
+        onEnterSelect={() => undefined}
+        onSelectAll={() => undefined}
+        onClear={() => undefined}
+        selectTestId="company-shop-select"
+      />,
+    );
+    const chrome = screen.getByTestId('select-all-float');
+    expect(chrome.className).toMatch(/rounded-full/);
+    expect(chrome.className).toMatch(/bg-foam/);
+    const clear = screen.getByTestId('select-all-float-clear');
+    expect(clear).toHaveTextContent('Clear');
+    expect(clear.className).toMatch(/whitespace-nowrap/);
+    expect(clear.className).toMatch(/shrink-0/);
+  });
 });

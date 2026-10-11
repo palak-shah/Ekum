@@ -43,6 +43,7 @@ describe('shopPhoto', () => {
     exploreNewDesignCount: 0,
     showSourceShops: false,
     sourceShopNames: [],
+      viewerReposted: false,
       company,
     } satisfies CollectionCard;
     expect(shopCollectionPhoto(collection)).toBe('https://cdn/d1.jpg');

@@ -3,7 +3,6 @@ import { CollectionStatus, PublishAudience } from '@ekum/domain-types';
 import { collectionScheduleBadge } from './collectionScheduleBadge';
 import {
   collectionListingCaption,
-  collectionSharedCompanyCount,
   collectionStatusSummary,
   whoCanSeeLabel,
 } from './collectionStatusSummary';
@@ -120,7 +119,7 @@ describe('whoCanSeeLabel', () => {
 describe('collectionListingCaption', () => {
   const now = new Date('2026-09-15T12:00:00.000Z');
 
-  it('shows designs · shared with N for live Selected companies', () => {
+  it('shows designs only for live collections (no audience count)', () => {
     expect(
       collectionListingCaption(
         {
@@ -132,10 +131,7 @@ describe('collectionListingCaption', () => {
         [],
         now,
       ),
-    ).toBe('18 designs · shared with 4');
-  });
-
-  it('omits shared-with for Followers and empty Selected', () => {
+    ).toBe('18 designs');
     expect(
       collectionListingCaption(
         {
@@ -147,13 +143,6 @@ describe('collectionListingCaption', () => {
         now,
       ),
     ).toBe('10 designs');
-    expect(
-      collectionSharedCompanyCount({
-        status: CollectionStatus.Published,
-        audience: PublishAudience.Selected,
-        audienceCompanyIds: [],
-      }),
-    ).toBeNull();
     expect(
       collectionListingCaption(
         {

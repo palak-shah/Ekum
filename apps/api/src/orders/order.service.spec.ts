@@ -463,6 +463,26 @@ describe('OrderService.create snapshots', () => {
     );
   });
 
+  it('omits noteImageUrls from chat meta and Requested trail when none were sent', async () => {
+    const { service, captured } = makeService({
+      products: [
+        { id: 'p1', name: 'Silk Saree', sku: 'S1', rate: { toNumber: () => 100 }, unit: 'mtr', images: [] },
+      ],
+    });
+    await service.create('buyer', 'user-1', {
+      sellerCompanyId: 'seller',
+      kind: OrderKind.Standard,
+      note: 'No photos',
+      items: [{ productId: 'p1', quantity: 1, images: [] }],
+    } as CreateOrderDto);
+    const meta = captured.messageCreate?.metadata as Record<string, unknown> | undefined;
+    expect(meta).toBeDefined();
+    expect(meta).not.toHaveProperty('noteImageUrls');
+    const requested = captured.trailAppends.find((row) => row.type === 'requested');
+    expect(requested).toBeDefined();
+    expect(requested).not.toHaveProperty('noteImageUrls');
+  });
+
   it('posts an order card into the trade thread on create', async () => {
     const { service, captured } = makeService({
       products: [

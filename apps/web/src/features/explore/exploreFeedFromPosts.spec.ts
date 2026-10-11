@@ -30,6 +30,7 @@ const collectionPost = {
     exploreNewDesignCount: 0,
     showSourceShops: false,
     sourceShopNames: [],
+    viewerReposted: false,
     company: {
       id: 'co1',
       name: 'Surat Silk',
