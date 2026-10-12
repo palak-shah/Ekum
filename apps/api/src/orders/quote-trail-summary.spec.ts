@@ -30,6 +30,11 @@ describe('quoteTrailSummary', () => {
     expect(quoteTrailSummary(283800, true)).toBe('Quote updated — ₹2,83,800');
   });
 
+  it('omits ₹ when total is null (blank pack size)', () => {
+    expect(quoteTrailSummary(null, false)).toBe('Quoted');
+    expect(quoteTrailSummary(null, true)).toBe('Quote updated');
+  });
+
   it('treats null and plain Quoted as bare (legacy trail)', () => {
     expect(isBareQuotedTrailSummary(null)).toBe(true);
     expect(isBareQuotedTrailSummary('Quoted')).toBe(true);

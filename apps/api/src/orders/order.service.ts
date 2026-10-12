@@ -1378,7 +1378,7 @@ export class OrderService {
       type: OrderTrailType.Quoted,
       actorCompanyId,
       actorUserId: userId,
-      summary: quoteTrailSummary(total, alreadyQuoted),
+      summary: quoteTrailSummary(billTotal, alreadyQuoted),
       detail:
         declinedCount > 0
           ? supplyable.length > 0

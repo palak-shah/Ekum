@@ -53,8 +53,14 @@ export function orderTrailLabel(type: string): string {
   return ORDER_TRAIL_LABELS[type] ?? type;
 }
 
-/** Timeline line for Send quote — first vs later send. */
-export function quoteTrailSummary(total: number, alreadyQuoted: boolean): string {
+/** Timeline line for Send quote — first vs later send. Null total = no ₹ (unbillable pack). */
+export function quoteTrailSummary(
+  total: number | null | undefined,
+  alreadyQuoted: boolean,
+): string {
+  if (total == null || !Number.isFinite(total)) {
+    return alreadyQuoted ? 'Quote updated' : 'Quoted';
+  }
   const amount = `₹${Math.round(total).toLocaleString('en-IN')}`;
   return alreadyQuoted ? `Quote updated — ${amount}` : `Quoted — ${amount}`;
 }
