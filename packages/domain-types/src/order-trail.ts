@@ -88,11 +88,18 @@ export function collapseQuotedTrailEvents(
   };
 }
 
-/** Legacy / backfill rows with no money line (null, "Quoted", or plain label). */
+/**
+ * Legacy / unpriced rows with no money line — null, empty, plain "Quoted",
+ * or plain "Quote updated" (null-total later send from quoteTrailSummary).
+ */
 export function isBareQuotedTrailSummary(summary: string | null | undefined): boolean {
   if (summary == null || summary.trim() === '') return true;
   const trimmed = summary.trim();
-  return trimmed === 'Quoted' || trimmed === ORDER_TRAIL_LABELS[OrderTrailType.Quoted];
+  return (
+    trimmed === 'Quoted' ||
+    trimmed === 'Quote updated' ||
+    trimmed === ORDER_TRAIL_LABELS[OrderTrailType.Quoted]
+  );
 }
 
 /** Completed for attention / filters: full dispatch, settle, legacy delivered. */

@@ -35,9 +35,11 @@ describe('quoteTrailSummary', () => {
     expect(quoteTrailSummary(null, true)).toBe('Quote updated');
   });
 
-  it('treats null and plain Quoted as bare (legacy trail)', () => {
+  it('treats null, plain Quoted, and plain Quote updated as bare', () => {
     expect(isBareQuotedTrailSummary(null)).toBe(true);
     expect(isBareQuotedTrailSummary('Quoted')).toBe(true);
+    expect(isBareQuotedTrailSummary('Quote updated')).toBe(true);
+    expect(isBareQuotedTrailSummary(quoteTrailSummary(null, true))).toBe(true);
     expect(isBareQuotedTrailSummary('Quoted — ₹2,75,000')).toBe(false);
     expect(isBareQuotedTrailSummary('Quote updated — ₹2,83,800')).toBe(false);
   });
