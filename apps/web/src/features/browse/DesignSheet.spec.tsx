@@ -1,0 +1,120 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { ComponentProps } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DesignSheet } from './DesignSheet';
+
+vi.mock('@/lib/apiClient', () => ({
+  api: { get: vi.fn().mockResolvedValue([]), post: vi.fn(), del: vi.fn() },
+  ApiError: class ApiError extends Error {},
+}));
+
+vi.mock('@/lib/queries', () => ({
+  useMyCompany: () => ({ data: { id: 'me-shop', name: 'Me' } }),
+}));
+
+vi.mock('@/ui/Toast', () => ({
+  useToast: () => ({ showToast: vi.fn() }),
+}));
+
+vi.mock('@/features/saved/useSaveToggle', () => ({
+  useSaveToggle: () => ({
+    isSaved: false,
+    isPending: false,
+    toggle: vi.fn(),
+  }),
+}));
+
+const product = {
+  id: 'd1',
+  name: 'Chiffon Roll',
+  images: ['https://example.com/a.jpg'],
+  companyId: 'other-shop',
+  companyName: 'Other',
+  allowForward: true,
+  categories: ['Fabric'],
+  description: null,
+  unit: 'mtr',
+  dispatchUnit: null,
+  moq: null,
+  rate: 128,
+  rateMax: null,
+};
+
+function renderSheet(props: Partial<ComponentProps<typeof DesignSheet>> = {}) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <DesignSheet
+          product={product}
+          index={0}
+          onIndex={() => undefined}
+          onClose={() => undefined}
+          {...props}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+afterEach(() => cleanup());
+
+describe('DesignSheet', () => {
+  it('shows trade footer without Bookmark or Select design (BM-11)', () => {
+    renderSheet();
+    expect(screen.getByTestId('design-sheet-trade')).toBeTruthy();
+    expect(screen.getByTestId('design-sheet-cart')).toHaveTextContent('Add to cart');
+    expect(screen.getByTestId('design-sheet-message')).toHaveTextContent('Message');
+    expect(screen.getByTestId('design-sheet-share')).toHaveTextContent('Share');
+    expect(screen.getByTestId('design-sheet-order')).toHaveTextContent('Order');
+    expect(screen.queryByRole('button', { name: /Bookmark this design/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Select design/i })).toBeNull();
+  });
+
+  it('puts Bookmark in ⋯; own collection gets Remove and Delete', async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
+    const onDelete = vi.fn();
+    const onEdit = vi.fn();
+    renderSheet({
+      canEdit: true,
+      canRemove: true,
+      canDelete: true,
+      collectionId: 'col1',
+      onEdit,
+      onRemove,
+      onDelete,
+      product: { ...product, companyId: 'me-shop' },
+    });
+    expect(screen.getByTestId('design-sheet-message')).toBeDisabled();
+    await user.click(screen.getByTestId('design-sheet-more'));
+    expect(screen.getByTestId('design-sheet-bookmark')).toHaveTextContent(/Bookmark/i);
+    expect(screen.getByTestId('design-sheet-edit')).toHaveTextContent('Edit design');
+    expect(screen.getByTestId('design-sheet-remove')).toHaveTextContent(
+      'Remove from this collection',
+    );
+    expect(screen.getByTestId('design-sheet-delete')).toHaveTextContent('Delete design');
+  });
+
+  it('hides Remove when there is no collection context', async () => {
+    const user = userEvent.setup();
+    renderSheet({
+      canEdit: true,
+      canRemove: true,
+      canDelete: true,
+      onEdit: () => undefined,
+      onRemove: () => undefined,
+      onDelete: () => undefined,
+    });
+    await user.click(screen.getByTestId('design-sheet-more'));
+    expect(screen.getByTestId('design-sheet-bookmark')).toBeTruthy();
+    expect(screen.getByTestId('design-sheet-edit')).toBeTruthy();
+    expect(screen.queryByTestId('design-sheet-remove')).toBeNull();
+    expect(screen.getByTestId('design-sheet-delete')).toBeTruthy();
+  });
+});

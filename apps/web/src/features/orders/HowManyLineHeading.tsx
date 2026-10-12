@@ -4,7 +4,10 @@ import {
   howManyUnitShort,
 } from '@/features/orders/howManyLineMeta';
 
-/** Name + unit on one line so “1” / Piece does not look like a broken title. */
+/**
+ * Name + order unit on one line (Set / Metre / Piece).
+ * Pack size and rate stay on the quiet facts line — never “Piece” when order unit is set.
+ */
 export function HowManyLineHeading({
   name,
   unit,
@@ -27,6 +30,7 @@ export function HowManyLineHeading({
   const soldAs = howManyUnitShort(unit);
   const extra = howManyLineExtra({ unit, dispatchUnit, piecesPerPack, moq, rate, rateMax });
   const contentsMissing = howManySetContentsMissing(unit, piecesPerPack);
+
   return (
     <div className="min-w-0 flex-1">
       <p className="flex min-w-0 items-baseline gap-1.5">
@@ -34,7 +38,12 @@ export function HowManyLineHeading({
           {name}
         </span>
         {soldAs ? (
-          <span className="shrink-0 text-[12px] font-medium text-muted">{soldAs}</span>
+          <span
+            className="shrink-0 text-[12px] font-medium text-muted"
+            data-testid="how-many-sold-as"
+          >
+            {soldAs}
+          </span>
         ) : null}
       </p>
       {shop?.trim() ? <p className="truncate text-[12px] text-muted">{shop}</p> : null}

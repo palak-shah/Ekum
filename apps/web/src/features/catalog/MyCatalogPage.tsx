@@ -36,16 +36,14 @@ import {
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { BottomTradeDock, DockIconButton } from '@/features/browse/BottomTradeDock';
 import { youLibraryPublishedSelectChrome } from '@/features/catalog/youLibrarySelectDock';
-import { collectionMosaicCount, packFeedDetailLine } from '@/ui/albumMosaic';
-import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
-import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
-import { collectionListingCaption } from './collectionStatusSummary';
-import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
+import { CollectionAlbumTile } from '@/features/collections/CollectionAlbumTile';
 import { libraryAuditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
 import { BulkProductPublishSheet } from './BulkProductPublishSheet';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import { DesignSheet } from '@/features/browse/DesignSheet';
 import {
   readBrowseAlbumPick,
   writeBrowseAlbumPick,
@@ -88,6 +86,8 @@ function toCatalogShortlistEntry(
     allowForward: product.allowForward,
     categories: product.categories ?? [],
     unit: product.unit ?? null,
+    dispatchUnit: product.dispatchUnit ?? null,
+    piecesPerPack: product.piecesPerPack ?? null,
     moq: product.moq ?? null,
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
@@ -196,6 +196,8 @@ export function MyCatalogPage({
   const youSaved = embedded && (!catalogTabs || isYouSavedSearch(searchParams));
   const tab = tabFromSearch(searchParams);
   const [postOpen, setPostOpen] = useState(false);
+  const [sheetProduct, setSheetProduct] = useState<ProductView | null>(null);
+  const [sheetIndex, setSheetIndex] = useState(0);
   const [layout, setLayout] = useState<DesignBrowseLayout>(() =>
     readDesignBrowseLayout(companyId),
   );
@@ -768,6 +770,10 @@ export function MyCatalogPage({
                   selected={selectedIds.has(product.id)}
                   onToggle={() => toggleSelected(product.id)}
                   onLongSelect={() => startSelect(product.id)}
+                  onOpenPublished={() => {
+                    setSheetIndex(0);
+                    setSheetProduct(product);
+                  }}
                 />
               ))}
             </div>
@@ -813,15 +819,28 @@ export function MyCatalogPage({
               data-layout={layout}
             >
               {filteredCollections.map((collection) => (
-                <SellerCollectionTile
+                <CollectionAlbumTile
                   key={collection.id}
-                  collection={collection}
-                  groups={buyerGroups}
-                  variant={layout}
+                  surface="library"
+                  id={collection.id}
+                  name={collection.name}
+                  previewImages={collection.previewImages ?? []}
+                  categories={collection.categories}
+                  layout={layout}
                   selecting={selecting}
                   selected={selectedIds.has(collection.id)}
                   onToggle={() => toggleSelected(collection.id)}
                   onLongSelect={() => startSelect(collection.id)}
+                  status={collection.status}
+                  productCount={collection.productCount}
+                  companyId={collection.companyId}
+                  memberShops={collection.memberShops}
+                  groups={buyerGroups}
+                  audience={collection.audience}
+                  audienceCompanyIds={collection.audienceCompanyIds}
+                  audienceGroupIds={collection.audienceGroupIds}
+                  startsAt={collection.startsAt}
+                  endsAt={collection.endsAt}
                 />
               ))}
             </div>
@@ -964,6 +983,44 @@ export function MyCatalogPage({
         </>
       )}
 
+      {sheetProduct ? (
+        <DesignSheet
+          product={sheetProduct}
+          index={sheetIndex}
+          onIndex={setSheetIndex}
+          onClose={() => setSheetProduct(null)}
+          canEdit
+          canDelete
+          onEdit={() => {
+            const designId = sheetProduct.id;
+            setSheetProduct(null);
+            navigate(`/catalog/products/${designId}`);
+          }}
+          onDelete={() => {
+            if (
+              typeof window !== 'undefined' &&
+              !window.confirm(`Delete ${sheetProduct.name}? This cannot be undone.`)
+            ) {
+              return;
+            }
+            void api
+              .del(`/products/${sheetProduct.id}`)
+              .then(() => {
+                setSheetProduct(null);
+                void queryClient.invalidateQueries({ queryKey: ['catalog'] });
+                showToast('Design deleted', 'success');
+              })
+              .catch((error) =>
+                showToast(
+                  error instanceof ApiError ? error.message : 'Could not delete.',
+                  'danger',
+                ),
+              );
+          }}
+          testIdPrefix="you-design-sheet"
+        />
+      ) : null}
+
       <CatalogShareSheet
         open={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -1029,6 +1086,7 @@ function SellerProductTile({
   selected,
   onToggle,
   onLongSelect,
+  onOpenPublished,
 }: {
   product: ProductView;
   groups: BroadcastListView[];
@@ -1037,12 +1095,24 @@ function SellerProductTile({
   selected: boolean;
   onToggle: () => void;
   onLongSelect: () => void;
+  onOpenPublished: () => void;
 }) {
   const subtitle = productTileSubtitle(product);
   const statusLine = productStatusLine(product, groups);
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const feed = variant === 'feed';
+  const open = () => {
+    if (selecting) {
+      onToggle();
+      return;
+    }
+    if (product.status === ProductStatus.Published) {
+      onOpenPublished();
+      return;
+    }
+    navigate(`/catalog/products/${product.id}`);
+  };
   if (feed) {
     const when = explorePostedWhen(product.updatedAt ?? product.createdAt);
     const live = product.status === ProductStatus.Published;
@@ -1053,24 +1123,18 @@ function SellerProductTile({
       <CatalogFeedPost
         name={product.name}
         meta={meta}
-        href={`/catalog/products/${product.id}`}
+        href={live ? undefined : `/catalog/products/${product.id}`}
+        onOpen={live ? () => open() : undefined}
         images={product.images}
         imageCount={1}
         selected={selected}
         selectMode={selecting}
-        onMediaClick={() => {
-          if (selecting) onToggle();
-          else navigate(`/catalog/products/${product.id}`);
-        }}
+        onMediaClick={() => open()}
         onLongSelect={selecting ? undefined : onLongSelect}
         mediaTestId="catalog-product-tile"
       />
     );
   }
-  const open = () => {
-    if (selecting) onToggle();
-    else navigate(`/catalog/products/${product.id}`);
-  };
 
   return (
     <div
@@ -1111,122 +1175,3 @@ function SellerProductTile({
   );
 }
 
-function SellerCollectionTile({
-  collection,
-  groups,
-  variant,
-  selecting,
-  selected,
-  onToggle,
-  onLongSelect,
-}: {
-  collection: CollectionView;
-  groups: BroadcastListView[];
-  variant: DesignBrowseLayout;
-  selecting: boolean;
-  selected: boolean;
-  onToggle: () => void;
-  onLongSelect: () => void;
-}) {
-  const previews = collection.previewImages ?? [];
-
-  const href =
-    collection.status === CollectionStatus.Archived
-      ? `/catalog/collections/${collection.id}`
-      : `/collections/${collection.id}`;
-  /** You / ＋ Collections → album with manage dock. */
-  const packManageState =
-    collection.status === CollectionStatus.Archived ? undefined : { packManage: true as const };
-
-  const caption = collectionListingCaption(collection, groups);
-  const sourceLine = collectionOwnerSourceLine(
-    collection.companyId,
-    collection.memberShops ?? [],
-  );
-  const navigate = useNavigate();
-  const longPress = useLongPress(selecting ? undefined : onLongSelect);
-  const mosaicCount = collectionMosaicCount({
-    productCount: collection.productCount,
-    previewCount: previews.length,
-  });
-  const feed = variant === 'feed';
-  if (feed) {
-    const detail = packFeedDetailLine({
-      tags: collection.categories,
-    });
-    return (
-      <CatalogFeedPost
-        name={collection.name}
-        source={sourceLine}
-        meta={caption}
-        detail={detail}
-        href={href}
-        linkState={packManageState}
-        images={previews}
-        imageCount={mosaicCount}
-        selected={selected}
-        selectMode={selecting}
-        onMediaClick={() => {
-          if (selecting) onToggle();
-          else navigate(href, packManageState ? { state: packManageState } : undefined);
-        }}
-        onLongSelect={selecting ? undefined : onLongSelect}
-      />
-    );
-  }
-
-  const body = (
-    <>
-      <div className={cx('relative', feed && 'px-0')}>
-        <SelectableMediaFrame
-          selectMode={selecting}
-          selected={selected}
-          checkClassName="right-2 top-2"
-          idleCheckClassName="border-white bg-ink/30 text-transparent"
-        >
-          <AlbumGrid images={previews} imageCount={mosaicCount} alt={collection.name} />
-        </SelectableMediaFrame>
-      </div>
-      <div className="flex min-w-0 flex-col gap-1 overflow-hidden p-3">
-        <p className="truncate text-base font-semibold text-ink">{collection.name}</p>
-        {sourceLine ? (
-          <p className="truncate text-sm font-semibold tracking-tight text-ink" data-testid="you-collection-source">
-            {sourceLine}
-          </p>
-        ) : null}
-        <p className="line-clamp-2 text-xs text-muted" data-testid="you-collection-caption">
-          {caption}
-        </p>
-      </div>
-    </>
-  );
-
-  if (selecting) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cx(
-          'overflow-hidden rounded-2xl border border-line bg-surface text-left',
-          LONG_PRESS_SURFACE_CLASS,
-        )}
-      >
-        {body}
-      </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      className={cx(
-        'overflow-hidden rounded-2xl border border-line bg-surface text-left',
-        LONG_PRESS_SURFACE_CLASS,
-      )}
-      onClick={() => navigate(href, packManageState ? { state: packManageState } : undefined)}
-      {...longPress}
-    >
-      {body}
-    </button>
-  );
-}

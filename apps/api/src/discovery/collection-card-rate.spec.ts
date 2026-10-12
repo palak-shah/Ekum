@@ -71,4 +71,16 @@ describe('collectionCardRateFields', () => {
       }),
     ).toEqual({ rateMin: 1500, rateMax: null, rateUnit: null });
   });
+
+  it('uses dispatch unit for pack order members (Rate per mtr not set/pc)', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        products: [
+          { product: { rate: 94, unit: 'set', dispatchUnit: 'mtr' } },
+          { product: { rate: 100, unit: 'set', dispatchUnit: 'mtr' } },
+        ],
+      }),
+    ).toEqual({ rateMin: 94, rateMax: 100, rateUnit: 'mtr' });
+  });
 });

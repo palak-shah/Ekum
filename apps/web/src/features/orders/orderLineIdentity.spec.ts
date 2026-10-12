@@ -9,28 +9,41 @@ describe('orderLineSoldAsCue', () => {
 
   it('keeps Set · N pcs when pack size is known', () => {
     expect(orderLineSoldAsCue('set', 12)).toBe('Set · 12 pcs');
+    expect(orderLineSoldAsCue('set', 5, 'mtr')).toBe('Set · 5 mtrs');
+    expect(orderLineSoldAsCue('dozen')).toBe('Dozen · 12 pcs');
   });
 });
 
 describe('orderLineIdentitySecondary', () => {
-  it('joins SKU and sold-as when set size is known', () => {
+  it('shows sold-as only — never repeats SKU under the name', () => {
     expect(
       orderLineIdentitySecondary({
-        sku: 'EK-204',
-        productId: 'prod-long-id',
+        name: 'EK-CECC3ACB',
+        sku: 'EK-CECC3ACB',
         unit: 'set',
-        piecesPerPack: 12,
+        piecesPerPack: 5,
+        dispatchUnit: 'pc',
       }),
-    ).toBe('EK-204 · Set · 12 pcs');
+    ).toBe('Set · 5 pcs');
+    expect(
+      orderLineIdentitySecondary({
+        name: 'Sage Green 300Tc',
+        sku: 'EK-DCF0B102',
+        unit: 'set',
+        piecesPerPack: 5,
+        dispatchUnit: 'pc',
+      }),
+    ).toBe('Set · 5 pcs');
   });
 
-  it('falls back to productId and per-unit cue', () => {
+  it('falls back to per-unit cue when native', () => {
     expect(
       orderLineIdentitySecondary({
+        name: 'Cotton',
         sku: null,
         productId: 'abcdefghijklmnop',
         unit: 'pc',
       }),
-    ).toBe('abcdefghij… · per pc');
+    ).toBe('per pc');
   });
 });

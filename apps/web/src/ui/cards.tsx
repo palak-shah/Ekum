@@ -842,6 +842,7 @@ export function CatalogFeedPost({
   selected = false,
   selectMode = false,
   onMediaClick,
+  onOpen,
   onLongSelect,
   mediaTestId,
   openTestId,
@@ -851,7 +852,8 @@ export function CatalogFeedPost({
   /** Owner mill cue — louder than tags. */
   source?: string | null;
   detail?: string;
-  href: string;
+  /** Caption link when `onOpen` is not set. */
+  href?: string;
   /** Optional router state (e.g. `{ packManage: true }` from You). */
   linkState?: Record<string, unknown>;
   images: string[];
@@ -861,6 +863,8 @@ export function CatalogFeedPost({
   selected?: boolean;
   selectMode?: boolean;
   onMediaClick: () => void;
+  /** Caption opens sheet / custom path instead of `href`. */
+  onOpen?: () => void;
   onLongSelect?: () => void;
   mediaTestId?: string;
   openTestId?: string;
@@ -868,6 +872,22 @@ export function CatalogFeedPost({
   const longPress = useLongPress(onLongSelect);
   const shopTo = companyTo ?? (company ? `/company/${company.id}` : undefined);
   const swipePhotos = images.length > 1 && imageCount <= 1;
+  const captionClass = cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS);
+  const captionBody = (
+    <>
+      <p className="text-sm font-semibold tracking-tight text-ink">{name}</p>
+      {source ? (
+        <p
+          className="text-sm font-semibold tracking-tight text-ink"
+          data-testid="catalog-feed-source"
+        >
+          {source}
+        </p>
+      ) : null}
+      {meta ? <p className="text-xs font-medium text-muted">{meta}</p> : null}
+      {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
+    </>
+  );
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       {company && shopTo ? (
@@ -905,24 +925,22 @@ export function CatalogFeedPost({
           </SelectableMediaFrame>
         </button>
       )}
-      <Link
-        to={href}
-        state={linkState}
-        data-testid={openTestId}
-        className={cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
-      >
-        <p className="text-sm font-semibold tracking-tight text-ink">{name}</p>
-        {source ? (
-          <p
-            className="text-sm font-semibold tracking-tight text-ink"
-            data-testid="catalog-feed-source"
-          >
-            {source}
-          </p>
-        ) : null}
-        {meta ? <p className="text-xs font-medium text-muted">{meta}</p> : null}
-        {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
-      </Link>
+      {onOpen ? (
+        <button
+          type="button"
+          data-testid={openTestId}
+          className={captionClass}
+          onClick={onOpen}
+        >
+          {captionBody}
+        </button>
+      ) : href ? (
+        <Link to={href} state={linkState} data-testid={openTestId} className={captionClass}>
+          {captionBody}
+        </Link>
+      ) : (
+        <div className={captionClass}>{captionBody}</div>
+      )}
     </article>
   );
 }

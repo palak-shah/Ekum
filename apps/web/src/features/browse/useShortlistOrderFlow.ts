@@ -93,6 +93,8 @@ export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[
         companyName: entry.companyName,
         categories: entry.categories ?? [],
         unit: entry.unit ?? null,
+        dispatchUnit: entry.dispatchUnit ?? null,
+        piecesPerPack: entry.piecesPerPack ?? null,
         moq: entry.moq ?? null,
         rate: entry.rate ?? null,
         rateMax: entry.rateMax ?? null,

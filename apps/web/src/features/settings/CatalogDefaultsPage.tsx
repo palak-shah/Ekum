@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RateVisibility, Unit, type CompanySettingsView } from '@ekum/domain-types';
+import { RateVisibility, Unit, unitValues, type CompanySettingsView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button, InlineNotice, LoadingBlock, cx } from '@/ui/kit';
 import { OrderDispatchFields } from '@/features/catalog/OrderDispatchFields';
 import {
+  DEFAULT_DISPATCH_UNIT,
+  DEFAULT_SELL_AS_UNIT,
   readCompanyPublishDefaults,
   readCompanySellAsUsual,
 } from '@/features/catalog/publishDefaults';
@@ -19,8 +21,8 @@ export function CatalogDefaultsPage() {
   const [rateVisibility, setRateVisibility] = useState(RateVisibility.OnRequest);
   const [allowForward, setAllowForward] = useState(true);
   const [allowDownload, setAllowDownload] = useState(false);
-  const [unit, setUnit] = useState(Unit.Set);
-  const [dispatchUnit, setDispatchUnit] = useState(Unit.Piece);
+  const [unit, setUnit] = useState(DEFAULT_SELL_AS_UNIT);
+  const [dispatchUnit, setDispatchUnit] = useState(DEFAULT_DISPATCH_UNIT);
   const [piecesPerPack, setPiecesPerPack] = useState('');
   const [moq, setMoq] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +35,8 @@ export function CatalogDefaultsPage() {
     setRateVisibility(pub.rateVisibility as typeof RateVisibility.OnRequest);
     setAllowForward(pub.allowForward);
     setAllowDownload(pub.allowDownload);
-    setUnit((sell.unit as typeof Unit.Set) || Unit.Set);
-    setDispatchUnit((sell.dispatchUnit as typeof Unit.Piece) || Unit.Piece);
+    setUnit(sell.unit || DEFAULT_SELL_AS_UNIT);
+    setDispatchUnit(sell.dispatchUnit || DEFAULT_DISPATCH_UNIT);
     setPiecesPerPack(sell.piecesPerPack);
     setMoq(sell.moq);
   }, [settings.data]);
@@ -69,11 +71,14 @@ export function CatalogDefaultsPage() {
 
   if (settings.isLoading) return <LoadingBlock />;
 
+  const ratePer = (dispatchUnit.trim() || DEFAULT_DISPATCH_UNIT) as string;
+
   return (
     <div className="flex flex-col gap-5 pb-8">
       <PageHeader title="Catalog defaults" />
       <p className="text-sm text-muted">
-        Usual Who and sell-as for new collections. Rate and notes stay on each collection or design.
+        Usual Who and sell-as for new collections when the collection does not set its own. Rate
+        amounts and notes stay on each collection or design.
       </p>
       {error ? <InlineNotice message={error} /> : null}
       {saved ? <InlineNotice message="Saved" tone="muted" /> : null}
@@ -126,14 +131,34 @@ export function CatalogDefaultsPage() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-ink">Rate per</span>
+          <select
+            data-testid="catalog-defaults-rate-unit"
+            aria-label="Rate unit"
+            value={ratePer}
+            onChange={(e) => setDispatchUnit(e.target.value)}
+            className="min-h-9 rounded-xl border border-line bg-surface px-2.5 text-sm font-semibold text-ink"
+          >
+            {unitValues.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-muted">
+          Default billing unit for new collections (usually pc). Same as Rate per on create
+          collection.
+        </p>
         <OrderDispatchFields
           orderUnit={unit}
           piecesPerPack={piecesPerPack}
-          dispatchUnit={dispatchUnit}
+          dispatchUnit={dispatchUnit || Unit.Piece}
           moq={moq}
-          onOrderUnit={(next) => setUnit(next as typeof Unit.Set)}
+          onOrderUnit={setUnit}
           onPiecesPerPack={setPiecesPerPack}
-          onDispatchUnit={(next) => setDispatchUnit(next as typeof Unit.Piece)}
+          onDispatchUnit={setDispatchUnit}
           onMoq={setMoq}
         />
       </section>

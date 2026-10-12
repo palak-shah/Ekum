@@ -169,7 +169,10 @@ export interface ExploreProductCard {
   images: string[];
   rate: number | null;
   rateMax: number | null;
+  /** Order taken in (set / pc / mtr…). */
   unit: string | null;
+  /** Rate / dispatch unit when pack order unit (usually pc). */
+  dispatchUnit?: string | null;
   /** Design tags when present. */
   categories: string[];
   postedAt: string;
@@ -307,6 +310,6 @@ export interface ExploreProductPreviewView extends ExploreProductCard {
   description?: string | null;
   /** Minimum order in the sell-as unit. */
   moq?: number | null;
-  /** Pcs inside one set / dozen / box. */
+  /** Dispatch units inside one set / dozen / box. */
   piecesPerPack?: number | null;
 }

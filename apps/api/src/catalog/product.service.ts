@@ -44,14 +44,15 @@ export class ProductService {
           moq: dto.moq ?? null,
           rate: dto.rate ?? null,
           rateMax: dto.rateMax ?? null,
-          unit: dto.unit ?? null,
+          // Platform default: order in sets, rate/billing per pc (Catalog settings override when sent).
+          unit: dto.unit ?? 'set',
           piecesPerPack: dto.piecesPerPack ?? null,
           categories: dto.categories,
           images: dto.images,
           createdByUserId: userId,
           updatedByUserId: userId,
         },
-        dto.dispatchUnit ?? null,
+        dto.dispatchUnit ?? 'pc',
       ),
       include: productActorInclude,
     });

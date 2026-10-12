@@ -1,5 +1,11 @@
 import { cx } from '@/ui/kit';
 import { orderLineOverShipped } from '@/features/orders/shipProgressLabel';
+import {
+  formatDualQty,
+  lineBillAmount,
+  orderLineBillingCaptions,
+} from '@/features/orders/orderLineBilling';
+import { isPackOrderUnit } from '@/lib/catalogRate';
 
 /** Label above · value below — columns separated by a hairline, not boxes. */
 function FactCell({
@@ -51,6 +57,8 @@ type ItemFacts = {
   quantity: number;
   rate: number | null;
   unit: string | null;
+  dispatchUnit?: string | null;
+  piecesPerPack?: number | null;
   remainingQuantity?: number;
   shippedQuantity?: number;
   lineStatus?: string;
@@ -145,10 +153,34 @@ export function OrderLineFacts({
 }) {
   const qty = item.quantity;
   const hasPrice = item.rate != null;
+  const bill = lineBillAmount({
+    quantity: item.quantity,
+    rate: item.rate,
+    unit: item.unit,
+    piecesPerPack: item.piecesPerPack,
+  });
+  const qtyLabel = isPackOrderUnit(item.unit)
+    ? formatDualQty({
+        quantity: item.quantity,
+        unit: item.unit,
+        piecesPerPack: item.piecesPerPack,
+        dispatchUnit: item.dispatchUnit,
+      })
+    : qty;
   const shipped = item.shippedQuantity ?? 0;
   const showShip = orderLineShowsShipFacts(item);
   const balance = orderLineBalance(item);
   const compact = density !== 'detail';
+  const captions =
+    density === 'detail'
+      ? orderLineBillingCaptions({
+          quantity: item.quantity,
+          rate: item.rate,
+          unit: item.unit,
+          piecesPerPack: item.piecesPerPack,
+          dispatchUnit: item.dispatchUnit,
+        })
+      : [];
 
   if (density === 'sheet') {
     return (
@@ -160,12 +192,20 @@ export function OrderLineFacts({
         data-testid="order-line-facts"
         data-density="sheet"
       >
-        <span data-testid="order-line-fact-qty">{qty}</span>
+        <span data-testid="order-line-fact-qty">{qtyLabel}</span>
         {hasPrice ? (
           <>
             <span className="font-normal text-muted"> · </span>
             <span data-testid="order-line-fact-price">
               {formatOrderLinePriceAmount(item.rate!)}
+            </span>
+          </>
+        ) : null}
+        {bill != null ? (
+          <>
+            <span className="font-normal text-muted"> · </span>
+            <span data-testid="order-line-fact-bill">
+              {formatOrderLinePriceAmount(bill)}
             </span>
           </>
         ) : null}
@@ -196,13 +236,20 @@ export function OrderLineFacts({
     valueClass?: string;
     testId: string;
   }> = [
-    { label: 'Qty', value: qty, testId: 'order-line-fact-qty' },
+    { label: 'Qty', value: qtyLabel, testId: 'order-line-fact-qty' },
   ];
   if (hasPrice) {
     cells.push({
       label: 'Price',
       value: formatOrderLinePriceAmount(item.rate!),
       testId: 'order-line-fact-price',
+    });
+  }
+  if (bill != null) {
+    cells.push({
+      label: 'Bill',
+      value: formatOrderLinePriceAmount(bill),
+      testId: 'order-line-fact-bill',
     });
   }
   if (showShip) {
@@ -222,27 +269,36 @@ export function OrderLineFacts({
   }
 
   return (
-    <div
-      className={cx(
-        'flex w-full min-w-0 items-stretch divide-x divide-line/90',
-        compact ? 'mt-0.5' : 'mt-1.5',
-        className,
-      )}
-      data-testid="order-line-facts"
-      data-density={density}
-      role="group"
-      aria-label="Line quantities"
-    >
-      {cells.map((cell) => (
-        <FactCell
-          key={cell.testId}
-          label={cell.label}
-          value={cell.value}
-          valueClass={cell.valueClass}
-          compact={compact}
-          testId={cell.testId}
-        />
-      ))}
+    <div className={cx('flex min-w-0 flex-col', className)}>
+      <div
+        className={cx(
+          'flex w-full min-w-0 items-stretch divide-x divide-line/90',
+          compact ? 'mt-0.5' : 'mt-1.5',
+        )}
+        data-testid="order-line-facts"
+        data-density={density}
+        role="group"
+        aria-label="Line quantities"
+      >
+        {cells.map((cell) => (
+          <FactCell
+            key={cell.testId}
+            label={cell.label}
+            value={cell.value}
+            valueClass={cell.valueClass}
+            compact={compact}
+            testId={cell.testId}
+          />
+        ))}
+      </div>
+      {captions.length > 0 ? (
+        <p
+          className="mt-1 text-[11px] font-medium leading-snug text-muted"
+          data-testid="order-line-billing-captions"
+        >
+          {captions.join(' · ')}
+        </p>
+      ) : null}
     </div>
   );
 }

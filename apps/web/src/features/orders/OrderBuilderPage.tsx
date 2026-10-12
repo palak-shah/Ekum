@@ -727,11 +727,20 @@ export function OrderBuilderPage() {
             unit: line.unit,
             piecesPerPack: line.piecesPerPack,
             dispatchUnit: line.dispatchUnit,
+            rate: line.rate ?? null,
           })),
         );
         return summary ? (
           <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
             <p className="text-[15px] font-bold tracking-tight text-ink">{summary.primary}</p>
+            {summary.money ? (
+              <p
+                className="text-[15px] font-bold tracking-tight text-ink"
+                data-testid="how-many-billing-total"
+              >
+                {summary.money}
+              </p>
+            ) : null}
             {summary.hint ? (
               <p className="text-[12px] font-medium text-muted">{summary.hint}</p>
             ) : null}

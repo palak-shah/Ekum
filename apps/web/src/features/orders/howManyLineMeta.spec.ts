@@ -16,6 +16,7 @@ describe('howManyLineMeta', () => {
   it('says how a set or dozen is sold', () => {
     expect(howManySoldAs('set')).toBe('Set');
     expect(howManySoldAs('set', 6)).toBe('Set · 6 pcs');
+    expect(howManySoldAs('set', 5, 'mtr')).toBe('Set · 5 mtrs');
     expect(howManySoldAs('dozen')).toBe('Dozen · 12 pcs');
     expect(howManySoldAs('mtr')).toBe('Metre');
   });
@@ -31,6 +32,15 @@ describe('howManyLineMeta', () => {
         rateMax: null,
       }),
     ).toBe('Set · 6 pcs · min 12 · ₹800/pc');
+    expect(
+      howManyLineMeta({
+        unit: 'set',
+        dispatchUnit: 'mtr',
+        piecesPerPack: 5,
+        rate: 94,
+        rateMax: null,
+      }),
+    ).toBe('Set · 5 mtrs · ₹94/mtr');
     expect(
       howManyLineMeta({
         unit: 'pc',
@@ -73,6 +83,17 @@ describe('howManyLineMeta', () => {
         { quantity: 2, unit: 'set', piecesPerPack: 6, dispatchUnit: 'pc' },
       ]),
     ).toEqual({ primary: '2 sets = 12 pcs' });
+    expect(
+      howManyOrderFooterSummary([
+        {
+          quantity: 10,
+          unit: 'set',
+          piecesPerPack: 4,
+          dispatchUnit: 'pc',
+          rate: 100,
+        },
+      ]),
+    ).toEqual({ primary: '10 sets = 40 pcs', money: '₹4,000' });
     expect(
       howManyOrderFooterSummary([{ quantity: 2, unit: 'set', piecesPerPack: null }]),
     ).toEqual({

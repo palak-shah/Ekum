@@ -41,8 +41,15 @@ export function orderDispatchSectionSummary(input: {
   const unit = input.orderUnit.trim() || 'pc';
   const parts = [unit];
   const pcs = input.piecesPerPack.trim();
-  if (pcs) parts.push(`${pcs} pcs`);
-  const dispatch = input.dispatchUnit.trim();
+  const dispatch = input.dispatchUnit.trim() || 'pc';
+  if (pcs) {
+    const n = Number(pcs);
+    parts.push(
+      Number.isFinite(n) && n > 0
+        ? `${pcs} ${unitCountNoun(dispatch, n)}`
+        : `${pcs} ${unitCountNoun(dispatch, 2)}`,
+    );
+  }
   if (dispatch && dispatch !== unit) parts.push(`dispatch ${dispatch}`);
   const moq = input.moq.trim();
   if (moq) parts.push(`MOQ ${moq}`);

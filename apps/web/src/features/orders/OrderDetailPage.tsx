@@ -114,7 +114,10 @@ import {
   orderLineFactsWithThisLr,
 } from '@/features/orders/OrderLineFacts';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { OrderLineNoteCue } from '@/features/orders/OrderLineNoteCue';
 import { orderLineIdentitySecondary } from '@/features/orders/orderLineIdentity';
+import { orderBillTotal } from '@/features/orders/orderLineBilling';
+import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import { TransporterField } from '@/features/orders/TransporterField';
@@ -213,8 +216,13 @@ function rateAmount(rate: number | null): string {
   return `₹${rate.toLocaleString('en-IN')}`;
 }
 
-function rateUnitSuffix(unit: string | null): string {
-  const label = formatUnit(unit);
+function rateUnitSuffix(
+  unit: string | null,
+  dispatchUnit?: string | null,
+): string {
+  const label = formatUnit(
+    catalogRateDisplayUnit({ unit, dispatchUnit }) ?? unit,
+  );
   return label ? `/${label}` : '';
 }
 
@@ -548,6 +556,7 @@ function OrderLineCantSupplyFace({
               {cue}
             </p>
           ) : null}
+          {item.note ? <OrderLineNoteCue note={item.note} /> : null}
         </>
       }
       facts={children}
@@ -1479,13 +1488,31 @@ export function OrderDetailPage() {
 
   const quoteSummary = useMemo(() => {
     const supplyable = quoteItems.filter((item) => !unavailable[item.id]);
-    const total = supplyable.reduce((sum, item) => {
-      const rate = quoteRateNumber(rates[item.id]) ?? 0;
-      const qty = Number(offerQty[item.id] || item.quantity);
-      return sum + rate * qty;
-    }, 0);
+    const total = orderBillTotal(
+      supplyable.map((item) => ({
+        quantity: Number(offerQty[item.id] || item.quantity),
+        rate: quoteRateNumber(rates[item.id]),
+        unit: item.unit,
+        piecesPerPack: item.piecesPerPack,
+      })),
+    );
     return { count: supplyable.length, total, of: quoteItems.length };
   }, [quoteItems, unavailable, rates, offerQty]);
+
+  const orderBillingTotal = useMemo(() => {
+    const data = order.data;
+    if (!data) return null;
+    return orderBillTotal(
+      data.items
+        .filter((item) => item.lineStatus !== 'declined')
+        .map((item) => ({
+          quantity: item.quantity,
+          rate: item.rate,
+          unit: item.unit,
+          piecesPerPack: item.piecesPerPack,
+        })),
+    );
+  }, [order.data]);
 
   const actionDockKind = useMemo(() => {
     const data = order.data;
@@ -1801,6 +1828,15 @@ export function OrderDetailPage() {
         ) : null}
       </Card>
 
+      {orderBillingTotal != null ? (
+        <p
+          className="text-sm font-semibold tabular-nums text-ink"
+          data-testid="order-billing-total"
+        >
+          Billing · ₹{orderBillingTotal.toLocaleString('en-IN')}
+        </p>
+      ) : null}
+
       {data.needsQuotePass ? (
         <p className="rounded-xl bg-warning-soft px-3 py-2 text-sm font-medium text-warning-ink">
           Mill sent rates — the buyer has not seen them
@@ -2085,9 +2121,13 @@ export function OrderDetailPage() {
                           buyerQuoted: data.hasSellerQuote === true,
                           buyerRate: item.rate,
                           buyerQuantity: item.quantity,
-                          unit: item.unit,
+                          unit:
+                            catalogRateDisplayUnit({
+                              unit: item.unit,
+                              dispatchUnit: item.dispatchUnit,
+                            }) ?? item.unit,
                           formatAmount: rateAmount,
-                          formatUnitSuffix: rateUnitSuffix,
+                          formatUnitSuffix: (u) => rateUnitSuffix(u),
                         })
                       : null;
                     const cantSupply = item.lineStatus === 'declined';
@@ -2584,8 +2624,10 @@ export function OrderDetailPage() {
       <Sheet open={quoteOpen} onClose={() => closeSheet('quote')} title="Send quote">
         <div className="flex flex-col gap-3" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
           <p className="text-sm text-muted">
-            Quoting {quoteSummary.count} of {quoteSummary.of} · ₹
-            {quoteSummary.total.toLocaleString('en-IN')}
+            Quoting {quoteSummary.count} of {quoteSummary.of}
+            {quoteSummary.total != null
+              ? ` · ₹${quoteSummary.total.toLocaleString('en-IN')}`
+              : ''}
           </p>
           {quoteItems.filter((item) => !unavailable[item.id]).length > 1 ? (
             <SameQtyRateForAll
@@ -2641,7 +2683,10 @@ export function OrderDetailPage() {
                     .map((desk) => ({ desk, line: millLineForParent(desk, item.id) }))
                     .find((row) => row.line && !row.line.millDeclined && row.line.millRate != null);
                   const fromRate = millLine?.line?.millRate ?? null;
-                  const fromUnit = fromRate != null ? rateUnitSuffix(item.unit) : '';
+                  const fromUnit =
+                    fromRate != null
+                      ? rateUnitSuffix(item.unit, item.dispatchUnit)
+                      : '';
                   const cantSupply = Boolean(unavailable[item.id]);
                   const identity = orderLineIdentitySecondary(item);
                   const offerN = Number(offerQty[item.id]);

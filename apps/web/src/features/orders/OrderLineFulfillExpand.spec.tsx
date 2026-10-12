@@ -135,6 +135,22 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.queryByTestId('order-line-dispatch')).toBeNull();
   });
 
+  it('shows line note in warning highlight when collapsed', () => {
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        item={item({ note: 'iska Chota than' })}
+        hasLastLr={false}
+        lastLrQty={0}
+        expanded={false}
+      />,
+    );
+    const note = screen.getByTestId('order-line-note');
+    expect(note).toHaveTextContent('iska Chota than');
+    expect(note.className).toContain('text-warning-ink');
+    expect(note.className).not.toContain('text-muted');
+  });
+
   it('hides Can’t supply toggle on grayed collapsed row — cue only', () => {
     render(
       <OrderLineFulfillExpand

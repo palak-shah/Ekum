@@ -1,15 +1,11 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { CollectionCard } from '@ekum/domain-types';
 import { designBrowsePhotoClass } from '@/lib/designBrowseLayout';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { AlbumGrid, CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { CatalogFeedPost } from '@/ui/cards';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
-import { packFeedDetailLine } from '@/ui/albumMosaic';
 import { cx } from '@/ui/kit';
-import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
-import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from '@/ui/useLongPress';
-import { shopCollectionPreviewImages } from './shopPhoto';
+import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed } from '@/ui/useLongPress';
 
 const CARD =
   'overflow-hidden rounded-2xl border border-line bg-surface text-left';
@@ -96,101 +92,6 @@ export function ShopPhotoCell({
           <span className="block truncate p-2.5 text-sm font-medium text-ink">{label}</span>
         )
       ) : null}
-    </div>
-  );
-}
-
-export function ShopCollectionCell({
-  collection,
-  selected = false,
-  selectMode = false,
-  onLongSelect,
-  onToggleSelect,
-  layout = 'grid',
-  /** Own shop — open album with manage dock. */
-  packManage = false,
-}: {
-  collection: CollectionCard;
-  selected?: boolean;
-  selectMode?: boolean;
-  onLongSelect?: () => void;
-  onToggleSelect?: () => void;
-  layout?: 'feed' | 'grid';
-  packManage?: boolean;
-}) {
-  const navigate = useNavigate();
-  const longPress = useLongPress(onLongSelect);
-  const selecting = Boolean(selectMode && onToggleSelect);
-  const images = shopCollectionPreviewImages(collection);
-  /** Preview thumbs only — do not size mosaic from productCount (leaks inventory). */
-  const mosaicCount = images.length;
-  const href = `/collections/${collection.id}`;
-  const openState = packManage ? { packManage: true as const } : undefined;
-
-  const onMosaic = () => {
-    if (isLongPressActivateSuppressed()) return;
-    if (selecting) {
-      onToggleSelect?.();
-      return;
-    }
-    navigate(href, openState ? { state: openState } : undefined);
-  };
-  if (layout === 'feed') {
-    return (
-      <CatalogFeedPost
-        name={collection.name}
-        meta={explorePostedWhen(collection.updatedAt) ?? ''}
-        detail={packFeedDetailLine({ tags: collection.categories })}
-        href={href}
-        linkState={openState}
-        images={images.map((url) => toAbsoluteMediaUrl(url)).filter((url): url is string => Boolean(url))}
-        imageCount={mosaicCount}
-        selected={selected}
-        selectMode={selectMode}
-        onMediaClick={onMosaic}
-        onLongSelect={onLongSelect}
-        mediaTestId={`company-shop-collection-${collection.id}`}
-        openTestId={`company-shop-collection-open-${collection.id}`}
-      />
-    );
-  }
-
-  return (
-    <div className={cx(CARD, selecting && selected && 'border-accent')}>
-      <button
-        type="button"
-        aria-label={selecting ? `Select ${collection.name}` : collection.name}
-        data-testid={`company-shop-collection-${collection.id}`}
-        className={cx('relative block w-full text-left', LONG_PRESS_SURFACE_CLASS)}
-        onClick={onMosaic}
-        {...longPress}
-      >
-        <SelectableMediaFrame
-          selectMode={selectMode}
-          selected={selected}
-          checkClassName="right-2 top-2"
-          idleCheckClassName="border-2 border-white/95 bg-black/45 text-transparent shadow-sm"
-        >
-          <AlbumGrid
-            images={images.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean)}
-            imageCount={mosaicCount}
-            alt={collection.name}
-          />
-        </SelectableMediaFrame>
-      </button>
-      <Link
-        to={href}
-        state={openState}
-        data-testid={`company-shop-collection-open-${collection.id}`}
-        className="flex min-w-0 flex-col gap-0.5 overflow-hidden p-3"
-      >
-        <span className="truncate text-base font-semibold text-ink">{collection.name}</span>
-        {explorePostedWhen(collection.updatedAt) ? (
-          <span className="truncate text-xs text-muted">
-            {explorePostedWhen(collection.updatedAt)}
-          </span>
-        ) : null}
-      </Link>
     </div>
   );
 }

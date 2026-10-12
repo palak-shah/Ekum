@@ -297,6 +297,7 @@ export function HowManyEachSheet({
       unit: product.unit,
       piecesPerPack: product.piecesPerPack,
       dispatchUnit: product.dispatchUnit,
+      rate: product.rate ?? null,
     })),
   );
   const setsBanner = howManySetsBanner(activeProducts);
@@ -306,6 +307,14 @@ export function HowManyEachSheet({
       {footerSummary ? (
         <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
           <p className="text-[15px] font-bold tracking-tight text-ink">{footerSummary.primary}</p>
+          {footerSummary.money ? (
+            <p
+              className="text-[15px] font-bold tracking-tight text-ink"
+              data-testid="how-many-billing-total"
+            >
+              {footerSummary.money}
+            </p>
+          ) : null}
           {footerSummary.hint ? (
             <p className="text-[12px] font-medium text-muted">{footerSummary.hint}</p>
           ) : null}

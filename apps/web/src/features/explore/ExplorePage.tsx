@@ -151,6 +151,7 @@ function toggleExploreDesign(
     companyName: product.company.name,
     allowForward: product.allowForward,
     unit: product.unit ?? null,
+    dispatchUnit: product.dispatchUnit ?? null,
     rate: product.rate ?? null,
   });
 }

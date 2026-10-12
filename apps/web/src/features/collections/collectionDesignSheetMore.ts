@@ -1,11 +1,16 @@
-/** Owner design sheet ⋯ rows — Edit (own) · Remove · Delete design (own; last). */
+import { designSheetMoreIds } from '@/features/browse/designSheetMoreIds';
+
+/**
+ * @deprecated Prefer `designSheetMoreIds` — kept for album owner menu tests.
+ * Owner design sheet ⋯ without Bookmark (legacy). Edit · Remove · Delete.
+ */
 export function collectionDesignSheetMoreIds(input: {
   canEdit: boolean;
   canDelete: boolean;
 }): Array<'edit' | 'remove' | 'delete'> {
-  const ids: Array<'edit' | 'remove' | 'delete'> = [];
-  if (input.canEdit) ids.push('edit');
-  ids.push('remove');
-  if (input.canDelete) ids.push('delete');
-  return ids;
+  return designSheetMoreIds({
+    canEdit: input.canEdit,
+    canRemove: true,
+    canDelete: input.canDelete,
+  }).filter((id): id is 'edit' | 'remove' | 'delete' => id !== 'bookmark');
 }

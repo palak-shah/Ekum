@@ -1,4 +1,7 @@
 import { formatCatalogRate, isPackOrderUnit } from '@/lib/catalogRate';
+import { packSizeForUnit } from '@ekum/domain-types';
+import { unitCountNoun } from '@/features/catalog/orderDispatchPreview';
+import { lineBillAmount, orderBillTotal } from '@/features/orders/orderLineBilling';
 
 const SOLD_AS: Record<string, string> = {
   pc: 'Piece',
@@ -11,6 +14,14 @@ const SOLD_AS: Record<string, string> = {
   bundle: 'Bundle',
 };
 
+function dispatchContentsLabel(
+  pack: number,
+  dispatchUnit?: string | null,
+): string {
+  const dispatch = dispatchUnit?.trim() || 'pc';
+  return `${pack} ${unitCountNoun(dispatch, pack)}`;
+}
+
 /** Short sold-as on the name line — never a second title under a one-word name. */
 export function howManyUnitShort(unit: string | null | undefined): string | null {
   const key = unit?.trim();
@@ -18,7 +29,7 @@ export function howManyUnitShort(unit: string | null | undefined): string | null
   return SOLD_AS[key] ?? key;
 }
 
-/** Min / rate / pcs-in-set — not the sold-as word (that sits beside the name). */
+/** Min / rate / contents-in-set — not the sold-as word (that sits beside the name). */
 export function howManyLineExtra(product: {
   unit?: string | null;
   dispatchUnit?: string | null;
@@ -28,10 +39,8 @@ export function howManyLineExtra(product: {
   rateMax?: number | null;
 }): string | null {
   const bits: string[] = [];
-  const key = product.unit?.trim();
-  const pack = product.piecesPerPack;
-  if (pack != null && pack > 0) bits.push(`${pack} pcs`);
-  else if (key === 'dozen') bits.push('12 pcs');
+  const pack = packSizeForUnit(product.unit, product.piecesPerPack);
+  if (pack != null) bits.push(dispatchContentsLabel(pack, product.dispatchUnit));
   if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
   const rate = formatCatalogRate(product);
   if (rate !== 'On request') bits.push(rate);
@@ -41,15 +50,15 @@ export function howManyLineExtra(product: {
 export function howManySoldAs(
   unit: string | null | undefined,
   piecesPerPack?: number | null,
+  dispatchUnit?: string | null,
 ): string | null {
   const key = unit?.trim();
   if (!key) return null;
   const label = SOLD_AS[key] ?? key;
-  if (piecesPerPack != null && piecesPerPack > 0) {
-    if (key === 'dozen' && piecesPerPack === 12) return 'Dozen · 12 pcs';
-    return `${label} · ${piecesPerPack} pcs`;
+  const pack = packSizeForUnit(unit, piecesPerPack);
+  if (pack != null) {
+    return `${label} · ${dispatchContentsLabel(pack, dispatchUnit)}`;
   }
-  if (key === 'dozen') return 'Dozen · 12 pcs';
   return label;
 }
 
@@ -63,7 +72,7 @@ export function howManyLineMeta(product: {
   rateMax?: number | null;
 }): string | null {
   const bits: string[] = [];
-  const sold = howManySoldAs(product.unit, product.piecesPerPack);
+  const sold = howManySoldAs(product.unit, product.piecesPerPack, product.dispatchUnit);
   if (sold) bits.push(sold);
   if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
   const rate = formatCatalogRate(product);
@@ -71,14 +80,12 @@ export function howManyLineMeta(product: {
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 
-/** Pcs inside one sell-as unit (set / dozen / box). */
+/** Dispatch units inside one sell-as unit (set / dozen / box). Dozen = 12 stays. */
 export function howManyPcsPerUnit(
   unit: string | null | undefined,
   piecesPerPack?: number | null,
 ): number | null {
-  if (piecesPerPack != null && piecesPerPack > 0) return piecesPerPack;
-  if (unit === 'dozen') return 12;
-  return null;
+  return packSizeForUnit(unit, piecesPerPack);
 }
 
 /** Quiet line when pack unit has no contents. */
@@ -91,7 +98,7 @@ export function howManySetContentsMissing(
   return 'Set contents not mentioned';
 }
 
-/** 5 sets × 4 pcs → Total 20 pcs. Hidden without a count or pcs-per-unit. */
+/** 5 sets × 4 → Total 20 pcs/mtrs. Hidden without a count or pack size. */
 export function howManyTotalPcsLabel(
   qty: number | null | undefined,
   unit: string | null | undefined,
@@ -103,8 +110,7 @@ export function howManyTotalPcsLabel(
   const pcs = howManyPcsPerUnit(unit, piecesPerPack);
   if (pcs == null) return null;
   const dispatch = dispatchUnit?.trim() || 'pc';
-  const noun = dispatch === 'mtr' ? 'mtrs' : dispatch === 'pc' ? 'pcs' : dispatch;
-  return `Total ${qty * pcs} ${noun}`;
+  return `Total ${qty * pcs} ${unitCountNoun(dispatch, qty * pcs)}`;
 }
 
 export function qtyCountNoun(unit: string | null | undefined): string {
@@ -139,6 +145,7 @@ export type HowManyQtyLine = {
   unit?: string | null;
   piecesPerPack?: number | null;
   dispatchUnit?: string | null;
+  rate?: number | null;
 };
 
 /** Sheet banner when any line is a pack unit. */
@@ -160,14 +167,32 @@ export function howManySetsBanner(
 
 /**
  * Footer: `2 sets = 12 pcs` when contents known; else `2 sets`.
+ * Optional money when every line with qty+rate is billable.
  * Native-only sheet: `2 pcs` / metres.
  */
 export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
   primary: string;
   hint?: string;
+  money?: string;
 } | null {
   const withQty = lines.filter((l) => l.quantity != null && l.quantity > 0);
   if (withQty.length === 0) return null;
+
+  const moneyTotal = (() => {
+    const priced = withQty.filter((l) => l.rate != null);
+    if (priced.length === 0) return null;
+    if (priced.length !== withQty.length) return null;
+    const total = orderBillTotal(
+      priced.map((l) => ({
+        quantity: l.quantity!,
+        rate: l.rate,
+        unit: l.unit,
+        piecesPerPack: l.piecesPerPack,
+      })),
+    );
+    if (total == null) return null;
+    return `₹${total.toLocaleString('en-IN')}`;
+  })();
 
   const packLines = withQty.filter((l) => isPackOrderUnit(l.unit));
   if (packLines.length > 0) {
@@ -188,12 +213,16 @@ export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
         0,
       );
       const dispatch = packLines[0]?.dispatchUnit?.trim() || 'pc';
-      const dNoun = dispatch === 'mtr' ? 'mtrs' : dispatch === 'pc' ? 'pcs' : dispatch;
-      return { primary: `${total} ${noun} = ${totalPcs} ${dNoun}` };
+      const dNoun = unitCountNoun(dispatch, totalPcs);
+      return {
+        primary: `${total} ${noun} = ${totalPcs} ${dNoun}`,
+        money: moneyTotal ?? undefined,
+      };
     }
     return {
       primary: `${total} ${noun}`,
       hint: 'No piece total — set contents not mentioned on some designs.',
+      money: moneyTotal ?? undefined,
     };
   }
 
@@ -201,5 +230,19 @@ export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
   const sameUnit = withQty.every((l) => (l.unit?.trim() || 'pc') === unit);
   if (!sameUnit) return null;
   const total = withQty.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
-  return { primary: `${total} ${qtyCountNoun(unit)}` };
+  return {
+    primary: `${total} ${qtyCountNoun(unit)}`,
+    money: moneyTotal ?? undefined,
+  };
+}
+
+/** Bill amount for How many money when a single line is fully known. */
+export function howManyLineBillAmount(line: HowManyQtyLine): number | null {
+  if (line.quantity == null || line.quantity <= 0) return null;
+  return lineBillAmount({
+    quantity: line.quantity,
+    rate: line.rate,
+    unit: line.unit,
+    piecesPerPack: line.piecesPerPack,
+  });
 }

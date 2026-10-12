@@ -25,11 +25,33 @@ describe('OrderLineFacts', () => {
     );
     expect(screen.getByTestId('order-line-facts').className).toContain('divide-x');
     expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('Qty');
-    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20 sets');
     expect(screen.getByTestId('order-line-fact-price')).toHaveTextContent('Price');
     expect(screen.getByTestId('order-line-fact-price')).toHaveTextContent('₹640');
+    expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-shipped')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-balance')).toBeNull();
+  });
+
+  it('bills sets × pack × rate and shows dual qty', () => {
+    render(
+      <OrderLineFacts
+        density="detail"
+        item={{
+          quantity: 10,
+          rate: 100,
+          unit: 'set',
+          piecesPerPack: 4,
+          dispatchUnit: 'pc',
+          lineStatus: 'requested',
+        }}
+      />,
+    );
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 sets (= 40 pcs)');
+    expect(screen.getByTestId('order-line-fact-bill')).toHaveTextContent('₹4,000');
+    expect(screen.getByTestId('order-line-billing-captions')).toHaveTextContent(
+      '1 set = 4 pcs · price per pc = ₹100 · order = 10 sets = 40 pcs · ₹4,000',
+    );
   });
 
   it('hides Price when rate is missing', () => {

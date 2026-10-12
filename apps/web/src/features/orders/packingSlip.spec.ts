@@ -83,12 +83,63 @@ describe('packingSlip', () => {
     });
     expect(rows).toEqual([
       {
-        quantity: '20 mtr',
+        quantity: '20 mtrs',
         name: 'Cotton Grey',
         sku: 'CG-01',
         imageUrl: 'https://example.com/a.jpg',
       },
     ]);
+  });
+
+  it('shows dual set+dispatch qty and a total when pack size known', () => {
+    const input = {
+      orderId: 'cmorderabcdefghijk',
+      counterpartName: 'Jaipur Emporium',
+      shipment: {
+        ...shipment,
+        items: [
+          { orderItemId: 'i1', name: 'A', quantity: 10 },
+          { orderItemId: 'i2', name: 'B', quantity: 10 },
+        ],
+      },
+      orderItems: [
+        {
+          id: 'i1',
+          name: 'A',
+          sku: 'A1',
+          unit: 'set',
+          dispatchUnit: 'pc',
+          piecesPerPack: 4,
+          image: null,
+          images: [],
+          quantity: 10,
+          requestedQuantity: 10,
+          remainingQuantity: 0,
+          shippedQuantity: 10,
+          lineStatus: 'dispatched',
+        },
+        {
+          id: 'i2',
+          name: 'B',
+          sku: 'B1',
+          unit: 'set',
+          dispatchUnit: 'pc',
+          piecesPerPack: 4,
+          image: null,
+          images: [],
+          quantity: 10,
+          requestedQuantity: 10,
+          remainingQuantity: 0,
+          shippedQuantity: 10,
+          lineStatus: 'dispatched',
+        },
+      ] as never[],
+    };
+    expect(packingSlipRows(input).map((r) => r.quantity)).toEqual([
+      '10 sets (= 40 pcs)',
+      '10 sets (= 40 pcs)',
+    ]);
+    expect(packingSlipLines(input).join('\n')).toMatch(/Total 80 pcs and 20 sets/);
   });
 
   it('builds a printable PDF header with Helvetica-Bold', async () => {

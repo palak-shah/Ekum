@@ -10,6 +10,8 @@ export function designSetToShortlist(product: ExploreProductPreviewView): Browse
     companyName: product.company.name,
     allowForward: product.allowForward,
     unit: product.unit ?? null,
+    dispatchUnit: product.dispatchUnit ?? null,
+    piecesPerPack: product.piecesPerPack ?? null,
     rate: product.rate ?? null,
   };
 }

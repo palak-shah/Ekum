@@ -26,12 +26,16 @@ const PLATFORM: PublishSheetPolicy = {
   allowDownload: false,
 };
 
-/** Platform usual when Catalog defaults has never been saved. */
+/**
+ * Platform usual when Catalog defaults has never been saved:
+ * order / dispatch journey in **sets**, price + billing per **pc**.
+ */
 export const DEFAULT_SELL_AS_UNIT = 'set';
+export const DEFAULT_DISPATCH_UNIT = 'pc';
 
 const EMPTY_SELL_AS: SellAsUsual = {
   unit: DEFAULT_SELL_AS_UNIT,
-  dispatchUnit: 'pc',
+  dispatchUnit: DEFAULT_DISPATCH_UNIT,
   piecesPerPack: '',
   moq: '',
 };
@@ -74,7 +78,7 @@ export function readCompanySellAsUsual(
     dispatchUnit:
       typeof blob.dispatchUnit === 'string' && blob.dispatchUnit.trim()
         ? blob.dispatchUnit
-        : 'pc',
+        : DEFAULT_DISPATCH_UNIT,
     piecesPerPack:
       typeof blob.piecesPerPack === 'string'
         ? blob.piecesPerPack

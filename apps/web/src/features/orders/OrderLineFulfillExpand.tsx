@@ -17,6 +17,7 @@ import {
   orderLineBalanceRowClass,
 } from '@/features/orders/OrderLineFacts';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { OrderLineNoteCue } from '@/features/orders/OrderLineNoteCue';
 import { orderLineIdentitySecondary } from '@/features/orders/orderLineIdentity';
 import { CloseIcon, PencilIcon } from '@/ui/icons';
 import { Button, TextInput, cx } from '@/ui/kit';
@@ -158,7 +159,7 @@ export function OrderLineFulfillExpand({
                 </p>
               )
             ) : null}
-            {item.note && !expanded ? <p className="text-xs text-muted">{item.note}</p> : null}
+            {item.note && !expanded ? <OrderLineNoteCue note={item.note} /> : null}
           </>
         }
         trailing={editControl}

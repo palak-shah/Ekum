@@ -30,7 +30,18 @@ describe('orderDispatchSectionSummary', () => {
         dispatchUnit: 'pc',
         moq: '',
       }),
-    ).toBe('pc · 1 pcs');
+    ).toBe('pc · 1 pc');
+  });
+
+  it('uses dispatch noun for pack contents (mtr not pcs)', () => {
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'set',
+        piecesPerPack: '5',
+        dispatchUnit: 'mtr',
+        moq: '',
+      }),
+    ).toBe('set · 5 mtrs · dispatch mtr');
   });
 });
 

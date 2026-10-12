@@ -1793,6 +1793,7 @@ export function CollectionEditorPage() {
     if (tagSlotsToCategories(next).length > 20) return;
     setTagSlotsState(next);
     setForm({ ...form, categories: tagSlotsToCategories(next) });
+    // Suggest order/dispatch units from tags only — never refill cleared pack size (blank = not given).
     for (const item of next.items) {
       const suggested = unitsSuggestedByItem(mainsForCompany(parentKeys), item);
       if (!suggested) continue;
@@ -1800,9 +1801,6 @@ export function CollectionEditorPage() {
         ...prev,
         unit: prev.unit || suggested.orderUnit,
         dispatchUnit: prev.dispatchUnit || suggested.dispatchUnit,
-        piecesPerPack:
-          prev.piecesPerPack.trim() ||
-          (suggested.piecesPerPack != null ? String(suggested.piecesPerPack) : ''),
       }));
       break;
     }

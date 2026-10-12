@@ -130,6 +130,7 @@ export class DiscoverySerializer {
       rate: product.rate === null ? null : product.rate.toNumber(),
       rateMax: product.rateMax === null ? null : product.rateMax.toNumber(),
       unit: product.unit,
+      dispatchUnit: (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
       categories: product.categories ?? [],
       postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
       allowForward: product.allowForward,

@@ -16,6 +16,10 @@ export function applyHowManyDetail(
     images: detail.images?.length ? detail.images : product.images,
     categories,
     unit: detail.unit ?? product.unit ?? null,
+    dispatchUnit:
+      detail.dispatchUnit !== undefined
+        ? detail.dispatchUnit
+        : (product.dispatchUnit ?? null),
     moq: detail.moq !== undefined ? detail.moq : (product.moq ?? null),
     piecesPerPack:
       detail.piecesPerPack !== undefined

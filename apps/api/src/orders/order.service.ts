@@ -37,6 +37,7 @@ import {
   type EditShipmentDto,
   type ListOrdersQuery,
   matchesOrderNeedsYou,
+  orderBillTotal,
   type OrderView,
   type QuoteOrderDto,
   type MillPassHoldDto,
@@ -1295,11 +1296,21 @@ export class OrderService {
       });
     }
 
-    const total = supplyable.reduce((sum, line) => {
-      const item = byId.get(line.orderItemId);
-      const qty = line.quantity ?? item?.quantity.toNumber() ?? 0;
-      return sum + (line.rate ?? 0) * qty;
-    }, 0);
+    const billTotal = orderBillTotal(
+      supplyable.map((line) => {
+        const item = byId.get(line.orderItemId);
+        return {
+          quantity: line.quantity ?? item?.quantity.toNumber() ?? 0,
+          rate: line.rate ?? null,
+          unit: (item as { unit?: string | null } | undefined)?.unit ?? null,
+          piecesPerPack:
+            (item as { piecesPerPack?: number | null } | undefined)?.piecesPerPack ?? null,
+        };
+      }),
+    );
+    // Omit ₹ when pack size blank (unbillable); chat card has no total then.
+    const totalLabel =
+      billTotal != null ? `₹${billTotal.toLocaleString('en-IN')}` : undefined;
     const declinedCount = lines.filter((line) => line.unavailable).length;
     // This send only (quoted + newly declined). Previously declined lines are
     // omitted from `lines`, so `order.items.length` would overcount quoted.
@@ -1326,7 +1337,7 @@ export class OrderService {
         status: OrderStatus.Requested,
         itemCount: quoteItemCount,
         declinedCount: declinedCount > 0 ? declinedCount : undefined,
-        totalLabel: `₹${total.toLocaleString('en-IN')}`,
+        ...(totalLabel ? { totalLabel } : {}),
         validUntil: dto.validUntil ?? null,
         quoted: true,
         partial,

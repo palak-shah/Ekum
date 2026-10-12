@@ -1,9 +1,10 @@
-import { RateVisibility } from '@ekum/domain-types';
+import { RateVisibility, catalogRateUnit } from '@ekum/domain-types';
 
 type RateMember = {
   rate?: { toNumber(): number } | number | null;
   rateMax?: { toNumber(): number } | number | null;
   unit?: string | null;
+  dispatchUnit?: string | null;
 };
 
 function asNumber(value: { toNumber(): number } | number | null | undefined): number | null {
@@ -11,10 +12,22 @@ function asNumber(value: { toNumber(): number } | number | null | undefined): nu
   return typeof value === 'number' ? value : value.toNumber();
 }
 
+function memberRateUnit(product: RateMember): string {
+  return (
+    catalogRateUnit({
+      unit: product.unit,
+      dispatchUnit: product.dispatchUnit,
+    }) ??
+    product.unit ??
+    ''
+  );
+}
+
 /**
  * Explore / shop / album rate band — only when the pack publishes rates as
  * visible. On request → omit. Prefer saved pack rate; else min–max from priced
- * members (blanks ignored). Mixed units → omit.
+ * members (blanks ignored). Mixed rate units → omit.
+ * Pack path rate unit is dispatch (not order unit).
  */
 export function collectionCardRateFields(input: {
   rateVisibility: string;
@@ -28,7 +41,7 @@ export function collectionCardRateFields(input: {
   const packRate = asNumber(input.rate);
   const members = (input.products ?? []).map((entry) => entry.product);
   const unitFromMembers = (() => {
-    const units = members.map((p) => p.unit ?? '').filter(Boolean);
+    const units = members.map((p) => memberRateUnit(p)).filter(Boolean);
     if (units.length === 0) return null;
     const unique = new Set(units);
     return unique.size === 1 ? units[0]! : null;
@@ -51,7 +64,7 @@ export function collectionCardRateFields(input: {
       return {
         rate,
         high: rateMax != null && rateMax > rate ? rateMax : rate,
-        unit: product.unit ?? '',
+        unit: memberRateUnit(product),
       };
     })
     .filter((row): row is { rate: number; high: number; unit: string } => row != null);

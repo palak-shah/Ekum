@@ -72,8 +72,13 @@ import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
 import { CompanyOverflowMenu } from './CompanyOverflowMenu';
 import { CompanyShareSheet } from './CompanyShareSheet';
-import { ShopCollectionCell, ShopPhotoCell, ShopPhotoGrid } from './ShopPhotoGrid';
-import { shopCollectionPhoto, shopDesignPhoto } from './shopPhoto';
+import { CollectionAlbumTile } from '@/features/collections/CollectionAlbumTile';
+import { ShopPhotoCell, ShopPhotoGrid } from './ShopPhotoGrid';
+import {
+  shopCollectionPhoto,
+  shopCollectionPreviewImages,
+  shopDesignPhoto,
+} from './shopPhoto';
 import {
   findDirectThreadForCompany,
   shopOverflowItems,
@@ -98,6 +103,7 @@ function toShopShortlistEntry(
     companyId: product.company.id,
     companyName: product.company.name,
     unit: product.unit ?? null,
+    dispatchUnit: product.dispatchUnit ?? null,
     rate: product.rate ?? null,
   };
 }
@@ -672,15 +678,21 @@ export function CompanyProfilePage() {
             ) : visibleCollections.length > 0 ? (
               <ShopPhotoGrid layout={layout}>
                 {visibleCollections.map((collection) => (
-                  <ShopCollectionCell
+                  <CollectionAlbumTile
                     key={collection.id}
-                    collection={collection}
+                    surface="shelf"
+                    id={collection.id}
+                    name={collection.name}
+                    previewImages={shopCollectionPreviewImages(collection)}
+                    categories={collection.categories}
                     layout={layout}
                     packManage={isOwn}
                     selected={albumPick.collectionIds.has(collection.id)}
-                    selectMode={selecting}
+                    selecting={selecting}
                     onLongSelect={() => toggleCollection(collection)}
-                    onToggleSelect={selecting ? () => toggleCollection(collection) : undefined}
+                    onToggle={() => toggleCollection(collection)}
+                    mediaTestId={`company-shop-collection-${collection.id}`}
+                    openTestId={`company-shop-collection-open-${collection.id}`}
                   />
                 ))}
               </ShopPhotoGrid>

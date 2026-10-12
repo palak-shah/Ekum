@@ -1,28 +1,33 @@
+import {
+  catalogRateUnit,
+  defaultRateUnit,
+  isPackOrderUnit,
+  unitValues,
+} from '@ekum/domain-types';
 import { formatRate } from '@/lib/format';
 
-/** Order units that sell as a pack (qty in sets/dozens…; rate on dispatch). */
-export function isPackOrderUnit(unit: string | null | undefined): boolean {
-  const key = unit?.trim();
-  return key === 'set' || key === 'dozen' || key === 'box' || key === 'bundle';
-}
+export { isPackOrderUnit, defaultRateUnit };
 
 /** Unit the rupee attaches to for display / create labels. */
 export function catalogRateDisplayUnit(input: {
   unit?: string | null;
   dispatchUnit?: string | null;
+  offeredRateUnits?: readonly string[];
 }): string | null {
-  if (isPackOrderUnit(input.unit)) {
-    return input.dispatchUnit?.trim() || 'pc';
-  }
-  return input.unit?.trim() || null;
+  return catalogRateUnit({
+    unit: input.unit,
+    dispatchUnit: input.dispatchUnit,
+    offeredRateUnits: input.offeredRateUnits ?? unitValues,
+  });
 }
 
-/** Catalog / How many rate — pack path shows ₹/pc (dispatch); native path ₹/unit. */
+/** Catalog / How many rate — pack path shows ₹/{dispatch}; native path ₹/unit. */
 export function formatCatalogRate(input: {
   rate?: number | null;
   rateMax?: number | null;
   unit?: string | null;
   dispatchUnit?: string | null;
+  offeredRateUnits?: readonly string[];
 }): string {
   return formatRate(
     input.rate ?? null,
@@ -35,8 +40,14 @@ export function formatCatalogRate(input: {
 export function catalogRateFieldLabel(
   orderUnit: string | null | undefined,
   dispatchUnit?: string | null,
+  offeredRateUnits?: readonly string[],
 ): string {
   if (!isPackOrderUnit(orderUnit)) return 'Rate';
-  const d = dispatchUnit?.trim() || 'pc';
+  const d =
+    catalogRateDisplayUnit({
+      unit: orderUnit,
+      dispatchUnit,
+      offeredRateUnits,
+    }) ?? defaultRateUnit(offeredRateUnits ?? unitValues);
   return `Rate per ${d}`;
 }

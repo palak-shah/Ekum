@@ -45,7 +45,6 @@ import {
   selectionSkipToast,
   travelingSelectionToggleGate,
 } from '@/features/browse/selectionEligibility';
-import { PhotoViewer } from '@/ui/PhotoViewer';
 import {
   rememberCatalogHandlerName,
   rememberForwardFacilitator,
@@ -81,17 +80,14 @@ import {
   collectionShowHandleCopy,
   collectionThisPackSelectedIds,
   collectionViewerListedProducts,
-  designSheetRateBand,
   designTileMetaLine,
   designTileRateOverlay,
 } from '@/features/collections/collectionViewerChrome';
 import { CollectionPackDetails } from '@/features/collections/CollectionPackDetails';
-import { PackDetailBlocks } from '@/features/collections/PackDetailBlocks';
-import { DesignSheetPhotoCarousel } from '@/features/collections/DesignSheetPhotoCarousel';
 import { FeedDesignPhotoCarousel } from '@/features/collections/FeedDesignPhotoCarousel';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
-import { collectionDesignSheetMoreIds } from '@/features/collections/collectionDesignSheetMore';
+import { DesignSheet } from '@/features/browse/DesignSheet';
 import { visitorCollectionMoreIds } from '@/features/collections/visitorCollectionMore';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
 import type { MoreActionItem } from '@/ui/MoreActionsSheet';
@@ -132,11 +128,9 @@ import {
   LockIcon,
   MoreHorizontalIcon,
   PaperPlaneIcon,
-  PencilIcon,
   TrashIcon,
 } from '@/ui/icons';
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
-import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { designMatchesFind } from '@/features/catalog/catalogSearch';
 import { useToast } from '@/ui/Toast';
 
@@ -162,6 +156,8 @@ function toShortlistEntry(
     allowForward: product.allowForward,
     categories: product.categories ?? [],
     unit: product.unit ?? null,
+    dispatchUnit: product.dispatchUnit ?? null,
+    piecesPerPack: product.piecesPerPack ?? null,
     moq: product.moq ?? null,
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
@@ -1441,64 +1437,45 @@ export function CollectionViewerPage() {
         }}
       />
 
-      <ProductPhotosSheet
-        product={viewerProduct}
-        shopLine={
-          viewerProduct
-            ? albumTileShopLine({
-                mixedSources: isCuratedPack,
-                creditMills: creditTileMills,
-                shopName: viewerProduct.companyName,
-                curatedFrom: viewerProduct.companyId !== data.company.id,
-              })
-            : null
-        }
-        index={viewerIndex}
-        onIndex={setViewerIndex}
-        onClose={() => setViewerProduct(null)}
-        isOwner={isOwner}
-        canEdit={
-          viewerProduct
-            ? collectionOwnerCanEditDesign({
-                isOwner,
-                myCompanyId: me.data?.id,
-                productCompanyId: viewerProduct.companyId,
-              })
-            : false
-        }
-        canDelete={
-          viewerProduct
-            ? collectionOwnerCanEditDesign({
-                isOwner,
-                myCompanyId: me.data?.id,
-                productCompanyId: viewerProduct.companyId,
-              })
-            : false
-        }
-        onEdit={() => {
-          if (!viewerProduct) return;
-          const designId = viewerProduct.id;
-          setViewerProduct(null);
-          navigate(`/catalog/products/${designId}`);
-        }}
-        onRemove={() => {
-          if (!viewerProduct) return;
-          void onOwnerRemove([viewerProduct.id]);
-        }}
-        onDelete={() => {
-          if (!viewerProduct) return;
-          void onOwnerDelete([viewerProduct.id]);
-        }}
-        removeBusy={manageBusy}
-        selectable={canSelectDesigns}
-        selected={viewerProduct ? designIsSelected(viewerProduct.id) : false}
-        onToggleSelect={() => {
-          if (viewerProduct) {
-            if (!designIsSelected(viewerProduct.id)) setPageSelecting(true);
-            toggleProduct(viewerProduct);
-          }
-        }}
-      />
+      {viewerProduct ? (
+        <DesignSheet
+          product={viewerProduct}
+          shopLine={albumTileShopLine({
+            mixedSources: isCuratedPack,
+            creditMills: creditTileMills,
+            shopName: viewerProduct.companyName,
+            curatedFrom: viewerProduct.companyId !== data.company.id,
+          })}
+          index={viewerIndex}
+          onIndex={setViewerIndex}
+          onClose={() => setViewerProduct(null)}
+          collectionId={id}
+          canEdit={collectionOwnerCanEditDesign({
+            isOwner,
+            myCompanyId: me.data?.id,
+            productCompanyId: viewerProduct.companyId,
+          })}
+          canRemove={isOwner}
+          canDelete={collectionOwnerCanEditDesign({
+            isOwner,
+            myCompanyId: me.data?.id,
+            productCompanyId: viewerProduct.companyId,
+          })}
+          onEdit={() => {
+            const designId = viewerProduct.id;
+            setViewerProduct(null);
+            navigate(`/catalog/products/${designId}`);
+          }}
+          onRemove={() => {
+            void onOwnerRemove([viewerProduct.id]);
+          }}
+          onDelete={() => {
+            void onOwnerDelete([viewerProduct.id]);
+          }}
+          removeBusy={manageBusy}
+          testIdPrefix="collection-design-sheet"
+        />
+      ) : null}
     </div>
   );
 }
@@ -1628,216 +1605,5 @@ function DesignTile({
         {meta ? <p className="truncate text-xs text-muted">{meta}</p> : null}
       </button>
     </div>
-  );
-}
-
-function ProductPhotosSheet({
-  product,
-  shopLine = null,
-  index,
-  onIndex,
-  onClose,
-  isOwner = false,
-  canEdit = false,
-  canDelete = false,
-  onEdit,
-  onRemove,
-  onDelete,
-  removeBusy = false,
-  selectable,
-  selected,
-  onToggleSelect,
-}: {
-  product: ProductView | null;
-  shopLine?: string | null;
-  index: number;
-  onIndex: (index: number) => void;
-  onClose: () => void;
-  isOwner?: boolean;
-  canEdit?: boolean;
-  canDelete?: boolean;
-  onEdit?: () => void;
-  onRemove?: () => void;
-  onDelete?: () => void;
-  removeBusy?: boolean;
-  selectable: boolean;
-  selected: boolean;
-  onToggleSelect: () => void;
-}) {
-  const [photoOpen, setPhotoOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  useEffect(() => {
-    if (!product) {
-      setPhotoOpen(false);
-      setMoreOpen(false);
-    }
-  }, [product]);
-
-  if (!product) return null;
-  const urls = product.images;
-  const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
-  const curatedFrom = Boolean(shopLine?.startsWith('From '));
-  const showOwnerMore = isOwner && (canEdit || Boolean(onRemove) || Boolean(onDelete));
-
-  return (
-    <>
-      <Sheet
-        open={Boolean(product)}
-        onClose={onClose}
-        title={product.name}
-        headerAction={
-          showOwnerMore ? (
-            <button
-              type="button"
-              aria-label="More"
-              aria-expanded={moreOpen}
-              aria-haspopup="menu"
-              data-testid="collection-design-more"
-              onClick={() => setMoreOpen(true)}
-              className={cx(listSquareButtonClass, 'text-slate')}
-            >
-              <MoreHorizontalIcon width={20} height={20} />
-            </button>
-          ) : undefined
-        }
-        footer={
-          <div className="flex flex-col gap-2">
-            <ProductSaveButton productId={product.id} />
-            {selectable ? (
-              <Button
-                variant={selected ? 'secondary' : 'primary'}
-                fullWidth
-                onClick={onToggleSelect}
-              >
-                {selected ? 'Selected' : 'Select design'}
-              </Button>
-            ) : null}
-          </div>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          {shopLine ? (
-            <p
-              className={cx('text-sm', curatedFrom ? 'font-semibold text-ink' : 'font-medium text-ink')}
-              data-testid={curatedFrom ? 'collection-design-from' : undefined}
-            >
-              {shopLine}
-            </p>
-          ) : null}
-          <DesignSheetPhotoCarousel
-            urls={urls}
-            index={safeIndex}
-            onIndex={onIndex}
-            onOpenFullscreen={() => setPhotoOpen(true)}
-          />
-          <PackDetailBlocks
-            testIdPrefix="collection-design-sheet"
-            sections={collectionPackDetailSections({
-              categories: product.categories,
-              description: product.description,
-              rateBand: designSheetRateBand(
-                formatCatalogRate({
-                  rate: product.rate,
-                  rateMax: product.rateMax,
-                  unit: product.unit,
-                  dispatchUnit: product.dispatchUnit,
-                }),
-              ),
-            })}
-          />
-          {product.moq != null && product.moq > 0 ? (
-            <p className="text-sm font-medium text-ink">Minimum order · {product.moq} pcs</p>
-          ) : null}
-        </div>
-      </Sheet>
-      <MoreActionsSheet
-        open={moreOpen}
-        onClose={() => setMoreOpen(false)}
-        title={product.name}
-        testId="collection-design-more-sheet"
-        items={collectionDesignSheetMoreIds({
-          canEdit: Boolean(canEdit && onEdit),
-          canDelete: Boolean(canDelete && onDelete),
-        }).flatMap((id): MoreActionItem[] => {
-          if (id === 'edit' && onEdit) {
-            return [
-              {
-                id: 'edit',
-                label: 'Edit design',
-                icon: <PencilIcon width={20} height={20} />,
-                onClick: () => {
-                  setMoreOpen(false);
-                  onEdit();
-                },
-                testId: 'collection-design-edit',
-              },
-            ];
-          }
-          if (id === 'remove' && onRemove) {
-            return [
-              {
-                id: 'remove',
-                label: 'Remove from this collection',
-                icon: <TrashIcon width={20} height={20} />,
-                disabled: removeBusy,
-                onClick: () => {
-                  setMoreOpen(false);
-                  onRemove();
-                },
-                testId: 'collection-design-remove',
-              },
-            ];
-          }
-          if (id === 'delete' && onDelete) {
-            return [
-              {
-                id: 'delete',
-                label: 'Delete design',
-                icon: <TrashIcon width={20} height={20} />,
-                danger: true,
-                disabled: removeBusy,
-                onClick: () => {
-                  setMoreOpen(false);
-                  onDelete();
-                },
-                testId: 'collection-design-delete',
-              },
-            ];
-          }
-          return [];
-        })}
-      />
-      <PhotoViewer
-        open={photoOpen && urls.length > 0}
-        urls={urls}
-        index={safeIndex}
-        onIndex={onIndex}
-        onClose={() => setPhotoOpen(false)}
-      />
-    </>
-  );
-}
-
-function ProductSaveButton({ productId }: { productId: string }) {
-  const save = useSaveToggle(
-    { productId },
-    {
-      toastSaved: 'Bookmarked this design',
-      toastRemoved: 'Removed design bookmark',
-    },
-  );
-  return (
-    <Button
-      variant="secondary"
-      fullWidth
-      disabled={save.isPending}
-      onClick={() => save.toggle()}
-    >
-      {save.isPending
-        ? 'Updating…'
-        : save.isSaved
-          ? 'Design bookmarked'
-          : 'Bookmark this design'}
-    </Button>
   );
 }

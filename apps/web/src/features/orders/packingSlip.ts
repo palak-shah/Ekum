@@ -1,5 +1,8 @@
 import { shortOrderLabel, type OrderItemView, type OrderShipmentView } from '@ekum/domain-types';
-import { formatUnit } from '@/lib/format';
+import {
+  formatDualQty,
+  formatPackingSlipTotal,
+} from '@/features/orders/orderLineBilling';
 
 export type PackingSlipOptions = {
   /** Include “To: {buyer}”. Default true. */
@@ -69,19 +72,38 @@ export type PackingSlipRow = {
   imageUrl: string | null;
 };
 
-/** Qty is always the shipment amount in the line’s order `unit` (not dispatch pcs). */
+/** Qty in order unit; dual set+dispatch when pack size known. */
 export function packingSlipRows(input: PackingSlipInput): PackingSlipRow[] {
   return input.shipment.items.map((row) => {
     const source = input.orderItems?.find((item) => item.id === row.orderItemId);
-    const unit = source ? formatUnit(source.unit) : '';
-    const qty = String(row.quantity);
+    const quantity = source
+      ? formatDualQty({
+          quantity: row.quantity,
+          unit: source.unit,
+          piecesPerPack: source.piecesPerPack,
+          dispatchUnit: source.dispatchUnit,
+        })
+      : String(row.quantity);
     return {
-      quantity: unit ? `${qty} ${unit}` : qty,
+      quantity,
       name: row.name,
       sku: source?.sku?.trim() || '',
       imageUrl: source?.image?.trim() || source?.images?.[0]?.trim() || null,
     };
   });
+}
+
+export function packingSlipTotalLine(input: PackingSlipInput): string | null {
+  const lines = input.shipment.items.map((row) => {
+    const source = input.orderItems?.find((item) => item.id === row.orderItemId);
+    return {
+      quantity: row.quantity,
+      unit: source?.unit ?? null,
+      piecesPerPack: source?.piecesPerPack ?? null,
+      dispatchUnit: source?.dispatchUnit ?? null,
+    };
+  });
+  return formatPackingSlipTotal({ lines });
 }
 
 /** LR / bill header lines for packing slip (legacy single LR fallback). */
@@ -126,10 +148,12 @@ export function packingSlipLines(input: PackingSlipInput): string[] {
   lines.push('-'.repeat(64));
   for (const row of packingSlipRows(input)) {
     lines.push(
-      `${padLeft(row.quantity, 9)}  ${padRight(row.name, 30)} ${padRight(row.sku, 14)}`.trimEnd(),
+      `${padLeft(row.quantity, 22)}  ${padRight(row.name, 24)} ${padRight(row.sku, 12)}`.trimEnd(),
     );
   }
   lines.push('-'.repeat(64));
+  const total = packingSlipTotalLine(input);
+  if (total) lines.push(total);
   if (input.note?.trim()) {
     lines.push('', `Note: ${input.note.trim()}`);
   }
@@ -271,8 +295,8 @@ export async function packingSlipPdfBytes(input: PackingSlipInput): Promise<Uint
   const hasAnyPhoto = thumbs.some(Boolean);
   const colPhoto = margin;
   const colQty = hasAnyPhoto ? margin + 44 : margin;
-  const colName = colQty + 72;
-  const colSku = margin + 400;
+  const colName = colQty + 118;
+  const colSku = margin + 420;
 
   cmds.push(...textAt(colQty, y, 10, 'F2', 'Qty'));
   cmds.push(...textAt(colName, y, 10, 'F2', 'Design'));
@@ -295,15 +319,20 @@ export async function packingSlipPdfBytes(input: PackingSlipInput): Promise<Uint
       cmds.push(`/Im${i} Do`);
       cmds.push('Q');
     }
-    cmds.push(...textAt(colQty, textY, 11, 'F2', row.quantity.slice(0, 12)));
-    cmds.push(...textAt(colName, textY, 11, 'F1', row.name.slice(0, hasAnyPhoto ? 28 : 36)));
-    if (row.sku) cmds.push(...textAt(colSku, textY, 10, 'F1', row.sku.slice(0, 16)));
+    cmds.push(...textAt(colQty, textY, 10, 'F2', row.quantity.slice(0, 28)));
+    cmds.push(...textAt(colName, textY, 11, 'F1', row.name.slice(0, hasAnyPhoto ? 22 : 30)));
+    if (row.sku) cmds.push(...textAt(colSku, textY, 10, 'F1', row.sku.slice(0, 14)));
     y -= rowGap;
   }
 
   y -= 4;
   cmds.push(...rule(margin, y, margin + contentW));
-  y -= 20;
+  y -= 18;
+  const totalLine = packingSlipTotalLine(input);
+  if (totalLine && y > margin + 40) {
+    cmds.push(...textAt(margin, y, 11, 'F2', totalLine.slice(0, 70)));
+    y -= 20;
+  }
 
   const note = input.note?.trim();
   if (note && y > margin + 40) {

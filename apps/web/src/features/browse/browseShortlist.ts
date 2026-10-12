@@ -9,6 +9,8 @@ export type BrowseShortlistEntry = {
   allowForward?: boolean;
   categories?: string[];
   unit?: string | null;
+  dispatchUnit?: string | null;
+  piecesPerPack?: number | null;
   moq?: number | null;
   rate?: number | null;
   rateMax?: number | null;

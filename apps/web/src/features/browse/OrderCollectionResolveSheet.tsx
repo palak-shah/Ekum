@@ -51,6 +51,8 @@ function productToShortlistEntry(
     allowForward: product.allowForward,
     categories: product.categories ?? [],
     unit: product.unit ?? null,
+    dispatchUnit: product.dispatchUnit ?? null,
+    piecesPerPack: product.piecesPerPack ?? null,
     moq: product.moq ?? null,
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,

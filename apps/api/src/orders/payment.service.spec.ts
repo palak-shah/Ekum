@@ -14,6 +14,17 @@ describe('suggestedPaymentAmount', () => {
     ).toBe(25);
   });
 
+  it('bills pack lines as qty × packSize × rate', () => {
+    expect(
+      suggestedPaymentAmount([
+        { rate: 100, quantity: 10, unit: 'set', piecesPerPack: 4 },
+      ]),
+    ).toBe(4000);
+    expect(
+      suggestedPaymentAmount([{ rate: 100, quantity: 10, unit: 'set', piecesPerPack: null }]),
+    ).toBe(0);
+  });
+
   it('returns 0 when any line is missing a rate', () => {
     expect(suggestedPaymentAmount([{ rate: 10, quantity: 2 }, { quantity: 1 }])).toBe(0);
   });

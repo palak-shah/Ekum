@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-11 (collection ⋯ polish)  
+**Updated:** 2026-10-11 (unified design sheet)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Browse | Unified DesignSheet (trade footer + ⋯ Bookmark/owner); collection · shop · You · Explore · Saved; chat unchanged | Works | Unit | Required | Completeness 2026-10-11-unified-design-sheet |
 | Collections | Album ⋯ idle collection bookmark; select bookmarks designs; You no account avatar | Works | Unit | Required | Completeness 2026-10-11-collection-chrome-polish |
 | Platform | Master light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-10-theme-system; kit accent-muted / input / badge |
 | Chat | Theme wallpaper + chat-out/in bubbles; trade cards header→images→note→actions | Works | Unit | Required | Completeness 2026-10-10-chat-theme-cards; no wallpaper picker |
@@ -182,6 +183,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Feed **Message** quick enquire (pack/design); stay on feed | Works | Unit | Required | Completeness 2026-10-09-explore-feed-message-enquire |
 | Orders | How many Order: Place + Order-for-buyer switch; no Share/Ask (Ask = own sheet job) | Works | Unit | Required | Completeness 2026-10-09-how-many-order-only-footer |
 | Orders / Catalog | Sets qty + rate per dispatch (~80% sets / ~20% native unit) | Works | Unit | Required | Completeness 2026-10-09-how-many-sets-rate-per-dispatch; `formatCatalogRate` |
+| Orders / Catalog | Set/dispatch billing (`qty × packSize × rate`) + packing slip dual qty; Rate per mtr not Piece; blank pack size | Works | Unit | Required | Completeness 2026-10-12-order-set-pc-billing; `orderLineBilling` |
 | Explore | Search hint: no GST (idle + field same line) | Works | Unit + Functional | Optional | Completeness 2026-09-24-explore-search-no-gst |
 | Explore | Category copy: Women’s apparel not womens_apparel | Works | Unit | Required | categoryDisplayLabel on feed / search / design / shop |
 | Explore | Hide solo design when live pack on same feed already has it; design card first photo | Works | Unit | Required | Completeness 2026-09-25-explore-pack-covered-designs |
@@ -282,6 +284,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
 | You / Settings | You: library (no identity card); shell **My collections** + Back + account avatar; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-09-my-collections-listing-chrome; 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
 | You / Catalog | Collection list: `N designs` only when live; no shared-with count / Published / date on listing | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
+| You + shop | Shared `CollectionAlbumTile` (library vs shelf); shelf no design count / date; library keeps owner caption + mosaic +N | Works | Unit | Required | Completeness 2026-10-11-collection-list-tile-unify |
 | Collections | Owner Selecting dock: Cart · Share · Delete icons · Remove (Share = checked designs; Cart = published → trade cart) | Works | Unit | Required | Completeness 2026-10-09-owner-pack-select-share; 2026-10-09-owner-pack-select-cart-icons |
 | Collections | Owner album ⋯ bottom sheet: Share · Who · Add photos · Edit (icon+text) | Works | Unit | Required | Completeness 2026-10-09-owner-collection-more-sheet |
 

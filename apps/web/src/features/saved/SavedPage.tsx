@@ -9,7 +9,6 @@ import {
   writeDesignBrowseLayout,
   type DesignBrowseLayout,
 } from '@/lib/designBrowseLayout';
-import { formatRate } from '@/lib/format';
 import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import { readBrowseAlbumPick, writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
@@ -17,8 +16,8 @@ import { selectAllState } from '@/features/browse/selectAllState';
 import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { DesignSheet, type DesignSheetProduct } from '@/features/browse/DesignSheet';
 import { PageHeader } from '@/ui/PageHeader';
-import { PhotoViewer } from '@/ui/PhotoViewer';
 import { AlbumGrid } from '@/ui/cards';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { useToast } from '@/ui/Toast';
@@ -29,7 +28,6 @@ import {
   EmptyState,
   ErrorState,
   LoadingBlock,
-  Sheet,
   cx,
 } from '@/ui/kit';
 import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
@@ -74,6 +72,30 @@ function addAlbumMany(entries: BrowseAlbumEntry[]) {
     byId.set(entry.collectionId, entry);
   }
   writeBrowseAlbumPick([...byId.values()]);
+}
+
+function savedItemToSheetProduct(item: SavedItemView): DesignSheetProduct | null {
+  if (item.kind !== 'product' || !item.productId) return null;
+  const images = item.images?.length
+    ? item.images
+    : item.thumbUrl
+      ? [item.thumbUrl]
+      : [];
+  return {
+    id: item.productId,
+    name: item.name,
+    images,
+    companyId: item.company.id,
+    companyName: item.company.name,
+    allowForward: true,
+    categories: [],
+    description: null,
+    unit: item.unit ?? null,
+    dispatchUnit: null,
+    moq: null,
+    rate: item.rate ?? null,
+    rateMax: null,
+  };
 }
 
 export function SavedPage({
@@ -394,16 +416,16 @@ export function SavedPage({
         </>
       )}
 
-      <SavedPhotosSheet
-        item={viewer}
-        index={viewerIndex}
-        onIndex={setViewerIndex}
-        onClose={() => setViewer(null)}
-        onUnsave={() => {
-          if (viewer) unsave.mutate(viewer.id);
-        }}
-        unsaving={unsave.isPending}
-      />
+      {viewer && savedItemToSheetProduct(viewer) ? (
+        <DesignSheet
+          product={savedItemToSheetProduct(viewer)!}
+          shopLine={viewer.company.name}
+          index={viewerIndex}
+          onIndex={setViewerIndex}
+          onClose={() => setViewer(null)}
+          testIdPrefix="saved-design-sheet"
+        />
+      ) : null}
     </div>
   );
 }
@@ -539,82 +561,5 @@ function SavedFeedRow({
         <p className="text-xs font-medium text-muted">{savedItemMeta(item)}</p>
       </button>
     </article>
-  );
-}
-
-function SavedPhotosSheet({
-  item,
-  index,
-  onIndex,
-  onClose,
-  onUnsave,
-  unsaving,
-}: {
-  item: SavedItemView | null;
-  index: number;
-  onIndex: (index: number) => void;
-  onClose: () => void;
-  onUnsave: () => void;
-  unsaving: boolean;
-}) {
-  const [photoOpen, setPhotoOpen] = useState(false);
-  useEffect(() => {
-    if (!item) setPhotoOpen(false);
-  }, [item]);
-
-  if (!item || item.kind !== 'product') return null;
-  const urls = item.images?.length ? item.images : item.thumbUrl ? [item.thumbUrl] : [];
-  const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
-  const current = urls[safeIndex] ?? null;
-
-  return (
-    <>
-    <Sheet
-      open={Boolean(item)}
-      onClose={onClose}
-      title={item.name}
-      footer={
-        <div className="flex flex-col gap-2">
-          {item.productId ? (
-            <Link to={`/explore/products/${item.productId}`} className="block" onClick={onClose}>
-              <Button fullWidth>Order / ask rates</Button>
-            </Link>
-          ) : null}
-          <Button variant="ghost" fullWidth disabled={unsaving} onClick={onUnsave}>
-            {unsaving ? 'Removing…' : 'Remove from Saved'}
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-medium text-muted">{savedItemMeta(item)}</p>
-        {current ? (
-          <button
-            type="button"
-            className="block w-full overflow-hidden rounded-2xl bg-foam"
-            onClick={() => setPhotoOpen(true)}
-            aria-label="View photo"
-          >
-            <img
-              src={current}
-              alt=""
-              className="max-h-[50vh] w-full object-contain"
-            />
-          </button>
-        ) : (
-          <div className="flex h-48 items-center justify-center rounded-2xl bg-foam text-muted">
-            No photos
-          </div>
-        )}
-      </div>
-    </Sheet>
-    <PhotoViewer
-      open={photoOpen && urls.length > 0}
-      urls={urls}
-      index={safeIndex}
-      onIndex={onIndex}
-      onClose={() => setPhotoOpen(false)}
-    />
-    </>
   );
 }

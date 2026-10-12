@@ -15,6 +15,7 @@ import {
 } from './enums';
 import type { PublicCompanySummary } from './access';
 import type { AuditActorView } from './catalog';
+import { orderBillTotal } from './order-billing';
 import type { OrderTimelineStaffInput } from './order-timeline';
 import type { OrderTrailEventView } from './order-trail';
 
@@ -362,17 +363,16 @@ export interface PaymentRequestView {
   createdAt: string;
 }
 
-/** Sum of rate × qty when every line has a rate; else 0. */
+/** Sum of billable line amounts when every line has a rate; else 0. Pack lines use qty × packSize × rate. */
 export function suggestedPaymentAmount(
-  items: Array<{ rate?: number | null; quantity: number }>,
+  items: Array<{
+    rate?: number | null;
+    quantity: number;
+    unit?: string | null;
+    piecesPerPack?: number | null;
+  }>,
 ): number {
-  if (items.length === 0) return 0;
-  let total = 0;
-  for (const item of items) {
-    if (item.rate == null || !Number.isFinite(item.rate)) return 0;
-    total += item.rate * item.quantity;
-  }
-  return Math.round(total * 100) / 100;
+  return orderBillTotal(items) ?? 0;
 }
 
 /** One LR + bill pair on a dispatch. All fields optional. */

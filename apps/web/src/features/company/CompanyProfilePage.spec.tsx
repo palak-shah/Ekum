@@ -375,6 +375,8 @@ describe('CompanyProfilePage shop chrome', () => {
     );
     expect(screen.getByText('Wedding Edit')).toBeInTheDocument();
     expect(screen.queryByText(/^\d+ designs?$/)).toBeNull();
+    /** Shelf: no listing date under the name (shared tile quiet caption). */
+    expect(screen.queryByText(/ago$/i)).toBeNull();
   });
 
   it('Selecting puts N selected · Select all · Clear on a pill row under the tabs (BM-07)', async () => {

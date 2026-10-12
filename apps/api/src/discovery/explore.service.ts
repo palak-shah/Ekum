@@ -1231,6 +1231,7 @@ export class ExploreService {
       description: product.description,
       moq: product.moq ?? null,
       piecesPerPack: product.piecesPerPack ?? null,
+      dispatchUnit: product.dispatchUnit ?? null,
       categories: product.categories,
     };
     if (!showBody) {
