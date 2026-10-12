@@ -31,6 +31,7 @@ type ProductRow = AudienceTarget & {
   sku: string | null;
   rate: number | { toNumber?: () => number } | null;
   unit: string | null;
+  dispatchUnit?: string | null;
   images: string[];
   status: string;
   postedToMarketAt: Date | null;
@@ -296,6 +297,7 @@ export class SavedService {
         sku: row.product.sku ?? null,
         rate: Number.isFinite(rate as number) ? (rate as number) : null,
         unit: row.product.unit ?? null,
+        dispatchUnit: row.product.dispatchUnit ?? null,
         createdAt: row.createdAt.toISOString(),
         savedBy,
         available: row.product.status === ProductStatus.Published,

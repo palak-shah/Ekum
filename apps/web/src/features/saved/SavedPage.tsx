@@ -91,7 +91,7 @@ function savedItemToSheetProduct(item: SavedItemView): DesignSheetProduct | null
     categories: [],
     description: null,
     unit: item.unit ?? null,
-    dispatchUnit: null,
+    dispatchUnit: item.dispatchUnit ?? null,
     moq: null,
     rate: item.rate ?? null,
     rateMax: null,

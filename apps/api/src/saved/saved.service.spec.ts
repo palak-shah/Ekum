@@ -21,7 +21,8 @@ const publishedProduct = {
   name: 'Silk Shirt',
   sku: 'SS-01',
   rate: 450,
-  unit: 'pc',
+  unit: 'set',
+  dispatchUnit: 'mtr',
   images: ['https://cdn/shirt.jpg', 'https://cdn/shirt-2.jpg'],
   audience: 'everyone',
   audienceCompanyIds: [] as string[],
@@ -69,6 +70,8 @@ describe('SavedService.create', () => {
     expect(view.images).toEqual(['https://cdn/shirt.jpg', 'https://cdn/shirt-2.jpg']);
     expect(view.sku).toBe('SS-01');
     expect(view.rate).toBe(450);
+    expect(view.unit).toBe('set');
+    expect(view.dispatchUnit).toBe('mtr');
     expect(view.company.id).toBe('seller-co');
     expect(view.savedBy).toEqual({ id: 'u-amit', name: 'Amit' });
     expect(upsert).toHaveBeenCalledWith(

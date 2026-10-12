@@ -43,6 +43,8 @@ export interface SavedItemView {
   /** Design rate when kind is product (may be null / on request). */
   rate?: number | null;
   unit?: string | null;
+  /** Rate / dispatch unit when pack order unit (usually pc). */
+  dispatchUnit?: string | null;
   /** Collection collage +N and size. */
   imageCount?: number;
   productCount?: number;

@@ -20,7 +20,7 @@ function toSheetProduct(data: ExploreProductPreviewView): DesignSheetProduct {
     categories: data.categories ?? [],
     description: data.description ?? null,
     unit: data.unit ?? null,
-    dispatchUnit: null,
+    dispatchUnit: data.dispatchUnit ?? null,
     moq: data.moq ?? null,
     rate: data.rate ?? null,
     rateMax: data.rateMax ?? null,
