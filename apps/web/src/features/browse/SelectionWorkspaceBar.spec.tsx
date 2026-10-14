@@ -51,6 +51,30 @@ vi.mock('@/features/browse/addStagingToCart', () => ({
   addStagingToCart: () => addStagingToCart(),
 }));
 
+const setQtyOpen = vi.fn();
+vi.mock('@/features/browse/useShortlistOrderFlow', () => ({
+  useShortlistOrderFlow: () => ({
+    qtyOpen: false,
+    setQtyOpen,
+    setError: vi.fn(),
+    submitting: false,
+    asking: false,
+    error: null,
+    sendOrder: vi.fn(),
+    askRates: vi.fn(),
+  }),
+  entriesAsProducts: () => [],
+  sellerIdForEntries: () => 'c1',
+}));
+
+vi.mock('@/features/browse/OrderCollectionResolveSheet', () => ({
+  OrderCollectionResolveSheet: () => null,
+}));
+
+vi.mock('@/features/orders/HowManyEachSheet', () => ({
+  HowManyEachSheet: () => null,
+}));
+
 vi.mock('@/lib/queries', () => ({
   useMyCompany: () => ({ data: { id: 'me' } }),
 }));
@@ -61,6 +85,8 @@ vi.mock('@/features/browse/prefetchSelectionPage', () => ({
 
 vi.mock('@/features/browse/resumeAfterAlbumPick', () => ({
   readResumeAfterAlbumPick: () => null,
+  clearResumeAfterAlbumPick: vi.fn(),
+  writeResumeAfterAlbumPick: vi.fn(),
 }));
 
 vi.mock('@/features/browse/clearSelection', () => ({
@@ -78,6 +104,7 @@ describe('SelectionWorkspaceBar', () => {
     shortlistCompanyId.current = 'c1';
     navigate.mockReset();
     addStagingToCart.mockClear();
+    setQtyOpen.mockClear();
     setSelectModeShortlist.mockClear();
     setSelectModeAlbum.mockClear();
     vi.mocked(api.post).mockReset();
@@ -134,6 +161,24 @@ describe('SelectionWorkspaceBar', () => {
     expect(addStagingToCart).toHaveBeenCalled();
     expect(setSelectModeShortlist).toHaveBeenCalledWith(false);
     expect(setSelectModeAlbum).toHaveBeenCalledWith(false);
+  });
+
+  it('Order opens How many on staging and does not write the cart', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/explore']}>
+          <ToastProvider>
+            <SelectionWorkspaceBar />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByTestId('selection-workspace-order'));
+    expect(addStagingToCart).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalledWith('/selection', expect.anything());
+    expect(setQtyOpen).toHaveBeenCalledWith(true);
   });
 
   it('Message opens compose; Send posts one card with note and does not open Chats', async () => {

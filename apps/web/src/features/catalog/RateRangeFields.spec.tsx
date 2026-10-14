@@ -10,6 +10,7 @@ describe('RateRangeFields', () => {
     expect(screen.getByTestId('collection-rate-mode-single')).toHaveTextContent('One rate');
     expect(screen.getByTestId('collection-rate-mode-range')).toHaveTextContent('A range');
     expect(screen.queryByTestId('collection-rate-to')).toBeNull();
+    expect(screen.getByTestId('collection-rate-from')).toHaveAttribute('placeholder', 'Enter rate');
     expect(screen.queryByTestId('collection-rate-caption')).toBeNull();
     expect(screen.queryByText('On request')).toBeNull();
     expect(screen.queryByTestId('collection-rate-unit')).toBeNull();
@@ -21,6 +22,12 @@ describe('RateRangeFields', () => {
     render(<RateRangeFields from="1200" to="" onFrom={() => undefined} onTo={onTo} />);
     await user.click(screen.getByTestId('collection-rate-mode-range'));
     expect(screen.getByTestId('collection-rate-to')).toBeTruthy();
+    expect(screen.getByLabelText('Rate from')).toBeTruthy();
+    expect(screen.getByLabelText('Rate to')).toBeTruthy();
+    expect(screen.getByTestId('collection-rate-from')).not.toHaveAttribute(
+      'placeholder',
+      'Enter rate',
+    );
     expect(screen.getByTestId('collection-rate-caption')).toHaveTextContent('₹1,200');
   });
 

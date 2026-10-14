@@ -3,13 +3,18 @@ import { productAccessibleViaCollection } from './product-viewer-access';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { VisibilityService } from '../access/visibility.service';
 
-function makePrisma(memberships: unknown[]) {
+function makePrisma(
+  memberships: unknown[],
+  opts: { following?: boolean } = {},
+) {
   return {
     collectionProduct: {
       findMany: vi.fn(async () => memberships),
     },
     follow: {
-      findUnique: vi.fn(async () => null),
+      findUnique: vi.fn(async () =>
+        opts.following ? { status: 'allowed' } : null,
+      ),
     },
     collectionViewGrant: {
       findUnique: vi.fn(async () => null),
@@ -24,7 +29,7 @@ function visibility(opts: { blocked?: boolean; connected?: boolean } = {}) {
   } as unknown as VisibilityService;
 }
 
-const everyoneAlbum = {
+const legacyEveryoneAlbum = {
   collection: {
     id: 'col1',
     companyId: 'owner',
@@ -37,8 +42,16 @@ const everyoneAlbum = {
 };
 
 describe('productAccessibleViaCollection', () => {
-  it('unlocks a published design in an Everyone album without market post', async () => {
-    const prisma = makePrisma([everyoneAlbum]);
+  it('does not unlock legacy Everyone album without allowed follow', async () => {
+    const prisma = makePrisma([legacyEveryoneAlbum]);
+    const ok = await productAccessibleViaCollection(prisma, visibility(), 'viewer', 'p1', {
+      wasSharedInChat: async () => false,
+    });
+    expect(ok).toBe(false);
+  });
+
+  it('unlocks legacy Everyone album when viewer is an allowed follower', async () => {
+    const prisma = makePrisma([legacyEveryoneAlbum], { following: true });
     const ok = await productAccessibleViaCollection(prisma, visibility(), 'viewer', 'p1', {
       wasSharedInChat: async () => false,
     });
@@ -49,7 +62,7 @@ describe('productAccessibleViaCollection', () => {
     const prisma = makePrisma([
       {
         collection: {
-          ...everyoneAlbum.collection,
+          ...legacyEveryoneAlbum.collection,
           audience: 'followers',
         },
       },
@@ -64,7 +77,7 @@ describe('productAccessibleViaCollection', () => {
     const prisma = makePrisma([
       {
         collection: {
-          ...everyoneAlbum.collection,
+          ...legacyEveryoneAlbum.collection,
           audience: 'followers',
         },
       },
@@ -76,7 +89,7 @@ describe('productAccessibleViaCollection', () => {
   });
 
   it('allows owner of the pack', async () => {
-    const prisma = makePrisma([everyoneAlbum]);
+    const prisma = makePrisma([legacyEveryoneAlbum]);
     const ok = await productAccessibleViaCollection(prisma, visibility(), 'owner', 'p1', {
       wasSharedInChat: async () => false,
     });

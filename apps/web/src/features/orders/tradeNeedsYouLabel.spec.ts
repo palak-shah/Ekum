@@ -110,7 +110,7 @@ describe('orderNeedsYouLabel', () => {
     ).toBeNull();
   });
 
-  it('asks the trader to pass mill rates', () => {
+  it('is quiet after mills are sent even if mill quoted (no parent Send quote)', () => {
     expect(
       orderNeedsYouLabel(
         order({
@@ -118,6 +118,6 @@ describe('orderNeedsYouLabel', () => {
           linkedMills: [{ name: 'Ahmedabad Loom Co', orderId: 'up1' }],
         }),
       ),
-    ).toBe('Needs you · Send quote');
+    ).toBeNull();
   });
 });

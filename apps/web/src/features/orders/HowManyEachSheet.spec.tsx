@@ -76,16 +76,18 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.getByTestId('how-many-note')).toBeInTheDocument();
   });
 
-  it('shows optional Transporter in the footer', () => {
+  it('puts optional Transporter after the design lines (not in sticky footer)', () => {
     renderSheet();
-    expect(screen.getByTestId('transporter-field')).toBeInTheDocument();
+    const extras = screen.getByTestId('how-many-extras');
+    expect(within(extras).getByTestId('transporter-field')).toBeInTheDocument();
+    expect(within(screen.getByTestId('how-many-footer')).queryByTestId('transporter-field')).toBeNull();
   });
 
-  it('raises sheet max-height like Share so the panel hugs toward the viewport', () => {
+  it('raises sheet max-height so the panel hugs toward the viewport', () => {
     renderSheet();
     const panel = document.querySelector('.ekum-sheet');
     expect(panel).toBeTruthy();
-    expect(panel!.className).toMatch(/max-h-\[min\(92dvh,100dvh\)\]/);
+    expect(panel!.className).toMatch(/max-h-\[100dvh\]/);
     expect(screen.queryByTestId('sheet-full-scroll')).toBeNull();
   });
 
@@ -116,12 +118,27 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.getByRole('heading', { name: 'Order for buyer' })).toBeInTheDocument();
   });
 
+  it('keeps sheet Note after lines, collapsed so designs stay the main job', () => {
+    renderSheet();
+    const extras = screen.getByTestId('how-many-extras');
+    expect(within(extras).getByTestId('note-attach-add')).toHaveTextContent('Add note');
+    expect(within(extras).queryByRole('textbox', { name: /note/i })).toBeNull();
+    expect(within(extras).getByTestId('note-attach-plus')).toBeInTheDocument();
+    expect(within(extras).getByTestId('transporter-field')).toHaveAttribute(
+      'placeholder',
+      'Transporter · optional',
+    );
+    expect(within(extras).getByTestId('how-many-order-for-buyer')).toBeInTheDocument();
+    expect(within(screen.getByTestId('how-many-footer')).queryByTestId('note-attach-add')).toBeNull();
+  });
+
   it('shows sheet-level Note with Voice · Photo tray above Transporter', async () => {
     const user = userEvent.setup();
     renderSheet();
-    expect(screen.getByTestId('note-attach-plus')).toBeInTheDocument();
-    expect(screen.getByTestId('transporter-field')).toBeInTheDocument();
-    await user.click(screen.getByTestId('note-attach-plus'));
+    const extras = screen.getByTestId('how-many-extras');
+    expect(within(extras).getByTestId('note-attach-plus')).toBeInTheDocument();
+    expect(within(extras).getByTestId('transporter-field')).toBeInTheDocument();
+    await user.click(within(extras).getByTestId('note-attach-plus'));
     expect(screen.getByTestId('note-attach-menu')).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Voice/i })).toBeInTheDocument();
     expect(screen.getByTestId('note-attach-camera')).toBeInTheDocument();
@@ -132,8 +149,9 @@ describe('HowManyEachSheet line chrome', () => {
     const user = userEvent.setup();
     const { onSendOrder } = renderSheet();
     await user.click(screen.getByRole('button', { name: /Increase/i }));
-    const footer = screen.getByTestId('how-many-footer');
-    const sheetNote = within(footer).getAllByRole('textbox')[0]!;
+    const extras = screen.getByTestId('how-many-extras');
+    await user.click(within(extras).getByTestId('note-attach-add'));
+    const sheetNote = within(extras).getAllByRole('textbox')[0]!;
     await user.type(sheetNote, 'Match sample');
     await user.click(screen.getByTestId('how-many-place-order'));
     expect(onSendOrder).toHaveBeenCalledWith(

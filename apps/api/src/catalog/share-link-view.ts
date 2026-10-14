@@ -1,23 +1,21 @@
-import { ProductStatus, PublishAudience } from '@ekum/domain-types';
-import { isCollectionLiveForBuyers } from './collection-schedule';
-
-export function shareLinkOpenForCollection(collection: {
+/**
+ * Guest 48h page shows designs only for truly open catalog.
+ * Everyone is no longer offered on Publish and legacy rows behave as Followers —
+ * guests always get the closed teaser + Request access.
+ */
+export function shareLinkOpenForCollection(_collection: {
   audience: string;
   status: string;
   startsAt?: Date | string | null;
   endsAt?: Date | string | null;
 }): boolean {
-  return (
-    collection.audience === PublishAudience.Everyone && isCollectionLiveForBuyers(collection)
-  );
+  return false;
 }
 
-export function shareLinkOpenForProduct(product: {
+export function shareLinkOpenForProduct(_product: {
   audience: string;
   status: string;
   postedToMarketAt?: Date | string | null;
 }): boolean {
-  const onMarket =
-    product.status === ProductStatus.Published || Boolean(product.postedToMarketAt);
-  return product.audience === PublishAudience.Everyone && onMarket;
+  return false;
 }

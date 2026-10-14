@@ -107,6 +107,41 @@ describe('OrderLineFacts', () => {
     expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('-20');
   });
 
+  it('shows the full Bill amount on compact strip (not ₹4…)', () => {
+    render(
+      <OrderLineFacts
+        item={{
+          quantity: 50,
+          rate: 85,
+          unit: 'mtr',
+          lineStatus: 'requested',
+        }}
+      />,
+    );
+    const bill = screen.getByTestId('order-line-fact-bill');
+    expect(bill).toHaveTextContent('₹4,250');
+    expect(bill.textContent).not.toMatch(/₹4…|₹4\.\.\./);
+    expect(bill.className).toMatch(/flex-\[1\.4\]|min-w-\[4\.5rem\]/);
+  });
+
+  it('shows full Price label (not PRI…) and full-width strip', () => {
+    render(
+      <OrderLineFacts
+        item={{
+          quantity: 50,
+          rate: 85,
+          unit: 'mtr',
+          lineStatus: 'requested',
+        }}
+      />,
+    );
+    const price = screen.getByTestId('order-line-fact-price');
+    expect(price).toHaveTextContent('Price');
+    expect(price).toHaveTextContent('₹85');
+    expect(price.textContent).not.toMatch(/PRI/);
+    expect(screen.getByTestId('order-line-facts').className).toContain('w-full');
+  });
+
   it('shows signed Balance for open / over / done', () => {
     const { rerender } = render(
       <OrderLineFacts

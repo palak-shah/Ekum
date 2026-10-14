@@ -114,14 +114,14 @@ When publishing (or updating visibility), the sheet sets:
 
 | Field | Values | Default practice |
 |-------|--------|------------------|
-| **Audience** | API: `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**). **Publish / Visibility UI:** **My followers** · **Selected** only (no Everyone — too wide for textile trade; legacy `everyone` remaps to Followers on next Visibility edit). Not My connections — connections mix suppliers. | Followers |
+| **Audience** | API: `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**). **Publish / Visibility UI:** **My followers** · **Selected** only (no Everyone). Legacy `everyone` / `connections` rows are **migrated and enforced as Followers** (same as the sheet chip — no “hidden Everyone” until save). Not My connections — connections mix suppliers. | Followers |
 | **Rate visibility** | `visible` · `on_request` | On request (or company usual) |
 | **Buyers can add these designs to their collections** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
 
 | Audience | Who sees on Explore |
 |----------|---------------------|
-| Everyone | Legacy API only — not offered on Publish; remaps to Followers in Visibility UI |
-| Connections | Active connections with the seller (API / legacy posts; not offered on new Publish) |
+| Everyone | Legacy value only — not offered on Publish; stored rows + access treated as Followers |
+| Connections | Legacy value only — not offered on new Publish; stored rows + access treated as Followers (allowed follow), not Connection |
 | Followers | Companies the seller **allowed** to follow (not pending asks; not necessarily connected) |
 | Selected | Listed companies / buyer groups |
 

@@ -35,11 +35,32 @@ import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { addStagingToCart } from '@/features/browse/addStagingToCart';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import {
+  curateDefaultPackName,
+  partitionRelistableAlbums,
+} from '@/features/browse/curateAlbumResolve';
+import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
+import {
+  collectionIdForPackOrder,
+  packHandlerName,
+} from '@/features/browse/packOrderSource';
+import {
+  clearResumeAfterAlbumPick,
   continueAfterAlbumPickLabel,
   nextStepAfterAlbumPick,
   readResumeAfterAlbumPick,
+  writeResumeAfterAlbumPick,
 } from '@/features/browse/resumeAfterAlbumPick';
+import { writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
+import { writeBrowseShortlist } from '@/features/browse/browseShortlist';
+import {
+  entriesAsProducts,
+  sellerIdForEntries,
+  useShortlistOrderFlow,
+} from '@/features/browse/useShortlistOrderFlow';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import {
   isPublishedForSelection,
   selectionSkipToast,
@@ -182,6 +203,7 @@ export function CollectionViewerPage() {
   const { showToast } = useToast();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
+  const orderFlow = useShortlistOrderFlow();
   const [layout, setLayout] = useState<Layout>(() => readDesignBrowseLayout(myCompanyId));
   const [viewerProduct, setViewerProduct] = useState<ProductView | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -192,6 +214,12 @@ export function CollectionViewerPage() {
   const [shareScope, setShareScope] = useState<'album' | 'designs'>('album');
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageSelecting, setPageSelecting] = useState(false);
+  const [orderResolveOpen, setOrderResolveOpen] = useState(false);
+  const [curateResolveOpen, setCurateResolveOpen] = useState(false);
+  const [curateOpen, setCurateOpen] = useState(false);
+  const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
+  const [curateDefaultName, setCurateDefaultName] = useState('');
+  const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [manageBusy, setManageBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [replaceSheetOpen, setReplaceSheetOpen] = useState(false);
@@ -232,6 +260,21 @@ export function CollectionViewerPage() {
     });
   }, [enterSelect, packManage, shortlist, navigate, location.pathname, location.search]);
 
+  const openCurateWithDesigns = (
+    source: BrowseShortlistEntry[],
+    expandedAlbumNames: string[] = [],
+  ) => {
+    if (source.length === 0) return;
+    setCurateDefaultName(
+      curateDefaultPackName({
+        expandedAlbumNames,
+        allowedDesignNames: source.map((row) => row.name),
+      }),
+    );
+    setCurateProductIds(source.map((row) => row.productId));
+    setCurateOpen(true);
+  };
+
   const onContinueAfterAlbumPick = () => {
     const resume = readResumeAfterAlbumPick();
     const step = nextStepAfterAlbumPick({
@@ -244,9 +287,27 @@ export function CollectionViewerPage() {
       navigate(`/collections/${step.collectionId}`, { state: { enterSelect: true } });
       return;
     }
-    navigate('/selection', {
-      state: step.resume === 'curate' ? { openCurate: true } : { openOrder: true },
-    });
+    if (step.resume === 'cart-order' || step.resume === 'cart-curate') {
+      addStagingToCart();
+      clearResumeAfterAlbumPick();
+      navigate('/selection', {
+        state: step.resume === 'cart-curate' ? { openCurate: true } : { openOrder: true },
+      });
+      return;
+    }
+    clearResumeAfterAlbumPick();
+    if (step.resume === 'curate') {
+      const { allowed: packAlbums } = partitionRelistableAlbums(albumPick.entries);
+      if (packAlbums.length > 0) setCurateResolveOpen(true);
+      else if (shortlist.count > 0) openCurateWithDesigns(shortlist.entries, []);
+      return;
+    }
+    orderFlow.setError(null);
+    if (albumPick.count > 0) setOrderResolveOpen(true);
+    else if (shortlist.count > 0) {
+      setQtyEntries(shortlist.entries);
+      orderFlow.setQtyOpen(true);
+    }
   };
 
   const collection = useQuery({
@@ -1473,9 +1534,93 @@ export function CollectionViewerPage() {
             void onOwnerDelete([viewerProduct.id]);
           }}
           removeBusy={manageBusy}
+          packStamp={packStamp}
           testIdPrefix="collection-design-sheet"
         />
       ) : null}
+
+      <OrderCollectionResolveSheet
+        intent="order"
+        open={orderResolveOpen}
+        onClose={() => setOrderResolveOpen(false)}
+        albums={albumPick.entries}
+        designCount={shortlist.count}
+        existingShortlist={shortlist.entries}
+        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
+          writeBrowseShortlist(nextShortlist);
+          writeBrowseAlbumPick(remainingAlbums);
+          setOrderResolveOpen(false);
+          if (navigateToCollectionId) {
+            writeResumeAfterAlbumPick('order');
+            navigate(`/collections/${navigateToCollectionId}`, {
+              state: { enterSelect: true },
+            });
+            return;
+          }
+          clearResumeAfterAlbumPick();
+          setQtyEntries(nextShortlist);
+          orderFlow.setQtyOpen(true);
+        }}
+      />
+      <OrderCollectionResolveSheet
+        intent="curate"
+        open={curateResolveOpen}
+        onClose={() => setCurateResolveOpen(false)}
+        albums={partitionRelistableAlbums(albumPick.entries).allowed}
+        designCount={shortlist.count}
+        existingShortlist={shortlist.entries}
+        onResolved={({
+          shortlist: nextShortlist,
+          remainingAlbums,
+          navigateToCollectionId,
+          expandedAlbumNames,
+        }) => {
+          writeBrowseShortlist(nextShortlist);
+          writeBrowseAlbumPick(remainingAlbums);
+          setCurateResolveOpen(false);
+          if (navigateToCollectionId) {
+            writeResumeAfterAlbumPick('curate');
+            navigate(`/collections/${navigateToCollectionId}`, {
+              state: { enterSelect: true },
+            });
+            return;
+          }
+          clearResumeAfterAlbumPick();
+          openCurateWithDesigns(nextShortlist, expandedAlbumNames);
+        }}
+      />
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => {
+          orderFlow.setQtyOpen(false);
+          setQtyEntries(null);
+        }}
+        sellerId={sellerIdForEntries(qtyEntries ?? shortlist.entries)}
+        products={entriesAsProducts(qtyEntries ?? shortlist.entries)}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        orderGoesToName={packHandlerName(qtyEntries ?? shortlist.entries)}
+        sheetJob="order"
+        onSendOrder={(lines, place) => {
+          const linesForPath = qtyEntries ?? shortlist.entries;
+          orderFlow.sendOrder(lines, {
+            ...place,
+            collectionId: collectionIdForPackOrder(linesForPath),
+          });
+        }}
+        onAskRates={() => undefined}
+      />
+      <CurateFromSelectionSheet
+        open={curateOpen}
+        onClose={() => {
+          setCurateOpen(false);
+          setCurateProductIds(undefined);
+          setCurateDefaultName('');
+        }}
+        productIds={curateProductIds}
+        defaultName={curateDefaultName}
+      />
     </div>
   );
 }

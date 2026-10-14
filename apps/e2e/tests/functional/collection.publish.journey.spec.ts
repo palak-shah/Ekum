@@ -8,10 +8,13 @@ test.describe('seller collection publish @functional @collections', () => {
 
     await expect(page.getByTestId('collection-create-dock')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Chats' })).toHaveCount(0);
-    await expect(page.getByLabel('Collection name')).toHaveAttribute(
+    await expect(page.getByLabel('Collection name')).toBeVisible();
+    await expect(page.getByText('Collection name', { exact: false })).toContainText('*');
+    await expect(page.getByLabel('Collection name')).not.toHaveAttribute(
       'placeholder',
       'Name this collection',
     );
+    await expect(page.getByText('Product description')).toHaveCount(0);
     await expect(page.getByTestId('collection-rate-mode-single')).toBeVisible();
     await expect(page.getByTestId('collection-rate-mode-range')).toBeVisible();
     await expect(page.getByTestId('collection-rate-caption')).toHaveCount(0);

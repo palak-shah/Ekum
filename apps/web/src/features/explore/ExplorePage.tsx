@@ -435,17 +435,17 @@ function StoriesRail({
               key={story.company.id}
               type="button"
               onClick={() => onSelect(story.company.id)}
-              className="flex w-[52px] shrink-0 flex-col items-center gap-0.5"
+              className="flex w-[72px] shrink-0 flex-col items-center gap-0.5"
               data-testid={isYou ? 'explore-story-you' : undefined}
             >
               <span
                 className={cx(
-                  'rounded-full p-[2px]',
+                  'rounded-full p-[3px]',
                   active ? 'bg-accent' : 'bg-gradient-to-br from-accent to-tangerine',
                 )}
               >
-                <span className="block rounded-full bg-canvas p-[2px]">
-                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={36} />
+                <span className="block rounded-full bg-canvas p-[3px]">
+                  <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={56} />
                 </span>
               </span>
               <span className="w-full truncate text-center text-[10px] font-medium leading-tight text-ink">

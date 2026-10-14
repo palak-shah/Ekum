@@ -47,9 +47,14 @@ export function whoCanSeeLabel(
 ): string | null {
   const audience = collection.audience;
   if (!audience) return null;
-  if (audience === PublishAudience.Everyone) return 'Everyone';
-  if (audience === PublishAudience.Connections) return 'My connections';
-  if (audience === PublishAudience.Followers) return 'My followers';
+  // Legacy everyone/connections are enforced as Followers — never show open/connected labels.
+  if (
+    audience === PublishAudience.Everyone ||
+    audience === PublishAudience.Connections ||
+    audience === PublishAudience.Followers
+  ) {
+    return 'My followers';
+  }
   if (audience !== PublishAudience.Selected) return audience;
 
   const groupIds = collection.audienceGroupIds ?? [];

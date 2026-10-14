@@ -302,96 +302,76 @@ export function HowManyEachSheet({
   );
   const setsBanner = howManySetsBanner(activeProducts);
 
+  const showTicketExtras =
+    sheetJob === 'ask' ||
+    (sheetJob === 'order' && (showPlaceOrder || canOrderForBuyer));
+
+  /** Sticky: qty/₹ + primary CTA only — Note / transporter / buyer live in the scroll. */
   const decideFooter = (
-    <div className="flex flex-col gap-4" data-testid="how-many-footer">
+    <div className="flex flex-col gap-2.5" data-testid="how-many-footer">
       {footerSummary ? (
         <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
-          <p className="text-[15px] font-bold tracking-tight text-ink">{footerSummary.primary}</p>
-          {footerSummary.money ? (
-            <p
-              className="text-[15px] font-bold tracking-tight text-ink"
-              data-testid="how-many-billing-total"
-            >
-              {footerSummary.money}
-            </p>
-          ) : null}
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-[15px] font-bold tracking-tight text-ink">{footerSummary.primary}</p>
+            {footerSummary.money ? (
+              <p
+                className="shrink-0 text-[15px] font-bold tracking-tight text-ink"
+                data-testid="how-many-billing-total"
+              >
+                {footerSummary.money}
+              </p>
+            ) : null}
+          </div>
           {footerSummary.hint ? (
             <p className="text-[12px] font-medium text-muted">{footerSummary.hint}</p>
           ) : null}
         </div>
       ) : null}
-      {sheetJob === 'ask' ||
-      (sheetJob === 'order' && (showPlaceOrder || canOrderForBuyer)) ? (
-        <>
-          <NoteAttachField
-            label="Note"
-            note={note}
-            onNoteChange={setNote}
-            voice={noteVoice}
-            onVoiceChange={setNoteVoice}
-            images={noteImages}
-            onImagesChange={setNoteImages}
-            onBusyChange={setAttachBusy}
-          />
-          <TransporterField value={transporter} onChange={setTransporter} disabled={busy} />
-        </>
+      {showAskButton ? (
+        <Button
+          fullWidth
+          data-testid="how-many-ask-rates"
+          disabled={busy || !canPlace}
+          onClick={() => {
+            const qty = lines[0]?.quantity;
+            if (qty != null) persistQty(qty);
+            persistTransporter();
+            onAskRates(payload(), placeOpts());
+          }}
+        >
+          {asking ? 'Opening…' : 'Ask rates'}
+        </Button>
       ) : null}
-      <div className="flex flex-col gap-3">
-        {showBuyerToggle ? (
-          <CantSupplySwitch
-            checked={forBuyer}
-            busy={busy}
-            onChange={setOrderForBuyer}
-            testId="how-many-order-for-buyer"
-            label="Order for buyer"
-          />
-        ) : null}
-        {showAskButton ? (
-          <Button
-            fullWidth
-            data-testid="how-many-ask-rates"
-            disabled={busy || !canPlace}
-            onClick={() => {
-              const qty = lines[0]?.quantity;
-              if (qty != null) persistQty(qty);
-              persistTransporter();
-              onAskRates(payload(), placeOpts());
-            }}
-          >
-            {asking ? 'Opening…' : 'Ask rates'}
-          </Button>
-        ) : null}
-        {showPlaceButton && !forBuyer ? (
-          <Button
-            fullWidth
-            data-testid="how-many-place-order"
-            disabled={busy || !canPlace}
-            onClick={() => {
-              const qty = lines[0]?.quantity;
-              if (qty != null) persistQty(qty);
-              persistTransporter();
-              onSendOrder(payload(), placeOpts());
-            }}
-          >
-            {submitting ? 'Sending…' : 'Place Order'}
-          </Button>
-        ) : null}
-        {forBuyer && canOrderForBuyer ? (
-          <Button
-            fullWidth
-            data-testid="how-many-choose-buyer"
-            disabled={busy || !canPlace}
-            onClick={() => {
-              const qty = lines[0]?.quantity;
-              if (qty != null) persistQty(qty);
-              persistTransporter();
-              openChooseBuyer();
-            }}
-          >
-            Choose buyer
-          </Button>
-        ) : null}
-      </div>
+      {showPlaceButton && !forBuyer ? (
+        <Button
+          fullWidth
+          data-testid="how-many-place-order"
+          disabled={busy || !canPlace}
+          onClick={() => {
+            const qty = lines[0]?.quantity;
+            if (qty != null) persistQty(qty);
+            persistTransporter();
+            onSendOrder(payload(), placeOpts());
+          }}
+        >
+          {submitting ? 'Sending…' : 'Place Order'}
+        </Button>
+      ) : null}
+      {forBuyer && canOrderForBuyer ? (
+        <Button
+          fullWidth
+          data-testid="how-many-choose-buyer"
+          disabled={busy || !canPlace}
+          onClick={() => {
+            const qty = lines[0]?.quantity;
+            if (qty != null) persistQty(qty);
+            persistTransporter();
+            openChooseBuyer();
+          }}
+        >
+          Choose buyer
+        </Button>
+      ) : null}
     </div>
   );
 
@@ -476,7 +456,7 @@ export function HowManyEachSheet({
               return (
                 <li
                   key={product.id}
-                  className={cx('px-3 py-3', index > 0 && 'border-t border-line/70')}
+                  className={cx('px-3 py-2.5', index > 0 && 'border-t border-line/70')}
                   data-testid="how-many-line"
                 >
                   <div className="flex items-start gap-2.5">
@@ -557,6 +537,40 @@ export function HowManyEachSheet({
               );
             })}
           </ul>
+
+          {showTicketExtras ? (
+            <div
+              className="flex flex-col gap-2.5"
+              data-testid="how-many-extras"
+            >
+              <NoteAttachField
+                label="Note"
+                note={note}
+                onNoteChange={setNote}
+                voice={noteVoice}
+                onVoiceChange={setNoteVoice}
+                images={noteImages}
+                onImagesChange={setNoteImages}
+                onBusyChange={setAttachBusy}
+                collapseEmpty
+              />
+              <TransporterField
+                value={transporter}
+                onChange={setTransporter}
+                disabled={busy}
+                compact
+              />
+              {showBuyerToggle ? (
+                <CantSupplySwitch
+                  checked={forBuyer}
+                  busy={busy}
+                  onChange={setOrderForBuyer}
+                  testId="how-many-order-for-buyer"
+                  label="Order for buyer"
+                />
+              ) : null}
+            </div>
+          ) : null}
 
           {error ? <InlineNotice message={error} /> : null}
         </div>

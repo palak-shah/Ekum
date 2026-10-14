@@ -12,7 +12,7 @@ Any company can request / follow; the other Approves. Both use **Network → Con
 
 ### Follow
 
-1. On company / Explore → **Request catalog access** asks (same Follow API; sell-only shops still show it). Shop button: lock + **Request catalog access** · lock + **Requested** (outline) · unlock + **Has access**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Shop **⋯ → Remove connection** is the same cancel. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone (not on Publish) stays public.
+1. On company / Explore → **Request catalog access** asks (same Follow API; sell-only shops still show it). Shop button: lock + **Request catalog access** · lock + **Requested** (outline) · unlock + **Has access**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Shop **⋯ → Remove connection** is the same cancel. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone / Connections catalog rows are treated as **Followers** (not open to the whole platform).
 2. Shop **You → Network → They see mine**: one list. **Find** filters name/city. Pending asks sit **on top, newest first**, with why-line **Wants to see your new packs** then Allow / Decline — not a tap-through screen. When asks exist, chips **All** | **Asked · N** (All = asks + who already sees you / Stopped). Home Needs `/network/followers?tab=asked` selects the Asked chip. Each allowed card has **See** / **Share** and quiet **Stop**. Stop keeps the card as **Stopped**. Tick See or Share to let them in again. **Decline** still clears the ask. The other shop never sees look vs pack. Chats **Requests** still has the same why-line + Allow / Decline for a new ask. If they ask again while Stopped, they return to the top as Asked.
 3. **You → Network → I see theirs**: allowed follows only — no grant type. Row action **Stop seeing**.
 4. Allowed follows see Followers-audience posts on Home Followed and Explore. Pending does not.
@@ -56,7 +56,7 @@ When a design/album is locked for Curate, **Ask to put in my pack** → chat All
 | Follow pending | Same unique pair; `pending` is not a follower for audience / stories / shop Followers-audience. |
 | Follow access | Shop-facing **They can see** (see Followers posts) vs **They can share** (put in their pack if Trading + `allowForward`). Look-only and not Connected cannot curate that seller. |
 | Home Needs | Incoming follow asks → **They see mine** Asked chip (`/network/followers?tab=asked`). Incoming Connect / first chat → **Chats → Requests** (pending thread). |
-| Catalog visibility | Post **audience** (+ block rules). Connection is **mutual** membership for `connections` / related gates — not required for Everyone. Selected stays Selected. |
+| Catalog visibility | Post **audience** (+ block rules). Legacy Everyone/Connections enforce as Followers. Selected stays Selected. Connection is for trade / other doors, not open catalog. |
 | Open order | Discoverable catalog lines can be ordered without Connection; does **not** auto-create a Network connection |
 | Connection states | `active` · `paused` (legacy only) · `blocked` |
 | Silent block | Other party is not notified and **does not see** the connection row; they lose Connection catalog access. Shop 404. |

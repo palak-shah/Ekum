@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-11 (unified design sheet)  
+**Updated:** 2026-10-14 (legacy audience → Followers)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Catalog | Legacy everyone/connections → Followers (migrate + enforce); defaults followers; no hidden open catalog | Works | Unit | Required | Completeness 2026-10-14-legacy-audience-followers-align |
 | Browse | Unified DesignSheet (trade footer + ⋯ Bookmark/owner); collection · shop · You · Explore · Saved; chat unchanged | Works | Unit | Required | Completeness 2026-10-11-unified-design-sheet |
 | Collections | Album ⋯ idle collection bookmark; select bookmarks designs; You no account avatar | Works | Unit | Required | Completeness 2026-10-11-collection-chrome-polish |
 | Platform | Master light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-10-theme-system; kit accent-muted / input / badge |
@@ -25,12 +26,14 @@ Verification: Functional · Regression · Unit-only · Untested
 | Browse | Shared SelectModeControls + BrowseLotChrome; half-size checks; Clear exits; You library second-row lot chrome | Works | Unit | Required | Completeness 2026-10-09-shared-select-mode-controls; Explore showSelectAll false; You tabs+＋ then Find·Select·layout |
 | Orders | Dispatch LR leg photos with visible thumbs | Works | Unit | Required | Completeness 2026-10-08-dispatch-lr-leg-photos; `LegPhotoAttach` |
 | Orders | Confirm primary dock CTA; Send quote secondary (soft offer kept) | Works | Unit + Functional | Required | Completeness 2026-10-08-confirm-primary-quote-secondary; `requestedDockPrimary` |
+| Orders | I-handle parent: no Send quote / no Confirm; Send · Send all; settle Final qty; no Trading-with; Bill not clipped | Works | Unit + Functional | Required | Completeness 2026-10-14-orders-trader-dock-settle-qty; supersedes parent Send-quote-on-face |
 | Orders | Send quote rows match Dispatch card chrome (not qty/rate table) | Works | Unit | Required | Completeness 2026-10-08-send-quote-dispatch-chrome |
 | Orders | Confirm / decline lines: Qty + Rate editable; Same for all | Works | Unit | Required | Completeness 2026-10-08-confirm-lines-qty; `decideLinesPayload` qty+rate |
 | Orders | Buyer transporter at place (type + MRU history); OrderView; Dispatch prefill | Works | Unit | Required | Completeness 2026-10-08-buyer-transporter; `transporterMemory` + `TransporterField` |
 | Orders | Line note always one-line; Edit order × (not Remove); matches How many | Works | Unit | Required | Completeness 2026-10-08-order-line-edit-chrome; `HowManyLineNote` |
 | Orders | Dispatch multi LR + bill legs; parcels syncs rows; + bumps parcels | Works | Unit | Required | Completeness 2026-10-08-dispatch-lr-bill-legs; `shipment-legs.spec.ts` + `dispatchSheet` resize |
-| Orders | Detail parties (Purchase/Selling party, chat icon); Manual order no. shared; Personal note private; action-note + voice/photo; amend line notes; no Your move | Works | Unit + Functional | Required | Completeness 2026-10-07-order-detail-parties-notes; `orders.detail-notes.journey.spec.ts` |
+| Orders | Detail parties (Purchase/Sales party books language, chat icon); Manual order no. shared; Personal note private; action-note + voice/photo; amend line notes; no Your move | Works | Unit + Functional | Required | Completeness 2026-10-07-order-detail-parties-notes + 2026-10-13-order-party-labels; `orders.detail-notes.journey.spec.ts` |
+| Orders | Trader: Sales-party buyer chat + mill card 1:1 after Send; fact strip full width (no PRI…) | Works | Unit | Required | Completeness 2026-10-14-order-party-mill-chat-facts |
 | Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
 | Orders | Per-line fulfill edit + Can’t supply on Dispatch sheet + packing PDF (phone viewer + quiet Share) | Works | Unit | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf |
 | Orders | Packing slip options (buyer / photos) + order-unit qty + design thumbs | Works | Unit | Required | Completeness 2026-10-08-packing-slip-options-photos |
@@ -179,8 +182,10 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Search chrome: Filter square + Select pill (no Saved / Selection squares) | Works | Unit + Functional | Required | Completeness 2026-09-23-explore-chrome-cut; Select 2026-10-01-android-select-not-longpress |
 | Explore | Selection floater only on Explore / design set / collection·design Selecting (not company shop) | Works | Unit + Functional | Required | Completeness 2026-10-09-shop-select-clarity-dock; shop dock only when this seller has picks |
 | Explore | Cart: header opens cart; dock Cart adds + clears staging; Order right | Works | Unit | Required | Completeness 2026-10-09-explore-cart-dock |
+| Explore | Select / Order do not write cart; only Add to cart parks | Works | Unit | Required | Completeness 2026-10-13-select-does-not-cart |
 | Explore / Selection | Dock **Message · Share · Order**; Message compose text+cards, stay on page | Works | Unit + Functional | Required | Completeness 2026-10-09-selection-message-compose; prior attach 2026-10-09 |
 | Explore | Feed **Message** quick enquire (pack/design); stay on feed | Works | Unit | Required | Completeness 2026-10-09-explore-feed-message-enquire |
+| Explore / Selection | Message sheet: attachment title · Message to shop · shop avatar | Works | Unit | Required | Completeness 2026-10-13-selection-message-context |
 | Orders | How many Order: Place + Order-for-buyer switch; no Share/Ask (Ask = own sheet job) | Works | Unit | Required | Completeness 2026-10-09-how-many-order-only-footer |
 | Orders / Catalog | Sets qty + rate per dispatch (~80% sets / ~20% native unit) | Works | Unit | Required | Completeness 2026-10-09-how-many-sets-rate-per-dispatch; `formatCatalogRate` |
 | Orders / Catalog | Set/dispatch billing (`qty × packSize × rate`) + packing slip dual qty; Rate per mtr not Piece; blank pack size | Works | Unit | Required | Completeness 2026-10-12-order-set-pc-billing; `orderLineBilling` |
@@ -224,7 +229,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Explore Buying: received by day/business | Works | Unit | Required | Slice C; directed audience or broadcast |
 | Trader curation | Split order by product’s real supplier | Works | Unit | Required | Slice B; batch + Manage upstream |
 | Trader curation | Dual trade: pay/order upstream + sell/send orders to buyers | Works | Unit | Required | Shipped: Direct vs I handle + Send-hold. Product Redesign 2026-09-02: TradeLane ticket × reveal |
-| Trader curation | I-handle desk: mill Send on card + Timeline (You sent to); Send quote / Decline / dispatch / settle on the face; mill subsets + # after Send; Hold; list row Trading (no type); From/To rates | Works | Unit + Functional | Required | Completeness 2026-09-07-trader-i-handle-desk + 2026-09-20-trader-mill-send-face + 2026-09-20-mill-send-timeline + 2026-09-23-desk-no-more-actions; 2026-09-30-orders-no-trading-type |
+| Trader curation | I-handle desk: mill Send on card + Timeline (You sent to); Decline / Send all / dispatch / settle on the face (no parent Send quote); mill subsets + # after Send; Hold; list row Trading (no type); From/To rates | Works | Unit + Functional | Required | Completeness 2026-09-07-trader-i-handle-desk + 2026-09-20-trader-mill-send-face + 2026-09-20-mill-send-timeline + 2026-09-23-desk-no-more-actions; 2026-09-30-orders-no-trading-type; 2026-10-14-orders-trader-dock-settle-qty |
 | Trader curation | Decline beside mill Send (held hop only) | Works | Unit + Functional | Required | Completeness 2026-09-23-mill-decline-beside-send; confirm; other mills stay |
 | Trader curation | Send all waiting mills (2+) | Works | Unit | Required | Completeness 2026-09-23-mill-send-all; no mill-picker sheet |
 | Trader curation | Decline all waiting mills (2+) | Works | Unit | Required | Completeness 2026-09-23-mill-decline-all; confirm; pair with Send all |
@@ -243,6 +248,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders place | How many each: tags + sold-as (Set / Dozen / Metre) · min · rate | Works | Unit | Required | Completeness 2026-09-24-how-many-line-meta; hydrate explore detail |
 | Orders place | How many note strip · qty step 1 · Total N pcs; Catalog default unit set | Works | Unit | Required | Completeness 2026-10-01-how-many-sets-note-strip; name+unit one line; note is Add note until tap |
 | Orders place | How many + Builder: sheet-level NoteAttachField (text + Voice · Photo); create/batch/from-pack persist | Works | Unit + API | Required | Completeness 2026-10-11-how-many-common-note-attach; per-line notes unchanged |
+| Orders place | How many sticky footer compact: Add note idle, ~3.5–4 designs in view | Works | Unit | Required | Completeness 2026-10-13-how-many-footer-compact; collapseEmpty + compact Transporter |
+| Orders place | How many one scroll: Note/Transporter/buyer after lines; sticky = total + Place | Works | Unit | Required | Completeness 2026-10-13-how-many-one-scroll-extras |
 | Orders / Catalog | Pack size (sets) per design, not one shop rule | Missing | — | Required | Completeness 2026-09-23-order-pack-size — model locked, build later |
 | Orders close | Full dispatch → `dispatched` complete; Settle only on qty mismatch → `settled` | Works | Unit | Required | Completeness 2026-09-07-dispatch-complete-vs-settle |
 | Orders part ship | Partial dispatch → main status `part_shipped` (not Confirmed cue) | Works | Unit | Required | Completeness 2026-09-07-part-shipped-main-status |

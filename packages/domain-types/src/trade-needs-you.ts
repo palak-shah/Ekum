@@ -21,8 +21,8 @@ function millLotStillHeld(order: Pick<OrderView, 'millDesks' | 'linkedMills'>): 
 /** Same rows the Orders list marks Needs you. */
 export function matchesOrderNeedsYou(order: OrderView): boolean {
   if (isIHandleSellingParent(order)) {
-    if (order.status === 'requested' && millLotStillHeld(order)) return true;
-    return Boolean(order.needsQuotePass);
+    // Parent has no Send quote / Confirm — Needs you only while mills wait for Send.
+    return order.status === 'requested' && millLotStillHeld(order);
   }
   if (
     order.direction === 'selling' &&

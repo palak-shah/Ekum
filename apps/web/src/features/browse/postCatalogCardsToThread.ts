@@ -5,11 +5,15 @@ import { api } from '@/lib/apiClient';
 export type CatalogCardCollection = {
   collectionId: string;
   name: string;
+  /** Cover for enquire / share chrome. */
+  image?: string | null;
 };
 
 export type CatalogCardProduct = {
   productId: string;
   name: string;
+  /** Thumb for enquire / share chrome. */
+  image?: string | null;
 };
 
 /**

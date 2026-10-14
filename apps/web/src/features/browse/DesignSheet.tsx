@@ -1,6 +1,12 @@
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ProductView } from '@ekum/domain-types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  OrderIntent,
+  OrderKind,
+  type CreateOrdersBatchResult,
+  type ProductView,
+} from '@ekum/domain-types';
 import { addCartDesignsMany } from '@/features/browse/browseCart';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { designSheetShortlistEntry } from '@/features/browse/designSheetEntry';
@@ -8,13 +14,19 @@ import { designSheetMoreIds } from '@/features/browse/designSheetMoreIds';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { selectionOwnShopVerbs } from '@/features/browse/selectionOwnShopVerbs';
+import { entriesAsProducts } from '@/features/browse/useShortlistOrderFlow';
 import {
   collectionPackDetailSections,
   designSheetRateBand,
 } from '@/features/collections/collectionViewerChrome';
 import { DesignSheetPhotoCarousel } from '@/features/collections/DesignSheetPhotoCarousel';
 import { PackDetailBlocks } from '@/features/collections/PackDetailBlocks';
+import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
+import { placeNoteAttachFields } from '@/features/orders/placeNoteAttach';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
+import { api, ApiError } from '@/lib/apiClient';
 import { formatCatalogRate } from '@/lib/catalogRate';
 import { useMyCompany } from '@/lib/queries';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
@@ -47,7 +59,9 @@ export type DesignSheetProduct = Pick<
   | 'moq'
   | 'rate'
   | 'rateMax'
->;
+> & {
+  piecesPerPack?: number | null;
+};
 
 /**
  * Shared design open sheet — photos + pack details + trade footer.
@@ -93,13 +107,15 @@ export function DesignSheet({
   testIdPrefix?: string;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const me = useMyCompany();
-  const [, startTransition] = useTransition();
   const [photoOpen, setPhotoOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
+  const [qtyOpen, setQtyOpen] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   const save = useSaveToggle(
     { productId: product.id },
@@ -114,13 +130,15 @@ export function DesignSheet({
     setMoreOpen(false);
     setShareOpen(false);
     setMessageOpen(false);
+    setQtyOpen(false);
+    setOrderError(null);
   }, [product.id]);
 
   const urls = product.images;
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
   const curatedFrom = Boolean(shopLine?.startsWith('From '));
   const entry = designSheetShortlistEntry(
-    product,
+    { ...product, piecesPerPack: product.piecesPerPack ?? null },
     product.companyName ?? '',
     packStamp ??
       (collectionId
@@ -142,15 +160,54 @@ export function DesignSheet({
     canDelete: Boolean(canDelete && onDelete),
   });
 
+  const placeOrder = useMutation({
+    mutationFn: (input: {
+      lines: Array<{ productId: string; quantity: number; note?: string }>;
+      transporter?: string;
+      note?: string;
+      noteVoiceMediaId?: string;
+      noteVoiceDurationMs?: number;
+      noteImageUrls?: string[];
+    }) =>
+      api.post<CreateOrdersBatchResult>('/orders/batch', {
+        kind: OrderKind.Standard,
+        intent: OrderIntent.Order,
+        ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
+        ...placeNoteAttachFields(input),
+        items: input.lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+          images: [],
+          ...(line.note?.trim() ? { note: line.note.trim() } : {}),
+        })),
+      }),
+    onSuccess: (payload) => {
+      setQtyOpen(false);
+      setOrderError(null);
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      showToast(
+        batchConfirmTitle(payload),
+        payload.orders.length === 0 ? 'danger' : 'success',
+      );
+      const leave = batchSuccessLeave(payload);
+      if (leave?.kind === 'order') {
+        onClose();
+        void navigateToOrderChat(navigate, queryClient, leave.order, { replace: true });
+      }
+    },
+    onError: (error) =>
+      setOrderError(error instanceof ApiError ? error.message : 'Could not place the order.'),
+  });
+
   const addToCart = () => {
     addCartDesignsMany([entry]);
     showToast('Added to cart', 'success');
   };
 
   const startOrder = () => {
-    addCartDesignsMany([entry]);
-    onClose();
-    startTransition(() => navigate('/selection', { state: { openOrder: true } }));
+    setOrderError(null);
+    setQtyOpen(true);
   };
 
   const moreItems: MoreActionItem[] = moreIds.flatMap((id): MoreActionItem[] => {
@@ -334,7 +391,13 @@ export function DesignSheet({
         shopId={product.companyId}
         shopName={product.companyName ?? ''}
         collections={[]}
-        products={[{ productId: product.id, name: product.name }]}
+        products={[
+          {
+            productId: product.id,
+            name: product.name,
+            image: product.images[0] ?? null,
+          },
+        ]}
       />
       <CatalogShareSheet
         open={shareOpen}
@@ -354,6 +417,26 @@ export function DesignSheet({
         index={safeIndex}
         onIndex={onIndex}
         onClose={() => setPhotoOpen(false)}
+      />
+      <HowManyEachSheet
+        open={qtyOpen}
+        onClose={() => {
+          setQtyOpen(false);
+          setOrderError(null);
+        }}
+        sellerId={product.companyId}
+        products={entriesAsProducts([entry])}
+        submitting={placeOrder.isPending}
+        error={orderError}
+        orderGoesToName={
+          packStamp?.handlerName?.trim() || product.companyName || undefined
+        }
+        sheetJob="order"
+        onSendOrder={(lines, place) => {
+          setOrderError(null);
+          placeOrder.mutate({ lines, ...place });
+        }}
+        onAskRates={() => undefined}
       />
     </>
   );

@@ -293,7 +293,7 @@ model Product {
   images      String[] @default([])
   status      String   @default("draft") // ProductStatus
   // Market post fields (Explore). Publish sets audience + postedToMarketAt together.
-  audience            String    @default("connections")
+  audience            String    @default("followers")
   rateVisibility      String    @default("on_request")
   audienceCompanyIds  String[]  @default([])
   /** Buyer groups chosen when audience = selected (for Visibility restore). */
@@ -337,7 +337,7 @@ model Collection {
   categories     String[] @default([])
   status         String   @default("draft") // CollectionStatus
   // Decided at publish time (PublishAudience / RateVisibility).
-  audience            String   @default("connections")
+  audience            String   @default("followers")
   rateVisibility      String   @default("on_request")
   /** When audience = selected, only these company IDs may discover/view the collection. */
   audienceCompanyIds  String[] @default([])

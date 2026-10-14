@@ -40,7 +40,7 @@ describe('collectionStatusSummary', () => {
       now,
     );
     expect(summary.line).toMatch(/^Starts /);
-    expect(summary.line).toContain('My connections');
+    expect(summary.line).toContain('My followers');
     expect(summary.phase).toBe('scheduled');
   });
 
@@ -55,7 +55,7 @@ describe('collectionStatusSummary', () => {
       [],
       now,
     );
-    expect(summary.line).toBe('Published · Everyone');
+    expect(summary.line).toBe('Published · My followers');
     expect(summary.scheduleLabel).toBeNull();
   });
 
@@ -70,7 +70,7 @@ describe('collectionStatusSummary', () => {
       [],
       now,
     );
-    expect(summary.line).toBe('Published · My connections · Ends in 3d');
+    expect(summary.line).toBe('Published · My followers · Ends in 3d');
   });
 
   it('names buyer groups for selected audience', () => {
@@ -107,10 +107,10 @@ describe('collectionStatusSummary', () => {
 });
 
 describe('whoCanSeeLabel', () => {
-  it('uses plain trader words', () => {
-    expect(whoCanSeeLabel({ status: 'published', audience: 'everyone' })).toBe('Everyone');
+  it('uses plain trader words (legacy everyone/connections label as My followers)', () => {
+    expect(whoCanSeeLabel({ status: 'published', audience: 'everyone' })).toBe('My followers');
     expect(whoCanSeeLabel({ status: 'published', audience: 'connections' })).toBe(
-      'My connections',
+      'My followers',
     );
     expect(whoCanSeeLabel({ status: 'published', audience: 'followers' })).toBe('My followers');
   });

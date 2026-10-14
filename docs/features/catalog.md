@@ -25,7 +25,7 @@ Sellers (selling enabled). First publish requires consent; then `canPublish` sta
 
 1. Open design → photos first; **tap a photo** opens PhotoViewer (swipe between shots); **×** removes that photo. **Name** (blank uses the SKU), rate, unit, MOQ; **More details** for SKU / **tags** / notes.
 2. Status line under title (tap → Visibility when published). Sticky dock: **Update** · **Publish** / **Visibility**. Leaving with unsaved edits → **Save changes?** · **Save** (keeps what they typed) · **Discard** (last, danger) — Cancel / close stays. Clean form: no prompt.
-3. Publish sheet: Who (**Followers** / **Selected** — no Everyone) / rates / forward. First time: consent. Publish = Explore for that audience.
+3. Publish sheet: Who (**Followers** / **Selected** — no Everyone) / rates / forward. Default audience **Followers** (API + DB). Legacy `everyone` / `connections` rows migrate and enforce as Followers. First time: consent. Publish = Explore for that audience.
 4. **⋯**: Hide → draft, Archive. Restore from archived.
 
 ## Business rules

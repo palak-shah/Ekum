@@ -4,7 +4,6 @@ import {
   useMemo,
   useState,
   useSyncExternalStore,
-  useTransition,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -23,13 +22,30 @@ import {
 import { useMyCompany } from '@/lib/queries';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { prefetchSelectionPage } from '@/features/browse/prefetchSelectionPage';
-import { readResumeAfterAlbumPick } from '@/features/browse/resumeAfterAlbumPick';
+import {
+  clearResumeAfterAlbumPick,
+  readResumeAfterAlbumPick,
+  writeResumeAfterAlbumPick,
+} from '@/features/browse/resumeAfterAlbumPick';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
+import { writeBrowseShortlist, type BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { clearSelection } from '@/features/browse/clearSelection';
 import { addStagingToCart } from '@/features/browse/addStagingToCart';
+import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
+import {
+  collectionIdForPackOrder,
+  packHandlerName,
+} from '@/features/browse/packOrderSource';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
+import {
+  entriesAsProducts,
+  sellerIdForEntries,
+  useShortlistOrderFlow,
+} from '@/features/browse/useShortlistOrderFlow';
+import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useToast } from '@/ui/Toast';
 import { CartIcon, ChatIcon, PaperPlaneIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
@@ -64,18 +80,21 @@ function selectionShopName(
 /**
  * Explore Selecting dock: Add to cart · Message · Share + Order (right).
  * Dock Add to cart merges staging into the cart and clears selection. Header Cart opens cart.
+ * Order opens How many on the staging pile — does not write the cart.
  * No staging badge on Add to cart — count stays on SelectAllFloat; cart count stays on header.
  */
 export function SelectionWorkspaceBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const [, startTransition] = useTransition();
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
+  const orderFlow = useShortlistOrderFlow();
   const me = useMyCompany();
   const [shareOpen, setShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
+  const [orderResolveOpen, setOrderResolveOpen] = useState(false);
+  const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const shopId = companyIdFromPath(location.pathname);
   const ownShop = Boolean(shopId && me.data?.id && shopId === me.data.id);
   const shopDockUp = shouldShowShopTradeDock({
@@ -99,6 +118,10 @@ export function SelectionWorkspaceBar() {
     if (total > 0) prefetchSelectionPage();
   }, [total]);
 
+  useEffect(() => {
+    if (!orderFlow.qtyOpen) setQtyEntries(null);
+  }, [orderFlow.qtyOpen]);
+
   const companyIds = useMemo(
     () => selectionCompanyIds(shortlist.entries, albumPick.entries),
     [shortlist.entries, albumPick.entries],
@@ -112,9 +135,13 @@ export function SelectionWorkspaceBar() {
     myCompanyId: me.data?.id,
   });
 
-  if (typeof document === 'undefined') return null;
-  if (readResumeAfterAlbumPick()) return null;
-  if (!visible) return null;
+  const orderSheetsOpen = orderResolveOpen || orderFlow.qtyOpen;
+  const showDock =
+    typeof document !== 'undefined' &&
+    !readResumeAfterAlbumPick() &&
+    visible;
+
+  if (!showDock && !orderSheetsOpen) return null;
 
   const exitSelecting = () => {
     shortlist.setSelectMode(false);
@@ -130,63 +157,70 @@ export function SelectionWorkspaceBar() {
   };
 
   const startOrder = () => {
-    addStagingToCart();
-    exitSelecting();
-    startTransition(() => navigate('/selection', { state: { openOrder: true } }));
+    orderFlow.setError(null);
+    if (albumPick.count > 0) {
+      setOrderResolveOpen(true);
+      return;
+    }
+    if (shortlist.count > 0) orderFlow.setQtyOpen(true);
   };
+
+  const qtySource = qtyEntries ?? shortlist.entries;
 
   return (
     <>
-      {createPortal(
-        <div
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md"
-          data-testid="selection-workspace-bar"
-        >
-          <div className="pointer-events-auto border-t border-line bg-surface/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+      {showDock
+        ? createPortal(
             <div
-              className="flex items-stretch gap-2"
-              data-testid="selection-workspace-actions"
+              className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md"
+              data-testid="selection-workspace-bar"
             >
-              <div className="grid min-w-0 flex-1 grid-cols-3 gap-1.5">
-                <DockIconButton
-                  testId="selection-workspace-cart"
-                  label="Add to cart"
-                  onClick={addToCart}
+              <div className="pointer-events-auto border-t border-line bg-surface/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+                <div
+                  className="flex items-stretch gap-2"
+                  data-testid="selection-workspace-actions"
                 >
-                  <CartIcon width={22} height={22} />
-                </DockIconButton>
-                <DockIconButton
-                  testId="selection-workspace-message"
-                  label="Message"
-                  disabled={ownShopVerbs.messageDisabled}
-                  onClick={() => setMessageOpen(true)}
-                >
-                  <ChatIcon width={22} height={22} />
-                </DockIconButton>
-                <DockIconButton
-                  testId="selection-workspace-share"
-                  label="Share"
-                  onClick={() => setShareOpen(true)}
-                >
-                  <PaperPlaneIcon width={22} height={22} />
-                </DockIconButton>
+                  <div className="grid min-w-0 flex-1 grid-cols-3 gap-1.5">
+                    <DockIconButton
+                      testId="selection-workspace-cart"
+                      label="Add to cart"
+                      onClick={addToCart}
+                    >
+                      <CartIcon width={22} height={22} />
+                    </DockIconButton>
+                    <DockIconButton
+                      testId="selection-workspace-message"
+                      label="Message"
+                      disabled={ownShopVerbs.messageDisabled}
+                      onClick={() => setMessageOpen(true)}
+                    >
+                      <ChatIcon width={22} height={22} />
+                    </DockIconButton>
+                    <DockIconButton
+                      testId="selection-workspace-share"
+                      label="Share"
+                      onClick={() => setShareOpen(true)}
+                    >
+                      <PaperPlaneIcon width={22} height={22} />
+                    </DockIconButton>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="selection-workspace-order"
+                    onClick={startOrder}
+                    className={cx(
+                      'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3',
+                      'border border-accent bg-accent text-sm font-bold text-white',
+                    )}
+                  >
+                    {ownShopVerbs.orderLabel}
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                data-testid="selection-workspace-order"
-                onClick={startOrder}
-                className={cx(
-                  'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3',
-                  'border border-accent bg-accent text-sm font-bold text-white',
-                )}
-              >
-                {ownShopVerbs.orderLabel}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+            </div>,
+            document.body,
+          )
+        : null}
       {singleShopId ? (
         <SelectionMessageSheet
           open={messageOpen}
@@ -196,10 +230,12 @@ export function SelectionWorkspaceBar() {
           collections={albumPick.entries.map((entry) => ({
             collectionId: entry.collectionId,
             name: entry.name,
+            image: entry.coverImage,
           }))}
           products={shortlist.entries.map((entry) => ({
             productId: entry.productId,
             name: entry.name,
+            image: entry.thumbUrl,
           }))}
         />
       ) : null}
@@ -209,12 +245,58 @@ export function SelectionWorkspaceBar() {
         collections={albumPick.entries.map((entry) => ({
           collectionId: entry.collectionId,
           name: entry.name,
+          image: entry.coverImage,
         }))}
         products={shortlist.entries.map((entry) => ({
           productId: entry.productId,
           name: entry.name,
+          image: entry.thumbUrl,
         }))}
         onShared={() => clearSelection()}
+      />
+      <OrderCollectionResolveSheet
+        intent="order"
+        open={orderResolveOpen}
+        onClose={() => setOrderResolveOpen(false)}
+        albums={albumPick.entries}
+        designCount={shortlist.count}
+        existingShortlist={shortlist.entries}
+        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
+          writeBrowseShortlist(nextShortlist);
+          writeBrowseAlbumPick(remainingAlbums);
+          setOrderResolveOpen(false);
+          if (navigateToCollectionId) {
+            writeResumeAfterAlbumPick('order');
+            navigate(`/collections/${navigateToCollectionId}`, {
+              state: { enterSelect: true },
+            });
+            return;
+          }
+          clearResumeAfterAlbumPick();
+          setQtyEntries(nextShortlist);
+          orderFlow.setQtyOpen(true);
+        }}
+      />
+      <HowManyEachSheet
+        open={orderFlow.qtyOpen}
+        onClose={() => {
+          orderFlow.setQtyOpen(false);
+          setQtyEntries(null);
+        }}
+        sellerId={sellerIdForEntries(qtySource)}
+        products={entriesAsProducts(qtySource)}
+        submitting={orderFlow.submitting}
+        asking={orderFlow.asking}
+        error={orderFlow.error}
+        orderGoesToName={packHandlerName(qtySource)}
+        sheetJob="order"
+        onSendOrder={(lines, place) => {
+          orderFlow.sendOrder(lines, {
+            ...place,
+            collectionId: collectionIdForPackOrder(qtySource),
+          });
+        }}
+        onAskRates={() => undefined}
       />
     </>
   );

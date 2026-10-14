@@ -3,9 +3,17 @@ import {
   audienceVisibilityOr,
   canDiscoverCollection,
   canViewCollectionProducts,
+  effectivePublishAudience,
 } from './audience-visibility';
 
 describe('audience visibility', () => {
+  it('maps legacy everyone and connections to followers', () => {
+    expect(effectivePublishAudience('everyone')).toBe('followers');
+    expect(effectivePublishAudience('connections')).toBe('followers');
+    expect(effectivePublishAudience('followers')).toBe('followers');
+    expect(effectivePublishAudience('selected')).toBe('selected');
+  });
+
   it('keeps selected collections private to the list', () => {
     const collection = {
       companyId: 'owner',
@@ -23,19 +31,18 @@ describe('audience visibility', () => {
     ).toBe(true);
   });
 
-  it('requires a connection for connections audience', () => {
+  it('treats legacy connections as followers (allowed follow, not Connection)', () => {
     const collection = {
       companyId: 'owner',
       audience: 'connections',
       audienceCompanyIds: [],
     };
     expect(
-      canDiscoverCollection('viewer', collection, { connected: false, following: false }),
+      canDiscoverCollection('viewer', collection, { connected: true, following: false }),
     ).toBe(false);
     expect(
-      canDiscoverCollection('viewer', collection, { connected: true, following: false }),
+      canDiscoverCollection('viewer', collection, { connected: false, following: true }),
     ).toBe(true);
-    expect(canViewCollectionProducts('viewer', collection, true)).toBe(true);
   });
 
   it('requires follow for followers audience', () => {
@@ -77,7 +84,7 @@ describe('audience visibility', () => {
     ).toBe(true);
   });
 
-  it('everyone is discoverable', () => {
+  it('treats legacy everyone as followers (not open catalog)', () => {
     const collection = {
       companyId: 'owner',
       audience: 'everyone',
@@ -85,6 +92,9 @@ describe('audience visibility', () => {
     };
     expect(
       canDiscoverCollection('viewer', collection, { connected: false, following: false }),
+    ).toBe(false);
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: false, following: true }),
     ).toBe(true);
   });
 
@@ -106,7 +116,7 @@ describe('audience visibility', () => {
       canDiscoverCollection(
         'buyer-b',
         collection,
-        { connected: true, following: false },
+        { connected: true, following: true },
         ['supplier-a'],
       ),
     ).toBe(true);
@@ -120,15 +130,18 @@ describe('audience visibility', () => {
     ).toBe(true);
   });
 
-  it('requires allowed follow rows for followers audience', () => {
+  it('requires allowed follow for followers and legacy everyone/connections rows', () => {
     const clause = audienceVisibilityOr('viewer').find(
       (row) =>
         typeof row === 'object' &&
         row !== null &&
         'audience' in row &&
-        (row as { audience: string }).audience === 'followers',
-    ) as { company?: { followers?: { some?: { status?: string } } } };
+        typeof (row as { audience: unknown }).audience === 'object',
+    ) as { company?: { followers?: { some?: { status?: string } } }; audience?: { in?: string[] } };
     expect(clause.company?.followers?.some?.status).toBe('allowed');
+    expect(clause.audience?.in).toEqual(
+      expect.arrayContaining(['followers', 'connections', 'everyone']),
+    );
   });
 
   it('includes the viewer’s own company so Followers packs stay on their Explore', () => {

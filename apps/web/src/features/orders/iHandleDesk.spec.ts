@@ -139,7 +139,7 @@ describe('iHandleDesk', () => {
     ).toBeNull();
   });
 
-  it('docks Send all when two mills wait; Confirm stays off on the I-handle parent', () => {
+  it('docks Send all when two mills wait; no Send quote / Confirm on the I-handle parent', () => {
     const waiting = [
       { held: true, sellerName: 'A' },
       { held: true, sellerName: 'B' },
@@ -149,7 +149,7 @@ describe('iHandleDesk', () => {
         isSeller: true,
         status: 'requested',
         millDesks: waiting,
-        sendQuote: true,
+        sendQuote: false,
         openForDispatch: false,
         hasRemaining: true,
         canSettle: false,
@@ -157,27 +157,22 @@ describe('iHandleDesk', () => {
         ).toEqual({
           kind: 'requested',
           sendOrder: true,
-          sendQuote: true,
+          sendQuote: false,
           confirm: false,
           quoted: false,
         });
+    // One held mill: card Send only — dock empty (no parent quote).
     expect(
       orderActionDock({
         isSeller: true,
         status: 'requested',
         millDesks: [{ held: true, sellerName: 'A' }] as OrderView['millDesks'],
-        sendQuote: true,
+        sendQuote: false,
         openForDispatch: false,
         hasRemaining: true,
         canSettle: false,
       }),
-        ).toEqual({
-          kind: 'requested',
-          sendOrder: false,
-          sendQuote: true,
-          confirm: false,
-          quoted: false,
-        });
+    ).toEqual({ kind: 'none' });
     expect(
       orderActionDock({
         isSeller: true,
@@ -421,17 +416,17 @@ describe('iHandleDesk', () => {
     ).toBe(false);
   });
 
-  it('keeps Send quote on the face when mill desks exist', () => {
+  it('hides Send quote on the face when mill desks exist', () => {
     expect(
       showSendQuoteOnDeskFace([
         { held: true, millQuoted: false, sellerName: 'AL' },
       ] as OrderView['millDesks']),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       showSendQuoteOnDeskFace([
         { held: false, millQuoted: true, sellerName: 'AL' },
       ] as OrderView['millDesks']),
-    ).toBe(true);
+    ).toBe(false);
     expect(showSendQuoteOnDeskFace(undefined)).toBe(true);
   });
 
@@ -442,7 +437,7 @@ describe('iHandleDesk', () => {
     ] as OrderView['millDesks'];
     expect(millsObserveMode('mill', desks)).toBe(true);
     expect(millsObserveMode('me', desks)).toBe(false);
-    expect(showSendQuoteOnDeskFace(desks, 'mill')).toBe(true);
+    expect(showSendQuoteOnDeskFace(desks, 'mill')).toBe(false);
     expect(showMillSendOnCard('mill', desks, false)).toBe(true);
     expect(showMillSendOnCard('mill', desks, true)).toBe(true);
     expect(showMillSendOnCard('me', desks, false)).toBe(true);
@@ -468,7 +463,7 @@ describe('iHandleDesk', () => {
     expect(PATH_ON_PATHS_SCOPE).toMatch(/next orders only/i);
   });
 
-  it('cues the trader desk by mill Send / quote pass, not bilateral confirm', () => {
+  it('cues the trader desk by mill Send / wait on mill, not quote or confirm', () => {
     expect(
       traderDeskNextAction({
         status: 'requested',
@@ -493,26 +488,21 @@ describe('iHandleDesk', () => {
         counterpartName: 'Jaipur Emporium',
         hasSellerQuote: false,
         millDesks: [
-          { held: false, millQuoted: true, sellerName: 'Ahmedabad Loom Co' },
+          {
+            held: false,
+            millQuoted: true,
+            sellerName: 'Ahmedabad Loom Co',
+            status: 'requested',
+          },
         ] as OrderView['millDesks'],
       }),
-    ).toBe('Your move: Send quote to Jaipur Emporium');
-    expect(
-      traderDeskNextAction({
-        status: 'requested',
-        counterpartName: 'Jaipur Emporium',
-        hasSellerQuote: true,
-        millDesks: [
-          { held: false, millQuoted: true, sellerName: 'Ahmedabad Loom Co' },
-        ] as OrderView['millDesks'],
-      }),
-    ).toBe('Waiting on Jaipur Emporium to accept quote');
+    ).toBe('Waiting on Ahmedabad Loom Co to confirm');
     expect(traderDeskNextAction({ status: 'requested', counterpartName: 'X', millDesks: undefined })).toBe(
       null,
     );
   });
 
-  it('Mills ticket still cues Send on the card, quote on the face', () => {
+  it('Mills ticket still cues Send on the card — no parent quote', () => {
     expect(
       traderDeskNextAction({
         status: 'requested',
@@ -530,10 +520,15 @@ describe('iHandleDesk', () => {
         laneTicket: 'mill',
         hasSellerQuote: false,
         millDesks: [
-          { held: false, millQuoted: true, sellerName: 'Ahmedabad Loom Co' },
+          {
+            held: false,
+            millQuoted: true,
+            sellerName: 'Ahmedabad Loom Co',
+            status: 'requested',
+          },
         ] as OrderView['millDesks'],
       }),
-    ).toBe('Your move: Send quote to Jaipur Emporium');
+    ).toBe('Waiting on Ahmedabad Loom Co to confirm');
   });
 
   it('does not wait on a mill that already settled', () => {

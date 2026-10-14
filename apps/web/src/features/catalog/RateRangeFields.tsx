@@ -45,8 +45,8 @@ export function RateRangeFields({
   const singleAria = unitSelect ? `Rate per ${selectedUnit}` : label;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         {unitSelect ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-ink">Rate per</span>
@@ -55,7 +55,7 @@ export function RateRangeFields({
               aria-label="Rate unit"
               value={selectedUnit}
               onChange={(e) => onRateUnit?.(e.target.value)}
-              className="min-h-9 rounded-xl border border-line bg-surface px-2.5 text-sm font-semibold text-ink"
+              className="min-h-8 rounded-xl border border-line bg-surface px-2.5 text-sm font-semibold text-ink"
             >
               {unitValues.map((u) => (
                 <option key={u} value={u}>
@@ -71,7 +71,7 @@ export function RateRangeFields({
           role="radiogroup"
           aria-label={modeAria}
           data-testid="collection-rate-mode"
-          className="grid grid-cols-2 rounded-full bg-foam p-1"
+          className="grid grid-cols-2 rounded-full bg-foam p-0.5"
         >
           <button
             type="button"
@@ -79,7 +79,7 @@ export function RateRangeFields({
             aria-checked={!rangeOpen}
             data-testid="collection-rate-mode-single"
             className={cx(
-              'min-h-9 rounded-full px-3 text-sm font-semibold tracking-tight transition-colors',
+              'min-h-8 rounded-full px-3 text-sm font-semibold tracking-tight transition-colors',
               !rangeOpen ? 'bg-accent text-white' : 'bg-transparent text-muted',
             )}
             onClick={() => {
@@ -95,7 +95,7 @@ export function RateRangeFields({
             aria-checked={rangeOpen}
             data-testid="collection-rate-mode-range"
             className={cx(
-              'min-h-9 rounded-full px-3 text-sm font-semibold tracking-tight transition-colors',
+              'min-h-8 rounded-full px-3 text-sm font-semibold tracking-tight transition-colors',
               rangeOpen ? 'bg-accent text-white' : 'bg-transparent text-muted',
             )}
             onClick={() => setMode('range')}
@@ -105,30 +105,30 @@ export function RateRangeFields({
         </div>
       </div>
       {rangeOpen ? (
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="From">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="From" className="gap-0.5">
             <TextInput
               data-testid="collection-rate-from"
+              className="min-h-9"
               value={from}
               onChange={(e) => onFrom(e.target.value)}
               inputMode="decimal"
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
-              placeholder="e.g. 1200"
               aria-label="Rate from"
             />
           </Field>
-          <Field label="To">
+          <Field label="To" className="gap-0.5">
             <TextInput
               data-testid="collection-rate-to"
+              className="min-h-9"
               value={to}
               onChange={(e) => onTo(e.target.value)}
               inputMode="decimal"
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
-              placeholder="e.g. 1400"
               aria-label="Rate to"
             />
           </Field>
@@ -136,13 +136,14 @@ export function RateRangeFields({
       ) : (
         <TextInput
           data-testid="collection-rate-from"
+          className="min-h-9"
           value={from}
           onChange={(e) => onFrom(e.target.value)}
           inputMode="decimal"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="e.g. 1200"
+          placeholder="Enter rate"
           aria-label={singleAria}
         />
       )}

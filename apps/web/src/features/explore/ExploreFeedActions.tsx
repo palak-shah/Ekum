@@ -20,16 +20,17 @@ import {
  * Instagram-placed icon row under Explore mosaics: left Repost · Message · Share,
  * Bookmark trailing right. Always show all four; gray out when not allowed
  * (own → Message + Repost; peer already reposted → done icon at full ink;
- * no forward / not trading → Repost; Selecting → all).
+ * no forward / not trading → Repost). Selecting does **not** mute these —
+ * mosaic taps still toggle pick; icons stay usable.
  * Message = quick enquire (stay on feed).
  */
 export function ExploreFeedActions({
   collection,
   product,
-  selecting,
 }: {
   collection?: CollectionCard;
   product?: ExploreProductCard;
+  /** @deprecated Ignored — Selecting no longer grays feed actions. */
   selecting?: boolean;
 }) {
   const me = useMyCompany();
@@ -51,16 +52,14 @@ export function ExploreFeedActions({
     Boolean(collection?.viewerReposted ?? product?.viewerReposted);
   if (!companyId) return null;
 
-  const selectingMute = Boolean(selecting);
   const canRepost =
-    !selectingMute &&
     !isOwn &&
     !viewerReposted &&
     trade.trading &&
     (collection ? collection.allowForward !== false : product?.allowForward !== false);
-  const canMessage = !selectingMute && !isOwn;
-  const canShare = !selectingMute;
-  const canBookmark = !selectingMute;
+  const canMessage = !isOwn;
+  const canShare = true;
+  const canBookmark = true;
 
   const repostTarget: RepostSheetTarget | null = collection
     ? {
@@ -166,9 +165,27 @@ export function ExploreFeedActions({
           shopId={companyId}
           shopName={companyName}
           collections={
-            collection ? [{ collectionId: collection.id, name: collection.name }] : []
+            collection
+              ? [
+                  {
+                    collectionId: collection.id,
+                    name: collection.name,
+                    image: collection.coverImage ?? collection.previewImages[0] ?? null,
+                  },
+                ]
+              : []
           }
-          products={product ? [{ productId: product.id, name: product.name }] : []}
+          products={
+            product
+              ? [
+                  {
+                    productId: product.id,
+                    name: product.name,
+                    image: product.images[0] ?? null,
+                  },
+                ]
+              : []
+          }
         />
       ) : null}
       {repostOpen && canRepost && repostTarget ? (

@@ -47,7 +47,6 @@ import {
   selectionListDesignChrome,
   type SelectionAvailability,
 } from '@/features/browse/selectionAvailability';
-import { addStagingToCart } from '@/features/browse/addStagingToCart';
 import {
   collectionIdForPackOrder,
   packHandlerName,
@@ -89,7 +88,7 @@ export function SelectionPage() {
     count: cart.albumCount,
     removeIds: cart.removeAlbumIds,
   };
-  const orderFlow = useShortlistOrderFlow();
+  const orderFlow = useShortlistOrderFlow({ clearCartOnSuccess: true });
   const [curateOpen, setCurateOpen] = useState(false);
   const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
   const [curateDefaultName, setCurateDefaultName] = useState('');
@@ -362,14 +361,12 @@ export function SelectionPage() {
     openCurateWithDesigns(designs, []);
   };
 
-  /** After Pick designs → Continue: reopen Curate/Order without another Selection tap. */
+  /** Cart-page Choose designs Continue — cart already holds the pile; open Order/Repost. */
   useEffect(() => {
     const state = (location.state as SelectionNavState | null) ?? {};
     if (!state.openCurate && !state.openOrder) return;
     navigate(location.pathname + location.search, { replace: true, state: {} });
     clearResumeAfterAlbumPick();
-    // Resume pick-designs lands in staging — fold into cart before acting.
-    addStagingToCart();
     const cartDesigns = readCartDesigns();
     const cartAlbums = readCartAlbums();
     if (state.openCurate) {
@@ -684,7 +681,7 @@ export function SelectionPage() {
           writeCartAlbums([...unavailableAlbums, ...remainingAlbums]);
           setOrderResolveOpen(false);
           if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('order');
+            writeResumeAfterAlbumPick('cart-order');
             navigate(`/collections/${navigateToCollectionId}`, {
               state: { enterSelect: true },
             });
@@ -723,7 +720,7 @@ export function SelectionPage() {
           writeCartAlbums([...keptAlbums.values()]);
           setCurateResolveOpen(false);
           if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('curate');
+            writeResumeAfterAlbumPick('cart-curate');
             navigate(`/collections/${navigateToCollectionId}`, {
               state: { enterSelect: true },
             });

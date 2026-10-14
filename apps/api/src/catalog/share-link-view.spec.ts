@@ -3,18 +3,10 @@ import { CollectionStatus, ProductStatus, PublishAudience } from '@ekum/domain-t
 import { shareLinkOpenForCollection, shareLinkOpenForProduct } from './share-link-view';
 
 describe('shareLinkOpenForCollection', () => {
-  it('is open only when Everyone and live', () => {
+  it('stays closed for guests (Everyone no longer open catalog)', () => {
     expect(
       shareLinkOpenForCollection({
         audience: PublishAudience.Everyone,
-        status: CollectionStatus.Published,
-        startsAt: null,
-        endsAt: null,
-      }),
-    ).toBe(true);
-    expect(
-      shareLinkOpenForCollection({
-        audience: PublishAudience.Connections,
         status: CollectionStatus.Published,
         startsAt: null,
         endsAt: null,
@@ -22,8 +14,8 @@ describe('shareLinkOpenForCollection', () => {
     ).toBe(false);
     expect(
       shareLinkOpenForCollection({
-        audience: PublishAudience.Everyone,
-        status: CollectionStatus.Draft,
+        audience: PublishAudience.Followers,
+        status: CollectionStatus.Published,
         startsAt: null,
         endsAt: null,
       }),
@@ -32,14 +24,14 @@ describe('shareLinkOpenForCollection', () => {
 });
 
 describe('shareLinkOpenForProduct', () => {
-  it('is open only when Everyone and on market', () => {
+  it('stays closed for guests for all audiences', () => {
     expect(
       shareLinkOpenForProduct({
         audience: PublishAudience.Everyone,
         status: ProductStatus.Published,
         postedToMarketAt: new Date(),
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shareLinkOpenForProduct({
         audience: PublishAudience.Selected,

@@ -1835,16 +1835,16 @@ export function CollectionEditorPage() {
   );
 
   const identityFields = (
-    <div className="flex flex-col gap-3">
-      <Field label="Collection name" error={error}>
+    <div className="flex flex-col gap-1.5">
+      <Field label="Collection name" required error={error} className="gap-0.5">
         <TextInput
           aria-label="Collection name"
+          className="min-h-9"
           value={form.name}
           onChange={(e) => {
             setError(null);
             setForm({ ...form, name: e.target.value });
           }}
-          placeholder="Name this collection"
           autoComplete="off"
         />
       </Field>
@@ -1875,11 +1875,11 @@ export function CollectionEditorPage() {
           setSameForAll((prev) => ({ ...prev, rate: combineRateInput(rateFrom, next) }));
         }}
       />
-      <Field label="Description">
+      <Field label="Description" className="gap-0.5">
         <TextArea
+          className="min-h-16 py-2"
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="optional"
         />
       </Field>
       <CascadeTagsFields
@@ -1892,35 +1892,35 @@ export function CollectionEditorPage() {
         onSize={(size) => setTagSlots({ ...tagSlots, size })}
       />
       {isCreate ? whoExpandable : null}
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={applyToAll}
-        data-testid="collection-apply-all"
-        className={cx(
-          'flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left text-sm',
-          applyToAll
-            ? 'border-accent bg-accent/5 font-medium text-ink'
-            : 'border-line text-ink',
-        )}
-        onClick={() => setApplyToAllRemembered(!applyToAll)}
-      >
-        <span
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={applyToAll}
+          data-testid="collection-apply-all"
           className={cx(
-            'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
-            applyToAll ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+            'flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm',
+            applyToAll
+              ? 'border-accent bg-accent/5 font-medium text-ink'
+              : 'border-line text-ink',
           )}
-          aria-hidden
+          onClick={() => setApplyToAllRemembered(!applyToAll)}
         >
-          {applyToAll ? <CheckIcon width={14} height={14} strokeWidth={2.5} /> : null}
-        </span>
-        <span className="flex flex-col gap-0.5">
-          <span>Apply this info to all designs</span>
-          <span className="text-xs font-normal text-muted">
-            Units and MOQ — not rates. Designs keep their own rate.
+          <span
+            className={cx(
+              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
+              applyToAll ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+            )}
+            aria-hidden
+          >
+            {applyToAll ? <CheckIcon width={14} height={14} strokeWidth={2.5} /> : null}
           </span>
-        </span>
-      </button>
+          <span>Apply this info to all designs</span>
+        </button>
+        <p className="px-0.5 text-xs text-muted">
+          Units and MOQ — not rates. Designs keep their own rate.
+        </p>
+      </div>
       <CollectionExpandableSection
         title="Order and dispatch"
         summary={orderDispatchSectionSummary({

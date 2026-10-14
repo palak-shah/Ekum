@@ -14,21 +14,28 @@ function FactCell({
   valueClass,
   compact,
   testId,
+  grow,
 }: {
   label: string;
   value: string | number;
   valueClass?: string;
   compact?: boolean;
   testId?: string;
+  /** Bill (and similar money) — wider share; never ellipsis the ₹ amount. */
+  grow?: boolean;
 }) {
   return (
     <div
-      className={cx('min-w-0 flex-1 px-2 first:pl-0 last:pr-0', compact ? 'py-0' : 'py-0.5')}
+      className={cx(
+        'min-w-0 px-2 first:pl-0 last:pr-0',
+        grow ? 'min-w-[4.5rem] flex-[1.4]' : 'flex-1',
+        compact ? 'py-0' : 'py-0.5',
+      )}
       data-testid={testId}
     >
       <p
         className={cx(
-          'truncate font-medium uppercase tracking-wide text-muted',
+          'font-medium uppercase tracking-wide text-muted',
           compact ? 'text-[10px] leading-none' : 'text-[10px] leading-tight',
         )}
       >
@@ -38,7 +45,8 @@ function FactCell({
         className={cx(
           // Do not set text-ink with a tone class — cx is not twMerge; text-ink
           // sorts after text-info in CSS and would paint over-balance black.
-          'truncate text-sm font-semibold leading-tight tabular-nums',
+          // Values stay untruncated so ₹4,250 is never clipped to ₹4… (BM-07).
+          'text-sm font-semibold leading-tight tabular-nums',
           valueClass ?? 'text-ink',
         )}
       >
@@ -235,6 +243,7 @@ export function OrderLineFacts({
     value: string | number;
     valueClass?: string;
     testId: string;
+    grow?: boolean;
   }> = [
     { label: 'Qty', value: qtyLabel, testId: 'order-line-fact-qty' },
   ];
@@ -250,6 +259,7 @@ export function OrderLineFacts({
       label: 'Bill',
       value: formatOrderLinePriceAmount(bill),
       testId: 'order-line-fact-bill',
+      grow: true,
     });
   }
   if (showShip) {
@@ -269,7 +279,7 @@ export function OrderLineFacts({
   }
 
   return (
-    <div className={cx('flex min-w-0 flex-col', className)}>
+    <div className={cx('flex w-full min-w-0 flex-col', className)}>
       <div
         className={cx(
           'flex w-full min-w-0 items-stretch divide-x divide-line/90',
@@ -288,6 +298,7 @@ export function OrderLineFacts({
             valueClass={cell.valueClass}
             compact={compact}
             testId={cell.testId}
+            grow={cell.grow}
           />
         ))}
       </div>

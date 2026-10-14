@@ -56,6 +56,13 @@ import {
   type DispatchLegDraft,
 } from '@/features/orders/dispatchSheet';
 import {
+  defaultSettleFinalQty,
+  lineSettleFinalQty,
+  orderLineFactsWithSettleFinal,
+  settlePayloadLines,
+  settleSheetItems,
+} from '@/features/orders/settleSheet';
+import {
   latestShipmentForLine,
   lineShippedOnShipment,
   sellerCanFulfillEdit,
@@ -105,7 +112,7 @@ import { LegPhotoAttach, LegPhotoThumbs } from '@/features/orders/LegPhotoAttach
 import { NoteAttachField } from '@/features/voice/NoteAttachField';
 import { type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
-import { orderPartyLines } from '@/features/orders/orderPartyLines';
+import { orderPartyLines, partyLineShowsOpenChat } from '@/features/orders/orderPartyLines';
 import {
   OrderLineFacts,
   formatOrderLinePriceAmount,
@@ -508,6 +515,7 @@ function OrderLineCantSupplyFace({
   onOpen,
   size = 'lg',
   children,
+  className,
 }: {
   item: OrderItemView;
   items: OrderItemView[];
@@ -515,6 +523,7 @@ function OrderLineCantSupplyFace({
   onOpen: (index: number) => void;
   size?: 'lg' | 'md' | 'sm';
   children?: ReactNode;
+  className?: string;
 }) {
   const leftover = orderLineLeftoverCue(item);
   const faded = cantSupply || Boolean(leftover);
@@ -522,6 +531,7 @@ function OrderLineCantSupplyFace({
   const identity = orderLineIdentitySecondary(item);
   return (
     <OrderLineStack
+      className={className}
       muted={faded}
       photo={<OrderLinePhoto item={item} items={items} onOpen={onOpen} size={size} />}
       title={
@@ -632,6 +642,7 @@ export function OrderDetailPage() {
   const [settleNote, setSettleNote] = useState('');
   const [settleNoteVoice, setSettleNoteVoice] = useState<NoteVoiceValue>(null);
   const [settleNoteImages, setSettleNoteImages] = useState<string[]>([]);
+  const [settleQty, setSettleQty] = useState<Record<string, string>>({});
   const [manualRefOpen, setManualRefOpen] = useState(false);
   const [manualOrderNo, setManualOrderNo] = useState('');
   const [manualNote, setManualNote] = useState('');
@@ -1158,16 +1169,19 @@ export function OrderDetailPage() {
   };
 
   const settleOrder = useMutation({
-    mutationFn: () =>
-      api.post<OrderView>(
-        `/orders/${id}/settle`,
-        noteAttachPayload(settleNote, settleNoteVoice, settleNoteImages),
-      ),
+    mutationFn: () => {
+      const lines = settleSheetItems(order.data?.items ?? []);
+      return api.post<OrderView>(`/orders/${id}/settle`, {
+        ...noteAttachPayload(settleNote, settleNoteVoice, settleNoteImages),
+        items: settlePayloadLines(lines, settleQty),
+      });
+    },
     onSuccess: (updated) => {
       setSettleOpen(false);
       setSettleNote('');
       setSettleNoteVoice(null);
       setSettleNoteImages([]);
+      setSettleQty({});
       setSheetError(null);
       queryClient.setQueryData(['order', id], updated);
       refresh();
@@ -1629,9 +1643,7 @@ export function OrderDetailPage() {
       ? data.direction === 'buying'
         ? `Inquiry to ${data.counterpart.name}`
         : `Inquiry from ${data.counterpart.name}`
-      : data.tradeMode === 'manage' && data.direction === 'selling'
-        ? `Trading with ${data.counterpart.name}`
-        : undefined;
+      : undefined;
 
   return (
     <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && 'pb-24')}>
@@ -1776,9 +1788,9 @@ export function OrderDetailPage() {
       ) : null}
 
       <Card className="flex flex-col gap-1 text-sm">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1 flex flex-col gap-1">
-            {orderPartyLines({
+        <div className="flex flex-col gap-1">
+          {(() => {
+            const partyCtx = {
               direction: data.direction,
               tradeMode: data.tradeMode,
               buyerName: data.buyerName,
@@ -1790,30 +1802,41 @@ export function OrderDetailPage() {
                 (data.tradeMode === 'direct' &&
                   Boolean(data.facilitatorCompanyId) &&
                   companyId === data.facilitatorCompanyId),
-            }).map((line) => (
-              <p key={line.label} className="leading-5 text-muted">
-                {line.label} ·{' '}
-                <PartyShopName
-                  name={line.name}
-                  href={partyCompanyHref(line.you, line.companyId)}
-                />
-              </p>
-            ))}
-          </div>
-          {data.threadId ? (
-            <Link
-              to={
-                data.livingMessageId
-                  ? `/chats/${data.threadId}?message=${encodeURIComponent(data.livingMessageId)}`
-                  : `/chats/${data.threadId}`
-              }
-              data-testid="order-open-chat"
-              aria-label="Open chat"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent hover:bg-foam"
-            >
-              <ChatIcon width={20} height={20} />
-            </Link>
-          ) : null}
+            };
+            const chatTo = data.threadId
+              ? data.livingMessageId
+                ? `/chats/${data.threadId}?message=${encodeURIComponent(data.livingMessageId)}`
+                : `/chats/${data.threadId}`
+              : null;
+            return orderPartyLines(partyCtx).map((line) => {
+              const showChat =
+                Boolean(chatTo) && partyLineShowsOpenChat(line, partyCtx);
+              return (
+                <div
+                  key={line.label}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <p className="min-w-0 flex-1 leading-5 text-muted">
+                    {line.label} ·{' '}
+                    <PartyShopName
+                      name={line.name}
+                      href={partyCompanyHref(line.you, line.companyId)}
+                    />
+                  </p>
+                  {showChat && chatTo ? (
+                    <Link
+                      to={chatTo}
+                      data-testid="order-open-chat"
+                      aria-label={`Open chat with ${line.name}`}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent hover:bg-foam"
+                    >
+                      <ChatIcon width={20} height={20} />
+                    </Link>
+                  ) : null}
+                </div>
+              );
+            });
+          })()}
         </div>
         {data.tradeMode === 'direct' &&
         data.facilitatorCompanyId &&
@@ -1834,12 +1857,6 @@ export function OrderDetailPage() {
           data-testid="order-billing-total"
         >
           Billing · ₹{orderBillingTotal.toLocaleString('en-IN')}
-        </p>
-      ) : null}
-
-      {data.needsQuotePass ? (
-        <p className="rounded-xl bg-warning-soft px-3 py-2 text-sm font-medium text-warning-ink">
-          Mill sent rates — the buyer has not seen them
         </p>
       ) : null}
 
@@ -1891,13 +1908,14 @@ export function OrderDetailPage() {
                       <div
                         key={item.id}
                         className={cx(
-                          'flex items-center gap-3 rounded-xl px-1 pt-3',
+                          'flex w-full items-center gap-3 rounded-xl px-1 pt-3',
                           !cantSupply && orderLineBalanceRowClass(item),
                           quoteCantSupplyRowClass(cantSupply),
                         )}
                         data-testid={cantSupply ? 'order-line-cant-supply' : undefined}
                       >
                         <OrderLineCantSupplyFace
+                          className="min-w-0 flex-1"
                           item={item}
                           items={data.items}
                           cantSupply={cantSupply}
@@ -1945,6 +1963,16 @@ export function OrderDetailPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
+                    {desk.millThreadId && !desk.held && !millDropped ? (
+                      <Link
+                        to={`/chats/${desk.millThreadId}`}
+                        data-testid={`order-mill-open-chat-${desk.upstreamOrderId}`}
+                        aria-label={`Open chat with ${desk.sellerName}`}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent hover:bg-foam"
+                      >
+                        <ChatIcon width={20} height={20} />
+                      </Link>
+                    ) : null}
                     {!desk.held && !millDropped ? (
                       <StatusPill
                         status={desk.status === 'requested' ? 'requested' : desk.status}
@@ -2145,7 +2173,7 @@ export function OrderDetailPage() {
                           quoteCantSupplyRowClass(cantSupply),
                           cells
                             ? 'grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-center gap-2'
-                            : 'flex items-center gap-3',
+                            : 'flex w-full items-center gap-3',
                         )}
                         data-testid={
                           cantSupply
@@ -2160,6 +2188,7 @@ export function OrderDetailPage() {
                         }
                       >
                         <OrderLineCantSupplyFace
+                          className="min-w-0 flex-1"
                           item={item}
                           items={data.items}
                           cantSupply={cantSupply}
@@ -2221,7 +2250,7 @@ export function OrderDetailPage() {
                   <Button
                     variant="secondary"
                     className={COMPACT_SEND_CLASS}
-                    data-testid={`order-mill-open-chat-${desk.upstreamOrderId}`}
+                    data-testid={`order-mill-open-group-chat-${desk.upstreamOrderId}`}
                     onClick={() => navigate(`/chats/${desk.revealThreadId}`)}
                   >
                     Open group chat
@@ -2265,7 +2294,9 @@ export function OrderDetailPage() {
                 setLineSupply.mutate({ orderItemId: item.id, cantSupply });
               }}
               onOpenQuote={
-                isSeller && data.status === 'requested' ? openQuoteSheet : undefined
+                isSeller && data.status === 'requested' && quoteOnFace
+                  ? openQuoteSheet
+                  : undefined
               }
               onSaveLastLr={(quantity) => {
                 setLineFulfillError(null);
@@ -2600,6 +2631,8 @@ export function OrderDetailPage() {
                   onClick={() => {
                     setSettleNote('');
                     setSettleNoteVoice(null);
+                    setSettleNoteImages([]);
+                    setSettleQty(defaultSettleFinalQty(settleSheetItems(data.items ?? [])));
                     setSheetError(null);
                     setSettleOpen(true);
                   }}
@@ -3808,19 +3841,18 @@ export function OrderDetailPage() {
           </Button>
         }
       >
-        <div className="flex flex-col gap-3 pb-2">
+        <div className="flex flex-col gap-3 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
           <p className="text-sm text-muted">
-            Won’t ship the rest. Ticket closes as Settled; quantities become what already shipped.
+            Set Final qty (≤ shipped). Won’t ship the rest — ticket closes as Settled.
           </p>
           {(() => {
-            const settleLines = (data.items ?? []).filter(
-              (item) => item.lineStatus !== 'declined',
-            );
+            const settleLines = settleSheetItems(data.items ?? []);
             const pendingLines = settleLines.filter((item) => (item.remainingQuantity ?? 0) > 0);
             const pendingPieces = pendingLines.reduce(
               (sum, item) => sum + (item.remainingQuantity ?? 0),
               0,
             );
+            const lastSettleId = settleLines.at(-1)?.id;
             return (
               <>
                 <SettlePendingSummary
@@ -3829,6 +3861,8 @@ export function OrderDetailPage() {
                 />
                 {settleLines.map((item) => {
                   const pending = item.remainingQuantity ?? 0;
+                  const finalQty = lineSettleFinalQty(item, settleQty);
+                  const factsItem = orderLineFactsWithSettleFinal(item, finalQty);
                   const identity = orderLineIdentitySecondary(item);
                   return (
                     <div
@@ -3864,7 +3898,34 @@ export function OrderDetailPage() {
                             </p>
                           ) : null
                         }
-                        facts={<OrderLineFacts item={item} />}
+                        facts={<OrderLineFacts item={factsItem} />}
+                        trailing={
+                          <div className="flex flex-col items-end gap-0.5">
+                            <label
+                              htmlFor={`settle-final-${item.id}`}
+                              className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                            >
+                              Final
+                            </label>
+                            <TextInput
+                              id={`settle-final-${item.id}`}
+                              type="number"
+                              min={0}
+                              max={item.shippedQuantity ?? 0}
+                              data-testid="order-settle-line-qty"
+                              aria-label={`Final quantity for ${item.name}`}
+                              className={COMPACT_QTY_INPUT_CLASS}
+                              value={settleQty[item.id] ?? String(finalQty)}
+                              onChange={(event) =>
+                                setSettleQty((prev) => ({
+                                  ...prev,
+                                  [item.id]: event.target.value,
+                                }))
+                              }
+                              {...orderQtyInputProps(item.id === lastSettleId)}
+                            />
+                          </div>
+                        }
                       />
                     </div>
                   );

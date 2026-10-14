@@ -65,15 +65,13 @@ export function CascadeTagsFields({
   const itemKeys = items.length > 0 ? items : [''];
   const qualityKeys = qualities.length > 0 ? qualities : [''];
   return (
-    <div className="flex flex-col gap-3" data-testid="collection-product-tags">
-      <p className="text-sm font-semibold text-ink">Product description</p>
+    <div className="flex flex-col gap-1.5" data-testid="collection-product-tags">
       <TagSuggestInput
         label="Item tags"
         testId="collection-tag-item"
         values={items}
         onChange={onItems}
         suggestionsFor={(query) => itemSlotSuggestions(mains, query)}
-        placeholder="Start typing"
       />
       <TagSuggestInput
         label="Quality / work tags"
@@ -83,7 +81,6 @@ export function CascadeTagsFields({
         suggestionsFor={(query) =>
           uniqueLabels(itemKeys.map((item) => qualitySlotSuggestions(mains, item, query)))
         }
-        placeholder="Optional"
       />
       <TagSuggestInput
         label="Size"
@@ -98,7 +95,6 @@ export function CascadeTagsFields({
             ),
           )
         }
-        placeholder="Optional"
       />
     </div>
   );

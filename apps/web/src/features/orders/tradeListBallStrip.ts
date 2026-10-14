@@ -77,7 +77,6 @@ function millSideDetail(order: OrderView): string {
   if (order.status === 'declined') return 'Declined';
   const held = order.linkedMills?.some((m) => m.held === true || m.orderId == null);
   if (held) return 'Not sent yet';
-  if (order.needsQuotePass) return 'Quoted · Send quote';
   if (order.status === 'requested') return 'Waiting for confirm';
   if (sellerNeedsDispatch(order) || order.status === 'part_shipped') return 'Dispatch pending';
   if (order.status === 'dispatched' || order.status === 'settled') return 'Dispatched';

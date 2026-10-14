@@ -43,9 +43,13 @@ export const FilterIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Message — rounded bubble with text lines (chat-line). */
 export const ChatIcon = (props: IconProps) => (
   <Icon {...props}>
-    <path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12Z" />
+    {/* Shorter tail + slight up bias so bubble mass matches peer icons. */}
+    <path d="M7.5 4.5h9A3.5 3.5 0 0 1 20 8v4.5A3.5 3.5 0 0 1 16.5 16h-2.1L12 19.2 9.6 16H7.5A3.5 3.5 0 0 1 4 12.5V8A3.5 3.5 0 0 1 7.5 4.5Z" />
+    <path d="M8 8.75h8" />
+    <path d="M8 12h5" />
   </Icon>
 );
 
@@ -127,23 +131,24 @@ export const SearchIcon = (props: IconProps) => (
   </Icon>
 );
 
-/** Native / OS share (iOS upload arrow). */
+/** Native / OS share — iOS export (Share sheet). */
 export const ShareIcon = (props: IconProps) => (
   <Icon {...props}>
-    <path d="M12 3v12" />
-    <path d="m8 7 4-4 4 4" />
-    <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+    <path d="M9 6 12 3l3 3M12 3v10M7 10c-.932 0-1.398 0-1.765.152a2 2 0 0 0-1.083 1.083C4 11.602 4 12.068 4 13v4.8c0 1.12 0 1.68.218 2.108a2 2 0 0 0 .874.874C5.519 21 6.079 21 7.197 21h9.607c1.118 0 1.677 0 2.104-.218a2 2 0 0 0 .874-.874C20 19.48 20 18.921 20 17.803V13c0-.932 0-1.398-.152-1.765a2 2 0 0 0-1.083-1.083C18.398 10 17.932 10 17 10" />
   </Icon>
 );
 
 /**
- * Open in-app Share (rounded paper plane). Stroke via currentColor / theme.
+ * In-app Share (paper plane). Stroke via currentColor / theme.
  * Distinct from SendIcon (chat send) and ShareIcon (native/OS).
  */
 export const PaperPlaneIcon = (props: IconProps) => (
   <Icon {...props}>
-    <path d="M21 3 10.5 13.5" />
-    <path d="M21 3 14.2 21 10.5 13.5 3 9.8 21 3Z" />
+    {/* Inset + down bias — diagonal tip reads high otherwise. */}
+    <g transform="translate(0 1.25)">
+      <path d="M19.6 4.2 4.8 9.2c-.95.35-.95 1.7 0 2.05l4.7 1.55c.28.09.5.33.6.61l1.55 4.7c.35.95 1.7.95 2.05 0L19.6 4.2Z" />
+      <path d="m10.8 13.2 5.2-5.2" />
+    </g>
   </Icon>
 );
 
@@ -318,31 +323,38 @@ export const PdfIcon = (props: IconProps) => (
   </Icon>
 );
 
-/** Saved / bookmark hub. */
+/** Saved / bookmark — chamfered ribbon. */
 export const BookmarkIcon = (props: IconProps) => (
   <Icon {...props}>
-    <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.5L6 20V5a1 1 0 0 1 1-1Z" />
+    {/* Shorter + slight up bias so ribbon mass matches peer centers. */}
+    <g transform="translate(0 -0.75)">
+      <path d="M8 4h8l1.5 1.5v14L12 15.25 6.5 19.5V5.5L8 4Z" />
+    </g>
   </Icon>
 );
 
-/** Explore / Selection Repost — Instagram-style dual loop arrows. */
+/** Explore / Selection Repost — rectangular dual arrows. */
 export const RepostIcon = (props: IconProps) => (
   <Icon {...props}>
-    <polyline points="17 1 21 5 17 9" />
-    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-    <polyline points="7 23 3 19 7 15" />
-    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    <g transform="translate(0 0.5)">
+      <path d="m16.5 3.5 3.5 3.5-3.5 3.5" />
+      <path d="M4 11.5V10a3.5 3.5 0 0 1 3.5-3.5H20" />
+      <path d="m7.5 20.5-3.5-3.5 3.5-3.5" />
+      <path d="M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H4" />
+    </g>
   </Icon>
 );
 
 /** Explore: already reposted this peer post (arrows + mark inside). */
 export const RepostDoneIcon = (props: IconProps) => (
   <Icon {...props}>
-    <polyline points="17 1 21 5 17 9" />
-    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-    <polyline points="7 23 3 19 7 15" />
-    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-    <path d="M8.5 12.5 11 15l4.5-5" strokeWidth={2.5} />
+    <g transform="translate(0 0.5)">
+      <path d="m16.5 3.5 3.5 3.5-3.5 3.5" />
+      <path d="M4 11.5V10a3.5 3.5 0 0 1 3.5-3.5H20" />
+      <path d="m7.5 20.5-3.5-3.5 3.5-3.5" />
+      <path d="M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H4" />
+      <path d="M8.5 12.5 11 15l4.5-5" />
+    </g>
   </Icon>
 );
 

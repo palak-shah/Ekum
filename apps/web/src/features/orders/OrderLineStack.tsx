@@ -28,7 +28,7 @@ export function OrderLineStack({
 }) {
   return (
     <div
-      className={cx('flex min-w-0 items-start gap-2.5', className)}
+      className={cx('flex w-full min-w-0 items-start gap-2.5', className)}
       data-testid="order-line-stack"
     >
       <div className={cx('shrink-0', muted && 'opacity-50')}>{photo}</div>

@@ -185,7 +185,7 @@ export interface OtherPackCountsView {
 /** Audience + rate visibility decided in the publish sheet (not a settings page). */
 export const publishCollectionSchema = z
   .object({
-    audience: z.enum(publishAudienceValues).default('connections'),
+    audience: z.enum(publishAudienceValues).default('followers'),
     rateVisibility: z.enum(rateVisibilityValues).default('on_request'),
     /** When false, buyers cannot forward this pack/design beyond the supplier. */
     allowForward: z.boolean().default(true),

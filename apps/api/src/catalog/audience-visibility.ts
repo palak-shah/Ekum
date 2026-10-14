@@ -1,5 +1,4 @@
 import { PublishAudience } from '@ekum/domain-types';
-import { companyActiveConnectedWith } from '../access/connection-pair';
 import { allowedFollowSome } from '../discovery/follow-access';
 
 type AudienceRow = {
@@ -13,6 +12,20 @@ export type AudienceViewerContext = {
   /** Viewer follows the owner company. */
   following: boolean;
 };
+
+/**
+ * Publish UI only offers Followers / Selected. Legacy `everyone` / `connections`
+ * rows (and sheet remap) must behave as Followers so app, DB, and access match.
+ */
+export function effectivePublishAudience(audience: string): string {
+  if (
+    audience === PublishAudience.Everyone ||
+    audience === PublishAudience.Connections
+  ) {
+    return PublishAudience.Followers;
+  }
+  return audience;
+}
 
 /**
  * Whether a viewer may discover a published collection/design (explore, shop, search).
@@ -35,16 +48,11 @@ export function canDiscoverCollection(
   if (sourceCompanyIds.includes(viewerCompanyId)) {
     return false;
   }
-  if (collection.audience === PublishAudience.Everyone) {
-    return true;
-  }
-  if (collection.audience === PublishAudience.Connections) {
-    return ctx.connected;
-  }
-  if (collection.audience === PublishAudience.Followers) {
+  const audience = effectivePublishAudience(collection.audience);
+  if (audience === PublishAudience.Followers) {
     return ctx.following;
   }
-  if (collection.audience === PublishAudience.Selected) {
+  if (audience === PublishAudience.Selected) {
     return collection.audienceCompanyIds.includes(viewerCompanyId);
   }
   return false;
@@ -67,18 +75,19 @@ export function canViewCollectionProducts(
  * Prisma `OR` for Explore/shop: posts visible to this viewer by audience.
  * Always includes the viewer’s own published posts (Followers/Selected packs
  * would otherwise vanish for the owner — they are not a follower of themselves).
- * Do not use `audience: { not: selected }` — that would leak followers posts.
+ * Legacy everyone/connections are listed with Followers (allowed follow required).
  */
 export function audienceVisibilityOr(viewerCompanyId: string): object[] {
   return [
     { companyId: viewerCompanyId },
-    { audience: PublishAudience.Everyone },
     {
-      audience: PublishAudience.Connections,
-      company: companyActiveConnectedWith(viewerCompanyId),
-    },
-    {
-      audience: PublishAudience.Followers,
+      audience: {
+        in: [
+          PublishAudience.Followers,
+          PublishAudience.Connections,
+          PublishAudience.Everyone,
+        ],
+      },
       company: {
         followers: allowedFollowSome(viewerCompanyId),
       },

@@ -174,11 +174,10 @@ export function unsentMillNames(
     .filter(Boolean);
 }
 
-/** List/Home: Send mill lots or pass mill rates — never Confirm. */
+/** List/Home: Send mill lots only — never Confirm / Send quote on the parent. */
 export function traderIHandleNeedsYou(order: OrderView): boolean {
   if (!isIHandleSellingParent(order)) return false;
-  if (order.status === 'requested' && millLotStillHeld(order)) return true;
-  return Boolean(order.needsQuotePass);
+  return order.status === 'requested' && millLotStillHeld(order);
 }
 
 export function traderIHandleNeedsYouLabel(order: OrderView): string | null {
@@ -187,7 +186,7 @@ export function traderIHandleNeedsYouLabel(order: OrderView): string | null {
   if (unsent.length === 1) return `Needs you · Send to ${unsent[0]}`;
   if (unsent.length === 2) return `Needs you · Send to ${unsent[0]} + ${unsent[1]}`;
   if (unsent.length > 2) return `Needs you · Send to ${unsent.length} mills`;
-  return 'Needs you · Send quote';
+  return null;
 }
 
 /** Retired fold — always false. Seller desk CTAs stay on the face. */
@@ -249,12 +248,15 @@ export function millsObserveMode(
   return laneTicket === 'mill' && Boolean(millDesks?.length);
 }
 
-/** Send quote on the desk face (I-handle and bilateral). */
+/**
+ * Send quote on the desk face — bilateral / mill seller only.
+ * I-handle parent with mill desks: no negotiation on the Orders page.
+ */
 export function showSendQuoteOnDeskFace(
-  _millDesks?: OrderView['millDesks'],
+  millDesks?: OrderView['millDesks'],
   _laneTicket?: string | null,
 ): boolean {
-  return true;
+  return !(millDesks && millDesks.length > 0);
 }
 
 export function heldMillDesks(
@@ -387,8 +389,8 @@ export function showMillSendOnCard(
 }
 
 /**
- * I-handle trader desk “Your move” — not the bilateral seller quote/confirm cue.
- * Parent status stays Requested until the buyer accepts; the cue tracks mill Send / quote pass.
+ * I-handle trader desk “Your move” — mill Send / wait on mill Confirm.
+ * No parent Send quote / Confirm (trader is buyer on mill hops).
  */
 export function traderDeskNextAction(input: {
   status: string;
@@ -399,7 +401,6 @@ export function traderDeskNextAction(input: {
 }): string | null {
   const desks = input.millDesks;
   if (!desks?.length) return null;
-  const buyer = input.counterpartName.trim() || 'them';
 
   if (input.status === 'requested') {
     const unsent = desks.filter((desk) => desk.held);
@@ -414,10 +415,14 @@ export function traderDeskNextAction(input: {
     }
     if (awaitingRates.length > 1) return 'Waiting on mills for rates';
 
-    if (desks.some((desk) => !desk.held && desk.millQuoted) && !input.hasSellerQuote) {
-      return `Your move: Send quote to ${buyer}`;
+    // Mill quoted or still open — wait for mill Confirm (pass-through firms parent).
+    const awaitingConfirm = desks.filter(
+      (desk) => !desk.held && !millDeskDropped(desk) && desk.status === 'requested',
+    );
+    if (awaitingConfirm.length === 1) {
+      return `Waiting on ${awaitingConfirm[0]!.sellerName} to confirm`;
     }
-    if (input.hasSellerQuote) return `Waiting on ${buyer} to accept quote`;
+    if (awaitingConfirm.length > 1) return 'Waiting on mills to confirm';
   }
 
   if (input.status === 'confirmed' || input.status === 'part_shipped') {

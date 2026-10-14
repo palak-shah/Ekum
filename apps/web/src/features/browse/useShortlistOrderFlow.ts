@@ -108,7 +108,11 @@ export function sellerIdForEntries(entries: readonly { companyId: string }[]): s
   return entries.every((entry) => entry.companyId === first) ? first : 'multi';
 }
 
-export function useShortlistOrderFlow() {
+export function useShortlistOrderFlow(options?: {
+  /** Cart page only — staging Order must leave a parked cart alone. */
+  clearCartOnSuccess?: boolean;
+}) {
+  const clearCartOnSuccess = options?.clearCartOnSuccess === true;
   const shortlist = useBrowseShortlist();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -150,10 +154,10 @@ export function useShortlistOrderFlow() {
           ? millsOnPack
           : undefined;
       if (payload.orders.length > 0) {
-        // Empty staging + cart after a successful order action.
+        // Staging Order clears checks only; cart page also empties the parked cart.
         clearBrowseShortlist();
         clearBrowseAlbumPick();
-        clearBrowseCart();
+        if (clearCartOnSuccess) clearBrowseCart();
       } else if (removeIds.length > 0) {
         shortlist.removeIds(removeIds);
       }

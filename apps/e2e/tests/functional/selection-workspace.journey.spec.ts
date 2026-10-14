@@ -107,7 +107,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByText('Choose designs').first()).toBeVisible();
   });
 
-  test('floater Order opens Cart and the order sheet', async ({ page }) => {
+  test('floater Order opens resolve on Explore without writing Cart', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -115,8 +115,9 @@ test.describe('selection workspace @functional @explore', () => {
     await page.reload();
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('selection-workspace-order').click();
-    await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Order collections' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cart' })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/explore/);
   });
 
   test('Curate on albums opens Use whole collection resolve', async ({ page }) => {

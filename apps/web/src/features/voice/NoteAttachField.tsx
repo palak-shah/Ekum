@@ -26,6 +26,11 @@ type Props = {
   optional?: boolean;
   /** When false, + menu offers photos only (Manual order no.). */
   allowVoice?: boolean;
+  /**
+   * Idle = quiet **Add note** + **+** (How many sticky footer). Expands when they
+   * tap Add note or already have text / voice / photos.
+   */
+  collapseEmpty?: boolean;
   className?: string;
 };
 
@@ -46,18 +51,34 @@ export function NoteAttachField({
   rows = 2,
   optional = true,
   allowVoice = true,
+  collapseEmpty = false,
   className,
 }: Props) {
   const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expanded, setExpanded] = useState(
+    () => Boolean(note.trim() || voice || images.length > 0),
+  );
   const wrapRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const recorder = useVoiceRecorder();
   const voiceUrlRef = useRef(voice?.url);
   voiceUrlRef.current = voice?.url;
   const micBusyRef = useRef(false);
+  const hasContent = Boolean(note.trim() || voice || images.length > 0);
+  const showComposer = !collapseEmpty || expanded || hasContent;
+
+  useEffect(() => {
+    if (hasContent) setExpanded(true);
+  }, [hasContent]);
+
+  useEffect(() => {
+    if (!showComposer || !collapseEmpty) return;
+    noteRef.current?.focus();
+  }, [showComposer, collapseEmpty]);
 
   useEffect(() => {
     onBusyChange?.(
@@ -167,73 +188,91 @@ export function NoteAttachField({
 
   const photosFull = images.length >= IMAGE_CAP;
 
-  return (
-    <div className="flex flex-col gap-2" ref={wrapRef}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-ink">
-          {label}
-          {optional ? <span className="font-normal text-muted"> (optional)</span> : null}
-        </p>
-        <div className="relative">
+  const plusMenu = (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        disabled={uploading || recorder.recording}
+        data-testid="note-attach-plus"
+        aria-label="Add voice or photo"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-muted hover:text-ink disabled:opacity-40"
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        <PlusIcon width={18} height={18} />
+      </button>
+      {menuOpen ? (
+        <div
+          role="menu"
+          data-testid="note-attach-menu"
+          className="absolute right-0 z-20 mt-1 min-w-[9.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-sm"
+        >
+          {allowVoice ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam"
+              onClick={() => void onMic()}
+            >
+              <MicIcon width={16} height={16} className="text-muted" />
+              Voice
+            </button>
+          ) : null}
           <button
             type="button"
-            disabled={uploading || recorder.recording}
-            data-testid="note-attach-plus"
-            aria-label="Add voice or photo"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-muted hover:text-ink disabled:opacity-40"
-            onClick={() => setMenuOpen((open) => !open)}
+            role="menuitem"
+            disabled={photosFull}
+            data-testid="note-attach-camera"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
+            onClick={() => {
+              setMenuOpen(false);
+              cameraRef.current?.click();
+            }}
           >
-            <PlusIcon width={18} height={18} />
+            <CameraIcon width={16} height={16} className="text-muted" />
+            Take photo
           </button>
-          {menuOpen ? (
-            <div
-              role="menu"
-              data-testid="note-attach-menu"
-              className="absolute right-0 z-20 mt-1 min-w-[9.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-sm"
-            >
-              {allowVoice ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam"
-                  onClick={() => void onMic()}
-                >
-                  <MicIcon width={16} height={16} className="text-muted" />
-                  Voice
-                </button>
-              ) : null}
-              <button
-                type="button"
-                role="menuitem"
-                disabled={photosFull}
-                data-testid="note-attach-camera"
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
-                onClick={() => {
-                  setMenuOpen(false);
-                  cameraRef.current?.click();
-                }}
-              >
-                <CameraIcon width={16} height={16} className="text-muted" />
-                Take photo
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={photosFull}
-                data-testid="note-attach-gallery"
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
-                onClick={() => {
-                  setMenuOpen(false);
-                  galleryRef.current?.click();
-                }}
-              >
-                <ImageIcon width={16} height={16} className="text-muted" />
-                Gallery
-              </button>
-            </div>
-          ) : null}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={photosFull}
+            data-testid="note-attach-gallery"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
+            onClick={() => {
+              setMenuOpen(false);
+              galleryRef.current?.click();
+            }}
+          >
+            <ImageIcon width={16} height={16} className="text-muted" />
+            Gallery
+          </button>
         </div>
-      </div>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-2" ref={wrapRef}>
+      {showComposer ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-ink">
+            {label}
+            {optional ? <span className="font-normal text-muted"> (optional)</span> : null}
+          </p>
+          {plusMenu}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="note-attach-add"
+            className="min-w-0 flex-1 rounded-xl border border-transparent px-0 py-1.5 text-left text-sm font-medium text-muted hover:text-ink"
+            onClick={() => setExpanded(true)}
+          >
+            Add note
+          </button>
+          {plusMenu}
+        </div>
+      )}
       <input
         ref={cameraRef}
         type="file"
@@ -269,16 +308,19 @@ export function NoteAttachField({
           </Button>
         </div>
       ) : null}
-      <TextArea
-        value={note}
-        onChange={(event) => onNoteChange(event.target.value)}
-        rows={rows}
-        className={cx(
-          'ekum-no-scrollbar resize-none overflow-y-auto',
-          rows <= 2 && '!h-[4.25rem] !min-h-[4.25rem] !max-h-[4.25rem]',
-          className,
-        )}
-      />
+      {showComposer ? (
+        <TextArea
+          ref={noteRef}
+          value={note}
+          onChange={(event) => onNoteChange(event.target.value)}
+          rows={rows}
+          className={cx(
+            'ekum-no-scrollbar resize-none overflow-y-auto',
+            rows <= 2 && '!h-[4.25rem] !min-h-[4.25rem] !max-h-[4.25rem]',
+            className,
+          )}
+        />
+      ) : null}
       {voice ? (
         <div className="flex items-start gap-2">
           <VoicePlayer src={voice.url} durationMs={voice.durationMs} className="flex-1" />

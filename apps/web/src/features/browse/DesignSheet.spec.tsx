@@ -27,6 +27,15 @@ vi.mock('@/features/saved/useSaveToggle', () => ({
   }),
 }));
 
+vi.mock('@/features/orders/HowManyEachSheet', () => ({
+  HowManyEachSheet: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="design-sheet-how-many" /> : null,
+}));
+
+vi.mock('@/features/browse/browseCart', () => ({
+  addCartDesignsMany: vi.fn(),
+}));
+
 const product = {
   id: 'd1',
   name: 'Chiffon Roll',
@@ -116,5 +125,22 @@ describe('DesignSheet', () => {
     expect(screen.getByTestId('design-sheet-edit')).toBeTruthy();
     expect(screen.queryByTestId('design-sheet-remove')).toBeNull();
     expect(screen.getByTestId('design-sheet-delete')).toBeTruthy();
+  });
+
+  it('Order opens How many without writing the cart', async () => {
+    const { addCartDesignsMany } = await import('@/features/browse/browseCart');
+    const user = userEvent.setup();
+    renderSheet();
+    await user.click(screen.getByTestId('design-sheet-order'));
+    expect(screen.getByTestId('design-sheet-how-many')).toBeTruthy();
+    expect(addCartDesignsMany).not.toHaveBeenCalled();
+  });
+
+  it('Add to cart writes the cart', async () => {
+    const { addCartDesignsMany } = await import('@/features/browse/browseCart');
+    const user = userEvent.setup();
+    renderSheet();
+    await user.click(screen.getByTestId('design-sheet-cart'));
+    expect(addCartDesignsMany).toHaveBeenCalled();
   });
 });

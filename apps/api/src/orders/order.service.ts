@@ -2272,14 +2272,37 @@ export class OrderService {
       });
     }
 
+    const finalByItem = new Map<string, number>();
+    if (dto.items?.length) {
+      const shippableIds = new Set(shippable.map((item) => item.id));
+      for (const row of dto.items) {
+        if (!shippableIds.has(row.orderItemId)) {
+          throw new BadRequestException({
+            code: 'INVALID_SETTLE_LINE',
+            message: 'Settle quantity must target a shippable line.',
+          });
+        }
+        const shipped = shippedByItem.get(row.orderItemId) ?? 0;
+        const qty = Math.floor(Number(row.quantity));
+        if (!Number.isFinite(qty) || qty < 0 || qty > shipped) {
+          throw new BadRequestException({
+            code: 'INVALID_SETTLE_QTY',
+            message: 'Final quantity must be between 0 and already shipped.',
+          });
+        }
+        finalByItem.set(row.orderItemId, qty);
+      }
+    }
+
     const voice = await this.noteVoiceMetadata(actorCompanyId, dto);
     let asked = 0;
-    let shippedSum = 0;
+    let closedSum = 0;
     for (const item of shippable) {
       const shipped = shippedByItem.get(item.id) ?? 0;
+      const finalQty = finalByItem.has(item.id) ? finalByItem.get(item.id)! : shipped;
       asked += item.requestedQuantity.toNumber();
-      shippedSum += shipped;
-      if (shipped <= 0) {
+      closedSum += finalQty;
+      if (finalQty <= 0) {
         await this.prisma.orderItem.update({
           where: { id: item.id },
           data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
@@ -2287,7 +2310,7 @@ export class OrderService {
       } else {
         await this.prisma.orderItem.update({
           where: { id: item.id },
-          data: { quantity: shipped, lineStatus: OrderLineStatus.Dispatched },
+          data: { quantity: finalQty, lineStatus: OrderLineStatus.Dispatched },
         });
       }
     }
@@ -2307,7 +2330,7 @@ export class OrderService {
       },
     });
 
-    const detail = `Closed on ${shippedSum} of ${asked}`;
+    const detail = `Closed on ${closedSum} of ${asked}`;
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
     await this.trail.append({
@@ -3733,53 +3756,61 @@ export class OrderService {
       },
     });
     const laneByMill = new Map(lanes.map((lane) => [lane.sellerCompanyId, lane]));
-    const desks = ups.map((up) => {
-      const byProduct = new Map(
-        up.items
-          .filter((item) => item.productId)
-          .map((item) => [item.productId as string, item]),
-      );
-      const lines: OrderMillDeskView['lines'] = [];
-      const itemIds: string[] = [];
-      for (const parentItem of order.items) {
-        if (!parentItem.productId) continue;
-        const millItem = byProduct.get(parentItem.productId);
-        if (!millItem) continue;
-        itemIds.push(parentItem.id);
-        lines.push({
-          parentItemId: parentItem.id,
-          millRate: millItem.rate != null ? Number(millItem.rate) : null,
-          millQuantity: millItem.quantity != null ? Number(millItem.quantity) : null,
-          millDeclined: millItem.lineStatus === OrderLineStatus.Declined,
-        });
-      }
-      const lane = laneByMill.get(up.sellerCompanyId);
-      const reveal = lane?.reveal === true;
-      return {
-        upstreamOrderId: up.id,
-        sellerCompanyId: up.sellerCompanyId,
-        sellerName: up.seller.name,
-        held:
+    const desks = await Promise.all(
+      ups.map(async (up) => {
+        const byProduct = new Map(
+          up.items
+            .filter((item) => item.productId)
+            .map((item) => [item.productId as string, item]),
+        );
+        const lines: OrderMillDeskView['lines'] = [];
+        const itemIds: string[] = [];
+        for (const parentItem of order.items) {
+          if (!parentItem.productId) continue;
+          const millItem = byProduct.get(parentItem.productId);
+          if (!millItem) continue;
+          itemIds.push(parentItem.id);
+          lines.push({
+            parentItemId: parentItem.id,
+            millRate: millItem.rate != null ? Number(millItem.rate) : null,
+            millQuantity: millItem.quantity != null ? Number(millItem.quantity) : null,
+            millDeclined: millItem.lineStatus === OrderLineStatus.Declined,
+          });
+        }
+        const lane = laneByMill.get(up.sellerCompanyId);
+        const reveal = lane?.reveal === true;
+        const held =
           up.upstreamReleasedAt == null &&
           up.status !== OrderStatus.Declined &&
-          up.status !== OrderStatus.Cancelled,
-        passHeld: up.passHeldAt != null,
-        reveal,
-        revealThreadId:
-          reveal && up.upstreamReleasedAt != null && lane?.groupThreadId
-            ? lane.groupThreadId
-            : null,
-        status: up.status,
-        itemIds,
-        confirmedCount: up.items.filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
-          .length,
-        declinedCount: up.items.filter((item) => item.lineStatus === OrderLineStatus.Declined)
-          .length,
-        millQuoted: quoted.has(up.id),
-        ticket: (lane?.ticket === TradeLaneTicket.Mill ? 'mill' : 'me') as 'me' | 'mill',
-        lines,
-      };
-    });
+          up.status !== OrderStatus.Cancelled;
+        const millThreadId =
+          isTrader && !held
+            ? await this.threads.findDirectThreadId(order.sellerCompanyId, up.sellerCompanyId)
+            : null;
+        return {
+          upstreamOrderId: up.id,
+          sellerCompanyId: up.sellerCompanyId,
+          sellerName: up.seller.name,
+          held,
+          passHeld: up.passHeldAt != null,
+          reveal,
+          revealThreadId:
+            reveal && up.upstreamReleasedAt != null && lane?.groupThreadId
+              ? lane.groupThreadId
+              : null,
+          millThreadId,
+          status: up.status,
+          itemIds,
+          confirmedCount: up.items.filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
+            .length,
+          declinedCount: up.items.filter((item) => item.lineStatus === OrderLineStatus.Declined)
+            .length,
+          millQuoted: quoted.has(up.id),
+          ticket: (lane?.ticket === TradeLaneTicket.Mill ? 'mill' : 'me') as 'me' | 'mill',
+          lines,
+        };
+      }),
+    );
     if (isTrader) return desks;
     return desks.filter((desk) => {
       const lane = laneByMill.get(desk.sellerCompanyId);

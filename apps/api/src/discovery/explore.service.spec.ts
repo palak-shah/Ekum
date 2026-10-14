@@ -86,7 +86,7 @@ const publishedCollection = {
   companyId: 'owner',
   description: 'Festive sets for Diwali counters.',
   status: 'published',
-  audience: 'connections',
+  audience: 'followers',
   rateVisibility: 'on_request',
   audienceCompanyIds: [] as string[],
   startsAt: null as Date | null,
@@ -151,15 +151,19 @@ describe('ExploreService.collections follow-then-interest ranking', () => {
 });
 
 describe('ExploreService.collectionDetail trust rules', () => {
-  it('404s connections-audience collections for a non-connected viewer', async () => {
+  it('404s followers-audience collections without an allowed follow', async () => {
     const service = makeService(publishedCollection, { blocked: false, connected: false });
     await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
 
-  it('unlocks the full product list once connected', async () => {
-    const service = makeService(publishedCollection, { blocked: false, connected: true });
+  it('unlocks the full product list once the viewer is an allowed follower', async () => {
+    const service = makeService(
+      publishedCollection,
+      { blocked: false, connected: true },
+      { following: true },
+    );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.connected).toBe(true);
     expect(view.products).toHaveLength(2);
@@ -183,10 +187,11 @@ describe('ExploreService.collectionDetail trust rules', () => {
     );
   });
 
-  it('shows products to everyone when audience is everyone, but masks on-request rates', async () => {
+  it('treats legacy everyone as followers — needs follow; masks on-request rates', async () => {
     const service = makeService(
       { ...publishedCollection, audience: 'everyone', rateVisibility: 'on_request' },
       { blocked: false, connected: false },
+      { following: true },
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.connected).toBe(false);
@@ -291,6 +296,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
         ],
       },
       { blocked: false, connected: true, connectedByCompany: { supplier: false } },
+      { following: true },
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.products?.find((p) => p.id === 'own-1')?.rate).toBe(100);
@@ -418,6 +424,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
         ],
       },
       { blocked: false, connected: false },
+      { following: true },
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.rateMin).toBeNull();

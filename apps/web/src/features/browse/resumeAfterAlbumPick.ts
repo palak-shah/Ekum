@@ -1,6 +1,7 @@
 export const RESUME_AFTER_ALBUM_PICK_KEY = 'ekum:resumeAfterAlbumPick';
 
-export type ResumeAfterAlbumPick = 'curate' | 'order';
+/** Staging Order/Repost vs cart-page Order/Repost (Choose designs Continue). */
+export type ResumeAfterAlbumPick = 'curate' | 'order' | 'cart-curate' | 'cart-order';
 
 export type AlbumPickContinueStep =
   | { kind: 'next-album'; collectionId: string }
@@ -18,7 +19,9 @@ export function writeResumeAfterAlbumPick(value: ResumeAfterAlbumPick): void {
 export function readResumeAfterAlbumPick(): ResumeAfterAlbumPick | null {
   if (!canUseStorage()) return null;
   const raw = sessionStorage.getItem(RESUME_AFTER_ALBUM_PICK_KEY);
-  if (raw === 'curate' || raw === 'order') return raw;
+  if (raw === 'curate' || raw === 'order' || raw === 'cart-curate' || raw === 'cart-order') {
+    return raw;
+  }
   return null;
 }
 
@@ -47,5 +50,7 @@ export function continueAfterAlbumPickLabel(
       ? 'Next collection'
       : `Next collection (${remainingAlbumCount})`;
   }
-  return resume === 'curate' ? 'Continue Repost' : 'Continue Order';
+  return resume === 'curate' || resume === 'cart-curate'
+    ? 'Continue Repost'
+    : 'Continue Order';
 }

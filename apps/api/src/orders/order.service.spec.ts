@@ -1254,6 +1254,67 @@ describe('OrderService state machine', () => {
     });
   });
 
+  it('settles with editable final qty ≤ shipped', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.PartShipped,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          { items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 4 } }] },
+        ],
+      },
+    });
+    await service.settle('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', quantity: 2 }],
+    });
+    expect(captured.updateData?.status).toBe(OrderStatus.Settled);
+    expect(captured.itemUpdates.some((u) => u.quantity === 2)).toBe(true);
+    expect(captured.trailAppends.some((t) => String(t.detail).includes('Closed on 2 of 10'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects settle final qty above shipped', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.PartShipped,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          { items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 4 } }] },
+        ],
+      },
+    });
+    await expect(
+      service.settle('seller', 'u1', 'o1', {
+        items: [{ orderItemId: 'oi1', quantity: 5 }],
+      }),
+    ).rejects.toThrow();
+  });
+
   it('forbids buyer settle and rejects settle with nothing shipped', async () => {
     const part = {
       id: 'o1',

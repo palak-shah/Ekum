@@ -125,12 +125,14 @@ interface FieldProps {
   error?: string | null;
   /** Shows a red * on the label so required is obvious before submit. */
   required?: boolean;
+  /** Merged onto the root label (e.g. tighter gap-1 on dense forms). */
+  className?: string;
   children: ReactNode;
 }
 
-export function Field({ label, hint, error, required, children }: FieldProps) {
+export function Field({ label, hint, error, required, className, children }: FieldProps) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <label className={cx('flex flex-col gap-1.5', className)}>
       <span className="text-sm font-semibold text-ink">
         {label}
         {required ? (

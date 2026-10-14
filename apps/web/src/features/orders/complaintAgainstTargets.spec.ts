@@ -12,6 +12,7 @@ function desk(partial: Partial<OrderMillDeskView> & Pick<OrderMillDeskView, 'ups
     passHeld: false,
     reveal: false,
     revealThreadId: null,
+    millThreadId: null,
     status: 'confirmed',
     itemIds: [],
     confirmedCount: 0,

@@ -5,14 +5,42 @@ import {
   type CatalogCardCollection,
   type CatalogCardProduct,
 } from '@/features/browse/postCatalogCardsToThread';
+import { selectionMessageAttachmentTitle } from '@/features/browse/selectionMessageAttachmentTitle';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
 import { SendIcon } from '@/ui/icons';
 import { Avatar, Sheet, cx } from '@/ui/kit';
 
+type AttachPreview = {
+  key: string;
+  name: string;
+  image: string | null;
+  kind: 'Collection' | 'Design';
+};
+
+function attachmentPreviews(
+  collections: CatalogCardCollection[],
+  products: CatalogCardProduct[],
+): AttachPreview[] {
+  return [
+    ...collections.map((entry) => ({
+      key: `c-${entry.collectionId}`,
+      name: entry.name,
+      image: entry.image?.trim() || null,
+      kind: 'Collection' as const,
+    })),
+    ...products.map((entry) => ({
+      key: `p-${entry.productId}`,
+      name: entry.name,
+      image: entry.image?.trim() || null,
+      kind: 'Design' as const,
+    })),
+  ];
+}
+
 /**
- * Quick enquire bar (Instagram-style): avatar + pill + send.
+ * Enquire sheet: quiet To {shop} · visible attachment · your avatar + pill + send.
  * One catalog card with the typed note on it (not a Reply bubble).
  */
 export function SelectionMessageSheet({
@@ -38,6 +66,10 @@ export function SelectionMessageSheet({
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const pileCount = collections.length + products.length;
+  const toName = shopName.trim() || 'shop';
+  const attachmentTitle = selectionMessageAttachmentTitle({ collections, products });
+  const previews = attachmentPreviews(collections, products);
+  const myName = me.data?.name?.trim() || 'You';
 
   useEffect(() => {
     if (!open) return;
@@ -59,7 +91,7 @@ export function SelectionMessageSheet({
         products,
         enquireNote: text.trim() || undefined,
       });
-      showToast(`Sent to ${shopName.trim() || 'shop'}`);
+      showToast(`Sent to ${toName}`);
       onClose();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not send message.', 'danger');
@@ -68,47 +100,93 @@ export function SelectionMessageSheet({
     }
   };
 
-  const myName = me.data?.name?.trim() || 'You';
-
   return (
-    <Sheet open={open} onClose={onClose} panelClassName="!max-h-none">
-      <div
-        className="flex items-center gap-2.5 pb-1"
-        data-testid="selection-message-sheet"
-        aria-label={shopName.trim() ? `Message ${shopName}` : 'Message'}
-      >
-        <Avatar name={myName} imageUrl={me.data?.logoUrl} size={36} />
-        <div className="flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-foam pl-3.5 pr-1.5 focus-within:border-line">
-          <input
-            ref={inputRef}
-            type="text"
-            data-testid="selection-message-text"
-            disabled={sending}
-            value={text}
-            placeholder={placeholder}
-            enterKeyHint="send"
-            className="min-w-0 flex-1 bg-transparent py-2 text-[16px] text-ink placeholder:text-muted outline-none focus:outline-none focus-visible:!outline-none"
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void onSend();
-              }
-            }}
-          />
-          <button
-            type="button"
-            data-testid="selection-message-send"
-            disabled={sending || pileCount === 0}
-            aria-label={sending ? 'Sending' : 'Send'}
-            onClick={() => void onSend()}
-            className={cx(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-accent',
-              'disabled:opacity-40',
-            )}
+    <Sheet open={open} onClose={onClose} title="Message" panelClassName="!max-h-none">
+      <div className="flex flex-col gap-2.5" data-testid="selection-message-sheet">
+        <p
+          data-testid="selection-message-to"
+          className="text-[13px] font-medium leading-snug text-muted"
+        >
+          To <span className="font-semibold text-ink">{toName}</span>
+        </p>
+        {previews.length > 0 ? (
+          <div
+            className="flex items-center gap-3 rounded-xl border border-line bg-surface px-2.5 py-2"
+            data-testid="selection-message-attachment"
           >
-            <SendIcon width={22} height={22} />
-          </button>
+            <div className="relative h-12 w-12 shrink-0">
+              {previews.slice(0, 3).map((item, index) => (
+                <div
+                  key={item.key}
+                  className={cx(
+                    'absolute overflow-hidden rounded-lg bg-foam',
+                    index === 0 ? 'inset-0' : '',
+                  )}
+                  style={
+                    index === 0
+                      ? undefined
+                      : {
+                          width: 28,
+                          height: 28,
+                          right: -4 * index,
+                          bottom: -4 * index,
+                          zIndex: index,
+                          boxShadow: '0 0 0 1.5px var(--color-surface, #fff)',
+                        }
+                  }
+                >
+                  {item.image ? (
+                    <img src={item.image} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-sm font-bold text-muted">
+                      {item.name.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink">{attachmentTitle}</p>
+              <p className="truncate text-xs text-muted">
+                {previews.length === 1 ? previews[0]!.kind : 'Attached'}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        <div className="flex items-center gap-2.5 pb-1" aria-label={`Message ${toName}`}>
+          <Avatar name={myName} imageUrl={me.data?.logoUrl} size={36} />
+          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-foam pl-3.5 pr-1.5 focus-within:border-line">
+            <input
+              ref={inputRef}
+              type="text"
+              data-testid="selection-message-text"
+              disabled={sending}
+              value={text}
+              placeholder={placeholder}
+              enterKeyHint="send"
+              className="min-w-0 flex-1 bg-transparent py-2 text-[16px] text-ink placeholder:text-muted outline-none focus:outline-none focus-visible:!outline-none"
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void onSend();
+                }
+              }}
+            />
+            <button
+              type="button"
+              data-testid="selection-message-send"
+              disabled={sending || pileCount === 0}
+              aria-label={sending ? 'Sending' : 'Send'}
+              onClick={() => void onSend()}
+              className={cx(
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-accent',
+                'disabled:opacity-40',
+              )}
+            >
+              <SendIcon width={22} height={22} />
+            </button>
+          </div>
         </div>
       </div>
     </Sheet>

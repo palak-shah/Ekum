@@ -226,9 +226,19 @@ export const amendOrderSchema = z.object({
 });
 export type AmendOrderDto = z.infer<typeof amendOrderSchema>;
 
-/** Seller settles a part-shipped order: qty → shipped, status → settled. */
+/** Seller settles a part-shipped order: final qty ≤ shipped, status → settled. */
 export const settleOrderSchema = z.object({
   ...orderNoteVoiceFields,
+  /** Optional final qty per line (0 ≤ qty ≤ shipped). Omit line / omit array → qty := shipped. */
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        quantity: z.number().min(0).max(1_000_000),
+      }),
+    )
+    .max(200)
+    .optional(),
 });
 export type SettleOrderDto = z.infer<typeof settleOrderSchema>;
 
@@ -323,6 +333,8 @@ export interface OrderMillDeskView {
   reveal: boolean;
   /** Trio chat when reveal On and mill released; else null. */
   revealThreadId: string | null;
+  /** Trader↔mill 1:1 when hop released; else null. */
+  millThreadId: string | null;
   status: string;
   itemIds: string[];
   confirmedCount: number;

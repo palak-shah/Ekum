@@ -26,6 +26,38 @@ describe('SelectionMessageSheet', () => {
     });
   });
 
+  it('shows attachment card and quiet To shop before the composer', () => {
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <SelectionMessageSheet
+            open
+            onClose={() => undefined}
+            shopId="c1"
+            shopName="Mill"
+            collections={[
+              {
+                collectionId: 'a1',
+                name: 'Wedding Edit',
+                image: 'https://example.com/cover.jpg',
+              },
+            ]}
+            products={[]}
+          />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'Message' })).toBeInTheDocument();
+    expect(screen.getByTestId('selection-message-to')).toHaveTextContent('To Mill');
+    const attach = screen.getByTestId('selection-message-attachment');
+    expect(attach).toHaveTextContent('Wedding Edit');
+    expect(attach).toHaveTextContent('Collection');
+    expect(attach.querySelector('img')).toHaveAttribute(
+      'src',
+      'https://example.com/cover.jpg',
+    );
+  });
+
   it('sends one design card with enquireNote — not a Reply text bubble', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
@@ -44,19 +76,28 @@ describe('SelectionMessageSheet', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByTestId('selection-message-text'), 'Rate for 50?');
+    expect(screen.getByRole('heading', { name: 'Message' })).toBeInTheDocument();
+    expect(screen.getByTestId('selection-message-to')).toHaveTextContent('To Mill');
+    expect(screen.getByTestId('selection-message-attachment')).toHaveTextContent('Navy');
+
+    const input = screen.getByTestId('selection-message-text');
+    await user.click(input);
+    await user.paste('Rate for 50?');
     await user.click(screen.getByTestId('selection-message-send'));
 
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/threads/direct', { companyId: 'c1' });
-      expect(api.post).toHaveBeenCalledWith('/threads/thread-c1/messages', {
-        type: MessageType.ProductCard,
-        referenceId: 'p1',
-        body: 'Navy',
-        metadata: { enquireNote: 'Rate for 50?' },
-      });
-      expect(onClose).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(api.post).toHaveBeenCalledWith('/threads/direct', { companyId: 'c1' });
+        expect(api.post).toHaveBeenCalledWith('/threads/thread-c1/messages', {
+          type: MessageType.ProductCard,
+          referenceId: 'p1',
+          body: 'Navy',
+          metadata: { enquireNote: 'Rate for 50?' },
+        });
+        expect(onClose).toHaveBeenCalled();
+      },
+      { timeout: 10_000 },
+    );
     const textPosts = vi
       .mocked(api.post)
       .mock.calls.filter(

@@ -118,12 +118,19 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByTestId('repost-link-48h')).toBeTruthy();
   });
 
-  it('Message opens quick enquire bar and does not navigate to Chats', async () => {
+  it('Message opens enquire sheet with attachment and To shop', async () => {
     const user = userEvent.setup();
     wrap(<ExploreFeedActions collection={collection} />);
     await user.click(screen.getByTestId('explore-feed-message'));
     expect(navigate).not.toHaveBeenCalled();
     expect(screen.getByTestId('selection-message-sheet')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Message' })).toBeTruthy();
+    expect(screen.getByTestId('selection-message-to')).toHaveTextContent(
+      `To ${collection.company.name}`,
+    );
+    expect(screen.getByTestId('selection-message-attachment')).toHaveTextContent(
+      collection.name,
+    );
     expect(screen.getByPlaceholderText('What do you think of this?')).toBeTruthy();
   });
 
@@ -162,12 +169,12 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
   });
 
-  it('grays out all four while Selecting', () => {
+  it('keeps actions enabled while Selecting', () => {
     wrap(<ExploreFeedActions collection={collection} selecting />);
     expect(screen.getByTestId('explore-feed-actions')).toBeInTheDocument();
-    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-message')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-share')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-bookmark')).toBeDisabled();
+    expect(screen.getByTestId('explore-feed-repost')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-message')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
   });
 });

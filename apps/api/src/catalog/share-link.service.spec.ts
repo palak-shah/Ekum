@@ -82,7 +82,8 @@ describe('ShareLinkService', () => {
     await expect(svc.get('t')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('returns design thumbs only for an Everyone live album', async () => {
+  it('keeps guest designs closed for legacy Everyone albums', async () => {
+    const findMany = vi.fn();
     const prisma = {
       catalogShareLink: {
         findUnique: vi.fn(async () => ({
@@ -98,15 +99,14 @@ describe('ShareLinkService', () => {
         ),
       },
       collectionProduct: {
-        findMany: vi.fn(async () => [
-          { product: { id: 'p1', name: 'Saree', images: ['a.jpg'] } },
-        ]),
+        findMany,
       },
     } as unknown as PrismaService;
     const svc = new ShareLinkService(prisma);
     const view = await svc.get('t');
-    expect(view.open).toBe(true);
-    expect(view.designs).toEqual([{ id: 'p1', name: 'Saree', image: 'a.jpg' }]);
+    expect(view.open).toBe(false);
+    expect(view.designs).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
   });
 
   it('creates a designs link for 2+ product ids', async () => {
@@ -152,8 +152,8 @@ describe('ShareLinkService', () => {
     expect(view.kind).toBe('designs');
     expect(view.name).toBe('2 designs');
     expect(view.companyName).toBe('Surat Silk House');
-    expect(view.open).toBe(true);
-    expect(view.designs).toHaveLength(2);
+    expect(view.open).toBe(false);
+    expect(view.designs).toEqual([]);
     expect(prisma.catalogShareLink.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ productIds: ['p1', 'p2'] }),

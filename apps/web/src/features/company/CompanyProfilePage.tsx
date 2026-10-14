@@ -800,10 +800,12 @@ export function CompanyProfilePage() {
         collections={shopAlbums.map((entry) => ({
           collectionId: entry.collectionId,
           name: entry.name,
+          image: entry.coverImage,
         }))}
         products={shopEntries.map((entry) => ({
           productId: entry.productId,
           name: entry.name,
+          image: entry.thumbUrl,
         }))}
       />
 

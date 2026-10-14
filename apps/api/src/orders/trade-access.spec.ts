@@ -52,7 +52,7 @@ function makeTradeAccess(options: {
     },
     follow: {
       findFirst: async () => (options.following ? { id: 'f1' } : null),
-      findUnique: async () => null,
+      findUnique: async () => (options.following ? { status: 'allowed' } : null),
     },
     collectionProduct: {
       findMany: async () => options.collectionMemberships ?? [],
@@ -105,17 +105,19 @@ describe('TradeAccess.assertCanTrade', () => {
     expect(code).toBe('CONNECTION_REQUIRED');
   });
 
-  it('allows order without connection when every product is everyone-audience', async () => {
+  it('rejects legacy everyone product without follow or connection', async () => {
     const trade = makeTradeAccess({
       connectionStatus: null,
       products: [openProduct],
     });
-    await expect(
+    const { error, code } = await codeOf(
       trade.assertCanTrade('buyer', 'seller', { productIds: ['p1'] }),
-    ).resolves.toBeUndefined();
+    );
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect(code).toBe('CONNECTION_REQUIRED');
   });
 
-  it('rejects connections-only product without an active connection', async () => {
+  it('rejects legacy connections product without follow (Connection alone is not enough)', async () => {
     const trade = makeTradeAccess({
       connectionStatus: null,
       products: [
@@ -132,6 +134,17 @@ describe('TradeAccess.assertCanTrade', () => {
     expect(code).toBe('CONNECTION_REQUIRED');
   });
 
+  it('allows legacy everyone product when the buyer follows', async () => {
+    const trade = makeTradeAccess({
+      connectionStatus: null,
+      following: true,
+      products: [openProduct],
+    });
+    await expect(
+      trade.assertCanTrade('buyer', 'seller', { productIds: ['p1'] }),
+    ).resolves.toBeUndefined();
+  });
+
   it('allows followers-audience product when the buyer follows', async () => {
     const trade = makeTradeAccess({
       connectionStatus: null,
@@ -143,17 +156,18 @@ describe('TradeAccess.assertCanTrade', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('allows album-only published design (no market post) via open collection', async () => {
+  it('allows album-only published design via followers collection when following', async () => {
     const trade = makeTradeAccess({
       connectionStatus: null,
-      products: [{ ...openProduct, postedToMarketAt: null }],
+      following: true,
+      products: [{ ...openProduct, audience: 'followers', postedToMarketAt: null }],
       collectionMemberships: [
         {
           collection: {
             id: 'col1',
             companyId: 'seller',
             status: 'published',
-            audience: 'everyone',
+            audience: 'followers',
             audienceCompanyIds: [],
             startsAt: null,
             endsAt: null,

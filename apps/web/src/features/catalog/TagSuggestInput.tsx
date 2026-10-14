@@ -81,10 +81,10 @@ export function TagSuggestInput({
   };
 
   return (
-    <Field label={label}>
-      <div ref={wrapRef} className="relative flex flex-col gap-1.5">
+    <Field label={label} className="gap-0.5">
+      <div ref={wrapRef} className="relative flex flex-col gap-1">
         {multiple && values.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {values.map((tag) => (
               <span
                 key={tag}
@@ -107,6 +107,7 @@ export function TagSuggestInput({
           <TextInput
             value={query}
             data-testid={testId}
+            className="min-h-9"
             placeholder={placeholder}
             autoComplete="off"
             onFocus={() => setOpen(true)}

@@ -38,5 +38,14 @@ describe('resumeAfterAlbumPick', () => {
     expect(continueAfterAlbumPickLabel('curate', 1)).toBe('Next collection');
     expect(continueAfterAlbumPickLabel('curate', 0)).toBe('Continue Repost');
     expect(continueAfterAlbumPickLabel('order', 0)).toBe('Continue Order');
+    expect(continueAfterAlbumPickLabel('cart-curate', 0)).toBe('Continue Repost');
+    expect(continueAfterAlbumPickLabel('cart-order', 0)).toBe('Continue Order');
+  });
+
+  it('round-trips cart-order and cart-curate', () => {
+    writeResumeAfterAlbumPick('cart-order');
+    expect(readResumeAfterAlbumPick()).toBe('cart-order');
+    writeResumeAfterAlbumPick('cart-curate');
+    expect(readResumeAfterAlbumPick()).toBe('cart-curate');
   });
 });
