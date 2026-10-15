@@ -19,7 +19,6 @@ import { Avatar, Chip, EmptyState, LoadingBlock, SearchInput, StatusPill, cx } f
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
-import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   getOrdersDirection,
@@ -48,18 +47,9 @@ import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
 import {
   tradeListFacts,
   tradeListPreview,
-  tradeListThumbs,
   tradeListWhen,
 } from './tradeListPreview';
 import { tradeListProtocol, tradeListStatusLabel } from './tradeListProtocol';
-import { tradeListGallery, tradeListGalleryIndex } from './tradeListGallery';
-import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import {
-  TRADE_LIST_MEDIA_WIDTH,
-  TRADE_LIST_THUMB_SIZE,
-  TRADE_LIST_THUMB_STEP,
-  type TradeListThumbs,
-} from './tradeListThumbs';
 import { OrdersFilterMenu } from './OrdersFilterMenu';
 import {
   statusFitsTab,
@@ -500,80 +490,18 @@ export function OrdersPage() {
   );
 }
 
+const TRADE_LIST_AVATAR_SIZE = 48;
+
 function TradeListMedia({
-  stack,
   name,
   logoUrl,
-  onOpenPhoto,
 }: {
-  stack: TradeListThumbs;
   name: string;
   logoUrl: string | null;
-  onOpenPhoto?: (stackIndex: number) => void;
 }) {
   return (
-    <div
-      className="relative h-12 shrink-0"
-      style={{ width: TRADE_LIST_MEDIA_WIDTH }}
-      data-testid="trade-list-media"
-    >
-      {stack.urls.length < 1 ? (
-        <Avatar name={name} imageUrl={logoUrl} size={TRADE_LIST_THUMB_SIZE} />
-      ) : (
-        stack.urls.map((url, index) => {
-          const src = toAbsoluteMediaUrl(url) || url;
-          const last = index === stack.urls.length - 1;
-          const canOpen = Boolean(onOpenPhoto);
-          const sharedStyle = {
-            left: index * TRADE_LIST_THUMB_STEP,
-            zIndex: index + 1,
-            width: TRADE_LIST_THUMB_SIZE,
-            height: TRADE_LIST_THUMB_SIZE,
-          } as const;
-          const sharedClass =
-            'absolute top-0 overflow-hidden rounded-lg border-2 border-surface bg-foam';
-          const body = (
-            <>
-              <img src={src} alt="" className="h-full w-full object-cover" />
-              {last && stack.overflow > 0 ? (
-                <span className="absolute inset-0 flex items-center justify-center bg-ink/55 text-[10px] font-bold text-white">
-                  +{stack.overflow}
-                </span>
-              ) : null}
-            </>
-          );
-          if (canOpen) {
-            return (
-              <button
-                key={`${url}-${index}`}
-                type="button"
-                className={sharedClass}
-                style={sharedStyle}
-                data-testid={index === 0 ? 'trade-list-thumb' : `trade-list-thumb-${index}`}
-                aria-label={`View photos for ${name}`}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onOpenPhoto?.(index);
-                }}
-              >
-                {body}
-              </button>
-            );
-          }
-          return (
-            <div
-              key={`${url}-${index}`}
-              className={sharedClass}
-              style={sharedStyle}
-              data-testid={index === 0 ? 'trade-list-thumb' : undefined}
-              aria-hidden
-            >
-              {body}
-            </div>
-          );
-        })
-      )}
+    <div className="h-12 w-12 shrink-0" data-testid="trade-list-media">
+      <Avatar name={name} imageUrl={logoUrl} size={TRADE_LIST_AVATAR_SIZE} />
     </div>
   );
 }
@@ -585,17 +513,12 @@ function TradeRow({
   item: TradeListItem;
   companyId: string | null;
 }) {
-  const [photoOpen, setPhotoOpen] = useState(false);
-  const [photoIndex, setPhotoIndex] = useState(0);
-
   if (item.kind === 'return') return null;
 
   const needsLabel = tradeNeedsYouLabel(item);
   const { preview, accent } = tradeListPreview(item, companyId);
   const facts = tradeListFacts(item);
   const when = explorePostedWhen(tradeListWhen(item));
-  const stack = tradeListThumbs(item);
-  const gallery = tradeListGallery(item);
   const protocol = tradeListProtocol(item);
   const status =
     item.kind === 'order'
@@ -617,14 +540,6 @@ function TradeRow({
         : null;
   // Quiet Shared / role context only — never a second Confirm verb (protocol owns that).
   const showContext = Boolean(preview) && !accent && !needsLabel;
-  const openPhotos =
-    gallery.urls.length > 0
-      ? (stackIndex: number) => {
-          const stackUrl = stack.urls[stackIndex] ?? stack.urls[0] ?? '';
-          setPhotoIndex(tradeListGalleryIndex(gallery.urls, stackUrl));
-          setPhotoOpen(true);
-        }
-      : undefined;
 
   const rowClass = cx(
     'flex w-full flex-col gap-2 rounded-xl border bg-surface px-3 py-3 text-left',
@@ -633,26 +548,7 @@ function TradeRow({
       'hover:border-accent/40 hover:bg-accent/[0.03] active:bg-accent/[0.05]',
   );
 
-  const viewer = (
-    <PhotoViewer
-      open={photoOpen && gallery.urls.length > 0}
-      urls={gallery.urls}
-      index={photoIndex}
-      onIndex={setPhotoIndex}
-      onClose={() => setPhotoOpen(false)}
-      captions={gallery.captions}
-      details={gallery.details}
-    />
-  );
-
-  const media = (
-    <TradeListMedia
-      stack={stack}
-      name={name}
-      logoUrl={logoUrl}
-      onOpenPhoto={openPhotos}
-    />
-  );
+  const media = <TradeListMedia name={name} logoUrl={logoUrl} />;
 
   const meta = (
     <div className="flex items-start justify-between gap-2">
@@ -701,7 +597,6 @@ function TradeRow({
           <div className="min-w-0 flex-1">{meta}</div>
         </div>
         {protocolEl}
-        {viewer}
       </div>
     );
   }
@@ -725,30 +620,25 @@ function TradeRow({
           <div className="min-w-0 flex-1">{meta}</div>
         </div>
         {protocolEl}
-        {viewer}
       </div>
     );
   }
 
-  // Media sits outside the Link so thumb taps open PhotoViewer without navigating.
   return (
     <div
       data-testid="trade-list-row"
       data-needs-you={needsLabel ? 'true' : undefined}
       className={rowClass}
     >
-      <div className="flex w-full items-start gap-3">
+      <Link to={to} className="flex w-full items-start gap-3 text-inherit no-underline">
         {media}
-        <Link to={to} className="min-w-0 flex-1 text-inherit no-underline">
-          {meta}
-        </Link>
-      </div>
+        <div className="min-w-0 flex-1">{meta}</div>
+      </Link>
       {protocol ? (
         <Link to={to} className="block text-inherit no-underline">
           {protocolEl}
         </Link>
       ) : null}
-      {viewer}
     </div>
   );
 }

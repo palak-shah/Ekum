@@ -43,6 +43,7 @@ import {
 import { rememberPublishDefaults } from './publish-policy';
 import { shouldBumpExploreOnPublish } from './explore-activity-bump';
 import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
+import { MasterDataService } from './master-data/master-data.service';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
@@ -75,6 +76,7 @@ export class CollectionService {
     private readonly prisma: PrismaService,
     private readonly serializer: CatalogSerializer,
     private readonly jobs: JobQueue,
+    private readonly masterData: MasterDataService,
   ) {}
 
   /**
@@ -126,6 +128,9 @@ export class CollectionService {
       assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
     }
     const repostSource = await this.resolveRepostSource(companyId, dto);
+    const masterCategoryId = prismaModelHasField('Collection', 'masterCategoryId')
+      ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId)
+      : null;
     try {
       const collection = await this.prisma.collection.create({
         data: withPrismaField(
@@ -140,6 +145,9 @@ export class CollectionService {
               description: dto.description ?? null,
               coverImage: dto.coverImage ?? null,
               categories: dto.categories ?? [],
+              ...(masterCategoryId !== null && prismaModelHasField('Collection', 'masterCategoryId')
+                ? { masterCategoryId }
+                : {}),
               startsAt: startsAt === undefined ? null : startsAt,
               endsAt: endsAt === undefined ? null : endsAt,
               createdByUserId: userId,
@@ -321,6 +329,15 @@ export class CollectionService {
           ? { rateMax: dto.rateMax }
           : {}),
         ...(dto.categories !== undefined ? { categories: dto.categories } : {}),
+        ...(dto.masterCategoryId !== undefined &&
+        prismaModelHasField('Collection', 'masterCategoryId')
+          ? {
+              masterCategoryId: await this.masterData.resolveCategoryIdForCompany(
+                companyId,
+                dto.masterCategoryId,
+              ),
+            }
+          : {}),
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),

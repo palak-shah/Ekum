@@ -51,6 +51,7 @@ Seed includes published designs + “Wedding Edit 2026”, peer fabric catalog f
 | [Referrals](./referrals.md) | Connect-with-me invites / vouch links |
 | [Notifications](./notifications.md) | Bell feed & prefs |
 | [Settings](./settings.md) | You menu & trade presence |
+| [Admin Console](./admin.md) | Platform tag management (ops) |
 | [Media](./media.md) | Photos used across the app |
 
 ## How to maintain

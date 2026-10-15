@@ -1,0 +1,385 @@
+{
+  "source": "MASTER CATEGORY AND PRODUCT TAGS (client sheet image 2026-10-14)",
+  "categories": [
+    {
+      "slug": "hometextiles_readyset",
+      "label": "Home textiles – Readyset",
+      "sortOrder": 10,
+      "units": ["PCS", "DOZEN", "SET"],
+      "itemTypes": [
+        "Bedsheet",
+        "Comforter Set",
+        "Dohar",
+        "Duvet Cover",
+        "Towels",
+        "Door Curtain",
+        "Window Curtain",
+        "Pillow Cover",
+        "Rugs"
+      ],
+      "qualities": [
+        "Cotton",
+        "Polyester",
+        "PC Blend",
+        "Bamboo",
+        "Microfiber",
+        "Fitted / Flat Sheet",
+        "Reversible",
+        "Quilted",
+        "Blackout",
+        "Eyelet",
+        "Piping",
+        "Zipper"
+      ],
+      "sizes": [
+        "Single",
+        "Double",
+        "Queen",
+        "King",
+        "Hand",
+        "Bath",
+        "Bath Sheet",
+        "4ft",
+        "5ft",
+        "7ft",
+        "9ft"
+      ]
+    },
+    {
+      "slug": "hometextiles_fabric",
+      "label": "Home textiles – Fabric",
+      "sortOrder": 20,
+      "units": ["MTR", "KGS"],
+      "itemTypes": ["Sheeting Fabric", "Curtain Fabric", "Thaan", "Roll"],
+      "qualities": [
+        "Cotton",
+        "Polyester",
+        "PC Blend",
+        "Bamboo",
+        "Linen",
+        "Satin",
+        "Jacquard",
+        "Dobby",
+        "Blackout Coated",
+        "Running Mtr",
+        "Pigment",
+        "Reactive",
+        "Digital",
+        "ODP"
+      ],
+      "sizes": ["44\"", "58\"", "72\"", "90\"", "100\"", "108\"", "112\"", "116\"", "120\""]
+    },
+    {
+      "slug": "womens_readymade_ethnic",
+      "label": "Womens – Readymade – Ethnic",
+      "sortOrder": 30,
+      "units": ["PCS"],
+      "itemTypes": [
+        "1 Pc Kurti",
+        "2 Pcs Kurti",
+        "3 Pcs Kurti",
+        "Coord Set",
+        "Saree (with stitched blouse)",
+        "Chaniya Choli",
+        "Lehenga",
+        "Top/Bottom",
+        "Top/Bottom/Dupatta"
+      ],
+      "qualities": [
+        "Anarkali",
+        "Straight Cut",
+        "Short Top",
+        "A-Line",
+        "Angrakha",
+        "Hand / Machine Embroidery",
+        "Chikankari",
+        "Zari",
+        "Mirror Work",
+        "Gotta Patti",
+        "Cotton",
+        "Rayon",
+        "Silk",
+        "Georgette"
+      ],
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "XXL",
+        "3XL",
+        "4XL",
+        "5XL",
+        "6XL",
+        "Free Size",
+        "S-XL",
+        "M-2XL",
+        "3XL-5XL"
+      ]
+    },
+    {
+      "slug": "womens_readymade_western",
+      "label": "Womens – Readymade – Western",
+      "sortOrder": 40,
+      "units": ["PCS"],
+      "itemTypes": [
+        "Coord Set (Western)",
+        "Shirt",
+        "Tshirt",
+        "Pant",
+        "Bermuda / Shorts",
+        "Leggings / Bottomwear",
+        "Nighty"
+      ],
+      "qualities": [
+        "Regular Fit",
+        "Slim Fit",
+        "Oversized",
+        "Crop",
+        "High Rise",
+        "Mid Rise",
+        "Denim",
+        "Cotton",
+        "Lycra",
+        "Printed",
+        "Solid"
+      ],
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "XXL",
+        "3XL",
+        "4XL",
+        "5XL",
+        "6XL",
+        "Free Size",
+        "28\"-40\""
+      ]
+    },
+    {
+      "slug": "womens_unstitched",
+      "label": "Womens – Unstitched",
+      "sortOrder": 50,
+      "units": ["PCS"],
+      "itemTypes": [
+        "Kurti / Suit Piece (cut-piece)",
+        "Saree",
+        "Blouse Piece",
+        "Salwar Suit Set (3-piece cut)"
+      ],
+      "qualities": [
+        "Unstitched",
+        "Semi-Stitched",
+        "Cotton",
+        "Chanderi",
+        "Georgette",
+        "Bandhani",
+        "Digital Print",
+        "Embroidered"
+      ],
+      "sizes": ["~2.5m Kurti / Suit", "5.5m Saree", "0.8m Blouse"]
+    },
+    {
+      "slug": "mens_readymade_ethnic",
+      "label": "Mens – Readymade – Ethnic",
+      "sortOrder": 60,
+      "units": ["PCS"],
+      "itemTypes": ["Kurta", "Sherwani"],
+      "qualities": [
+        "Short Kurta",
+        "Long Kurta",
+        "Nehru Jacket / Koti",
+        "Mandarin Collar",
+        "Cotton",
+        "Linen",
+        "Silk Blend",
+        "Jacquard",
+        "Embroidery",
+        "Solid"
+      ],
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "XXL",
+        "3XL",
+        "4XL",
+        "5XL",
+        "6XL",
+        "Free Size",
+        "S-XL",
+        "M-2XL",
+        "3XL-5XL"
+      ]
+    },
+    {
+      "slug": "mens_readymade_western",
+      "label": "Mens – Readymade – Western",
+      "sortOrder": 70,
+      "units": ["PCS"],
+      "itemTypes": ["Shirt", "Tshirt", "Pant", "Bermuda / Shorts"],
+      "qualities": [
+        "Slim Fit",
+        "Regular Fit",
+        "Relaxed Fit",
+        "Polo",
+        "Crew Neck",
+        "Formal",
+        "Casual",
+        "Chinos",
+        "Denim",
+        "Cargo",
+        "Cotton",
+        "Linen",
+        "Lycra"
+      ],
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "XXL",
+        "3XL",
+        "4XL",
+        "5XL",
+        "6XL",
+        "Free Size",
+        "28\"-40\""
+      ]
+    },
+    {
+      "slug": "fabrics_shirting_suiting",
+      "label": "Fabrics – Shirting & Suiting",
+      "sortOrder": 80,
+      "units": ["MTR", "KGS"],
+      "itemTypes": [
+        "Suiting Fabric",
+        "Shirting Fabric",
+        "Patta / Border Fabric",
+        "Thaan",
+        "Roll"
+      ],
+      "qualities": [
+        "Plain",
+        "Dobby",
+        "Jacquard",
+        "Twill",
+        "Oxford",
+        "Cotton",
+        "Linen",
+        "Poly-Viscose (PV)",
+        "Terry Rayon (TR)",
+        "Wool Blend",
+        "Yarn Dyed",
+        "Checks",
+        "Stripes",
+        "Solid"
+      ],
+      "sizes": ["36\"", "44\"", "58\"", "72\""]
+    },
+    {
+      "slug": "fabrics_dress_material",
+      "label": "Fabrics – Dress material",
+      "sortOrder": 90,
+      "units": ["MTR", "KGS"],
+      "itemTypes": [
+        "Rayon Fabric",
+        "PC Fabric (Poly-Cotton)",
+        "Cambric Fabric",
+        "Cotton Fabric",
+        "Denim Fabric",
+        "Hosiery Fabric",
+        "Trade-Name Fabric"
+      ],
+      "qualities": [
+        "Dobby",
+        "Jacquard",
+        "Khadi",
+        "Satin",
+        "Organza",
+        "Muslin",
+        "Chiffon",
+        "Georgette",
+        "Mill Print",
+        "Rotary Print",
+        "Digital",
+        "Foil",
+        "RFD (Ready for Dyeing)"
+      ],
+      "sizes": ["36\"", "44\"", "58\"", "72\""]
+    },
+    {
+      "slug": "kids_readymade_western",
+      "label": "Kids – Readymade – Western",
+      "sortOrder": 100,
+      "units": ["PCS"],
+      "itemTypes": ["Shirt", "Tshirt", "Pant"],
+      "qualities": [
+        "100% Cotton",
+        "Bio-Washed",
+        "Elastic Waist",
+        "Graphic Print",
+        "Striped",
+        "Casual",
+        "Denim",
+        "Joggers"
+      ],
+      "sizes": ["2-3Y", "4-5Y", "6-7Y", "8-9Y", "10-12Y"]
+    },
+    {
+      "slug": "kids_readymade_ethnic",
+      "label": "Kids – Readymade – Ethnic",
+      "sortOrder": 110,
+      "units": ["PCS"],
+      "itemTypes": ["Kurta"],
+      "qualities": [
+        "Kurta Pajama Set",
+        "Dhoti Kurta",
+        "Nehru Jacket",
+        "Cotton",
+        "Silk Blend",
+        "Festive / Partywear",
+        "Embroidery"
+      ],
+      "sizes": ["2-3Y", "4-5Y", "6-7Y", "8-9Y", "10-12Y"]
+    },
+    {
+      "slug": "accessories_readymade",
+      "label": "Accessories – Readymade",
+      "sortOrder": 120,
+      "units": ["PCS"],
+      "itemTypes": ["Bags", "Belts"],
+      "qualities": [
+        "Canvas",
+        "Leatherette",
+        "Cotton Tote",
+        "Handbag",
+        "Formal Belt",
+        "Casual Belt",
+        "Pin Buckle",
+        "Reversible"
+      ],
+      "sizes": ["S", "M", "L", "XL", "Free Size"]
+    },
+    {
+      "slug": "jobwork",
+      "label": "Jobwork",
+      "sortOrder": 130,
+      "units": ["MTR", "KG", "PCS"],
+      "itemTypes": ["Processing / Jobwork"],
+      "qualities": [
+        "Dyeing",
+        "Bleaching",
+        "Printing",
+        "Calendaring",
+        "Washing",
+        "Stentering",
+        "Embroidery Jobwork"
+      ],
+      "sizes": ["Lot size / width varies per order"]
+    }
+  ]
+}

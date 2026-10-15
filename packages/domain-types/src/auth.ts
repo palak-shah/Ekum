@@ -59,6 +59,8 @@ export const sessionUserSchema = z.object({
 export type SessionUser = z.infer<typeof sessionUserSchema> & {
   role?: string | null;
   permissions?: CompanyPermissions | null;
+  /** Live platform-admin flag (Admin Console). */
+  isPlatformAdmin?: boolean;
 };
 
 /** The result of a successful login. `needsOnboarding` is true until a company exists. */

@@ -388,8 +388,8 @@ export type CatalogTagStatus = (typeof CatalogTagStatus)[keyof typeof CatalogTag
 export const catalogTagStatusValues = values(CatalogTagStatus);
 
 /**
- * Coarse "what do you deal in" chips collected at onboarding. Distinct from fine
- * sell/buy product categories (sarees, kurtis, …) which are added later.
+ * @deprecated Replaced by Master Category slugs (sheet Section A). Kept for
+ * migrating legacy Company.superCategories rows.
  */
 export const SuperCategory = {
   MensApparel: 'mens_apparel',
@@ -401,7 +401,7 @@ export const SuperCategory = {
 export type SuperCategory = (typeof SuperCategory)[keyof typeof SuperCategory];
 export const superCategoryValues = values(SuperCategory);
 
-/** Human labels for onboarding/profile chips. */
+/** @deprecated Prefer MASTER_CATEGORY_LABEL. */
 export const SUPER_CATEGORY_LABEL: Record<SuperCategory, string> = {
   [SuperCategory.MensApparel]: "Men's apparel",
   [SuperCategory.WomensApparel]: "Women's apparel",
@@ -412,13 +412,14 @@ export const SUPER_CATEGORY_LABEL: Record<SuperCategory, string> = {
 
 const SUPER_IDS = new Set<string>(Object.values(SuperCategory));
 
-/** Screen copy — never show raw keys like womens_apparel. */
+/** Screen copy — never show raw keys like womens_apparel / hometextiles_readyset. */
 export function categoryDisplayLabel(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return trimmed;
   if (SUPER_IDS.has(trimmed)) {
     return SUPER_CATEGORY_LABEL[trimmed as SuperCategory] ?? trimmed;
   }
+  // Master category labels live in master-categories.ts — resolve there first when imported.
   if (trimmed.includes('_')) {
     return trimmed
       .split('_')

@@ -22,11 +22,13 @@ datasource db {
 
 /// A person, authenticated by phone/OTP. Never a buyer/supplier "type".
 model User {
-  id        String   @id @default(cuid())
-  phone     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  phone           String   @unique
+  name            String?
+  /** Platform ops (Admin Console). Not a company membership role. */
+  isPlatformAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   memberships   CompanyMembership[]
   refreshTokens RefreshToken[]
@@ -69,8 +71,10 @@ model Company {
 
   sellCategories   String[] @default([])
   buyCategories    String[] @default([])
-  // Coarse onboarding chips (SuperCategory). Fine product tags stay in sellCategories.
+  // Legacy SuperCategory chips — kept for migration; prefer masterCategories.
   superCategories  String[] @default([])
+  /** Master Category slugs (sheet Section A) from onboarding / Profile. */
+  masterCategories String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -91,6 +95,7 @@ model Company {
   products     Product[]
   collections  Collection[]
   catalogTags  CatalogTag[]
+  customTags   CompanyCustomTag[]
   addresses    Address[]
   billingFirms BillingFirm[]
   settings     CompanySettings?
@@ -335,6 +340,8 @@ model Collection {
   rateMax         Decimal? @db.Decimal(12, 2)
   /** Tag labels for Explore search (same bridge as Product.categories). */
   categories     String[] @default([])
+  /** Master Category for this pack (filters item/quality/size/units). */
+  masterCategoryId String?
   status         String   @default("draft") // CollectionStatus
   // Decided at publish time (PublishAudience / RateVisibility).
   audience            String   @default("followers")
@@ -378,15 +385,17 @@ model Collection {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdByUser User?               @relation("CollectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedByUser User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  products      CollectionProduct[]
-  savedItems    SavedItem[]
-  viewGrants    CollectionViewGrant[]
-  viewRequests  CollectionViewRequest[]
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  masterCategory MasterCategory?     @relation(fields: [masterCategoryId], references: [id], onDelete: SetNull)
+  createdByUser  User?               @relation("CollectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser  User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  products       CollectionProduct[]
+  savedItems     SavedItem[]
+  viewGrants     CollectionViewGrant[]
+  viewRequests   CollectionViewRequest[]
 
   @@index([companyId, status])
+  @@index([masterCategoryId])
   @@index([exploreActivityAt])
   @@index([status, endsAt])
   @@index([status, startsAt])
@@ -396,7 +405,78 @@ model Collection {
   @@index([companyId, repostSourceProductId])
 }
 
-/// Official taxonomy tags (seeded) + company-private custom tags for catalog pickers.
+/// Spreadsheet Master Category (Section A). Stable slug is the product ID.
+model MasterCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  optionLinks MasterOptionLink[]
+  units       CategoryUnit[]
+  collections Collection[]
+  customTags  CompanyCustomTag[]
+}
+
+/// Approved master option (item type / quality / size). Shared across categories via links.
+model MasterOption {
+  id        String   @id @default(cuid())
+  kind      String // item_type | quality | size
+  label     String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categoryLinks MasterOptionLink[]
+
+  @@index([kind, active])
+  @@unique([kind, label])
+}
+
+/// Category ↔ option membership (same label may serve multiple categories).
+model MasterOptionLink {
+  id         String @id @default(cuid())
+  categoryId String
+  optionId   String
+
+  category MasterCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  option   MasterOption   @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, optionId])
+  @@index([optionId])
+}
+
+/// Permitted rate/order units for a Master Category (Unit enum strings).
+model CategoryUnit {
+  id         String @id @default(cuid())
+  categoryId String
+  unit       String
+
+  category MasterCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, unit])
+}
+
+/// Business-owned custom tags — separate from approved MasterOption rows.
+model CompanyCustomTag {
+  id               String   @id @default(cuid())
+  companyId        String
+  kind             String // item_type | quality | size
+  label            String
+  masterCategoryId String?
+  createdAt        DateTime @default(now())
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  masterCategory MasterCategory? @relation(fields: [masterCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, kind])
+  @@index([masterCategoryId])
+}
+
+/// Official taxonomy tags (seeded) + legacy company-private custom tags.
 /// Unique: company tags on (companyId, lower(label)); official on (parentKey, lower(label)).
 model CatalogTag {
   id        String   @id @default(cuid())

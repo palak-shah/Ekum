@@ -43,7 +43,7 @@ export class CatalogTagService implements OnModuleInit {
   async taxonomy(companyId: string): Promise<TaxonomyMain[]> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { sellCategories: true, superCategories: true },
+      select: { sellCategories: true, superCategories: true, masterCategories: true },
     });
     return mainsForCompany(
       parentKeysFromCompanyCategories(
@@ -56,7 +56,7 @@ export class CatalogTagService implements OnModuleInit {
   async list(companyId: string): Promise<CatalogTagView[]> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { sellCategories: true, superCategories: true },
+      select: { sellCategories: true, superCategories: true, masterCategories: true },
     });
     const parentKeys = parentKeysFromCompanyCategories(
       company?.sellCategories ?? [],

@@ -127,17 +127,24 @@ describe('collectionShowPackNote / facts / selection scope', () => {
     expect(collectionFactsLine(['Fabric'], null)).toBe('Fabric');
   });
 
-  it('builds pack details in Rate · Size · Description · Item · Quality order', () => {
+  it('builds pack details in Rate · Size tags · Description · Item · Quality order', () => {
     expect(
       collectionPackDetailSections({
-        categories: ['Kurti', 'Embroidered', 'S'],
+        categories: ['Kurti', 'Embroidered', 'S', 'M'],
         description: 'Festive.',
         rateBand: '₹1,200 /pc',
       }).map((row) => row.key),
-    ).toEqual(['rate', 'size', 'description', 'item-tags', 'quality-tags']);
+    ).toEqual(['rate', 'size-tags', 'description', 'item-tags', 'quality-tags']);
+    expect(
+      collectionPackDetailSections({
+        categories: ['S', 'M'],
+        description: null,
+        rateBand: null,
+      }),
+    ).toEqual([{ key: 'size-tags', label: 'Size tags', body: 'S · M' }]);
   });
 
-  it('omits Size and Rate when empty', () => {
+  it('omits Size tags and Rate when empty', () => {
     expect(
       collectionPackDetailSections({
         categories: ['Kurti'],
@@ -154,7 +161,7 @@ describe('collectionShowPackNote / facts / selection scope', () => {
         description: 'Soft georgette.',
         rateBand: designSheetRateBand('₹400/pc'),
       }).map((row) => row.key),
-    ).toEqual(['rate', 'size', 'description', 'item-tags', 'quality-tags']);
+    ).toEqual(['rate', 'size-tags', 'description', 'item-tags', 'quality-tags']);
     expect(
       collectionPackDetailSections({
         categories: ['Readymade'],

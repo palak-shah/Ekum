@@ -51,6 +51,9 @@ export class AuthService {
         phone: user.phone,
         companyId: activeCompanyId,
         name: user.name?.trim() || null,
+        isPlatformAdmin: Boolean(
+          (user as { isPlatformAdmin?: boolean }).isPlatformAdmin,
+        ),
       },
       needsOnboarding: activeCompanyId == null,
     };
@@ -121,9 +124,19 @@ export class AuthService {
   async refresh(rawRefreshToken: string): Promise<AuthSession> {
     const { tokens, userId, phone, companyId } = await this.tokens.rotate(rawRefreshToken);
     const name = await this.displayName(userId);
+    let isPlatformAdmin = false;
+    try {
+      const row = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { isPlatformAdmin: true },
+      });
+      isPlatformAdmin = Boolean(row?.isPlatformAdmin);
+    } catch {
+      isPlatformAdmin = false;
+    }
     return {
       tokens,
-      user: { userId, phone, companyId, name },
+      user: { userId, phone, companyId, name, isPlatformAdmin },
       needsOnboarding: companyId === null,
     };
   }
@@ -154,6 +167,7 @@ export class AuthService {
         name,
         role,
         permissions,
+        isPlatformAdmin: principal.isPlatformAdmin,
       },
       needsOnboarding: companyId == null,
     };

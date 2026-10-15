@@ -154,7 +154,7 @@ Everyday kit is **WhatsApp-tight**, not 48px everywhere:
 | `Chip` | 28px |
 | List square (search trailing / sheet Close) | 40×40 |
 | Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px** |
-| Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order / dispatch journey in sets**, **price and billing per pc**. Rate per prefers **pc** when offered (else a offered unit e.g. **mtr**). Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
+| Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order + dispatch journey in sets**, **price / “1 set contains” / billing per pc**. Rate per prefers **pc** when offered (else a offered unit e.g. **mtr**). Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
 | Nav ＋ / camera shutter | Stay 48px |
 
 Page gaps and one-off list rows may still be roomier until a later pass.

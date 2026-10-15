@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { JobsModule } from './jobs/jobs.module';
 import { MediaModule } from './media/media.module';
 import { HealthModule } from './health/health.module';
+import { AdminModule } from './admin/admin.module';
 
 /**
  * Root module. Feature modules map 1:1 to bounded contexts. EventsModule is the
@@ -31,6 +32,7 @@ import { HealthModule } from './health/health.module';
     AccessModule,
     IdentityModule,
     CatalogModule,
+    AdminModule,
     SettingsModule,
     DiscoveryModule,
     ConversationModule,

@@ -9,9 +9,9 @@ import { orderDispatchSectionSummary } from './orderDispatchPreview';
 /** Pack create/edit wrap — same shape as CollectionEditorPage identityFields. */
 function PackOrderDispatchAccordion() {
   const [open, setOpen] = useState(false);
-  const orderUnit = 'pc';
+  const orderUnit = 'set';
   const piecesPerPack = '1';
-  const dispatchUnit = 'pc';
+  const dispatchUnit = 'set';
   const moq = '';
   return (
     <CollectionExpandableSection

@@ -1,20 +1,29 @@
-import { SuperCategory, SUPER_CATEGORY_LABEL, categoryDisplayLabel } from '@ekum/domain-types';
+import {
+  SuperCategory,
+  SUPER_CATEGORY_LABEL,
+  categoryDisplayLabel,
+  masterCategoryDisplayLabel,
+  masterCategorySlugValues,
+  migrateSuperCategoriesToMaster,
+} from '@ekum/domain-types';
 
 export type InterestCompany = {
   sellCategories?: string[] | null;
   superCategories?: string[] | null;
+  masterCategories?: string[] | null;
 };
 
 export type ResolvedInterest = {
-  /** Strings used for fine sellCategories hits (buy tags or supers). */
+  /** Strings used for fine sellCategories hits (buy tags or masters). */
   tags: string[];
-  /** Viewer supers for coarse overlap. */
+  /** Viewer master (or legacy super) slugs for coarse overlap. */
   supers: string[];
   /** True when viewer has fine buyCategories. */
   preferFine: boolean;
 };
 
 const SUPER_IDS = new Set<string>(Object.values(SuperCategory));
+const MASTER_IDS = new Set<string>(masterCategorySlugValues);
 const LABEL_TO_SUPER = new Map(
   (Object.entries(SUPER_CATEGORY_LABEL) as [SuperCategory, string][]).map(([id, label]) => [
     label.toLowerCase(),
@@ -22,20 +31,28 @@ const LABEL_TO_SUPER = new Map(
   ]),
 );
 
+function companyMasters(company: InterestCompany): string[] {
+  const masters = (company.masterCategories ?? []).map((item) => item.trim()).filter(Boolean);
+  if (masters.length > 0) return masters;
+  return migrateSuperCategoriesToMaster(company.superCategories ?? []);
+}
+
 /** Map chip value (super id or human label) to a SuperCategory id when applicable. */
 export function resolveSuperCategoryId(category: string): string | null {
   const trimmed = category.trim();
   if (!trimmed) return null;
   if (SUPER_IDS.has(trimmed)) return trimmed;
+  if (MASTER_IDS.has(trimmed)) return trimmed;
   return LABEL_TO_SUPER.get(trimmed.toLowerCase()) ?? null;
 }
 
 export function resolveInterestFromCompany(viewer: {
   buyCategories?: string[] | null;
   superCategories?: string[] | null;
+  masterCategories?: string[] | null;
 }): ResolvedInterest {
   const buy = (viewer.buyCategories ?? []).map((item) => item.trim()).filter(Boolean);
-  const supers = (viewer.superCategories ?? []).map((item) => item.trim()).filter(Boolean);
+  const supers = companyMasters(viewer);
   if (buy.length > 0) {
     return { tags: buy, supers, preferFine: true };
   }
@@ -43,8 +60,8 @@ export function resolveInterestFromCompany(viewer: {
 }
 
 /**
- * Loose match: fine sell tag hit, or coarse super overlap when the viewer is on
- * supers / the publisher has no fine sell tags.
+ * Loose match: fine sell tag hit, or coarse master/super overlap when the viewer is on
+ * masters / the publisher has no fine sell tags.
  */
 export function matchesCompanyInterest(
   company: InterestCompany,
@@ -55,11 +72,12 @@ export function matchesCompanyInterest(
   if (interest.tags.some((tag) => sell.includes(tag))) return true;
   const useCoarse = !interest.preferFine || sell.length === 0;
   if (!useCoarse) return false;
-  const supers = company.superCategories ?? [];
-  return interest.supers.some((superId) => supers.includes(superId));
+  const masters = companyMasters(company);
+  return interest.supers.some((id) => masters.includes(id));
 }
 
-/** Relevance “Matches …” clause — never dump raw enum keys like womens_apparel. */
+/** Relevance “Matches …” clause — never dump raw enum keys. */
 export function interestHitLabel(hit: string): string {
+  if (MASTER_IDS.has(hit)) return masterCategoryDisplayLabel(hit);
   return categoryDisplayLabel(hit);
 }

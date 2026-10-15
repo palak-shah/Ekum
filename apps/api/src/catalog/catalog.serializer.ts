@@ -116,6 +116,8 @@ export class CatalogSerializer {
           ? null
           : (collection as { rateMax: { toNumber: () => number } }).rateMax.toNumber(),
       categories: collection.categories ?? [],
+      masterCategoryId:
+        (collection as { masterCategoryId?: string | null }).masterCategoryId ?? null,
       memberFind: collectionMemberFind(collection.products),
       status: collection.status,
       audience: collection.audience,

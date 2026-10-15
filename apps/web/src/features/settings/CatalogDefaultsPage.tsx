@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RateVisibility, Unit, unitValues, type CompanySettingsView } from '@ekum/domain-types';
+import {
+  isPackOrderUnit,
+  RateVisibility,
+  Unit,
+  unitValues,
+  type CompanySettingsView,
+} from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button, InlineNotice, LoadingBlock, cx } from '@/ui/kit';
 import { OrderDispatchFields } from '@/features/catalog/OrderDispatchFields';
@@ -71,7 +78,10 @@ export function CatalogDefaultsPage() {
 
   if (settings.isLoading) return <LoadingBlock />;
 
-  const ratePer = (dispatchUnit.trim() || DEFAULT_DISPATCH_UNIT) as string;
+  const order = unit || DEFAULT_SELL_AS_UNIT;
+  const dispatch = dispatchUnit.trim() || DEFAULT_DISPATCH_UNIT;
+  const ratePer =
+    catalogRateDisplayUnit({ unit: order, dispatchUnit: dispatch }) ?? Unit.Piece;
 
   return (
     <div className="flex flex-col gap-5 pb-8">
@@ -137,7 +147,14 @@ export function CatalogDefaultsPage() {
             data-testid="catalog-defaults-rate-unit"
             aria-label="Rate unit"
             value={ratePer}
-            onChange={(e) => setDispatchUnit(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (isPackOrderUnit(order) && (next === Unit.Piece || next === order)) {
+                setDispatchUnit(order);
+              } else {
+                setDispatchUnit(next);
+              }
+            }}
             className="min-h-9 rounded-xl border border-line bg-surface px-2.5 text-sm font-semibold text-ink"
           >
             {unitValues.map((u) => (
@@ -148,13 +165,12 @@ export function CatalogDefaultsPage() {
           </select>
         </div>
         <p className="text-xs text-muted">
-          Default billing unit for new collections (usually pc). Same as Rate per on create
-          collection.
+          Default billing unit for new collections (usually pc). Order and dispatch stay in sets.
         </p>
         <OrderDispatchFields
-          orderUnit={unit}
+          orderUnit={order}
           piecesPerPack={piecesPerPack}
-          dispatchUnit={dispatchUnit || Unit.Piece}
+          dispatchUnit={dispatch}
           moq={moq}
           onOrderUnit={setUnit}
           onPiecesPerPack={setPiecesPerPack}

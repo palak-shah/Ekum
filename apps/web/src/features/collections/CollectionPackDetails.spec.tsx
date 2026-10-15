@@ -19,7 +19,7 @@ describe('CollectionPackDetails', () => {
     expect(rate).toHaveTextContent('₹1,200 /pc');
     expect(rate).not.toHaveTextContent(/^Rate/);
     expect(rate.textContent).not.toMatch(/Rate/);
-    expect(screen.queryByTestId('collection-pack-details-size')).toBeNull();
+    expect(screen.queryByTestId('collection-pack-details-size-tags')).toBeNull();
     const description = screen.getByTestId('collection-pack-details-description');
     expect(description).toHaveTextContent('Festive sets this week.');
     expect(description.textContent).not.toMatch(/Description/);
@@ -30,11 +30,14 @@ describe('CollectionPackDetails', () => {
     );
   });
 
-  it('shows Size when a size tag is set', () => {
+  it('shows Size tags when size tags are set', () => {
     render(
-      <CollectionPackDetails categories={['S']} description={null} rateBand={null} />,
+      <CollectionPackDetails categories={['S', 'M']} description={null} rateBand={null} />,
     );
-    expect(screen.getByTestId('collection-pack-details-size')).toHaveTextContent('S');
+    expect(screen.getByTestId('collection-pack-details-size-tags')).toHaveTextContent(
+      'Size tags',
+    );
+    expect(screen.getByTestId('collection-pack-details-size-tags')).toHaveTextContent('S · M');
     expect(screen.queryByTestId('collection-pack-details-rate')).toBeNull();
   });
 

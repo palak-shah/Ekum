@@ -78,7 +78,25 @@ export class JwtAuthGuard implements CanActivate {
       }
     }
 
-    request.user = { userId, phone: payload.phone, companyId, role, permissions };
+    let isPlatformAdmin = false;
+    try {
+      const adminRow = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { isPlatformAdmin: true },
+      });
+      isPlatformAdmin = Boolean(adminRow?.isPlatformAdmin);
+    } catch {
+      isPlatformAdmin = false;
+    }
+
+    request.user = {
+      userId,
+      phone: payload.phone,
+      companyId,
+      role,
+      permissions,
+      isPlatformAdmin,
+    };
     return true;
   }
 

@@ -22,6 +22,7 @@ export function TagSuggestInput({
   placeholder,
   testId,
   multiple = true,
+  onCustomCommit,
 }: {
   label: string;
   values: string[];
@@ -29,8 +30,10 @@ export function TagSuggestInput({
   suggestionsFor: (query: string) => string[];
   placeholder?: string;
   testId?: string;
-  /** When false, a pick replaces the current value and closes (Size). */
+  /** When false, a pick replaces the current value and closes the list. */
   multiple?: boolean;
+  /** Fired when the user creates a free-text value (not from the suggestion pool). */
+  onCustomCommit?: (label: string) => void;
 }) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -65,8 +68,10 @@ export function TagSuggestInput({
   }, []);
 
   const commit = (raw: string) => {
-    const custom = raw.startsWith('Use “') ? query.trim() : raw;
+    const isCustom = raw.startsWith('Use “');
+    const custom = isCustom ? query.trim() : raw;
     onChange(addUnique(values, custom, multiple));
+    if (isCustom && custom) onCustomCommit?.(custom);
     if (multiple) {
       setQuery('');
       setOpen(true);

@@ -56,6 +56,7 @@ import {
   type DispatchLegDraft,
 } from '@/features/orders/dispatchSheet';
 import {
+  clampSettleQtyInput,
   defaultSettleFinalQty,
   lineSettleFinalQty,
   orderLineFactsWithSettleFinal,
@@ -3916,12 +3917,14 @@ export function OrderDetailPage() {
                               aria-label={`Final quantity for ${item.name}`}
                               className={COMPACT_QTY_INPUT_CLASS}
                               value={settleQty[item.id] ?? String(finalQty)}
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const shipped = item.shippedQuantity ?? 0;
+                                const next = clampSettleQtyInput(event.target.value, shipped);
                                 setSettleQty((prev) => ({
                                   ...prev,
-                                  [item.id]: event.target.value,
-                                }))
-                              }
+                                  [item.id]: next,
+                                }));
+                              }}
                               {...orderQtyInputProps(item.id === lastSettleId)}
                             />
                           </div>

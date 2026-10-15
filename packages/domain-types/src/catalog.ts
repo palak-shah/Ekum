@@ -98,6 +98,8 @@ const createCollectionObjectSchema = z.object({
   rateMax: z.number().nonnegative().nullable().optional(),
   /** Tag labels for Explore search (official + company custom). */
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
+  /** Master Category for this pack (filters tags/units). */
+  masterCategoryId: z.string().min(1).nullable().optional(),
   /** Live window start. null clears. */
   startsAt: optionalScheduleInstant,
   /** Live window end. null = evergreen. */
@@ -292,6 +294,8 @@ export interface CollectionView {
   rateMax: number | null;
   /** Tag labels (search bridge; same shape as Product.categories). */
   categories: string[];
+  /** Master Category for this pack (null when unset / legacy). */
+  masterCategoryId: string | null;
   /** Member name / SKU / notes / tags for in-list find. */
   memberFind: string[];
   status: string;

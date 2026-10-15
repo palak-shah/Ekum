@@ -104,6 +104,7 @@ type InterestCompanyRow = {
   city: string;
   sellCategories: string[];
   superCategories: string[];
+  masterCategories?: string[];
 };
 
 function withLiveDesigns<T extends { _count?: { products: number } }>(rows: T[]): T[] {
@@ -160,6 +161,7 @@ export class ExploreService {
         sellCategories: true,
         buyCategories: true,
         superCategories: true,
+        masterCategories: true,
         city: true,
       },
     });
@@ -240,7 +242,12 @@ export class ExploreService {
       publisherIds.length > 0
         ? await this.prisma.company.findMany({
             where: { id: { in: publisherIds } },
-            select: { id: true, sellCategories: true, superCategories: true },
+            select: {
+              id: true,
+              sellCategories: true,
+              superCategories: true,
+              masterCategories: true,
+            },
           })
         : [];
     const tradeById = new Map(tradeRows.map((row) => [row.id, row]));
@@ -1717,7 +1724,12 @@ export class ExploreService {
   ): Promise<{ interest: ResolvedInterest; city: string | null }> {
     const viewer = await this.prisma.company.findUnique({
       where: { id: viewerCompanyId },
-      select: { buyCategories: true, superCategories: true, city: true },
+      select: {
+        buyCategories: true,
+        superCategories: true,
+        masterCategories: true,
+        city: true,
+      },
     });
     const city = viewer?.city?.trim() || null;
     const { categories } = narrowLists(query);

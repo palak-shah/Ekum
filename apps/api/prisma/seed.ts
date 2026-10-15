@@ -111,6 +111,12 @@ async function main(): Promise<void> {
       // Dual-role so Explore shows Buying / Selling scope for the supplier persona.
       buyCategories: ['Fabric'],
       superCategories: [SuperCategory.WomensApparel, SuperCategory.Accessories],
+      masterCategories: [
+        'womens_readymade_ethnic',
+        'womens_readymade_western',
+        'womens_unstitched',
+        'accessories_readymade',
+      ],
     },
     update: {
       name: 'Surat Silk House',
@@ -119,6 +125,12 @@ async function main(): Promise<void> {
       verification: VerificationStatus.GstVerified,
       buyCategories: ['Fabric'],
       superCategories: [SuperCategory.WomensApparel, SuperCategory.Accessories],
+      masterCategories: [
+        'womens_readymade_ethnic',
+        'womens_readymade_western',
+        'womens_unstitched',
+        'accessories_readymade',
+      ],
     },
   });
   await prisma.company.upsert({
@@ -130,12 +142,22 @@ async function main(): Promise<void> {
       about: 'Multi-brand retail store.',
       buyCategories: ['Sarees', 'Dress Material'],
       superCategories: [SuperCategory.WomensApparel],
+      masterCategories: [
+        'womens_readymade_ethnic',
+        'womens_readymade_western',
+        'womens_unstitched',
+      ],
       canRefer: true,
     },
     update: {
       name: 'Jaipur Emporium',
       canRefer: true,
       superCategories: [SuperCategory.WomensApparel],
+      masterCategories: [
+        'womens_readymade_ethnic',
+        'womens_readymade_western',
+        'womens_unstitched',
+      ],
     },
   });
   await prisma.company.upsert({
@@ -152,6 +174,7 @@ async function main(): Promise<void> {
       sellCategories: ['Fabric'],
       buyCategories: ['Sarees'],
       superCategories: [SuperCategory.Accessories],
+      masterCategories: ['accessories_readymade', 'fabrics_dress_material'],
     },
     update: {
       name: 'Ahmedabad Loom Co',
@@ -161,6 +184,7 @@ async function main(): Promise<void> {
       sellCategories: ['Fabric'],
       buyCategories: ['Sarees'],
       superCategories: [SuperCategory.Accessories],
+      masterCategories: ['accessories_readymade', 'fabrics_dress_material'],
     },
   });
 

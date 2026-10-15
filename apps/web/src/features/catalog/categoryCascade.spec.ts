@@ -50,20 +50,24 @@ describe('tag cascade', () => {
     expect(labels).toContain('Suiting Fabric');
   });
 
-  it('round-trips official item, quality, and size into the right slots', () => {
-    const slots = categoriesToTagSlots(['Readymade', 'Embroidered', 'S']);
+  it('round-trips official item, quality, and sizes into the right slots', () => {
+    const slots = categoriesToTagSlots(['Readymade', 'Embroidered', 'S', 'M']);
     expect(slots.items).toContain('Readymade');
     expect(slots.qualities).toContain('Embroidered');
-    expect(slots.size).toBe('S');
-    expect(tagSlotsToCategories({ items: ['Readymade', 'Saree'], qualities: ['Embroidered', 'Printed'], size: 'M' })).toEqual(
-      ['Readymade', 'Saree', 'Embroidered', 'Printed', 'M'],
-    );
+    expect(slots.sizes).toEqual(['S', 'M']);
+    expect(
+      tagSlotsToCategories({
+        items: ['Readymade', 'Saree'],
+        qualities: ['Embroidered', 'Printed'],
+        sizes: ['M', 'L'],
+      }),
+    ).toEqual(['Readymade', 'Saree', 'Embroidered', 'Printed', 'M', 'L']);
   });
 
   it('keeps custom labels on Item tags so search still has them', () => {
     const slots = categoriesToTagSlots(['My own tag', 'S']);
     expect(slots.items).toContain('My own tag');
-    expect(slots.size).toBe('S');
+    expect(slots.sizes).toEqual(['S']);
   });
 
   it('covers six mains', () => {

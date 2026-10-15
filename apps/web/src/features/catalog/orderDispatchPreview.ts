@@ -1,3 +1,5 @@
+import { catalogRateUnit } from '@ekum/domain-types';
+
 const ORDER_NOUN: Record<string, { one: string; many: string }> = {
   pc: { one: 'pc', many: 'pcs' },
   set: { one: 'set', many: 'sets' },
@@ -15,6 +17,14 @@ export function unitCountNoun(unit: string | null | undefined, count: number): s
   return count === 1 ? pair.one : pair.many;
 }
 
+/** Unit “1 set contains” / preview conversion uses (rate unit — usually pc). */
+export function orderContentsUnit(orderUnit: string, dispatchUnit: string): string {
+  return (
+    catalogRateUnit({ unit: orderUnit, dispatchUnit }) ??
+    (dispatchUnit.trim() || 'pc')
+  );
+}
+
 /** `10 sets (= 40 pcs)` when pack size is known. */
 export function orderDispatchPreview(
   orderUnit: string,
@@ -27,27 +37,29 @@ export function orderDispatchPreview(
   if (pack == null || !Number.isFinite(pack) || pack <= 0) {
     return `${sampleQty} ${orderNoun}`;
   }
+  const contentsUnit = orderContentsUnit(orderUnit, dispatchUnit);
   const dispatchQty = sampleQty * pack;
-  return `${sampleQty} ${orderNoun} (= ${dispatchQty} ${unitCountNoun(dispatchUnit, dispatchQty)})`;
+  return `${sampleQty} ${orderNoun} (= ${dispatchQty} ${unitCountNoun(contentsUnit, dispatchQty)})`;
 }
 
-/** Collapsed accordion summary — unit · contains · dispatch · MOQ. */
+/** Collapsed accordion summary — order · contains in rate unit · dispatch (if different) · MOQ. */
 export function orderDispatchSectionSummary(input: {
   orderUnit: string;
   piecesPerPack: string;
   dispatchUnit: string;
   moq: string;
 }): string {
-  const unit = input.orderUnit.trim() || 'pc';
+  const unit = input.orderUnit.trim() || 'set';
   const parts = [unit];
   const pcs = input.piecesPerPack.trim();
-  const dispatch = input.dispatchUnit.trim() || 'pc';
+  const dispatch = input.dispatchUnit.trim() || unit;
+  const contents = orderContentsUnit(unit, dispatch);
   if (pcs) {
     const n = Number(pcs);
     parts.push(
       Number.isFinite(n) && n > 0
-        ? `${pcs} ${unitCountNoun(dispatch, n)}`
-        : `${pcs} ${unitCountNoun(dispatch, 2)}`,
+        ? `${pcs} ${unitCountNoun(contents, n)}`
+        : `${pcs} ${unitCountNoun(contents, 2)}`,
     );
   }
   if (dispatch && dispatch !== unit) parts.push(`dispatch ${dispatch}`);

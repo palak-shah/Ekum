@@ -109,6 +109,8 @@ const NotificationsPage = page(
 );
 const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
+const AdminLayout = page(() => import('@/features/admin/AdminLayout'), 'AdminLayout');
+const AdminTagsPage = page(() => import('@/features/admin/AdminTagsPage'), 'AdminTagsPage');
 const YourPathsPage = page(() => import('@/features/settings/YourPathsPage'), 'YourPathsPage');
 const CatalogDefaultsPage = page(
   () => import('@/features/settings/CatalogDefaultsPage'),
@@ -195,6 +197,25 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         errorElement: <RouteErrorPage />,
         children: [
+          {
+            path: 'admin',
+            element: (
+              <Suspense fallback={<LoadingBlock label="Opening Admin…" />}>
+                <AdminLayout />
+              </Suspense>
+            ),
+            children: [
+              { index: true, element: <Navigate to="/admin/tags" replace /> },
+              {
+                path: 'tags',
+                element: (
+                  <Suspense fallback={<LoadingBlock label="Loading tags…" />}>
+                    <AdminTagsPage />
+                  </Suspense>
+                ),
+              },
+            ],
+          },
           {
             element: <AppShell />,
             errorElement: <RouteErrorPage />,

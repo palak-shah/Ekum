@@ -594,11 +594,11 @@ export function unitsSuggestedByItem(
 export type TagSlots = {
   items: string[];
   qualities: string[];
-  size: string;
+  sizes: string[];
 };
 
 export function emptyTagSlots(): TagSlots {
-  return { items: [], qualities: [], size: '' };
+  return { items: [], qualities: [], sizes: [] };
 }
 
 function labelKeySet(labels: Iterable<string>): Set<string> {
@@ -644,7 +644,7 @@ function allSizeLabels(mains: TaxonomyMain[]): Set<string> {
 export function tagSlotsToCategories(slots: TagSlots): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const raw of [...slots.items, ...slots.qualities, slots.size]) {
+  for (const raw of [...slots.items, ...slots.qualities, ...slots.sizes]) {
     const label = raw.trim();
     if (!label) continue;
     const key = label.toLowerCase();
@@ -655,7 +655,7 @@ export function tagSlotsToCategories(slots: TagSlots): string[] {
   return out;
 }
 
-/** Official item/sub → Item tags; official quality-only → Quality / work; official size → Size; custom → Item tags. */
+/** Official item/sub → Item tags; official quality-only → Quality / work; official size → Size tags; custom → Item tags. */
 export function categoriesToTagSlots(
   categories: string[],
   mains: TaxonomyMain[] = CATEGORY_TAXONOMY,
@@ -665,13 +665,17 @@ export function categoriesToTagSlots(
   const sizeKeys = allSizeLabels(mains);
   const items: string[] = [];
   const qualities: string[] = [];
-  let size = '';
+  const sizes: string[] = [];
+  const seenSizes = new Set<string>();
   for (const raw of categories) {
     const label = raw.trim();
     if (!label) continue;
     const key = label.toLowerCase();
-    if (!size && sizeKeys.has(key)) {
-      size = label;
+    if (sizeKeys.has(key)) {
+      if (!seenSizes.has(key)) {
+        seenSizes.add(key);
+        sizes.push(label);
+      }
       continue;
     }
     if (itemKeys.has(key)) {
@@ -684,5 +688,5 @@ export function categoriesToTagSlots(
     }
     items.push(label);
   }
-  return { items, qualities, size };
+  return { items, qualities, sizes };
 }

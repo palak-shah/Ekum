@@ -15,11 +15,12 @@ export function unitAsksPiecesPerSet(unit: string): boolean {
 export type { SameForAllDetails };
 export { sameForAllIsEmpty, sameForAllSummary, parseRateInput };
 
+/** Platform usual: order + dispatch in sets (or passed pack unit); rate stays pc. */
 export const emptySameForAll = (unit = ''): SameForAllDetails => ({
   categories: [],
   rate: '',
   unit,
-  dispatchUnit: '',
+  dispatchUnit: unit.trim() ? unit.trim() : '',
   piecesPerPack: '',
   moq: '',
   notes: '',
@@ -59,7 +60,14 @@ export function memberDiffersFromSameForAll(
   if (sameForAllIsEmpty(shared)) return false;
   if (shared.rate.trim() && form.rate.trim() !== shared.rate.trim()) return true;
   if (shared.unit.trim() && form.unit !== shared.unit) return true;
-  if (shared.dispatchUnit.trim() && form.dispatchUnit !== shared.dispatchUnit) return true;
+  // Blank member dispatch = unset / follows pack — not a Diff vs seeded pc.
+  if (
+    shared.dispatchUnit.trim() &&
+    form.dispatchUnit.trim() &&
+    form.dispatchUnit !== shared.dispatchUnit
+  ) {
+    return true;
+  }
   if (
     shared.piecesPerPack.trim() &&
     form.piecesPerPack.trim() !== shared.piecesPerPack.trim()

@@ -17,6 +17,7 @@ export function RateRangeFields({
   label = 'Rate',
   rateUnit,
   onRateUnit,
+  permittedUnits,
 }: {
   from: string;
   to: string;
@@ -27,7 +28,11 @@ export function RateRangeFields({
   /** Display unit for “Rate per” (default pc). */
   rateUnit?: string;
   onRateUnit?: (next: string) => void;
+  /** When set, only these units appear (category-aware). */
+  permittedUnits?: string[];
 }) {
+  const unitOptions =
+    permittedUnits && permittedUnits.length > 0 ? permittedUnits : [...unitValues];
   const [mode, setMode] = useState<'single' | 'range'>(() =>
     Boolean(to.trim()) ? 'range' : 'single',
   );
@@ -48,16 +53,16 @@ export function RateRangeFields({
     <div className="flex flex-col gap-1">
       <div className="flex flex-col gap-1">
         {unitSelect ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-ink">Rate per</span>
+          <div className="flex w-full items-center gap-2">
+            <span className="shrink-0 text-sm font-semibold text-ink">Rate per</span>
             <select
               data-testid="collection-rate-unit"
               aria-label="Rate unit"
               value={selectedUnit}
               onChange={(e) => onRateUnit?.(e.target.value)}
-              className="min-h-8 rounded-xl border border-line bg-surface px-2.5 text-sm font-semibold text-ink"
+              className="min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-[16px] text-ink"
             >
-              {unitValues.map((u) => (
+              {unitOptions.map((u) => (
                 <option key={u} value={u}>
                   {u}
                 </option>

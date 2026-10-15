@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
-  SUPER_CATEGORY_LABEL,
-  SuperCategory,
+  MASTER_CATEGORY_LABEL,
+  masterCategorySlugValues,
   type AuthTokens,
   type CreateCompanyDto,
+  type MasterCategorySlug,
+  type MasterCategoryView,
   type OwnCompanyProfile,
-  type SuperCategory as SuperCategoryType,
 } from '@ekum/domain-types';
 import { queryClient } from '@/app/queryClient';
 import { api, ApiError, setTokens } from '@/lib/apiClient';
@@ -16,7 +18,10 @@ import { OnboardingLayout } from '@/app/OnboardingLayout';
 import { Button, Field, LoadingBlock, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
 
-const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
+const FALLBACK_OPTIONS = masterCategorySlugValues.map((slug) => ({
+  slug,
+  label: MASTER_CATEGORY_LABEL[slug],
+}));
 
 export function OnboardingPage() {
   const navigate = useNavigate();
@@ -25,9 +30,21 @@ export function OnboardingPage() {
   const [name, setName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [city, setCity] = useState('');
-  const [superCategories, setSuperCategories] = useState<SuperCategoryType[]>([]);
+  const [masterCategories, setMasterCategories] = useState<MasterCategorySlug[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const categoriesQuery = useQuery({
+    queryKey: ['catalog-master-categories'],
+    queryFn: () => api.get<MasterCategoryView[]>('/catalog/master-categories'),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const chipOptions =
+    categoriesQuery.data && categoriesQuery.data.length > 0
+      ? categoriesQuery.data.map((c) => ({ slug: c.slug as MasterCategorySlug, label: c.label }))
+      : FALLBACK_OPTIONS;
 
   const fromState = (location.state as { from?: string } | null)?.from ?? null;
   const inviteReturn = useMemo(
@@ -71,14 +88,14 @@ export function OnboardingPage() {
     );
   }
 
-  const toggle = (value: SuperCategoryType) => {
-    setSuperCategories((prev) =>
+  const toggle = (value: MasterCategorySlug) => {
+    setMasterCategories((prev) =>
       prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
     );
   };
 
   const canSubmit =
-    name.trim() && contactPerson.trim() && city.trim() && superCategories.length > 0;
+    name.trim() && contactPerson.trim() && city.trim() && masterCategories.length > 0;
 
   const submit = async () => {
     setError(null);
@@ -88,7 +105,7 @@ export function OnboardingPage() {
         name: name.trim(),
         city: city.trim(),
         contactPerson: contactPerson.trim(),
-        superCategories,
+        masterCategories,
         sellCategories: [],
         buyCategories: [],
       };
@@ -111,7 +128,7 @@ export function OnboardingPage() {
     <OnboardingLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-ink">Set up your business</h1>
-        <p className="mt-1 text-sm text-muted">Four quick details. You can add the rest later.</p>
+        <p className="mt-1 text-sm text-muted">Quick details. You can add the rest later.</p>
       </div>
       <form
         className="flex flex-col gap-4"
@@ -148,19 +165,19 @@ export function OnboardingPage() {
         </Field>
         <Field label="What do you deal in?" required hint="Select all that apply." error={error}>
           <div className="flex flex-wrap gap-2">
-            {SUPER_OPTIONS.map((value) => {
-              const on = superCategories.includes(value);
+            {chipOptions.map((opt) => {
+              const on = masterCategories.includes(opt.slug);
               return (
                 <button
-                  key={value}
+                  key={opt.slug}
                   type="button"
-                  onClick={() => toggle(value)}
+                  onClick={() => toggle(opt.slug)}
                   className={cx(
-                    'rounded-full px-3.5 py-1.5 text-sm font-medium',
+                    'rounded-full px-3 py-1.5 text-sm font-medium',
                     on ? 'bg-accent text-white' : 'bg-foam text-muted',
                   )}
                 >
-                  {SUPER_CATEGORY_LABEL[value]}
+                  {opt.label}
                 </button>
               );
             })}

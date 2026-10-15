@@ -21,6 +21,12 @@ import { RelistRequestService } from './relist-request.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { AccessModule } from '../access/access.module';
 import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.pipe';
+import { MasterDataService } from './master-data/master-data.service';
+import {
+  CompanyCustomTagController,
+  MasterCategoriesController,
+  MasterTaxonomyController,
+} from './master-data/master-data.controller';
 
 /**
  * Catalog. Owns Products, Collections, and their many-to-many join. Publish is a
@@ -34,6 +40,9 @@ import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.
     CollectionController,
     CatalogTagController,
     CatalogTaxonomyController,
+    MasterCategoriesController,
+    MasterTaxonomyController,
+    CompanyCustomTagController,
     ShareLinkController,
     CollectionViewRequestController,
     CollectionViewGrantController,
@@ -44,12 +53,18 @@ import { AbsolutizeProductImagesPipe } from '../media/absolutize-product-images.
     ProductService,
     CollectionService,
     CatalogTagService,
+    MasterDataService,
     ShareLinkService,
     CatalogSerializer,
     CollectionViewRequestService,
     RelistRequestService,
     AbsolutizeProductImagesPipe,
   ],
-  exports: [CatalogSerializer, CollectionViewRequestService, RelistRequestService],
+  exports: [
+    CatalogSerializer,
+    CollectionViewRequestService,
+    RelistRequestService,
+    MasterDataService,
+  ],
 })
 export class CatalogModule {}

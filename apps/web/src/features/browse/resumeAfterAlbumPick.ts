@@ -1,7 +1,14 @@
 export const RESUME_AFTER_ALBUM_PICK_KEY = 'ekum:resumeAfterAlbumPick';
 
 /** Staging Order/Repost vs cart-page Order/Repost (Choose designs Continue). */
-export type ResumeAfterAlbumPick = 'curate' | 'order' | 'cart-curate' | 'cart-order';
+export const RESUME_AFTER_ALBUM_PICK_VALUES = [
+  'curate',
+  'order',
+  'cart-curate',
+  'cart-order',
+] as const;
+
+export type ResumeAfterAlbumPick = (typeof RESUME_AFTER_ALBUM_PICK_VALUES)[number];
 
 export type AlbumPickContinueStep =
   | { kind: 'next-album'; collectionId: string }
@@ -9,6 +16,13 @@ export type AlbumPickContinueStep =
 
 function canUseStorage(): boolean {
   return typeof sessionStorage !== 'undefined';
+}
+
+export function isResumeAfterAlbumPick(value: string | null): value is ResumeAfterAlbumPick {
+  return (
+    value != null &&
+    (RESUME_AFTER_ALBUM_PICK_VALUES as readonly string[]).includes(value)
+  );
 }
 
 export function writeResumeAfterAlbumPick(value: ResumeAfterAlbumPick): void {
@@ -19,10 +33,7 @@ export function writeResumeAfterAlbumPick(value: ResumeAfterAlbumPick): void {
 export function readResumeAfterAlbumPick(): ResumeAfterAlbumPick | null {
   if (!canUseStorage()) return null;
   const raw = sessionStorage.getItem(RESUME_AFTER_ALBUM_PICK_KEY);
-  if (raw === 'curate' || raw === 'order' || raw === 'cart-curate' || raw === 'cart-order') {
-    return raw;
-  }
-  return null;
+  return isResumeAfterAlbumPick(raw) ? raw : null;
 }
 
 export function clearResumeAfterAlbumPick(): void {

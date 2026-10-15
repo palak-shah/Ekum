@@ -25,6 +25,19 @@ export function lineSettleFinalQty(
   return Math.min(Math.floor(raw), shipped);
 }
 
+/**
+ * Keep the settle Final field honest while typing/pasting.
+ * Empty stays empty (blur/submit falls back via lineSettleFinalQty).
+ */
+export function clampSettleQtyInput(raw: string, shipped: number): string {
+  if (raw === '') return '';
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return '';
+  const max = Math.max(0, Math.floor(shipped));
+  if (n < 0) return '0';
+  return String(Math.min(Math.floor(n), max));
+}
+
 export function settlePayloadLines(
   items: OrderItemView[],
   qty: Record<string, string>,

@@ -6,24 +6,30 @@ import {
   resolveSuperCategoryId,
 } from './interest-match';
 
+const WOMENS_MASTERS = [
+  'womens_readymade_ethnic',
+  'womens_readymade_western',
+  'womens_unstitched',
+];
+
 describe('interest-match', () => {
-  it('prefers buyCategories over supers when resolving interest', () => {
+  it('prefers buyCategories over masters when resolving interest', () => {
     const interest = resolveInterestFromCompany({
       buyCategories: ['Sarees'],
       superCategories: ['womens_apparel'],
     });
     expect(interest.preferFine).toBe(true);
     expect(interest.tags).toEqual(['Sarees']);
-    expect(interest.supers).toEqual(['womens_apparel']);
+    expect(interest.supers).toEqual(WOMENS_MASTERS);
   });
 
-  it('falls back to supers when buyCategories are empty', () => {
+  it('falls back to migrated masters when buyCategories are empty', () => {
     const interest = resolveInterestFromCompany({
       buyCategories: [],
       superCategories: ['womens_apparel'],
     });
     expect(interest.preferFine).toBe(false);
-    expect(interest.tags).toEqual(['womens_apparel']);
+    expect(interest.tags).toEqual(WOMENS_MASTERS);
   });
 
   it('matches fine sell tags', () => {
@@ -39,7 +45,7 @@ describe('interest-match', () => {
     ).toBe(true);
   });
 
-  it('uses super overlap when viewer is on supers', () => {
+  it('uses master overlap when viewer is on supers', () => {
     const interest = resolveInterestFromCompany({
       buyCategories: [],
       superCategories: ['womens_apparel'],
@@ -52,7 +58,7 @@ describe('interest-match', () => {
     ).toBe(true);
   });
 
-  it('uses super overlap when publisher has no sell tags', () => {
+  it('uses master overlap when publisher has no sell tags', () => {
     const interest = resolveInterestFromCompany({
       buyCategories: ['Sarees'],
       superCategories: ['womens_apparel'],
@@ -65,7 +71,7 @@ describe('interest-match', () => {
     ).toBe(true);
   });
 
-  it('does not use supers when fine buyer faces a non-matching seller with sell tags', () => {
+  it('does not use masters when fine buyer faces a non-matching seller with sell tags', () => {
     const interest = resolveInterestFromCompany({
       buyCategories: ['Sarees'],
       superCategories: ['womens_apparel'],
@@ -85,6 +91,9 @@ describe('interest-match', () => {
 
   it('labels interest hits for relevance (BM — no raw enum keys)', () => {
     expect(interestHitLabel('womens_apparel')).toBe("Women's apparel");
+    expect(interestHitLabel('womens_readymade_ethnic')).toBe(
+      'Womens – Readymade – Ethnic',
+    );
     expect(interestHitLabel('Sarees')).toBe('Sarees');
     expect(interestHitLabel('dress_material')).toBe('Dress Material');
   });

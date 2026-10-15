@@ -92,15 +92,21 @@ export function defaultRateUnit(offered: readonly string[]): string {
   return clean[0] || 'pc';
 }
 
-/** Rate display unit: dispatch on pack path; order unit on native. */
+/**
+ * Rate / contents unit for pack order path.
+ * Platform usual: order + dispatch journey in **set**, rate and “1 set contains” in **pc**.
+ * When dispatch equals the order pack unit (both set), rate stays pc — not ₹/set.
+ * A distinct dispatch (pc, mtr, …) is the rate unit (legacy pack-rate-on-dispatch).
+ */
 export function catalogRateUnit(input: {
   unit?: string | null;
   dispatchUnit?: string | null;
   offeredRateUnits?: readonly string[];
 }): string | null {
   if (isPackOrderUnit(input.unit)) {
+    const order = input.unit?.trim() ?? '';
     const d = input.dispatchUnit?.trim();
-    if (d) return d;
+    if (d && d !== order) return d;
     return defaultRateUnit(input.offeredRateUnits ?? ['pc']);
   }
   return input.unit?.trim() || null;

@@ -1,6 +1,7 @@
 export * from './enums';
 export * from './common';
 export * from './auth';
+export * from './master-categories';
 export * from './company';
 export * from './access';
 export * from './catalog';

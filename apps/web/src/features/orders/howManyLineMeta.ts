@@ -1,5 +1,5 @@
 import { formatCatalogRate, isPackOrderUnit } from '@/lib/catalogRate';
-import { packSizeForUnit } from '@ekum/domain-types';
+import { catalogRateUnit, packSizeForUnit } from '@ekum/domain-types';
 import { unitCountNoun } from '@/features/catalog/orderDispatchPreview';
 import { lineBillAmount, orderBillTotal } from '@/features/orders/orderLineBilling';
 
@@ -16,10 +16,12 @@ const SOLD_AS: Record<string, string> = {
 
 function dispatchContentsLabel(
   pack: number,
+  unit?: string | null,
   dispatchUnit?: string | null,
 ): string {
-  const dispatch = dispatchUnit?.trim() || 'pc';
-  return `${pack} ${unitCountNoun(dispatch, pack)}`;
+  const contents =
+    catalogRateUnit({ unit, dispatchUnit }) ?? dispatchUnit?.trim() ?? 'pc';
+  return `${pack} ${unitCountNoun(contents, pack)}`;
 }
 
 /** Short sold-as on the name line — never a second title under a one-word name. */
@@ -40,7 +42,9 @@ export function howManyLineExtra(product: {
 }): string | null {
   const bits: string[] = [];
   const pack = packSizeForUnit(product.unit, product.piecesPerPack);
-  if (pack != null) bits.push(dispatchContentsLabel(pack, product.dispatchUnit));
+  if (pack != null) {
+    bits.push(dispatchContentsLabel(pack, product.unit, product.dispatchUnit));
+  }
   if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
   const rate = formatCatalogRate(product);
   if (rate !== 'On request') bits.push(rate);
@@ -57,7 +61,7 @@ export function howManySoldAs(
   const label = SOLD_AS[key] ?? key;
   const pack = packSizeForUnit(unit, piecesPerPack);
   if (pack != null) {
-    return `${label} · ${dispatchContentsLabel(pack, dispatchUnit)}`;
+    return `${label} · ${dispatchContentsLabel(pack, unit, dispatchUnit)}`;
   }
   return label;
 }
@@ -109,8 +113,9 @@ export function howManyTotalPcsLabel(
   if (!isPackOrderUnit(unit)) return null;
   const pcs = howManyPcsPerUnit(unit, piecesPerPack);
   if (pcs == null) return null;
-  const dispatch = dispatchUnit?.trim() || 'pc';
-  return `Total ${qty * pcs} ${unitCountNoun(dispatch, qty * pcs)}`;
+  const contents =
+    catalogRateUnit({ unit, dispatchUnit }) ?? dispatchUnit?.trim() ?? 'pc';
+  return `Total ${qty * pcs} ${unitCountNoun(contents, qty * pcs)}`;
 }
 
 export function qtyCountNoun(unit: string | null | undefined): string {
@@ -154,7 +159,9 @@ export function howManySetsBanner(
 ): string | null {
   const pack = products.filter((p) => isPackOrderUnit(p.unit));
   if (pack.length === 0) return null;
-  const allPc = pack.every((p) => (p.dispatchUnit?.trim() || 'pc') === 'pc');
+  const allPc = pack.every(
+    (p) => (catalogRateUnit({ unit: p.unit, dispatchUnit: p.dispatchUnit }) ?? 'pc') === 'pc',
+  );
   const allSets = pack.every((p) => p.unit?.trim() === 'set');
   if (allPc && allSets) {
     return 'You order in sets. Rates and dispatch are per pc.';
@@ -212,8 +219,12 @@ export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
           sum + (l.quantity ?? 0) * (howManyPcsPerUnit(l.unit, l.piecesPerPack) ?? 0),
         0,
       );
-      const dispatch = packLines[0]?.dispatchUnit?.trim() || 'pc';
-      const dNoun = unitCountNoun(dispatch, totalPcs);
+      const contents =
+        catalogRateUnit({
+          unit: packLines[0]?.unit,
+          dispatchUnit: packLines[0]?.dispatchUnit,
+        }) ?? 'pc';
+      const dNoun = unitCountNoun(contents, totalPcs);
       return {
         primary: `${total} ${noun} = ${totalPcs} ${dNoun}`,
         money: moneyTotal ?? undefined,

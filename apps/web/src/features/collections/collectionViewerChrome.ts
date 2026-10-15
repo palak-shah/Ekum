@@ -95,7 +95,7 @@ export function collectionFactsLine(
 
 export type CollectionPackDetailKey =
   | 'rate'
-  | 'size'
+  | 'size-tags'
   | 'description'
   | 'item-tags'
   | 'quality-tags';
@@ -113,8 +113,8 @@ function joinTagLine(labels: string[]): string | null {
 }
 
 /**
- * Album pack identity sections — Rate · Size · Description · Item tags · Quality tags.
- * Empty sections omitted; Size only when a size tag is set.
+ * Album pack identity sections — Rate · Size tags · Description · Item tags · Quality tags.
+ * Empty sections omitted; Size tags only when at least one size is set.
  */
 export function collectionPackDetailSections(input: {
   categories?: string[] | null;
@@ -125,8 +125,8 @@ export function collectionPackDetailSections(input: {
   const sections: CollectionPackDetailSection[] = [];
   const rate = input.rateBand?.trim() || null;
   if (rate) sections.push({ key: 'rate', label: 'Rate', body: rate });
-  const size = slots.size.trim();
-  if (size) sections.push({ key: 'size', label: 'Size', body: size });
+  const sizes = joinTagLine(slots.sizes);
+  if (sizes) sections.push({ key: 'size-tags', label: 'Size tags', body: sizes });
   const description = input.description?.trim() || null;
   if (description) {
     sections.push({ key: 'description', label: 'Description', body: description });

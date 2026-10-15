@@ -1,69 +1,70 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  CATEGORY_TAXONOMY,
-  itemSlotSuggestions,
-  mainsForCompany,
-  qualitySlotSuggestions,
-  sizeSlotSuggestions,
-  type TaxonomyMain,
+  MasterOptionKind,
+  type MasterOptionKind as OptionKind,
+  type MasterTaxonomyView,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { TagSuggestInput } from './TagSuggestInput';
 
-function uniqueLabels(groups: string[][]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const group of groups) {
-    for (const label of group) {
-      const key = label.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(label);
-    }
-  }
-  return out;
+function filterPool(pool: string[], query: string): string[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return pool.slice(0, 40);
+  return pool.filter((label) => label.toLowerCase().includes(q)).slice(0, 40);
 }
 
 export function CascadeTagsFields({
   items,
   qualities,
-  size,
-  parentKeys,
+  sizes,
+  masterCategoryId,
   onItems,
   onQualities,
-  onSize,
+  onSizes,
+  /** @deprecated Prefer masterCategoryId — kept for callers not yet migrated. */
+  parentKeys: _parentKeys,
 }: {
   items: string[];
   qualities: string[];
-  size: string;
-  parentKeys: string[];
+  sizes: string[];
+  masterCategoryId?: string | null;
+  parentKeys?: string[];
   onItems: (next: string[]) => void;
   onQualities: (next: string[]) => void;
-  onSize: (next: string) => void;
+  onSizes: (next: string[]) => void;
 }) {
+  const queryClient = useQueryClient();
   const taxonomy = useQuery({
-    queryKey: ['catalog-taxonomy'],
-    queryFn: () => api.get<TaxonomyMain[]>('/catalog/taxonomy'),
+    queryKey: ['catalog-master-taxonomy', masterCategoryId],
+    queryFn: () =>
+      api.get<MasterTaxonomyView>(
+        `/catalog/master-taxonomy?categoryId=${encodeURIComponent(masterCategoryId!)}`,
+      ),
+    enabled: Boolean(masterCategoryId),
     staleTime: 60_000,
   });
-  const tree =
-    taxonomy.data && taxonomy.data.length > 0 ? taxonomy.data : CATEGORY_TAXONOMY;
-  const fromProfile =
-    parentKeys.length > 0
-      ? parentKeys
-          .map(
-            (key) =>
-              tree.find((main) => main.key === key) ??
-              CATEGORY_TAXONOMY.find((main) => main.key === key),
-          )
-          .filter((main): main is TaxonomyMain => Boolean(main))
-      : [];
-  const mains =
-    fromProfile.length > 0
-      ? fromProfile
-      : mainsForCompany(parentKeys.length ? parentKeys : tree.map((m) => m.key));
-  const itemKeys = items.length > 0 ? items : [''];
-  const qualityKeys = qualities.length > 0 ? qualities : [''];
+
+  const itemPool = taxonomy.data?.itemTypes ?? [];
+  const qualityPool = taxonomy.data?.qualities ?? [];
+  const sizePool = taxonomy.data?.sizes ?? [];
+
+  const persistCustom = (kind: OptionKind, label: string) => {
+    void api
+      .post('/catalog/custom-tags', {
+        kind,
+        label,
+        masterCategoryId: masterCategoryId ?? null,
+      })
+      .then(() => {
+        void queryClient.invalidateQueries({
+          queryKey: ['catalog-master-taxonomy', masterCategoryId],
+        });
+      })
+      .catch(() => {
+        /* label still stays on the pack; suggestion sync can retry later */
+      });
+  };
+
   return (
     <div className="flex flex-col gap-1.5" data-testid="collection-product-tags">
       <TagSuggestInput
@@ -71,30 +72,24 @@ export function CascadeTagsFields({
         testId="collection-tag-item"
         values={items}
         onChange={onItems}
-        suggestionsFor={(query) => itemSlotSuggestions(mains, query)}
+        suggestionsFor={(query) => filterPool(itemPool, query)}
+        onCustomCommit={(label) => persistCustom(MasterOptionKind.ItemType, label)}
       />
       <TagSuggestInput
         label="Quality / work tags"
         testId="collection-tag-quality"
         values={qualities}
         onChange={onQualities}
-        suggestionsFor={(query) =>
-          uniqueLabels(itemKeys.map((item) => qualitySlotSuggestions(mains, item, query)))
-        }
+        suggestionsFor={(query) => filterPool(qualityPool, query)}
+        onCustomCommit={(label) => persistCustom(MasterOptionKind.Quality, label)}
       />
       <TagSuggestInput
-        label="Size"
+        label="Size tags"
         testId="collection-tag-size"
-        multiple={false}
-        values={size ? [size] : []}
-        onChange={(next) => onSize(next[0] ?? '')}
-        suggestionsFor={(query) =>
-          uniqueLabels(
-            itemKeys.flatMap((item) =>
-              qualityKeys.map((quality) => sizeSlotSuggestions(mains, item, quality, query)),
-            ),
-          )
-        }
+        values={sizes}
+        onChange={onSizes}
+        suggestionsFor={(query) => filterPool(sizePool, query)}
+        onCustomCommit={(label) => persistCustom(MasterOptionKind.Size, label)}
       />
     </div>
   );

@@ -48,4 +48,9 @@ describe('resumeAfterAlbumPick', () => {
     writeResumeAfterAlbumPick('cart-curate');
     expect(readResumeAfterAlbumPick()).toBe('cart-curate');
   });
+
+  it('ignores unknown session values', () => {
+    sessionStorage.setItem('ekum:resumeAfterAlbumPick', 'not-a-resume');
+    expect(readResumeAfterAlbumPick()).toBeNull();
+  });
 });

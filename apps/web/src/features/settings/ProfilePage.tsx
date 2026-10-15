@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useSearchParams } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  SUPER_CATEGORY_LABEL,
-  SuperCategory,
+  MASTER_CATEGORY_LABEL,
+  masterCategoryDisplayLabel,
+  masterCategorySlugValues,
+  type MasterCategorySlug,
+  type MasterCategoryView,
   type OwnCompanyProfile,
-  type SuperCategory as SuperCategoryType,
   type UpdateCompanyDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { uploadImage } from '@/lib/mediaUpload';
+import { useAuth } from '@/lib/auth';
 import { useMyCompany } from '@/lib/queries';
 import { isOwnProfileEditing } from '@/features/settings/profileEdit';
 import { YouHeaderShare } from '@/features/settings/YouHeaderShare';
@@ -18,6 +21,11 @@ import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
 import { SuggestInput } from '@/ui/SuggestInput';
+
+const FALLBACK_MASTER_OPTIONS = masterCategorySlugValues.map((slug) => ({
+  slug,
+  label: MASTER_CATEGORY_LABEL[slug],
+}));
 
 function parseList(value: string): string[] {
   return value
@@ -31,10 +39,9 @@ function ReadValue({ value }: { value: string | null | undefined }) {
   return <p className="text-[15px] leading-snug text-ink">{text || '—'}</p>;
 }
 
-const SUPER_OPTIONS = Object.values(SuperCategory) as SuperCategoryType[];
-
 export function ProfilePage() {
   const company = useMyCompany();
+  const { session } = useAuth();
   const location = useLocation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -53,10 +60,27 @@ export function ProfilePage() {
     sellCategories: '',
     buyCategories: '',
     gstNumber: '',
-    superCategories: [] as SuperCategoryType[],
+    masterCategories: [] as MasterCategorySlug[],
   });
 
+  const categoriesQuery = useQuery({
+    queryKey: ['catalog-master-categories'],
+    queryFn: () => api.get<MasterCategoryView[]>('/catalog/master-categories'),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const chipOptions =
+    categoriesQuery.data && categoriesQuery.data.length > 0
+      ? categoriesQuery.data.map((c) => ({
+          slug: c.slug as MasterCategorySlug,
+          label: c.label,
+        }))
+      : FALLBACK_MASTER_OPTIONS;
+
   const applyCompany = (data: OwnCompanyProfile) => {
+    const masters = (data.masterCategories?.length
+      ? data.masterCategories
+      : data.superCategories) as MasterCategorySlug[];
     setForm({
       name: data.name,
       contactPerson: data.contactPerson ?? '',
@@ -65,7 +89,7 @@ export function ProfilePage() {
       sellCategories: data.sellCategories.join(', '),
       buyCategories: data.buyCategories.join(', '),
       gstNumber: data.gstNumber ?? '',
-      superCategories: data.superCategories as SuperCategoryType[],
+      masterCategories: masters,
     });
   };
 
@@ -123,12 +147,12 @@ export function ProfilePage() {
     );
   };
 
-  const toggleSuper = (value: SuperCategoryType) => {
+  const toggleMaster = (value: MasterCategorySlug) => {
     setForm((prev) => ({
       ...prev,
-      superCategories: prev.superCategories.includes(value)
-        ? prev.superCategories.filter((item) => item !== value)
-        : [...prev.superCategories, value],
+      masterCategories: prev.masterCategories.includes(value)
+        ? prev.masterCategories.filter((item) => item !== value)
+        : [...prev.masterCategories, value],
     }));
   };
 
@@ -142,7 +166,7 @@ export function ProfilePage() {
         sellCategories: parseList(form.sellCategories),
         buyCategories: parseList(form.buyCategories),
         gstNumber: form.gstNumber.trim() || null,
-        superCategories: form.superCategories,
+        masterCategories: form.masterCategories,
       };
       return api.patch<OwnCompanyProfile>('/companies/me', dto);
     },
@@ -285,29 +309,29 @@ export function ProfilePage() {
       <Field label="What do you deal in?">
         <div className="flex flex-wrap gap-2">
           {editing
-            ? SUPER_OPTIONS.map((value) => {
-                const on = form.superCategories.includes(value);
+            ? chipOptions.map((opt) => {
+                const on = form.masterCategories.includes(opt.slug);
                 return (
                   <button
-                    key={value}
+                    key={opt.slug}
                     type="button"
-                    onClick={() => toggleSuper(value)}
+                    onClick={() => toggleMaster(opt.slug)}
                     className={cx(
-                      'rounded-full px-3.5 py-1.5 text-sm font-medium',
+                      'rounded-full px-3 py-1.5 text-sm font-medium',
                       on ? 'bg-accent text-white' : 'bg-foam text-muted',
                     )}
                   >
-                    {SUPER_CATEGORY_LABEL[value]}
+                    {opt.label}
                   </button>
                 );
               })
-            : form.superCategories.length > 0
-              ? form.superCategories.map((value) => (
+            : form.masterCategories.length > 0
+              ? form.masterCategories.map((value) => (
                   <span
                     key={value}
-                    className="rounded-full bg-accent/10 px-3.5 py-1.5 text-sm font-medium text-ink"
+                    className="rounded-full bg-accent/10 px-3 py-1.5 text-sm font-medium text-ink"
                   >
-                    {SUPER_CATEGORY_LABEL[value]}
+                    {masterCategoryDisplayLabel(value)}
                   </span>
                 ))
               : (
@@ -389,7 +413,7 @@ export function ProfilePage() {
                   disabled={
                     !form.name.trim() ||
                     !form.city.trim() ||
-                    form.superCategories.length === 0 ||
+                    form.masterCategories.length === 0 ||
                     save.isPending
                   }
                   onClick={() => save.mutate()}
@@ -401,9 +425,20 @@ export function ProfilePage() {
             document.body,
           )
         : (
-            <Button fullWidth data-testid="profile-edit" onClick={enterEdit}>
-              Edit profile
-            </Button>
+            <>
+              {session?.user.isPlatformAdmin ? (
+                <Link
+                  to="/admin"
+                  data-testid="admin-console-entry"
+                  className="block w-full rounded-xl border border-line bg-canvas px-4 py-3 text-center text-[15px] font-medium text-ink"
+                >
+                  Admin Console
+                </Link>
+              ) : null}
+              <Button fullWidth data-testid="profile-edit" onClick={enterEdit}>
+                Edit profile
+              </Button>
+            </>
           )}
     </div>
   );

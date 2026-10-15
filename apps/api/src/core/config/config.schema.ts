@@ -47,6 +47,11 @@ export const envSchema = z
       .default('true')
       .transform((value) => value === 'true'),
     JOBS_POLL_MS: z.coerce.number().int().positive().default(15000),
+    /**
+     * Comma-separated phones (+91…) granted platform admin on API boot when the
+     * User row already exists. Never ship production phones in frontend code.
+     */
+    PLATFORM_ADMIN_PHONES: z.string().default(''),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.OTP_EXPOSE_DEV_CODE), {
     message: 'OTP_EXPOSE_DEV_CODE must be false in production',

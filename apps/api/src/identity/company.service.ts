@@ -75,7 +75,8 @@ export class CompanyService {
               gstNumber: dto.gstNumber ?? null,
               sellCategories: dto.sellCategories,
               buyCategories: dto.buyCategories,
-              superCategories: dto.superCategories,
+              masterCategories: dto.masterCategories,
+              superCategories: dto.superCategories ?? [],
               canPublish: false,
               canRefer: true,
             },
@@ -145,7 +146,10 @@ export class CompanyService {
         logoUrl: dto.logoUrl === undefined ? undefined : dto.logoUrl,
         sellCategories: dto.sellCategories,
         buyCategories: dto.buyCategories,
-        superCategories: dto.superCategories,
+        ...(dto.masterCategories !== undefined
+          ? { masterCategories: dto.masterCategories }
+          : {}),
+        ...(dto.superCategories !== undefined ? { superCategories: dto.superCategories } : {}),
       },
     });
     const user = await this.prisma.user.findUniqueOrThrow({

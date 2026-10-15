@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OrderItemView } from '@ekum/domain-types';
 import {
+  clampSettleQtyInput,
   defaultSettleFinalQty,
   lineSettleFinalQty,
   orderLineFactsWithSettleFinal,
@@ -33,6 +34,15 @@ describe('settleSheet', () => {
     expect(lineSettleFinalQty(lines[0]!, { a: '20' })).toBe(15);
     expect(lineSettleFinalQty(lines[0]!, { a: '8' })).toBe(8);
     expect(lineSettleFinalQty(lines[0]!, { a: '-1' })).toBe(15);
+  });
+
+  it('clamps settle Final input while typing or pasting', () => {
+    expect(clampSettleQtyInput('', 15)).toBe('');
+    expect(clampSettleQtyInput('8', 15)).toBe('8');
+    expect(clampSettleQtyInput('20', 15)).toBe('15');
+    expect(clampSettleQtyInput('15.9', 15)).toBe('15');
+    expect(clampSettleQtyInput('-3', 15)).toBe('0');
+    expect(clampSettleQtyInput('abc', 15)).toBe('');
   });
 
   it('builds settle payload and skips declined', () => {

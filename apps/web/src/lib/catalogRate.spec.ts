@@ -13,7 +13,8 @@ describe('catalogRate', () => {
     expect(isPackOrderUnit('mtr')).toBe(false);
   });
 
-  it('shows pack rates per dispatch (default pc)', () => {
+  it('shows pack rates per pc when dispatch matches order set (platform usual)', () => {
+    expect(catalogRateDisplayUnit({ unit: 'set', dispatchUnit: 'set' })).toBe('pc');
     expect(catalogRateDisplayUnit({ unit: 'set', dispatchUnit: 'pc' })).toBe('pc');
     expect(catalogRateDisplayUnit({ unit: 'set', dispatchUnit: null })).toBe('pc');
     expect(
@@ -23,7 +24,9 @@ describe('catalogRate', () => {
         offeredRateUnits: ['mtr', 'than'],
       }),
     ).toBe('mtr');
+    expect(catalogRateDisplayUnit({ unit: 'set', dispatchUnit: 'mtr' })).toBe('mtr');
     expect(catalogRateDisplayUnit({ unit: 'pc' })).toBe('pc');
+    expect(formatCatalogRate({ rate: 640, unit: 'set', dispatchUnit: 'set' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 640, unit: 'set', dispatchUnit: 'pc' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 94, unit: 'set', dispatchUnit: 'mtr' })).toBe('₹94/mtr');
     expect(formatCatalogRate({ rate: 640, unit: 'pc' })).toBe('₹640/pc');

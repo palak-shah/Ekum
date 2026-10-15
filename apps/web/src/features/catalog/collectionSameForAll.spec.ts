@@ -24,6 +24,22 @@ describe('unitAsksPiecesPerSet', () => {
   });
 });
 
+describe('emptySameForAll', () => {
+  it('seeds dispatch set when order unit is set (platform usual; rate stays pc)', () => {
+    expect(emptySameForAll('set')).toMatchObject({
+      unit: 'set',
+      dispatchUnit: 'set',
+    });
+  });
+
+  it('keeps a fully blank shell when no order unit is passed', () => {
+    expect(emptySameForAll()).toMatchObject({
+      unit: '',
+      dispatchUnit: '',
+    });
+  });
+});
+
 describe('unionTags', () => {
   it('amends only missing tags', () => {
     expect(unionTags(['Silk', 'Red'], ['silk', 'Wedding'])).toEqual(['Silk', 'Red', 'Wedding']);
@@ -99,7 +115,7 @@ describe('collectSameForAllDiffIds', () => {
           name: 'A',
           rate: '1200',
           unit: 'pc',
-          dispatchUnit: '',
+          dispatchUnit: 'pc',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -112,7 +128,7 @@ describe('collectSameForAllDiffIds', () => {
           name: 'B',
           rate: '900',
           unit: 'pc',
-          dispatchUnit: '',
+          dispatchUnit: 'pc',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -121,6 +137,25 @@ describe('collectSameForAllDiffIds', () => {
       },
     ]);
     expect([...ids]).toEqual(['diff']);
+  });
+
+  it('does not treat blank member dispatch as Diff against pack pc default', () => {
+    const ids = collectSameForAllDiffIds(shared, [
+      {
+        id: 'follows',
+        form: {
+          name: 'A',
+          rate: '1200',
+          unit: 'pc',
+          dispatchUnit: '',
+          piecesPerPack: '',
+          moq: '100',
+          notes: '',
+          categories: [],
+        },
+      },
+    ]);
+    expect([...ids]).toEqual([]);
   });
 });
 

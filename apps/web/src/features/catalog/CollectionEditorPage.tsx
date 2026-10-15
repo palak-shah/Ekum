@@ -8,6 +8,8 @@ import type {
   ConnectionView,
   CreateCollectionDto,
   CreateProductDto,
+  MasterCategoryView,
+  MasterTaxonomyView,
   OtherPackCountsView,
   ProductView,
   PublishCollectionDto,
@@ -20,14 +22,12 @@ import {
   Unit,
   categoriesToTagSlots,
   emptyTagSlots,
-  mainsForCompany,
-  parentKeysFromCompanyCategories,
   tagSlotsToCategories,
-  unitsSuggestedByItem,
   type TagSlots,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
+import { resolveCompanyMasterOptions } from './companyMasterOptions';
 import {
   readCollectionApplyToAll,
   writeCollectionApplyToAll,
@@ -226,6 +226,7 @@ export function CollectionEditorPage() {
     description: '',
     coverImage: '',
     categories: [] as string[],
+    masterCategoryId: null as string | null,
   });
   const [tagSlots, setTagSlotsState] = useState<TagSlots>(() => emptyTagSlots());
   const [memberTagSlots, setMemberTagSlots] = useState<TagSlots>(() => emptyTagSlots());
@@ -309,6 +310,43 @@ export function CollectionEditorPage() {
       isCreate ||
       (publishOpen && publishAudience.audience === PublishAudience.Selected),
   });
+  const masterCategoriesQuery = useQuery({
+    queryKey: ['catalog-master-categories'],
+    queryFn: () => api.get<MasterCategoryView[]>('/catalog/master-categories'),
+    staleTime: 60_000,
+  });
+  const companyMasterOptions = useMemo(
+    () =>
+      resolveCompanyMasterOptions(
+        masterCategoriesQuery.data,
+        company.data?.masterCategories,
+        company.data?.superCategories,
+      ),
+    [
+      masterCategoriesQuery.data,
+      company.data?.masterCategories,
+      company.data?.superCategories,
+    ],
+  );
+
+  useEffect(() => {
+    if (form.masterCategoryId) return;
+    if (companyMasterOptions.length === 1) {
+      setForm((prev) => ({ ...prev, masterCategoryId: companyMasterOptions[0].id }));
+    }
+  }, [companyMasterOptions, form.masterCategoryId]);
+
+  const masterTaxonomy = useQuery({
+    queryKey: ['catalog-master-taxonomy', form.masterCategoryId],
+    queryFn: () =>
+      api.get<MasterTaxonomyView>(
+        `/catalog/master-taxonomy?categoryId=${encodeURIComponent(form.masterCategoryId!)}`,
+      ),
+    enabled: Boolean(form.masterCategoryId),
+    staleTime: 60_000,
+  });
+  const permittedUnits = masterTaxonomy.data?.units ?? [];
+
   const settings = useQuery({
     queryKey: ['company-settings'],
     queryFn: () => api.get<CompanySettingsView>('/settings'),
@@ -460,6 +498,7 @@ export function CollectionEditorPage() {
         description: existing.data.description ?? '',
         coverImage: existing.data.coverImage ?? '',
         categories: loadedCategories,
+        masterCategoryId: existing.data.masterCategoryId ?? null,
       });
       setTagSlotsState(categoriesToTagSlots(loadedCategories));
       setSelected(new Set(existing.data.products.map((product) => product.id)));
@@ -525,10 +564,11 @@ export function CollectionEditorPage() {
     const sell = readCompanySellAsUsual(settings.data.tradeDefaults);
     setPublishAudience(emptyPublishAudienceState(usual));
     // Merge habitual units only — never wipe a rate the trader already typed.
+    // First hydrate: Catalog sell-as wins over platform seed (set + set; rate pc).
     setSameForAll((prev) => ({
       ...prev,
-      unit: prev.unit || sell.unit || Unit.Set,
-      dispatchUnit: prev.dispatchUnit || sell.dispatchUnit || Unit.Piece,
+      unit: sell.unit || prev.unit || Unit.Set,
+      dispatchUnit: sell.dispatchUnit || prev.dispatchUnit || Unit.Set,
       piecesPerPack: prev.piecesPerPack || sell.piecesPerPack,
       moq: prev.moq || sell.moq,
     }));
@@ -720,6 +760,7 @@ export function CollectionEditorPage() {
         description: form.description.trim() || undefined,
         coverImage: form.coverImage.trim() || undefined,
         categories: form.categories,
+        masterCategoryId: form.masterCategoryId,
         rate: packParsed.rate,
         rateMax: packParsed.rateMax,
       };
@@ -1276,6 +1317,7 @@ export function CollectionEditorPage() {
           name: opts.name,
           description: form.description.trim() || undefined,
           categories: form.categories,
+          masterCategoryId: form.masterCategoryId,
           rate: packParsed.rate,
           rateMax: packParsed.rateMax,
           ...(cover ? { coverImage: cover } : {}),
@@ -1785,25 +1827,44 @@ export function CollectionEditorPage() {
     ],
     diffIds,
   );
-  const parentKeys = parentKeysFromCompanyCategories(
-    company.data?.sellCategories ?? [],
-    company.data?.superCategories ?? [],
-  );
   const setTagSlots = (next: TagSlots) => {
     if (tagSlotsToCategories(next).length > 20) return;
     setTagSlotsState(next);
     setForm({ ...form, categories: tagSlotsToCategories(next) });
-    // Suggest order/dispatch units from tags only — never refill cleared pack size (blank = not given).
-    for (const item of next.items) {
-      const suggested = unitsSuggestedByItem(mainsForCompany(parentKeys), item);
-      if (!suggested) continue;
+    // Prefer first permitted unit for empty order/dispatch when category known.
+    const units = permittedUnits;
+    if (units.length > 0) {
       setSameForAll((prev) => ({
         ...prev,
-        unit: prev.unit || suggested.orderUnit,
-        dispatchUnit: prev.dispatchUnit || suggested.dispatchUnit,
+        unit: prev.unit || units[0] || Unit.Set,
+        dispatchUnit:
+          prev.dispatchUnit ||
+          (units.includes(Unit.Piece) ? Unit.Piece : units[0]),
       }));
-      break;
     }
+  };
+
+  const onMasterCategoryChange = (nextId: string) => {
+    if (nextId === form.masterCategoryId) return;
+    const hasTags =
+      tagSlots.items.length > 0 ||
+      tagSlots.qualities.length > 0 ||
+      tagSlots.sizes.length > 0;
+    if (hasTags) {
+      const ok = window.confirm(
+        'Changing category clears item, quality, and size tags that may not apply. Continue?',
+      );
+      if (!ok) return;
+      const cleared = emptyTagSlots();
+      setTagSlotsState(cleared);
+      setForm({
+        ...form,
+        masterCategoryId: nextId || null,
+        categories: [],
+      });
+      return;
+    }
+    setForm({ ...form, masterCategoryId: nextId || null });
   };
 
   const whoExpandable = (
@@ -1848,20 +1909,43 @@ export function CollectionEditorPage() {
           autoComplete="off"
         />
       </Field>
+      {companyMasterOptions.length > 1 ? (
+        <Field label="Category" required className="gap-0.5">
+          <select
+            data-testid="collection-master-category"
+            aria-label="Master category"
+            className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-[16px] text-ink"
+            value={form.masterCategoryId ?? ''}
+            onChange={(e) => onMasterCategoryChange(e.target.value)}
+          >
+            <option value="">Pick category…</option>
+            {companyMasterOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
       <RateRangeFields
         from={rateFrom}
         to={rateTo}
         rateUnit={
           catalogRateDisplayUnit({
             unit: sameForAll.unit || Unit.Set,
-            dispatchUnit: sameForAll.dispatchUnit || Unit.Piece,
+            dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
           }) ?? Unit.Piece
         }
+        permittedUnits={permittedUnits}
         onRateUnit={(next) => {
           setSameForAll((prev) => {
             const orderUnit = prev.unit || Unit.Set;
             if (isPackOrderUnit(orderUnit)) {
-              return { ...prev, dispatchUnit: next };
+              // Rate per pc → keep dispatch journey as order unit (set).
+              // Other rate units store on dispatch (legacy pack-rate-on-dispatch).
+              const dispatchUnit =
+                next === Unit.Piece || next === orderUnit ? orderUnit : next;
+              return { ...prev, dispatchUnit };
             }
             return { ...prev, unit: next };
           });
@@ -1885,11 +1969,11 @@ export function CollectionEditorPage() {
       <CascadeTagsFields
         items={tagSlots.items}
         qualities={tagSlots.qualities}
-        size={tagSlots.size}
-        parentKeys={parentKeys}
+        sizes={tagSlots.sizes}
+        masterCategoryId={form.masterCategoryId}
         onItems={(items) => setTagSlots({ ...tagSlots, items })}
         onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
-        onSize={(size) => setTagSlots({ ...tagSlots, size })}
+        onSizes={(sizes) => setTagSlots({ ...tagSlots, sizes })}
       />
       {isCreate ? whoExpandable : null}
       <div className="flex flex-col gap-1">
@@ -1926,7 +2010,7 @@ export function CollectionEditorPage() {
         summary={orderDispatchSectionSummary({
           orderUnit: sameForAll.unit || Unit.Set,
           piecesPerPack: sameForAll.piecesPerPack,
-          dispatchUnit: sameForAll.dispatchUnit || Unit.Piece,
+          dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
           moq: sameForAll.moq,
         })}
         open={orderDispatchExpanded}
@@ -1937,7 +2021,7 @@ export function CollectionEditorPage() {
           hideHeading
           orderUnit={sameForAll.unit || Unit.Set}
           piecesPerPack={sameForAll.piecesPerPack}
-          dispatchUnit={sameForAll.dispatchUnit || Unit.Piece}
+          dispatchUnit={sameForAll.dispatchUnit || Unit.Set}
           moq={sameForAll.moq}
           onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
           onPiecesPerPack={(piecesPerPack) =>
@@ -2705,8 +2789,8 @@ export function CollectionEditorPage() {
           <CascadeTagsFields
             items={memberTagSlots.items}
             qualities={memberTagSlots.qualities}
-            size={memberTagSlots.size}
-            parentKeys={parentKeys}
+            sizes={memberTagSlots.sizes}
+            masterCategoryId={form.masterCategoryId}
             onItems={(items) => {
               const next = { ...memberTagSlots, items };
               if (tagSlotsToCategories(next).length > 20) return;
@@ -2725,8 +2809,8 @@ export function CollectionEditorPage() {
                 categories: tagSlotsToCategories(next),
               });
             }}
-            onSize={(size) => {
-              const next = { ...memberTagSlots, size };
+            onSizes={(sizes) => {
+              const next = { ...memberTagSlots, sizes };
               if (tagSlotsToCategories(next).length > 20) return;
               setMemberTagSlots(next);
               setMemberForm({

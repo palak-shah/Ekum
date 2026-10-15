@@ -22,6 +22,14 @@ type MembershipWithUser = CompanyMembership & { user: Pick<User, 'name' | 'phone
 @Injectable()
 export class CompanySerializer {
   toPublicProfile(company: Company): PublicCompanyProfile {
+    const masterCategories =
+      'masterCategories' in company && Array.isArray(company.masterCategories)
+        ? company.masterCategories
+        : [];
+    const dealIn =
+      masterCategories.length > 0
+        ? masterCategories
+        : company.superCategories;
     return {
       id: company.id,
       name: company.name,
@@ -29,8 +37,9 @@ export class CompanySerializer {
       about: company.about,
       logoUrl: company.logoUrl,
       verification: company.verification,
-      categories: company.sellCategories.length > 0 ? company.sellCategories : company.superCategories,
+      categories: company.sellCategories.length > 0 ? company.sellCategories : dealIn,
       superCategories: company.superCategories,
+      masterCategories,
     };
   }
 

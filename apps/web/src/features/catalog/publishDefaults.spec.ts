@@ -34,10 +34,10 @@ describe('publishDefaults', () => {
     });
   });
 
-  it('defaults unsaved sell-as to set', () => {
+  it('defaults unsaved sell-as to set + set (rate pc)', () => {
     expect(readCompanySellAsUsual(null)).toEqual({
       unit: 'set',
-      dispatchUnit: 'pc',
+      dispatchUnit: 'set',
       piecesPerPack: '',
       moq: '',
     });
@@ -50,7 +50,7 @@ describe('publishDefaults', () => {
       }),
     ).toEqual({
       unit: 'set',
-      dispatchUnit: 'pc',
+      dispatchUnit: 'set',
       piecesPerPack: '6',
       moq: '12',
     });

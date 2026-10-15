@@ -28,10 +28,11 @@ const PLATFORM: PublishSheetPolicy = {
 
 /**
  * Platform usual when Catalog defaults has never been saved:
- * order / dispatch journey in **sets**, price + billing per **pc**.
+ * order + dispatch journey in **sets**; price + “1 set contains” per **pc**.
  */
 export const DEFAULT_SELL_AS_UNIT = 'set';
-export const DEFAULT_DISPATCH_UNIT = 'pc';
+export const DEFAULT_DISPATCH_UNIT = 'set';
+export const DEFAULT_RATE_UNIT = 'pc';
 
 const EMPTY_SELL_AS: SellAsUsual = {
   unit: DEFAULT_SELL_AS_UNIT,

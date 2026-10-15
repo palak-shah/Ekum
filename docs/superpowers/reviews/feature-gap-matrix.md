@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-14 (legacy audience → Followers)  
+**Updated:** 2026-10-15 (admin tag UX refinement)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Platform | Master Categories (sheet) replace SuperCategory; Admin Console Tag Management (scope-gated list, unified search/add, paginated Load more, bulk paste) + category-aware collection tags/units; CompanyCustomTag | Partial | Unit | Required | Completeness 2026-10-14-master-data-admin; UX refine 2026-10-15; web units AdminTagsPage; no e2e platform-admin seed yet |
 | Catalog | Legacy everyone/connections → Followers (migrate + enforce); defaults followers; no hidden open catalog | Works | Unit | Required | Completeness 2026-10-14-legacy-audience-followers-align |
 | Browse | Unified DesignSheet (trade footer + ⋯ Bookmark/owner); collection · shop · You · Explore · Saved; chat unchanged | Works | Unit | Required | Completeness 2026-10-11-unified-design-sheet |
 | Collections | Album ⋯ idle collection bookmark; select bookmarks designs; You no account avatar | Works | Unit | Required | Completeness 2026-10-11-collection-chrome-polish |
@@ -20,7 +21,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Album facts rate: pack first, else design min–max; owner always sees; on_request for audience | Works | Unit | Required | Completeness 2026-10-10-album-rate-pack-then-designs |
 | Platform | App-wide ⋯ MoreActionsSheet (icon+text bottom sheet; mute as sheet step); filters/attach stay popovers | Works | Unit | Required | Completeness 2026-10-09-more-actions-sheet-appwide |
 | Collections | Album scan chrome: facts · About · grid rate · Order after Select · Message ⋯ · album-scoped picks | Works | Unit | Required | Completeness 2026-10-09-album-scan-chrome; no Ask rates on album |
-| Collections | Album pack details read-more (Rate · Size · Description · Item/Quality tags) | Works | Unit | Required | Completeness 2026-10-09-collection-details-read-more; Find/Select/grid unchanged |
+| Collections | Album pack details read-more (Rate · Size tags · Description · Item/Quality tags) | Works | Unit | Required | Completeness 2026-10-09-collection-details-read-more; Size tags multi 2026-10-15; Find/Select/grid unchanged |
 | Collections | Album tiles no rate chip; design sheet full labeled details | Works | Unit | Required | Completeness 2026-10-09-album-tile-no-rate-design-sheet-details |
 | Collections | Album design sheet → Edit design (own designs) | Works | Unit | Required | Completeness 2026-10-09-album-owner-tap-edit-design |
 | Browse | Shared SelectModeControls + BrowseLotChrome; half-size checks; Clear exits; You library second-row lot chrome | Works | Unit | Required | Completeness 2026-10-09-shared-select-mode-controls; Explore showSelectAll false; You tabs+＋ then Find·Select·layout |
@@ -103,7 +104,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
 | Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
 | Orders | Orders More menu portal (Samples/Returns) | Works | Functional | Recommended | `orders.chrome.journey.spec.ts` |
-| Orders | List tabs Pending / Completed + textile cards (fixed media, Placed pill, protocol, thumb→PhotoViewer) | Works | Unit | Required | Completeness 2026-10-09-orders-list-textile-card + list-photo-viewer; tabs 2026-09-19; inbox 2026-09-30 |
+| Orders | List tabs Pending / Completed + textile cards (shop Avatar, Placed pill, protocol; no list thumbs) | Works | Unit | Required | Completeness 2026-10-15-orders-list-counterpart-avatar; textile-card 2026-10-09; tabs 2026-09-19; inbox 2026-09-30 |
 | Orders | Filter Select Status = six only, scoped to Pending / Completed | Works | Unit + Functional | Required | Completeness 2026-09-30-orders-few-statuses; no Received/Approved/Resolved/Declined |
 | Orders | Returns removed from product | Works | Unit + Functional | Required | Completeness 2026-09-30-remove-returns; no Raise a return / Return type / Home Returns |
 | Orders | Bottom nav Needs you count (same teal pill as Chats unread) | Works | Unit | Required | Completeness 2026-09-26-orders-nav-needs-you; `GET /orders/needs-you-count` |
@@ -138,6 +139,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | New collection cascade tags, From/To rate, apply-all + rate confirm, dual order/dispatch units | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe |
 | Collections | Collection name label; One rate / A range pill switch; no On request caption; italic light placeholders | Works | Unit + Functional | Required | Completeness 2026-10-09-collection-rate-mode-placeholders |
 | Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
+| Collections | Size tags multi-select + set-contains placeholder `4 {dispatch}` / dozen autofill 12 | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi |
+| Collections | Album pack details Size tags (multi join) | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi; supersedes singular Size in 2026-10-09-collection-details-read-more |
 | Collections | Create polish (9-cap grid, publish-first, tags, no Everyone, tile→design sheet) | Works | Unit | Required | Completeness 2026-09-17-collection-create-polish |
 | Collections | Same for all + photos-first + rate range + unlimited design photos | Works | Unit + Functional | Required | Completeness 2026-09-18-collection-same-for-all-ux-simplify; Done = new photos only; library Diff; `collection.publish.journey` |
 | Collections | New collection redesign (always-visible · 3 expandables · Settings defaults · sticky / hide nav · merge Diff · piecesPerPack · allowDownload) | Works | Unit + Functional | Required | Completeness 2026-09-24-new-collection-redesign |

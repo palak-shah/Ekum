@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { superCategoryValues } from './enums';
+import {
+  masterCategorySlugValues,
+  migrateSuperCategoriesToMaster,
+} from './master-categories';
 
 /** Capabilities unlock progressively; they are data on a company, never a role. */
 export interface CompanyCapabilities {
@@ -29,16 +32,40 @@ export interface CompanyPermissions {
   team: boolean;
 }
 
-export const createCompanySchema = z.object({
-  name: z.string().trim().min(1, 'Business name is required').max(120),
-  city: z.string().trim().min(1, 'City is required').max(80),
-  contactPerson: z.string().trim().min(1, 'Contact person is required').max(120),
-  superCategories: z.array(z.enum(superCategoryValues)).min(1).max(5),
-  sellCategories: z.array(z.string().trim().min(1)).max(40).default([]),
-  buyCategories: z.array(z.string().trim().min(1)).max(40).default([]),
-  about: z.string().trim().max(600).optional(),
-  gstNumber: z.string().trim().max(20).optional(),
-});
+export const createCompanySchema = z
+  .object({
+    name: z.string().trim().min(1, 'Business name is required').max(120),
+    city: z.string().trim().min(1, 'City is required').max(80),
+    contactPerson: z.string().trim().min(1, 'Contact person is required').max(120),
+    /** Master Category slugs (sheet Section A). */
+    masterCategories: z.array(z.enum(masterCategorySlugValues)).max(13).optional(),
+    /** @deprecated Prefer masterCategories. */
+    superCategories: z.array(z.string()).max(5).optional(),
+    sellCategories: z.array(z.string().trim().min(1)).max(40).default([]),
+    buyCategories: z.array(z.string().trim().min(1)).max(40).default([]),
+    about: z.string().trim().max(600).optional(),
+    gstNumber: z.string().trim().max(20).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const masters =
+      value.masterCategories && value.masterCategories.length > 0
+        ? value.masterCategories
+        : migrateSuperCategoriesToMaster(value.superCategories ?? []);
+    if (masters.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Pick at least one category you deal in.',
+        path: ['masterCategories'],
+      });
+    }
+  })
+  .transform((value) => {
+    const masterCategories =
+      value.masterCategories && value.masterCategories.length > 0
+        ? value.masterCategories
+        : migrateSuperCategoriesToMaster(value.superCategories ?? []);
+    return { ...value, masterCategories };
+  });
 export type CreateCompanyDto = z.infer<typeof createCompanySchema>;
 
 /**
@@ -50,7 +77,8 @@ export const updateCompanySchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   city: z.string().trim().min(1).max(80).optional(),
   contactPerson: z.string().trim().min(1).max(120).optional(),
-  superCategories: z.array(z.enum(superCategoryValues)).min(1).max(5).optional(),
+  masterCategories: z.array(z.enum(masterCategorySlugValues)).min(1).max(13).optional(),
+  superCategories: z.array(z.string()).max(5).optional(),
   sellCategories: z.array(z.string().trim().min(1)).max(40).optional(),
   buyCategories: z.array(z.string().trim().min(1)).max(40).optional(),
   about: z.string().trim().max(600).optional().nullable(),
@@ -72,7 +100,10 @@ export interface PublicCompanyProfile {
   logoUrl: string | null;
   verification: string;
   categories: string[];
+  /** @deprecated Prefer masterCategories. */
   superCategories: string[];
+  /** Master Category slugs (sheet Section A). */
+  masterCategories?: string[];
   /** Viewer has an allowed follow (omit on own profile). */
   following?: boolean;
   /** Viewer asked; not allowed yet. */

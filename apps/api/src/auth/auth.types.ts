@@ -17,6 +17,8 @@ export interface AuthPrincipal {
   role: string | null;
   /** Membership caps; null when there is no company. */
   permissions: CompanyPermissions | null;
+  /** Live DB flag for Admin Console. Not a JWT claim. */
+  isPlatformAdmin: boolean;
 }
 
 export interface AuthenticatedRequest extends Request {
