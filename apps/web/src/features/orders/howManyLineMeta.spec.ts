@@ -3,6 +3,8 @@ import {
   howManyLineExtra,
   howManyLineMeta,
   howManyOrderFooterSummary,
+  howManyPackContentsLabel,
+  howManyPackSizesDiffer,
   howManySetContentsMissing,
   howManySetsBanner,
   howManySoldAs,
@@ -51,20 +53,38 @@ describe('howManyLineMeta', () => {
     ).toBe('Piece');
     expect(howManyUnitShort('pc')).toBe('Piece');
     expect(howManyLineExtra({ unit: 'pc' })).toBeNull();
-    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 4, rate: 640 })).toBe(
-      '4 pcs · ₹640/pc',
-    );
+    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 4, rate: 640 })).toBe('₹2,560');
+    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 1, rate: 1100 })).toBe('₹1,100');
   });
 
   it('totals pcs for sets when pcs-per-set is known', () => {
-    expect(howManyTotalPcsLabel(5, 'set', 4)).toBe('Total 20 pcs');
+    expect(howManyTotalPcsLabel(5, 'set', 4)).toBe('Total 5 sets = 20 pcs');
+    expect(howManyTotalPcsLabel(30, 'set', 1)).toBe('Total 30 sets = 30 pcs');
     expect(howManyTotalPcsLabel(5, 'set', null)).toBeNull();
     expect(howManyTotalPcsLabel(null, 'set', 4)).toBeNull();
     expect(howManyTotalPcsLabel(2, 'pc', 4)).toBeNull();
-    expect(howManyTotalPcsLabel(2, 'dozen', null)).toBe('Total 24 pcs');
+    expect(howManyTotalPcsLabel(2, 'dozen', null)).toBe('Total 2 dozens = 24 pcs');
     expect(qtyCountNoun('set')).toBe('sets');
     expect(qtyCountNoun('pc')).toBe('pieces');
     expect(qtyStepperUnitLabel('set')).toBe('Sets');
+  });
+
+  it('shows pack size on a line only when sizes on the sheet differ', () => {
+    expect(howManyPackContentsLabel('set', 20, 'pc')).toBe('20 pcs');
+    expect(howManyPackContentsLabel('set', 4, 'pc')).toBe('4 pcs');
+    expect(howManyPackContentsLabel('set', null, 'pc')).toBeNull();
+    expect(
+      howManyPackSizesDiffer([
+        { unit: 'set', piecesPerPack: 20 },
+        { unit: 'set', piecesPerPack: 4 },
+      ]),
+    ).toBe(true);
+    expect(
+      howManyPackSizesDiffer([
+        { unit: 'set', piecesPerPack: 4 },
+        { unit: 'set', piecesPerPack: 4 },
+      ]),
+    ).toBe(false);
   });
 
   it('flags missing set contents', () => {
@@ -75,7 +95,13 @@ describe('howManyLineMeta', () => {
 
   it('banner and footer for sets vs native', () => {
     expect(howManySetsBanner([{ unit: 'set', dispatchUnit: 'pc' }])).toBe(
-      'You order in sets. Rates and dispatch are per pc.',
+      'Rates are per pc. Order and dispatch per set.',
+    );
+    expect(howManySetsBanner([{ unit: 'set', dispatchUnit: 'set' }])).toBe(
+      'Rates are per pc. Order and dispatch per set.',
+    );
+    expect(howManySetsBanner([{ unit: 'set', dispatchUnit: 'mtr' }])).toBe(
+      'Rates are per mtr. Order per set. Dispatch per mtr.',
     );
     expect(howManySetsBanner([{ unit: 'pc' }])).toBeNull();
     expect(
@@ -96,10 +122,21 @@ describe('howManyLineMeta', () => {
     ).toEqual({ primary: '10 sets = 40 pcs', money: '₹4,000' });
     expect(
       howManyOrderFooterSummary([{ quantity: 2, unit: 'set', piecesPerPack: null }]),
-    ).toEqual({
-      primary: '2 sets',
-      hint: 'No piece total — set contents not mentioned on some designs.',
-    });
+    ).toEqual({ primary: '2 sets' });
+    expect(
+      howManyOrderFooterSummary([
+        { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
+        { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
+        { quantity: 30, unit: 'set', piecesPerPack: 2, dispatchUnit: 'pc' },
+        { quantity: 30, unit: 'set', piecesPerPack: 3, dispatchUnit: 'pc' },
+      ]),
+    ).toEqual({ primary: '120 sets = 210 pcs' });
+    expect(
+      howManyOrderFooterSummary([
+        { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
+        { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
+      ]),
+    ).toEqual({ primary: '60 sets = 60 pcs' });
     expect(howManyOrderFooterSummary([{ quantity: 2, unit: 'pc' }])).toEqual({
       primary: '2 pieces',
     });

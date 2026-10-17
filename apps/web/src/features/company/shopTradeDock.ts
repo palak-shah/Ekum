@@ -1,6 +1,5 @@
 import type { BrowseAlbumEntry } from '@/features/browse/browseAlbumPick';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
-import { isOwnProfileEditing } from '@/features/settings/profileEdit';
 
 export function shopShortlistEntries(
   entries: BrowseShortlistEntry[],
@@ -55,42 +54,6 @@ export function shouldShowShopTradeDock(options: {
 }): boolean {
   void options.isOwn;
   return options.shopSelectedCount > 0;
-}
-
-/** Hide Home · Chats · ＋ · Explore · Orders when a focused job owns the bottom. */
-export function shouldHideAppNav(
-  pathname: string,
-  options: {
-    myCompanyId?: string | null;
-    thisShopSelectedCount: number;
-    search?: string;
-    pageDockUp?: boolean;
-    /** Traveling Selection dock owns the bottom band. */
-    selectionWorkspaceUp?: boolean;
-  },
-): boolean {
-  if (options.selectionWorkspaceUp) return true;
-  if (isOwnProfileEditing(pathname, options.search)) return true;
-  if (pathname === '/selection' || pathname.startsWith('/selection/')) return true;
-  if (pathname.startsWith('/designs/set') && options.pageDockUp) return true;
-  if (/^\/collections\/[^/]+$/.test(pathname) && options.pageDockUp) return true;
-  if (/^\/explore\/products\/[^/]+$/.test(pathname) && options.pageDockUp) return true;
-  // You library select dock (Order · Share · Hide) owns the bottom — same as pack manage.
-  if (pathname === '/more' && options.pageDockUp) return true;
-  if (
-    pathname === '/catalog/collections/new' ||
-    /^\/catalog\/collections\/[^/]+$/.test(pathname)
-  ) {
-    return true;
-  }
-  const match = pathname.match(/^\/company\/([^/]+)/);
-  if (!match) return false;
-  const shopId = match[1]!;
-  // Own shop keeps nav unless select dock is up; other shops always hide nav on profile.
-  if (options.myCompanyId && shopId === options.myCompanyId) {
-    return options.thisShopSelectedCount > 0;
-  }
-  return true;
 }
 
 export function companyIdFromPath(pathname: string): string | null {

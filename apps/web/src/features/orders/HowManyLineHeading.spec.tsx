@@ -3,20 +3,34 @@ import { render, screen } from '@testing-library/react';
 import { HowManyLineHeading } from './HowManyLineHeading';
 
 describe('HowManyLineHeading', () => {
-  it('shows Set beside the name when order unit is set — not Piece', () => {
+  it('keeps the name clean and shows price per set — no Set or /pc', () => {
     render(
       <HowManyLineHeading
-        name="EK-0C7946D0"
+        name="Linen Summer"
         unit="set"
         dispatchUnit="pc"
         piecesPerPack={4}
         rate={1200}
       />,
     );
-    expect(screen.getByTestId('how-many-sold-as')).toHaveTextContent('Set');
-    expect(screen.getByTestId('how-many-sold-as')).not.toHaveTextContent('Piece');
-    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('4 pcs');
-    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹1,200/pc');
+    expect(screen.queryByTestId('how-many-sold-as')).toBeNull();
+    expect(screen.getByText('Linen Summer')).toBeTruthy();
+    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹4,800');
+    expect(screen.getByTestId('how-many-facts').textContent).not.toMatch(/pc|Set/i);
+  });
+
+  it('shows pcs in the set when sizes on the sheet differ', () => {
+    render(
+      <HowManyLineHeading
+        name="Linen Summer"
+        unit="set"
+        dispatchUnit="pc"
+        piecesPerPack={20}
+        rate={100}
+        showPackSize
+      />,
+    );
+    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹2,000 · 1 set = 20 pcs');
   });
 
   it('shows Piece only when order unit is pc', () => {

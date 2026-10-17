@@ -44,7 +44,7 @@ export class ProductService {
           moq: dto.moq ?? null,
           rate: dto.rate ?? null,
           rateMax: dto.rateMax ?? null,
-          // Platform default: order in sets, rate/billing per pc (Catalog settings override when sent).
+          // Platform default: order + dispatch journey in sets; rate/billing per pc.
           unit: dto.unit ?? 'set',
           piecesPerPack: dto.piecesPerPack ?? null,
           categories: dto.categories,
@@ -52,7 +52,7 @@ export class ProductService {
           createdByUserId: userId,
           updatedByUserId: userId,
         },
-        dto.dispatchUnit ?? 'pc',
+        dto.dispatchUnit ?? 'set',
       ),
       include: productActorInclude,
     });

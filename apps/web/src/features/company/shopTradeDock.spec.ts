@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   companyIdFromPath,
-  shouldHideAppNav,
   shouldShowShopTradeDock,
   shopAlbumEntries,
   shopSelectedCount,
@@ -105,77 +104,6 @@ describe('shouldShowShopTradeDock', () => {
     expect(shouldShowShopTradeDock({ isOwn: false, shopSelectedCount: 0 })).toBe(false);
     expect(shouldShowShopTradeDock({ isOwn: true, shopSelectedCount: 2 })).toBe(true);
     expect(shouldShowShopTradeDock({ isOwn: true, shopSelectedCount: 0 })).toBe(false);
-  });
-});
-
-describe('shouldHideAppNav', () => {
-  it('hides when the Selection dock owns Explore', () => {
-    expect(
-      shouldHideAppNav('/explore', {
-        thisShopSelectedCount: 0,
-        selectionWorkspaceUp: true,
-      }),
-    ).toBe(true);
-  });
-
-  it('hides on Your selection', () => {
-    expect(shouldHideAppNav('/selection', { thisShopSelectedCount: 0 })).toBe(true);
-  });
-
-  it('hides on a shared design set while the trade dock is up', () => {
-    expect(shouldHideAppNav('/designs/set', { thisShopSelectedCount: 0, pageDockUp: true })).toBe(
-      true,
-    );
-    expect(shouldHideAppNav('/designs/set', { thisShopSelectedCount: 0 })).toBe(false);
-  });
-
-  it('hides on a pack or design page while Ask / Order owns the band', () => {
-    expect(
-      shouldHideAppNav('/collections/pack-1', { thisShopSelectedCount: 0, pageDockUp: true }),
-    ).toBe(true);
-    expect(shouldHideAppNav('/collections/pack-1', { thisShopSelectedCount: 0 })).toBe(false);
-    expect(
-      shouldHideAppNav('/explore/products/d1', { thisShopSelectedCount: 0, pageDockUp: true }),
-    ).toBe(true);
-  });
-
-  it('hides on You while the library select dock is up', () => {
-    expect(shouldHideAppNav('/more', { thisShopSelectedCount: 0, pageDockUp: true })).toBe(true);
-    expect(shouldHideAppNav('/more', { thisShopSelectedCount: 0 })).toBe(false);
-  });
-
-  it('hides on another shop profile even with nothing selected', () => {
-    expect(
-      shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 0 }),
-    ).toBe(true);
-    expect(
-      shouldHideAppNav('/company/ravi', { myCompanyId: 'meena', thisShopSelectedCount: 1 }),
-    ).toBe(true);
-  });
-
-  it('keeps nav on own shop until select dock is up', () => {
-    expect(
-      shouldHideAppNav('/company/meena', { myCompanyId: 'meena', thisShopSelectedCount: 0 }),
-    ).toBe(false);
-    expect(
-      shouldHideAppNav('/company/meena', { myCompanyId: 'meena', thisShopSelectedCount: 2 }),
-    ).toBe(true);
-  });
-  it('hides on New collection and edit collection', () => {
-    expect(shouldHideAppNav('/catalog/collections/new', { thisShopSelectedCount: 0 })).toBe(true);
-    expect(
-      shouldHideAppNav('/catalog/collections/abc', { thisShopSelectedCount: 0 }),
-    ).toBe(true);
-  });
-
-  it('hides on own profile only while editing', () => {
-    expect(shouldHideAppNav('/settings/profile', { thisShopSelectedCount: 0 })).toBe(false);
-    expect(
-      shouldHideAppNav('/settings/profile', { thisShopSelectedCount: 0, search: '?edit=1' }),
-    ).toBe(true);
-    expect(
-      shouldHideAppNav('/settings/profile', { thisShopSelectedCount: 0, search: '?focus=sell' }),
-    ).toBe(true);
   });
 });
 

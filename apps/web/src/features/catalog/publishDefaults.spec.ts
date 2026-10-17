@@ -3,6 +3,7 @@ import { RateVisibility } from '@ekum/domain-types';
 import {
   applyGroupPublishOverride,
   mergeGroupsPublishPolicy,
+  normalizePackDispatchUnit,
   readCompanyPublishDefaults,
   readCompanySellAsUsual,
   readUnitConversions,
@@ -41,6 +42,18 @@ describe('publishDefaults', () => {
       piecesPerPack: '',
       moq: '',
     });
+  });
+
+  it('normalizes legacy rate-on-dispatch pc to journey set', () => {
+    expect(normalizePackDispatchUnit('set', 'pc')).toBe('set');
+    expect(normalizePackDispatchUnit('set', 'set')).toBe('set');
+    expect(normalizePackDispatchUnit('set', 'mtr')).toBe('mtr');
+    expect(normalizePackDispatchUnit('set', '')).toBe('set');
+    expect(
+      readCompanySellAsUsual({
+        sellAsUsual: { unit: 'set', dispatchUnit: 'pc' },
+      }),
+    ).toMatchObject({ unit: 'set', dispatchUnit: 'set' });
   });
 
   it('reads sellAsUsual without rate or notes', () => {

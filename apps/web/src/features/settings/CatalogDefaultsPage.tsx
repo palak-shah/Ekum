@@ -149,6 +149,7 @@ export function CatalogDefaultsPage() {
             value={ratePer}
             onChange={(e) => {
               const next = e.target.value;
+              // Rate per pc must not write pc onto Dispatch (journey stays set).
               if (isPackOrderUnit(order) && (next === Unit.Piece || next === order)) {
                 setDispatchUnit(order);
               } else {

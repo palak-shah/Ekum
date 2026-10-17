@@ -17,15 +17,14 @@ export function OrderInviteLandingPage() {
     queryFn: () => api.publicGet<OrderInviteView>(`/order-invites/${token}`),
   });
 
-  const accept = useMutation({
+  const openOrder = useMutation({
     mutationFn: () => api.post<OrderView>(`/order-invites/${token}/accept`, {}),
     onSuccess: (order) => {
       clearInviteReturn();
-      showToast('Accepted.');
       navigate(`/orders/${order.id}`, { replace: true });
     },
     onError: (err) =>
-      showToast(err instanceof ApiError ? err.message : 'Could not accept.', 'danger'),
+      showToast(err instanceof ApiError ? err.message : 'Could not open order.', 'danger'),
   });
 
   const decline = useMutation({
@@ -63,7 +62,7 @@ export function OrderInviteLandingPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-24">
-      <PageHeader title="Accept this order" />
+      <PageHeader title="Logged order" />
       <Card className="flex flex-col gap-2">
         <p className="text-sm text-ink">
           <span className="font-semibold">{data.sellerName}</span> logged a ticket for{' '}
@@ -73,8 +72,8 @@ export function OrderInviteLandingPage() {
           {data.itemCount} design{data.itemCount === 1 ? '' : 's'}
         </p>
       </Card>
-      <Button fullWidth onClick={() => accept.mutate()} disabled={accept.isPending}>
-        {accept.isPending ? 'Accepting…' : 'Accept'}
+      <Button fullWidth onClick={() => openOrder.mutate()} disabled={openOrder.isPending}>
+        {openOrder.isPending ? 'Opening…' : 'View order'}
       </Button>
       <Button
         variant="secondary"

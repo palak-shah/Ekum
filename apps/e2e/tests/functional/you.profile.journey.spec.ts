@@ -54,7 +54,7 @@ test.describe('You profile @functional @settings', () => {
     await expect(page.getByTestId('you-share')).toHaveAttribute('aria-label', 'Share');
     await expect(page.getByTestId('profile-update')).toHaveCount(0);
     await expect(page.getByRole('textbox')).toHaveCount(0);
-    await expect(page.getByTestId('app-bottom-nav')).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await page.getByTestId('profile-edit').click();
     await expect(page).toHaveURL(/\/settings\/profile\?edit=1/);
     await expect(page.getByTestId('profile-update')).toBeVisible();
@@ -62,7 +62,7 @@ test.describe('You profile @functional @settings', () => {
     await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await page.getByTestId('page-header-back').click();
     await expect(page.getByTestId('profile-edit')).toBeVisible();
-    await expect(page.getByTestId('app-bottom-nav')).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(page.getByText('Trade on Ekum')).toHaveCount(0);
     await expect(page.getByText('I buy on Ekum')).toHaveCount(0);
     await expect(page.getByText('I sell on Ekum')).toHaveCount(0);

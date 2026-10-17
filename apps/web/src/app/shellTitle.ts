@@ -1,3 +1,10 @@
+/** Tab roots that keep Home · Chats · ＋ · Explore · Orders. Every other path hides the bar. */
+const MAIN_MENU = new Set(['/', '/chats', '/explore', '/orders']);
+
+export function isMainMenuPath(pathname: string): boolean {
+  return MAIN_MENU.has(pathname);
+}
+
 /**
  * Detail / create flows use PageHeader (back + title). Hiding the shell band
  * keeps that header flush to the top — same real estate rule as a chat thread.

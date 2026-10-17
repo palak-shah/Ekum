@@ -176,7 +176,7 @@ describe('set vs pc helpers stay consistent with list (no conversion drift)', ()
     expect(qtyCountNoun('set')).toBe('sets');
     expect(qtyCountNoun('pc')).toBe('pieces');
     expect(howManySetsBanner([{ unit: 'set', dispatchUnit: 'pc' }])).toBe(
-      'You order in sets. Rates and dispatch are per pc.',
+      'Rates are per pc. Order and dispatch per set.',
     );
     expect(
       howManyOrderFooterSummary([

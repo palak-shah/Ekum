@@ -198,7 +198,6 @@ describe('iHandleDesk', () => {
       cancel: true,
       edit: false,
       acceptQuote: false,
-      acceptLogged: false,
       raiseReturn: false,
     });
     expect(
@@ -217,7 +216,23 @@ describe('iHandleDesk', () => {
       cancel: true,
       edit: true,
       acceptQuote: true,
-      acceptLogged: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'confirmed',
+        createdBySeller: true,
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: true,
+      edit: false,
+      acceptQuote: false,
       raiseReturn: false,
     });
     expect(

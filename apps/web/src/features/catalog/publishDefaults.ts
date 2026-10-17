@@ -1,4 +1,4 @@
-import { RateVisibility } from '@ekum/domain-types';
+import { isPackOrderUnit, RateVisibility } from '@ekum/domain-types';
 
 export type PublishSheetPolicy = {
   rateVisibility: string;
@@ -28,11 +28,32 @@ const PLATFORM: PublishSheetPolicy = {
 
 /**
  * Platform usual when Catalog defaults has never been saved:
- * order + dispatch journey in **sets**; price + “1 set contains” per **pc**.
+ * - **order** (`unit`) + **dispatch** journey in **sets** (how goods are ordered / sent)
+ * - **rate** / “1 set contains” billing unit stays **pc** (see DEFAULT_RATE_UNIT + catalogRateUnit)
+ *
+ * `dispatchUnit` is never the rate unit. When both order and dispatch are set,
+ * catalogRateUnit derives pc for price — do not store pc on dispatch for that path.
  */
 export const DEFAULT_SELL_AS_UNIT = 'set';
 export const DEFAULT_DISPATCH_UNIT = 'set';
+/** Billing / Rate-per unit when order+dispatch journey is the pack path (set). */
 export const DEFAULT_RATE_UNIT = 'pc';
+
+/**
+ * Journey dispatch for the Order-and-dispatch UI.
+ * Legacy rows stored rate-per **pc** on `dispatchUnit` while order was set —
+ * treat that as journey **set** (rate still derives pc via catalogRateUnit).
+ */
+export function normalizePackDispatchUnit(
+  orderUnit: string | null | undefined,
+  dispatchUnit: string | null | undefined,
+): string {
+  const order = orderUnit?.trim() || DEFAULT_SELL_AS_UNIT;
+  const d = dispatchUnit?.trim() || '';
+  if (!d) return isPackOrderUnit(order) ? order : DEFAULT_DISPATCH_UNIT;
+  if (isPackOrderUnit(order) && d === DEFAULT_RATE_UNIT) return order;
+  return d;
+}
 
 const EMPTY_SELL_AS: SellAsUsual = {
   unit: DEFAULT_SELL_AS_UNIT,
@@ -74,12 +95,15 @@ export function readCompanySellAsUsual(
     return { ...EMPTY_SELL_AS };
   }
   const blob = raw as Record<string, unknown>;
+  const unit =
+    typeof blob.unit === 'string' && blob.unit.trim() ? blob.unit : DEFAULT_SELL_AS_UNIT;
+  const rawDispatch =
+    typeof blob.dispatchUnit === 'string' && blob.dispatchUnit.trim()
+      ? blob.dispatchUnit
+      : DEFAULT_DISPATCH_UNIT;
   return {
-    unit: typeof blob.unit === 'string' && blob.unit.trim() ? blob.unit : DEFAULT_SELL_AS_UNIT,
-    dispatchUnit:
-      typeof blob.dispatchUnit === 'string' && blob.dispatchUnit.trim()
-        ? blob.dispatchUnit
-        : DEFAULT_DISPATCH_UNIT,
+    unit,
+    dispatchUnit: normalizePackDispatchUnit(unit, rawDispatch),
     piecesPerPack:
       typeof blob.piecesPerPack === 'string'
         ? blob.piecesPerPack

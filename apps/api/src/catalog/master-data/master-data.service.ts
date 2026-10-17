@@ -271,10 +271,17 @@ export class MasterDataService implements OnModuleInit {
     }
   }
 
+  /**
+   * Resolve Master Category for a collection create/update.
+   * `required: false` — Repost / curate from a peer post: category is the supplier’s
+   * job on the source; do not block publish for a missing pick.
+   */
   async resolveCategoryIdForCompany(
     companyId: string,
     masterCategoryId: string | null | undefined,
+    opts?: { required?: boolean },
   ): Promise<string | null> {
+    const required = opts?.required !== false;
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { masterCategories: true },
@@ -290,6 +297,7 @@ export class MasterDataService implements OnModuleInit {
     }
 
     if (!masterCategoryId) {
+      if (!required) return null;
       throw new BadRequestException({
         code: 'CATEGORY_REQUIRED',
         message: 'Pick which category this collection is for.',

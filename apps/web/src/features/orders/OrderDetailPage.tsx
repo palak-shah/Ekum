@@ -149,7 +149,6 @@ import {
   showOrderParentItemsList,
   showSendQuoteOnDeskFace,
 } from '@/features/orders/iHandleDesk';
-import { setOrderActionDockNavVisible } from '@/features/orders/orderActionDockNav';
 import { TicketPathPick } from '@/features/orders/ticketPathPick';
 import {
   parseQuoteRateDraft,
@@ -1548,7 +1547,6 @@ export function OrderDetailPage() {
       hasSellerQuote: data.hasSellerQuote === true,
       canAmend: data.canAmend === true,
       canAcceptQuote: data.canAcceptQuote === true,
-      canAcceptLogged: data.canAcceptLogged === true,
       createdBySeller: data.createdBySeller === true,
       openForDispatch,
       hasRemaining,
@@ -1557,11 +1555,6 @@ export function OrderDetailPage() {
       partiallyShipped: data.partiallyShipped,
     }).kind;
   }, [order.data, companyId]);
-
-  useEffect(() => {
-    setOrderActionDockNavVisible(actionDockKind !== 'none');
-    return () => setOrderActionDockNavVisible(false);
-  }, [actionDockKind]);
 
   if (order.isLoading) {
     return <LoadingBlock label="Loading order…" />;
@@ -1623,7 +1616,6 @@ export function OrderDetailPage() {
     hasSellerQuote: data.hasSellerQuote === true,
     canAmend: data.canAmend === true,
     canAcceptQuote: data.canAcceptQuote === true,
-    canAcceptLogged: data.canAcceptLogged === true,
     createdBySeller: data.createdBySeller === true,
     openForDispatch,
     hasRemaining,
@@ -2505,30 +2497,32 @@ export function OrderDetailPage() {
         >
           {actionDock.kind === 'buy' ? (
             <>
-              {actionDock.acceptLogged ? (
-                <Button
-                  variant="ghost"
-                  className="!min-h-10 shrink-0 px-2 text-sm"
-                  data-testid="order-dock-decline"
-                  disabled={act.isPending}
-                  onClick={() => act.mutate('cancel')}
-                >
-                  Decline
-                </Button>
-              ) : actionDock.cancel ? (
-                <Button
-                  variant="ghost"
-                  className="!min-h-10 shrink-0 px-2 text-sm"
-                  data-testid="order-dock-cancel"
-                  disabled={act.isPending || actionWithNote.isPending}
-                  onClick={() => {
-                    setActionNote('');
-                    setActionNoteVoice(null);
-                    setActionNoteOpen('cancel');
-                  }}
-                >
-                  {isInquiry && data.status === 'requested' ? 'Cancel inquiry' : 'Cancel'}
-                </Button>
+              {actionDock.cancel ? (
+                data.createdBySeller === true ? (
+                  <Button
+                    variant="ghost"
+                    className="!min-h-10 shrink-0 px-2 text-sm"
+                    data-testid="order-dock-decline"
+                    disabled={act.isPending}
+                    onClick={() => act.mutate('cancel')}
+                  >
+                    Decline
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="!min-h-10 shrink-0 px-2 text-sm"
+                    data-testid="order-dock-cancel"
+                    disabled={act.isPending || actionWithNote.isPending}
+                    onClick={() => {
+                      setActionNote('');
+                      setActionNoteVoice(null);
+                      setActionNoteOpen('cancel');
+                    }}
+                  >
+                    {isInquiry && data.status === 'requested' ? 'Cancel inquiry' : 'Cancel'}
+                  </Button>
+                )
               ) : null}
               {actionDock.edit ? (
                 <Button
@@ -2538,16 +2532,6 @@ export function OrderDetailPage() {
                   onClick={openAmendSheet}
                 >
                   {isInquiry ? 'Edit inquiry' : 'Edit'}
-                </Button>
-              ) : null}
-              {actionDock.acceptLogged ? (
-                <Button
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
-                  data-testid="order-dock-accept"
-                  disabled={act.isPending}
-                  onClick={() => act.mutate('accept')}
-                >
-                  Accept
                 </Button>
               ) : null}
               {actionDock.acceptQuote ? (

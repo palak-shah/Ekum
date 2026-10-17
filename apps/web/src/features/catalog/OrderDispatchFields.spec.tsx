@@ -41,6 +41,12 @@ describe('OrderDispatchFields set-contains', () => {
     expect(screen.getByTestId('collection-dispatch-unit')).toHaveValue(Unit.Set);
   });
 
+  it('falls back empty dispatch to set even when order unit is mtr', () => {
+    render(<Harness initialOrderUnit={Unit.Metre} initialDispatch="" />);
+    expect(screen.getByTestId('collection-order-unit')).toHaveValue(Unit.Metre);
+    expect(screen.getByTestId('collection-dispatch-unit')).toHaveValue(Unit.Set);
+  });
+
   it('shows placeholder 4 pc when order+dispatch are set (rate unit pc)', () => {
     render(<Harness />);
     expect(screen.getByTestId('collection-set-contains')).toHaveAttribute(

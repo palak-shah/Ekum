@@ -955,11 +955,8 @@ export class OrderService {
       hasSellerQuote: sellerQuoted,
       canAcceptQuote: this.buyerCanAcceptQuoteSync(order, actorCompanyId, sellerQuoted),
       createdBySeller: order.createdByCompanyId === order.sellerCompanyId,
-      canAcceptLogged:
-        order.buyerCompanyId === actorCompanyId &&
-        order.status === OrderStatus.Requested &&
-        order.createdByCompanyId === order.sellerCompanyId &&
-        order.tradeMode === OrderTradeMode.Bilateral,
+      // Seller-logged tickets auto-confirm — no buyer Accept.
+      canAcceptLogged: false,
       paymentRequests: [],
       canAskPayment: false,
       ...quoteNoteFields,

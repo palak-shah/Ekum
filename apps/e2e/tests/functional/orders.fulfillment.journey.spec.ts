@@ -57,7 +57,7 @@ test.describe('order fulfillment @functional @orders', () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId('order-action-dock')).toHaveCount(0);
-    await expect(page.getByTestId('app-bottom-nav')).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(page.getByRole('button', { name: 'Raise a return' })).toHaveCount(0);
     await expect(page.getByTestId('order-deliver')).toHaveCount(0);
   });

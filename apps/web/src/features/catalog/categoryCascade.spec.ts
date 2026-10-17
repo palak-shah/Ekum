@@ -5,6 +5,7 @@ import {
   itemSlotSuggestions,
   mainsForCompany,
   parentKeysFromCompanyCategories,
+  pruneOfficialTagsOnCategoryChange,
   qualitySlotSuggestions,
   sizeSlotSuggestions,
   SuperCategory,
@@ -81,5 +82,72 @@ describe('tag cascade', () => {
         'WOMENS WEAR',
       ],
     );
+  });
+
+  it('on category change keeps custom tags and shared official; drops old-only official', () => {
+    const pruned = pruneOfficialTagsOnCategoryChange(
+      {
+        items: ['Readymade', 'My own tag'],
+        qualities: ['Embroidered', 'Shop special'],
+        sizes: ['S', 'XXL'],
+      },
+      {
+        itemTypes: ['Readymade', 'Saree'],
+        qualities: ['Embroidered', 'Printed'],
+        sizes: ['S', 'M', 'L'],
+      },
+      {
+        itemTypes: ['Saree', 'Lehenga'],
+        qualities: ['Printed', 'Plain'],
+        sizes: ['M', 'L', 'XL'],
+      },
+    );
+    expect(pruned.items).toEqual(['My own tag']);
+    expect(pruned.qualities).toEqual(['Shop special']);
+    expect(pruned.sizes).toEqual(['XXL']);
+  });
+
+  it('keeps official tags still offered by the new category', () => {
+    const pruned = pruneOfficialTagsOnCategoryChange(
+      {
+        items: ['Readymade'],
+        qualities: ['Printed'],
+        sizes: ['M'],
+      },
+      {
+        itemTypes: ['Readymade', 'Saree'],
+        qualities: ['Embroidered', 'Printed'],
+        sizes: ['S', 'M', 'L'],
+      },
+      {
+        itemTypes: ['Readymade', 'Kurti'],
+        qualities: ['Printed', 'Plain'],
+        sizes: ['M', 'L'],
+      },
+    );
+    expect(pruned).toEqual({
+      items: ['Readymade'],
+      qualities: ['Printed'],
+      sizes: ['M'],
+    });
+  });
+
+  it('treats all tags as custom when there was no prior category pool', () => {
+    const pruned = pruneOfficialTagsOnCategoryChange(
+      {
+        items: ['Readymade', 'Custom'],
+        qualities: ['Embroidered'],
+        sizes: ['S'],
+      },
+      { itemTypes: [], qualities: [], sizes: [] },
+      {
+        itemTypes: ['Saree'],
+        qualities: ['Printed'],
+        sizes: ['M'],
+      },
+    );
+    expect(pruned.items).toEqual(['Readymade', 'Custom']);
+    expect(pruned.qualities).toEqual(['Embroidered']);
+    expect(pruned.sizes).toEqual(['S']);
   });
 });

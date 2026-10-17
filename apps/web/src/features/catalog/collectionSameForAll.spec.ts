@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   applySameForAllToForm,
+  blankSameForAll,
+  clampSameForAllUnits,
   designFollowsPackRate,
   designHasOwnRate,
   stampCreatePhotoMemberForm,
@@ -9,6 +11,7 @@ import {
   emptySameForAll,
   forceSameForAllToForm,
   memberDiffersFromSameForAll,
+  preferredPackUnit,
   productFieldsFromMember,
   sortDiffFirst,
   unionTags,
@@ -32,11 +35,37 @@ describe('emptySameForAll', () => {
     });
   });
 
-  it('keeps a fully blank shell when no order unit is passed', () => {
+  it('defaults to set + set when no order unit is passed', () => {
     expect(emptySameForAll()).toMatchObject({
+      unit: 'set',
+      dispatchUnit: 'set',
+    });
+  });
+});
+
+describe('blankSameForAll', () => {
+  it('is a fully blank Diff shell', () => {
+    expect(blankSameForAll()).toMatchObject({
       unit: '',
       dispatchUnit: '',
+      rate: '',
     });
+  });
+});
+
+describe('preferredPackUnit / clampSameForAllUnits', () => {
+  it('prefers set over pc when both are permitted', () => {
+    expect(preferredPackUnit(['pc', 'set', 'mtr'])).toBe('set');
+  });
+
+  it('clamps a forbidden rate-on-dispatch unit to set', () => {
+    const { next, changed } = clampSameForAllUnits(
+      { ...emptySameForAll('set'), dispatchUnit: 'mtr' },
+      ['set', 'pc'],
+    );
+    expect(changed).toBe(true);
+    expect(next.dispatchUnit).toBe('set');
+    expect(next.unit).toBe('set');
   });
 });
 
@@ -60,7 +89,7 @@ describe('memberDiffersFromSameForAll', () => {
           notes: '',
           categories: [],
         },
-        emptySameForAll(),
+        blankSameForAll(),
       ),
     ).toBe(false);
   });
@@ -89,7 +118,7 @@ describe('collectSameForAllDiffIds', () => {
 
   it('returns empty when same-for-all is blank', () => {
     expect(
-      collectSameForAllDiffIds(emptySameForAll(), [
+      collectSameForAllDiffIds(blankSameForAll(), [
         {
           id: 'a',
           form: {

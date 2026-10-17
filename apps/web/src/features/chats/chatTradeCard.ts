@@ -52,7 +52,6 @@ export interface ChatTradeCardModel {
 export interface TradeCardActions {
   openOrder?: () => void;
   quoteAccept?: () => void;
-  loggedAccept?: () => void;
   accepting?: boolean;
   collectionPath?: string;
   productPath?: string;
@@ -228,20 +227,13 @@ function messagePartyFromHeadline(headline: string, fallback: string): string | 
 function buildOrderActions(
   input: TradeCardActions & { ref: MessageReference | null | undefined },
 ): ChatTradeCardAction | undefined {
-  const { ref, openOrder, quoteAccept, loggedAccept, accepting } = input;
+  const { ref, openOrder, quoteAccept, accepting } = input;
   if (quoteAccept) {
     return {
       label: accepting ? 'Accepting…' : 'Accept quote',
       onClick: quoteAccept,
       style: 'primary',
       testId: ref?.id ? `accept-quote-${ref.id}` : 'accept-quote',
-    };
-  }
-  if (loggedAccept) {
-    return {
-      label: accepting ? 'Accepting…' : 'Accept',
-      onClick: loggedAccept,
-      style: 'primary',
     };
   }
   if (openOrder && ref?.available) {

@@ -12,10 +12,9 @@ import { applyHowManyDetail } from '@/features/orders/howManyHydrate';
 import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
 import {
   howManyOrderFooterSummary,
+  howManyPackSizesDiffer,
   howManySetsBanner,
-  howManyTotalPcsLabel,
   qtyCountNoun,
-  qtyStepperUnitLabel,
 } from '@/features/orders/howManyLineMeta';
 import { howManySingleGoesTo, howManySplitBanner } from '@/features/orders/howManySplitBanner';
 import { api } from '@/lib/apiClient';
@@ -254,15 +253,15 @@ export function HowManyEachSheet({
     return (
       <Sheet open={open} onClose={onClose} title="Send this link">
         <div className="flex flex-col gap-3 pb-1">
-          <p className="text-sm text-muted">They open it, enter the code, then Accept.</p>
+          <p className="text-sm text-muted">They open it, enter the code, then view the ticket.</p>
           <Button
             fullWidth
             onClick={async () => {
               try {
                 const result = await shareOrCopyInvite({
                   url: inviteUrl,
-                  title: 'Ekum — accept order',
-                  text: 'Accept this order on Ekum',
+                  title: 'Ekum — logged order',
+                  text: 'View this order on Ekum',
                 });
                 if (result === 'copied') showToast('Link copied');
               } catch (err) {
@@ -301,6 +300,7 @@ export function HowManyEachSheet({
     })),
   );
   const setsBanner = howManySetsBanner(activeProducts);
+  const packSizesDiffer = howManyPackSizesDiffer(activeProducts);
 
   const showTicketExtras =
     sheetJob === 'ask' ||
@@ -446,13 +446,6 @@ export function HowManyEachSheet({
               const thumb = thumbs[0] ?? null;
               const noteValue = notes[product.id] ?? '';
               const noun = qtyCountNoun(product.unit);
-              const unitLabel = qtyStepperUnitLabel(product.unit);
-              const totalPcs = howManyTotalPcsLabel(
-                quantity,
-                product.unit,
-                product.piecesPerPack,
-                product.dispatchUnit,
-              );
               return (
                 <li
                   key={product.id}
@@ -487,13 +480,13 @@ export function HowManyEachSheet({
                       rate={product.rate}
                       rateMax={product.rateMax}
                       shop={multiShop ? product.companyName : null}
+                      showPackSize={packSizesDiffer}
                     />
                     <div className="flex shrink-0 flex-col items-end gap-1">
                     <QtyStepper
                       value={quantity}
                       disabled={busy}
                       chainQty
-                      unitLabel={unitLabel}
                       enterKeyHint={index === lines.length - 1 ? 'done' : 'next'}
                       aria-label={`${noun} for ${product.name}`}
                       onChange={(next) => {
@@ -501,11 +494,6 @@ export function HowManyEachSheet({
                         if (next != null) persistQty(next);
                       }}
                     />
-                    {totalPcs ? (
-                      <p className="text-[11px] font-medium text-muted" data-testid="how-many-total-pcs">
-                        {totalPcs}
-                      </p>
-                    ) : null}
                     </div>
                     {canRemove ? (
                       <button

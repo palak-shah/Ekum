@@ -22,6 +22,7 @@ import {
   Unit,
   categoriesToTagSlots,
   emptyTagSlots,
+  pruneOfficialTagsOnCategoryChange,
   tagSlotsToCategories,
   type TagSlots,
 } from '@ekum/domain-types';
@@ -73,6 +74,7 @@ import {
 import {
   collectSameForAllDiffIds,
   emptySameForAll,
+  preferredPackUnit,
   forceSameForAllToForm,
   productFieldsFromMember,
   sameForAllIsEmpty,
@@ -127,6 +129,7 @@ import {
 } from './curationAudienceCeiling';
 import { audienceForPublishSheet } from './publishAudienceOptions';
 import {
+  normalizePackDispatchUnit,
   readCompanyPublishDefaults,
   readCompanySellAsUsual,
 } from './publishDefaults';
@@ -255,7 +258,7 @@ export function CollectionEditorPage() {
     name: '',
     rate: '',
     unit: Unit.Set,
-    dispatchUnit: Unit.Piece,
+    dispatchUnit: Unit.Set,
     piecesPerPack: '',
     moq: '',
     notes: '',
@@ -271,6 +274,8 @@ export function CollectionEditorPage() {
   const [rateFrom, setRateFrom] = useState('');
   const [rateTo, setRateTo] = useState('');
   const rateFieldsHydrated = useRef(false);
+  /** Pack sell-as from members — once only so refetch cannot wipe a Dispatch edit. */
+  const sellAsHydrated = useRef(false);
   const [rateConflicts, setRateConflicts] = useState<RateConflict[] | null>(null);
   const [rateConflictKeepIds, setRateConflictKeepIds] = useState<Set<string>>(new Set());
   const [pendingPublish, setPendingPublish] = useState(false);
@@ -463,7 +468,10 @@ export function CollectionEditorPage() {
           name: product.name,
           rate: formatRateInput(product.rate, product.rateMax ?? null),
           unit: product.unit || Unit.Set,
-          dispatchUnit: product.dispatchUnit || Unit.Piece,
+          dispatchUnit: normalizePackDispatchUnit(
+            product.unit || Unit.Set,
+            product.dispatchUnit || Unit.Set,
+          ),
           piecesPerPack:
             product.piecesPerPack != null ? String(product.piecesPerPack) : '',
           moq: product.moq != null ? String(product.moq) : '',
@@ -514,15 +522,27 @@ export function CollectionEditorPage() {
         rateFieldsHydrated.current = true;
       }
       const first = existing.data.products[0];
-      setSameForAll((prev) => ({
-        ...prev,
-        rate: loadedRate || prev.rate,
-        unit: first?.unit || prev.unit || Unit.Set,
-        dispatchUnit: first?.dispatchUnit || prev.dispatchUnit || Unit.Piece,
-        piecesPerPack:
-          first?.piecesPerPack != null ? String(first.piecesPerPack) : prev.piecesPerPack,
-        moq: first?.moq != null ? String(first.moq) : prev.moq,
-      }));
+      setSameForAll((prev) => {
+        const nextRate = loadedRate || prev.rate;
+        if (sellAsHydrated.current) {
+          return { ...prev, rate: nextRate };
+        }
+        sellAsHydrated.current = true;
+        const unit = first?.unit || prev.unit || Unit.Set;
+        const dispatchUnit = normalizePackDispatchUnit(
+          unit,
+          first?.dispatchUnit || prev.dispatchUnit || Unit.Set,
+        );
+        return {
+          ...prev,
+          rate: nextRate,
+          unit,
+          dispatchUnit,
+          piecesPerPack:
+            first?.piecesPerPack != null ? String(first.piecesPerPack) : prev.piecesPerPack,
+          moq: first?.moq != null ? String(first.moq) : prev.moq,
+        };
+      });
       setPublishAudience(
         restorePublishAudienceState({
           audience: existing.data.audience || PublishAudience.Followers,
@@ -1130,7 +1150,7 @@ export function CollectionEditorPage() {
         sku,
         rate: shared.rate,
         unit: shared.unit || Unit.Set,
-        dispatchUnit: shared.dispatchUnit || Unit.Piece,
+        dispatchUnit: shared.dispatchUnit || Unit.Set,
         piecesPerPack: shared.piecesPerPack,
         moq: shared.moq,
         notes: shared.notes,
@@ -1189,7 +1209,7 @@ export function CollectionEditorPage() {
           name: identity.name,
           rate: shared.rate,
           unit: shared.unit || Unit.Set,
-          dispatchUnit: shared.dispatchUnit || Unit.Piece,
+          dispatchUnit: shared.dispatchUnit || Unit.Set,
           piecesPerPack: shared.piecesPerPack,
           moq: shared.moq,
           notes: shared.notes,
@@ -1664,7 +1684,10 @@ export function CollectionEditorPage() {
       name: product.name,
       rate: formatRateInput(product.rate, product.rateMax ?? null),
       unit: product.unit || Unit.Set,
-      dispatchUnit: product.dispatchUnit || Unit.Piece,
+      dispatchUnit: normalizePackDispatchUnit(
+        product.unit || Unit.Set,
+        product.dispatchUnit || Unit.Set,
+      ),
       piecesPerPack:
         product.piecesPerPack != null ? String(product.piecesPerPack) : '',
       moq: product.moq != null ? String(product.moq) : '',
@@ -1689,7 +1712,10 @@ export function CollectionEditorPage() {
       name: nameForNewDesign(photo.name, photo.sku),
       rate: photo.rate,
       unit: photo.unit || Unit.Set,
-      dispatchUnit: photo.dispatchUnit || Unit.Piece,
+      dispatchUnit: normalizePackDispatchUnit(
+        photo.unit || Unit.Set,
+        photo.dispatchUnit || Unit.Set,
+      ),
       piecesPerPack: photo.piecesPerPack,
       moq: photo.moq,
       notes: photo.notes,
@@ -1831,40 +1857,79 @@ export function CollectionEditorPage() {
     if (tagSlotsToCategories(next).length > 20) return;
     setTagSlotsState(next);
     setForm({ ...form, categories: tagSlotsToCategories(next) });
-    // Prefer first permitted unit for empty order/dispatch when category known.
+    // Prefer platform set for empty order/dispatch when the category offers it.
     const units = permittedUnits;
     if (units.length > 0) {
+      const preferred = preferredPackUnit(units);
       setSameForAll((prev) => ({
         ...prev,
-        unit: prev.unit || units[0] || Unit.Set,
-        dispatchUnit:
-          prev.dispatchUnit ||
-          (units.includes(Unit.Piece) ? Unit.Piece : units[0]),
+        unit: prev.unit || preferred,
+        dispatchUnit: prev.dispatchUnit || preferred,
       }));
     }
   };
 
   const onMasterCategoryChange = (nextId: string) => {
     if (nextId === form.masterCategoryId) return;
+    const oldId = form.masterCategoryId;
     const hasTags =
       tagSlots.items.length > 0 ||
       tagSlots.qualities.length > 0 ||
       tagSlots.sizes.length > 0;
-    if (hasTags) {
-      const ok = window.confirm(
-        'Changing category clears item, quality, and size tags that may not apply. Continue?',
-      );
-      if (!ok) return;
-      const cleared = emptyTagSlots();
-      setTagSlotsState(cleared);
-      setForm({
-        ...form,
-        masterCategoryId: nextId || null,
-        categories: [],
-      });
+
+    // Sell-as stays put — never rewrite unit / piecesPerPack / dispatch on category change.
+    if (!hasTags || !nextId) {
+      setForm((prev) => ({ ...prev, masterCategoryId: nextId || null }));
       return;
     }
-    setForm({ ...form, masterCategoryId: nextId || null });
+
+    const slotsAtChange = tagSlots;
+    const loadTaxonomy = (categoryId: string) =>
+      queryClient.fetchQuery({
+        queryKey: ['catalog-master-taxonomy', categoryId],
+        queryFn: () =>
+          api.get<MasterTaxonomyView>(
+            `/catalog/master-taxonomy?categoryId=${encodeURIComponent(categoryId)}`,
+          ),
+        staleTime: 60_000,
+      });
+
+    void (async () => {
+      try {
+        const [oldTax, newTax] = await Promise.all([
+          oldId
+            ? loadTaxonomy(oldId)
+            : Promise.resolve({
+                itemTypes: [] as string[],
+                qualities: [] as string[],
+                sizes: [] as string[],
+              }),
+          loadTaxonomy(nextId),
+        ]);
+        const pruned = pruneOfficialTagsOnCategoryChange(
+          slotsAtChange,
+          {
+            itemTypes: oldTax.itemTypes ?? [],
+            qualities: oldTax.qualities ?? [],
+            sizes: oldTax.sizes ?? [],
+          },
+          {
+            itemTypes: newTax.itemTypes,
+            qualities: newTax.qualities,
+            sizes: newTax.sizes,
+          },
+        );
+        setTagSlotsState(pruned);
+        setForm((prev) => ({
+          ...prev,
+          masterCategoryId: nextId,
+          categories: tagSlotsToCategories(pruned),
+        }));
+      } catch {
+        // Taxonomy unavailable — keep every tag, still switch category.
+        setForm((prev) => ({ ...prev, masterCategoryId: nextId || null }));
+      }
+    })();
   };
 
   const whoExpandable = (
@@ -1941,11 +2006,13 @@ export function CollectionEditorPage() {
           setSameForAll((prev) => {
             const orderUnit = prev.unit || Unit.Set;
             if (isPackOrderUnit(orderUnit)) {
-              // Rate per pc → keep dispatch journey as order unit (set).
-              // Other rate units store on dispatch (legacy pack-rate-on-dispatch).
-              const dispatchUnit =
-                next === Unit.Piece || next === orderUnit ? orderUnit : next;
-              return { ...prev, dispatchUnit };
+              // Rate per pc (or same as order) → journey stays on the pack unit.
+              // Never write pc onto dispatch — that was the legacy encoding that
+              // made Dispatch flip back to pc. Other rate units may sit on dispatch.
+              if (next === Unit.Piece || next === orderUnit) {
+                return { ...prev, dispatchUnit: orderUnit };
+              }
+              return { ...prev, dispatchUnit: next };
             }
             return { ...prev, unit: next };
           });
@@ -2028,7 +2095,10 @@ export function CollectionEditorPage() {
             setSameForAll((prev) => ({ ...prev, piecesPerPack }))
           }
           onDispatchUnit={(dispatchUnit) =>
-            setSameForAll((prev) => ({ ...prev, dispatchUnit }))
+            setSameForAll((prev) => ({
+              ...prev,
+              dispatchUnit: normalizePackDispatchUnit(prev.unit || Unit.Set, dispatchUnit),
+            }))
           }
           onMoq={(moq) => setSameForAll((prev) => ({ ...prev, moq }))}
         />
@@ -2822,7 +2892,7 @@ export function CollectionEditorPage() {
           <RateRangeFields
             label={catalogRateFieldLabel(
               memberForm.unit || Unit.Set,
-              memberForm.dispatchUnit || Unit.Piece,
+              memberForm.dispatchUnit || Unit.Set,
             )}
             from={splitRateInput(memberForm.rate).from}
             to={splitRateInput(memberForm.rate).to}
@@ -2842,7 +2912,7 @@ export function CollectionEditorPage() {
           <OrderDispatchFields
             orderUnit={memberForm.unit || Unit.Set}
             piecesPerPack={memberForm.piecesPerPack}
-            dispatchUnit={memberForm.dispatchUnit || Unit.Piece}
+            dispatchUnit={memberForm.dispatchUnit || Unit.Set}
             moq={memberForm.moq}
             onOrderUnit={(unit) => setMemberForm({ ...memberForm, unit })}
             onPiecesPerPack={(piecesPerPack) =>

@@ -690,3 +690,44 @@ export function categoriesToTagSlots(
   }
   return { items, qualities, sizes };
 }
+
+/** Official suggestion pools from `GET …/master-taxonomy` (per category). */
+export type TaxonomyOfficialPools = {
+  itemTypes: string[];
+  qualities: string[];
+  sizes: string[];
+};
+
+/**
+ * On master category change: drop labels that were official under the old
+ * category and are not offered by the new one. Labels absent from the old
+ * official pools (custom) stay. Buckets prune independently.
+ */
+export function pruneOfficialTagsOnCategoryChange(
+  slots: TagSlots,
+  oldPools: TaxonomyOfficialPools,
+  newPools: TaxonomyOfficialPools,
+): TagSlots {
+  const keep = (labels: string[], oldPool: string[], newPool: string[]): string[] => {
+    const oldKeys = labelKeySet(oldPool);
+    const newKeys = labelKeySet(newPool);
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of labels) {
+      const label = raw.trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      // Custom (not in old official pool) or still offered → keep.
+      if (oldKeys.has(key) && !newKeys.has(key)) continue;
+      seen.add(key);
+      out.push(label);
+    }
+    return out;
+  };
+  return {
+    items: keep(slots.items, oldPools.itemTypes, newPools.itemTypes),
+    qualities: keep(slots.qualities, oldPools.qualities, newPools.qualities),
+    sizes: keep(slots.sizes, oldPools.sizes, newPools.sizes),
+  };
+}

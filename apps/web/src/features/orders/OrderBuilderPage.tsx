@@ -29,10 +29,9 @@ import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from
 import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
 import {
   howManyOrderFooterSummary,
+  howManyPackSizesDiffer,
   howManySetsBanner,
-  howManyTotalPcsLabel,
   qtyCountNoun,
-  qtyStepperUnitLabel,
 } from '@/features/orders/howManyLineMeta';
 import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
@@ -498,9 +497,10 @@ export function OrderBuilderPage() {
             data-testid="order-builder-lines"
             {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
           >
-            {standardLines.map((line, index) => {
+            {(() => {
+              const packSizesDiffer = howManyPackSizesDiffer(standardLines);
+              return standardLines.map((line, index) => {
               const qty = parseQtyDraft(line.quantity);
-              const totalPcs = howManyTotalPcsLabel(qty, line.unit, line.piecesPerPack, line.dispatchUnit);
               const noun = qtyCountNoun(line.unit);
               return (
                 <li
@@ -528,6 +528,7 @@ export function OrderBuilderPage() {
                           piecesPerPack={line.piecesPerPack}
                           rate={line.rate}
                           rateMax={line.rateMax}
+                          showPackSize={packSizesDiffer}
                         />
                         {standardLines.length > 1 ? (
                           <button
@@ -549,7 +550,6 @@ export function OrderBuilderPage() {
                       <QtyStepper
                         value={qty}
                         chainQty
-                        unitLabel={qtyStepperUnitLabel(line.unit)}
                         enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
                         aria-label={`${noun} for ${line.name}`}
                         onChange={(next) => {
@@ -563,11 +563,6 @@ export function OrderBuilderPage() {
                           );
                         }}
                       />
-                      {totalPcs ? (
-                        <p className="text-[11px] font-medium text-muted" data-testid="how-many-total-pcs">
-                          {totalPcs}
-                        </p>
-                      ) : null}
                     </div>
                   </div>
                   <HowManyLineNote
@@ -585,7 +580,8 @@ export function OrderBuilderPage() {
                   />
                 </li>
               );
-            })}
+            });
+            })()}
           </ul>
         </div>
       ) : (

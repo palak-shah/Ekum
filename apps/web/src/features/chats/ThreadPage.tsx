@@ -846,15 +846,6 @@ export function ThreadPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not accept quote.'),
   });
 
-  const acceptLogged = useMutation({
-    mutationFn: (orderId: string) => api.post(`/orders/${orderId}/accept`, {}),
-    onSuccess: () => {
-      refreshMessages();
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-    },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not accept.'),
-  });
-
   const resolveComplaint = useMutation({
     mutationFn: (complaintId: string) => api.post(`/complaints/${complaintId}/resolve`, {}),
     onSuccess: () => {
@@ -2329,8 +2320,7 @@ export function ThreadPage() {
                         'Business')
                   }
                   onAcceptQuote={(orderId) => acceptQuote.mutate(orderId)}
-                  onAcceptLogged={(orderId) => acceptLogged.mutate(orderId)}
-                  accepting={acceptQuote.isPending || acceptLogged.isPending}
+                  accepting={acceptQuote.isPending}
                 onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)}
                 onEscalateComplaint={(complaintId, orderId, productIds) => {
                   void openEscalateToSupplier(complaintId, orderId, productIds);
@@ -3731,7 +3721,6 @@ function TimelineItem({
   searchHighlight = '',
   senderLabel,
   onAcceptQuote,
-  onAcceptLogged,
   accepting,
   onOpenOrder,
   onEscalateComplaint,
@@ -3762,7 +3751,6 @@ function TimelineItem({
   searchHighlight?: string;
   senderLabel: string;
   onAcceptQuote: (orderId: string) => void;
-  onAcceptLogged: (orderId: string) => void;
   accepting: boolean;
   onOpenOrder: (orderId: string) => void;
   onEscalateComplaint?: (
@@ -4346,13 +4334,6 @@ function TimelineItem({
     message.id === primaryAcceptQuoteId
       ? () => onAcceptQuote(ref.id)
       : undefined;
-  const loggedAccept =
-    (message.type === 'order_card' || isLegacyOrderNotice) &&
-    !message.mine &&
-    ref?.canAcceptLogged &&
-    ref.available
-      ? () => onAcceptLogged(ref.id)
-      : undefined;
   const richOrder = isOrderLikeCard && isRichOrderChatMessage(message, ref);
   const tradeCard = buildChatTradeCard(message, ref, senderLabel, {
     compact: isOrderLikeCard && !richOrder,
@@ -4360,7 +4341,6 @@ function TimelineItem({
     actions: {
       openOrder,
       quoteAccept,
-      loggedAccept,
       accepting,
       collectionPath,
       productPath,

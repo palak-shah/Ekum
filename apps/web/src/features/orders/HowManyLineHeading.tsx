@@ -1,12 +1,14 @@
+import { isPackOrderUnit } from '@/lib/catalogRate';
 import {
   howManyLineExtra,
+  howManyPackContentsLabel,
   howManySetContentsMissing,
   howManyUnitShort,
 } from '@/features/orders/howManyLineMeta';
 
 /**
- * Name + order unit on one line (Set / Metre / Piece).
- * Pack size and rate stay on the quiet facts line — never “Piece” when order unit is set.
+ * Name only on pack lines (no “Set” beside it). Native lines keep Piece / Metre.
+ * Quiet line is price per set — not “1 pc · ₹/pc”.
  */
 export function HowManyLineHeading({
   name,
@@ -17,6 +19,7 @@ export function HowManyLineHeading({
   rate,
   rateMax,
   shop,
+  showPackSize = false,
 }: {
   name: string;
   unit?: string | null;
@@ -26,9 +29,17 @@ export function HowManyLineHeading({
   rate?: number | null;
   rateMax?: number | null;
   shop?: string | null;
+  /** When sizes differ — `₹… · 1 set = 20 pcs`, not `20 pcs · ₹` (that reads as price for those pcs). */
+  showPackSize?: boolean;
 }) {
-  const soldAs = howManyUnitShort(unit);
-  const extra = howManyLineExtra({ unit, dispatchUnit, piecesPerPack, moq, rate, rateMax });
+  const soldAs = isPackOrderUnit(unit) ? null : howManyUnitShort(unit);
+  const price = howManyLineExtra({ unit, dispatchUnit, piecesPerPack, moq, rate, rateMax });
+  const contents = showPackSize
+    ? howManyPackContentsLabel(unit, piecesPerPack, dispatchUnit)
+    : null;
+  const one = (howManyUnitShort(unit) ?? 'set').toLowerCase();
+  const packLine = contents ? `1 ${one} = ${contents}` : null;
+  const extra = [price, packLine].filter(Boolean).join(' · ') || null;
   const contentsMissing = howManySetContentsMissing(unit, piecesPerPack);
 
   return (

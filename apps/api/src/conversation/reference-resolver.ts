@@ -105,6 +105,7 @@ export class ReferenceResolver {
               id: true,
               status: true,
               intent: true,
+              tradeMode: true,
               buyerCompanyId: true,
               sellerCompanyId: true,
               facilitatorCompanyId: true,
@@ -458,12 +459,8 @@ export class ReferenceResolver {
           order!.items.some(
             (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
           );
-        const canAcceptLogged =
-          !isRateCard &&
-          Boolean(order) &&
-          direction === 'buying' &&
-          order!.status === OrderStatus.Requested &&
-          order!.createdByCompanyId === order!.sellerCompanyId;
+        // Seller-logged tickets auto-confirm — no Accept CTA (buyer Declines from ticket).
+        const canAcceptLogged = false;
 
         references.set(message.id, {
           kind: isRateCard ? 'rate' : 'order',

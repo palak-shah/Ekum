@@ -15,6 +15,7 @@ import {
   OrderLineStatus,
   OrderStatus,
   OrderTradeMode,
+  OrderTrailType,
   shortOrderLabel,
   type CreateForBuyerDto,
   type CreateForBuyerResult,
@@ -29,6 +30,7 @@ import { connectionPairWhere } from '../access/connection-pair';
 import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
 import { OrderService } from './order.service';
+import { OrderTrailService } from './order-trail.service';
 import { groupForBuyerLines } from './for-buyer-groups';
 import { effectivePathFromLane } from './trade-lane';
 import { phoneDigits, phoneVariants } from './order-invite-claim';
@@ -58,6 +60,7 @@ export class BuyForBuyerService {
     private readonly events: DomainEvents,
     private readonly serializer: OrderSerializer,
     private readonly orders: OrderService,
+    private readonly trail: OrderTrailService,
   ) {}
 
   async create(
@@ -89,6 +92,7 @@ export class BuyForBuyerService {
     let inviteOrderId: string | null = null;
 
     if (grouped.own.length > 0) {
+      const now = new Date();
       const ownItems = grouped.own.map((item) => {
         const product = byId.get(item.productId)!;
         return {
@@ -101,20 +105,23 @@ export class BuyForBuyerService {
           images: product.images,
           quantity: item.quantity,
           requestedQuantity: item.quantity,
-          lineStatus: OrderLineStatus.Open,
+          // Phone-agreed log — auto-confirm; buyer Declines if they do not want it.
+          lineStatus: OrderLineStatus.Confirmed,
         };
       });
       const order = await this.prisma.order.create({
         data: {
           kind: OrderKind.Standard,
           intent: OrderIntent.Order,
-          status: OrderStatus.Requested,
+          status: OrderStatus.Confirmed,
           tradeMode: OrderTradeMode.Bilateral,
           buyerCompanyId: buyer.companyId,
           sellerCompanyId: actorCompanyId,
           createdByCompanyId: actorCompanyId,
           createdByUserId: userId,
           updatedByUserId: userId,
+          confirmedAt: now,
+          confirmedByCompanyId: actorCompanyId,
           note: dto.note ?? null,
           transporter: dto.transporter?.trim() || null,
           items: { create: ownItems },
@@ -132,7 +139,7 @@ export class BuyForBuyerService {
           body: `${seller.name} logged an order`,
           referenceId: order.id,
           metadata: {
-            status: order.status,
+            status: OrderStatus.Confirmed,
             itemCount: order.items.length,
             event: OrderChatEvent.OrderRequested,
             orderLabel,
@@ -146,11 +153,25 @@ export class BuyForBuyerService {
         where: { id: threadId },
         data: { lastMessageAt: new Date() },
       });
+      await this.trail.append({
+        orderId: order.id,
+        type: OrderTrailType.Confirmed,
+        actorCompanyId: actorCompanyId,
+        actorUserId: userId,
+        detail: 'Logged for buyer',
+      });
 
       this.events.orderCreated({
         orderId: order.id,
         buyerCompanyId: order.buyerCompanyId,
         sellerCompanyId: order.sellerCompanyId,
+      });
+      this.events.orderStatusChanged({
+        orderId: order.id,
+        buyerCompanyId: order.buyerCompanyId,
+        sellerCompanyId: order.sellerCompanyId,
+        actorCompanyId,
+        status: OrderStatus.Confirmed,
       });
       first = await this.toOrderView(order, actorCompanyId, threadId);
       inviteOrderId = order.id;
@@ -233,121 +254,15 @@ export class BuyForBuyerService {
     };
   }
 
-  async acceptLogged(actorCompanyId: string, userId: string, id: string): Promise<OrderView> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
-      include: { items: true, seller: true, buyer: true },
+  /**
+   * Retired: seller-logged tickets auto-confirm on create.
+   * Kept so old clients get a clear error instead of a half-applied Accept.
+   */
+  async acceptLogged(_actorCompanyId: string, _userId: string, _id: string): Promise<OrderView> {
+    throw new BadRequestException({
+      code: 'ACCEPT_NOT_NEEDED',
+      message: 'This ticket does not need Accept. Decline if you do not want it.',
     });
-    if (
-      !order ||
-      (order.buyerCompanyId !== actorCompanyId && order.sellerCompanyId !== actorCompanyId)
-    ) {
-      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
-    }
-    if (order.buyerCompanyId !== actorCompanyId) {
-      throw new ForbiddenException({
-        code: 'NOT_ALLOWED',
-        message: 'Only you can accept this.',
-      });
-    }
-    if (order.createdByCompanyId !== order.sellerCompanyId) {
-      throw new BadRequestException({
-        code: 'NOT_LOGGED',
-        message: 'This is not a logged ticket.',
-      });
-    }
-    if (order.tradeMode !== OrderTradeMode.Bilateral) {
-      throw new BadRequestException({
-        code: 'NOT_LOGGED',
-        message: 'This is not a logged ticket.',
-      });
-    }
-    if (order.status !== OrderStatus.Requested) {
-      throw new ConflictException({
-        code: 'INVALID_TRANSITION',
-        message: 'This order is no longer waiting.',
-      });
-    }
-
-    const openIds = order.items
-      .filter((item) => item.lineStatus === OrderLineStatus.Open)
-      .map((item) => item.id);
-    if (openIds.length === 0) {
-      throw new ConflictException({
-        code: 'NO_OPEN_LINES',
-        message: 'There are no open lines left to accept.',
-      });
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.orderItem.updateMany({
-        where: { id: { in: openIds } },
-        data: { lineStatus: OrderLineStatus.Confirmed },
-      }),
-      this.prisma.order.update({
-        where: { id },
-        data: {
-          status: OrderStatus.Confirmed,
-          confirmedAt: new Date(),
-          confirmedByCompanyId: actorCompanyId,
-          intent: OrderIntent.Order,
-          updatedByUserId: userId,
-        },
-      }),
-      this.prisma.orderAcceptInvite.updateMany({
-        where: { orderId: id, usedAt: null },
-        data: { usedAt: new Date() },
-      }),
-    ]);
-
-    const threadId = await this.threads.ensureTradeThread(
-      order.buyerCompanyId,
-      order.sellerCompanyId,
-    );
-    const existing = await this.prisma.message.findFirst({
-      where: {
-        threadId,
-        referenceId: id,
-        type: { in: [MessageType.OrderCard, MessageType.Rate] },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, metadata: true },
-    });
-    const orderLabel = shortOrderLabel(id);
-    const body = `${order.buyer.name} accepted`;
-    const metadata = {
-      status: OrderStatus.Confirmed,
-      itemCount: openIds.length,
-      event: OrderChatEvent.QuoteAccepted,
-      orderLabel,
-      actorLabel: order.buyer.name,
-      actorRole: 'buyer',
-      createdBySeller: true,
-    };
-    if (existing) {
-      await this.prisma.message.update({
-        where: { id: existing.id },
-        data: { senderCompanyId: actorCompanyId, body, metadata },
-      });
-    }
-    await this.prisma.thread.update({
-      where: { id: threadId },
-      data: { lastMessageAt: new Date() },
-    });
-
-    this.events.orderStatusChanged({
-      orderId: id,
-      buyerCompanyId: order.buyerCompanyId,
-      sellerCompanyId: order.sellerCompanyId,
-      actorCompanyId,
-      status: OrderStatus.Confirmed,
-    });
-
-    const fresh = await this.prisma.order.findUniqueOrThrow({
-      where: { id },
-      include: ORDER_INCLUDE,
-    });
-    return this.toOrderView(fresh, actorCompanyId, threadId);
   }
 
   async getInvite(token: string): Promise<OrderInviteView> {
@@ -367,10 +282,12 @@ export class BuyForBuyerService {
       itemCount: invite.order.items.length,
       status: invite.order.status,
       expired: invite.expiresAt.getTime() < Date.now(),
-      used: Boolean(invite.usedAt) || invite.order.status !== OrderStatus.Requested,
+      // Confirmed on create is normal — only mark used when the invite was redeemed.
+      used: Boolean(invite.usedAt),
     };
   }
 
+  /** Open the ticket (no Accept). Logged tickets are already confirmed. */
   async acceptInvite(actorCompanyId: string, userId: string, token: string): Promise<OrderView> {
     const invite = await this.requireOpenInvite(token);
     await this.assertInvitePhone(userId, invite.phone);
@@ -380,7 +297,19 @@ export class BuyForBuyerService {
         message: 'This link is for another business.',
       });
     }
-    return this.acceptLogged(actorCompanyId, userId, invite.orderId);
+    await this.prisma.orderAcceptInvite.update({
+      where: { id: invite.id },
+      data: { usedAt: new Date() },
+    });
+    const threadId = await this.threads.ensureTradeThread(
+      invite.order.buyerCompanyId,
+      invite.order.sellerCompanyId,
+    );
+    const fresh = await this.prisma.order.findUniqueOrThrow({
+      where: { id: invite.orderId },
+      include: ORDER_INCLUDE,
+    });
+    return this.toOrderView(fresh, actorCompanyId, threadId);
   }
 
   async declineInvite(actorCompanyId: string, userId: string, token: string): Promise<OrderView> {
@@ -445,7 +374,11 @@ export class BuyForBuyerService {
         message: 'This link has expired.',
       });
     }
-    if (invite.order.status !== OrderStatus.Requested) {
+    const closed =
+      invite.order.status === OrderStatus.Cancelled ||
+      invite.order.status === OrderStatus.Declined ||
+      invite.order.status === OrderStatus.Settled;
+    if (closed) {
       throw new ConflictException({
         code: 'NOT_OPEN',
         message: 'This order is no longer waiting.',

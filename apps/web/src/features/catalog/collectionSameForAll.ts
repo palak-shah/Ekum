@@ -6,6 +6,7 @@ import {
   sameForAllIsEmpty,
   sameForAllSummary,
 } from './rateInput';
+import { DEFAULT_DISPATCH_UNIT, DEFAULT_SELL_AS_UNIT } from './publishDefaults';
 
 /** Packed order units show “1 set contains”. */
 export function unitAsksPiecesPerSet(unit: string): boolean {
@@ -15,16 +16,66 @@ export function unitAsksPiecesPerSet(unit: string): boolean {
 export type { SameForAllDetails };
 export { sameForAllIsEmpty, sameForAllSummary, parseRateInput };
 
-/** Platform usual: order + dispatch in sets (or passed pack unit); rate stays pc. */
-export const emptySameForAll = (unit = ''): SameForAllDetails => ({
+/**
+ * Platform usual shell: order + dispatch journey in **sets** (or the passed pack unit).
+ * Rate stays **pc** via catalogRateUnit when order === dispatch set — not stored here.
+ * Pass `unit: ''` only for Diff “nothing shared” fixtures.
+ */
+export const emptySameForAll = (unit = DEFAULT_SELL_AS_UNIT): SameForAllDetails => ({
   categories: [],
   rate: '',
   unit,
-  dispatchUnit: unit.trim() ? unit.trim() : '',
+  dispatchUnit: unit.trim() ? unit.trim() : DEFAULT_DISPATCH_UNIT,
   piecesPerPack: '',
   moq: '',
   notes: '',
 });
+
+/** Truly blank same-for-all (no platform units) — Diff / “nothing shared” only. */
+export const blankSameForAll = (): SameForAllDetails => ({
+  categories: [],
+  rate: '',
+  unit: '',
+  dispatchUnit: '',
+  piecesPerPack: '',
+  moq: '',
+  notes: '',
+});
+
+/** Prefer set for empty order/dispatch when the category offers it. */
+export function preferredPackUnit(permitted: readonly string[]): string {
+  if (permitted.includes(Unit.Set)) return Unit.Set;
+  if (permitted.includes(DEFAULT_DISPATCH_UNIT)) return DEFAULT_DISPATCH_UNIT;
+  return permitted[0] || DEFAULT_SELL_AS_UNIT;
+}
+
+/** Drop order/dispatch units the new category does not permit. */
+export function clampSameForAllUnits(
+  details: SameForAllDetails,
+  permitted: readonly string[],
+): { next: SameForAllDetails; changed: boolean } {
+  if (permitted.length === 0) return { next: details, changed: false };
+  const fallback = preferredPackUnit(permitted);
+  const unit =
+    !details.unit.trim() || permitted.includes(details.unit) ? details.unit : fallback;
+  const orderForDispatch = unit.trim() || fallback;
+  let dispatchUnit = details.dispatchUnit.trim();
+  if (!dispatchUnit) {
+    dispatchUnit = orderForDispatch === Unit.Set || isPackish(orderForDispatch)
+      ? orderForDispatch
+      : fallback;
+  } else if (!permitted.includes(dispatchUnit)) {
+    dispatchUnit =
+      orderForDispatch && permitted.includes(orderForDispatch) ? orderForDispatch : fallback;
+  }
+  const next = { ...details, unit, dispatchUnit };
+  const changed = next.unit !== details.unit || next.dispatchUnit !== details.dispatchUnit;
+  return { next, changed };
+}
+
+function isPackish(unit: string): boolean {
+  return unitAsksPiecesPerSet(unit);
+}
 
 export type MemberDesignForm = {
   name: string;

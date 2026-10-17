@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isMainMenuPath,
   pageOwnsTopChrome,
   shellShowsHomeAccount,
   shellShowsHomeBack,
@@ -44,5 +45,56 @@ describe('shellTitle', () => {
     expect(shellTitle('/network/following')).toBeNull();
     expect(pageOwnsTopChrome('/network')).toBe(true);
     expect(pageOwnsTopChrome('/network/connections')).toBe(true);
+  });
+});
+
+describe('isMainMenuPath', () => {
+  it('keeps the bar on the four tab roots', () => {
+    expect(isMainMenuPath('/')).toBe(true);
+    expect(isMainMenuPath('/chats')).toBe(true);
+    expect(isMainMenuPath('/explore')).toBe(true);
+    expect(isMainMenuPath('/orders')).toBe(true);
+  });
+
+  it('hides the bar on every other screen', () => {
+    for (const path of [
+      '/orders/new',
+      '/orders/abc',
+      '/o/token',
+      '/chats/find',
+      '/chats/archived',
+      '/chats/starred',
+      '/chats/t1',
+      '/catalog/curate',
+      '/catalog/products/new',
+      '/catalog/products/d1',
+      '/more',
+      '/settings',
+      '/settings/profile',
+      '/settings/paths',
+      '/settings/catalog-defaults',
+      '/settings/units',
+      '/team',
+      '/notifications',
+      '/grants',
+      '/network',
+      '/network/following',
+      '/network/followers',
+      '/network/connections',
+      '/broadcast',
+      '/broadcast/new',
+      '/referrals',
+      '/referrals/new',
+      '/search',
+      '/products/d1',
+      '/company/meena',
+      '/collections/pack-1',
+      '/explore/products/d1',
+      '/designs/set',
+      '/selection',
+      '/catalog/collections/new',
+    ]) {
+      expect(isMainMenuPath(path)).toBe(false);
+    }
   });
 });

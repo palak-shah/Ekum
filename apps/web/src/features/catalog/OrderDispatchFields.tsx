@@ -1,6 +1,7 @@
 import { isPackOrderUnit, Unit, unitValues } from '@ekum/domain-types';
 import { Field, TextInput } from '@/ui/kit';
 import { orderContentsUnit, orderDispatchPreview } from './orderDispatchPreview';
+import { DEFAULT_DISPATCH_UNIT, DEFAULT_SELL_AS_UNIT } from './publishDefaults';
 
 export function OrderDispatchFields({
   orderUnit,
@@ -24,8 +25,9 @@ export function OrderDispatchFields({
   /** When wrapped in CollectionExpandableSection (collection create/edit). */
   hideHeading?: boolean;
 }) {
-  const order = orderUnit || Unit.Set;
-  const dispatch = dispatchUnit.trim() || order;
+  const order = orderUnit || DEFAULT_SELL_AS_UNIT;
+  // Dispatch = delivery journey unit (platform usual set) — not the rate unit (pc).
+  const dispatch = dispatchUnit.trim() || DEFAULT_DISPATCH_UNIT;
   const contentsUnit = orderContentsUnit(order, dispatch);
   const preview = orderDispatchPreview(order, piecesPerPack, dispatch);
   const containsLabel =

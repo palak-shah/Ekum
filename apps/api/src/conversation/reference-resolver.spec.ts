@@ -854,5 +854,55 @@ describe('ReferenceResolver payment cards', () => {
       }).detail,
     ).toBe('Need 20 more pieces');
   });
+
+  it('offers Accept only on seller-logged bilateral tickets', async () => {
+    const baseOrder = {
+      id: 'ord1',
+      status: 'requested',
+      intent: 'order',
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'seller',
+      confirmedByCompanyId: null,
+      createdByCompanyId: 'seller',
+      facilitatorCompanyId: null,
+      downstreamOrderId: null,
+      upstreamReleasedAt: null,
+      buyer: { name: 'Buyer Shop' },
+      seller: { name: 'Logger Mill' },
+      _count: { items: 1 },
+      items: [{ image: null, images: ['a.jpg'], rate: null, lineStatus: 'open' }],
+    };
+    const prismaBilateral = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [{ ...baseOrder, tradeMode: 'bilateral' }],
+      },
+    } as unknown as PrismaService;
+    const prismaManage = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [{ ...baseOrder, tradeMode: 'manage' }],
+      },
+    } as unknown as PrismaService;
+    const card = message({
+      id: 'm-log',
+      type: MessageType.OrderCard,
+      referenceId: 'ord1',
+      senderCompanyId: 'seller',
+      metadata: { event: 'order_requested', status: 'requested', createdBySeller: true },
+    });
+    const bilateral = await new ReferenceResolver(prismaBilateral, makeVisibility()).resolve(
+      [card],
+      'buyer',
+    );
+    const manage = await new ReferenceResolver(prismaManage, makeVisibility()).resolve(
+      [card],
+      'buyer',
+    );
+    expect(bilateral.get('m-log')?.canAcceptLogged).toBe(false);
+    expect(manage.get('m-log')?.canAcceptLogged).toBe(false);
+  });
 });
 

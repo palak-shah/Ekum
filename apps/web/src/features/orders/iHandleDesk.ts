@@ -294,7 +294,6 @@ export type OrderActionDock =
       cancel: boolean;
       edit: boolean;
       acceptQuote: boolean;
-      acceptLogged: boolean;
       raiseReturn: boolean;
     };
 
@@ -325,18 +324,16 @@ export function orderActionDock(input: {
   hasSellerQuote?: boolean;
   canAmend?: boolean;
   canAcceptQuote?: boolean;
-  canAcceptLogged?: boolean;
-  /** Seller logged this ticket — buyer Accepts; hide Confirm. */
+  /** Seller logged this ticket — hide Confirm; buyer Declines (no Accept). */
   createdBySeller?: boolean;
 }): OrderActionDock {
   if (!input.isSeller) {
     const requested = input.status === 'requested';
-    const acceptLogged = requested && input.canAcceptLogged === true;
     const acceptQuote = requested && input.canAcceptQuote === true;
     const edit = input.canAmend === true;
-    const cancel =
-      !acceptLogged && (requested || input.status === 'confirmed');
-    if (!cancel && !edit && !acceptQuote && !acceptLogged) {
+    // Own-catalog logs land confirmed; mill hops stay requested — both may Decline/Cancel.
+    const cancel = requested || input.status === 'confirmed';
+    if (!cancel && !edit && !acceptQuote) {
       return { kind: 'none' };
     }
     return {
@@ -344,7 +341,6 @@ export function orderActionDock(input: {
       cancel,
       edit,
       acceptQuote,
-      acceptLogged,
       raiseReturn: false,
     };
   }

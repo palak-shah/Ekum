@@ -20,7 +20,6 @@ import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
   companyIdFromPath,
-  shouldHideAppNav,
   shouldShowShopTradeDock,
   shopSelectedCount,
 } from '@/features/company/shopTradeDock';
@@ -31,13 +30,10 @@ import {
   subscribePageSelecting,
 } from '@/features/browse/selectionBottomBand';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
-import {
-  getOrderActionDockNavVisible,
-  subscribeOrderActionDockNav,
-} from '@/features/orders/orderActionDockNav';
 import { CreateCollectionFabSheet } from './CreateCollectionFabSheet';
 import { createFabHref, createFabIntent, CREATE_FAB_EXPLAIN } from './createFabIntent';
 import {
+  isMainMenuPath,
   pageOwnsTopChrome,
   shellShowsHomeAccount,
   shellShowsHomeBack,
@@ -118,11 +114,6 @@ export function AppShell() {
     getRememberedChatsInbox,
     getRememberedChatsInbox,
   );
-  const orderDockHidesNav = useSyncExternalStore(
-    subscribeOrderActionDockNav,
-    getOrderActionDockNavVisible,
-    getOrderActionDockNavVisible,
-  );
   const pageDockUp = useSyncExternalStore(subscribePageOwnsBottomBand, getPageOwnsBottomBand);
   const pageSelecting = useSyncExternalStore(subscribePageSelecting, getPageSelecting);
   const ownShop = Boolean(shopId && company.data?.id && shopId === company.data.id);
@@ -137,18 +128,7 @@ export function AppShell() {
     shortlist.count + albumPick.count,
     { shopDockUp, pageDockUp, ownShop, pageSelecting },
   );
-  const hideAppNav =
-    shouldHideAppNav(location.pathname, {
-      myCompanyId: company.data?.id,
-      thisShopSelectedCount: shopId
-        ? shopSelectedCount(shortlist.entries, albumPick.entries, shopId)
-        : 0,
-      search: location.search,
-      pageDockUp,
-      selectionWorkspaceUp: selectionUp,
-    }) ||
-    orderDockHidesNav ||
-    isChatThread;
+  const hideAppNav = !isMainMenuPath(location.pathname) || selectionUp;
   const wasOrdersPath = useRef(false);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-15 (admin tag UX refinement)  
+**Updated:** 2026-10-17 (main-menu bottom nav)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Platform | Bottom nav only on Home, Chats, Explore, Orders; Explore Select still hides it | Works | Unit | Required | Completeness 2026-10-17-main-menu-bottom-nav; `isMainMenuPath` |
 | Platform | Master Categories (sheet) replace SuperCategory; Admin Console Tag Management (scope-gated list, unified search/add, paginated Load more, bulk paste) + category-aware collection tags/units; CompanyCustomTag | Partial | Unit | Required | Completeness 2026-10-14-master-data-admin; UX refine 2026-10-15; web units AdminTagsPage; no e2e platform-admin seed yet |
 | Catalog | Legacy everyone/connections → Followers (migrate + enforce); defaults followers; no hidden open catalog | Works | Unit | Required | Completeness 2026-10-14-legacy-audience-followers-align |
 | Browse | Unified DesignSheet (trade footer + ⋯ Bookmark/owner); collection · shop · You · Explore · Saved; chat unchanged | Works | Unit | Required | Completeness 2026-10-11-unified-design-sheet |
@@ -18,6 +19,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Edit collection = pack details only (no member grid; membership on album) | Works | Unit | Required | Completeness 2026-10-10-edit-collection-details-only |
 | Collections | Create/edit Rate per + unit select (default pc; syncs dispatch/unit) | Works | Unit | Required | Completeness 2026-10-10-rate-per-unit-select |
 | Collections | Create/edit Order and dispatch collapsed accordion (pack page only) | Works | Unit | Required | Completeness 2026-10-10-order-dispatch-accordion |
+| Collections | Category change keeps sell-as; prune official tags only (custom stay) | Works | Unit | Required | Completeness 2026-10-17-category-keeps-sell-as; no unit clamp / wipe dialog |
 | Collections | Album facts rate: pack first, else design min–max; owner always sees; on_request for audience | Works | Unit | Required | Completeness 2026-10-10-album-rate-pack-then-designs |
 | Platform | App-wide ⋯ MoreActionsSheet (icon+text bottom sheet; mute as sheet step); filters/attach stay popovers | Works | Unit | Required | Completeness 2026-10-09-more-actions-sheet-appwide |
 | Collections | Album scan chrome: facts · About · grid rate · Order after Select · Message ⋯ · album-scoped picks | Works | Unit | Required | Completeness 2026-10-09-album-scan-chrome; no Ask rates on album |
@@ -125,7 +127,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Dispatch extra qty (qty > remaining) + highlight | Works | Unit | Required | Completeness 2026-10-04-dispatch-overship; sheet **Extra N**; detail **dispatched N · extra M**; no silent clamp |
 | Orders | Note + voice on every order update | Works | Unit | Required | Completeness 2026-09-06-order-update-voice-notes; Wave 2 of voice notes |
 | Orders | Payment request (honour ask / Paid / Mark received) | Deferred | — | — | Removed from product 2026-09-21; order completes on dispatch; endpoints reject `PAYMENT_DISABLED` |
-| Orders | Buy for buyer (log ticket; OTP Accept) | Works | Unit-only | Required | How many each Who; /o/:token; mill seller + path 2026-09-29-order-for-buyer-mill-seller |
+| Orders | Buy for buyer (own log auto-confirm; Decline only; mill hops) | Works | Unit-only | Required | Completeness 2026-10-15-order-for-buyer-no-accept; mill seller + path 2026-09-29; /o/:token View+Decline |
 | Collections | 48h share link | Works | Functional + Unit | Required | Presentable WhatsApp OG collage + seller copy 2026-09-11; multi-design kind `designs` 2026-09-16; mix keeps N doors 2026-09-24; `share-link.journey` |
 | Explore / Catalog | Grouped designs share (chat collage + 48h, not a Collection) | Works | Unit + Functional | Required | Completeness 2026-09-16; viewer + shop line 2026-09-24; set Feed/Grid + facts 2026-09-30; Select/Order 2026-10-01; shop-style Ask/Order dock mixed shops 2026-10-01-pick-surface-trade-dock |
 | Orders | Photo order / amend / samples | Partial | Unit + Functional | Future | Chat ＋ Photo order prefills that shop (editable) 2026-09-24; returns removed 2026-09-30 |

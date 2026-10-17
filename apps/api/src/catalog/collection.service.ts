@@ -128,8 +128,14 @@ export class CollectionService {
       assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
     }
     const repostSource = await this.resolveRepostSource(companyId, dto);
+    const isRepost = Boolean(
+      repostSource.repostSourceCollectionId || repostSource.repostSourceProductId,
+    );
     const masterCategoryId = prismaModelHasField('Collection', 'masterCategoryId')
-      ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId)
+      ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId, {
+          // Peer Repost: no category picker on the sheet — supplier already categorized.
+          required: !isRepost,
+        })
       : null;
     try {
       const collection = await this.prisma.collection.create({

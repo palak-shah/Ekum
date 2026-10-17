@@ -7,7 +7,7 @@ describe('isChatThreadPath', () => {
     expect(isChatThreadPath('/chats/t1/info')).toBe(true);
   });
 
-  it('keeps bottom-nav list surfaces out', () => {
+  it('leaves inbox helpers as list pages', () => {
     expect(isChatThreadPath('/chats')).toBe(false);
     expect(isChatThreadPath('/chats/archived')).toBe(false);
     expect(isChatThreadPath('/chats/starred')).toBe(false);

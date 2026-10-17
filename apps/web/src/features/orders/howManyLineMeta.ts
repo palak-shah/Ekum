@@ -31,7 +31,15 @@ export function howManyUnitShort(unit: string | null | undefined): string | null
   return SOLD_AS[key] ?? key;
 }
 
-/** Min / rate / contents-in-set — not the sold-as word (that sits beside the name). */
+function inr(amount: number): string {
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+/**
+ * Quiet money under the name.
+ * Pack path: price of one order unit (rate × pack) — no “1 pc” and no “/pc”.
+ * Native path: catalog rate with its unit.
+ */
 export function howManyLineExtra(product: {
   unit?: string | null;
   dispatchUnit?: string | null;
@@ -41,13 +49,21 @@ export function howManyLineExtra(product: {
   rateMax?: number | null;
 }): string | null {
   const bits: string[] = [];
-  const pack = packSizeForUnit(product.unit, product.piecesPerPack);
-  if (pack != null) {
-    bits.push(dispatchContentsLabel(pack, product.unit, product.dispatchUnit));
+  if (isPackOrderUnit(product.unit)) {
+    const pack = packSizeForUnit(product.unit, product.piecesPerPack);
+    if (pack != null && product.rate != null) {
+      const low = product.rate * pack;
+      const high =
+        product.rateMax != null && product.rateMax > product.rate
+          ? product.rateMax * pack
+          : null;
+      bits.push(high != null ? `${inr(low)}–${inr(high)}` : inr(low));
+    }
+  } else {
+    const rate = formatCatalogRate(product);
+    if (rate !== 'On request') bits.push(rate);
   }
   if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
-  const rate = formatCatalogRate(product);
-  if (rate !== 'On request') bits.push(rate);
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 
@@ -84,6 +100,38 @@ export function howManyLineMeta(product: {
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 
+/** One set’s contents, e.g. `20 pcs`. Null when pack size is blank. */
+export function howManyPackContentsLabel(
+  unit: string | null | undefined,
+  piecesPerPack?: number | null,
+  dispatchUnit?: string | null,
+): string | null {
+  const pack = packSizeForUnit(unit, piecesPerPack);
+  if (pack == null) return null;
+  const contents =
+    catalogRateUnit({ unit, dispatchUnit }) ?? dispatchUnit?.trim() ?? 'pc';
+  return `${pack} ${unitCountNoun(contents, pack)}`;
+}
+
+/**
+ * True when pack lines on this sheet do not all share one known size
+ * (20 pcs next to 4 pcs, or some sizes missing).
+ */
+export function howManyPackSizesDiffer(
+  products: Array<{
+    unit?: string | null;
+    piecesPerPack?: number | null;
+  }>,
+): boolean {
+  const packs = products
+    .filter((p) => isPackOrderUnit(p.unit))
+    .map((p) => packSizeForUnit(p.unit, p.piecesPerPack));
+  if (packs.length < 2) return false;
+  const known = packs.filter((p): p is number => p != null);
+  if (known.length !== packs.length) return known.length > 0;
+  return new Set(known).size > 1;
+}
+
 /** Dispatch units inside one sell-as unit (set / dozen / box). Dozen = 12 stays. */
 export function howManyPcsPerUnit(
   unit: string | null | undefined,
@@ -102,7 +150,15 @@ export function howManySetContentsMissing(
   return 'Set contents not mentioned';
 }
 
-/** 5 sets × 4 → Total 20 pcs/mtrs. Hidden without a count or pack size. */
+function qtyPhrase(qty: number, unit: string | null | undefined): string {
+  if (qty === 1) {
+    const one = (howManyUnitShort(unit) ?? 'set').toLowerCase();
+    return `1 ${one}`;
+  }
+  return `${qty} ${qtyCountNoun(unit)}`;
+}
+
+/** Under the stepper: `Total 30 sets = 30 pcs`. Hidden without qty or pack size. */
 export function howManyTotalPcsLabel(
   qty: number | null | undefined,
   unit: string | null | undefined,
@@ -115,7 +171,8 @@ export function howManyTotalPcsLabel(
   if (pcs == null) return null;
   const contents =
     catalogRateUnit({ unit, dispatchUnit }) ?? dispatchUnit?.trim() ?? 'pc';
-  return `Total ${qty * pcs} ${unitCountNoun(contents, qty * pcs)}`;
+  const total = qty * pcs;
+  return `Total ${qtyPhrase(qty, unit)} = ${total} ${unitCountNoun(contents, total)}`;
 }
 
 export function qtyCountNoun(unit: string | null | undefined): string {
@@ -153,23 +210,41 @@ export type HowManyQtyLine = {
   rate?: number | null;
 };
 
-/** Sheet banner when any line is a pack unit. */
+/**
+ * Journey dispatch for the banner.
+ * Order + dispatch both set (or legacy dispatch `pc`) → dispatch is the order unit;
+ * rate stays pc via catalogRateUnit.
+ */
+function bannerJourney(
+  unit: string | null | undefined,
+  dispatchUnit: string | null | undefined,
+): { order: string; dispatch: string; rate: string } {
+  const order = unit?.trim() || 'set';
+  const stored = dispatchUnit?.trim() || '';
+  const dispatch =
+    !stored || stored === order || (isPackOrderUnit(order) && stored === 'pc')
+      ? order
+      : stored;
+  const rate = catalogRateUnit({ unit: order, dispatchUnit: stored || order }) ?? 'pc';
+  return { order, dispatch, rate };
+}
+
+/** Quiet line: default “Rates are per pc. Order and dispatch per set.” Follows each design’s units. */
 export function howManySetsBanner(
   products: Array<{ unit?: string | null; dispatchUnit?: string | null }>,
 ): string | null {
   const pack = products.filter((p) => isPackOrderUnit(p.unit));
   if (pack.length === 0) return null;
-  const allPc = pack.every(
-    (p) => (catalogRateUnit({ unit: p.unit, dispatchUnit: p.dispatchUnit }) ?? 'pc') === 'pc',
+  const rows = pack.map((p) => bannerJourney(p.unit, p.dispatchUnit));
+  const first = rows[0]!;
+  const same = rows.every(
+    (r) => r.order === first.order && r.dispatch === first.dispatch && r.rate === first.rate,
   );
-  const allSets = pack.every((p) => p.unit?.trim() === 'set');
-  if (allPc && allSets) {
-    return 'You order in sets. Rates and dispatch are per pc.';
+  if (!same) return 'Rates, order, and dispatch differ by design.';
+  if (first.order === first.dispatch) {
+    return `Rates are per ${first.rate}. Order and dispatch per ${first.order}.`;
   }
-  if (allPc) {
-    return 'You order in packs. Rates and dispatch are per pc.';
-  }
-  return 'You order in packs. Rates follow the dispatch unit.';
+  return `Rates are per ${first.rate}. Order per ${first.order}. Dispatch per ${first.dispatch}.`;
 }
 
 /**
@@ -210,29 +285,27 @@ export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
         : packLines.every((l) => l.unit?.trim() === 'dozen')
           ? 'dozens'
           : 'packs';
-    const allKnown = packLines.every(
-      (l) => howManyPcsPerUnit(l.unit, l.piecesPerPack) != null,
-    );
-    if (allKnown) {
-      const totalPcs = packLines.reduce(
-        (sum, l) =>
-          sum + (l.quantity ?? 0) * (howManyPcsPerUnit(l.unit, l.piecesPerPack) ?? 0),
-        0,
-      );
-      const contents =
-        catalogRateUnit({
-          unit: packLines[0]?.unit,
-          dispatchUnit: packLines[0]?.dispatchUnit,
-        }) ?? 'pc';
-      const dNoun = unitCountNoun(contents, totalPcs);
+    const packs = packLines.map((l) => howManyPcsPerUnit(l.unit, l.piecesPerPack));
+    const allKnown = packs.every((p) => p != null);
+    // Unknown pcs-per-set: sets only — they settle contents in chat. No "= n pcs".
+    if (!allKnown) {
       return {
-        primary: `${total} ${noun} = ${totalPcs} ${dNoun}`,
+        primary: `${total} ${noun}`,
         money: moneyTotal ?? undefined,
       };
     }
+    const totalPcs = packLines.reduce(
+      (sum, l) => sum + (l.quantity ?? 0) * (howManyPcsPerUnit(l.unit, l.piecesPerPack) ?? 0),
+      0,
+    );
+    const contents =
+      catalogRateUnit({
+        unit: packLines[0]?.unit,
+        dispatchUnit: packLines[0]?.dispatchUnit,
+      }) ?? 'pc';
+    const dNoun = unitCountNoun(contents, totalPcs);
     return {
-      primary: `${total} ${noun}`,
-      hint: 'No piece total — set contents not mentioned on some designs.',
+      primary: `${total} ${noun} = ${totalPcs} ${dNoun}`,
       money: moneyTotal ?? undefined,
     };
   }

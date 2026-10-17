@@ -1,4 +1,5 @@
 import { catalogRateUnit } from '@ekum/domain-types';
+import { DEFAULT_RATE_UNIT } from './publishDefaults';
 
 const ORDER_NOUN: Record<string, { one: string; many: string }> = {
   pc: { one: 'pc', many: 'pcs' },
@@ -21,7 +22,7 @@ export function unitCountNoun(unit: string | null | undefined, count: number): s
 export function orderContentsUnit(orderUnit: string, dispatchUnit: string): string {
   return (
     catalogRateUnit({ unit: orderUnit, dispatchUnit }) ??
-    (dispatchUnit.trim() || 'pc')
+    (dispatchUnit.trim() || DEFAULT_RATE_UNIT)
   );
 }
 
