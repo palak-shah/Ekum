@@ -94,7 +94,7 @@ export function NotificationsPage() {
       <PageHeader
         title="Notifications"
         action={
-          <button className="text-sm font-medium text-accent" onClick={() => setPrefsOpen(true)}>
+          <button className="text-sm font-emphasis text-accent" onClick={() => setPrefsOpen(true)}>
             Settings
           </button>
         }
@@ -105,7 +105,7 @@ export function NotificationsPage() {
           <button
             type="button"
             data-testid="notifications-mark-all-read"
-            className="text-xs font-bold tracking-tight text-accent disabled:opacity-50"
+            className="text-xs font-emphasis tracking-tight text-accent disabled:opacity-50"
             onClick={() => markAll.mutate()}
             disabled={markAll.isPending}
           >
@@ -114,7 +114,7 @@ export function NotificationsPage() {
           {hasRead ? (
             <button
               type="button"
-              className="text-xs font-bold tracking-tight text-accent disabled:opacity-50"
+              className="text-xs font-emphasis tracking-tight text-accent disabled:opacity-50"
               onClick={() => clearRead.mutate()}
               disabled={clearRead.isPending}
             >
@@ -123,7 +123,7 @@ export function NotificationsPage() {
           ) : null}
           <button
             type="button"
-            className="text-xs font-bold tracking-tight text-danger disabled:opacity-50"
+            className="text-xs font-emphasis tracking-tight text-danger disabled:opacity-50"
             onClick={confirmClearAll}
             disabled={clearAll.isPending}
           >
@@ -151,7 +151,7 @@ export function NotificationsPage() {
                   className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read ? 'bg-transparent' : 'bg-accent'}`}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">{item.title}</p>
+                  <p className="text-sm font-emphasis text-ink">{item.title}</p>
                   {item.body ? <p className="text-xs text-muted">{item.body}</p> : null}
                 </div>
                 <span className="shrink-0 text-xs text-muted">{timeAgo(item.createdAt)}</span>
@@ -177,7 +177,7 @@ export function NotificationsPage() {
         <div className="flex flex-col gap-3">
           <Card className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-ink">Push notifications</p>
+              <p className="text-sm font-emphasis text-ink">Push notifications</p>
               <p className="text-xs text-muted">
                 {pushSupported() ? 'Get alerts even when Ekum is closed.' : 'Not supported on this device.'}
               </p>

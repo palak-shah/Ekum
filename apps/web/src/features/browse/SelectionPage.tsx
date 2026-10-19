@@ -439,7 +439,7 @@ export function SelectionPage() {
       ) : (
         <>
           <p
-            className="px-0.5 text-[15px] font-semibold tracking-tight text-ink"
+            className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink"
             data-testid="selection-count-label"
           >
             {pickSelectionLabel(albumPick.count, shortlist.count)}
@@ -641,7 +641,7 @@ export function SelectionPage() {
                       onClick={onOrder}
                       className={cx(
                         'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-4',
-                        'border border-accent bg-accent text-sm font-bold text-white',
+                        'border border-accent bg-accent text-sm font-emphasis text-white',
                         'disabled:opacity-40',
                       )}
                     >
@@ -651,7 +651,7 @@ export function SelectionPage() {
                 </div>
                 <button
                   type="button"
-                  className="self-center py-1 text-[13px] font-medium text-muted hover:text-ink"
+                  className="self-center py-1 text-[13px] font-body text-muted hover:text-ink"
                   onClick={onClear}
                   data-testid="selection-clear"
                 >
@@ -828,7 +828,7 @@ function SelectionRow({
   const thumb = thumbUrl ? (
     <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
   ) : (
-    <span className="flex h-full w-full items-center justify-center bg-foam text-sm font-bold text-muted">
+    <span className="flex h-full w-full items-center justify-center bg-foam text-sm font-body text-muted">
       {name.slice(0, 1).toUpperCase()}
     </span>
   );
@@ -852,7 +852,7 @@ function SelectionRow({
       <div className="min-w-0 flex-1 py-0.5">
         <p
           className={cx(
-            'truncate text-[15px] font-semibold leading-snug tracking-tight',
+            'truncate text-[15px] font-emphasis leading-snug tracking-tight',
             faded ? 'text-muted' : 'text-ink',
           )}
         >
@@ -863,7 +863,7 @@ function SelectionRow({
         ) : null}
         {faded && reason ? (
           <p
-            className="mt-1 text-[12px] font-medium text-muted"
+            className="mt-1 text-[12px] font-body text-muted"
             data-testid={unavailable ? 'selection-unavailable-reason' : 'selection-pack-lock-reason'}
           >
             {reason}
@@ -872,7 +872,7 @@ function SelectionRow({
         {askState ? (
           <button
             type="button"
-            className="mt-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
+            className="mt-1.5 text-[13px] font-emphasis text-accent disabled:opacity-50"
             disabled={askState === 'asking'}
             onClick={onAsk}
             data-testid="selection-ask-relist"

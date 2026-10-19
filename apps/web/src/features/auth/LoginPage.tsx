@@ -90,7 +90,7 @@ export function LoginPage() {
         <div className={LOGIN_PANEL}>
         <div className="-mt-1 flex flex-col items-center gap-2">
           <BrandMark size="login" />
-          <p className="text-center text-sm font-medium tracking-tight text-white/90">
+          <p className="text-center text-sm font-emphasis tracking-tight text-white/90">
             Textile trade, organised.
           </p>
         </div>
@@ -167,7 +167,7 @@ export function LoginPage() {
             </Button>
             <button
               type="button"
-              className="text-center text-sm font-bold text-white"
+              className="text-center text-sm font-emphasis text-white"
               onClick={() => {
                 setStep('phone');
                 setCode('');

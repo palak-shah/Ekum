@@ -84,7 +84,7 @@ function ExpandableNotes({
       onBlur={() => setFocused(false)}
       onChange={(e) => onChange(e.target.value)}
       className={cx(
-        'w-full resize-none overflow-hidden rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-muted focus:border-accent',
+        'w-full resize-none overflow-hidden rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-base font-body text-ink outline-none placeholder:font-body placeholder:text-muted focus:border-accent',
         expand ? 'min-h-24' : 'min-h-10',
       )}
     />
@@ -747,7 +747,7 @@ export function DesignBatchPage() {
   );
 
   const sectionTitle = (title: string) => (
-    <p className="mb-2 text-base font-semibold text-ink">{title}</p>
+    <p className="mb-2 text-base font-emphasis text-ink">{title}</p>
   );
 
   const batchDirty = useMemo(
@@ -782,7 +782,7 @@ export function DesignBatchPage() {
             className="flex min-h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam px-6 py-12"
           >
             <CameraIcon width={36} height={36} className="text-accent" />
-            <span className="text-lg font-semibold text-ink">One photo per design</span>
+            <span className="text-lg font-emphasis text-ink">One photo per design</span>
             <span className="max-w-xs text-center text-sm text-muted">
               Each photo becomes its own design — not more shots of the same one.
             </span>
@@ -792,7 +792,7 @@ export function DesignBatchPage() {
         <>
           <section>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-base font-semibold text-ink">{gridHeading(drafts.length)}</p>
+              <p className="text-base font-emphasis text-ink">{gridHeading(drafts.length)}</p>
               {drafts.length < MAX_DESIGNS ? (
                 <ListSquareButton
                   aria-label="Add designs"
@@ -807,7 +807,7 @@ export function DesignBatchPage() {
               Tap a design to edit details or add more photos.
             </p>
             {progressLabel ? (
-              <p className="mb-2 text-sm font-medium text-accent">{progressLabel}</p>
+              <p className="mb-2 text-sm font-emphasis text-accent">{progressLabel}</p>
             ) : null}
             {isLarge ? (
               <div className="mb-3 flex flex-col gap-2">
@@ -866,13 +866,13 @@ export function DesignBatchPage() {
                           />
                         ) : null}
                         {busy ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-bold text-white">
+                          <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-emphasis text-white">
                             …
                           </div>
                         ) : null}
                       </button>
                       {d.images.length > 1 ? (
-                        <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 text-[11px] font-semibold text-white">
+                        <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 text-[11px] font-emphasis text-white">
                           {d.images.length}
                         </span>
                       ) : null}
@@ -903,7 +903,7 @@ export function DesignBatchPage() {
                       placeholder="SKU"
                       disabled={busy}
                       aria-label="SKU"
-                      className="min-h-9 w-full rounded-lg border border-line bg-surface px-1.5 text-center text-xs font-medium text-ink outline-none focus:border-accent disabled:opacity-50"
+                      className="min-h-9 w-full rounded-lg border border-line bg-surface px-1.5 text-center text-xs font-emphasis text-ink outline-none focus:border-accent disabled:opacity-50"
                     />
                   </div>
                 );
@@ -1100,7 +1100,7 @@ export function DesignBatchPage() {
             </Field>
 
             <div>
-              <p className="mb-2 text-sm font-medium text-ink">More photos for this design</p>
+              <p className="mb-2 text-sm font-emphasis text-ink">More photos for this design</p>
               <div className="grid grid-cols-3 gap-2">
                 {editDraft.images.map((img) => (
                   <div
@@ -1109,7 +1109,7 @@ export function DesignBatchPage() {
                   >
                     <img src={img.previewUrl} alt="" className="h-full w-full object-cover" />
                     {img.uploading ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-bold text-white">
+                      <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-emphasis text-white">
                         …
                       </div>
                     ) : null}
@@ -1132,7 +1132,7 @@ export function DesignBatchPage() {
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
                 >
                   <CameraIcon width={22} height={22} />
-                  <span className="text-xs font-medium">Add photos</span>
+                  <span className="text-xs font-emphasis">Add photos</span>
                 </button>
               </div>
             </div>

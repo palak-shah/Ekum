@@ -903,6 +903,42 @@ describe('ReferenceResolver payment cards', () => {
     );
     expect(bilateral.get('m-log')?.canAcceptLogged).toBe(false);
     expect(manage.get('m-log')?.canAcceptLogged).toBe(false);
+    expect(bilateral.get('m-log')?.canDeclineOrder).toBe(true);
+  });
+
+  it('does not offer chat Decline to the seller or the buyer who placed it', async () => {
+    const baseOrder = {
+      id: 'ord1',
+      status: 'confirmed',
+      intent: 'order',
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'seller',
+      confirmedByCompanyId: 'seller',
+      createdByCompanyId: 'buyer',
+      facilitatorCompanyId: null,
+      downstreamOrderId: null,
+      upstreamReleasedAt: null,
+      buyer: { name: 'Buyer Shop' },
+      seller: { name: 'Logger Mill' },
+      _count: { items: 1 },
+      items: [{ image: null, images: [], rate: null, lineStatus: 'confirmed' }],
+    };
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: { findMany: async () => [baseOrder] },
+    } as unknown as PrismaService;
+    const card = message({
+      id: 'm-buyer',
+      type: MessageType.OrderCard,
+      referenceId: 'ord1',
+      senderCompanyId: 'buyer',
+      metadata: { event: 'order_requested', status: 'confirmed' },
+    });
+    const asBuyer = await new ReferenceResolver(prisma, makeVisibility()).resolve([card], 'buyer');
+    const asSeller = await new ReferenceResolver(prisma, makeVisibility()).resolve([card], 'seller');
+    expect(asBuyer.get('m-buyer')?.canDeclineOrder).toBe(false);
+    expect(asSeller.get('m-buyer')?.canDeclineOrder).toBe(false);
   });
 });
 

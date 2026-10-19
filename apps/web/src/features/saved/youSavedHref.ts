@@ -25,10 +25,14 @@ export function youLibraryWriteSearch(input: {
   tab: 'products' | 'collections';
   saved?: boolean;
   select?: boolean;
+  archived?: boolean;
+  drafts?: boolean;
 }): URLSearchParams {
   const next = new URLSearchParams();
   next.set('tab', input.tab);
   if (input.saved) next.set('saved', '1');
+  if (!input.saved && input.drafts) next.set('view', 'draft');
+  else if (!input.saved && input.archived) next.set('view', 'archived');
   if (input.select) next.set('select', '1');
   return next;
 }

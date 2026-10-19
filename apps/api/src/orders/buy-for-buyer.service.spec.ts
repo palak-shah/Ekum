@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectionStatus, OrderStatus } from '@ekum/domain-types';
 import { BuyForBuyerService } from './buy-for-buyer.service';
@@ -344,5 +344,86 @@ describe('BuyForBuyerService', () => {
         data: expect.objectContaining({ usedAt: expect.any(Date) }),
       }),
     );
+  });
+
+  it('acceptInvite confirms a leftover requested ticket before opening', async () => {
+    const orderUpdate = vi.fn(async () => ({}));
+    const prisma = {
+      $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
+      orderAcceptInvite: {
+        findUnique: vi.fn(async () => ({
+          id: 'inv1',
+          token: 'tok',
+          phone: '9876543210',
+          usedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          orderId: 'o1',
+          order: {
+            id: 'o1',
+            status: OrderStatus.Requested,
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+          },
+        })),
+        update: vi.fn(async () => ({})),
+      },
+      user: {
+        findUnique: vi.fn(async () => ({ phone: '9876543210' })),
+      },
+      orderItem: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      order: {
+        update: orderUpdate,
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: 'o1',
+          status: OrderStatus.Confirmed,
+          buyerCompanyId: 'buyer',
+          sellerCompanyId: 'seller',
+          items: [],
+        })),
+      },
+    } as unknown as PrismaService;
+    const events = { orderStatusChanged: vi.fn() } as unknown as DomainEvents;
+    const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
+    const svc = makeSvc(prisma, threads, events);
+    const result = await svc.acceptInvite('buyer', 'u1', 'tok');
+    expect(result.id).toBe('o1');
+    expect(orderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'o1' },
+        data: expect.objectContaining({
+          status: OrderStatus.Confirmed,
+          confirmedByCompanyId: 'buyer',
+        }),
+      }),
+    );
+    expect(events.orderStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: 'o1', status: OrderStatus.Confirmed }),
+    );
+    expect(prisma.orderAcceptInvite.update).toHaveBeenCalled();
+  });
+
+  it('acceptInvite does not open a closed ticket', async () => {
+    const prisma = {
+      orderAcceptInvite: {
+        findUnique: vi.fn(async () => ({
+          id: 'inv1',
+          token: 'tok',
+          phone: '9876543210',
+          usedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          orderId: 'o1',
+          order: {
+            id: 'o1',
+            status: OrderStatus.Cancelled,
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+          },
+        })),
+      },
+    } as unknown as PrismaService;
+    const svc = makeSvc(prisma);
+    await expect(svc.acceptInvite('buyer', 'u1', 'tok')).rejects.toBeInstanceOf(ConflictException);
   });
 });

@@ -266,7 +266,7 @@ export function DesignSetPage() {
                 <LockIcon width={22} height={22} className="text-muted" aria-hidden />
               </div>
               <div className="px-2.5 py-2">
-                <p className="truncate text-sm font-semibold text-muted">
+                <p className="truncate text-sm font-body text-muted">
                   {tile.status === 'locked'
                     ? tile.name && tile.name !== 'Design'
                       ? tile.name
@@ -427,12 +427,12 @@ function DesignSetTile({
         testId="design-set-photos"
       />
       <button type="button" onClick={onActivate} className="block w-full px-2.5 py-2 text-left">
-        <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">{product.name}</p>
         {meta ? (
-          <p className="truncate text-xs font-medium text-muted">{meta}</p>
+          <p className="truncate text-xs font-body text-muted">{meta}</p>
         ) : null}
         {detail ? (
-          <p className="truncate text-xs font-medium text-muted">{detail}</p>
+          <p className="truncate text-xs font-body text-muted">{detail}</p>
         ) : null}
       </button>
     </div>

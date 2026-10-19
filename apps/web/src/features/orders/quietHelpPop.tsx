@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 export const HELP_BTN_CLASS =
-  'flex h-6 w-6 items-center justify-center rounded-full bg-foam text-xs font-semibold text-muted';
+  'flex h-6 w-6 items-center justify-center rounded-full bg-foam text-xs font-body text-muted';
 
 export function QuietHelpPop({
   open,

@@ -140,7 +140,7 @@ export function TeamPage() {
           canManage ? (
             <button
               type="button"
-              className="text-sm font-medium text-accent"
+              className="text-sm font-emphasis text-accent"
               onClick={() => {
                 setInviteError(null);
                 setLastInvite(null);
@@ -179,13 +179,13 @@ export function TeamPage() {
             >
               <Avatar name={member.name} size={48} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">{member.name}</p>
+                <p className="truncate text-sm font-emphasis text-ink">{member.name}</p>
                 <p className="text-xs text-muted">
                   {roleLabel(member.role)} · {member.phoneMasked}
                 </p>
               </div>
               {canManage && member.role !== 'owner' ? (
-                <span className="text-xs font-semibold text-accent">Edit</span>
+                <span className="text-xs font-emphasis text-accent">Edit</span>
               ) : null}
             </button>
           ))}
@@ -326,7 +326,7 @@ export function TeamPage() {
                     on ? 'border-accent bg-accent/5' : 'border-line bg-surface',
                   )}
                 >
-                  <p className="text-sm font-semibold text-ink">{CAP_LABELS[cap]}</p>
+                  <p className="text-sm font-emphasis text-ink">{CAP_LABELS[cap]}</p>
                   <p className="text-xs text-muted">{on ? 'Allowed' : 'Off'}</p>
                 </button>
               );

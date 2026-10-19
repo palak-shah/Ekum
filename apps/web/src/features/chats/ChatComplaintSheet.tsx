@@ -25,7 +25,7 @@ import {
 
 const MAX_PHOTOS = 9;
 const QUIET_LINK =
-  'self-start text-[15px] font-semibold text-accent disabled:cursor-not-allowed disabled:opacity-45';
+  'self-start text-[15px] font-emphasis text-accent disabled:cursor-not-allowed disabled:opacity-45';
 /** Stable empty defaults — inline `= []` would re-fire the open reset effect forever. */
 const EMPTY_IMAGES: string[] = [];
 const EMPTY_SUPPLIER_ALTERNATIVES: Array<{
@@ -46,7 +46,7 @@ function OrderThumb({ order, title }: { order: OrderView; title: string }) {
     );
   }
   return (
-    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
       {title.charAt(0)}
     </span>
   );
@@ -233,7 +233,7 @@ export function ChatComplaintSheet({
               data-testid="complaint-escalate-supplier"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">{againstCompanyName}</p>
+                <p className="truncate text-sm font-emphasis text-ink">{againstCompanyName}</p>
                 <p className="text-xs text-muted">Supplier · in your shop’s name</p>
               </div>
               {supplierAlternatives.length > 0 && onChangeSupplier ? (
@@ -330,10 +330,10 @@ export function ChatComplaintSheet({
               >
                 <OrderThumb order={selectedOrder} title={complaintOrderTitle(selectedOrder)} />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-ink">
+                  <span className="block truncate text-sm font-emphasis text-ink">
                     {complaintOrderTitle(selectedOrder)}
                   </span>
-                  <span className="mt-0.5 block text-xs font-normal text-muted">
+                  <span className="mt-0.5 block text-xs font-body text-muted">
                     {statusLabel(selectedOrder.status)} · {orderWhen(selectedOrder.createdAt)}
                   </span>
                 </span>
@@ -404,8 +404,8 @@ export function ChatComplaintSheet({
                 >
                   <OrderThumb order={order} title={title} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink">{title}</span>
-                    <span className="mt-0.5 block text-xs font-normal text-muted">
+                    <span className="block truncate text-sm font-emphasis text-ink">{title}</span>
+                    <span className="mt-0.5 block text-xs font-body text-muted">
                       {statusLabel(order.status)} · {orderWhen(order.createdAt)}
                       {order.items.length > 0
                         ? ` · ${order.items.length} design${order.items.length === 1 ? '' : 's'}`

@@ -99,14 +99,14 @@ export function TeamInviteLandingPage() {
   return (
     <InviteShell>
       <div className="text-center">
-        <p className="text-xs font-semibold text-accent">Team invite</p>
-        <h1 className="mt-1 text-xl font-bold text-ink">Join {data.company.name}</h1>
+        <p className="text-xs font-emphasis text-accent">Team invite</p>
+        <h1 className="mt-1 text-xl font-emphasis text-ink">Join {data.company.name}</h1>
       </div>
 
       <Card className="flex flex-col items-center gap-3 text-center">
         <Avatar name={data.company.name} imageUrl={data.company.logoUrl} size={56} />
         <p className="text-sm text-muted">You&apos;ll join as</p>
-        <p className="text-lg font-semibold text-ink">{data.name}</p>
+        <p className="text-lg font-emphasis text-ink">{data.name}</p>
         <p className="text-sm text-muted">Phone {data.phoneMasked}</p>
         {data.company.city ? <p className="text-sm text-muted">{data.company.city}</p> : null}
       </Card>

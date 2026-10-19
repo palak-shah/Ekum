@@ -5,7 +5,6 @@ import {
   joinLabelList,
   libraryAuditLine,
   productStatusLine,
-  productTileSubtitle,
 } from './productStatusSummary';
 
 function product(partial: Partial<ProductView>): ProductView {
@@ -84,20 +83,5 @@ describe('libraryAuditLine', () => {
         updatedAt: '2026-09-08T00:00:00.000Z',
       }),
     ).not.toContain('·');
-  });
-});
-
-describe('productTileSubtitle', () => {
-  it('keeps rate SKU photos off the status line', () => {
-    expect(
-      productTileSubtitle(
-        product({
-          status: ProductStatus.Published,
-          postedToMarketAt: null,
-          sku: 'EK-1',
-          images: ['https://example.com/a.jpg'],
-        }),
-      ),
-    ).toBe('Price on request · EK-1 · 1 photo');
   });
 });

@@ -217,7 +217,7 @@ export function PwaUpdateBar({
       data-testid="pwa-update-bar"
       className="fixed inset-x-0 top-[max(2.75rem,calc(0.5rem+env(safe-area-inset-top)))] z-[100] mx-auto flex max-w-md justify-center px-4"
     >
-      <div className="flex max-w-full items-center gap-3 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-soft)]">
+      <div className="flex max-w-full items-center gap-3 rounded-full bg-ink px-4 py-2.5 text-sm font-emphasis text-white shadow-[var(--shadow-soft)]">
         <p className="min-w-0">{PWA_UPDATE_MESSAGE}</p>
         <button
           type="button"

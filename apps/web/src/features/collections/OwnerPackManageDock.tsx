@@ -1,4 +1,5 @@
-import { Button } from '@/ui/kit';
+import { useState } from 'react';
+import { Button, Sheet } from '@/ui/kit';
 import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { CartIcon, PaperPlaneIcon, TrashIcon } from '@/ui/icons';
 
@@ -6,7 +7,8 @@ const iconBtnClass =
   'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface disabled:opacity-40';
 
 /**
- * Owner album viewer: Designs · Photos · Replace (idle, one row) or Cart · Share · Delete + Remove (selecting).
+ * Owner album viewer: one Update collection button (opens Add designs · Add photos · Replace entire collection)
+ * or Cart · Share · Delete + Remove while selecting.
  * Edit idle: Update only (membership / Add live on the album, not Edit).
  */
 export function OwnerPackManageDock({
@@ -44,6 +46,8 @@ export function OwnerPackManageDock({
   updatePending?: boolean;
   updateDisabled?: boolean;
 }) {
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const closeUpdate = () => setUpdateOpen(false);
   return (
     <BottomTradeDock testId="owner-pack-manage-dock" aboveAppNav={false}>
       {selecting ? (
@@ -105,30 +109,55 @@ export function OwnerPackManageDock({
       ) : (
         <>
           <Button
-            className="min-w-0 flex-1"
-            disabled={busy || !onAddDesigns}
-            data-testid="owner-pack-add-designs"
-            onClick={onAddDesigns}
+            fullWidth
+            disabled={busy}
+            data-testid="owner-pack-update"
+            onClick={() => setUpdateOpen(true)}
           >
-            Designs
+            Update collection
           </Button>
-          <Button
-            className="min-w-0 flex-1"
-            disabled={busy || !onAddPhotos}
-            data-testid="owner-pack-add-photos"
-            onClick={onAddPhotos}
+          <Sheet
+            open={updateOpen}
+            onClose={closeUpdate}
+            title="Update collection"
           >
-            Photos
-          </Button>
-          <Button
-            variant="secondary"
-            className="min-w-0 flex-1"
-            disabled={busy || !onReplace}
-            data-testid="owner-pack-replace"
-            onClick={onReplace}
-          >
-            Replace
-          </Button>
+            <div className="flex flex-col gap-2" data-testid="owner-pack-update-sheet">
+              <Button
+                fullWidth
+                disabled={busy || !onAddDesigns}
+                data-testid="owner-pack-add-designs"
+                onClick={() => {
+                  closeUpdate();
+                  onAddDesigns?.();
+                }}
+              >
+                Add designs
+              </Button>
+              <Button
+                fullWidth
+                disabled={busy || !onAddPhotos}
+                data-testid="owner-pack-add-photos"
+                onClick={() => {
+                  closeUpdate();
+                  onAddPhotos?.();
+                }}
+              >
+                Add photos
+              </Button>
+              <Button
+                fullWidth
+                variant="secondary"
+                disabled={busy || !onReplace}
+                data-testid="owner-pack-replace"
+                onClick={() => {
+                  closeUpdate();
+                  onReplace?.();
+                }}
+              >
+                Replace entire collection
+              </Button>
+            </div>
+          </Sheet>
         </>
       )}
     </BottomTradeDock>

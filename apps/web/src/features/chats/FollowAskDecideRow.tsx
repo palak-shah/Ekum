@@ -11,7 +11,7 @@ import {
 } from './followAskDecide';
 
 export const compactCta =
-  'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-[13px] font-semibold tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
+  'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-[13px] font-emphasis tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
 
 /** Incoming ask: shop name + full-width why-line (never crush the sentence). */
 export function FollowAskHeader({
@@ -32,8 +32,8 @@ export function FollowAskHeader({
     <>
       <Avatar name={name} imageUrl={logoUrl} size={avatarSize} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold leading-snug text-ink">{name}</p>
-        <p className="text-sm font-medium leading-snug text-ink" data-testid="follow-ask-why">
+        <p className="truncate text-[15px] font-emphasis leading-snug text-ink">{name}</p>
+        <p className="text-sm font-emphasis leading-snug text-ink" data-testid="follow-ask-why">
           {SEE_PACKS_ASK_LINE}
         </p>
       </div>
@@ -109,7 +109,7 @@ export function FollowGrantChecks({
                 </svg>
               ) : null}
             </span>
-            <span className="text-[13px] font-medium leading-snug text-ink">
+            <span className="text-[13px] font-emphasis leading-snug text-ink">
               {compact ? option.shortLabel : option.label}
             </span>
           </button>

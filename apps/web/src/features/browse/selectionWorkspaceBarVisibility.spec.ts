@@ -31,6 +31,10 @@ describe('shouldShowSelectionWorkspaceBar', () => {
     expect(
       shouldShowSelectionWorkspaceBar('/collections/seed-col-1', 1, { pageSelecting: true }),
     ).toBe(true);
+    expect(
+      shouldShowSelectionWorkspaceBar('/collections/seed-col-1', 0, { pageSelecting: true }),
+    ).toBe(true);
+    expect(shouldShowSelectionWorkspaceBar('/collections/seed-col-1', 0)).toBe(false);
     expect(shouldShowSelectionWorkspaceBar('/explore/products/seed-prod-1', 2)).toBe(false);
     expect(
       shouldShowSelectionWorkspaceBar('/explore/products/seed-prod-1', 2, { pageSelecting: true }),

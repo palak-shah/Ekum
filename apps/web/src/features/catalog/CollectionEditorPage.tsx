@@ -1265,15 +1265,19 @@ export function CollectionEditorPage() {
       setError('Wait for photos to finish uploading.');
       return;
     }
-    if (createMemberCount < 1) {
-      setError('Add photos or pick designs.');
-      return;
-    }
-    if (!form.name.trim()) {
-      setError('Enter a collection name.');
-      return;
-    }
     if (opts?.publish) {
+      if (createMemberCount < 1) {
+        setError('Add photos or pick designs.');
+        return;
+      }
+      if (!form.name.trim()) {
+        setError('Enter a collection name.');
+        return;
+      }
+      if (companyMasterOptions.length > 1 && !form.masterCategoryId) {
+        setError('Pick a category.');
+        return;
+      }
       const canPublishCreate =
         (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
       if (!canPublishCreate) {
@@ -2052,7 +2056,7 @@ export function CollectionEditorPage() {
           className={cx(
             'flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm',
             applyToAll
-              ? 'border-accent bg-accent/5 font-medium text-ink'
+              ? 'border-accent bg-accent/5 font-emphasis text-ink'
               : 'border-line text-ink',
           )}
           onClick={() => setApplyToAllRemembered(!applyToAll)}
@@ -2106,15 +2110,20 @@ export function CollectionEditorPage() {
     </div>
   );
 
+  const categoryReady =
+    companyMasterOptions.length <= 1 || Boolean(form.masterCategoryId);
   const canOpenCreatePublish =
-    !creating && !quickUploading && createMemberCount >= 1 && Boolean(form.name.trim());
+    !creating &&
+    !quickUploading &&
+    createMemberCount >= 1 &&
+    Boolean(form.name.trim()) &&
+    categoryReady;
   const canCreatePublish =
     canOpenCreatePublish &&
     (canPublishAlready || consent) &&
     publishAudienceCanSubmit(publishAudience);
 
-  const canCreateDraft =
-    !creating && !quickUploading && createMemberCount >= 1 && Boolean(form.name.trim());
+  const canCreateDraft = !creating && !quickUploading;
 
   // No early returns above — loading/error are branches so hook order never changes.
   if (editing && existing.isLoading) {
@@ -2257,7 +2266,7 @@ export function CollectionEditorPage() {
       {editing && existing.data && (ownerSourceLine || (isPublished && existing.data.rateVisibility === RateVisibility.OnRequest)) ? (
         <div className="-mt-2 flex flex-col gap-1">
           {ownerSourceLine ? (
-            <p className="text-sm font-semibold tracking-tight text-ink" data-testid="collection-editor-source">
+            <p className="text-sm font-emphasis tracking-tight text-ink" data-testid="collection-editor-source">
               {ownerSourceLine}
             </p>
           ) : null}
@@ -2323,7 +2332,7 @@ export function CollectionEditorPage() {
                         </span>
                       ) : null}
                       {photo.images.some((img) => img.uploading) ? (
-                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-bold text-white">
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-emphasis text-white">
                           …
                         </span>
                       ) : null}
@@ -2361,7 +2370,7 @@ export function CollectionEditorPage() {
                           className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted">
+                        <div className="flex h-full w-full items-center justify-center text-lg font-body text-muted">
                           {product.name.charAt(0)}
                         </div>
                       )}
@@ -2656,12 +2665,12 @@ export function CollectionEditorPage() {
                           className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-lg font-bold text-muted">
+                        <div className="absolute inset-0 flex items-center justify-center text-lg font-body text-muted">
                           {product.name.charAt(0)}
                         </div>
                       )}
                       {on ? (
-                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-bold text-white">
+                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-emphasis text-white">
                           ✓
                         </span>
                       ) : null}
@@ -2786,7 +2795,7 @@ export function CollectionEditorPage() {
       >
         <div className="flex flex-col gap-3">
           <div>
-            <p className="mb-2 text-sm font-medium text-ink">Photos</p>
+            <p className="mb-2 text-sm font-emphasis text-ink">Photos</p>
             <div className="grid grid-cols-3 gap-2">
               {memberPhotos.map((img) => (
                 <div
@@ -2823,7 +2832,7 @@ export function CollectionEditorPage() {
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line text-muted disabled:opacity-40"
                 >
                   <CameraIcon width={22} height={22} />
-                  <span className="text-xs font-medium">Add photos</span>
+                  <span className="text-xs font-emphasis">Add photos</span>
                 </button>
               ) : null}
             </div>

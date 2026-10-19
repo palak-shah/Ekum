@@ -40,7 +40,7 @@ export function TicketPathPick({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
-        <p className="text-sm font-semibold text-ink">{BUYER_TALKS_TO}</p>
+        <p className="text-sm font-emphasis text-ink">{BUYER_TALKS_TO}</p>
         {help}
       </div>
       <details ref={detailsRef} className="relative">
@@ -52,7 +52,7 @@ export function TicketPathPick({
           )}
         >
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink">{selectedLabel}</p>
+            <p className="text-sm font-emphasis text-ink">{selectedLabel}</p>
             {selectedNames.length > 0 ? (
               <ul className="mt-1 flex flex-col gap-0.5" data-testid={millNamesTestId}>
                 {selectedNames.map((name) => (
@@ -85,7 +85,7 @@ export function TicketPathPick({
                   selected ? 'bg-accent/5' : 'hover:bg-foam',
                 )}
               >
-                <p className="text-sm font-semibold text-ink">{option.label}</p>
+                <p className="text-sm font-emphasis text-ink">{option.label}</p>
                 {option.names.length > 0 ? (
                   <ul
                     className="mt-1 flex flex-col gap-0.5"

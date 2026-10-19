@@ -17,7 +17,9 @@ describe('TagSuggestInput', () => {
       />,
     );
     await user.click(screen.getByTestId('collection-tag-item'));
-    await user.click(screen.getByRole('option', { name: 'Readymade' }));
+    const option = screen.getByRole('option', { name: 'Readymade' });
+    expect(option.closest('label')).toBeNull();
+    await user.click(option);
     expect(onChange).toHaveBeenCalledWith(['Readymade']);
     rerender(
       <TagSuggestInput

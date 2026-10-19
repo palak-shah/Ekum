@@ -76,7 +76,7 @@ export function TagsField({
           <span
             className={cx(
               'line-clamp-2 text-sm',
-              value.length ? 'font-medium text-ink' : 'text-muted',
+              value.length ? 'font-emphasis text-ink' : 'text-muted',
             )}
           >
             {summary}
@@ -87,7 +87,7 @@ export function TagsField({
                 {value.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-lg bg-foam px-2 py-0.5 text-xs font-semibold text-ink"
+                    className="rounded-lg bg-foam px-2 py-0.5 text-xs font-emphasis text-ink"
                   >
                     {tag}
                   </span>
@@ -250,14 +250,14 @@ export function TagsPickerSheet({
 
         {value.length > 0 ? (
           <div>
-            <p className="mb-1.5 text-xs font-semibold text-muted">Selected</p>
+            <p className="mb-1.5 text-xs font-body text-muted">Selected</p>
             <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
               {value.map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   onClick={() => toggle(tag, false)}
-                  className="rounded-lg border border-accent bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent"
+                  className="rounded-lg border border-accent bg-accent/10 px-2.5 py-1 text-xs font-emphasis text-accent"
                 >
                   {tag} ×
                 </button>
@@ -319,7 +319,7 @@ export function TagsPickerSheet({
         )}
 
         <div className="flex flex-col gap-2 border-t border-line pt-3">
-          <p className="text-xs font-semibold text-muted">Add your own tag</p>
+          <p className="text-xs font-body text-muted">Add your own tag</p>
           <div className="flex gap-2">
             <TextInput
               value={customLabel}
@@ -366,7 +366,7 @@ function FilterPill({
       type="button"
       onClick={onClick}
       className={cx(
-        'shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold',
+        'shrink-0 rounded-xl px-3 py-1.5 text-xs font-emphasis',
         active ? 'bg-accent text-white' : 'bg-foam text-ink',
       )}
     >
@@ -390,7 +390,7 @@ function TagChipSection({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-semibold text-muted">{title}</p>
+      <p className="mb-1.5 text-xs font-body text-muted">{title}</p>
       {tags.length === 0 ? (
         <p className="text-sm text-muted">{empty ?? 'None.'}</p>
       ) : (
@@ -403,7 +403,7 @@ function TagChipSection({
                 type="button"
                 onClick={() => onToggle(tag.label)}
                 className={cx(
-                  'rounded-lg border px-2.5 py-1.5 text-xs font-semibold',
+                  'rounded-lg border px-2.5 py-1.5 text-xs font-emphasis',
                   on
                     ? 'border-accent bg-accent/10 text-accent'
                     : 'border-line bg-surface text-ink',

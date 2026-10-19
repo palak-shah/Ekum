@@ -22,13 +22,13 @@ export function TeamPersonRow({
 }) {
   const body = (
     <>
-      <span className="text-sm font-semibold text-ink">{name}</span>
+      <span className="text-sm font-emphasis text-ink">{name}</span>
       <span className="flex shrink-0 items-center gap-3">
-        {trailing ? <span className="text-xs font-semibold text-muted">{trailing}</span> : null}
+        {trailing ? <span className="text-xs font-body text-muted">{trailing}</span> : null}
         {onTakeOff && takeOffLabel ? (
           <button
             type="button"
-            className="text-sm font-semibold text-muted"
+            className="text-sm font-body text-muted"
             aria-label={takeOffLabel}
             disabled={disabled}
             onClick={(event) => {

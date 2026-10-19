@@ -38,7 +38,7 @@ export function FollowingPage() {
               <Link to={`/company/${company.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar name={company.name} imageUrl={company.logoUrl} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
+                  <p className="truncate text-sm font-emphasis text-ink">{company.name}</p>
                   <p className="truncate text-xs text-muted">{company.city}</p>
                 </div>
               </Link>

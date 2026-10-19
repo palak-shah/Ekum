@@ -39,7 +39,7 @@ export function GroupIdentityHero({
   const photo = toAbsoluteMediaUrl(imageUrl);
   const initial = (title || 'G').slice(0, 1).toUpperCase();
   const circleClass =
-    'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-lg font-semibold';
+    'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-lg font-emphasis';
   const tone = avatarTone(title || 'G');
   const circleStyle = photo
     ? undefined
@@ -136,7 +136,7 @@ export function GroupIdentityHero({
           value={nameDraft}
           maxLength={120}
           disabled={busy}
-          className="text-center text-lg font-semibold"
+          className="text-center text-lg font-emphasis"
           onChange={(event) => setNameDraft(event.target.value)}
           onBlur={saveName}
           onKeyDown={(event) => {
@@ -154,7 +154,7 @@ export function GroupIdentityHero({
           data-testid="group-info-name"
           disabled={!canEdit || busy}
           className={cx(
-            'max-w-full text-center text-lg font-semibold tracking-tight text-ink',
+            'max-w-full text-center text-lg font-emphasis tracking-tight text-ink',
             canEdit ? '' : 'cursor-default',
           )}
           onClick={canEdit ? openName : undefined}
@@ -163,7 +163,7 @@ export function GroupIdentityHero({
         </button>
       )}
 
-      <p className="text-xs font-medium text-muted">{countLabel}</p>
+      <p className="text-xs font-body text-muted">{countLabel}</p>
 
       {canEdit && lineOpen ? (
         <TextInput
@@ -204,7 +204,7 @@ export function GroupIdentityHero({
           type="button"
           data-testid="group-info-add-line"
           disabled={busy}
-          className="text-sm font-semibold text-accent"
+          className="text-sm font-emphasis text-accent"
           onClick={openLine}
         >
           Add a line

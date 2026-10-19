@@ -55,7 +55,7 @@ export function TransporterField({
               <button
                 type="button"
                 role="option"
-                className="flex w-full px-3 py-2 text-left text-sm font-medium text-ink hover:bg-foam"
+                className="flex w-full px-3 py-2 text-left text-sm font-emphasis text-ink hover:bg-foam"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   onChange(name);

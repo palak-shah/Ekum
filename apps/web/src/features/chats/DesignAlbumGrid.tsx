@@ -92,15 +92,15 @@ export function DesignAlbumGrid({
                   )}
                 />
               ) : (
-                <div className="flex aspect-[3/4] w-full items-center justify-center bg-canvas text-lg font-bold text-muted">
+                <div className="flex aspect-[3/4] w-full items-center justify-center bg-canvas text-lg font-body text-muted">
                   {(item.name.trim().charAt(0) || '?').toUpperCase()}
                 </div>
               )}
               <div className="px-2 py-1.5">
-                <p className="truncate text-[11px] font-semibold leading-snug text-ink">
+                <p className="truncate text-[11px] font-emphasis leading-snug text-ink">
                   {item.name}
                 </p>
-                <p className="text-[10px] font-medium text-muted">Design</p>
+                <p className="text-[10px] font-body text-muted">Design</p>
               </div>
             </button>
           );

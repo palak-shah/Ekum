@@ -66,7 +66,7 @@ function ShopPostHeader({
   company,
   to,
   trailing,
-  nameClassName = 'text-[15px] font-bold tracking-tight text-ink',
+  nameClassName = 'text-[15px] font-emphasis tracking-tight text-ink',
 }: {
   company: PublicCompanySummary | CompanyCard | {
     id: string;
@@ -88,7 +88,7 @@ function ShopPostHeader({
   const identityBlock = (
     <>
       <ShopName name={company.name} verification={company.verification} className={nameClassName} />
-      {identity ? <p className="truncate text-sm font-medium text-muted">{identity}</p> : null}
+      {identity ? <p className="truncate text-sm font-body text-muted">{identity}</p> : null}
     </>
   );
   return (
@@ -121,7 +121,7 @@ function explorePostHeaderTrailing(when: string, extra?: ReactNode) {
     <div className="flex shrink-0 items-start gap-2">
       {when ? (
         <span
-          className="text-sm font-medium tabular-nums text-muted"
+          className="text-sm font-body tabular-nums text-muted"
           data-testid="explore-post-when"
         >
           {when}
@@ -150,9 +150,9 @@ export function CompanyRow({
         <ShopName
           name={company.name}
           verification={company.verification}
-          className="text-sm font-bold tracking-tight text-ink"
+          className="text-sm font-emphasis tracking-tight text-ink"
         />
-        {subtitle ? <p className="truncate text-xs font-medium text-muted">{subtitle}</p> : null}
+        {subtitle ? <p className="truncate text-xs font-body text-muted">{subtitle}</p> : null}
       </div>
       {to && !plain ? <ChevronRightIcon className="text-muted" /> : null}
     </div>
@@ -350,12 +350,12 @@ export function OpportunityBusinessCard({
             <div className="mt-1.5 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 {catalogLine ? (
-                  <p className="text-sm font-semibold tracking-tight text-ink">{catalogLine}</p>
+                  <p className="text-sm font-emphasis tracking-tight text-ink">{catalogLine}</p>
                 ) : null}
-                {when ? <p className="text-xs font-medium text-muted">{when}</p> : null}
+                {when ? <p className="text-xs font-body text-muted">{when}</p> : null}
                 <BusinessIntentLine intentSide={intentSide} categories={intentCats} />
               </div>
-              <span className="shrink-0 pt-0.5 text-xs font-bold text-accent">View shop →</span>
+              <span className="shrink-0 pt-0.5 text-xs font-emphasis text-accent">View shop →</span>
             </div>
           </>
         ) : (
@@ -399,7 +399,7 @@ export function BusinessShopTile({
         <ShopName
           name={company.name}
           verification={company.verification}
-          className="text-sm font-semibold text-ink"
+          className="text-sm font-emphasis text-ink"
         />
         {identity ? <p className="truncate text-xs text-muted">{identity}</p> : null}
       </div>
@@ -424,7 +424,7 @@ function BusinessIntentLine({
         ? 'May want what you sell'
         : 'Supplier on Ekum';
 
-  return <p className="mt-0.5 text-xs font-medium text-muted">{line}</p>;
+  return <p className="mt-0.5 text-xs font-body text-muted">{line}</p>;
 }
 
 /** Card for buyers/suppliers with no shop photos yet — chips, not a blank foam slab. */
@@ -444,7 +444,7 @@ function BusinessIntentCard({
     <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface p-2.5">
       <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{heading}</p>
+        <p className="text-[11px] font-body uppercase tracking-wide text-muted">{heading}</p>
         {cats.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {cats.map((category) => (
@@ -454,11 +454,11 @@ function BusinessIntentCard({
             ))}
           </div>
         ) : (
-          <p className="mt-1 text-sm font-semibold text-ink">
+          <p className="mt-1 text-sm font-emphasis text-ink">
             {intentSide === 'buy' ? 'May want what you sell' : 'Browse their shop'}
           </p>
         )}
-        <p className="mt-2 text-xs font-bold text-accent">View shop →</p>
+        <p className="mt-2 text-xs font-emphasis text-accent">View shop →</p>
       </div>
       <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
     </div>
@@ -529,7 +529,7 @@ export function OpportunityDesignCard({
           urls={product.images}
           name={product.name}
           photoClassName="aspect-[4/5] w-full object-cover object-center"
-          placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted"
+          placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted"
           selectMode={selectMode}
           selected={selected}
           onActivate={() => onMediaActivate()}
@@ -606,7 +606,7 @@ export function DesignTile({
         data-testid={`explore-design-open-${product.id}`}
         className="block px-2.5 pb-2.5"
       >
-        <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">{product.name}</p>
         <p className="truncate text-xs text-muted">Design</p>
       </Link>
     </div>
@@ -676,7 +676,7 @@ export function CoverImage({
           decoding="async"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-foam text-2xl font-bold text-muted">
+        <div className="flex h-full w-full items-center justify-center bg-foam text-2xl font-body text-muted">
           {alt.charAt(0).toUpperCase()}
         </div>
       )}
@@ -707,7 +707,7 @@ export function CollectionTile({
         />
       </div>
       <div className="px-2.5 pb-2.5">
-        <p className="truncate text-sm font-semibold text-ink">{collection.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">{collection.name}</p>
         {showCompany ? (
           <p className="truncate text-xs text-muted">{collection.company.name}</p>
         ) : null}
@@ -727,7 +727,7 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
         <CoverImage src={cover} alt={collection.name} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{collection.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">{collection.name}</p>
         <p className="truncate text-xs text-muted">{collection.company.name}</p>
       </div>
       <ChevronRightIcon className="shrink-0 text-muted" />
@@ -817,7 +817,7 @@ export function AlbumGrid({
             {src ? <CoverImage src={src} alt="" priority={priority} /> : null}
             {isOverflow ? (
               <div className="absolute inset-0 flex items-center justify-center bg-ink/55">
-                <span className="text-2xl font-bold tracking-tight text-white">{overflow}</span>
+                <span className="text-2xl font-emphasis tracking-tight text-white">{overflow}</span>
               </div>
             ) : null}
           </div>
@@ -875,17 +875,17 @@ export function CatalogFeedPost({
   const captionClass = cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS);
   const captionBody = (
     <>
-      <p className="text-sm font-semibold tracking-tight text-ink">{name}</p>
+      <p className="text-sm font-emphasis tracking-tight text-ink">{name}</p>
       {source ? (
         <p
-          className="text-sm font-semibold tracking-tight text-ink"
+          className="text-sm font-emphasis tracking-tight text-ink"
           data-testid="catalog-feed-source"
         >
           {source}
         </p>
       ) : null}
-      {meta ? <p className="text-xs font-medium text-muted">{meta}</p> : null}
-      {detail ? <p className="text-xs font-medium text-muted">{detail}</p> : null}
+      {meta ? <p className="text-xs font-body text-muted">{meta}</p> : null}
+      {detail ? <p className="text-xs font-body text-muted">{detail}</p> : null}
     </>
   );
   return (
@@ -899,7 +899,7 @@ export function CatalogFeedPost({
             urls={images}
             name={name}
             photoClassName="aspect-[4/5] w-full object-cover object-center"
-            placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted"
+            placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted"
             selectMode={selectMode}
             selected={selected}
             onActivate={() => onMediaClick()}
@@ -953,7 +953,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       <ShopPostHeader
         company={collection.company}
         to={`/company/${collection.company.id}`}
-        nameClassName="text-sm font-bold tracking-tight text-ink"
+        nameClassName="text-sm font-emphasis tracking-tight text-ink"
         trailing={explorePostHeaderTrailing(when)}
       />
       <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
@@ -988,7 +988,7 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
       <ShopPostHeader
         company={product.company}
         to={`/company/${product.company.id}`}
-        nameClassName="text-sm font-bold tracking-tight text-ink"
+        nameClassName="text-sm font-emphasis tracking-tight text-ink"
         trailing={explorePostHeaderTrailing(when)}
       />
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
@@ -996,7 +996,7 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
           urls={product.images}
           name={product.name}
           photoClassName="aspect-[4/5] w-full object-cover object-center"
-          placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted"
+          placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted"
           onActivate={() => navigate(`/explore/products/${product.id}`)}
           testId={`explore-product-photos-${product.id}`}
         />
@@ -1036,13 +1036,13 @@ export function ProductTile({
         <CoverImage src={image} alt={product.name} />
       </div>
       <div className="p-2.5">
-        <p className="truncate text-sm font-bold tracking-tight text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis tracking-tight text-ink">{product.name}</p>
         {'company' in product && product.company?.name ? (
-          <p className="truncate text-xs font-medium text-muted">{product.company.name}</p>
+          <p className="truncate text-xs font-body text-muted">{product.company.name}</p>
         ) : 'companyName' in product && product.companyName?.trim() ? (
-          <p className="truncate text-xs font-medium text-muted">{product.companyName.trim()}</p>
+          <p className="truncate text-xs font-body text-muted">{product.companyName.trim()}</p>
         ) : null}
-        <p className="text-xs font-medium text-muted">
+        <p className="text-xs font-body text-muted">
           {formatCatalogRate({
             rate: product.rate,
             rateMax: product.rateMax,

@@ -108,6 +108,24 @@ export function isRichOrderChatMessage(
  * `messages` should be chronological (oldest → newest), as rendered in the thread.
  */
 /** Newest incoming rate card that can still be accepted — only that one gets the primary CTA. */
+/**
+ * Newest order card per ticket that the buyer can still Decline.
+ * One Decline per order — later pulses of the same ticket do not repeat it.
+ */
+export function declineOrderMessageIds(messages: MessageView[]): Set<string> {
+  const best = new Map<string, { id: string; at: number }>();
+  for (const message of messages) {
+    if (message.type !== 'order_card') continue;
+    const ref = message.reference;
+    if (!ref?.canDeclineOrder || !ref.available || !ref.id) continue;
+    const at = Date.parse(message.createdAt);
+    if (!Number.isFinite(at)) continue;
+    const prev = best.get(ref.id);
+    if (!prev || at > prev.at) best.set(ref.id, { id: message.id, at });
+  }
+  return new Set([...best.values()].map((row) => row.id));
+}
+
 export function primaryAcceptQuoteMessageId(messages: MessageView[]): string | null {
   let best: { id: string; at: number } | null = null;
   for (const message of messages) {

@@ -73,7 +73,7 @@ export function GroupInviteLandingPage() {
   if (invite.isError || !invite.data) {
     return (
       <InviteShell>
-        <p className="text-xs font-semibold text-accent">Ekum</p>
+        <p className="text-xs font-emphasis text-accent">Ekum</p>
         <ErrorState message="This invite link is invalid or expired." />
       </InviteShell>
     );
@@ -86,7 +86,7 @@ export function GroupInviteLandingPage() {
 
   return (
     <InviteShell>
-      <p className="text-xs font-semibold text-accent">Ekum</p>
+      <p className="text-xs font-emphasis text-accent">Ekum</p>
       <div className="flex flex-col items-center gap-2 pt-2">
         {photo ? (
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam">
@@ -95,7 +95,7 @@ export function GroupInviteLandingPage() {
         ) : (
           <Avatar name={view.title} size={80} />
         )}
-        <h1 className="text-center text-xl font-semibold tracking-tight text-ink">{view.title}</h1>
+        <h1 className="text-center text-xl font-emphasis tracking-tight text-ink">{view.title}</h1>
         {view.blurb ? <p className="text-center text-sm text-muted">{view.blurb}</p> : null}
         <p className="text-center text-sm text-muted">From {view.host.name}</p>
       </div>

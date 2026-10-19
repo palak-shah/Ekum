@@ -65,24 +65,24 @@ export function ShipProgressHint({
   const showExtra = extra > 0;
   return (
     <span className={cx('tabular-nums', className)} data-testid="ship-progress-hint">
-      <span className={showExtra ? 'font-semibold text-accent' : 'text-muted'}>
+      <span className={showExtra ? 'font-emphasis text-accent' : 'text-muted'}>
         dispatched{' '}
-        <span className={showExtra ? 'font-semibold' : 'font-medium text-slate'}>{dispatched}</span>
+        <span className={showExtra ? 'font-emphasis' : 'font-emphasis text-slate'}>{dispatched}</span>
       </span>
       <span className="text-muted"> · </span>
       {showExtra ? (
         <span
-          className="font-semibold text-accent"
+          className="font-emphasis text-accent"
           data-testid="ship-progress-extra"
         >
-          extra <span className="font-medium">{extra}</span>
+          extra <span className="font-emphasis">{extra}</span>
         </span>
       ) : (
         <span
-          className={pending > 0 ? 'font-semibold text-accent' : 'text-muted'}
+          className={pending > 0 ? 'font-emphasis text-accent' : 'text-muted'}
           data-testid="ship-progress-pending"
         >
-          pending <span className="font-medium">{pending}</span>
+          pending <span className="font-emphasis">{pending}</span>
         </span>
       )}
     </span>
@@ -100,14 +100,14 @@ export function SettleQtyColumns({
   return (
     <div className="mt-1.5 grid grid-cols-2 gap-3" data-testid="settle-qty-columns">
       <div>
-        <p className="text-[11px] font-medium text-muted">Dispatched</p>
-        <p className="text-base font-semibold tabular-nums text-ink">{dispatched}</p>
+        <p className="text-[11px] font-body text-muted">Dispatched</p>
+        <p className="text-base font-title tabular-nums text-ink">{dispatched}</p>
       </div>
       <div>
-        <p className="text-[11px] font-medium text-muted">Pending</p>
+        <p className="text-[11px] font-body text-muted">Pending</p>
         <p
           className={cx(
-            'text-base font-semibold tabular-nums',
+            'text-base font-title tabular-nums',
             pending > 0 ? 'text-accent' : 'text-ink',
           )}
           data-testid="settle-qty-pending"
@@ -133,7 +133,7 @@ export function SettlePendingSummary({
       className="rounded-xl border border-accent/40 bg-accent/5 px-3 py-2.5"
       data-testid="settle-pending-summary"
     >
-      <p className="text-sm font-semibold text-accent">
+      <p className="text-sm font-emphasis text-accent">
         {designCount} {designCount === 1 ? 'design' : 'designs'} ·{' '}
         <span className="tabular-nums">{pendingPieces}</span> pending
       </p>

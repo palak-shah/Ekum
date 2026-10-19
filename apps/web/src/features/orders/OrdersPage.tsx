@@ -351,13 +351,13 @@ export function OrdersPage() {
         />
         {summaryLabel ? (
           <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
-            <p className="text-xs font-medium text-muted">
+            <p className="text-xs font-body text-muted">
               Showing <span className="capitalize text-ink">{summaryLabel}</span>
             </p>
             <button
               type="button"
               onClick={clearFind}
-              className="inline-flex min-h-11 items-center text-xs font-bold tracking-tight text-accent"
+              className="inline-flex min-h-11 items-center text-xs font-emphasis tracking-tight text-accent"
             >
               Clear
             </button>
@@ -553,26 +553,26 @@ function TradeRow({
   const meta = (
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <p className="min-w-0 truncate text-[15px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+        <p className="min-w-0 truncate text-[15px] font-emphasis leading-tight tracking-[-0.02em] text-ink">
           {name}
         </p>
         {facts ? (
           <p
             data-testid="trade-list-facts"
-            className="mt-0.5 min-w-0 truncate text-[11px] font-medium leading-snug text-muted"
+            className="mt-0.5 min-w-0 truncate text-[11px] font-body leading-snug text-muted"
           >
             {facts}
           </p>
         ) : null}
         {showContext ? (
-          <p className="mt-0.5 min-w-0 truncate text-[12px] font-medium leading-snug text-muted">
+          <p className="mt-0.5 min-w-0 truncate text-[12px] font-body leading-snug text-muted">
             {preview}
           </p>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         <StatusPill status={status} label={tradeListStatusLabel(status)} />
-        <span className="text-[11px] font-medium tabular-nums text-muted">{when}</span>
+        <span className="text-[11px] font-body tabular-nums text-muted">{when}</span>
       </div>
     </div>
   );
@@ -581,8 +581,8 @@ function TradeRow({
     <p
       data-testid={needsLabel ? 'orders-needs-you' : 'trade-list-protocol'}
       className={cx(
-        'border-t border-line/70 pt-2 text-[12px] font-semibold leading-snug',
-        needsLabel ? 'text-accent' : 'text-muted',
+        'border-t border-line/70 pt-2 text-[12px] leading-snug',
+        needsLabel ? 'font-emphasis text-accent' : 'font-body text-muted',
       )}
     >
       {protocol}

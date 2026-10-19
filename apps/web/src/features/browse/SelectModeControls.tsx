@@ -42,7 +42,7 @@ export function SelectModeControls({
         type="button"
         data-testid={selectTestId}
         className={cx(
-          'shrink-0 rounded-full px-3 py-1.5 text-xs font-bold text-accent hover:bg-accent/5',
+          'shrink-0 rounded-full px-3 py-1.5 text-xs font-emphasis text-accent hover:bg-accent/5',
           className,
         )}
         onClick={onEnterSelect}
@@ -73,7 +73,7 @@ export function SelectModeControls({
       data-testid="select-all-float"
       className={cx('flex shrink-0 items-center gap-2.5', className)}
     >
-      <p className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink" data-testid="select-mode-count">
+      <p className="shrink-0 whitespace-nowrap text-xs font-emphasis text-ink" data-testid="select-mode-count">
         {count} selected
       </p>
       <div className="flex shrink-0 items-center gap-2.5">
@@ -82,7 +82,7 @@ export function SelectModeControls({
             type="button"
             data-testid="select-all-float-select-all"
             disabled={allSelected}
-            className="shrink-0 whitespace-nowrap text-xs font-bold text-accent disabled:opacity-40"
+            className="shrink-0 whitespace-nowrap text-xs font-emphasis text-accent disabled:opacity-40"
             onClick={onSelectAll}
           >
             Select all
@@ -91,7 +91,7 @@ export function SelectModeControls({
         <button
           type="button"
           data-testid="select-all-float-clear"
-          className="shrink-0 whitespace-nowrap text-xs font-bold text-accent"
+          className="shrink-0 whitespace-nowrap text-xs font-emphasis text-accent"
           onClick={onClear}
         >
           Clear

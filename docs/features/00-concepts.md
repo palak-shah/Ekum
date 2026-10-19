@@ -157,6 +157,21 @@ Everyday kit is **WhatsApp-tight**, not 48px everywhere:
 | Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order + dispatch journey in sets**, **price / “1 set contains” / billing per pc**. Rate per prefers **pc** when offered (else a offered unit e.g. **mtr**). Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
 | Nav ＋ / camera shutter | Stay 48px |
 
+### Typography weights
+
+Single face: **Inter** (`--font-sans`). Sizes stay as approved chrome (page title ~17px, body ~15px, buttons ~14px, chips 12–13px) — do not jump to marketing Brand Kit sizes on everyday screens.
+
+| Role | Weight | Utility | Use for |
+|------|--------|---------|---------|
+| Body | 400 | `font-body` | Descriptions, messages, metadata, form values, secondary lines |
+| Emphasis | 500 | `font-emphasis` | Section headings, list/shop names, buttons, chips, field labels |
+| Title | 600 | `font-title` | Sticky page titles, sheet titles, important prices / quantities |
+| Bold | 700 | `font-bold` | Rare — tiny unread/nav badge digits and avatar initials only |
+
+Secondary information uses **muted** color at body weight — not bold ink. Tokens: `--ekum-weight-*` and `--ekum-text-*` in `apps/web/src/theme/tokens.css`.
+
+Approved sizes that Tailwind does not already name: `text-badge` 10px · `text-meta` 11px · `text-support` 13px · `text-name` 15px · `text-page-title` 17px · `text-sheet-title` 1.05rem · `text-tab-title` 1.375rem. `text-xs` / `text-sm` / `text-base` stay 12 / 14 / 16. Headers use the title utilities (`AppShell` tab, `PageHeader` page, sheet title). Other screens still use their current size classes until a later pass.
+
 Page gaps and one-off list rows may still be roomier until a later pass.
 
 ## Where it lives

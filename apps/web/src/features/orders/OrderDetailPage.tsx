@@ -208,11 +208,11 @@ function RateFigure({
       )}
     >
       {qtyPrefix ? (
-        <span className="text-[10px] font-medium text-muted">{qtyPrefix}</span>
+        <span className="text-[10px] font-body text-muted">{qtyPrefix}</span>
       ) : null}
-      <span className="text-sm font-semibold">{amount}</span>
+      <span className="text-sm font-emphasis">{amount}</span>
       {unit ? (
-        <span className="text-[10px] font-normal text-muted">{unit}</span>
+        <span className="text-[10px] font-body text-muted">{unit}</span>
       ) : null}
     </p>
   );
@@ -292,7 +292,7 @@ function OrderTimeline({
     return (
       <Card className="flex flex-col gap-0" data-testid="order-timeline">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-xs font-medium text-muted">Timeline</p>
+          <p className="text-xs font-body text-muted">Timeline</p>
           {canExpand ? (
             <TimelineExpandChevron expanded={expanded} onToggle={toggle} />
           ) : null}
@@ -307,7 +307,7 @@ function OrderTimeline({
                 ) : null}
               </div>
               <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
-                <p className="text-sm font-semibold text-ink">{step.summary ?? step.type}</p>
+                <p className="text-sm font-emphasis text-ink">{step.summary ?? step.type}</p>
                 {expanded ? (
                   <>
                     <p className="text-xs text-muted">{formatDate(step.at)}</p>
@@ -385,7 +385,7 @@ function OrderTimeline({
   return (
     <Card className="flex flex-col gap-0" data-testid="order-timeline">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted">Timeline</p>
+        <p className="text-xs font-body text-muted">Timeline</p>
         {canExpand ? (
           <TimelineExpandChevron expanded={expanded} onToggle={toggle} />
         ) : null}
@@ -407,7 +407,7 @@ function OrderTimeline({
             <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
               <p
                 className={cx(
-                  'text-sm font-semibold',
+                  'text-sm font-emphasis',
                   step.done || step.current ? 'text-ink' : 'text-muted',
                 )}
               >
@@ -439,11 +439,11 @@ function OrderTimeline({
 
 function PartyShopName({ name, href }: { name: string; href: string | null }) {
   return href ? (
-    <Link to={href} data-testid="order-party-profile" className="font-medium text-accent">
+    <Link to={href} data-testid="order-party-profile" className="font-emphasis text-accent">
       {name}
     </Link>
   ) : (
-    <span className="font-medium text-ink">{name}</span>
+    <span className="font-emphasis text-ink">{name}</span>
   );
 }
 
@@ -484,7 +484,7 @@ function OrderLinePhoto({
         className={cx(
           'flex items-center justify-center bg-foam text-muted',
           box,
-          size === 'sm' ? 'text-sm font-bold' : 'text-base font-bold',
+          size === 'sm' ? 'text-sm font-emphasis' : 'text-base font-emphasis',
         )}
         aria-hidden
       >
@@ -537,7 +537,7 @@ function OrderLineCantSupplyFace({
       title={
         <p
           className={cx(
-            'line-clamp-2 break-words text-sm font-semibold',
+            'line-clamp-2 break-words text-sm font-emphasis',
             faded ? 'text-muted' : 'text-ink',
           )}
         >
@@ -546,7 +546,7 @@ function OrderLineCantSupplyFace({
       }
       secondary={
         identity ? (
-          <p className="truncate text-[12px] font-medium text-slate" data-testid="order-line-identity">
+          <p className="truncate text-[12px] font-emphasis text-slate" data-testid="order-line-identity">
             {identity}
           </p>
         ) : null
@@ -555,14 +555,14 @@ function OrderLineCantSupplyFace({
         <>
           {leftover ? (
             <p
-              className="text-xs font-semibold text-ink"
+              className="text-xs font-emphasis text-ink"
               data-testid="order-line-no-longer-available"
             >
               {leftover}
             </p>
           ) : null}
           {cue ? (
-            <p className="text-xs font-semibold text-ink" data-testid="order-line-cant-supply-cue">
+            <p className="text-xs font-emphasis text-ink" data-testid="order-line-cant-supply-cue">
               {cue}
             </p>
           ) : null}
@@ -1649,7 +1649,7 @@ export function OrderDetailPage() {
             <div className="flex flex-col items-end gap-0.5">
               <StatusPill status={data.status} label={tradeListStatusLabel(data.status)} />
               {isInquiry ? (
-                <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
+                <span className="text-[10px] font-emphasis uppercase tracking-wide text-accent">
                   Inquiry
                 </span>
               ) : null}
@@ -1657,7 +1657,7 @@ export function OrderDetailPage() {
               {data.partiallyShipped &&
               data.status === 'confirmed' &&
               data.status !== 'settled' ? (
-                <span className="text-[10px] font-bold uppercase tracking-wide text-accent">
+                <span className="text-[10px] font-emphasis uppercase tracking-wide text-accent">
                   Part shipped
                 </span>
               ) : null}
@@ -1720,9 +1720,9 @@ export function OrderDetailPage() {
           onClick={openPersonalNoteSheet}
         >
           {data.personalNote.note ? (
-            <p className="line-clamp-2 text-sm font-medium text-ink">{data.personalNote.note}</p>
+            <p className="line-clamp-2 text-sm font-emphasis text-ink">{data.personalNote.note}</p>
           ) : (
-            <p className="text-sm font-medium text-ink">Personal note</p>
+            <p className="text-sm font-emphasis text-ink">Personal note</p>
           )}
           {data.personalNote.noteVoiceUrl && data.personalNote.noteVoiceDurationMs ? (
             <div className="mt-1.5" onClick={(event) => event.stopPropagation()}>
@@ -1834,7 +1834,7 @@ export function OrderDetailPage() {
         {data.tradeMode === 'direct' &&
         data.facilitatorCompanyId &&
         companyId === data.facilitatorCompanyId ? (
-          <p className="pt-1 text-sm font-medium text-accent">Shared</p>
+          <p className="pt-1 text-sm font-emphasis text-accent">Shared</p>
         ) : null}
         {(data.status === 'confirmed' || data.status === 'part_shipped') &&
         (data.confirmedByName || data.confirmedByRole) ? (
@@ -1846,7 +1846,7 @@ export function OrderDetailPage() {
 
       {orderBillingTotal != null ? (
         <p
-          className="text-sm font-semibold tabular-nums text-ink"
+          className="text-sm font-title tabular-nums text-ink"
           data-testid="order-billing-total"
         >
           Billing · ₹{orderBillingTotal.toLocaleString('en-IN')}
@@ -1871,10 +1871,10 @@ export function OrderDetailPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-ink">
+                      <p className="text-sm font-emphasis text-ink">
                         {desk.sellerName}
                         {!desk.held && !millDropped ? (
-                          <span className="ml-1.5 text-xs font-semibold text-accent">
+                          <span className="ml-1.5 text-xs font-emphasis text-accent">
                             {shortOrderLabel(desk.upstreamOrderId)}
                           </span>
                         ) : null}
@@ -1939,10 +1939,10 @@ export function OrderDetailPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-sm font-semibold text-ink">
+                    <p className="text-sm font-emphasis text-ink">
                       {desk.sellerName}
                       {!desk.held && !millDropped ? (
-                        <span className="ml-1.5 text-xs font-semibold text-accent">
+                        <span className="ml-1.5 text-xs font-emphasis text-accent">
                           {shortOrderLabel(desk.upstreamOrderId)}
                         </span>
                       ) : null}
@@ -2007,13 +2007,13 @@ export function OrderDetailPage() {
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{revealLabel}</span>
+                      <span className="font-emphasis">{revealLabel}</span>
                     </div>
                     <button
                       type="button"
                       data-testid={`order-mill-reveal-${desk.upstreamOrderId}`}
                       disabled={millReveal.isPending}
-                      className="shrink-0 text-xs font-bold uppercase tracking-wide text-accent"
+                      className="shrink-0 text-xs font-emphasis uppercase tracking-wide text-accent"
                       onClick={() =>
                         millReveal.mutate({
                           upstreamOrderId: desk.upstreamOrderId,
@@ -2027,16 +2027,16 @@ export function OrderDetailPage() {
                 ) : null}
                 {!desk.held && desk.millQuoted ? (
                   <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-end gap-2 border-t border-line pt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                    <p className="text-[10px] font-body uppercase tracking-wide text-muted">
                       Design
                     </p>
-                    <p className="text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                    <p className="text-center text-[10px] font-body uppercase tracking-wide text-muted">
                       From
                       <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
                         {desk.sellerName}
                       </span>
                     </p>
-                    <p className="text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                    <p className="text-center text-[10px] font-body uppercase tracking-wide text-muted">
                       To
                       <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
                         {data.counterpart.name}
@@ -2075,13 +2075,13 @@ export function OrderDetailPage() {
                       className="grid grid-cols-[minmax(0,1fr)_4.5rem_7rem] gap-x-2 gap-y-0"
                       {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
                     >
-                      <p className="pb-2 text-[10px] font-bold uppercase tracking-wide text-muted">
+                      <p className="pb-2 text-[10px] font-body uppercase tracking-wide text-muted">
                         Design
                       </p>
-                      <p className="pb-2 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                      <p className="pb-2 text-center text-[10px] font-body uppercase tracking-wide text-muted">
                         Qty
                       </p>
-                      <p className="pb-2 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                      <p className="pb-2 text-center text-[10px] font-body uppercase tracking-wide text-muted">
                         Rate
                       </p>
                       {rows.map((item) => {
@@ -2322,21 +2322,21 @@ export function OrderDetailPage() {
 
       {openOrderComplaints.length > 0 ? (
         <Card className="flex flex-col gap-2" data-testid="order-open-complaints">
-          <p className="text-xs font-medium text-muted">Open complaints</p>
+          <p className="text-xs font-body text-muted">Open complaints</p>
           {openOrderComplaints.map((row) => (
             <div
               key={row.id}
               className="flex items-start justify-between gap-3 border-t border-line/70 pt-2 first:border-t-0 first:pt-0"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">{row.subject}</p>
+                <p className="truncate text-sm font-emphasis text-ink">{row.subject}</p>
                 <StatusPill status={row.status} />
               </div>
               <button
                 type="button"
                 data-testid="order-complaint-resolve"
                 disabled={resolveComplaint.isPending}
-                className="shrink-0 text-sm font-semibold text-accent disabled:opacity-45"
+                className="shrink-0 text-sm font-emphasis text-accent disabled:opacity-45"
                 onClick={() => resolveComplaint.mutate(row.id)}
               >
                 Resolve
@@ -2357,9 +2357,9 @@ export function OrderDetailPage() {
         if (!ref?.manualOrderNo && !ref?.note && !(ref?.images?.length)) return null;
         return (
           <Card className="flex flex-col gap-1.5" data-testid="order-manual-ref-line">
-            <p className="text-xs font-medium text-muted">Manual order</p>
+            <p className="text-xs font-body text-muted">Manual order</p>
             {ref.manualOrderNo ? (
-              <p className="text-sm font-semibold tracking-tight text-ink">{ref.manualOrderNo}</p>
+              <p className="text-sm font-emphasis tracking-tight text-ink">{ref.manualOrderNo}</p>
             ) : null}
             {ref.note ? <p className="text-sm text-muted">{ref.note}</p> : null}
             {(ref.images?.length ?? 0) > 0 ? (
@@ -2390,19 +2390,19 @@ export function OrderDetailPage() {
 
       {data.shipments.length > 0 ? (
         <Card className="flex flex-col gap-3 text-sm">
-          <p className="font-semibold text-ink">Shipments</p>
+          <p className="font-emphasis text-ink">Shipments</p>
           {data.shipments.map((shipment) => {
             const legLines = shipmentLegDisplayLines(shipment);
             return (
             <div key={shipment.id} className="border-t border-line pt-2 first:border-0 first:pt-0">
               {legLines.length > 0 ? (
                 legLines.map((line) => (
-                  <p key={line} className="font-medium text-ink">
+                  <p key={line} className="font-emphasis text-ink">
                     {line}
                   </p>
                 ))
               ) : (
-                <p className="font-medium text-ink">Dispatch</p>
+                <p className="font-emphasis text-ink">Dispatch</p>
               )}
               <LegPhotoThumbs
                 images={shipmentLegImageUrls(shipment)}
@@ -2414,8 +2414,8 @@ export function OrderDetailPage() {
               <div className="mt-1 flex flex-col gap-0.5" data-testid="order-shipment-lines">
                 {shipment.items.map((line) => (
                   <p key={`${shipment.id}-${line.orderItemId}`} className="text-ink">
-                    <span className="font-medium">{line.name}</span>
-                    <span className="font-semibold tabular-nums"> × {line.quantity}</span>
+                    <span className="font-emphasis">{line.name}</span>
+                    <span className="font-title tabular-nums"> × {line.quantity}</span>
                   </p>
                 ))}
               </div>
@@ -2497,32 +2497,30 @@ export function OrderDetailPage() {
         >
           {actionDock.kind === 'buy' ? (
             <>
-              {actionDock.cancel ? (
-                data.createdBySeller === true ? (
-                  <Button
-                    variant="ghost"
-                    className="!min-h-10 shrink-0 px-2 text-sm"
-                    data-testid="order-dock-decline"
-                    disabled={act.isPending}
-                    onClick={() => act.mutate('cancel')}
-                  >
-                    Decline
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    className="!min-h-10 shrink-0 px-2 text-sm"
-                    data-testid="order-dock-cancel"
-                    disabled={act.isPending || actionWithNote.isPending}
-                    onClick={() => {
-                      setActionNote('');
-                      setActionNoteVoice(null);
-                      setActionNoteOpen('cancel');
-                    }}
-                  >
-                    {isInquiry && data.status === 'requested' ? 'Cancel inquiry' : 'Cancel'}
-                  </Button>
-                )
+              {actionDock.declineLogged ? (
+                <Button
+                  variant="ghost"
+                  className="!min-h-10 shrink-0 px-2 text-sm"
+                  data-testid="order-dock-decline"
+                  disabled={act.isPending}
+                  onClick={() => act.mutate('cancel')}
+                >
+                  Decline
+                </Button>
+              ) : actionDock.cancel ? (
+                <Button
+                  variant="ghost"
+                  className="!min-h-10 shrink-0 px-2 text-sm"
+                  data-testid="order-dock-cancel"
+                  disabled={act.isPending || actionWithNote.isPending}
+                  onClick={() => {
+                    setActionNote('');
+                    setActionNoteVoice(null);
+                    setActionNoteOpen('cancel');
+                  }}
+                >
+                  {isInquiry && data.status === 'requested' ? 'Cancel inquiry' : 'Cancel'}
+                </Button>
               ) : null}
               {actionDock.edit ? (
                 <Button
@@ -2743,7 +2741,7 @@ export function OrderDetailPage() {
                         title={
                           <p
                             className={cx(
-                              'line-clamp-2 break-words text-sm font-semibold',
+                              'line-clamp-2 break-words text-sm font-emphasis',
                               cantSupply ? 'text-muted' : 'text-ink',
                             )}
                           >
@@ -2752,7 +2750,7 @@ export function OrderDetailPage() {
                         }
                         secondary={
                           identity ? (
-                            <p className="truncate text-[12px] font-medium text-slate">
+                            <p className="truncate text-[12px] font-emphasis text-slate">
                               {identity}
                             </p>
                           ) : null
@@ -2760,14 +2758,14 @@ export function OrderDetailPage() {
                         cues={
                           <>
                             {orderLineLeftoverCue(item) ? (
-                              <p className="truncate text-[11px] font-semibold text-ink">
+                              <p className="truncate text-[11px] font-emphasis text-ink">
                                 {orderLineLeftoverCue(item)}
                               </p>
                             ) : null}
                             {cantSupply ? (
                               <p
                                 className={cx(
-                                  'text-[11px] font-medium text-muted',
+                                  'text-[11px] font-body text-muted',
                                   quoteCantSupplyMutedClass(true),
                                 )}
                               >
@@ -2776,7 +2774,7 @@ export function OrderDetailPage() {
                             ) : null}
                             {!cantSupply ? (
                               <p
-                                className="truncate text-[11px] font-medium text-muted"
+                                className="truncate text-[11px] font-body text-muted"
                                 data-testid={`quote-ref-${item.id}`}
                               >
                                 {quoteSheetReferenceCue({
@@ -2789,7 +2787,7 @@ export function OrderDetailPage() {
                               </p>
                             ) : null}
                             {showFrom && !cantSupply && fromRate != null ? (
-                              <p className="truncate text-[11px] font-medium text-muted">
+                              <p className="truncate text-[11px] font-body text-muted">
                                 From {rateAmount(fromRate)}
                                 {fromUnit ? ` ${fromUnit}` : ''}
                               </p>
@@ -2805,7 +2803,7 @@ export function OrderDetailPage() {
                               <div className="min-w-0 flex-1 pr-2">
                                 <label
                                   htmlFor={`quote-qty-${item.id}`}
-                                  className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                                  className="text-[10px] font-body uppercase tracking-wide text-muted"
                                 >
                                   Qty
                                 </label>
@@ -2829,7 +2827,7 @@ export function OrderDetailPage() {
                               <div className="min-w-0 flex-[1.4] pl-2">
                                 <label
                                   htmlFor={`quote-rate-${item.id}`}
-                                  className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                                  className="text-[10px] font-body uppercase tracking-wide text-muted"
                                 >
                                   Rate
                                 </label>
@@ -2941,11 +2939,11 @@ export function OrderDetailPage() {
               className="flex items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
               data-testid="order-lines-tally"
             >
-              <p className="min-w-0 truncate text-sm font-semibold text-accent">
+              <p className="min-w-0 truncate text-sm font-emphasis text-accent">
                 {linesTally.confirm} confirm
               </p>
               {linesTally.decline > 0 ? (
-                <p className="shrink-0 text-[12px] font-medium text-muted">
+                <p className="shrink-0 text-[12px] font-body text-muted">
                   {linesTally.decline} decline
                 </p>
               ) : null}
@@ -3057,23 +3055,23 @@ export function OrderDetailPage() {
                     />
                   }
                   title={
-                    <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                    <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
                   }
                   secondary={
                     identity ? (
-                      <p className="truncate text-[12px] font-medium text-slate">{identity}</p>
+                      <p className="truncate text-[12px] font-emphasis text-slate">{identity}</p>
                     ) : null
                   }
                   cues={
                     <>
                       {orderLineLeftoverCue(item) ? (
-                        <p className="truncate text-[11px] font-semibold text-ink">
+                        <p className="truncate text-[11px] font-emphasis text-ink">
                           {orderLineLeftoverCue(item)}
                         </p>
                       ) : null}
                       {on ? (
                         <p
-                          className="truncate text-[11px] font-medium text-muted"
+                          className="truncate text-[11px] font-body text-muted"
                           data-testid={`order-lines-asked-${item.id}`}
                         >
                           {quoteSheetReferenceCue({
@@ -3085,7 +3083,7 @@ export function OrderDetailPage() {
                           })}
                         </p>
                       ) : (
-                        <p className="truncate text-[11px] font-medium text-muted">Declined</p>
+                        <p className="truncate text-[11px] font-body text-muted">Declined</p>
                       )}
                     </>
                   }
@@ -3098,7 +3096,7 @@ export function OrderDetailPage() {
                         <div className="min-w-0 flex-1 pr-2">
                           <label
                             htmlFor={`confirm-qty-${item.id}`}
-                            className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                            className="text-[10px] font-body uppercase tracking-wide text-muted"
                           >
                             Qty
                           </label>
@@ -3133,7 +3131,7 @@ export function OrderDetailPage() {
                         <div className="min-w-0 flex-[1.4] pl-2">
                           <label
                             htmlFor={`confirm-rate-${item.id}`}
-                            className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                            className="text-[10px] font-body uppercase tracking-wide text-muted"
                           >
                             Rate
                           </label>
@@ -3192,7 +3190,7 @@ export function OrderDetailPage() {
             <button
               type="button"
               data-testid="packing-slip-share"
-              className="py-1 text-center text-sm font-semibold text-accent disabled:opacity-45"
+              className="py-1 text-center text-sm font-emphasis text-accent disabled:opacity-45"
               disabled={packingSlipBusy || !packingSlipShipment}
               onClick={() => void runPackingSlip('share')}
             >
@@ -3232,8 +3230,8 @@ export function OrderDetailPage() {
                   setPackingSlipOpts((prev) => ({ ...prev, [row.key]: !prev[row.key] }))
                 }
               >
-                <span className="text-sm font-semibold text-ink">{row.label}</span>
-                <span className="text-[12px] font-medium text-muted">{on ? 'On' : 'Off'}</span>
+                <span className="text-sm font-emphasis text-ink">{row.label}</span>
+                <span className="text-[12px] font-body text-muted">{on ? 'On' : 'Off'}</span>
               </button>
             );
           })}
@@ -3282,8 +3280,8 @@ export function OrderDetailPage() {
             </div>
             <div className="flex flex-col gap-1.5" data-testid="order-dispatch-legs">
               <div className="grid grid-cols-2 gap-2">
-                <p className="text-sm font-semibold text-ink">LR number</p>
-                <p className="text-sm font-semibold text-ink">Bill no</p>
+                <p className="text-sm font-emphasis text-ink">LR number</p>
+                <p className="text-sm font-emphasis text-ink">Bill no</p>
               </div>
               {dispatch.legs.map((leg, index) => (
                 <div
@@ -3359,11 +3357,11 @@ export function OrderDetailPage() {
                 className="flex items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
                 data-testid="order-dispatch-tally"
               >
-                <p className="min-w-0 truncate text-sm font-semibold text-accent">
+                <p className="min-w-0 truncate text-sm font-emphasis text-accent">
                   {dispatchThisLrLabel(dispatchTally)}
                 </p>
                 {dispatchTally.later > 0 ? (
-                  <p className="shrink-0 text-[12px] font-medium text-muted">
+                  <p className="shrink-0 text-[12px] font-body text-muted">
                     {dispatchTally.later} pending
                   </p>
                 ) : null}
@@ -3431,7 +3429,7 @@ export function OrderDetailPage() {
                       title={
                         <p
                           data-testid="order-dispatch-line-name"
-                          className="truncate text-sm font-semibold text-ink"
+                          className="truncate text-sm font-emphasis text-ink"
                         >
                           {item.name}
                         </p>
@@ -3439,7 +3437,7 @@ export function OrderDetailPage() {
                       secondary={
                         kind ? (
                           <p
-                            className="truncate text-[12px] font-medium text-slate"
+                            className="truncate text-[12px] font-emphasis text-slate"
                             data-testid="order-dispatch-line-kind"
                           >
                             {kind}
@@ -3448,7 +3446,7 @@ export function OrderDetailPage() {
                       }
                       cues={
                         orderLineLeftoverCue(item) ? (
-                          <p className="truncate text-[11px] font-semibold text-ink">
+                          <p className="truncate text-[11px] font-emphasis text-ink">
                             {orderLineLeftoverCue(item)}
                           </p>
                         ) : null
@@ -3458,7 +3456,7 @@ export function OrderDetailPage() {
                         <div className="flex flex-col items-end gap-0.5">
                           <label
                             htmlFor={`dispatch-this-lr-${item.id}`}
-                            className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                            className="text-[10px] font-body uppercase tracking-wide text-muted"
                           >
                             This LR
                           </label>
@@ -3508,12 +3506,12 @@ export function OrderDetailPage() {
                           />
                         }
                         title={
-                          <p className="truncate text-sm font-semibold text-muted">{item.name}</p>
+                          <p className="truncate text-sm font-body text-muted">{item.name}</p>
                         }
                         trailing={
                           <button
                             type="button"
-                            className="shrink-0 px-1 text-[12px] font-semibold text-accent disabled:opacity-45"
+                            className="shrink-0 px-1 text-[12px] font-emphasis text-accent disabled:opacity-45"
                             data-testid="order-dispatch-restore-supply"
                             disabled={setLineSupply.isPending}
                             onClick={() =>
@@ -3547,7 +3545,7 @@ export function OrderDetailPage() {
                   setPriorListOpen(true);
                 }}
               >
-                <p className="min-w-0 truncate text-xs font-medium text-muted">
+                <p className="min-w-0 truncate text-xs font-body text-muted">
                   {previousDispatchesCue(priorShipments.length)}
                 </p>
                 <ChevronRightIcon
@@ -3581,7 +3579,7 @@ export function OrderDetailPage() {
                               const legLines = shipmentLegDisplayLines(shipment);
                               if (legLines.length === 0) {
                                 return (
-                                  <p className="truncate text-sm font-medium text-ink">
+                                  <p className="truncate text-sm font-emphasis text-ink">
                                     Previous dispatch
                                   </p>
                                 );
@@ -3589,7 +3587,7 @@ export function OrderDetailPage() {
                               return (
                                 <>
                                   {legLines.map((line) => (
-                                    <p key={line} className="truncate text-sm font-medium text-ink">
+                                    <p key={line} className="truncate text-sm font-emphasis text-ink">
                                       {line}
                                     </p>
                                   ))}
@@ -3661,7 +3659,7 @@ export function OrderDetailPage() {
                                         onOpen={openPhotoViewer}
                                         size="sm"
                                       />
-                                      <p className="min-w-0 truncate text-sm font-semibold text-ink">
+                                      <p className="min-w-0 truncate text-sm font-emphasis text-ink">
                                         {item.name}
                                       </p>
                                     </button>
@@ -3721,8 +3719,8 @@ export function OrderDetailPage() {
                             </div>
                             <div className="flex flex-col gap-1.5" data-testid="order-dispatch-edit-legs">
                               <div className="grid grid-cols-2 gap-2">
-                                <p className="text-sm font-semibold text-ink">LR number</p>
-                                <p className="text-sm font-semibold text-ink">Bill no</p>
+                                <p className="text-sm font-emphasis text-ink">LR number</p>
+                                <p className="text-sm font-emphasis text-ink">Bill no</p>
                               </div>
                               {editDispatch.legs.map((leg, index) => (
                                 <div
@@ -3867,18 +3865,18 @@ export function OrderDetailPage() {
                           />
                         }
                         title={
-                          <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                          <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
                         }
                         secondary={
                           identity ? (
-                            <p className="truncate text-[12px] font-medium text-slate">
+                            <p className="truncate text-[12px] font-emphasis text-slate">
                               {identity}
                             </p>
                           ) : null
                         }
                         cues={
                           orderLineLeftoverCue(item) ? (
-                            <p className="truncate text-[11px] font-semibold text-ink">
+                            <p className="truncate text-[11px] font-emphasis text-ink">
                               {orderLineLeftoverCue(item)}
                             </p>
                           ) : null
@@ -3888,7 +3886,7 @@ export function OrderDetailPage() {
                           <div className="flex flex-col items-end gap-0.5">
                             <label
                               htmlFor={`settle-final-${item.id}`}
-                              className="text-[10px] font-medium uppercase tracking-wide text-muted"
+                              className="text-[10px] font-body uppercase tracking-wide text-muted"
                             >
                               Final
                             </label>
@@ -3971,7 +3969,7 @@ export function OrderDetailPage() {
                       size="sm"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                      <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
                       {item.sku ? <p className="truncate text-[11px] text-muted">{item.sku}</p> : null}
                     </div>
                     {!removed ? (
@@ -3989,7 +3987,7 @@ export function OrderDetailPage() {
                     {removed ? (
                       <button
                         type="button"
-                        className="shrink-0 px-1 text-[12px] font-semibold text-muted"
+                        className="shrink-0 px-1 text-[12px] font-body text-muted"
                         data-testid="order-amend-undo"
                         onClick={toggleRemoved}
                       >
@@ -4083,9 +4081,9 @@ export function OrderDetailPage() {
                   size="sm"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
+                  <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
                   {orderLineLeftoverCue(item) ? (
-                    <p className="truncate text-[11px] font-semibold text-ink">
+                    <p className="truncate text-[11px] font-emphasis text-ink">
                       {orderLineLeftoverCue(item)}
                     </p>
                   ) : null}
@@ -4270,7 +4268,7 @@ export function OrderDetailPage() {
                 onClick={() => void goComplaintAgainst(target)}
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-ink">
+                  <span className="block truncate text-sm font-emphasis text-ink">
                     {target.name}
                   </span>
                   {cue ? <span className="text-xs text-muted">{cue}</span> : null}

@@ -56,12 +56,12 @@ export function LegPhotoAttach({
   return (
     <div className="flex flex-col gap-1.5" ref={wrapRef} data-testid={`${testIdPrefix}-attach`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium text-muted">
+        <p className="text-[11px] font-body text-muted">
           LR photo
           {images.length > 0 ? (
-            <span className="font-normal"> · {images.length}</span>
+            <span className="font-body"> · {images.length}</span>
           ) : (
-            <span className="font-normal"> (optional)</span>
+            <span className="font-body"> (optional)</span>
           )}
         </p>
         <div className="relative">
@@ -85,7 +85,7 @@ export function LegPhotoAttach({
                 type="button"
                 role="menuitem"
                 disabled={full}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam disabled:opacity-40"
                 onClick={() => {
                   setMenuOpen(false);
                   cameraRef.current?.click();
@@ -98,7 +98,7 @@ export function LegPhotoAttach({
                 type="button"
                 role="menuitem"
                 disabled={full}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam disabled:opacity-40"
                 onClick={() => {
                   setMenuOpen(false);
                   galleryRef.current?.click();

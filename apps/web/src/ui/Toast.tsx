@@ -98,7 +98,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         >
           <div
             className={cx(
-              'ekum-rise flex max-w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm font-semibold shadow-[var(--shadow-soft)]',
+              'ekum-rise flex max-w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm font-emphasis shadow-[var(--shadow-soft)]',
               toast.tone === 'danger' ? 'bg-danger text-white' : 'bg-ink text-white',
             )}
           >

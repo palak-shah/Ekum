@@ -51,6 +51,23 @@
   --color-kind-design: var(--ekum-kind-design);
   --color-kind-design-soft: var(--ekum-kind-design-soft);
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-weight-body: var(--ekum-weight-body);
+  --font-weight-emphasis: var(--ekum-weight-emphasis);
+  --font-weight-title: var(--ekum-weight-title);
+  --text-badge: var(--ekum-text-badge);
+  --text-badge--line-height: inherit;
+  --text-meta: var(--ekum-text-meta);
+  --text-meta--line-height: inherit;
+  --text-support: var(--ekum-text-support);
+  --text-support--line-height: inherit;
+  --text-name: var(--ekum-text-name);
+  --text-name--line-height: inherit;
+  --text-page-title: var(--ekum-text-page-title);
+  --text-page-title--line-height: inherit;
+  --text-sheet-title: var(--ekum-text-sheet-title);
+  --text-sheet-title--line-height: inherit;
+  --text-tab-title: var(--ekum-text-tab-title);
+  --text-tab-title--line-height: inherit;
   --shadow-soft: var(--ekum-shadow-soft);
 }
 

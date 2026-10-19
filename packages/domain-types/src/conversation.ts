@@ -639,6 +639,11 @@ export interface MessageReference {
   /** Seller-logged ticket: buyer may Accept (not Accept quote). */
   canAcceptLogged?: boolean;
   /**
+   * Live affordance: buyer may Decline a ticket someone else logged.
+   * Requested or confirmed. Not buyer-placed Cancel.
+   */
+  canDeclineOrder?: boolean;
+  /**
    * Live order intent (inquiry | order). Like canAcceptQuote — not frozen history.
    * Chat CTAs use this so Ask-rates tickets say View inquiry until firmed.
    */

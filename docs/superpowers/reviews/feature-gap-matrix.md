@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-17 (main-menu bottom nav)  
+**Updated:** 2026-10-17 (typography weight pass)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,8 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Platform | Typography weights: body 400 / emphasis 500 / title 600; Inter; no size redesign | Works | Unit | Required | Completeness 2026-10-17-typography-weight; `font-body`/`font-emphasis`/`font-title`; bold only badges+Avatar |
+| Catalog | You Collections list (published+draft, page ⋯, swipe More/Share); Designs grid | Works | Unit | Required | Completeness 2026-10-17-you-collections-list; `libraryCollectionThumb` |
 | Platform | Bottom nav only on Home, Chats, Explore, Orders; Explore Select still hides it | Works | Unit | Required | Completeness 2026-10-17-main-menu-bottom-nav; `isMainMenuPath` |
 | Platform | Master Categories (sheet) replace SuperCategory; Admin Console Tag Management (scope-gated list, unified search/add, paginated Load more, bulk paste) + category-aware collection tags/units; CompanyCustomTag | Partial | Unit | Required | Completeness 2026-10-14-master-data-admin; UX refine 2026-10-15; web units AdminTagsPage; no e2e platform-admin seed yet |
 | Catalog | Legacy everyone/connections → Followers (migrate + enforce); defaults followers; no hidden open catalog | Works | Unit | Required | Completeness 2026-10-14-legacy-audience-followers-align |
@@ -295,7 +297,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
 | You / Settings | You: library (no identity card); shell **My collections** + Back + account avatar; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-09-my-collections-listing-chrome; 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
-| You / Catalog | Collection list: `N designs` only when live; no shared-with count / Published / date on listing | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
+| You / Catalog | Collection list: name (Draft chip / source / Archived); no `N designs`, shared-with, Published, or date | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
+| You / Catalog | Page ⋯ idle: Drafts (`view=draft`) · Archived · Bookmarks | Works | Unit + Functional | Required | Completeness 2026-10-17-you-library-drafts-view |
 | You + shop | Shared `CollectionAlbumTile` (library vs shelf); shelf no design count / date; library keeps owner caption + mosaic +N | Works | Unit | Required | Completeness 2026-10-11-collection-list-tile-unify |
 | Collections | Owner Selecting dock: Cart · Share · Delete icons · Remove (Share = checked designs; Cart = published → trade cart) | Works | Unit | Required | Completeness 2026-10-09-owner-pack-select-share; 2026-10-09-owner-pack-select-cart-icons |
 | Collections | Owner album ⋯ bottom sheet: Share · Who · Add photos · Edit (icon+text) | Works | Unit | Required | Completeness 2026-10-09-owner-collection-more-sheet |

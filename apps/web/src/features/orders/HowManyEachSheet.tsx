@@ -312,10 +312,10 @@ export function HowManyEachSheet({
       {footerSummary ? (
         <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[15px] font-bold tracking-tight text-ink">{footerSummary.primary}</p>
+            <p className="text-[15px] font-emphasis tracking-tight text-ink">{footerSummary.primary}</p>
             {footerSummary.money ? (
               <p
-                className="shrink-0 text-[15px] font-bold tracking-tight text-ink"
+                className="shrink-0 text-[15px] font-emphasis tracking-tight text-ink"
                 data-testid="how-many-billing-total"
               >
                 {footerSummary.money}
@@ -323,7 +323,7 @@ export function HowManyEachSheet({
             ) : null}
           </div>
           {footerSummary.hint ? (
-            <p className="text-[12px] font-medium text-muted">{footerSummary.hint}</p>
+            <p className="text-[12px] font-body text-muted">{footerSummary.hint}</p>
           ) : null}
         </div>
       ) : null}
@@ -387,19 +387,19 @@ export function HowManyEachSheet({
           {splitBanner ? (
             <p
               data-testid="how-many-split"
-              className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink"
+              className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-emphasis leading-snug text-ink"
             >
               {splitBanner}
             </p>
           ) : goesTo ? (
-            <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-medium leading-snug text-ink">
-              Order goes to <span className="font-semibold">{goesTo}</span>
+            <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-emphasis leading-snug text-ink">
+              Order goes to <span className="font-emphasis">{goesTo}</span>
             </p>
           ) : null}
           {setsBanner ? (
             <p
               data-testid="how-many-sets-banner"
-              className="text-[13px] font-medium leading-snug text-muted"
+              className="text-[13px] font-body leading-snug text-muted"
             >
               {setsBanner}
             </p>
@@ -425,7 +425,7 @@ export function HowManyEachSheet({
                 type="button"
                 disabled={busy}
                 data-testid="same-for-all-chip"
-                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink disabled:opacity-45"
+                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink disabled:opacity-45"
                 onClick={() => {
                   setSameDraft(null);
                   setSameOpen(true);
@@ -467,7 +467,7 @@ export function HowManyEachSheet({
                         <img src={thumb} alt="" className="h-full w-full object-cover" />
                       </button>
                     ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
                         {product.name.charAt(0)}
                       </div>
                     )}

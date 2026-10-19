@@ -1,7 +1,6 @@
 import type { BuyerGroupName } from './collectionStatusSummary';
 import type { ProductView } from '@ekum/domain-types';
 import { ProductStatus } from '@ekum/domain-types';
-import { formatCatalogRate } from '@/lib/catalogRate';
 
 /** Draft / pack-only / archived only — not On Explore or who can see. */
 export function productStatusLine(
@@ -19,22 +18,6 @@ export function productStatusLine(
     return 'In your collections';
   }
   return '';
-}
-
-/** Glanceable tile: rate · SKU · photos (status is a separate line). */
-export function productTileSubtitle(product: ProductView): string {
-  const bits: string[] = [];
-  const rate = formatCatalogRate({
-    rate: product.rate,
-    rateMax: product.rateMax,
-    unit: product.unit,
-    dispatchUnit: product.dispatchUnit,
-  });
-  bits.push(rate === 'On request' || product.rate == null ? 'Price on request' : rate);
-  if (product.sku) bits.push(product.sku);
-  const photos = product.images.length;
-  bits.push(photos === 1 ? '1 photo' : `${photos} photos`);
-  return bits.join(' · ');
 }
 
 export function joinLabelList(labels: readonly string[]): string {

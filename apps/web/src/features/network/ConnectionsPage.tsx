@@ -39,7 +39,7 @@ export function ConnectionsPage() {
               >
                 <Avatar name={connection.company.name} imageUrl={connection.company.logoUrl} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
+                  <p className="truncate text-sm font-emphasis text-ink">{connection.company.name}</p>
                   <p className="truncate text-xs text-muted">
                     {connectionSubtitle(connection.status)}
                   </p>
@@ -72,14 +72,14 @@ function ConnectionActions({
 }) {
   if (connection.canUnblock) {
     return (
-      <button type="button" className="text-xs font-medium text-accent" onClick={() => onAction('unblock')}>
+      <button type="button" className="text-xs font-emphasis text-accent" onClick={() => onAction('unblock')}>
         Unblock
       </button>
     );
   }
   if (connection.canResume) {
     return (
-      <button type="button" className="text-xs font-medium text-accent" onClick={() => onAction('resume')}>
+      <button type="button" className="text-xs font-emphasis text-accent" onClick={() => onAction('resume')}>
         Resume
       </button>
     );
@@ -88,7 +88,7 @@ function ConnectionActions({
     return (
       <button
         type="button"
-        className="text-xs font-medium text-danger"
+        className="text-xs font-emphasis text-danger"
         onClick={() => onAction('block')}
       >
         Block

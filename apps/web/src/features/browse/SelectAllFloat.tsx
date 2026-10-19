@@ -39,7 +39,7 @@ export function SelectAllFloat({
     <>
       <p
         className={cx(
-          'shrink-0 whitespace-nowrap font-semibold text-ink',
+          'shrink-0 whitespace-nowrap font-emphasis text-ink',
           layout === 'pill' ? 'text-xs' : 'text-sm',
         )}
       >
@@ -51,7 +51,7 @@ export function SelectAllFloat({
             type="button"
             data-testid="select-all-float-select-all"
             disabled={allSelected}
-            className="shrink-0 whitespace-nowrap text-xs font-bold text-accent disabled:opacity-40"
+            className="shrink-0 whitespace-nowrap text-xs font-emphasis text-accent disabled:opacity-40"
             onClick={onSelectAll}
           >
             Select all
@@ -60,7 +60,7 @@ export function SelectAllFloat({
         <button
           type="button"
           data-testid="select-all-float-clear"
-          className="shrink-0 whitespace-nowrap text-xs font-bold text-accent"
+          className="shrink-0 whitespace-nowrap text-xs font-emphasis text-accent"
           onClick={onClear}
         >
           Clear

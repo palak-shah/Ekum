@@ -70,7 +70,7 @@ export function DockIconButton({
       disabled={disabled}
       onClick={onClick}
       className={cx(
-        'relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border text-xs font-semibold',
+        'relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border text-xs font-emphasis',
         primary
           ? 'border-accent bg-accent text-white'
           : 'border-line bg-surface text-ink',

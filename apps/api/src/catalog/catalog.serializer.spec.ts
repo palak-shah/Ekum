@@ -58,6 +58,26 @@ describe('CatalogSerializer', () => {
     expect(serializer.toProductView(product(null)).rateMax).toBeNull();
   });
 
+  it('carries collection tags for design defaults', () => {
+    const view = serializer.toProductView({
+      ...product(null),
+      collections: [
+        {
+          collection: {
+            name: 'Saree Daily',
+            status: 'published',
+            categories: ['Sarees'],
+            masterCategoryId: 'cat-saree',
+          },
+        },
+      ],
+    } as unknown as Product);
+    expect(view.collectionNames).toEqual(['Saree Daily']);
+    expect(view.collectionPacks).toEqual([
+      { categories: ['Sarees'], masterCategoryId: 'cat-saree' },
+    ]);
+  });
+
   it('reports product count from the _count aggregate', () => {
     const collection = {
       id: 'collection-1',

@@ -47,6 +47,7 @@ import {
 } from '@/features/chats/chatsInboxFilter';
 import { isChatThreadPath } from '@/features/chats/chatThreadPath';
 import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
+import { YouLibraryHeaderMore } from '@/features/catalog/YouLibraryHeaderMore';
 import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
 import { HomeAccountMenu } from '@/features/home/HomeAccountMenu';
 import {
@@ -178,7 +179,7 @@ export function AppShell() {
               </button>
             ) : null}
             {title ? (
-              <h1 className="truncate text-[1.375rem] font-semibold tracking-[-0.03em] text-ink">
+              <h1 className="truncate text-tab-title font-title tracking-[-0.03em] text-ink">
                 {title}
               </h1>
             ) : (
@@ -192,6 +193,7 @@ export function AppShell() {
                 <ChatsHeaderNew />
               </>
             ) : null}
+            {location.pathname === '/more' ? <YouLibraryHeaderMore /> : null}
             {isHome ? (
               <button
                 type="button"
@@ -349,7 +351,7 @@ function NavItem({
       }}
       className={({ isActive }) =>
         cx(
-          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium tracking-tight',
+          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-emphasis tracking-tight',
           isActive ? 'text-accent' : 'text-slate',
         )
       }

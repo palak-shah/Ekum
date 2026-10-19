@@ -16,11 +16,10 @@ import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { selectionOwnShopVerbs } from '@/features/browse/selectionOwnShopVerbs';
 import { entriesAsProducts } from '@/features/browse/useShortlistOrderFlow';
 import {
-  collectionPackDetailSections,
-  designSheetRateBand,
+  designSheetUnderPhoto,
+  type DesignSheetUnderPhoto,
 } from '@/features/collections/collectionViewerChrome';
 import { DesignSheetPhotoCarousel } from '@/features/collections/DesignSheetPhotoCarousel';
-import { PackDetailBlocks } from '@/features/collections/PackDetailBlocks';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
@@ -42,7 +41,7 @@ import {
   PencilIcon,
   TrashIcon,
 } from '@/ui/icons';
-import { Sheet, cx } from '@/ui/kit';
+import { Sheet, Tag, cx } from '@/ui/kit';
 
 export type DesignSheetProduct = Pick<
   ProductView,
@@ -332,7 +331,7 @@ export function DesignSheet({
               onClick={startOrder}
               className={cx(
                 'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3',
-                'border border-accent bg-accent text-sm font-bold text-white',
+                'border border-accent bg-accent text-sm font-emphasis text-white',
               )}
             >
               {ownVerbs.orderLabel}
@@ -345,7 +344,7 @@ export function DesignSheet({
             <p
               className={cx(
                 'text-sm',
-                curatedFrom ? 'font-semibold text-ink' : 'font-medium text-ink',
+                curatedFrom ? 'font-emphasis text-ink' : 'font-emphasis text-ink',
               )}
               data-testid={curatedFrom ? `${testIdPrefix}-from` : undefined}
             >
@@ -358,23 +357,21 @@ export function DesignSheet({
             onIndex={onIndex}
             onOpenFullscreen={() => setPhotoOpen(true)}
           />
-          <PackDetailBlocks
+          <DesignSheetUnderPhotoBlock
             testIdPrefix={testIdPrefix}
-            sections={collectionPackDetailSections({
+            facts={designSheetUnderPhoto({
               categories: product.categories,
               description: product.description,
-              rateBand: designSheetRateBand(
-                formatCatalogRate({
-                  rate: product.rate,
-                  rateMax: product.rateMax,
-                  unit: product.unit,
-                  dispatchUnit: product.dispatchUnit,
-                }),
-              ),
+              rateLabel: formatCatalogRate({
+                rate: product.rate,
+                rateMax: product.rateMax,
+                unit: product.unit,
+                dispatchUnit: product.dispatchUnit,
+              }),
             })}
           />
           {product.moq != null && product.moq > 0 ? (
-            <p className="text-sm font-medium text-ink">Minimum order · {product.moq} pcs</p>
+            <p className="text-sm font-emphasis text-ink">Minimum order · {product.moq} pcs</p>
           ) : null}
         </div>
       </Sheet>
@@ -439,5 +436,49 @@ export function DesignSheet({
         onAskRates={() => undefined}
       />
     </>
+  );
+}
+
+/** Tags on the left, rate on the right, description underneath. */
+function DesignSheetUnderPhotoBlock({
+  facts,
+  testIdPrefix,
+}: {
+  facts: DesignSheetUnderPhoto;
+  testIdPrefix: string;
+}) {
+  const tags = facts.tags;
+  if (tags.length === 0 && !facts.rate && !facts.description) return null;
+  return (
+    <div className="flex flex-col gap-2" data-testid={`${testIdPrefix}-under-photo`}>
+      {tags.length > 0 || facts.rate ? (
+        <div className="flex items-start gap-3">
+          <div
+            className="flex min-w-0 flex-1 flex-wrap gap-1.5"
+            data-testid={`${testIdPrefix}-item-tags`}
+          >
+            {tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
+          </div>
+          {facts.rate ? (
+            <p
+              className="shrink-0 text-sm font-emphasis text-ink"
+              data-testid={`${testIdPrefix}-rate`}
+            >
+              {facts.rate}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {facts.description ? (
+        <p
+          className="whitespace-pre-wrap text-sm text-muted"
+          data-testid={`${testIdPrefix}-description`}
+        >
+          {facts.description}
+        </p>
+      ) : null}
+    </div>
   );
 }

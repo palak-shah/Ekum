@@ -1,0 +1,25 @@
+import { CollectionStatus } from '@ekum/domain-types';
+import { describe, expect, it } from 'vitest';
+import { youCollectionRowMore } from './youLibraryRowMore';
+
+describe('youCollectionRowMore', () => {
+  it('published: Hide Draft, Archive, Order', () => {
+    expect(youCollectionRowMore({ status: CollectionStatus.Published })).toEqual([
+      'hide',
+      'archive',
+      'order',
+    ]);
+  });
+
+  it('draft: Unhide Draft, Archive, Order', () => {
+    expect(youCollectionRowMore({ status: CollectionStatus.Draft })).toEqual([
+      'unhide',
+      'archive',
+      'order',
+    ]);
+  });
+
+  it('archived: Order only', () => {
+    expect(youCollectionRowMore({ status: CollectionStatus.Archived })).toEqual(['order']);
+  });
+});

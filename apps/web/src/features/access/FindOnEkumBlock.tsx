@@ -149,7 +149,7 @@ export function FindOnEkumBlock({
       <button
         type="button"
         data-testid="find-on-ekum-invite"
-        className="self-start text-sm font-bold text-accent disabled:opacity-45"
+        className="self-start text-sm font-emphasis text-accent disabled:opacity-45"
         disabled={sendInvite.isPending}
         onClick={() => sendInvite.mutate()}
       >
@@ -177,7 +177,7 @@ export function FindOnEkumBlock({
           >
             <Avatar name={company.name} imageUrl={company.logoUrl} size={36} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-ink">{company.name}</p>
+              <p className="truncate text-sm font-emphasis text-ink">{company.name}</p>
               <p className="truncate text-xs text-muted">
                 {alreadyChatting && !connected ? 'In chats' : company.city}
               </p>
@@ -186,7 +186,7 @@ export function FindOnEkumBlock({
               {connected ? (
                 <button
                   type="button"
-                  className="text-xs font-bold text-accent"
+                  className="text-xs font-emphasis text-accent"
                   onClick={() => onSelectConnected(company.id)}
                 >
                   {connectedLabel}
@@ -197,7 +197,7 @@ export function FindOnEkumBlock({
                 <button
                   type="button"
                   disabled={requestAccess.isPending}
-                  className="text-xs font-bold text-accent disabled:opacity-45"
+                  className="text-xs font-emphasis text-accent disabled:opacity-45"
                   onClick={() => requestAccess.mutate(company.id)}
                 >
                   {requestAccess.isPending && requestAccess.variables === company.id
@@ -208,7 +208,7 @@ export function FindOnEkumBlock({
               {onMessage && !connected ? (
                 <button
                   type="button"
-                  className="text-xs font-bold text-accent"
+                  className="text-xs font-emphasis text-accent"
                   onClick={() => onMessage(company.id)}
                 >
                   Message
@@ -240,7 +240,7 @@ export function FindOnEkumBlock({
     <div className="flex flex-col gap-2" data-testid="find-on-ekum">
       {variant === 'field' ? (
         <>
-          <p className="text-sm font-medium text-ink">Find on Ekum</p>
+          <p className="text-sm font-emphasis text-ink">Find on Ekum</p>
           <TextInput
             type="search"
             autoComplete="off"
@@ -256,7 +256,7 @@ export function FindOnEkumBlock({
           <button
             type="button"
             data-testid="find-on-ekum-link"
-            className="self-start text-sm font-bold text-accent"
+            className="self-start text-sm font-emphasis text-accent"
             onClick={() => setLinkOpen(true)}
           >
             Find on Ekum

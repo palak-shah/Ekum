@@ -121,7 +121,7 @@ export function OrderLineFulfillExpand({
         title={
           <p
             className={cx(
-              'line-clamp-2 break-words text-sm font-semibold',
+              'line-clamp-2 break-words text-sm font-emphasis',
               cantSupply || leftover ? 'text-muted' : 'text-ink',
             )}
           >
@@ -131,7 +131,7 @@ export function OrderLineFulfillExpand({
         secondary={
           identity ? (
             <p
-              className="truncate text-[12px] font-medium text-slate"
+              className="truncate text-[12px] font-emphasis text-slate"
               data-testid="order-line-identity"
             >
               {identity}
@@ -141,20 +141,20 @@ export function OrderLineFulfillExpand({
         cues={
           <>
             {leftover ? (
-              <p className="text-xs font-semibold text-ink">{leftover}</p>
+              <p className="text-xs font-emphasis text-ink">{leftover}</p>
             ) : null}
             {showCollapsedSupplyCue && cue ? (
               quoteFromCue ? (
                 <button
                   type="button"
-                  className="text-left text-xs font-semibold text-ink"
+                  className="text-left text-xs font-emphasis text-ink"
                   data-testid="order-line-cant-supply-cue"
                   onClick={() => onOpenQuote?.()}
                 >
                   {cue}
                 </button>
               ) : (
-                <p className="text-xs font-semibold text-ink" data-testid="order-line-cant-supply-cue">
+                <p className="text-xs font-emphasis text-ink" data-testid="order-line-cant-supply-cue">
                   {cue}
                 </p>
               )

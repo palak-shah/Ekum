@@ -28,7 +28,7 @@ export function CreateCollectionFabSheet({
             onPick(CREATE_FAB_NEW_COLLECTION_HREF);
           }}
         >
-          <p className="text-sm font-bold text-ink">Create new collection</p>
+          <p className="text-sm font-emphasis text-ink">Create new collection</p>
           <p className="mt-0.5 text-xs text-muted">Start a new collection</p>
         </button>
         <button
@@ -40,7 +40,7 @@ export function CreateCollectionFabSheet({
             onPick(CREATE_FAB_MY_COLLECTIONS_HREF);
           }}
         >
-          <p className="text-sm font-bold text-ink">Update existing collection</p>
+          <p className="text-sm font-emphasis text-ink">Update existing collection</p>
           <p className="mt-0.5 text-xs text-muted">Add or change designs in a collection</p>
         </button>
       </div>

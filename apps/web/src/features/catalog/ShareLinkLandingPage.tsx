@@ -66,11 +66,11 @@ export function ShareLinkLandingPage() {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
       <div className="flex flex-1 flex-col gap-4 pb-6">
-        <p className="text-xs font-semibold text-accent">Ekum</p>
+        <p className="text-xs font-emphasis text-accent">Ekum</p>
         {data.kind === 'designs' ? (
           <div className="overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]">
             <div className="px-4 pb-1 pt-3">
-              <p className="text-sm font-semibold text-ink">{data.name}</p>
+              <p className="text-sm font-emphasis text-ink">{data.name}</p>
               <p className="text-xs text-muted">
                 {data.companyName} · {kindLabel(data.kind)} · 48 hours
               </p>
@@ -88,7 +88,7 @@ export function ShareLinkLandingPage() {
                 className="aspect-[4/5] w-full object-cover"
               />
             ) : (
-              <div className="flex aspect-[4/5] w-full items-center justify-center bg-accent text-lg font-bold text-white">
+              <div className="flex aspect-[4/5] w-full items-center justify-center bg-accent text-lg font-emphasis text-white">
                 Ekum
               </div>
             )}
@@ -98,12 +98,12 @@ export function ShareLinkLandingPage() {
             {data.image ? (
               <img src={data.image} alt="" className="aspect-[4/5] w-full object-cover" />
             ) : (
-              <div className="flex aspect-[4/5] w-full items-center justify-center bg-accent text-lg font-bold text-white">
+              <div className="flex aspect-[4/5] w-full items-center justify-center bg-accent text-lg font-emphasis text-white">
                 Ekum
               </div>
             )}
             <div className="px-4 py-3">
-              <p className="text-sm font-semibold text-ink">{data.name}</p>
+              <p className="text-sm font-emphasis text-ink">{data.name}</p>
               <p className="text-xs text-muted">
                 {kindLabel(data.kind)} · 48 hours
               </p>
@@ -126,11 +126,11 @@ export function ShareLinkLandingPage() {
                     className="aspect-[3/4] w-full object-cover"
                   />
                 ) : (
-                  <div className="flex aspect-[3/4] items-center justify-center bg-foam text-lg font-bold text-muted">
+                  <div className="flex aspect-[3/4] items-center justify-center bg-foam text-lg font-body text-muted">
                     {design.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <p className="truncate px-2 py-1.5 text-xs font-semibold text-ink">
+                <p className="truncate px-2 py-1.5 text-xs font-emphasis text-ink">
                   {design.name}
                 </p>
               </button>

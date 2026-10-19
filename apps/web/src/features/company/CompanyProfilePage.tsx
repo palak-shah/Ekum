@@ -501,7 +501,7 @@ export function CompanyProfilePage() {
         <Avatar name={company.name} imageUrl={company.logoUrl} size={88} />
         <div className="min-w-0 flex-1 pt-1">
           {isConnected && !isOwn && contact ? (
-            <p className="truncate text-sm font-medium text-ink" data-testid="company-contact">
+            <p className="truncate text-sm font-emphasis text-ink" data-testid="company-contact">
               {contact.name}
               {contact.role ? ` ${contact.role}` : ''}
             </p>
@@ -601,7 +601,7 @@ export function CompanyProfilePage() {
                     data-testid={`company-shop-tab-${value}`}
                     onClick={() => setShopTab(value)}
                     className={cx(
-                      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium',
+                      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-emphasis',
                       shopTab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
                     )}
                   >
@@ -838,7 +838,7 @@ export function CompanyProfilePage() {
 
 /** Compact shop actions — Instagram / WhatsApp density, not kit min-h-12. */
 const shopActionClass =
-  'inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-2.5 text-[13px] font-semibold tracking-tight';
+  'inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-2.5 text-[13px] font-emphasis tracking-tight';
 
 function pickPrimaryContact(contacts: CompanyContactPoint[]): CompanyContactPoint | null {
   if (contacts.length === 0) return null;

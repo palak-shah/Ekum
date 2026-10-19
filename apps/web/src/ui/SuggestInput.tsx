@@ -111,7 +111,7 @@ export function SuggestInput({
               <button
                 type="button"
                 className={cx(
-                  'flex w-full px-3.5 py-2.5 text-left text-sm font-medium text-ink',
+                  'flex w-full px-3.5 py-2.5 text-left text-sm font-emphasis text-ink',
                   'hover:bg-foam active:bg-foam',
                 )}
                 onMouseDown={(event) => event.preventDefault()}

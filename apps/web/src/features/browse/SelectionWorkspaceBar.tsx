@@ -135,6 +135,7 @@ export function SelectionWorkspaceBar() {
     myCompanyId: me.data?.id,
   });
 
+  const nothingSelected = total < 1;
   const orderSheetsOpen = orderResolveOpen || orderFlow.qtyOpen;
   const showDock =
     typeof document !== 'undefined' &&
@@ -184,6 +185,7 @@ export function SelectionWorkspaceBar() {
                     <DockIconButton
                       testId="selection-workspace-cart"
                       label="Add to cart"
+                      disabled={nothingSelected}
                       onClick={addToCart}
                     >
                       <CartIcon width={22} height={22} />
@@ -191,7 +193,7 @@ export function SelectionWorkspaceBar() {
                     <DockIconButton
                       testId="selection-workspace-message"
                       label="Message"
-                      disabled={ownShopVerbs.messageDisabled}
+                      disabled={nothingSelected || ownShopVerbs.messageDisabled}
                       onClick={() => setMessageOpen(true)}
                     >
                       <ChatIcon width={22} height={22} />
@@ -199,6 +201,7 @@ export function SelectionWorkspaceBar() {
                     <DockIconButton
                       testId="selection-workspace-share"
                       label="Share"
+                      disabled={nothingSelected}
                       onClick={() => setShareOpen(true)}
                     >
                       <PaperPlaneIcon width={22} height={22} />
@@ -207,10 +210,13 @@ export function SelectionWorkspaceBar() {
                   <button
                     type="button"
                     data-testid="selection-workspace-order"
+                    disabled={nothingSelected}
                     onClick={startOrder}
                     className={cx(
-                      'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3',
-                      'border border-accent bg-accent text-sm font-bold text-white',
+                      'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3 text-sm font-emphasis',
+                      nothingSelected
+                        ? 'border border-line bg-surface text-muted opacity-40'
+                        : 'border border-accent bg-accent text-white',
                     )}
                   >
                     {ownShopVerbs.orderLabel}

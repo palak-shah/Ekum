@@ -7,10 +7,19 @@ import type {
   CompanySettingsView,
   ConnectionView,
   CreateProductDto,
+  MasterCategoryView,
+  MasterTaxonomyView,
   PostProductToMarketDto,
   ProductView,
 } from '@ekum/domain-types';
-import { ProductStatus, PublishAudience, Unit, unitValues } from '@ekum/domain-types';
+import {
+  ProductStatus,
+  PublishAudience,
+  Unit,
+  categoriesToTagSlots,
+  tagSlotsToCategories,
+  unitValues,
+} from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
@@ -27,11 +36,18 @@ import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
 import { readCatalogFieldMemory, writeCatalogFieldMemory } from './catalogFieldMemory';
-import { catalogRateFieldLabel } from '@/lib/catalogRate';
-import { formatRateInput, parseRateInput, rateFieldInputProps } from './rateInput';
+import { catalogRateDisplayUnit } from '@/lib/catalogRate';
+import { parseRateInput } from './rateInput';
+import { RateRangeFields } from './RateRangeFields';
 import { generateDraftSku, nameForNewDesign } from './designBatchHelpers';
 import { invalidateAfterProductEdit } from './productEditorInvalidate';
-import { TagsField } from './TagsField';
+import { CascadeTagsFields } from './CascadeTagsFields';
+import { resolveCompanyMasterOptions } from './companyMasterOptions';
+import {
+  applyDesignRateUnit,
+  designEditorCategories,
+  designMasterCategoryId,
+} from './designEditorDefaults';
 import {
   emptyPublishAudienceState,
   publishAudienceCanSubmit,
@@ -76,6 +92,7 @@ export function ProductEditorPage() {
     rate: '',
     moq: '',
     unit: editing ? '' : memory.unit,
+    dispatchUnit: '',
     description: '',
     categories: editing ? '' : memory.category,
   });
@@ -106,6 +123,42 @@ export function ProductEditorPage() {
     enabled: marketOpen,
   });
 
+  const masterCategoriesQuery = useQuery({
+    queryKey: ['catalog-master-categories'],
+    queryFn: () => api.get<MasterCategoryView[]>('/catalog/master-categories'),
+    staleTime: 60_000,
+  });
+  const companyMasterOptions = useMemo(
+    () =>
+      resolveCompanyMasterOptions(
+        masterCategoriesQuery.data,
+        company.data?.masterCategories,
+        company.data?.superCategories,
+      ),
+    [masterCategoriesQuery.data, company.data?.masterCategories, company.data?.superCategories],
+  );
+  const masterCategoryId = designMasterCategoryId(
+    existing.data?.collectionPacks ?? [],
+    companyMasterOptions.map((option) => option.id),
+  );
+  const masterTaxonomy = useQuery({
+    queryKey: ['catalog-master-taxonomy', masterCategoryId],
+    queryFn: () =>
+      api.get<MasterTaxonomyView>(
+        `/catalog/master-taxonomy?categoryId=${encodeURIComponent(masterCategoryId!)}`,
+      ),
+    enabled: Boolean(masterCategoryId),
+    staleTime: 60_000,
+  });
+  const permittedUnits = masterTaxonomy.data?.units ?? [];
+  const rateUnit =
+    catalogRateDisplayUnit({
+      unit: form.unit || Unit.Set,
+      dispatchUnit: form.dispatchUnit || form.unit || Unit.Set,
+      offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
+    }) ?? Unit.Piece;
+  const tagSlots = categoriesToTagSlots(parseList(form.categories));
+
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
   const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
   const onMarket = Boolean(existing.data?.postedToMarketAt);
@@ -115,35 +168,26 @@ export function ProductEditorPage() {
   const statusLine = existing.data
     ? productStatusLine(existing.data, broadcastLists.data ?? [])
     : null;
-  const hasExtraDetails = Boolean(
-    form.sku.trim() ||
-      form.categories.trim() ||
-      form.description.trim() ||
-      existing.data?.sku,
-  );
-
   useEffect(() => {
     if (existing.data) {
       setForm({
         name: existing.data.name,
         sku: existing.data.sku ?? '',
-        rate: formatRateInput(existing.data.rate, existing.data.rateMax ?? null),
+        rate:
+          existing.data.rate == null ? '' : String(existing.data.rate),
         moq:
           existing.data.moq === null || existing.data.moq === undefined
             ? ''
             : String(existing.data.moq),
         unit: existing.data.unit ?? '',
+        dispatchUnit: existing.data.dispatchUnit ?? '',
         description: existing.data.description ?? '',
-        categories: existing.data.categories.join(', '),
+        categories: designEditorCategories(
+          existing.data.categories,
+          existing.data.collectionPacks ?? [],
+        ).join(', '),
       });
       setImageUrls(existing.data.images);
-      setDetailsOpen(
-        Boolean(
-          existing.data.sku ||
-            existing.data.categories.length ||
-            existing.data.description?.trim(),
-        ),
-      );
       setPublishAudience(
         restorePublishAudienceState({
           audience: existing.data.audience || PublishAudience.Followers,
@@ -157,14 +201,18 @@ export function ProductEditorPage() {
       savedSnapshotRef.current = JSON.stringify({
         name: existing.data.name,
         sku: existing.data.sku ?? '',
-        rate: formatRateInput(existing.data.rate, existing.data.rateMax ?? null),
+        rate: existing.data.rate == null ? '' : String(existing.data.rate),
         moq:
           existing.data.moq === null || existing.data.moq === undefined
             ? ''
             : String(existing.data.moq),
         unit: existing.data.unit ?? '',
+        dispatchUnit: existing.data.dispatchUnit ?? '',
         description: existing.data.description ?? '',
-        categories: existing.data.categories.join(', '),
+        categories: designEditorCategories(
+          existing.data.categories,
+          existing.data.collectionPacks ?? [],
+        ).join(', '),
         images: existing.data.images,
       });
     }
@@ -228,9 +276,12 @@ export function ProductEditorPage() {
       name,
       sku: form.sku.trim() || (existing.data?.sku ? undefined : resolvedSku),
       rate: parsed.rate,
-      rateMax: parsed.rateMax,
+      rateMax: null,
       moq: form.moq.trim() ? Number(form.moq) : null,
       unit: form.unit ? (form.unit as (typeof unitValues)[number]) : undefined,
+      dispatchUnit: form.dispatchUnit
+        ? (form.dispatchUnit as (typeof unitValues)[number])
+        : undefined,
       description: form.description.trim() || undefined,
       categories: parseList(form.categories),
       images: imageUrls,
@@ -347,6 +398,7 @@ export function ProductEditorPage() {
         rate: form.rate,
         moq: form.moq,
         unit: form.unit,
+        dispatchUnit: form.dispatchUnit,
         description: form.description,
         categories: form.categories,
         images: imageUrls,
@@ -501,7 +553,7 @@ export function ProductEditorPage() {
           className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam text-muted"
         >
           <CameraIcon width={32} height={32} />
-          <span className="text-sm font-medium text-ink">
+          <span className="text-sm font-emphasis text-ink">
             {uploading ? 'Uploading…' : 'Add photo · camera or gallery'}
           </span>
         </button>
@@ -568,101 +620,98 @@ export function ProductEditorPage() {
           placeholder={form.sku.trim() || existing.data?.sku || 'Blue georgette saree'}
         />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={catalogRateFieldLabel(form.unit)} hint="Blank = on request">
-          <TextInput
-            value={form.rate}
-            onChange={(e) => setForm({ ...form, rate: e.target.value })}
-            {...rateFieldInputProps}
-          />
-        </Field>
-        <Field label="Unit">
-          <select
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            className="rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-accent"
-          >
-            <option value="">—</option>
-            {unitValues.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit === Unit.Metre ? 'metre' : unit}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <Field label="Minimum order" hint="Pieces · blank if no minimum">
-        <TextInput
-          type="number"
-          min={1}
-          inputMode="numeric"
-          value={form.moq}
-          onChange={(e) => setForm({ ...form, moq: e.target.value })}
-          placeholder="100"
-        />
-      </Field>
+      <RateRangeFields
+        fixedOnly
+        from={form.rate}
+        to=""
+        rateUnit={rateUnit}
+        permittedUnits={permittedUnits}
+        onRateUnit={(next) =>
+          setForm((prev) => ({ ...prev, ...applyDesignRateUnit(prev.unit, next) }))
+        }
+        onFrom={(next) => setForm({ ...form, rate: next })}
+        onTo={() => undefined}
+      />
+      <CascadeTagsFields
+        items={tagSlots.items}
+        qualities={tagSlots.qualities}
+        sizes={tagSlots.sizes}
+        masterCategoryId={masterCategoryId}
+        onItems={(items) =>
+          setForm({
+            ...form,
+            categories: tagSlotsToCategories({ ...tagSlots, items }).join(', '),
+          })
+        }
+        onQualities={(qualities) =>
+          setForm({
+            ...form,
+            categories: tagSlotsToCategories({ ...tagSlots, qualities }).join(', '),
+          })
+        }
+        onSizes={(sizes) =>
+          setForm({
+            ...form,
+            categories: tagSlotsToCategories({ ...tagSlots, sizes }).join(', '),
+          })
+        }
+      />
 
-      {detailsOpen || hasExtraDetails ? (
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            className="self-start text-sm font-medium text-accent"
-            onClick={() => setDetailsOpen((open) => !open)}
-          >
-            {detailsOpen ? 'Hide details' : 'More details'}
-          </button>
-          {detailsOpen ? (
-            <>
-              <Field
-                label="Reference / SKU"
-                hint={
-                  existing.data?.sku
-                    ? 'Locked for this design.'
-                    : 'Optional — Ekum assigns one if you leave this blank.'
-                }
-              >
-                <TextInput
-                  value={form.sku || existing.data?.sku || ''}
-                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                  disabled={Boolean(existing.data?.sku)}
-                  placeholder="Leave blank to auto-assign"
-                />
-              </Field>
-              <TagsField
-                label="Tags"
-                value={parseList(form.categories)}
-                onChange={(tags) => setForm({ ...form, categories: tags.join(', ') })}
-              />
-              <Field
-                label="Notes"
-                hint="Fabric, size, width — anything buyers should know."
-                error={error}
-              >
-                <TextArea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="e.g. 44 inch, cotton, queen size"
-                />
-              </Field>
-            </>
-          ) : null}
-        </div>
-      ) : (
+      <div className="flex flex-col gap-3">
         <button
           type="button"
-          className="self-start text-sm font-medium text-accent"
-          onClick={() => setDetailsOpen(true)}
+          className="self-start text-sm font-emphasis text-accent"
+          onClick={() => setDetailsOpen((open) => !open)}
         >
-          More details
+          {detailsOpen ? 'Hide details' : 'Show details'}
         </button>
-      )}
+        {detailsOpen ? (
+          <>
+            <Field
+              label="Reference / SKU"
+              hint={
+                existing.data?.sku
+                  ? 'Locked for this design.'
+                  : 'Optional — Ekum assigns one if you leave this blank.'
+              }
+            >
+              <TextInput
+                value={form.sku || existing.data?.sku || ''}
+                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                disabled={Boolean(existing.data?.sku)}
+                placeholder="Leave blank to auto-assign"
+              />
+            </Field>
+            <Field label="Minimum order" hint="Pieces · blank if no minimum">
+              <TextInput
+                type="number"
+                min={1}
+                inputMode="numeric"
+                value={form.moq}
+                onChange={(e) => setForm({ ...form, moq: e.target.value })}
+                placeholder="100"
+              />
+            </Field>
+            <Field
+              label="Notes"
+              hint="Fabric, size, width — anything buyers should know."
+              error={error}
+            >
+              <TextArea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="e.g. 44 inch, cotton, queen size"
+              />
+            </Field>
+          </>
+        ) : null}
+      </div>
 
       {editing && existing.data
         ? createPortal(
             <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
               <div className="mx-auto flex max-w-md gap-2">
                 <Button
-                  variant="secondary"
                   className="min-w-0 flex-1"
                   disabled={save.isPending || uploading}
                   onClick={() => save.mutate()}
@@ -671,6 +720,7 @@ export function ProductEditorPage() {
                 </Button>
                 {isArchived ? (
                   <Button
+                    variant="secondary"
                     className="min-w-0 flex-1"
                     disabled={restore.isPending}
                     onClick={() => restore.mutate()}
@@ -679,6 +729,7 @@ export function ProductEditorPage() {
                   </Button>
                 ) : isDraft ? (
                   <Button
+                    variant="secondary"
                     className="min-w-0 flex-1"
                     disabled={imageUrls.length < 1}
                     onClick={() => setMarketOpen(true)}
@@ -686,7 +737,11 @@ export function ProductEditorPage() {
                     Publish
                   </Button>
                 ) : (
-                  <Button className="min-w-0 flex-1" onClick={() => setMarketOpen(true)}>
+                  <Button
+                    variant="secondary"
+                    className="min-w-0 flex-1"
+                    onClick={() => setMarketOpen(true)}
+                  >
                     Visibility
                   </Button>
                 )}

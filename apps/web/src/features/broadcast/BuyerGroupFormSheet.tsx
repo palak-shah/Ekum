@@ -120,7 +120,7 @@ export function BuyerGroupFormSheet({
         </Field>
 
         <div>
-          <p className="mb-2 text-sm font-semibold text-ink">Publish defaults</p>
+          <p className="mb-2 text-sm font-emphasis text-ink">Publish defaults</p>
           <div className="flex flex-col gap-1.5">
             {(
               [
@@ -135,7 +135,7 @@ export function BuyerGroupFormSheet({
                 className={cx(
                   'rounded-xl border px-3 py-2.5 text-left text-sm',
                   draft.useOverride === value
-                    ? 'border-accent bg-accent/5 font-medium text-ink'
+                    ? 'border-accent bg-accent/5 font-emphasis text-ink'
                     : 'border-line text-muted',
                 )}
               >
@@ -148,7 +148,7 @@ export function BuyerGroupFormSheet({
         {draft.useOverride ? (
           <>
             <div>
-              <p className="mb-2 text-sm font-semibold text-ink">Show rates</p>
+              <p className="mb-2 text-sm font-emphasis text-ink">Show rates</p>
               <div className="flex flex-col gap-1.5">
                 {(
                   [
@@ -163,7 +163,7 @@ export function BuyerGroupFormSheet({
                     className={cx(
                       'rounded-xl border px-3 py-2.5 text-left text-sm',
                       draft.defaultRateVisibility === value
-                        ? 'border-accent bg-accent/5 font-medium text-ink'
+                        ? 'border-accent bg-accent/5 font-emphasis text-ink'
                         : 'border-line text-muted',
                     )}
                   >

@@ -91,7 +91,7 @@ export function SameRateForAll({
           autoCorrect="off"
           spellCheck={false}
           placeholder=""
-          className="h-10 min-h-10 w-[7.5rem] shrink-0 px-2.5 text-center text-base font-bold tabular-nums"
+          className="h-10 min-h-10 w-[7.5rem] shrink-0 px-2.5 text-center text-base font-title tabular-nums"
           value={draft}
           aria-label={ariaLabel}
           onChange={(event) => onDraftChange(sanitizeQuoteRateInput(event.target.value))}
@@ -134,7 +134,7 @@ function SameQtyRateFields({
       <div className="min-w-0 flex-1 pr-2">
         <label
           htmlFor="same-for-all-qty"
-          className="text-[10px] font-medium uppercase tracking-wide text-muted"
+          className="text-[10px] font-body uppercase tracking-wide text-muted"
         >
           Qty
         </label>
@@ -156,7 +156,7 @@ function SameQtyRateFields({
       <div className="min-w-0 flex-[1.4] pl-2">
         <label
           htmlFor="same-for-all-rate"
-          className="text-[10px] font-medium uppercase tracking-wide text-muted"
+          className="text-[10px] font-body uppercase tracking-wide text-muted"
         >
           Rate
         </label>
@@ -230,13 +230,13 @@ export function SameQtyRateForAll({
       <button
         type="submit"
         disabled={!canApply}
-        className="text-[13px] font-bold text-accent disabled:opacity-45"
+        className="text-[13px] font-emphasis text-accent disabled:opacity-45"
       >
         Apply
       </button>
       <button
         type="button"
-        className="text-[13px] font-bold text-muted"
+        className="text-[13px] font-body text-muted"
         onClick={onCancel}
       >
         Cancel
@@ -268,7 +268,7 @@ export function SameQtyRateForAll({
         */}
         <div className="flex items-start gap-2.5">
           <div
-            className="flex h-16 w-[5.75rem] min-h-16 shrink-0 items-center justify-center rounded-xl bg-foam px-1.5 text-center text-xs font-semibold leading-snug text-muted"
+            className="flex h-16 w-[5.75rem] min-h-16 shrink-0 items-center justify-center rounded-xl bg-foam px-1.5 text-center text-xs font-body leading-snug text-muted"
             data-testid="same-for-all-thumb"
           >
             Same for all
@@ -299,7 +299,7 @@ export function SameQtyRateForAll({
           }
         }}
       >
-        <span className="text-[12px] font-semibold text-ink">Same for all</span>
+        <span className="text-[12px] font-emphasis text-ink">Same for all</span>
         {fields}
         {actions}
       </form>

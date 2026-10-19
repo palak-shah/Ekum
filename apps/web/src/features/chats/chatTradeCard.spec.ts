@@ -161,6 +161,40 @@ describe('buildOrderTradeCard slots', () => {
       }).action?.label,
     ).toBe('View order →');
   });
+
+  it('shows quiet Decline with View order when the buyer can decline', () => {
+    const decline = vi.fn();
+    const message = orderMessage({
+      reference: {
+        id: 'ord-1',
+        kind: 'order',
+        name: 'Order #J5NS',
+        image: null,
+        orderLabel: 'Order #J5NS',
+        available: true,
+        canDeclineOrder: true,
+        event: OrderChatEvent.OrderRequested,
+        intent: 'order',
+      },
+    });
+    const model = buildOrderTradeCard(message, message.reference, 'Jaipur Emporium', false, {
+      openOrder: () => undefined,
+      declineOrder: decline,
+    });
+    expect(model.action?.label).toBe('View order →');
+    expect(model.secondaryAction?.label).toBe('Decline');
+    model.secondaryAction?.onClick?.();
+    expect(decline).toHaveBeenCalled();
+  });
+
+  it('omits Decline when the card is not wired to decline', () => {
+    const message = orderMessage();
+    const model = buildOrderTradeCard(message, message.reference, 'Jaipur Emporium', false, {
+      openOrder: () => undefined,
+    });
+    expect(model.action?.label).toBe('View order →');
+    expect(model.secondaryAction).toBeUndefined();
+  });
 });
 
 describe('buildCollectionTradeCard / buildDesignTradeCard', () => {

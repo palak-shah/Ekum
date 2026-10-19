@@ -58,7 +58,7 @@ export function highlightSearchText(text: string, query: string | null | undefin
           {
             key: `${index}-${part}`,
             className:
-              'rounded-[3px] bg-warning-soft px-0.5 font-semibold text-warning-ink [box-decoration-break:clone]',
+              'rounded-[3px] bg-warning-soft px-0.5 font-emphasis text-warning-ink [box-decoration-break:clone]',
           },
           part,
         )

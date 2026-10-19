@@ -97,7 +97,7 @@ import {
   collectionMoreMenuNote,
   collectionOwnerManageDock,
   collectionOwnerCanEditDesign,
-  collectionPackDetailSections,
+  collectionFactsLine,
   collectionShowHandleCopy,
   collectionThisPackSelectedIds,
   collectionViewerListedProducts,
@@ -105,6 +105,7 @@ import {
   designTileRateOverlay,
 } from '@/features/collections/collectionViewerChrome';
 import { CollectionPackDetails } from '@/features/collections/CollectionPackDetails';
+import { howManySetsBanner } from '@/features/orders/howManyLineMeta';
 import { FeedDesignPhotoCarousel } from '@/features/collections/FeedDesignPhotoCarousel';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
@@ -912,19 +913,21 @@ export function CollectionViewerPage() {
   };
 
   const data = collection.data;
-  const floaterClearance =
-    (selectMode && thisAlbumCount + albumPick.count > 0) || showResumeContinue;
+  const floaterClearance = selectMode || showResumeContinue;
   // API: pack rate or design min–max; null for non-owners when on request.
   const rateBand = albumFactsRateBand({
     rateMin: data?.rateMin,
     rateMax: data?.rateMax,
     rateUnit: data?.rateUnit,
   });
-  const packDetails = collectionPackDetailSections({
-    categories: data?.categories,
-    description: data?.description,
-    rateBand,
-  });
+  const packFacts = collectionFactsLine(data?.categories, rateBand);
+  const journeyLine = howManySetsBanner(
+    products.map((product) => ({
+      unit: product.unit,
+      dispatchUnit: product.dispatchUnit,
+    })),
+  );
+  const showPackDetails = Boolean(packFacts || journeyLine || data?.description?.trim());
   const moreMenuNote = collectionMoreMenuNote({
     visitor: !isOwner,
     // Grant / follow look-through without Connect — not gated Ask (no products).
@@ -980,20 +983,21 @@ export function CollectionViewerPage() {
       />
 
       <div className="flex flex-col gap-1.5">
-        {packDetails.length > 0 ||
+        {showPackDetails ||
         ownerSourceLine ||
         (data.products && showHandleCopy) ? (
           <div className="flex flex-col gap-1">
-            {packDetails.length > 0 ? (
+            {showPackDetails ? (
               <CollectionPackDetails
                 categories={data.categories}
                 description={data.description}
                 rateBand={rateBand}
+                journeyLine={journeyLine}
               />
             ) : null}
             {ownerSourceLine ? (
               <p
-                className="px-0.5 text-sm font-semibold tracking-tight text-ink"
+                className="px-0.5 text-sm font-emphasis tracking-tight text-ink"
                 data-testid="collection-owner-source"
               >
                 {ownerSourceLine}
@@ -1001,7 +1005,7 @@ export function CollectionViewerPage() {
             ) : null}
             {data.products && showHandleCopy ? (
               <div className="px-0.5" data-testid="collection-order-goes-to">
-                <p className="text-sm font-semibold text-ink">Order goes to {data.company.name}</p>
+                <p className="text-sm font-emphasis text-ink">Order goes to {data.company.name}</p>
                 <p className="text-xs text-muted">You chat with them. They send the mill lots on.</p>
               </div>
             ) : null}
@@ -1266,7 +1270,7 @@ export function CollectionViewerPage() {
             <LockIcon />
           </span>
           <div>
-            <p className="text-sm font-semibold text-ink">Ask to see this collection</p>
+            <p className="text-sm font-emphasis text-ink">Ask to see this collection</p>
             <p className="text-xs text-muted">
               Ask {data.company.name} to open this collection so you can look through it. Not
               connect, and not putting designs in your collection.
@@ -1275,7 +1279,7 @@ export function CollectionViewerPage() {
           <Button onClick={() => askToSee.mutate()} disabled={askToSee.isPending}>
             {askToSee.isPending ? 'Asking…' : 'Ask to see this collection'}
           </Button>
-          <Link to={`/company/${data.company.id}`} className="text-xs font-medium text-accent">
+          <Link to={`/company/${data.company.id}`} className="text-xs font-emphasis text-accent">
             Request catalog access on their shop
           </Link>
         </Card>
@@ -1283,7 +1287,7 @@ export function CollectionViewerPage() {
 
       {data.products && isCuratedPack && !isOwner && !handlePack ? (
         <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">Message to order these designs</p>
+          <p className="text-sm font-emphasis text-ink">Message to order these designs</p>
           <p className="text-xs text-muted">
             This collection mixes designs from more than one business. Chat to place an order.
           </p>
@@ -1299,7 +1303,7 @@ export function CollectionViewerPage() {
 
       {isOwner && (viewGrants.data?.length ?? 0) > 0 ? (
         <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">Granted on request</p>
+          <p className="text-sm font-emphasis text-ink">Granted on request</p>
           <p className="text-xs text-muted">
             Businesses you Allowed for this collection only — not Connections.
           </p>
@@ -1309,12 +1313,12 @@ export function CollectionViewerPage() {
                 key={grant.companyId}
                 className="flex items-center justify-between gap-2 text-sm"
               >
-                <span className="min-w-0 truncate font-medium text-ink">
+                <span className="min-w-0 truncate font-emphasis text-ink">
                   {grant.company.name}
                 </span>
                 <button
                   type="button"
-                  className="shrink-0 text-xs font-semibold text-danger"
+                  className="shrink-0 text-xs font-emphasis text-danger"
                   disabled={revokeGrant.isPending}
                   onClick={() => revokeGrant.mutate(grant.companyId)}
                 >
@@ -1459,12 +1463,12 @@ export function CollectionViewerPage() {
                           className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-lg font-bold text-muted">
+                        <div className="absolute inset-0 flex items-center justify-center text-lg font-body text-muted">
                           {product.name.charAt(0)}
                         </div>
                       )}
                       {on ? (
-                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-bold text-white">
+                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-emphasis text-white">
                           ✓
                         </span>
                       ) : null}
@@ -1643,7 +1647,7 @@ function AccessPendingCard({
       </span>
       <div>
         <div className="mb-1 flex items-center justify-center gap-2">
-          <p className="text-sm font-semibold text-ink">Waiting for them</p>
+          <p className="text-sm font-emphasis text-ink">Waiting for them</p>
           <StatusPill status="pending" />
         </div>
         <p className="text-xs text-muted">
@@ -1654,7 +1658,7 @@ function AccessPendingCard({
       <Button onClick={onOpenChat} disabled={opening}>
         {opening ? 'Opening…' : 'Open chat'}
       </Button>
-      <Link to={`/company/${companyId}`} className="text-xs font-medium text-accent">
+      <Link to={`/company/${companyId}`} className="text-xs font-emphasis text-accent">
         Request catalog access on their shop
       </Link>
     </Card>
@@ -1735,12 +1739,12 @@ function DesignTile({
           variant === 'feed' ? 'p-3' : 'p-2.5',
         )}
       >
-        <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">{product.name}</p>
         {shopLine ? (
           <p
             className={cx(
               'truncate text-xs',
-              curatedFrom ? 'font-semibold text-ink' : 'text-muted',
+              curatedFrom ? 'font-emphasis text-ink' : 'text-muted',
             )}
             data-testid={curatedFrom ? 'collection-design-from' : undefined}
           >

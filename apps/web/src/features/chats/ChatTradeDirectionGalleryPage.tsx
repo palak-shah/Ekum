@@ -127,11 +127,11 @@ const CASES: { id: string; label: string; model: ChatTradeCardModel }[] = [
 export function ChatTradeDirectionGalleryPage() {
   return (
     <div className="min-h-dvh bg-canvas px-3 py-4" data-testid="chat-trade-direction-gallery">
-      <p className="mb-3 text-[13px] font-semibold text-ink">Chat business-object direction rule</p>
+      <p className="mb-3 text-[13px] font-emphasis text-ink">Chat business-object direction rule</p>
       <div className="flex flex-col gap-5">
         {CASES.map((row) => (
           <section key={row.id} data-case={row.id} className="flex flex-col gap-1.5">
-            <p className="text-[11px] font-medium text-muted">{row.label}</p>
+            <p className="text-[11px] font-body text-muted">{row.label}</p>
             <div className={row.model.mine ? 'flex justify-end' : 'flex justify-start'}>
               <div className="w-[85%]">
                 <ChatTradeCard

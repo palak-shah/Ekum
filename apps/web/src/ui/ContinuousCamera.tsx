@@ -435,7 +435,7 @@ export function ContinuousCamera({
           <button
             type="button"
             onClick={handleCancel}
-            className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-white"
+            className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-emphasis text-white"
           >
             Cancel
           </button>
@@ -443,7 +443,7 @@ export function ContinuousCamera({
             <button
               type="button"
               onClick={handleGallery}
-              className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
+              className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-emphasis text-white/85"
             >
               Gallery
             </button>
@@ -453,13 +453,13 @@ export function ContinuousCamera({
               type="button"
               data-testid="continuous-camera-designs"
               onClick={handleDesigns}
-              className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-medium text-white/85"
+              className="min-h-11 shrink-0 rounded-xl px-2 text-sm font-emphasis text-white/85"
             >
               Designs
             </button>
           ) : null}
         </div>
-        <p className="shrink-0 text-sm font-semibold tabular-nums">{shots.length}/{maxShots}</p>
+        <p className="shrink-0 text-sm font-title tabular-nums">{shots.length}/{maxShots}</p>
         <Button
           type="button"
           className="pointer-events-auto min-h-11 min-w-[4.5rem] px-3"
@@ -478,7 +478,7 @@ export function ContinuousCamera({
           aria-pressed={torchOn}
           onClick={() => void toggleTorch()}
           className={cx(
-            'absolute right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] z-10 min-h-11 min-w-11 rounded-full px-3 text-xs font-bold',
+            'absolute right-4 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] z-10 min-h-11 min-w-11 rounded-full px-3 text-xs font-emphasis',
             torchOn ? 'bg-accent text-white' : 'bg-black/55 text-white',
           )}
         >
@@ -509,7 +509,7 @@ export function ContinuousCamera({
 
         {zoomRange ? (
           <label className="flex items-center gap-3">
-            <span className="shrink-0 text-xs font-semibold text-white/80">Zoom</span>
+            <span className="shrink-0 text-xs font-emphasis text-white/80">Zoom</span>
             <input
               type="range"
               min={zoomRange.min}

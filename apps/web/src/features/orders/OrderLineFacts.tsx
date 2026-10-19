@@ -35,7 +35,7 @@ function FactCell({
     >
       <p
         className={cx(
-          'font-medium uppercase tracking-wide text-muted',
+          'font-body uppercase tracking-wide text-muted',
           compact ? 'text-[10px] leading-none' : 'text-[10px] leading-tight',
         )}
       >
@@ -46,7 +46,7 @@ function FactCell({
           // Do not set text-ink with a tone class — cx is not twMerge; text-ink
           // sorts after text-info in CSS and would paint over-balance black.
           // Values stay untruncated so ₹4,250 is never clipped to ₹4… (BM-07).
-          'text-sm font-semibold leading-tight tabular-nums',
+          'text-sm font-emphasis leading-tight tabular-nums',
           valueClass ?? 'text-ink',
         )}
       >
@@ -194,7 +194,7 @@ export function OrderLineFacts({
     return (
       <p
         className={cx(
-          'mt-0.5 truncate text-[12px] font-medium tabular-nums text-ink',
+          'mt-0.5 truncate text-[12px] font-emphasis tabular-nums text-ink',
           className,
         )}
         data-testid="order-line-facts"
@@ -203,7 +203,7 @@ export function OrderLineFacts({
         <span data-testid="order-line-fact-qty">{qtyLabel}</span>
         {hasPrice ? (
           <>
-            <span className="font-normal text-muted"> · </span>
+            <span className="font-body text-muted"> · </span>
             <span data-testid="order-line-fact-price">
               {formatOrderLinePriceAmount(item.rate!)}
             </span>
@@ -211,7 +211,7 @@ export function OrderLineFacts({
         ) : null}
         {bill != null ? (
           <>
-            <span className="font-normal text-muted"> · </span>
+            <span className="font-body text-muted"> · </span>
             <span data-testid="order-line-fact-bill">
               {formatOrderLinePriceAmount(bill)}
             </span>
@@ -219,15 +219,15 @@ export function OrderLineFacts({
         ) : null}
         {showShip ? (
           <>
-            <span className="font-normal text-muted"> · </span>
+            <span className="font-body text-muted"> · </span>
             <span data-testid="order-line-fact-shipped">ship {shipped}</span>
           </>
         ) : null}
         {balance ? (
           <>
-            <span className="font-normal text-muted"> · </span>
+            <span className="font-body text-muted"> · </span>
             <span
-              className={cx('font-semibold', balanceValueClass(balance.tone))}
+              className={cx('font-emphasis', balanceValueClass(balance.tone))}
               data-testid="order-line-fact-balance"
             >
               {formatOrderLineBalance(balance.value)}
@@ -304,7 +304,7 @@ export function OrderLineFacts({
       </div>
       {captions.length > 0 ? (
         <p
-          className="mt-1 text-[11px] font-medium leading-snug text-muted"
+          className="mt-1 text-[11px] font-body leading-snug text-muted"
           data-testid="order-line-billing-captions"
         >
           {captions.join(' · ')}

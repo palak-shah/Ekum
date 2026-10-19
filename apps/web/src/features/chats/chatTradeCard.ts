@@ -53,6 +53,9 @@ export interface TradeCardActions {
   openOrder?: () => void;
   quoteAccept?: () => void;
   accepting?: boolean;
+  /** Buyer Decline on a ticket someone else logged. */
+  declineOrder?: () => void;
+  declining?: boolean;
   collectionPath?: string;
   productPath?: string;
   /** Virtual design set (clubbed designs, not a Collection). */
@@ -289,6 +292,12 @@ export function buildOrderTradeCard(
     thumbs,
     thumbOverflow: overflow,
     action: buildOrderActions({ ...actions, ref }),
+    secondaryAction: actions.declineOrder
+      ? {
+          label: actions.declining ? 'Declining…' : 'Decline',
+          onClick: actions.declining ? undefined : actions.declineOrder,
+        }
+      : undefined,
     note: quoteNote,
     noteVoiceUrl,
     noteVoiceDurationMs,

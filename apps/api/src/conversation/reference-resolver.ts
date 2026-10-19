@@ -355,6 +355,7 @@ export class ReferenceResolver {
             actorLabel: null,
             canAcceptQuote: false,
             canAcceptLogged: false,
+            canDeclineOrder: false,
             intent: null,
           });
           continue;
@@ -459,8 +460,16 @@ export class ReferenceResolver {
           order!.items.some(
             (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
           );
-        // Seller-logged tickets auto-confirm — no Accept CTA (buyer Declines from ticket).
+        // Seller-logged tickets auto-confirm — no Accept CTA.
         const canAcceptLogged = false;
+        const loggedForBuyer =
+          Boolean(order?.createdByCompanyId) &&
+          order!.createdByCompanyId !== order!.buyerCompanyId;
+        const canDeclineOrder =
+          direction === 'buying' &&
+          loggedForBuyer &&
+          order?.intent !== 'inquiry' &&
+          (order?.status === OrderStatus.Requested || order?.status === OrderStatus.Confirmed);
 
         references.set(message.id, {
           kind: isRateCard ? 'rate' : 'order',
@@ -485,6 +494,7 @@ export class ReferenceResolver {
           actorLabel,
           canAcceptQuote,
           canAcceptLogged,
+          canDeclineOrder,
           intent:
             order?.intent === 'inquiry' || order?.intent === 'order' ? order.intent : null,
         });

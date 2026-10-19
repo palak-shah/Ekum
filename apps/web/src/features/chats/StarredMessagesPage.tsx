@@ -70,7 +70,7 @@ export function StarredMessagesPage() {
                     )}
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="min-w-0 truncate text-sm font-bold text-ink">{title}</p>
+                      <p className="min-w-0 truncate text-sm font-emphasis text-ink">{title}</p>
                       <p className="shrink-0 text-[10px] text-muted">{timeAgo(row.starredAt)}</p>
                     </div>
                     <p className="mt-0.5 truncate text-sm text-muted">{preview}</p>
@@ -81,7 +81,7 @@ export function StarredMessagesPage() {
                       variant="ghost"
                       data-testid={`starred-unstar-${row.message.id}`}
                       disabled={unstar.isPending}
-                      className="px-2.5 py-1.5 text-xs font-bold text-accent"
+                      className="px-2.5 py-1.5 text-xs font-emphasis text-accent"
                       onClick={() => unstar.mutate(row.message.id)}
                     >
                       Unstar

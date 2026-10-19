@@ -210,7 +210,7 @@ export function NoteAttachField({
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
               onClick={() => void onMic()}
             >
               <MicIcon width={16} height={16} className="text-muted" />
@@ -222,7 +222,7 @@ export function NoteAttachField({
             role="menuitem"
             disabled={photosFull}
             data-testid="note-attach-camera"
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam disabled:opacity-40"
             onClick={() => {
               setMenuOpen(false);
               cameraRef.current?.click();
@@ -236,7 +236,7 @@ export function NoteAttachField({
             role="menuitem"
             disabled={photosFull}
             data-testid="note-attach-gallery"
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-foam disabled:opacity-40"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam disabled:opacity-40"
             onClick={() => {
               setMenuOpen(false);
               galleryRef.current?.click();
@@ -254,9 +254,9 @@ export function NoteAttachField({
     <div className="flex flex-col gap-2" ref={wrapRef}>
       {showComposer ? (
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-ink">
+          <p className="text-sm font-emphasis text-ink">
             {label}
-            {optional ? <span className="font-normal text-muted"> (optional)</span> : null}
+            {optional ? <span className="font-body text-muted"> (optional)</span> : null}
           </p>
           {plusMenu}
         </div>
@@ -265,7 +265,7 @@ export function NoteAttachField({
           <button
             type="button"
             data-testid="note-attach-add"
-            className="min-w-0 flex-1 rounded-xl border border-transparent px-0 py-1.5 text-left text-sm font-medium text-muted hover:text-ink"
+            className="min-w-0 flex-1 rounded-xl border border-transparent px-0 py-1.5 text-left text-sm font-body text-muted hover:text-ink"
             onClick={() => setExpanded(true)}
           >
             Add note
@@ -294,7 +294,7 @@ export function NoteAttachField({
           className="flex items-center justify-between gap-2 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2"
           data-testid="note-attach-recording"
         >
-          <p className="text-sm font-medium text-danger">
+          <p className="text-sm font-emphasis text-danger">
             Recording… {formatVoiceDuration(recorder.elapsedMs)}
           </p>
           <Button

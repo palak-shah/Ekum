@@ -183,7 +183,7 @@ export function StartChatSheet({ open, onClose }: Props) {
             {error ? <InlineNotice message={error} /> : null}
             {existingThreadId ? (
               <>
-                <p className="rounded-xl bg-foam px-3 py-2.5 text-sm font-medium text-ink">
+                <p className="rounded-xl bg-foam px-3 py-2.5 text-sm font-emphasis text-ink">
                   Same as {existingThreadTitle?.trim() || 'that chat'}.
                 </p>
                 <Button
@@ -251,7 +251,7 @@ export function StartChatSheet({ open, onClose }: Props) {
                   <button
                     type="button"
                     data-testid="start-chat-team-select-all"
-                    className="shrink-0 text-xs font-bold text-accent"
+                    className="shrink-0 text-xs font-emphasis text-accent"
                     onClick={toggleVisibleStaff}
                   >
                     {allVisibleSelected ? 'Clear' : 'Select all'}

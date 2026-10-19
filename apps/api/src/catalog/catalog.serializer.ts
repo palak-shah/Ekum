@@ -3,6 +3,7 @@ import type { Collection, CollectionProduct, Product, User } from '@prisma/clien
 import { ProductStatus, type CollectionDetailView, type CollectionView, type ProductView } from '@ekum/domain-types';
 import { toAuditActor } from '../common/audit';
 import { collectionPreviewFromRow } from '../discovery/collection-preview';
+import { libraryCollectionThumb } from './library-collection-thumb';
 import { collectionMemberFind } from './collection-member-find';
 
 type ActorUser = Pick<User, 'id' | 'name'>;
@@ -11,7 +12,14 @@ type ProductWithActors = Product & {
   createdByUser?: ActorUser | null;
   updatedByUser?: ActorUser | null;
   company?: { id: string; name: string } | null;
-  collections?: { collection: { name: string; status: string } }[];
+  collections?: {
+    collection: {
+      name: string;
+      status: string;
+      categories?: string[];
+      masterCategoryId?: string | null;
+    };
+  }[];
 };
 
 type MemberProduct = Product & {
@@ -41,7 +49,11 @@ export const productActorInclude = {
   updatedByUser: { select: { id: true, name: true } },
   collections: {
     where: { collection: { status: { not: 'archived' } } },
-    include: { collection: { select: { name: true, status: true } } },
+    include: {
+      collection: {
+        select: { name: true, status: true, categories: true, masterCategoryId: true },
+      },
+    },
   },
 } as const;
 
@@ -81,6 +93,10 @@ export class CatalogSerializer {
       collectionNames: (product.collections ?? [])
         .map((row) => row.collection.name.trim())
         .filter(Boolean),
+      collectionPacks: (product.collections ?? []).map((row) => ({
+        categories: row.collection.categories ?? [],
+        masterCategoryId: row.collection.masterCategoryId ?? null,
+      })),
       postedToMarketAt: product.postedToMarketAt
         ? product.postedToMarketAt.toISOString()
         : null,
@@ -137,6 +153,12 @@ export class CatalogSerializer {
         0,
       photoCount: preview.imageCount,
       previewImages: preview.previewImages,
+      libraryThumb: libraryCollectionThumb(
+        (collection.products ?? []).map((entry) => ({
+          images: entry.product.images,
+          updatedAt: entry.product.updatedAt,
+        })),
+      ),
       startsAt: collection.startsAt ? collection.startsAt.toISOString() : null,
       endsAt: collection.endsAt ? collection.endsAt.toISOString() : null,
       createdBy: toAuditActor(collection.createdByUser),

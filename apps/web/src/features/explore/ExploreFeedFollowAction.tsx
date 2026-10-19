@@ -14,7 +14,7 @@ export function ExploreFeedFollowAction({ onFollow, pending = false }: Props) {
         e.stopPropagation();
         onFollow();
       }}
-      className="shrink-0 text-xs font-bold text-accent disabled:opacity-45"
+      className="shrink-0 text-xs font-emphasis text-accent disabled:opacity-45"
       data-testid="explore-feed-follow"
     >
       {pending ? 'Asking…' : 'Request catalog access'}

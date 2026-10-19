@@ -21,7 +21,7 @@ export function RequireAuth() {
         {status === 'degraded' ? (
           <button
             type="button"
-            className="text-sm font-bold text-accent"
+            className="text-sm font-emphasis text-accent"
             onClick={() => void refreshSession()}
           >
             Try again

@@ -53,9 +53,9 @@ function directionChrome(mine: boolean) {
     footerAccent: 'text-accent',
     footerQuiet: 'text-muted',
     primaryBtn:
-      'mt-1 w-full rounded-xl bg-accent px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-white',
+      'mt-1 w-full rounded-xl bg-accent px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight text-white',
     solidBtn:
-      'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight text-ink',
+      'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight text-ink',
     hoverOpen: 'hover:bg-canvas active:bg-canvas',
   };
 }
@@ -126,7 +126,7 @@ function renderAction(
         data-card-action
         onClick={(event) => event.stopPropagation()}
         className={cx(
-          'block w-full px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight',
+          'block w-full px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight',
           chrome.link,
         )}
         style={{ color: chrome.linkColor }}
@@ -146,7 +146,7 @@ function renderAction(
           action.onClick?.();
         }}
         className={cx(
-          'w-full px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight',
+          'w-full px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight',
           chrome.link,
         )}
         style={{ color: chrome.linkColor }}
@@ -192,7 +192,7 @@ function PrimaryHeader({
           <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={false} />
           <p
             className={cx(
-              'min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight',
+              'min-w-0 flex-1 truncate text-[15px] font-emphasis tracking-tight',
               chrome.title,
               (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
             )}
@@ -201,7 +201,7 @@ function PrimaryHeader({
           </p>
         </div>
         {who ? (
-          <p className={cx('mt-0.5 text-[12px] font-medium leading-snug', chrome.who)}>
+          <p className={cx('mt-0.5 text-[12px] font-body leading-snug', chrome.who)}>
             {highlight(who)}
           </p>
         ) : null}
@@ -213,8 +213,8 @@ function PrimaryHeader({
               className={cx(
                 'whitespace-pre-wrap break-words leading-snug',
                 amount
-                  ? cx('text-[15px] font-semibold tracking-tight tabular-nums', chrome.detailStrong)
-                  : cx('text-[12px] font-medium', chrome.detailMuted),
+                  ? cx('text-[15px] font-title tracking-tight tabular-nums', chrome.detailStrong)
+                  : cx('text-[12px] font-body', chrome.detailMuted),
               )}
             >
               {highlight(line)}
@@ -273,7 +273,7 @@ function CardBody({
           {note ? (
             <p
               className={cx(
-                'whitespace-pre-wrap break-words text-[15px] font-semibold tracking-tight leading-snug',
+                'whitespace-pre-wrap break-words text-[15px] font-body tracking-tight leading-snug',
                 underChevron,
                 chrome.note,
               )}
@@ -329,14 +329,14 @@ function CardBody({
                   model.secondaryAction?.onClick?.();
                 }}
                 className={cx(
-                  'w-full px-2.5 py-2 text-center text-[13px] font-semibold tracking-tight',
+                  'w-full px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight',
                   chrome.link,
                 )}
               >
                 {model.secondaryAction.label}
               </button>
             ) : (
-              <p className={cx('px-2.5 py-1 text-[12px] font-medium', chrome.detailMuted)}>
+              <p className={cx('px-2.5 py-1 text-[12px] font-body', chrome.detailMuted)}>
                 {model.secondaryAction.label}
               </p>
             )
@@ -363,7 +363,7 @@ function CardBody({
                   action.onClick?.();
                 }}
                 className={cx(
-                  'px-2 py-2.5 text-center text-[12px] font-semibold leading-tight tracking-tight',
+                  'px-2 py-2.5 text-center text-[12px] font-emphasis leading-tight tracking-tight',
                   index > 0 && cx('border-l', chrome.footerBorder),
                   accent ? chrome.footerAccent : chrome.footerQuiet,
                 )}
@@ -436,7 +436,7 @@ export function ChatTradeCard({
           />
           <p
             className={cx(
-              'min-w-0 flex-1 truncate text-[14px] font-semibold tracking-tight',
+              'min-w-0 flex-1 truncate text-[14px] font-emphasis tracking-tight',
               chrome.title,
             )}
           >
@@ -452,7 +452,7 @@ export function ChatTradeCard({
             className={cx(
               'truncate leading-snug',
               isAmountLine(line)
-                ? cx('text-[14px] font-semibold tabular-nums', chrome.detailStrong)
+                ? cx('text-[14px] font-title tabular-nums', chrome.detailStrong)
                 : cx('text-[12px]', chrome.detailMuted),
             )}
           >
@@ -476,7 +476,7 @@ export function ChatTradeCard({
                 to={model.action.to}
                 data-card-action
                 onClick={(event) => event.stopPropagation()}
-                className={cx('text-[13px] font-semibold tracking-tight', chrome.link)}
+                className={cx('text-[13px] font-emphasis tracking-tight', chrome.link)}
                 style={{ color: chrome.linkColor }}
               >
                 {model.action.label}
@@ -489,7 +489,7 @@ export function ChatTradeCard({
                   event.stopPropagation();
                   model.action?.onClick?.();
                 }}
-                className={cx('text-[13px] font-semibold tracking-tight', chrome.link)}
+                className={cx('text-[13px] font-emphasis tracking-tight', chrome.link)}
                 style={{ color: chrome.linkColor }}
               >
                 {model.action.label}

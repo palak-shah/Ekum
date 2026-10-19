@@ -59,6 +59,36 @@ describe('RateRangeFields', () => {
     expect(onRateUnit).toHaveBeenCalledWith('set');
   });
 
+  it('fixedOnly is one amount with Rate per and no range switch', async () => {
+    const user = userEvent.setup();
+    const onRateUnit = vi.fn();
+    const onFrom = vi.fn();
+    render(
+      <RateRangeFields
+        fixedOnly
+        from="1200"
+        to="1400"
+        onFrom={onFrom}
+        onTo={() => undefined}
+        rateUnit="set"
+        onRateUnit={onRateUnit}
+      />,
+    );
+    expect(screen.queryByTestId('collection-rate-mode')).toBeNull();
+    expect(screen.queryByTestId('collection-rate-to')).toBeNull();
+    expect(screen.getByText('Rate per')).toBeTruthy();
+    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('set');
+    const amount = screen.getByTestId('collection-rate-from');
+    expect(amount).toHaveValue('1200');
+    expect(amount).toHaveAttribute('placeholder', 'Enter rate');
+    expect(amount).toHaveAttribute('inputmode', 'decimal');
+    await user.selectOptions(screen.getByTestId('collection-rate-unit'), 'pc');
+    expect(onRateUnit).toHaveBeenCalledWith('pc');
+    await user.clear(amount);
+    await user.type(amount, '900');
+    expect(onFrom).toHaveBeenCalled();
+  });
+
   it('shows the wired rateUnit value', () => {
     render(
       <RateRangeFields

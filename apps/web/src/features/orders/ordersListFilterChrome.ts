@@ -15,6 +15,6 @@ export function ordersListFilterChrome(): {
     statusChipClass: 'px-2.5',
     directionGroupClass:
       'flex shrink-0 rounded-full border border-line bg-surface p-0.5',
-    directionBtnClass: 'rounded-full px-2 py-1 text-[11px] font-bold tracking-tight',
+    directionBtnClass: 'rounded-full px-2 py-1 text-[11px] font-emphasis tracking-tight',
   };
 }

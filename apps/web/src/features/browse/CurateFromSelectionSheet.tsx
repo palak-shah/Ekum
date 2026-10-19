@@ -389,22 +389,22 @@ export function CurateFromSelectionSheet({
               {row.thumbUrl && isHttpUrl(row.thumbUrl) ? (
                 <img src={row.thumbUrl} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="flex h-full w-full items-center justify-center text-sm font-bold text-muted">
+                <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
                   {row.name.slice(0, 1).toUpperCase()}
                 </span>
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-ink">{row.name}</p>
+              <p className="truncate text-sm font-emphasis text-ink">{row.name}</p>
               <p className="truncate text-[12px] text-muted">{row.companyName}</p>
-              <p className="mt-0.5 text-[12px] font-medium text-muted">
+              <p className="mt-0.5 text-[12px] font-body text-muted">
                 {waiting ? 'Waiting for Allow' : curateBlockReason(row.code)}
               </p>
             </div>
             {showAsk ? (
               <button
                 type="button"
-                className="shrink-0 text-[13px] font-semibold text-accent disabled:opacity-50"
+                className="shrink-0 text-[13px] font-emphasis text-accent disabled:opacity-50"
                 disabled={askingKey != null}
                 data-testid="curate-blocked-ask"
                 onClick={() => {
@@ -477,7 +477,7 @@ export function CurateFromSelectionSheet({
           onClick={() => void createDraft({ openPublish: true })}
           className={cx(
             'flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-xl px-4',
-            'border border-accent bg-accent text-sm font-bold text-white',
+            'border border-accent bg-accent text-sm font-emphasis text-white',
             'disabled:opacity-40',
           )}
         >
@@ -523,8 +523,8 @@ export function CurateFromSelectionSheet({
                 <CollectionIcon width={22} height={22} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold text-ink">Add to existing collection</span>
-                <span className="block text-xs font-medium text-muted">
+                <span className="block text-sm font-emphasis text-ink">Add to existing collection</span>
+                <span className="block text-xs font-body text-muted">
                   Pick a published collection
                 </span>
               </span>
@@ -546,8 +546,8 @@ export function CurateFromSelectionSheet({
                 <PlusIcon width={22} height={22} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold text-ink">Add new</span>
-                <span className="block text-xs font-medium text-muted">
+                <span className="block text-sm font-emphasis text-ink">Add new</span>
+                <span className="block text-xs font-body text-muted">
                   Name it, then publish
                 </span>
               </span>
@@ -560,7 +560,7 @@ export function CurateFromSelectionSheet({
         <div className="flex flex-col gap-3">
           <button
             type="button"
-            className="self-start text-sm font-semibold text-accent"
+            className="self-start text-sm font-emphasis text-accent"
             disabled={saving}
             data-testid="repost-back-choose"
             onClick={() => setMode('choose')}
@@ -613,10 +613,10 @@ export function CurateFromSelectionSheet({
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold tracking-tight text-ink">
+                      <p className="truncate text-sm font-emphasis tracking-tight text-ink">
                         {pack.name}
                       </p>
-                      <p className="truncate text-xs font-medium text-muted">
+                      <p className="truncate text-xs font-body text-muted">
                         {statusLabel(pack.status)}
                         {pack.productCount != null
                           ? ` · ${pack.productCount} design${pack.productCount === 1 ? '' : 's'}`
@@ -635,7 +635,7 @@ export function CurateFromSelectionSheet({
         <div className="flex flex-col gap-3">
           <button
             type="button"
-            className="self-start text-sm font-semibold text-accent"
+            className="self-start text-sm font-emphasis text-accent"
             disabled={saving}
             data-testid="repost-back-choose"
             onClick={() => setMode('choose')}

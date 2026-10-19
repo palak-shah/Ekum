@@ -58,7 +58,7 @@ function ExploreFeedEnd() {
   return (
     <p
       data-testid="explore-feed-end"
-      className="px-4 py-6 text-center text-sm font-medium text-muted"
+      className="px-4 py-6 text-center text-sm font-body text-muted"
     >
       You&apos;ve reached the end
     </p>
@@ -86,7 +86,7 @@ function Section({
     <section className="flex flex-col gap-2.5">
       {title || action ? (
         <div className="flex items-baseline justify-between gap-3 px-0.5">
-          {title ? <h2 className="text-[13px] font-semibold tracking-tight text-ink">{title}</h2> : null}
+          {title ? <h2 className="text-[13px] font-emphasis tracking-tight text-ink">{title}</h2> : null}
           {action}
         </div>
       ) : null}
@@ -291,7 +291,7 @@ function CompanySection({
   if (items.length === 0) return null;
   return (
     <Section title={title}>
-      {subtitle ? <p className="px-0.5 text-xs font-medium text-muted">{subtitle}</p> : null}
+      {subtitle ? <p className="px-0.5 text-xs font-body text-muted">{subtitle}</p> : null}
       <div className="flex flex-col">
         {items.map((opportunity) => (
           <OpportunityBusinessCard
@@ -358,8 +358,8 @@ function SupplierDirectory({
   return (
     <section className="flex flex-col gap-2.5">
       <div className="px-0.5">
-        <h2 className="text-[13px] font-semibold tracking-tight text-ink">Suppliers on Explore</h2>
-        <p className="text-xs font-medium text-muted">
+        <h2 className="text-[13px] font-emphasis tracking-tight text-ink">Suppliers on Explore</h2>
+        <p className="text-xs font-body text-muted">
           Companies with published designs or collections
         </p>
       </div>
@@ -399,12 +399,12 @@ function StoryFilterChip({
   return (
     <div className="flex items-center gap-3 rounded-lg border border-line bg-foam/60 px-2.5 py-1.5">
       <p className="min-w-0 flex-1 truncate text-xs text-ink">
-        Posts from <span className="font-semibold">{companyName}</span>
+        Posts from <span className="font-emphasis">{companyName}</span>
       </p>
-      <button type="button" className="shrink-0 text-xs font-bold text-accent" onClick={onClear}>
+      <button type="button" className="shrink-0 text-xs font-emphasis text-accent" onClick={onClear}>
         Clear
       </button>
-      <button type="button" className="shrink-0 text-xs font-bold text-accent" onClick={onOpenShop}>
+      <button type="button" className="shrink-0 text-xs font-emphasis text-accent" onClick={onOpenShop}>
         Open shop
       </button>
     </div>
@@ -448,7 +448,7 @@ function StoriesRail({
                   <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={56} />
                 </span>
               </span>
-              <span className="w-full truncate text-center text-[10px] font-medium leading-tight text-ink">
+              <span className="w-full truncate text-center text-[10px] font-emphasis leading-tight text-ink">
                 {label}
               </span>
             </button>
@@ -826,7 +826,7 @@ export function ExplorePage() {
             <button
               type="button"
               onClick={openSearch}
-              className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3.5 text-sm font-medium text-muted"
+              className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3.5 text-sm font-body text-muted"
             >
               <SearchIcon width={16} height={16} className="shrink-0" />
               <span className="truncate">{EXPLORE_SEARCH_HINT}</span>
@@ -906,11 +906,11 @@ export function ExplorePage() {
 
       {!searchFocused && filterActive ? (
         <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
-          <p className="text-xs font-medium text-muted">Showing {filterSummary}</p>
+          <p className="text-xs font-body text-muted">Showing {filterSummary}</p>
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex min-h-8 items-center text-xs font-bold tracking-tight text-accent"
+            className="inline-flex min-h-8 items-center text-xs font-emphasis tracking-tight text-accent"
           >
             Clear
           </button>

@@ -16,7 +16,7 @@ export function CantSupplySwitch({
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-sm font-medium text-ink">{label}</span>
+      <span className="text-sm font-emphasis text-ink">{label}</span>
       <button
         type="button"
         role="switch"

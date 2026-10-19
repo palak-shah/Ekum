@@ -89,12 +89,8 @@ export class CollectionService {
     opts: { excludeId?: string; restoring?: boolean } = {},
   ): Promise<string> {
     const name = rawName.trim();
-    if (!name) {
-      throw new BadRequestException({
-        code: 'INVALID_NAME',
-        message: 'Give this collection a name.',
-      });
-    }
+    // Drafts may be saved before a name. Publish still requires one.
+    if (!name) return '';
     const clash = await this.prisma.collection.findFirst({
       where: {
         companyId,
@@ -128,15 +124,14 @@ export class CollectionService {
       assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
     }
     const repostSource = await this.resolveRepostSource(companyId, dto);
-    const isRepost = Boolean(
-      repostSource.repostSourceCollectionId || repostSource.repostSourceProductId,
-    );
-    const masterCategoryId = prismaModelHasField('Collection', 'masterCategoryId')
-      ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId, {
-          // Peer Repost: no category picker on the sheet — supplier already categorized.
-          required: !isRepost,
-        })
-      : null;
+    const masterCategoryId =
+      prismaModelHasField('Collection', 'masterCategoryId') && this.masterData
+        ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId, {
+            // Draft create does not require a category. Publish checks it.
+            // Peer Repost still has no picker — supplier already categorized.
+            required: false,
+          })
+        : null;
     try {
       const collection = await this.prisma.collection.create({
         data: withPrismaField(
@@ -365,6 +360,17 @@ export class CollectionService {
     dto: PublishCollectionDto,
   ): Promise<CollectionView> {
     const existing = await this.owned(companyId, id);
+    if (typeof existing.name === 'string' && !existing.name.trim()) {
+      throw new BadRequestException({
+        code: 'INVALID_NAME',
+        message: 'Give this collection a name.',
+      });
+    }
+    if (this.masterData && prismaModelHasField('Collection', 'masterCategoryId')) {
+      await this.masterData.resolveCategoryIdForCompany(companyId, existing.masterCategoryId, {
+        required: true,
+      });
+    }
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       select: { canPublish: true },

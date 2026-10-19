@@ -18,7 +18,7 @@ export function quoteCantSupplyMutedClass(cantSupply: boolean): string {
 /** Full-contrast control so untick is obvious. */
 export function quoteCantSupplyControlClass(cantSupply: boolean): string {
   return cantSupply
-    ? 'mt-1 flex items-center gap-1.5 text-xs font-semibold text-ink'
+    ? 'mt-1 flex items-center gap-1.5 text-xs font-emphasis text-ink'
     : 'mt-0.5 flex items-center gap-1 text-[11px] text-muted';
 }
 

@@ -119,7 +119,7 @@ export function DesignPhotoCarousel({
           />
           {rateOverlay ? (
             <span
-              className="absolute bottom-2 left-2 z-[1] rounded-md bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white"
+              className="absolute bottom-2 left-2 z-[1] rounded-md bg-ink/70 px-2 py-0.5 text-xs font-emphasis text-white"
               data-testid="design-photo-rate"
             >
               {rateOverlay}
@@ -207,7 +207,7 @@ export function DesignPhotoCarousel({
 
         {rateOverlay ? (
           <span
-            className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-md bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white"
+            className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-md bg-ink/70 px-2 py-0.5 text-xs font-emphasis text-white"
             data-testid="design-photo-rate"
           >
             {rateOverlay}

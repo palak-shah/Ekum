@@ -21,7 +21,7 @@ export function AddDesignsControl({
   const icon = hero ? 22 : 18;
 
   const tileClass = cx(
-    'flex min-w-0 items-center justify-center border border-dashed border-line bg-foam font-semibold text-ink hover:bg-line/30 disabled:opacity-40',
+    'flex min-w-0 items-center justify-center border border-dashed border-line bg-foam font-emphasis text-ink hover:bg-line/30 disabled:opacity-40',
     hero
       ? 'min-h-40 flex-col gap-2 rounded-2xl px-3 text-sm'
       : 'min-h-12 gap-2 rounded-xl px-2 text-sm',

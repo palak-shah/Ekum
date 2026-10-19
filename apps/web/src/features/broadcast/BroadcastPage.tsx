@@ -45,7 +45,7 @@ export function BroadcastPage() {
         <SectionHeader
           title="Groups"
           action={
-            <button className="text-xs font-medium text-accent" onClick={openCreate}>
+            <button className="text-xs font-emphasis text-accent" onClick={openCreate}>
               Add group
             </button>
           }
@@ -61,12 +61,12 @@ export function BroadcastPage() {
                 onClick={() => openEdit(list)}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{list.name}</p>
+                  <p className="truncate text-sm font-emphasis text-ink">{list.name}</p>
                   <p className="text-xs text-muted">
                     {list.memberCount} buyers · {groupSummary(list)}
                   </p>
                 </div>
-                <span className="text-xs font-medium text-accent">Edit</span>
+                <span className="text-xs font-emphasis text-accent">Edit</span>
               </button>
             </Card>
           ))

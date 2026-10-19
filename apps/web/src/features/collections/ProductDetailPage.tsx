@@ -59,7 +59,7 @@ export function ProductDetailPage() {
         title={data.name}
         action={
           isOwner ? (
-            <Link to={`/catalog/products/${data.id}`} className="text-sm font-medium text-accent">
+            <Link to={`/catalog/products/${data.id}`} className="text-sm font-emphasis text-accent">
               Edit
             </Link>
           ) : undefined
@@ -73,23 +73,23 @@ export function ProductDetailPage() {
           ))}
         </div>
       ) : (
-        <div className="flex h-40 items-center justify-center rounded-2xl bg-foam text-3xl font-bold text-muted">
+        <div className="flex h-40 items-center justify-center rounded-2xl bg-foam text-3xl font-body text-muted">
           {data.name.charAt(0).toUpperCase()}
         </div>
       )}
 
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-lg font-semibold text-ink">{formatRate(data.rate, data.unit, data.rateMax)}</span>
+          <span className="text-lg font-emphasis text-ink">{formatRate(data.rate, data.unit, data.rateMax)}</span>
           <StatusPill status={data.status} />
         </div>
         {data.moq != null && data.moq > 0 ? (
-          <p className="text-sm font-medium text-ink">Minimum order · {data.moq} pcs</p>
+          <p className="text-sm font-emphasis text-ink">Minimum order · {data.moq} pcs</p>
         ) : null}
         {data.sku ? <p className="text-xs text-muted">SKU · {data.sku}</p> : null}
         {notes ? (
           <div className="flex flex-col gap-1">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted">Notes</p>
+            <p className="text-xs font-body uppercase tracking-wide text-muted">Notes</p>
             <p className="whitespace-pre-wrap text-sm text-ink">{notes}</p>
           </div>
         ) : null}
@@ -105,7 +105,7 @@ export function ProductDetailPage() {
       {isOwner && (relistGrants.data?.length ?? 0) > 0 ? (
         <div data-testid="product-relist-grants">
           <Card className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Who can put in collection</p>
+            <p className="text-sm font-emphasis text-ink">Who can put in collection</p>
             <p className="text-xs text-muted">
               Businesses you Allowed for this design only — not Connections.
             </p>
@@ -115,12 +115,12 @@ export function ProductDetailPage() {
                   key={grant.companyId}
                   className="flex items-center justify-between gap-2 text-sm"
                 >
-                  <span className="min-w-0 truncate font-medium text-ink">
+                  <span className="min-w-0 truncate font-emphasis text-ink">
                     {grant.company.name}
                   </span>
                   <button
                     type="button"
-                    className="shrink-0 text-xs font-semibold text-danger"
+                    className="shrink-0 text-xs font-emphasis text-danger"
                     disabled={revokeGrant.isPending}
                     onClick={() => revokeGrant.mutate(grant.companyId)}
                     data-testid="product-relist-revoke"

@@ -30,7 +30,7 @@ export function CollectionGrantsPage() {
               to={`/collections/${grant.collectionId}`}
               className="flex flex-col rounded-2xl border border-line bg-surface px-3 py-2.5"
             >
-              <span className="text-sm font-semibold text-ink">{grant.collectionName}</span>
+              <span className="text-sm font-emphasis text-ink">{grant.collectionName}</span>
               <span className="text-xs text-muted">{grant.company.name}</span>
             </Link>
           </li>

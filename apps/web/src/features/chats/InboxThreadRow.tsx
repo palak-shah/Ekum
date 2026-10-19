@@ -60,38 +60,38 @@ export function InboxThreadRow({
       <Avatar name={title} imageUrl={avatarUrl} size={48} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1 text-[15px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+          <p className="flex min-w-0 items-center gap-1 text-[15px] font-emphasis leading-tight tracking-[-0.02em] text-ink">
             {thread.pinned ? (
               <PinIcon width={12} height={12} className="shrink-0 text-slate" aria-hidden />
             ) : null}
             <span className="truncate">{title}</span>
             {visibility ? (
-              <span className="shrink-0 text-[11px] font-medium text-muted">· {visibility}</span>
+              <span className="shrink-0 text-[11px] font-body text-muted">· {visibility}</span>
             ) : null}
           </p>
           <span
             className={cx(
               'shrink-0 text-[11px] tabular-nums',
-              thread.unreadCount > 0 ? 'font-bold text-accent' : 'font-medium text-muted',
+              thread.unreadCount > 0 ? 'font-emphasis text-accent' : 'font-body text-muted',
             )}
           >
             {timeAgo(thread.lastMessageAt)}
           </span>
         </div>
         {objectLabel ? (
-          <p className="text-[11px] font-medium tracking-tight text-accent">{objectLabel}</p>
+          <p className="text-[11px] font-emphasis tracking-tight text-accent">{objectLabel}</p>
         ) : null}
         <div className="flex items-center justify-between gap-2">
           <p
             className={cx(
-              'min-w-0 truncate text-[13px] font-normal leading-snug',
-              draftLine ? 'font-medium text-accent' : 'text-muted',
+              'min-w-0 truncate text-[13px] font-body leading-snug',
+              draftLine ? 'font-emphasis text-accent' : 'text-muted',
             )}
           >
             {preview}
           </p>
           {thread.unreadCount > 0 ? (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-[11px] font-bold text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-[11px] font-emphasis text-white">
               {thread.unreadCount}
             </span>
           ) : null}
@@ -154,7 +154,7 @@ export function InboxThreadRow({
       <div className="absolute inset-y-0 right-0 z-0 flex">
         <button
           type="button"
-          className="flex w-[4.5rem] items-center justify-center bg-slate text-xs font-bold text-white"
+          className="flex w-[4.5rem] items-center justify-center bg-slate text-xs font-emphasis text-white"
           onClick={() => {
             setDragX(0);
             openMenu();
@@ -167,7 +167,7 @@ export function InboxThreadRow({
           data-testid={
             archiveLabel === 'Unarchive' ? 'chats-row-swipe-unarchive' : 'chats-row-swipe-archive'
           }
-          className="flex w-[4.5rem] items-center justify-center bg-success text-xs font-bold text-white"
+          className="flex w-[4.5rem] items-center justify-center bg-success text-xs font-emphasis text-white"
           onClick={() => {
             setDragX(0);
             onArchive?.();

@@ -74,6 +74,26 @@ function renderSheet(props: Partial<ComponentProps<typeof DesignSheet>> = {}) {
 afterEach(() => cleanup());
 
 describe('DesignSheet', () => {
+  it('puts item tags left of the rate, and the description under that row', () => {
+    renderSheet({
+      product: {
+        ...product,
+        categories: ['Readymade', 'S'],
+        description: 'Soft roll.',
+      },
+    });
+    const tags = screen.getByTestId('design-sheet-item-tags');
+    const rate = screen.getByTestId('design-sheet-rate');
+    const description = screen.getByTestId('design-sheet-description');
+    expect(tags).toHaveTextContent('Readymade');
+    expect(tags).toHaveTextContent('S');
+    expect(rate).toHaveTextContent('₹');
+    expect(description).toHaveTextContent('Soft roll.');
+    expect(tags.compareDocumentPosition(rate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rate.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(product.id)).toBeNull();
+  });
+
   it('shows trade footer without Bookmark or Select design (BM-11)', () => {
     renderSheet();
     expect(screen.getByTestId('design-sheet-trade')).toBeTruthy();

@@ -1,11 +1,29 @@
 /*
- * Master Ekum color tokens — edit hex values HERE only.
- * Tailwind `@theme` in index.css maps these to utilities (bg-accent, bg-input, …).
+ * Master Ekum tokens — edit values HERE only.
+ * Colors: Tailwind `@theme` in index.css maps --ekum-* → utilities (bg-accent, …).
+ * Weights: --ekum-weight-* → font-body / font-emphasis / font-title.
  * Light: :root · Dark: html.dark
  */
 
 :root {
   color-scheme: light;
+
+  /* Typography weights — font-body / font-emphasis / font-title */
+  --ekum-weight-body: 400;
+  --ekum-weight-emphasis: 500;
+  --ekum-weight-title: 600;
+
+  /*
+   * Typography sizes. text-xs (12) / text-sm (14) / text-base (16) stay Tailwind defaults.
+   * These cover the approved steps Tailwind does not have. Line height stays inherited.
+   */
+  --ekum-text-badge: 10px;
+  --ekum-text-meta: 11px;
+  --ekum-text-support: 13px;
+  --ekum-text-name: 15px;
+  --ekum-text-page-title: 17px;
+  --ekum-text-sheet-title: 1.05rem;
+  --ekum-text-tab-title: 1.375rem;
 
   /* Surfaces */
   --ekum-ink: #1a1714;

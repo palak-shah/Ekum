@@ -26,7 +26,7 @@ export function highlightMentionText(
           'span',
           {
             key: `${index}-${part}`,
-            className: 'font-semibold text-accent underline decoration-accent/50 underline-offset-2',
+            className: 'font-emphasis text-accent underline decoration-accent/50 underline-offset-2',
           },
           part,
         )

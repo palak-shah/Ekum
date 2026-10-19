@@ -117,9 +117,9 @@ export function SettingsPage() {
       </SettingsDomainGroup>
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-appearance">
-        <h2 className="px-0.5 text-[13px] font-semibold tracking-tight text-ink">Appearance</h2>
+        <h2 className="px-0.5 text-[13px] font-emphasis tracking-tight text-ink">Appearance</h2>
         <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
-          <p className="text-sm font-semibold text-ink">Theme</p>
+          <p className="text-sm font-emphasis text-ink">Theme</p>
           <p className="mt-0.5 text-xs text-muted">Light, dark, or match this phone.</p>
           <FilterRail className="mt-3">
             {APPEARANCE_OPTIONS.map((option) => (
@@ -138,8 +138,8 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-dispatch">
         <div className="flex items-center justify-between gap-3 px-0.5">
-          <h2 className="text-[13px] font-semibold tracking-tight text-ink">Dispatch</h2>
-          <button className="text-xs font-medium text-accent" onClick={() => setAddrOpen(true)}>
+          <h2 className="text-[13px] font-emphasis tracking-tight text-ink">Dispatch</h2>
+          <button className="text-xs font-emphasis text-accent" onClick={() => setAddrOpen(true)}>
             Add
           </button>
         </div>
@@ -155,7 +155,7 @@ export function SettingsPage() {
                 className="flex items-start justify-between gap-3 border-b border-line px-3.5 py-3 last:border-b-0"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">{address.label}</p>
+                  <p className="text-sm font-emphasis text-ink">{address.label}</p>
                   <p className="text-xs text-muted">
                     {address.line1}
                     {address.line2 ? `, ${address.line2}` : ''}, {address.city}
@@ -173,11 +173,11 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-billing">
         <div className="flex items-center justify-between gap-3 px-0.5">
-          <h2 className="text-[13px] font-semibold tracking-tight text-ink">Billing</h2>
+          <h2 className="text-[13px] font-emphasis tracking-tight text-ink">Billing</h2>
           <button
             type="button"
             data-testid="settings-add-billing-firm"
-            className="text-xs font-medium text-accent"
+            className="text-xs font-emphasis text-accent"
             onClick={openAddFirm}
           >
             Add
@@ -195,7 +195,7 @@ export function SettingsPage() {
                 className="flex items-start justify-between gap-3 border-b border-line px-3.5 py-3 last:border-b-0"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">{row.name}</p>
+                  <p className="text-sm font-emphasis text-ink">{row.name}</p>
                   {row.gstNumber ? <p className="text-xs text-muted">GST · {row.gstNumber}</p> : null}
                   {row.addressLine ? <p className="text-xs text-muted">{row.addressLine}</p> : null}
                 </div>

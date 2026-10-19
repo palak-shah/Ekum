@@ -16,6 +16,7 @@ import {
   collectionViewerListedProducts,
   collectionViewerPrimaryAction,
   designSheetRateBand,
+  designSheetUnderPhoto,
   designTileMetaLine,
   designTileRateOverlay,
   noteBlockOverflows,
@@ -187,6 +188,31 @@ describe('collectionShowPackNote / facts / selection scope', () => {
     expect(
       designTileMetaLine({ sku: 'SKU-1', rateLabel: '₹280 /mtr', variant: 'feed' }),
     ).toBe('');
+  });
+
+  it('puts item tags and rate under the photo, description below', () => {
+    expect(
+      designSheetUnderPhoto({
+        categories: ['Readymade', 'Embroidered', 'S'],
+        description: 'Soft georgette.',
+        rateLabel: '₹400/pc',
+      }),
+    ).toEqual({
+      tags: ['Readymade', 'S', 'Embroidered'],
+      rate: '₹400/pc',
+      description: 'Soft georgette.',
+    });
+    expect(
+      designSheetUnderPhoto({
+        categories: [],
+        description: '   ',
+        rateLabel: 'On request',
+      }),
+    ).toEqual({
+      tags: [],
+      rate: null,
+      description: null,
+    });
   });
 
   it('keeps honest ₹ on the design sheet and drops On request', () => {

@@ -4,6 +4,7 @@ import {
   buildOrderCardCopy,
   dedupeOrderThreadMessages,
   isRichOrderChatMessage,
+  declineOrderMessageIds,
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { orderCardMessage, orderRef, textMessage } from '@/test/messageFixtures';
@@ -137,5 +138,26 @@ describe('buildOrderCardCopy', () => {
     });
     const copy = buildOrderCardCopy(msg, msg.reference);
     expect(copy.lines).toContain('7 quoted · 1 can’t supply');
+  });
+});
+
+describe('declineOrderMessageIds', () => {
+  it('keeps Decline on the newest card of a logged ticket only', () => {
+    const older = orderCardMessage({
+      id: 'm-old',
+      createdAt: '2026-10-01T00:00:00.000Z',
+      reference: orderRef({ id: 'ord-1', canDeclineOrder: true, available: true }),
+    });
+    const newer = orderCardMessage({
+      id: 'm-new',
+      createdAt: '2026-10-02T00:00:00.000Z',
+      reference: orderRef({ id: 'ord-1', canDeclineOrder: true, available: true }),
+    });
+    const buyerPlaced = orderCardMessage({
+      id: 'm-own',
+      createdAt: '2026-10-03T00:00:00.000Z',
+      reference: orderRef({ id: 'ord-2', canDeclineOrder: false, available: true }),
+    });
+    expect([...declineOrderMessageIds([older, newer, buyerPlaced])]).toEqual(['m-new']);
   });
 });

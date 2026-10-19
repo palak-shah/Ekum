@@ -36,10 +36,10 @@ export function PageHeader({
   const identity = showTitle ? (
     <>
       <div className="flex min-w-0 items-center gap-1">
-        <h1 className="truncate text-[17px] font-semibold tracking-tight text-ink">{title}</h1>
+        <h1 className="truncate text-page-title font-title tracking-tight text-ink">{title}</h1>
         {titleEnd}
       </div>
-      {subtitle ? <p className="truncate text-xs font-medium text-muted">{subtitle}</p> : null}
+      {subtitle ? <p className="truncate text-xs font-body text-muted">{subtitle}</p> : null}
     </>
   ) : null;
 

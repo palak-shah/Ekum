@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
   ProductStatus,
-  type BroadcastListView,
   type CollectionView,
   type ProductView,
 } from '@ekum/domain-types';
@@ -36,10 +35,11 @@ import {
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { BottomTradeDock, DockIconButton } from '@/features/browse/BottomTradeDock';
 import { youLibraryPublishedSelectChrome } from '@/features/catalog/youLibrarySelectDock';
-import { CatalogFeedPost, explorePostedWhen } from '@/ui/cards';
+import { CatalogFeedPost } from '@/ui/cards';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
-import { CollectionAlbumTile } from '@/features/collections/CollectionAlbumTile';
-import { libraryAuditLine, productStatusLine, productTileSubtitle } from './productStatusSummary';
+import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
+import { youCollectionRowMore } from '@/features/catalog/youLibraryRowMore';
+import { useYouLibrarySelectMenu } from '@/features/catalog/youLibrarySelectMenu';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
 import { BulkProductPublishSheet } from './BulkProductPublishSheet';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
@@ -213,8 +213,8 @@ export function MyCatalogPage({
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const me = useMyCompany();
-  const { selling, trading } = useTradePresence();
   const companyId = me.data?.id;
+  const { selling, trading } = useTradePresence();
   const canCurateOwn = selling || trading;
   const youSaved = embedded && (!catalogTabs || isYouSavedSearch(searchParams));
   const tab = tabFromSearch(searchParams);
@@ -259,6 +259,12 @@ export function MyCatalogPage({
   const [bulkPublishOpen, setBulkPublishOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [lifecycleMoreOpen, setLifecycleMoreOpen] = useState(false);
+  const [rowMenu, setRowMenu] = useState<CollectionView | null>(null);
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
+  const [soloPublishIds, setSoloPublishIds] = useState<string[] | null>(null);
+  const [rowShare, setRowShare] = useState<
+    { collectionId: string; name: string; image: string | null }[] | null
+  >(null);
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(
     () =>
@@ -288,6 +294,8 @@ export function MyCatalogPage({
         tab: nextTab,
         saved,
         select: searchParams.get('select') === '1',
+        archived: nextTab === 'collections' && searchParams.get('view') === 'archived' && !saved,
+        drafts: nextTab === 'collections' && searchParams.get('view') === 'draft' && !saved,
       }),
       { replace: true },
     );
@@ -302,14 +310,23 @@ export function MyCatalogPage({
     if (youSaved) writeLibraryParams(tab, false);
   };
 
+  const archivedCollections = !youSaved && searchParams.get('view') === 'archived';
+  const draftCollections = !youSaved && searchParams.get('view') === 'draft';
   const findScope: YouLibraryFindScope = youSaved
     ? 'saved'
-    : tab === 'collections'
-      ? collectionFilter
-      : productFilter;
-  const findFilterApplied = findScope !== 'published';
+    : tab === 'products'
+      ? productFilter
+      : 'published';
+  const findFilterApplied = tab === 'products' && !youSaved && findScope !== 'published';
   const findFilterSummary =
-    findScope === 'saved' ? 'Bookmark' : findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Archived' : null;
+    findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Archived' : null;
+  const viewSummary = youSaved
+    ? 'Bookmark'
+    : archivedCollections
+      ? 'Archived'
+      : draftCollections
+        ? 'Drafts'
+        : findFilterSummary;
 
   const applyFindScope = (scope: YouLibraryFindScope) => {
     if (scope === 'saved') {
@@ -326,12 +343,6 @@ export function MyCatalogPage({
   }, [youSaved]);
 
   const setTab = (next: Tab) => {
-    if (next === 'products' && tab === 'collections') {
-      setProductFilter(collectionFilter);
-    }
-    if (next === 'collections' && tab === 'products') {
-      setCollectionFilter(productFilter);
-    }
     writeLibraryParams(next, youSaved && catalogTabs);
   };
 
@@ -350,27 +361,22 @@ export function MyCatalogPage({
     queryFn: () => api.get<CollectionView[]>('/collections'),
     enabled: tab === 'collections',
   });
-  const broadcastLists = useQuery({
-    queryKey: ['broadcast-lists'],
-    queryFn: () => api.get<BroadcastListView[]>('/broadcasts/lists'),
-    enabled: tab === 'collections' || tab === 'products',
-  });
-
-  const buyerGroups = broadcastLists.data ?? [];
   const myCompany = me.data
     ? { id: me.data.id, name: me.data.name }
     : null;
 
   const statusCollections = useMemo(() => {
     const rows = collections.data ?? [];
-    if (collectionFilter === 'draft') {
+    if (archivedCollections) {
+      return rows.filter((row) => row.status === CollectionStatus.Archived);
+    }
+    if (draftCollections) {
       return rows.filter(
-        (row) =>
-          row.status === CollectionStatus.Draft || row.status === CollectionStatus.Ready,
+        (row) => row.status === CollectionStatus.Draft || row.status === CollectionStatus.Ready,
       );
     }
-    return rows.filter((row) => row.status === collectionFilter);
-  }, [collections.data, collectionFilter]);
+    return rows.filter((row) => row.status !== CollectionStatus.Archived);
+  }, [collections.data, archivedCollections, draftCollections]);
 
   const statusProducts = useMemo(() => {
     const rows = products.data ?? [];
@@ -470,19 +476,34 @@ export function MyCatalogPage({
       : selectedProducts.filter((p) => p.status === ProductStatus.Archived).map((p) => p.id);
   const publishedSelectChrome = youLibraryPublishedSelectChrome({
     hideableCount: hideableIds.length,
-    archivableCount: archivableIds.length,
-    canCurate: canCurateOwn,
   });
   const showPublishedTradeDock = publishedSelectChrome.dock.length > 0;
   const showLifecycleMore =
-    publishedSelectChrome.more.length > 0 ||
-    (publishableIds.length > 0 && archivableIds.length > 0);
+    tab === 'products' &&
+    (hideableIds.length > 0 || (publishableIds.length > 0 && archivableIds.length > 0));
 
   useEffect(() => {
     setSelecting(false);
     setSelectedIds(new Set());
     setBulkPublishOpen(false);
+    setOpenSwipeId(null);
   }, [tab]);
+
+  useEffect(() => {
+    if (!openSwipeId) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(`[data-testid="you-collection-swipe-${openSwipeId}"]`)) return;
+      setOpenSwipeId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [openSwipeId]);
+
+  useEffect(() => {
+    if (selecting) setOpenSwipeId(null);
+  }, [selecting]);
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -568,6 +589,32 @@ export function MyCatalogPage({
     }
   };
 
+  const orderCollection = (collection: CollectionView) => {
+    if (!myCompany) return;
+    const { published, toast } = partitionForTravelingSelection([collection]);
+    if (toast) showToast(toast);
+    if (published.length < 1) return;
+    const albums = published.map((row) => toCatalogAlbumEntry(row, myCompany));
+    addAlbumMany(albums);
+    orderFlow.setError(null);
+    setOrderResolveOpen(true);
+  };
+
+  const shareCollection = (collection: CollectionView) => {
+    if (collection.status !== CollectionStatus.Published) {
+      showToast('Publish this collection before you share.');
+      return;
+    }
+    setRowShare([
+      {
+        collectionId: collection.id,
+        name: collection.name,
+        image: collection.libraryThumb ?? collection.coverImage,
+      },
+    ]);
+    setShareOpen(true);
+  };
+
   const archivePath =
     tab === 'collections' ? (id: string) => `/collections/${id}/archive` : (id: string) => `/products/${id}/archive`;
   const hidePath =
@@ -647,6 +694,16 @@ export function MyCatalogPage({
   const tabHasItems =
     tab === 'products' ? statusProducts.length > 0 : statusCollections.length > 0;
 
+  useYouLibrarySelectMenu({
+    selecting: selecting && !youSaved && tab === 'collections' && selectedIds.size > 0,
+    canDraft: hideableIds.length > 0,
+    canPublish: publishableIds.length > 0,
+    canArchive: archivableIds.length > 0,
+    onDraft: () => bulkHide.mutate(hideableIds),
+    onPublish: () => setBulkPublishOpen(true),
+    onArchive: () => bulkArchive.mutate(archivableIds),
+  });
+
   const onCatalogBack = () => {
     // React Router: initial entry uses key "default"; prefer this over history.state.idx.
     if (location.key !== 'default') {
@@ -686,8 +743,8 @@ export function MyCatalogPage({
                 className={cx(
                   'relative isolate inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-[15px] tracking-tight touch-manipulation',
                   tab === value
-                    ? 'border-accent font-bold text-ink'
-                    : 'border-transparent font-medium text-muted',
+                    ? 'border-accent font-emphasis text-ink'
+                    : 'border-transparent font-body text-muted',
                 )}
               >
                 <TabIcon width={16} height={16} className="shrink-0" aria-hidden />
@@ -697,7 +754,7 @@ export function MyCatalogPage({
             })}
           </div>
         ) : null}
-        {catalogTabs && !selecting ? (
+        {catalogTabs && !selecting && tab === 'products' ? (
           <button
             type="button"
             data-testid="you-library-add"
@@ -709,6 +766,20 @@ export function MyCatalogPage({
           </button>
         ) : null}
       </div>
+
+      {catalogTabs && tab === 'collections' && !selecting && !youSaved && !archivedCollections ? (
+        <button
+          type="button"
+          data-testid="you-new-collection"
+          onClick={() => navigate('/catalog/collections/new')}
+          className="flex w-full items-center gap-3 border-b border-line px-1 py-2 text-left hover:bg-foam/40"
+        >
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-line text-accent">
+            <PlusIcon width={22} height={22} />
+          </span>
+          <span className="text-[15px] font-emphasis tracking-tight text-accent">New collection</span>
+        </button>
+      ) : null}
 
       {catalogTabs || youSaved || tabHasItems ? (
         <BrowseLotChrome
@@ -735,42 +806,61 @@ export function MyCatalogPage({
                   />
                 }
                 action={
-                  <ListSquareButton
-                    ref={filterAnchorRef}
-                    data-testid="you-library-filter"
-                    data-filter-active={findFilterApplied ? 'true' : 'false'}
-                    aria-label="Filter"
-                    aria-expanded={filterMenuOpen}
-                    aria-haspopup="menu"
-                    aria-pressed={findFilterApplied}
-                    active={findFilterApplied || filterMenuOpen}
-                    onClick={() => setFilterMenuOpen((open) => !open)}
-                  >
-                    <FilterIcon
-                      width={20}
-                      height={20}
-                      className={findFilterApplied || filterMenuOpen ? 'text-white' : undefined}
-                    />
-                  </ListSquareButton>
+                  tab === 'products' && !youSaved ? (
+                    <ListSquareButton
+                      ref={filterAnchorRef}
+                      data-testid="you-library-filter"
+                      data-filter-active={findFilterApplied ? 'true' : 'false'}
+                      aria-label="Filter"
+                      aria-expanded={filterMenuOpen}
+                      aria-haspopup="menu"
+                      aria-pressed={findFilterApplied}
+                      active={findFilterApplied || filterMenuOpen}
+                      onClick={() => setFilterMenuOpen((open) => !open)}
+                    >
+                      <FilterIcon
+                        width={20}
+                        height={20}
+                        className={findFilterApplied || filterMenuOpen ? 'text-white' : undefined}
+                      />
+                    </ListSquareButton>
+                  ) : undefined
                 }
               />
-              <YouLibraryFilterMenu
-                open={filterMenuOpen}
-                onClose={() => setFilterMenuOpen(false)}
-                anchorRef={filterAnchorRef}
-                value={findScope}
-                showSaved={embedded}
-                onChange={applyFindScope}
-              />
-              {findFilterSummary ? (
+              {tab === 'products' && !youSaved ? (
+                <YouLibraryFilterMenu
+                  open={filterMenuOpen}
+                  onClose={() => setFilterMenuOpen(false)}
+                  anchorRef={filterAnchorRef}
+                  value={findScope}
+                  onChange={applyFindScope}
+                />
+              ) : null}
+              {viewSummary ? (
                 <div className="relative z-10 flex flex-wrap items-center gap-x-3 px-0.5">
-                  <p className="text-xs font-medium text-muted">
-                    Showing <span className="text-ink">{findFilterSummary}</span>
+                  <p className="text-xs font-body text-muted" data-testid="you-library-view-summary">
+                    Showing <span className="text-ink">{viewSummary}</span>
                   </p>
                   <button
                     type="button"
-                    onClick={() => applyFindScope('published')}
-                    className="inline-flex min-h-8 items-center text-xs font-bold tracking-tight text-accent"
+                    onClick={() => {
+                      if (youSaved) {
+                        writeLibraryParams(tab, false);
+                        return;
+                      }
+                      if (archivedCollections || draftCollections) {
+                        setSearchParams(
+                          youLibraryWriteSearch({
+                            tab: 'collections',
+                            select: searchParams.get('select') === '1',
+                          }),
+                          { replace: true },
+                        );
+                        return;
+                      }
+                      applyFindScope('published');
+                    }}
+                    className="inline-flex min-h-8 items-center text-xs font-emphasis tracking-tight text-accent"
                   >
                     Clear
                   </button>
@@ -792,9 +882,9 @@ export function MyCatalogPage({
           onClear={exitSelect}
           canSelect={!youSaved && tabHasItems}
           selectTestId="you-library-select"
-          layout={layout}
+          layout={tab === 'products' ? layout : undefined}
           layoutTestId="you-library-layout-toggle"
-          onLayoutToggle={toggleLayout}
+          onLayoutToggle={tab === 'products' ? toggleLayout : undefined}
         />
       ) : null}
 
@@ -830,7 +920,6 @@ export function MyCatalogPage({
                 <SellerProductTile
                   key={product.id}
                   product={product}
-                  groups={buyerGroups}
                   variant={layout}
                   selecting={selecting}
                   selected={selectedIds.has(product.id)}
@@ -876,58 +965,51 @@ export function MyCatalogPage({
               message="Couldn't load collections. Try again."
               onRetry={() => void collections.refetch()}
             />
-          ) : filteredCollections.length > 0 ? (
-            <div
-              className={
-                layout === 'feed' ? 'flex flex-col' : 'grid grid-cols-2 gap-3'
-              }
-              data-testid="catalog-collections-layout"
-              data-layout={layout}
-            >
-              {filteredCollections.map((collection) => (
-                <CollectionAlbumTile
-                  key={collection.id}
-                  surface="library"
-                  id={collection.id}
-                  name={collection.name}
-                  previewImages={collection.previewImages ?? []}
-                  categories={collection.categories}
-                  layout={layout}
-                  selecting={selecting}
-                  selected={selectedIds.has(collection.id)}
-                  onToggle={() => toggleSelected(collection.id)}
-                  onLongSelect={() => startSelect(collection.id)}
-                  status={collection.status}
-                  productCount={collection.productCount}
-                  companyId={collection.companyId}
-                  memberShops={collection.memberShops}
-                  groups={buyerGroups}
-                  audience={collection.audience}
-                  audienceCompanyIds={collection.audienceCompanyIds}
-                  audienceGroupIds={collection.audienceGroupIds}
-                  startsAt={collection.startsAt}
-                  endsAt={collection.endsAt}
-                />
-              ))}
-            </div>
           ) : (
-            <EmptyState
-              title={
-                listSearchActive
-                  ? 'No collections match'
-                  : emptyCollectionCopy(collectionFilter).title
-              }
-              message={
-                listSearchActive
-                  ? 'Try another name or shop.'
-                  : emptyCollectionCopy(collectionFilter).message
-              }
-              action={
-                listSearchActive ? undefined : collectionFilter === 'draft' ? (
-                  <Button onClick={() => navigate('/catalog/collections/new')}>New collection</Button>
-                ) : undefined
-              }
-            />
+            <div className="flex flex-col gap-1" data-testid="catalog-collections-layout" data-layout="list">
+              {filteredCollections.length > 0 ? (
+                filteredCollections.map((collection) => (
+                  <YouCollectionListRow
+                    key={collection.id}
+                    collection={collection}
+                    selecting={selecting}
+                    selected={selectedIds.has(collection.id)}
+                    actionFocus={
+                      rowMenu?.id === collection.id ||
+                      (shareOpen &&
+                        rowShare?.length === 1 &&
+                        rowShare[0].collectionId === collection.id)
+                    }
+                    swipeOpen={openSwipeId === collection.id}
+                    onSwipeOpen={() => setOpenSwipeId(collection.id)}
+                    onSwipeClose={() =>
+                      setOpenSwipeId((id) => (id === collection.id ? null : id))
+                    }
+                    onToggle={() => toggleSelected(collection.id)}
+                    onLongSelect={() => startSelect(collection.id)}
+                    onMore={() => setRowMenu(collection)}
+                    onShare={() => shareCollection(collection)}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  title={
+                    listSearchActive
+                      ? 'No collections match'
+                      : emptyCollectionCopy(
+                          draftCollections ? 'draft' : archivedCollections ? 'archived' : 'published',
+                        ).title
+                  }
+                  message={
+                    listSearchActive
+                      ? 'Try another name or shop.'
+                      : emptyCollectionCopy(
+                          draftCollections ? 'draft' : archivedCollections ? 'archived' : 'published',
+                        ).message
+                  }
+                />
+              )}
+            </div>
           )}
         </>
       )}
@@ -976,7 +1058,7 @@ export function MyCatalogPage({
             ) : (
               <span className="min-w-0 flex-1" />
             )}
-            {showLifecycleMore ? (
+            {tab === 'products' && showLifecycleMore ? (
               <button
                 type="button"
                 data-testid="you-library-select-more"
@@ -998,7 +1080,7 @@ export function MyCatalogPage({
         title={tab === 'collections' ? 'Collections' : 'Designs'}
         testId="you-library-lifecycle-more"
         items={[
-          ...(publishedSelectChrome.more.includes('hide')
+          ...(hideableIds.length > 0
             ? [
                 {
                   id: 'hide',
@@ -1013,8 +1095,7 @@ export function MyCatalogPage({
                 },
               ]
             : []),
-          ...((publishedSelectChrome.more.includes('archive') ||
-            (publishableIds.length > 0 && archivableIds.length > 0))
+          ...(archivableIds.length > 0
             ? [
                 {
                   id: 'archive',
@@ -1029,7 +1110,7 @@ export function MyCatalogPage({
                 },
               ]
             : []),
-          ...(publishedSelectChrome.more.includes('repost')
+          ...(tab === 'products' && canCurateOwn && hideableIds.length > 0
             ? [
                 {
                   id: 'repost',
@@ -1045,6 +1126,69 @@ export function MyCatalogPage({
               ]
             : []),
         ]}
+      />
+      <MoreActionsSheet
+        open={rowMenu != null}
+        onClose={() => setRowMenu(null)}
+        title={rowMenu?.name ?? 'Collection'}
+        testId="you-collection-row-more"
+        items={
+          rowMenu
+            ? youCollectionRowMore(rowMenu).map((action) => {
+                if (action === 'hide') {
+                  return {
+                    id: 'hide',
+                    label: 'Hide Draft',
+                    icon: <LockIcon width={20} height={20} />,
+                    testId: 'you-collection-hide-draft',
+                    onClick: () => {
+                      const id = rowMenu.id;
+                      setRowMenu(null);
+                      bulkHide.mutate([id]);
+                    },
+                  };
+                }
+                if (action === 'unhide') {
+                  return {
+                    id: 'unhide',
+                    label: 'Unhide Draft',
+                    icon: <LockIcon width={20} height={20} />,
+                    testId: 'you-collection-unhide-draft',
+                    disabled: !isCollectionPublishable(rowMenu),
+                    onClick: () => {
+                      setSoloPublishIds([rowMenu.id]);
+                      setBulkPublishOpen(true);
+                      setRowMenu(null);
+                    },
+                  };
+                }
+                if (action === 'archive') {
+                  return {
+                    id: 'archive',
+                    label: 'Archive',
+                    icon: <ReturnIcon width={20} height={20} />,
+                    testId: 'you-collection-archive',
+                    onClick: () => {
+                      const id = rowMenu.id;
+                      setRowMenu(null);
+                      bulkArchive.mutate([id]);
+                    },
+                  };
+                }
+                return {
+                  id: 'order',
+                  label: 'Order',
+                  icon: <OrdersIcon width={20} height={20} />,
+                  testId: 'you-collection-order',
+                  onClick: () => {
+                    const collection = rowMenu;
+                    setRowMenu(null);
+                    orderCollection(collection);
+                  },
+                };
+              })
+            : []
+        }
       />
         </>
       )}
@@ -1089,11 +1233,15 @@ export function MyCatalogPage({
 
       <CatalogShareSheet
         open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        collections={shareCollections}
+        onClose={() => {
+          setShareOpen(false);
+          setRowShare(null);
+        }}
+        collections={rowShare ?? shareCollections}
         products={shareProducts}
         onShared={() => {
           setShareOpen(false);
+          setRowShare(null);
           exitSelect();
         }}
       />
@@ -1184,8 +1332,11 @@ export function MyCatalogPage({
       {tab === 'collections' ? (
         <BulkCollectionPublishSheet
           open={bulkPublishOpen}
-          onClose={() => setBulkPublishOpen(false)}
-          collectionIds={publishableIds}
+          onClose={() => {
+            setBulkPublishOpen(false);
+            setSoloPublishIds(null);
+          }}
+          collectionIds={soloPublishIds ?? publishableIds}
           onDone={exitSelect}
         />
       ) : (
@@ -1207,7 +1358,7 @@ export function MyCatalogPage({
             }}
             className="rounded-2xl border border-line px-4 py-3.5 text-left"
           >
-            <p className="text-sm font-bold text-ink">Single design</p>
+            <p className="text-sm font-emphasis text-ink">Single design</p>
             <p className="mt-0.5 text-xs text-muted">One product post on Explore</p>
           </button>
           <button
@@ -1218,7 +1369,7 @@ export function MyCatalogPage({
             }}
             className="rounded-2xl border border-line px-4 py-3.5 text-left"
           >
-            <p className="text-sm font-bold text-ink">Collection</p>
+            <p className="text-sm font-emphasis text-ink">Collection</p>
             <p className="mt-0.5 text-xs text-muted">Album of designs as one post</p>
           </button>
         </div>
@@ -1229,7 +1380,6 @@ export function MyCatalogPage({
 
 function SellerProductTile({
   product,
-  groups,
   variant,
   selecting,
   selected,
@@ -1238,7 +1388,6 @@ function SellerProductTile({
   onOpenPublished,
 }: {
   product: ProductView;
-  groups: BroadcastListView[];
   variant: DesignBrowseLayout;
   selecting: boolean;
   selected: boolean;
@@ -1246,8 +1395,6 @@ function SellerProductTile({
   onLongSelect: () => void;
   onOpenPublished: () => void;
 }) {
-  const subtitle = productTileSubtitle(product);
-  const statusLine = productStatusLine(product, groups);
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const feed = variant === 'feed';
@@ -1263,15 +1410,10 @@ function SellerProductTile({
     navigate(`/catalog/products/${product.id}`);
   };
   if (feed) {
-    const when = explorePostedWhen(product.updatedAt ?? product.createdAt);
     const live = product.status === ProductStatus.Published;
-    const meta = [live ? productTileSubtitle(product) : productStatusLine(product, groups), when]
-      .filter(Boolean)
-      .join(' · ');
     return (
       <CatalogFeedPost
         name={product.name}
-        meta={meta}
         href={live ? undefined : `/catalog/products/${product.id}`}
         onOpen={live ? () => open() : undefined}
         images={product.images}
@@ -1311,14 +1453,7 @@ function SellerProductTile({
         )}
         {...longPress}
       >
-        <p className="truncate text-sm font-medium text-ink">{product.name}</p>
-        {subtitle ? <p className="truncate text-xs text-muted">{subtitle}</p> : null}
-        <p className="truncate text-xs font-medium text-ink" data-testid="catalog-product-status">
-          {statusLine}
-        </p>
-        {libraryAuditLine(product) ? (
-          <p className="text-[11px] text-muted">{libraryAuditLine(product)}</p>
-        ) : null}
+        <p className="truncate text-sm font-emphasis text-ink">{product.name}</p>
       </button>
     </div>
   );

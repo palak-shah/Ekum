@@ -215,13 +215,13 @@ export function HomePage() {
   return (
     <div className="flex flex-col">
       <header className="flex flex-col gap-2">
-        <p className="text-[15px] font-medium leading-snug text-ink">
+        <p className="text-[15px] font-body leading-snug text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </p>
         {attentionLoading ? (
           <p className="text-sm text-muted">Checking what needs you…</p>
         ) : hasNeeds ? (
-          <p className="text-[15px] font-medium leading-snug text-accent">
+          <p className="text-[15px] font-emphasis leading-snug text-accent">
             {needs.length === 1
               ? '1 item needs attention.'
               : `${needs.length} items need attention.`}
@@ -231,13 +231,13 @@ export function HomePage() {
             <p className="text-sm leading-relaxed text-muted">
               Start by browsing the market - find businesses on Explore.
             </p>
-            <Link to="/explore" className="self-start text-[15px] font-semibold text-accent">
+            <Link to="/explore" className="self-start text-[15px] font-emphasis text-accent">
               Open Explore →
             </Link>
           </div>
         ) : (
           <div className="mt-1 flex flex-col gap-1">
-            <p className="text-[15px] font-semibold text-ink">Nothing needs you</p>
+            <p className="text-[15px] font-emphasis text-ink">Nothing needs you</p>
             <p className="text-sm leading-relaxed text-muted">
               Explore what&apos;s new in the market.
             </p>
@@ -263,7 +263,7 @@ export function HomePage() {
 
       {!attentionLoading && hasNeeds ? (
         <section className="mt-6 flex flex-col gap-3">
-          <h2 className="px-0.5 text-[15px] font-semibold tracking-tight text-ink">
+          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">
             Needs your attention
           </h2>
           <div className="flex flex-col gap-2.5">
@@ -284,7 +284,7 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => setShowAllNeeds(true)}
-              className="self-start px-0.5 pt-0.5 text-[15px] font-semibold text-accent"
+              className="self-start px-0.5 pt-0.5 text-[15px] font-emphasis text-accent"
             >
               See all {needs.length} →
             </button>
@@ -297,7 +297,7 @@ export function HomePage() {
           <SectionHeader
             title="New collections"
             action={
-              <Link to="/explore?side=buying" className="text-[13px] font-semibold text-accent">
+              <Link to="/explore?side=buying" className="text-[13px] font-emphasis text-accent">
                 See all →
               </Link>
             }
@@ -309,7 +309,7 @@ export function HomePage() {
               className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 hover:bg-foam active:bg-foam"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                <p className="truncate text-sm font-emphasis text-ink">{item.title}</p>
                 <p className="truncate text-xs text-muted">{item.subtitle}</p>
               </div>
               <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
@@ -389,12 +389,12 @@ function PostListSection({
       <SectionHeader
         title={title}
         action={
-          <Link to="/explore" className="text-[13px] font-semibold text-accent">
+          <Link to="/explore" className="text-[13px] font-emphasis text-accent">
             {actionLabel}
           </Link>
         }
       />
-      {subtitle ? <p className="px-0.5 text-sm font-medium text-muted">{subtitle}</p> : null}
+      {subtitle ? <p className="px-0.5 text-sm font-body text-muted">{subtitle}</p> : null}
       <HomeLookRail posts={posts} />
       <div className="overflow-hidden rounded-xl border border-line bg-surface">
         {posts.map((group) => (
@@ -419,12 +419,12 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
         </Link>
         {selling ? (
           <div className="mt-3 flex flex-col gap-2">
-            <Link to="/more" className="block text-center text-[15px] font-semibold text-accent">
+            <Link to="/more" className="block text-center text-[15px] font-emphasis text-accent">
               My designs
             </Link>
             <Link
               to="/catalog/products/new"
-              className="block text-center text-sm font-medium text-muted"
+              className="block text-center text-sm font-body text-muted"
             >
               {buying ? 'Add designs' : 'Add designs to start'}
             </Link>
@@ -458,10 +458,10 @@ function MetricCard({ label, value, to }: { label: string; value: number; to: st
     >
       <Icon width={16} height={16} className="text-accent" aria-hidden />
       <div className="flex flex-col gap-0.5">
-        <p className="text-[1.4rem] font-semibold tabular-nums leading-none tracking-[-0.03em] text-ink">
+        <p className="text-[1.4rem] font-title tabular-nums leading-none tracking-[-0.03em] text-ink">
           {value}
         </p>
-        <p className="text-[12px] font-medium capitalize leading-tight text-muted">
+        <p className="text-[12px] font-body capitalize leading-tight text-muted">
           {metricLabel(label, value)}
         </p>
       </div>
@@ -500,7 +500,7 @@ function NeedCard({
         <Icon width={18} height={18} />
       </span>
       <div className="min-w-0 flex-1 py-0.5">
-        <p className="truncate text-[15px] font-semibold leading-snug tracking-tight text-ink">
+        <p className="truncate text-[15px] font-emphasis leading-snug tracking-tight text-ink">
           {item.title}
         </p>
         {item.subtitle ? (
@@ -549,7 +549,7 @@ function HomeLookRail({ posts }: { posts: HomePostGroup[] }) {
             className="relative h-[7.25rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-linen"
           >
             <CoverImage src={src} alt="" priority />
-            <span className="absolute inset-x-0 bottom-0 truncate bg-ink/55 px-1.5 py-1 text-[10px] font-semibold text-white">
+            <span className="absolute inset-x-0 bottom-0 truncate bg-ink/55 px-1.5 py-1 text-[10px] font-emphasis text-white">
               {group.companyName}
             </span>
           </Link>
@@ -583,7 +583,7 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
         <Avatar name={group.companyName} size={56} />
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="truncate text-[15px] font-semibold text-ink">{title}</p>
+        <p className="truncate text-[15px] font-emphasis text-ink">{title}</p>
         {place ? <p className="truncate text-[13px] text-muted">{place}</p> : null}
         {group.count === 1 ? (
           <>

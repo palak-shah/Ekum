@@ -73,7 +73,7 @@ export function ReferralLandingPage() {
   if (referral.isError || !referral.data) {
     return (
       <InviteShell>
-        <p className="text-xs font-semibold text-accent">Ekum</p>
+        <p className="text-xs font-emphasis text-accent">Ekum</p>
         <ErrorState message="This invite link is invalid or expired." />
       </InviteShell>
     );
@@ -100,14 +100,14 @@ export function ReferralLandingPage() {
 
   return (
     <InviteShell>
-      <p className="text-xs font-semibold text-accent">Ekum</p>
+      <p className="text-xs font-emphasis text-accent">Ekum</p>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <Avatar name={hero.name} imageUrl={hero.logoUrl} size={72} />
         {isOpenInvite ? (
           <>
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-bold tracking-tight text-ink">
+              <h1 className="text-2xl font-emphasis tracking-tight text-ink">
                 {data.referrer.name} invited you
               </h1>
               {data.referrer.city ? (
@@ -121,7 +121,7 @@ export function ReferralLandingPage() {
         ) : (
           <>
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-bold tracking-tight text-ink">
+              <h1 className="text-2xl font-emphasis tracking-tight text-ink">
                 {data.referrer.name} introduced you to {data.target!.name}
               </h1>
               {data.target!.city ? (

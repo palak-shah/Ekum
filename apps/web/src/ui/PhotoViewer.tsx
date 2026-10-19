@@ -189,7 +189,7 @@ export function PhotoViewer({
         <button
           type="button"
           data-testid="photo-viewer-close"
-          className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-white/10"
+          className="rounded-full px-3 py-1.5 text-sm font-emphasis hover:bg-white/10"
           onClick={onClose}
         >
           Close
@@ -205,7 +205,7 @@ export function PhotoViewer({
           <button
             type="button"
             data-testid={headerAction.testId ?? 'photo-viewer-header-action'}
-            className="rounded-full px-3 py-1.5 text-sm font-medium hover:bg-white/10"
+            className="rounded-full px-3 py-1.5 text-sm font-emphasis hover:bg-white/10"
             onClick={headerAction.onClick}
           >
             {headerAction.label}
@@ -266,7 +266,7 @@ export function PhotoViewer({
           {caption ? (
             <p
               data-testid="photo-viewer-caption"
-              className="truncate text-sm font-semibold text-white"
+              className="truncate text-sm font-emphasis text-white"
             >
               {caption}
             </p>

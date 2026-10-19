@@ -32,11 +32,11 @@ export function ExploreFeedCaption({
 
   return (
     <div className={cx('mt-1 flex w-full flex-col gap-2 text-left', className)}>
-      <p className="text-base font-semibold leading-normal tracking-tight text-ink">{title}</p>
-      {meta ? <p className="text-sm font-medium leading-normal text-muted">{meta}</p> : null}
+      <p className="text-base font-emphasis leading-normal tracking-tight text-ink">{title}</p>
+      {meta ? <p className="text-sm font-body leading-normal text-muted">{meta}</p> : null}
       {rateLine ? (
         <p
-          className="text-base font-semibold leading-normal tracking-tight text-accent"
+          className="text-base font-emphasis leading-normal tracking-tight text-accent"
           data-testid="explore-feed-rate"
         >
           {rateLine}
@@ -44,7 +44,7 @@ export function ExploreFeedCaption({
       ) : null}
       {categoryLine ? (
         <p
-          className="text-sm font-medium leading-normal text-muted"
+          className="text-sm font-body leading-normal text-muted"
           data-testid="explore-feed-categories"
         >
           {categoryLine}
@@ -88,7 +88,7 @@ function ExploreFeedDescription({ text }: { text: string }) {
         ref={bodyRef}
         data-testid="explore-feed-about-body"
         className={cx(
-          'text-sm font-medium leading-5 text-ink whitespace-pre-wrap',
+          'text-sm font-body leading-5 text-ink whitespace-pre-wrap',
           /* Literal max-h so JIT always emits; reserve space so read more doesn’t cover glyphs. */
           !open && cx(PACK_DETAILS_COLLAPSED_MAX_H_CLASS, 'overflow-hidden', 'pr-16'),
         )}
@@ -100,7 +100,7 @@ function ExploreFeedDescription({ text }: { text: string }) {
           type="button"
           data-testid="explore-feed-about"
           className={cx(
-            'text-sm font-semibold leading-5 text-accent',
+            'text-sm font-emphasis leading-5 text-accent',
             open
               ? 'mt-1'
               : 'absolute bottom-0 right-0 z-[1] bg-gradient-to-l from-canvas from-50% to-transparent pl-6',

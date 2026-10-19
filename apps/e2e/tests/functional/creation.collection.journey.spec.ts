@@ -6,7 +6,7 @@ import { SAMPLE_JPG, sampleJpgTimes } from '../../helpers/fixtures';
 async function openDraftCollectionByName(page: import('@playwright/test').Page, name: string) {
   await expect(page).toHaveURL(/\/catalog/, { timeout: 20_000 });
   await pickYouLibraryFilter(page, 'Draft');
-  const tile = page.getByRole('button').filter({ hasText: name }).first();
+  const tile = page.getByRole('link').filter({ hasText: name }).first();
   await expect(tile).toBeVisible({ timeout: 20_000 });
   await tile.click();
   await expect(page).toHaveURL(/\/collections\//, { timeout: 20_000 });

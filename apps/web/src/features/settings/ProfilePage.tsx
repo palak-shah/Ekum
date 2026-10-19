@@ -229,12 +229,12 @@ export function ProfilePage() {
           size={64}
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">Profile photo</p>
+          <p className="text-sm font-emphasis text-ink">Profile photo</p>
           <p className="text-xs text-muted">Shown in chats and your header. Optional.</p>
           {editing ? (
             <div className="mt-2 flex flex-wrap gap-2">
               <label className="inline-flex cursor-pointer">
-                <span className="rounded-[13px] border-[1.5px] border-accent bg-surface px-3 py-1.5 text-xs font-bold text-accent">
+                <span className="rounded-[13px] border-[1.5px] border-accent bg-surface px-3 py-1.5 text-xs font-emphasis text-accent">
                   {logoBusy || setLogo.isPending ? 'Uploading…' : 'Upload'}
                 </span>
                 <input
@@ -251,7 +251,7 @@ export function ProfilePage() {
               {company.data?.logoUrl ? (
                 <button
                   type="button"
-                  className="text-xs font-bold text-muted"
+                  className="text-xs font-body text-muted"
                   disabled={setLogo.isPending}
                   onClick={() => setLogo.mutate(null)}
                 >
@@ -265,7 +265,7 @@ export function ProfilePage() {
 
       <Card className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold text-ink">Visibility</p>
+          <p className="text-sm font-emphasis text-ink">Visibility</p>
           <p className="text-xs text-muted">
             Your phone is never shown publicly. Rates are gated to connections.
           </p>
@@ -317,7 +317,7 @@ export function ProfilePage() {
                     type="button"
                     onClick={() => toggleMaster(opt.slug)}
                     className={cx(
-                      'rounded-full px-3 py-1.5 text-sm font-medium',
+                      'rounded-full px-3 py-1.5 text-sm font-emphasis',
                       on ? 'bg-accent text-white' : 'bg-foam text-muted',
                     )}
                   >
@@ -329,7 +329,7 @@ export function ProfilePage() {
               ? form.masterCategories.map((value) => (
                   <span
                     key={value}
-                    className="rounded-full bg-accent/10 px-3 py-1.5 text-sm font-medium text-ink"
+                    className="rounded-full bg-accent/10 px-3 py-1.5 text-sm font-emphasis text-ink"
                   >
                     {masterCategoryDisplayLabel(value)}
                   </span>
@@ -430,7 +430,7 @@ export function ProfilePage() {
                 <Link
                   to="/admin"
                   data-testid="admin-console-entry"
-                  className="block w-full rounded-xl border border-line bg-canvas px-4 py-3 text-center text-[15px] font-medium text-ink"
+                  className="block w-full rounded-xl border border-line bg-canvas px-4 py-3 text-center text-[15px] font-emphasis text-ink"
                 >
                   Admin Console
                 </Link>

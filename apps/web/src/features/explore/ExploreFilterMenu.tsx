@@ -199,7 +199,7 @@ export function ExploreFilterMenu({
                   onSwitch();
                   close();
                 }}
-                className="flex w-full items-center px-3.5 py-2.5 text-left text-sm font-bold tracking-tight text-accent hover:bg-foam/70"
+                className="flex w-full items-center px-3.5 py-2.5 text-left text-sm font-emphasis tracking-tight text-accent hover:bg-foam/70"
               >
                 {switchLabel}
               </button>
@@ -223,7 +223,7 @@ export function ExploreFilterMenu({
                       }}
                       className={cx(
                         'flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm tracking-tight hover:bg-foam/70',
-                        active ? 'bg-accent/10 font-bold text-ink' : 'font-medium text-slate',
+                        active ? 'bg-accent/10 font-emphasis text-ink' : 'font-emphasis text-slate',
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate">{option.label}</span>
@@ -330,7 +330,7 @@ function FacetList({
                   active ? 'border-accent bg-accent/5' : 'border-line bg-surface',
                 )}
               >
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                <span className="min-w-0 flex-1 truncate text-sm font-emphasis text-ink">
                   {labelFor(option)}
                 </span>
                 <span className="shrink-0 text-xs text-muted">{active ? 'Selected' : 'Add'}</span>
@@ -348,7 +348,7 @@ function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
     <button
       type="button"
       onClick={onBack}
-      className="flex shrink-0 items-center gap-1 border-b border-line px-2.5 py-2.5 text-sm font-bold tracking-tight text-ink hover:bg-foam/50"
+      className="flex shrink-0 items-center gap-1 border-b border-line px-2.5 py-2.5 text-sm font-emphasis tracking-tight text-ink hover:bg-foam/50"
     >
       <BackIcon width={18} height={18} />
       {title}
@@ -376,8 +376,8 @@ function MenuRow({
         className="flex min-w-0 flex-1 items-center gap-3 px-3.5 py-2.5 text-left hover:bg-foam/70"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold tracking-tight text-ink">{label}</span>
-          <span className="block truncate text-xs font-medium text-muted">{value}</span>
+          <span className="block text-sm font-emphasis tracking-tight text-ink">{label}</span>
+          <span className="block truncate text-xs font-body text-muted">{value}</span>
         </span>
         <ChevronRightIcon width={16} height={16} className="shrink-0 text-muted" />
       </button>
@@ -388,7 +388,7 @@ function MenuRow({
             event.stopPropagation();
             onClear();
           }}
-          className="shrink-0 px-1.5 py-1 text-xs font-bold tracking-tight text-accent"
+          className="shrink-0 px-1.5 py-1 text-xs font-emphasis tracking-tight text-accent"
         >
           Clear
         </button>

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { OwnerPackManageDock } from './OwnerPackManageDock';
 
 describe('OwnerPackManageDock', () => {
@@ -20,27 +21,33 @@ describe('OwnerPackManageDock', () => {
     expect(screen.queryByTestId('owner-pack-replace')).toBeNull();
   });
 
-  it('shows Designs · Photos · Replace on one idle row', () => {
+  it('opens Designs · Photos · Replace from Update collection', async () => {
+    const user = userEvent.setup();
+    const onAddDesigns = vi.fn();
     render(
       <OwnerPackManageDock
         selecting={false}
         canDelete={false}
         canRemove={false}
-        onAddDesigns={vi.fn()}
+        onAddDesigns={onAddDesigns}
         onAddPhotos={vi.fn()}
         onReplace={vi.fn()}
         onDelete={vi.fn()}
         onRemove={vi.fn()}
       />,
     );
+    expect(screen.queryByTestId('owner-pack-add-designs')).toBeNull();
+    await user.click(screen.getByTestId('owner-pack-update'));
     const designs = screen.getByTestId('owner-pack-add-designs');
     const photos = screen.getByTestId('owner-pack-add-photos');
     const replace = screen.getByTestId('owner-pack-replace');
-    expect(designs).toHaveTextContent('Designs');
-    expect(photos).toHaveTextContent('Photos');
-    expect(replace).toHaveTextContent('Replace');
+    expect(designs).toHaveTextContent('Add designs');
+    expect(photos).toHaveTextContent('Add photos');
+    expect(replace).toHaveTextContent('Replace entire collection');
     expect(designs.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(photos.compareDocumentPosition(replace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(designs);
+    expect(onAddDesigns).toHaveBeenCalled();
   });
 
   it('shows Cart · Share · Delete icons then Remove when selecting', () => {

@@ -6,34 +6,29 @@ import { CATALOG_FIND_STATUS_FILTERS } from './catalogListFilter';
 
 export type YouLibraryFindScope = 'published' | 'draft' | 'archived' | 'saved';
 
-export const YOU_LIBRARY_FIND_MENU: Array<{ id: YouLibraryFindScope; label: string }> = [
-  ...CATALOG_FIND_STATUS_FILTERS.map((row) => ({
+/** Designs Find only. Bookmarks and archived collections live on the page ⋯. */
+export const YOU_LIBRARY_FIND_MENU: Array<{ id: YouLibraryFindScope; label: string }> =
+  CATALOG_FIND_STATUS_FILTERS.map((row) => ({
     id: row.id as YouLibraryFindScope,
     label: row.label,
-  })),
-  { id: 'saved', label: 'Bookmark' },
-];
+  }));
 
 export function YouLibraryFilterMenu({
   open,
   onClose,
   anchorRef,
   value,
-  showSaved,
   onChange,
 }: {
   open: boolean;
   onClose: () => void;
   anchorRef: RefObject<HTMLElement | null>;
   value: YouLibraryFindScope;
-  showSaved: boolean;
   onChange: (scope: YouLibraryFindScope) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, right: 0 });
-  const options = showSaved
-    ? YOU_LIBRARY_FIND_MENU
-    : YOU_LIBRARY_FIND_MENU.filter((row) => row.id !== 'saved');
+  const options = YOU_LIBRARY_FIND_MENU;
 
   const close = () => onClose();
 
@@ -105,7 +100,7 @@ export function YouLibraryFilterMenu({
                   }}
                   className={cx(
                     'flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm tracking-tight hover:bg-foam/70',
-                    active ? 'bg-accent/10 font-bold text-ink' : 'font-medium text-slate',
+                    active ? 'bg-accent/10 font-emphasis text-ink' : 'font-emphasis text-slate',
                   )}
                 >
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>

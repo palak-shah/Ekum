@@ -22,10 +22,10 @@ export function ThreadForwardDock({
       className="shrink-0 border-t border-line bg-canvas/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
     >
       <div className="flex items-center gap-3">
-        <p className="min-w-0 flex-1 text-sm font-semibold text-ink">{count} selected</p>
+        <p className="min-w-0 flex-1 text-sm font-emphasis text-ink">{count} selected</p>
         <button
           type="button"
-          className="shrink-0 text-sm font-semibold text-muted"
+          className="shrink-0 text-sm font-body text-muted"
           onClick={onCancel}
         >
           Cancel

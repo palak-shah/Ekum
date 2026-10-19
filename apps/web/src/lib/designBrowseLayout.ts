@@ -8,11 +8,11 @@ export function designBrowsePhotoClass(
   if (layout === 'feed') {
     return kind === 'img'
       ? 'aspect-[4/5] w-full object-cover object-center'
-      : 'flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-bold text-muted';
+      : 'flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted';
   }
   return kind === 'img'
     ? 'h-32 w-full object-cover'
-    : 'flex h-32 w-full items-center justify-center bg-foam text-2xl font-bold text-muted';
+    : 'flex h-32 w-full items-center justify-center bg-foam text-2xl font-body text-muted';
 }
 
 /** Ekum system default when the trader has never chosen. */

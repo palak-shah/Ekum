@@ -93,7 +93,7 @@ export function ThreadSearchFilterMenu({
                   }}
                   className={cx(
                     'flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm tracking-tight hover:bg-foam/70',
-                    active ? 'bg-accent/10 font-bold text-ink' : 'font-medium text-slate',
+                    active ? 'bg-accent/10 font-emphasis text-ink' : 'font-emphasis text-slate',
                   )}
                 >
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>

@@ -57,7 +57,7 @@ export function OrderDispatchFields({
       data-testid={hideHeading ? 'collection-order-dispatch-fields' : 'collection-order-dispatch'}
     >
       {hideHeading ? null : (
-        <h2 className="text-sm font-semibold text-ink">Order and dispatch</h2>
+        <h2 className="text-sm font-emphasis text-ink">Order and dispatch</h2>
       )}
       <Field label="Order taken in">
         <select

@@ -67,7 +67,7 @@ None Required.
 
 - Auto-confirm mill Manage/Direct parents.  
 - Accept quote changes.  
-- Chat-card Decline CTA (detail dock is enough).
+- Chat-card Decline is in: buyer’s newest order card when someone else logged the ticket (requested or confirmed). Supplier Confirm stays on View order.
 
 ## Sign-off
 

@@ -84,12 +84,12 @@ export function ShopPhotoCell({
           <Link
             to={to}
             data-testid={testId ? `${testId}-open` : undefined}
-            className="block truncate p-2.5 text-sm font-medium text-ink"
+            className="block truncate p-2.5 text-sm font-emphasis text-ink"
           >
             {label}
           </Link>
         ) : (
-          <span className="block truncate p-2.5 text-sm font-medium text-ink">{label}</span>
+          <span className="block truncate p-2.5 text-sm font-emphasis text-ink">{label}</span>
         )
       ) : null}
     </div>

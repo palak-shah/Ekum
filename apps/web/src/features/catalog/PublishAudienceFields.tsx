@@ -230,7 +230,7 @@ export function PublishAudienceFields({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="mb-2 text-sm font-semibold text-ink">Who can see this?</p>
+        <p className="mb-2 text-sm font-emphasis text-ink">Who can see this?</p>
         {isVisibilityUpdate ? (
           <p className="mb-2 text-xs text-muted">Add groups or companies anytime.</p>
         ) : null}
@@ -247,7 +247,7 @@ export function PublishAudienceFields({
                   'rounded-xl border px-3 py-2.5 text-left text-sm',
                   !allowed && 'cursor-not-allowed opacity-40',
                   allowed && state.audience === value
-                    ? 'border-accent bg-accent/5 font-medium text-ink'
+                    ? 'border-accent bg-accent/5 font-emphasis text-ink'
                     : allowed
                       ? 'border-line text-muted'
                       : 'border-line text-muted',
@@ -266,11 +266,11 @@ export function PublishAudienceFields({
           <div className="mt-3 flex flex-col gap-3">
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-ink">Buyer groups</p>
+                <p className="text-xs font-emphasis text-ink">Buyer groups</p>
                 {onCreateGroup ? (
                   <button
                     type="button"
-                    className="text-xs font-medium text-accent"
+                    className="text-xs font-emphasis text-accent"
                     onClick={onCreateGroup}
                   >
                     {lists.length > 0 ? 'Add group' : 'Create group'}
@@ -287,7 +287,7 @@ export function PublishAudienceFields({
                         type="button"
                         onClick={() => toggleGroup(list)}
                         className={cx(
-                          'rounded-full border px-3 py-1 text-xs font-medium',
+                          'rounded-full border px-3 py-1 text-xs font-emphasis',
                           selected
                             ? 'border-accent bg-accent/5 text-ink'
                             : 'border-line text-ink',
@@ -311,7 +311,7 @@ export function PublishAudienceFields({
                 </p>
                 <button
                   type="button"
-                  className="self-start text-xs font-medium text-accent"
+                  className="self-start text-xs font-emphasis text-accent"
                   onClick={openPickCompanies}
                 >
                   Pick companies instead
@@ -341,7 +341,7 @@ export function PublishAudienceFields({
                 {lists.length > 0 && state.pickCompanies ? (
                   <button
                     type="button"
-                    className="self-start text-xs font-medium text-accent"
+                    className="self-start text-xs font-emphasis text-accent"
                     onClick={() =>
                       onChange({
                         ...state,
@@ -362,7 +362,7 @@ export function PublishAudienceFields({
       {showRules ? (
         <div className="flex flex-col gap-3">
           <div>
-            <p className="mb-2 text-sm font-semibold text-ink">Show rates?</p>
+            <p className="mb-2 text-sm font-emphasis text-ink">Show rates?</p>
             <div className="flex flex-col gap-1.5">
               {(
                 [
@@ -377,7 +377,7 @@ export function PublishAudienceFields({
                   className={cx(
                     'rounded-xl border px-3 py-2.5 text-left text-sm',
                     state.rateVisibility === value
-                      ? 'border-accent bg-accent/5 font-medium text-ink'
+                      ? 'border-accent bg-accent/5 font-emphasis text-ink'
                       : 'border-line text-muted',
                   )}
                 >
@@ -436,7 +436,7 @@ export function PublishAudienceFields({
               />
               <span>
                 Show supplier name
-                <span className="mt-0.5 block text-xs font-normal text-muted">
+                <span className="mt-0.5 block text-xs font-body text-muted">
                   Buyers see which mill the designs came from. Off by default.
                 </span>
               </span>
@@ -450,7 +450,7 @@ export function PublishAudienceFields({
 
       {showWhen && schedule ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">When</p>
+          <p className="text-sm font-emphasis text-ink">When</p>
           <Field label="Starts (optional)">
             <TextInput
               type="date"

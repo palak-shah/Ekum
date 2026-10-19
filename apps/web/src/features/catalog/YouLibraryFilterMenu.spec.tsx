@@ -5,13 +5,9 @@ import { createRef } from 'react';
 import { YOU_LIBRARY_FIND_MENU, YouLibraryFilterMenu } from './YouLibraryFilterMenu';
 
 describe('YouLibraryFilterMenu', () => {
-  it('lists Draft, Archived, Bookmark — not Published', () => {
-    expect(YOU_LIBRARY_FIND_MENU.map((row) => row.id)).toEqual(['draft', 'archived', 'saved']);
-    expect(YOU_LIBRARY_FIND_MENU.map((row) => row.label)).toEqual([
-      'Draft',
-      'Archived',
-      'Bookmark',
-    ]);
+  it('lists Draft and Archived — Bookmarks are on the page menu', () => {
+    expect(YOU_LIBRARY_FIND_MENU.map((row) => row.id)).toEqual(['draft', 'archived']);
+    expect(YOU_LIBRARY_FIND_MENU.map((row) => row.label)).toEqual(['Draft', 'Archived']);
   });
 
   it('picks Draft from the menu', async () => {
@@ -29,7 +25,6 @@ describe('YouLibraryFilterMenu', () => {
           onClose={onClose}
           anchorRef={anchorRef}
           value="published"
-          showSaved
           onChange={onChange}
         />
       </>,

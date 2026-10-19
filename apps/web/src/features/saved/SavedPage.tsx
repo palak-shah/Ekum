@@ -330,7 +330,7 @@ export function SavedPage({
                 type="button"
                 onClick={() => setTab(value)}
                 className={cx(
-                  'rounded-full px-4 py-1.5 text-sm font-medium',
+                  'rounded-full px-4 py-1.5 text-sm font-emphasis',
                   tab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
                 )}
               >
@@ -471,7 +471,7 @@ function SavedGridTile({
         </SelectableMediaFrame>
       </button>
       <button type="button" className="block w-full px-2.5 py-2.5 text-left" onClick={onOpen}>
-        <p className={cx('truncate text-sm font-semibold text-ink', item.available === false && 'opacity-45')}>
+        <p className={cx('truncate text-sm font-emphasis text-ink', item.available === false && 'opacity-45')}>
           {item.name}
         </p>
         <p className="truncate text-xs text-muted">{savedItemMeta(item)}</p>
@@ -481,7 +481,7 @@ function SavedGridTile({
           type="button"
           aria-label="Remove from Saved"
           disabled={removing}
-          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-ink/55 text-sm font-bold text-white"
+          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-ink/55 text-sm font-emphasis text-white"
           onClick={(event) => {
             event.stopPropagation();
             onUnsave();
@@ -524,10 +524,10 @@ function SavedFeedRow({
           <Avatar name={item.company.name} imageUrl={item.company.logoUrl} size={40} />
         </Link>
         <Link to={`/company/${item.company.id}`} className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold tracking-tight text-ink">
+          <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">
             {item.company.name}
           </p>
-          <p className="truncate text-xs font-medium text-muted">
+          <p className="truncate text-xs font-body text-muted">
             {item.kind === 'product' ? 'Design' : 'Collection'}
             {item.company.city ? ` · ${item.company.city}` : ''}
           </p>
@@ -537,7 +537,7 @@ function SavedFeedRow({
             type="button"
             aria-label="Remove from Saved"
             disabled={removing}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-bold text-muted hover:bg-foam"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-body text-muted hover:bg-foam"
             onClick={onUnsave}
           >
             ×
@@ -555,10 +555,10 @@ function SavedFeedRow({
         </SelectableMediaFrame>
       </button>
       <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onOpen}>
-        <p className={cx('text-sm font-semibold tracking-tight text-ink', item.available === false && 'opacity-45')}>
+        <p className={cx('text-sm font-emphasis tracking-tight text-ink', item.available === false && 'opacity-45')}>
           {item.name}
         </p>
-        <p className="text-xs font-medium text-muted">{savedItemMeta(item)}</p>
+        <p className="text-xs font-body text-muted">{savedItemMeta(item)}</p>
       </button>
     </article>
   );

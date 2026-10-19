@@ -3,10 +3,10 @@ import { TextInput, cx } from '@/ui/kit';
 import { ORDER_QTY_ATTR, onOrderQtyEnterKeyDown } from '@/features/orders/orderQtyFocus';
 
 const STEPPER_BTN =
-  'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-lg font-bold text-ink disabled:opacity-45';
+  'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-lg font-emphasis text-ink disabled:opacity-45';
 
 const STEPPER_INPUT =
-  'h-10 w-14 max-w-14 shrink-0 min-h-10 px-1 text-center text-base font-bold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+  'h-10 w-14 max-w-14 shrink-0 min-h-10 px-1 text-center text-base font-title tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 /** Parse typed wholesale qty — empty/invalid while typing returns null. */
 export function parseQtyDraft(raw: string): number | null {
@@ -67,7 +67,7 @@ export function QtyStepper({
     <div className="flex flex-col items-end gap-0.5">
       {unitLabel?.trim() ? (
         <span
-          className="text-[11px] font-semibold tracking-tight text-muted"
+          className="text-[11px] font-body tracking-tight text-muted"
           data-testid="qty-stepper-unit"
         >
           {unitLabel.trim()}
@@ -153,7 +153,7 @@ export function sameQtyRateForAllChipLabel(
 }
 
 export const sameForAllChipClassName =
-  'inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink disabled:opacity-45';
+  'inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink disabled:opacity-45';
 
 /** One-row Same for all: label · control · Apply / Cancel (Enter / mobile Done → Apply). */
 export function SameForAllEditor({
@@ -183,19 +183,19 @@ export function SameForAllEditor({
         }
       }}
     >
-      <span className="shrink-0 text-[12px] font-semibold text-ink">Same for all</span>
+      <span className="shrink-0 text-[12px] font-emphasis text-ink">Same for all</span>
       {children}
       <div className="ml-auto flex items-center gap-3">
         <button
           type="submit"
           disabled={disabled}
-          className="text-[13px] font-bold text-accent disabled:opacity-45"
+          className="text-[13px] font-emphasis text-accent disabled:opacity-45"
         >
           Apply
         </button>
         <button
           type="button"
-          className="text-[13px] font-bold text-muted"
+          className="text-[13px] font-body text-muted"
           onClick={onCancel}
         >
           Cancel
@@ -206,5 +206,5 @@ export function SameForAllEditor({
 }
 
 export function cxNoteLink(className?: string) {
-  return cx('text-[12px] font-bold tracking-tight text-accent', className);
+  return cx('text-[12px] font-emphasis tracking-tight text-accent', className);
 }

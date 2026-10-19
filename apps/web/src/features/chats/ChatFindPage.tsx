@@ -240,7 +240,7 @@ export function ChatFindPage() {
         <div className="flex flex-col gap-4">
           {photoGroups.map((group) => (
             <section key={group.key}>
-              <h2 className="mb-2 px-0.5 text-[13px] font-semibold text-muted">{group.label}</h2>
+              <h2 className="mb-2 px-0.5 text-[13px] font-body text-muted">{group.label}</h2>
               <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-xl">
                 {group.items.map((cell, localIndex) => {
                   const globalIndex = group.startIndex + localIndex;
@@ -289,7 +289,7 @@ export function ChatFindPage() {
                   )}
                   data-testid="chat-find-row"
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linen text-[11px] font-semibold text-muted">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linen text-[11px] font-body text-muted">
                     {thumb ? (
                       <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                     ) : (
@@ -297,7 +297,7 @@ export function ChatFindPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-ink">{title}</p>
+                    <p className="truncate text-sm font-emphasis text-ink">{title}</p>
                     <p className="truncate text-sm text-muted">
                       {cue ? `${cue} · ${label}` : label}
                     </p>
@@ -313,7 +313,7 @@ export function ChatFindPage() {
       {find.hasNextPage ? (
         <button
           type="button"
-          className="mx-auto text-sm font-semibold text-accent disabled:opacity-40"
+          className="mx-auto text-sm font-emphasis text-accent disabled:opacity-40"
           disabled={find.isFetchingNextPage}
           onClick={() => void find.fetchNextPage()}
         >

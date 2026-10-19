@@ -33,7 +33,7 @@ export function CollectionExpandableSection({
         data-testid={testId ? `${testId}-toggle` : undefined}
       >
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink">{title}</p>
+          <p className="text-sm font-emphasis text-ink">{title}</p>
           {summary ? <p className="mt-0.5 truncate text-xs text-muted">{summary}</p> : null}
         </div>
         <ChevronRightIcon

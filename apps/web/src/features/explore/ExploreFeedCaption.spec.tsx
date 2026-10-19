@@ -39,6 +39,8 @@ describe('ExploreFeedCaption', () => {
     );
     const body = screen.getByTestId('explore-feed-about-body');
     expect(body.className).toMatch(/whitespace-pre-wrap/);
+    expect(body.className).toMatch(/font-body/);
+    expect(body.className).not.toMatch(/font-emphasis/);
     expect(body.textContent).toContain('Line one.\nLine two.');
     const more = screen.getByTestId('explore-feed-about');
     expect(more).toHaveTextContent('read more');

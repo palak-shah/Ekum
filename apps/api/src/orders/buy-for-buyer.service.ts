@@ -287,7 +287,11 @@ export class BuyForBuyerService {
     };
   }
 
-  /** Open the ticket (no Accept). Logged tickets are already confirmed. */
+  /**
+   * Open the ticket (no Accept). Own-catalog logs are confirmed on create.
+   * A leftover `requested` ticket is confirmed here so View order is not a
+   * silent open of an unconfirmed order.
+   */
   async acceptInvite(actorCompanyId: string, userId: string, token: string): Promise<OrderView> {
     const invite = await this.requireOpenInvite(token);
     await this.assertInvitePhone(userId, invite.phone);
@@ -296,6 +300,9 @@ export class BuyForBuyerService {
         code: 'NOT_ALLOWED',
         message: 'This link is for another business.',
       });
+    }
+    if (invite.order.status === OrderStatus.Requested) {
+      await this.confirmLoggedInvite(invite.order, actorCompanyId, userId);
     }
     await this.prisma.orderAcceptInvite.update({
       where: { id: invite.id },
@@ -345,6 +352,48 @@ export class BuyForBuyerService {
       updated.sellerCompanyId,
     );
     return this.toOrderView(updated, actorCompanyId, threadId);
+  }
+
+  /**
+   * Phone-agreed log that never landed confirmed. Buyer opening the link
+   * confirms it — already-confirmed tickets are left unchanged.
+   */
+  private async confirmLoggedInvite(
+    order: { id: string; buyerCompanyId: string; sellerCompanyId: string },
+    actorCompanyId: string,
+    userId: string,
+  ) {
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.orderItem.updateMany({
+        where: { orderId: order.id, lineStatus: OrderLineStatus.Open },
+        data: { lineStatus: OrderLineStatus.Confirmed },
+      }),
+      this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.Confirmed,
+          confirmedAt: now,
+          confirmedByCompanyId: actorCompanyId,
+          confirmedByUserId: userId,
+          updatedByUserId: userId,
+        },
+      }),
+    ]);
+    await this.trail.append({
+      orderId: order.id,
+      type: OrderTrailType.Confirmed,
+      actorCompanyId,
+      actorUserId: userId,
+      detail: 'Opened logged order',
+    });
+    this.events.orderStatusChanged({
+      orderId: order.id,
+      buyerCompanyId: order.buyerCompanyId,
+      sellerCompanyId: order.sellerCompanyId,
+      actorCompanyId,
+      status: OrderStatus.Confirmed,
+    });
   }
 
   private async toOrderView(

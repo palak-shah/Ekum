@@ -105,9 +105,9 @@ export function SelectionMessageSheet({
       <div className="flex flex-col gap-2.5" data-testid="selection-message-sheet">
         <p
           data-testid="selection-message-to"
-          className="text-[13px] font-medium leading-snug text-muted"
+          className="text-[13px] font-body leading-snug text-muted"
         >
-          To <span className="font-semibold text-ink">{toName}</span>
+          To <span className="font-emphasis text-ink">{toName}</span>
         </p>
         {previews.length > 0 ? (
           <div
@@ -138,7 +138,7 @@ export function SelectionMessageSheet({
                   {item.image ? (
                     <img src={item.image} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-sm font-bold text-muted">
+                    <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
                       {item.name.slice(0, 1).toUpperCase()}
                     </span>
                   )}
@@ -146,7 +146,7 @@ export function SelectionMessageSheet({
               ))}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-ink">{attachmentTitle}</p>
+              <p className="truncate text-sm font-emphasis text-ink">{attachmentTitle}</p>
               <p className="truncate text-xs text-muted">
                 {previews.length === 1 ? previews[0]!.kind : 'Attached'}
               </p>

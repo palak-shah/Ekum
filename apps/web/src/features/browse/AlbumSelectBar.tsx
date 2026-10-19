@@ -52,8 +52,8 @@ export function AlbumSelectBar({
     <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
       <div className="mx-auto flex max-w-md flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-ink">{pickSelectionLabel(albumCount, designCount)}</p>
-          <button type="button" className="text-xs font-bold text-accent" onClick={onClear}>
+          <p className="text-sm font-emphasis text-ink">{pickSelectionLabel(albumCount, designCount)}</p>
+          <button type="button" className="text-xs font-emphasis text-accent" onClick={onClear}>
             Clear
           </button>
         </div>

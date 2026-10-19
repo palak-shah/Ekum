@@ -14,6 +14,6 @@ describe('OrderLineNoteCue', () => {
     expect(el).toHaveTextContent('iska Chota than');
     expect(el.className).toContain('bg-warning-soft');
     expect(el.className).toContain('text-warning-ink');
-    expect(el.className).toContain('font-semibold');
+    expect(el.className).toContain('font-emphasis');
   });
 });

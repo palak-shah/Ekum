@@ -93,8 +93,8 @@ export function ExploreSearchResults({
             className={cx(
               '-mb-px border-b-2 pb-2 text-sm tracking-tight transition-colors',
               filter === item.value
-                ? 'border-accent font-bold text-ink'
-                : 'border-transparent font-medium text-muted',
+                ? 'border-accent font-emphasis text-ink'
+                : 'border-transparent font-body text-muted',
             )}
           >
             {item.label}
@@ -131,14 +131,14 @@ function HintLinks({
   if (values.length === 0) return null;
   return (
     <section className="flex flex-col gap-1.5">
-      <h2 className="text-xs font-bold uppercase tracking-wide text-muted">{title}</h2>
+      <h2 className="text-xs font-body uppercase tracking-wide text-muted">{title}</h2>
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {values.map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => onPick(value)}
-            className="text-sm font-semibold tracking-tight text-accent"
+            className="text-sm font-emphasis tracking-tight text-accent"
           >
             {title === 'Categories' ? categoryDisplayLabel(value) : value}
           </button>
@@ -159,7 +159,7 @@ function UniversalResults({
     <div className="flex flex-col gap-6">
       {data.companies.length > 0 ? (
         <section className="flex flex-col gap-1">
-          <h2 className="px-0.5 text-[15px] font-bold tracking-tight text-ink">Businesses</h2>
+          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Businesses</h2>
           <div className="flex flex-col divide-y divide-line/70">
             {data.companies.map((company) => (
               <CompanyRow
@@ -175,7 +175,7 @@ function UniversalResults({
 
       {data.collections.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="px-0.5 text-[15px] font-bold tracking-tight text-ink">Collections</h2>
+          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Collections</h2>
           <div className="flex flex-col gap-2">
             {data.collections.map((collection) => (
               <CollectionListItem key={collection.id} collection={collection} />
@@ -186,7 +186,7 @@ function UniversalResults({
 
       {data.designs.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="px-0.5 text-[15px] font-bold tracking-tight text-ink">Designs</h2>
+          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Designs</h2>
           <div className="grid grid-cols-2 gap-3">
             {data.designs.map((product) => (
               <Link key={product.id} to={`/explore/products/${product.id}`}>

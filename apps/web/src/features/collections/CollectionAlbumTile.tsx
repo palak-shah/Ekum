@@ -5,6 +5,7 @@ import {
   type CollectionSummaryInput,
 } from '@/features/catalog/collectionStatusSummary';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
+import { displayCollectionName } from '@/features/catalog/collectionCreateHelpers';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { packFeedDetailLine } from '@/ui/albumMosaic';
 import { AlbumGrid, CatalogFeedPost } from '@/ui/cards';
@@ -116,6 +117,7 @@ export function CollectionAlbumTile({
     surface === 'library' && companyId
       ? collectionOwnerSourceLine(companyId, memberShops)
       : null;
+  const title = displayCollectionName(name);
   const detail = packFeedDetailLine({ tags: categories });
 
   const open = () => {
@@ -134,7 +136,7 @@ export function CollectionAlbumTile({
   if (layout === 'feed') {
     return (
       <CatalogFeedPost
-        name={name}
+        name={title}
         source={sourceLine}
         meta={caption}
         detail={detail}
@@ -154,10 +156,10 @@ export function CollectionAlbumTile({
 
   const captionBlock = (
     <div className="flex min-w-0 flex-col gap-1 overflow-hidden p-3">
-      <p className="truncate text-base font-semibold text-ink">{name}</p>
+      <p className="truncate text-base font-emphasis text-ink">{title}</p>
       {sourceLine ? (
         <p
-          className="truncate text-sm font-semibold tracking-tight text-ink"
+          className="truncate text-sm font-emphasis tracking-tight text-ink"
           data-testid={sourceTestId}
         >
           {sourceLine}
@@ -178,7 +180,7 @@ export function CollectionAlbumTile({
       checkClassName="right-2 top-2"
       idleCheckClassName="border-white bg-ink/30 text-transparent"
     >
-      <AlbumGrid images={images} imageCount={mosaicCount} alt={name} />
+      <AlbumGrid images={images} imageCount={mosaicCount} alt={title} />
     </SelectableMediaFrame>
   );
 
@@ -188,7 +190,7 @@ export function CollectionAlbumTile({
       <div className={CARD}>
         <button
           type="button"
-          aria-label={selecting ? `Select ${name}` : name}
+          aria-label={selecting ? `Select ${title}` : title}
           data-testid={mediaTestId}
           className={cx('relative block w-full text-left', LONG_PRESS_SURFACE_CLASS)}
           onClick={onMediaClick}
@@ -220,7 +222,7 @@ export function CollectionAlbumTile({
     return (
       <button
         type="button"
-        aria-label={`Select ${name}`}
+        aria-label={`Select ${title}`}
         data-testid={mediaTestId}
         onClick={onToggle}
         className={cx(CARD, LONG_PRESS_SURFACE_CLASS)}
@@ -233,7 +235,7 @@ export function CollectionAlbumTile({
   return (
     <button
       type="button"
-      aria-label={name}
+      aria-label={title}
       data-testid={mediaTestId}
       className={cx(CARD, LONG_PRESS_SURFACE_CLASS)}
       onClick={open}

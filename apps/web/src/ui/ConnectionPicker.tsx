@@ -130,7 +130,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
                   size={36}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
+                  <p className="truncate text-sm font-emphasis text-ink">{connection.company.name}</p>
                   <p className="truncate text-xs text-muted">{connection.company.city}</p>
                 </div>
                 <span className="shrink-0 text-xs text-muted">
@@ -182,7 +182,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
   if (embedded) {
     return (
       <div className="flex flex-col gap-2">
-        {label ? <p className="text-sm font-medium text-ink">{label}</p> : null}
+        {label ? <p className="text-sm font-emphasis text-ink">{label}</p> : null}
         {list}
       </div>
     );
@@ -193,7 +193,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      {label ? <p className="text-sm font-medium text-ink">{label}</p> : null}
+      {label ? <p className="text-sm font-emphasis text-ink">{label}</p> : null}
 
       {selectedConnections.length > 0 ? (
         props.mode === 'single' ? (
@@ -208,7 +208,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
               size={40}
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-ink">
+              <p className="truncate text-sm font-emphasis text-ink">
                 {selectedConnections[0].company.name}
               </p>
               <p className="truncate text-xs text-muted">{selectedConnections[0].company.city}</p>
@@ -228,7 +228,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
                   size={40}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{connection.company.name}</p>
+                  <p className="truncate text-sm font-emphasis text-ink">{connection.company.name}</p>
                   <p className="truncate text-xs text-muted">{connection.company.city}</p>
                 </div>
               </div>
@@ -238,7 +238,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
             ) : null}
             <button
               type="button"
-              className="self-start text-sm font-medium text-accent"
+              className="self-start text-sm font-emphasis text-accent"
               onClick={() => setOpen(true)}
             >
               Change
@@ -249,7 +249,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-2xl border border-dashed border-line bg-foam px-3 py-3 text-left text-sm font-medium text-ink"
+          className="rounded-2xl border border-dashed border-line bg-foam px-3 py-3 text-left text-sm font-emphasis text-ink"
         >
           {chooseLabel}
         </button>

@@ -194,7 +194,7 @@ export function AdminTagsPage() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="admin-tags-page">
-      <h2 className="text-base font-semibold text-ink">Tag Management</h2>
+      <h2 className="text-base font-emphasis text-ink">Tag Management</h2>
 
       {error ? <InlineNotice tone="danger" message={error} /> : null}
 

@@ -13,8 +13,22 @@ export async function pickYouLibraryFilter(
   page: Page,
   which: 'Draft' | 'Archived' | 'Bookmark',
 ): Promise<void> {
+  if (which === 'Bookmark') {
+    await page.getByTestId('you-library-page-more').click();
+    await page.getByTestId('you-library-page-bookmarks').click();
+    return;
+  }
   await openYouLibraryFind(page);
-  await page.getByTestId('you-library-filter').click();
-  const id = which === 'Bookmark' ? 'saved' : which.toLowerCase();
-  await page.getByTestId(`you-library-filter-${id}`).click();
+  const filter = page.getByTestId('you-library-filter');
+  if ((await filter.count()) === 0) {
+    if (which === 'Archived' || which === 'Draft') {
+      await page.getByTestId('you-library-page-more').click();
+      await page
+        .getByTestId(which === 'Archived' ? 'you-library-page-archived' : 'you-library-page-drafts')
+        .click();
+    }
+    return;
+  }
+  await filter.click();
+  await page.getByTestId(`you-library-filter-${which.toLowerCase()}`).click();
 }

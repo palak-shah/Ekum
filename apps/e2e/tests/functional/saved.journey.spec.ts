@@ -22,8 +22,7 @@ test.describe('saved hub @functional @saved', () => {
 
     await page.goto('/saved');
     await expect(page).toHaveURL(/\/more\?.*saved/);
-    await expect(page.getByTestId('you-library-filter')).toHaveAttribute('data-filter-active', 'true');
-    await expect(page.getByText(/Showing\s+Saved/)).toBeVisible();
+    await expect(page.getByTestId('you-library-view-summary')).toContainText('Bookmark');
     await expect(page.getByText(/Banarasi Silk Saree/i).first()).toBeVisible({
       timeout: 15_000,
     });

@@ -30,10 +30,10 @@ export function DebugApiErrorPanel() {
       className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md border-b border-danger/40 bg-ink/95 px-3 py-2 text-left text-[11px] leading-snug text-white shadow-[var(--shadow-soft)]"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="font-bold tracking-tight text-tangerine">Debug · API error</p>
+        <p className="font-emphasis tracking-tight text-tangerine">Debug · API error</p>
         <button
           type="button"
-          className="rounded px-2 py-0.5 font-bold text-white/80 hover:bg-white/10"
+          className="rounded px-2 py-0.5 font-emphasis text-white/80 hover:bg-white/10"
           onClick={() => setApiErrorDebug(null)}
         >
           Dismiss

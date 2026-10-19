@@ -162,7 +162,7 @@ export function FollowersPage() {
                     >
                       <Avatar name={row.company.name} imageUrl={row.company.logoUrl} />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink">{row.company.name}</p>
+                        <p className="truncate text-sm font-emphasis text-ink">{row.company.name}</p>
                         <p className="truncate text-xs text-muted">{row.company.city}</p>
                       </div>
                     </Link>
@@ -190,14 +190,14 @@ export function FollowersPage() {
                         }}
                       />
                       {row.stopped ? (
-                        <span className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-medium text-muted">
+                        <span className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-body text-muted">
                           Stopped
                         </span>
                       ) : (
                         <button
                           type="button"
                           aria-label="Stop them seeing"
-                          className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-medium text-muted disabled:opacity-45"
+                          className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-body text-muted disabled:opacity-45"
                           disabled={decide.isPending}
                           onClick={() =>
                             decide.mutate(

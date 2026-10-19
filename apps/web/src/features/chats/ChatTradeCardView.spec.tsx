@@ -63,7 +63,7 @@ describe('ChatTradeCard voice note', () => {
       </MemoryRouter>,
     );
     const amount = screen.getByText('₹2,83,800');
-    expect(amount.className).toMatch(/font-semibold/);
+    expect(amount.className).toMatch(/font-title/);
     expect(amount.className).toMatch(/text-\[15px\]/);
   });
 });

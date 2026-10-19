@@ -366,7 +366,7 @@ export function UniversalShareSheet({
                 <p className="text-xs text-muted">{selectedCount} selected · posts into chat</p>
                 <button
                   type="button"
-                  className="text-xs font-medium text-accent disabled:opacity-50"
+                  className="text-xs font-emphasis text-accent disabled:opacity-50"
                   disabled={busy}
                   onClick={() => {
                     setSelectedCompanyIds([]);
@@ -381,12 +381,12 @@ export function UniversalShareSheet({
 
             <div className="flex flex-col gap-1.5" data-testid="catalog-share-groups">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="text-xs font-semibold text-ink">Buyer groups</p>
+                <p className="text-xs font-emphasis text-ink">Buyer groups</p>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => setCreateGroupOpen(true)}
-                  className="text-xs font-medium text-accent disabled:opacity-50"
+                  className="text-xs font-emphasis text-accent disabled:opacity-50"
                   data-testid="share-create-group"
                 >
                   Create group
@@ -411,7 +411,7 @@ export function UniversalShareSheet({
                           )
                         }
                         className={cx(
-                          'rounded-full border px-3 py-1 text-xs font-medium',
+                          'rounded-full border px-3 py-1 text-xs font-emphasis',
                           selected
                             ? 'border-accent bg-accent/5 text-ink'
                             : 'border-line text-ink',

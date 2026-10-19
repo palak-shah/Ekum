@@ -81,7 +81,7 @@ export function AdminTagList({
               <div className="flex flex-wrap items-center gap-2">
                 <p
                   className={cx(
-                    'truncate text-sm font-medium text-ink',
+                    'truncate text-sm font-emphasis text-ink',
                     !tag.active && 'text-muted line-through',
                   )}
                 >
@@ -96,7 +96,7 @@ export function AdminTagList({
             <div className="flex shrink-0 items-center gap-0.5">
               <button
                 type="button"
-                className="min-h-10 rounded-lg px-2 text-xs font-medium text-accent"
+                className="min-h-10 rounded-lg px-2 text-xs font-emphasis text-accent"
                 onClick={() => openEdit(tag)}
                 data-testid="admin-tag-edit"
               >
@@ -105,7 +105,7 @@ export function AdminTagList({
               {tag.active ? (
                 <button
                   type="button"
-                  className="min-h-10 rounded-lg px-2 text-xs font-medium text-muted"
+                  className="min-h-10 rounded-lg px-2 text-xs font-body text-muted"
                   onClick={() => {
                     if (window.confirm(`Archive “${tag.label}”?`)) {
                       onArchive(tag.id);
@@ -118,7 +118,7 @@ export function AdminTagList({
               ) : (
                 <button
                   type="button"
-                  className="min-h-10 rounded-lg px-2 text-xs font-medium text-accent"
+                  className="min-h-10 rounded-lg px-2 text-xs font-emphasis text-accent"
                   onClick={() => {
                     if (window.confirm(`Restore “${tag.label}”?`)) {
                       onRestore(tag.id);
@@ -131,7 +131,7 @@ export function AdminTagList({
               )}
               <button
                 type="button"
-                className="min-h-10 rounded-lg px-2 text-xs font-medium text-danger"
+                className="min-h-10 rounded-lg px-2 text-xs font-emphasis text-danger"
                 onClick={() => {
                   if (window.confirm(`Delete “${tag.label}”?`)) {
                     onDelete(tag.id);

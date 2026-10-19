@@ -65,7 +65,7 @@ export function OrderInviteLandingPage() {
       <PageHeader title="Logged order" />
       <Card className="flex flex-col gap-2">
         <p className="text-sm text-ink">
-          <span className="font-semibold">{data.sellerName}</span> logged a ticket for{' '}
+          <span className="font-emphasis">{data.sellerName}</span> logged a ticket for{' '}
           {data.buyerName}.
         </p>
         <p className="text-xs text-muted">

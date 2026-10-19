@@ -291,7 +291,14 @@ export type OrderActionDock =
     }
   | {
       kind: 'buy';
+      /** Buyer placed this ticket — Cancel while requested or confirmed. */
       cancel: boolean;
+      /**
+       * Seller logged this ticket. Decline on requested and on confirmed:
+       * the log is already agreed, and Decline is how the buyer refuses it.
+       * There is no Accept.
+       */
+      declineLogged: boolean;
       edit: boolean;
       acceptQuote: boolean;
       raiseReturn: boolean;
@@ -331,14 +338,19 @@ export function orderActionDock(input: {
     const requested = input.status === 'requested';
     const acceptQuote = requested && input.canAcceptQuote === true;
     const edit = input.canAmend === true;
-    // Own-catalog logs land confirmed; mill hops stay requested — both may Decline/Cancel.
-    const cancel = requested || input.status === 'confirmed';
-    if (!cancel && !edit && !acceptQuote) {
+    const openToRefuse = requested || input.status === 'confirmed';
+    // Seller-logged (own catalog): confirmed on create. Decline stays on the
+    // confirmed ticket so the buyer can refuse a phone-agreed log. Buyer-placed
+    // tickets keep Cancel for the same statuses.
+    const declineLogged = input.createdBySeller === true && openToRefuse;
+    const cancel = input.createdBySeller !== true && openToRefuse;
+    if (!cancel && !declineLogged && !edit && !acceptQuote) {
       return { kind: 'none' };
     }
     return {
       kind: 'buy',
       cancel,
+      declineLogged,
       edit,
       acceptQuote,
       raiseReturn: false,

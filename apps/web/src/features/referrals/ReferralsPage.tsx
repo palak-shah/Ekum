@@ -41,7 +41,7 @@ export function ReferralsPage() {
       <PageHeader
         title="Invites"
         action={
-          <button className="text-sm font-medium text-accent" onClick={() => navigate('/referrals/new')}>
+          <button className="text-sm font-emphasis text-accent" onClick={() => navigate('/referrals/new')}>
             New
           </button>
         }
@@ -60,7 +60,7 @@ export function ReferralsPage() {
         <div className="flex flex-col gap-2">
           {referrals.data.map((referral) => (
             <Card key={referral.id} className="flex flex-col gap-2">
-              <p className="text-sm font-semibold text-ink">
+              <p className="text-sm font-emphasis text-ink">
                 {referral.target?.name ?? 'Connect with me'}
               </p>
               {referral.note ? <p className="text-xs text-muted">{referral.note}</p> : null}

@@ -48,7 +48,7 @@ export function MoreActionRow({
       </span>
       <span
         className={cx(
-          'text-[15px] font-semibold tracking-tight',
+          'text-[15px] font-emphasis tracking-tight',
           item.danger ? 'text-danger' : 'text-ink',
         )}
       >
@@ -99,7 +99,7 @@ export function MoreActionsSheet({
         ))}
         {note ? (
           <p
-            className="border-t border-line px-1 py-3 text-xs font-medium leading-snug text-muted"
+            className="border-t border-line px-1 py-3 text-xs font-body leading-snug text-muted"
             data-testid={noteTestId}
           >
             {note}

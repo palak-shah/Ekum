@@ -26,12 +26,12 @@ export function AdminLayout() {
       <header className="sticky top-0 z-20 shrink-0 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted">Ekum</p>
-            <h1 className="text-lg font-semibold text-ink">Admin Console</h1>
+            <p className="text-xs font-body uppercase tracking-wide text-muted">Ekum</p>
+            <h1 className="text-lg font-emphasis text-ink">Admin Console</h1>
           </div>
           <Link
             to="/"
-            className="rounded-lg bg-foam px-3 py-2 text-sm font-medium text-ink"
+            className="rounded-lg bg-foam px-3 py-2 text-sm font-emphasis text-ink"
             data-testid="admin-back-to-ekum"
           >
             Back to Ekum
@@ -42,7 +42,7 @@ export function AdminLayout() {
             to="/admin/tags"
             className={({ isActive }) =>
               cx(
-                'rounded-full px-3 py-1.5 text-sm font-medium',
+                'rounded-full px-3 py-1.5 text-sm font-emphasis',
                 isActive ? 'bg-accent text-white' : 'bg-foam text-muted',
               )
             }

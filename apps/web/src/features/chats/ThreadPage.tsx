@@ -132,6 +132,7 @@ import { ThreadJumpToLatest } from '@/features/chats/ThreadJumpToLatest';
 import { ThreadSearchFilterMenu } from '@/features/chats/ThreadSearchFilterMenu';
 import {
   dedupeOrderThreadMessages,
+  declineOrderMessageIds,
   isRichOrderChatMessage,
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
@@ -561,6 +562,10 @@ export function ThreadPage() {
     () => primaryAcceptQuoteMessageId(ordered),
     [ordered],
   );
+  const declineOrderMessageIdSet = useMemo(
+    () => declineOrderMessageIds(ordered),
+    [ordered],
+  );
 
   const lastMessageId = ordered[ordered.length - 1]?.id ?? null;
 
@@ -835,6 +840,15 @@ export function ThreadPage() {
         navigate(chatsInboxHref());
       }
     },
+  });
+
+  const declineOrder = useMutation({
+    mutationFn: (orderId: string) => api.post(`/orders/${orderId}/cancel`, {}),
+    onSuccess: () => {
+      refreshMessages();
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not decline.'),
   });
 
   const acceptQuote = useMutation({
@@ -2145,7 +2159,7 @@ export function ThreadPage() {
             <div className="flex items-center gap-2 px-0.5">
               <button
                 type="button"
-                className="text-xs font-bold tracking-tight text-accent"
+                className="text-xs font-emphasis tracking-tight text-accent"
                 onClick={() => {
                   setSearchDraft('');
                   setSearchQ('');
@@ -2156,7 +2170,7 @@ export function ThreadPage() {
               </button>
               <span
                 data-testid="thread-search-hit-count"
-                className="text-xs font-semibold tabular-nums text-muted"
+                className="text-xs font-body tabular-nums text-muted"
               >
                 {searchHits.length === 0 ? '0 of 0' : `${hitIndex + 1} of ${searchHits.length}`}
               </span>
@@ -2183,7 +2197,7 @@ export function ThreadPage() {
           ) : null}
           {searchView !== 'all' ? (
             <div className="flex flex-wrap items-center gap-x-3 px-0.5">
-              <p className="text-xs font-medium text-muted">
+              <p className="text-xs font-body text-muted">
                 Showing <span className="text-ink">{threadSearchScopeLabel(searchView)}</span>
               </p>
               <button
@@ -2192,7 +2206,7 @@ export function ThreadPage() {
                   setSearchView('all');
                   stickLatch.pin();
                 }}
-                className="inline-flex min-h-11 items-center text-xs font-bold tracking-tight text-accent"
+                className="inline-flex min-h-11 items-center text-xs font-emphasis tracking-tight text-accent"
               >
                 Clear
               </button>
@@ -2203,7 +2217,7 @@ export function ThreadPage() {
 
       {detail.state === 'pending' ? (
         <div className="mt-0 flex shrink-0 flex-col gap-3 rounded-2xl border border-warning-soft bg-warning-soft p-3.5">
-          <p className="text-sm font-medium text-warning-ink">
+          <p className="text-sm font-emphasis text-warning-ink">
             They can’t see your replies until you approve this chat.
           </p>
           <div className="flex gap-2">
@@ -2238,7 +2252,7 @@ export function ThreadPage() {
             Could not load messages.{' '}
             <button
               type="button"
-              className="font-semibold text-accent underline"
+              className="font-emphasis text-accent underline"
               onClick={() => void messages.refetch()}
             >
               Retry
@@ -2251,7 +2265,7 @@ export function ThreadPage() {
                 <button
                   type="button"
                   disabled={messages.isFetchingNextPage}
-                  className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-foam disabled:opacity-50"
+                  className="rounded-full px-3 py-1.5 text-xs font-emphasis text-accent hover:bg-foam disabled:opacity-50"
                   onClick={() => {
                     stickLatch.unpin();
                     void messages.fetchNextPage();
@@ -2282,7 +2296,7 @@ export function ThreadPage() {
                     aria-label={unreadDividerLabel(openVisit.unreadCount)}
                   >
                     <span className="h-px flex-1 bg-line" />
-                    <span className="shrink-0 text-[11px] font-medium text-muted">
+                    <span className="shrink-0 text-[11px] font-body text-muted">
                       {unreadDividerLabel(openVisit.unreadCount)}
                     </span>
                     <span className="h-px flex-1 bg-line" />
@@ -2309,6 +2323,9 @@ export function ThreadPage() {
                   message={message}
                   threadId={id}
                   primaryAcceptQuoteId={primaryAcceptQuoteId}
+                  canDeclineOrder={declineOrderMessageIdSet.has(message.id)}
+                  onDeclineOrder={(orderId) => declineOrder.mutate(orderId)}
+                  decliningOrder={declineOrder.isPending}
                   viewerCompanyId={companyId}
                   searchHighlight={searchOpen ? searchQ : ''}
                   senderLabel={
@@ -2526,14 +2543,14 @@ export function ThreadPage() {
                 />
               ) : null}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-accent">Replying to</p>
+                <p className="text-sm font-emphasis text-accent">Replying to</p>
                 <p className="truncate text-sm text-ink">
                   {replyComposerLabel(replyTo, replyPhotoIndex, replyProductId)}
                 </p>
               </div>
               <button
                 type="button"
-                className="text-sm font-semibold text-muted"
+                className="text-sm font-body text-muted"
                 onClick={() => {
                   setReplyTo(null);
                   setReplyPhotoIndex(null);
@@ -2601,7 +2618,7 @@ export function ThreadPage() {
               ref={draftInputRef}
               rows={1}
               enterKeyHint="send"
-              className="ekum-no-scrollbar max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-sm leading-5 text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
+              className="ekum-no-scrollbar max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-base font-body leading-5 text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none"
               placeholder="Message…"
               value={draft}
               aria-expanded={mentionOpen}
@@ -2845,7 +2862,7 @@ export function ThreadPage() {
                   <Icon width={18} height={18} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold leading-tight text-ink">{label}</span>
+                  <span className="block text-sm font-emphasis leading-tight text-ink">{label}</span>
                   <span className="block text-sm leading-tight text-muted">{subtitle}</span>
                 </span>
               </button>
@@ -2900,7 +2917,7 @@ export function ThreadPage() {
                       <ProductIcon width={20} height={20} />
                     </span>
                   )}
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                  <span className="min-w-0 flex-1 truncate text-sm font-emphasis text-ink">
                     {product.name}
                   </span>
                 </button>
@@ -2957,7 +2974,7 @@ export function ThreadPage() {
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink">
+                    <span className="block truncate text-sm font-emphasis text-ink">
                       {collection.name}
                     </span>
                     <span className="block text-sm text-muted">
@@ -3005,14 +3022,14 @@ export function ThreadPage() {
                   data-testid="attach-order-row"
                   onClick={() => toggleAttachId(order.id)}
                   className={cx(
-                    'rounded-xl border px-3 py-2.5 text-left text-sm font-medium',
+                    'rounded-xl border px-3 py-2.5 text-left text-sm font-emphasis',
                     selected
                       ? 'border-accent bg-accent/5 text-ink'
                       : 'border-line text-ink hover:bg-foam',
                   )}
                 >
-                  <span className="font-semibold">Order #{short}</span>
-                  <span className="mt-0.5 block text-xs font-normal text-muted">
+                  <span className="font-emphasis">Order #{short}</span>
+                  <span className="mt-0.5 block text-xs font-body text-muted">
                     {order.counterpart.name} · {statusLabel(order.status)} · {order.items.length}{' '}
                     item{order.items.length === 1 ? '' : 's'}
                   </span>
@@ -3108,7 +3125,7 @@ export function ThreadPage() {
               }}
             >
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-ink">{mill.name}</span>
+                <span className="block truncate text-sm font-emphasis text-ink">{mill.name}</span>
                 <span className="text-xs text-muted">Supplier</span>
               </span>
             </button>
@@ -3145,7 +3162,7 @@ export function ThreadPage() {
                   >
                     <Avatar name={chatTitle} imageUrl={inboxThreadAvatarUrl(row)} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-ink">
+                      <span className="block truncate text-sm font-emphasis text-ink">
                         {chatTitle}
                       </span>
                       {visLine ? (
@@ -3249,11 +3266,11 @@ function AttachList({
           data-testid="attach-select-all"
           className="flex items-center justify-between gap-2 px-0.5"
         >
-          <p className="text-sm font-semibold text-ink">{selectedIds.size} selected</p>
+          <p className="text-sm font-emphasis text-ink">{selectedIds.size} selected</p>
           <button
             type="button"
             data-testid="attach-select-all-action"
-            className="text-xs font-bold text-accent"
+            className="text-xs font-emphasis text-accent"
             onClick={onSelectAllToggle}
           >
             {selectAll.action === 'clear' ? 'Clear' : 'Select all'}
@@ -3311,7 +3328,7 @@ function ReplyQuote({
         <img src={thumb} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
       ) : null}
       <span className="min-w-0 flex-1">
-        <p className="font-bold text-accent">Reply</p>
+        <p className="font-emphasis text-accent">Reply</p>
         <p className="truncate">{preview.bodyPreview ?? 'Message'}</p>
       </span>
     </span>
@@ -3470,7 +3487,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onReply);
@@ -3483,7 +3500,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onForward);
@@ -3496,7 +3513,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onCopy);
@@ -3509,7 +3526,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onStar);
@@ -3540,7 +3557,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onEdit);
@@ -3553,7 +3570,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ink hover:bg-foam"
+          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onSelect);
@@ -3566,7 +3583,7 @@ function MessageChrome({
         <button
           type="button"
           role="menuitem"
-          className="block w-full border-t border-line/70 px-3 py-2.5 text-left text-sm font-semibold text-danger hover:bg-foam"
+          className="block w-full border-t border-line/70 px-3 py-2.5 text-left text-sm font-emphasis text-danger hover:bg-foam"
           onClick={(event) => {
             event.stopPropagation();
             run(actions.onDelete);
@@ -3717,6 +3734,9 @@ function TimelineItem({
   message,
   threadId,
   primaryAcceptQuoteId,
+  canDeclineOrder = false,
+  onDeclineOrder,
+  decliningOrder = false,
   viewerCompanyId,
   searchHighlight = '',
   senderLabel,
@@ -3747,6 +3767,9 @@ function TimelineItem({
   message: MessageView;
   threadId: string;
   primaryAcceptQuoteId: string | null;
+  canDeclineOrder?: boolean;
+  onDeclineOrder?: (orderId: string) => void;
+  decliningOrder?: boolean;
   viewerCompanyId: string | null;
   searchHighlight?: string;
   senderLabel: string;
@@ -3785,7 +3808,7 @@ function TimelineItem({
         className="flex w-full justify-center py-1.5"
         data-testid={`chat-system-notice-${message.id}`}
       >
-        <p className="max-w-[90%] rounded-full bg-surface px-3 py-1 text-center text-[12px] font-medium text-muted">
+        <p className="max-w-[90%] rounded-full bg-surface px-3 py-1 text-center text-[12px] font-body text-muted">
           {message.body?.trim() || 'Notice'}
         </p>
       </div>
@@ -3977,7 +4000,7 @@ function TimelineItem({
                 </span>
               )}
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink">
+                <span className="block truncate text-sm font-emphasis text-ink">
                   {documentMeta.fileName}
                 </span>
                 <span className="block text-xs text-muted">
@@ -4263,10 +4286,10 @@ function TimelineItem({
             }}
           >
             <div className="border-b border-line/70 px-3 py-2">
-              <p className="text-sm font-semibold text-ink">{title}</p>
+              <p className="text-sm font-emphasis text-ink">{title}</p>
               {ref?.totalLabel ? <p className="text-xs text-muted">{ref.totalLabel}</p> : null}
             </div>
-            <p className="px-3 py-2 text-center text-[13px] font-semibold text-accent">
+            <p className="px-3 py-2 text-center text-[13px] font-emphasis text-accent">
               View order →
             </p>
           </button>
@@ -4291,7 +4314,7 @@ function TimelineItem({
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'px-3.5 py-2 text-sm',
+            'px-3.5 py-2 text-base font-body',
             chatBubbleCorners(message.mine),
             message.mine
               ? 'bg-chat-out text-ink'
@@ -4342,6 +4365,11 @@ function TimelineItem({
       openOrder,
       quoteAccept,
       accepting,
+      declineOrder:
+        canDeclineOrder && ref?.id && onDeclineOrder
+          ? () => onDeclineOrder(ref.id)
+          : undefined,
+      declining: decliningOrder,
       collectionPath,
       productPath,
       designsPath,
@@ -4418,15 +4446,15 @@ function TimelineItem({
         >
           <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
             <TypeIcon width={12} height={12} className="shrink-0 text-accent" aria-hidden />
-            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-ink">
+            <p className="min-w-0 flex-1 truncate text-[15px] font-emphasis tracking-tight text-ink">
               {typeMeta.label}
             </p>
           </div>
           <div className="px-2.5 py-2">
-            <p className="text-[13px] font-medium text-ink">
+            <p className="text-[13px] font-emphasis text-ink">
               {hl(message.body?.trim() || 'Shared attachment')}
             </p>
-            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'mt-1 text-[11px] text-muted')}>
+            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'mt-1 text-xs text-muted')}>
               {timeAgo(message.createdAt)}
             </p>
           </div>

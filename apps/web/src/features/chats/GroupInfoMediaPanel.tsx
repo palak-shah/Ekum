@@ -144,7 +144,7 @@ export function GroupInfoMediaPanel({
                 >
                   <Icon width={20} height={20} aria-hidden />
                 </span>
-                <span className="min-w-0 flex-1 text-[15px] font-semibold text-ink">
+                <span className="min-w-0 flex-1 text-[15px] font-emphasis text-ink">
                   {GROUP_MEDIA_LABEL[row]}
                 </span>
                 <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
@@ -182,7 +182,7 @@ export function GroupInfoMediaPanel({
         <div className="flex flex-col gap-4">
           {photoGroups.map((group) => (
             <section key={group.key}>
-              <h2 className="mb-2 px-0.5 text-[13px] font-semibold text-muted">{group.label}</h2>
+              <h2 className="mb-2 px-0.5 text-[13px] font-body text-muted">{group.label}</h2>
               <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-xl">
                 {group.items.map((cell, localIndex) => (
                   <button
@@ -228,7 +228,7 @@ export function GroupInfoMediaPanel({
                 >
                   <div
                     className={cx(
-                      'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-[11px] font-semibold',
+                      'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-[11px] font-emphasis',
                       thumb ? 'bg-linen text-muted' : badge,
                     )}
                   >
@@ -246,7 +246,7 @@ export function GroupInfoMediaPanel({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-ink">{title}</p>
+                    <p className="truncate text-sm font-emphasis text-ink">{title}</p>
                     {cue ? <p className="truncate text-sm text-muted">{cue}</p> : null}
                   </div>
                   <p className="shrink-0 text-[10px] text-muted">{timeAgo(message.createdAt)}</p>
@@ -259,7 +259,7 @@ export function GroupInfoMediaPanel({
       {list.hasNextPage ? (
         <button
           type="button"
-          className="mx-auto text-sm font-semibold text-accent disabled:opacity-40"
+          className="mx-auto text-sm font-emphasis text-accent disabled:opacity-40"
           disabled={list.isFetchingNextPage}
           onClick={() => void list.fetchNextPage()}
         >

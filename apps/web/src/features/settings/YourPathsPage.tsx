@@ -89,7 +89,7 @@ export function YourPathsPage() {
           const busy = pendingId === row.id && save.isPending;
           return (
             <Card key={row.id} className="flex flex-col gap-2.5" data-testid={`path-row-${row.id}`}>
-              <p className="text-sm font-semibold text-ink">
+              <p className="text-sm font-emphasis text-ink">
                 {row.sellerName} · {row.buyerName}
               </p>
 
@@ -110,7 +110,7 @@ export function YourPathsPage() {
                 disabled={busy || row.sellerCompanyId === row.buyerCompanyId}
                 onClick={() => save.mutate({ id: row.id, body: { reveal: !row.reveal } })}
                 className={cx(
-                  'flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-medium text-ink',
+                  'flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-emphasis text-ink',
                   row.reveal
                     ? 'border-accent bg-accent/5'
                     : 'border-line bg-surface',
@@ -122,7 +122,7 @@ export function YourPathsPage() {
                     ? 'Same shop — nothing to reveal'
                     : SHARE_A_GROUP}
                 </span>
-                <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-accent">
+                <span className="shrink-0 text-xs font-emphasis uppercase tracking-wide text-accent">
                   {row.reveal ? 'On' : 'Off'}
                 </span>
               </button>
@@ -137,7 +137,7 @@ export function YourPathsPage() {
         testId="paths-help-pop"
         anchor={helpAnchor}
       >
-        <p className="font-medium">{PATH_ON_PATHS_SCOPE}</p>
+        <p className="font-emphasis">{PATH_ON_PATHS_SCOPE}</p>
         <p className="mt-1.5">You / mill — who the buyer talks to on the next order.</p>
         <p className="mt-1.5">Share a group — they meet after you Send the next order.</p>
       </QuietHelpPop>

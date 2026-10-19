@@ -471,7 +471,7 @@ export function OrderBuilderPage() {
               <button
                 type="button"
                 data-testid="same-for-all-chip"
-                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-bold tracking-tight text-ink"
+                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink"
                 onClick={() => {
                   setSameDraft(null);
                   setSameOpen(true);
@@ -486,7 +486,7 @@ export function OrderBuilderPage() {
             return banner ? (
               <p
                 data-testid="how-many-sets-banner"
-                className="text-[13px] font-medium leading-snug text-muted"
+                className="text-[13px] font-body leading-snug text-muted"
               >
                 {banner}
               </p>
@@ -515,7 +515,7 @@ export function OrderBuilderPage() {
                         className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-bold text-muted">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
                         {line.name.charAt(0)}
                       </div>
                     )}
@@ -594,12 +594,12 @@ export function OrderBuilderPage() {
               className="flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-foam text-muted hover:border-accent hover:text-accent"
             >
               <CameraIcon width={32} height={32} />
-              <span className="text-sm font-semibold text-ink">Add photos</span>
+              <span className="text-sm font-emphasis text-ink">Add photos</span>
             </button>
           ) : (
             <>
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold tracking-tight text-ink">
+                <p className="text-sm font-emphasis tracking-tight text-ink">
                   Photos · {photos.length}
                 </p>
                 {!atPhotoLimit ? (
@@ -637,11 +637,11 @@ export function OrderBuilderPage() {
                       />
                     </button>
                     {photo.uploading ? (
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-medium text-white">
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-emphasis text-white">
                         Uploading…
                       </div>
                     ) : null}
-                    <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-ink/70 px-1.5 text-[10px] font-bold tabular-nums text-white">
+                    <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-ink/70 px-1.5 text-[10px] font-title tabular-nums text-white">
                       {photo.quantity}
                     </span>
                     <button
@@ -657,7 +657,7 @@ export function OrderBuilderPage() {
               />
 
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-bold tracking-tight text-ink">Pieces for all</p>
+                <p className="text-sm font-emphasis tracking-tight text-ink">Pieces for all</p>
                 <div className="ekum-no-scrollbar flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain">
                   {QTY_PRESETS.map((preset) => (
                     <button
@@ -665,7 +665,7 @@ export function OrderBuilderPage() {
                       type="button"
                       onClick={() => applyQtyToAll(preset)}
                       className={cx(
-                        'min-h-11 shrink-0 rounded-xl px-2.5 text-sm font-bold',
+                        'min-h-11 shrink-0 rounded-xl px-2.5 text-sm font-emphasis',
                         preset === '1000' ? 'min-w-[3.5rem]' : 'min-w-[3rem]',
                         bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
                       )}
@@ -728,17 +728,17 @@ export function OrderBuilderPage() {
         );
         return summary ? (
           <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
-            <p className="text-[15px] font-bold tracking-tight text-ink">{summary.primary}</p>
+            <p className="text-[15px] font-emphasis tracking-tight text-ink">{summary.primary}</p>
             {summary.money ? (
               <p
-                className="text-[15px] font-bold tracking-tight text-ink"
+                className="text-[15px] font-emphasis tracking-tight text-ink"
                 data-testid="how-many-billing-total"
               >
                 {summary.money}
               </p>
             ) : null}
             {summary.hint ? (
-              <p className="text-[12px] font-medium text-muted">{summary.hint}</p>
+              <p className="text-[12px] font-body text-muted">{summary.hint}</p>
             ) : null}
           </div>
         ) : null;
@@ -821,7 +821,7 @@ export function OrderBuilderPage() {
                   type="button"
                   onClick={() => setSheetQty(preset)}
                   className={cx(
-                    'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-bold',
+                    'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-emphasis',
                     sheetQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
                   )}
                 >

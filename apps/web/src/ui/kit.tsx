@@ -39,7 +39,7 @@ export function Button({ variant = 'primary', fullWidth, className, ...props }: 
   return (
     <button
       className={cx(
-        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-semibold tracking-tight transition-colors disabled:cursor-not-allowed',
+        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-emphasis tracking-tight transition-colors disabled:cursor-not-allowed',
         BUTTON_VARIANT[variant],
         fullWidth && 'w-full',
         className,
@@ -68,7 +68,7 @@ export function Chip({
   'data-testid'?: string;
 }) {
   const classes = cx(
-    'inline-flex shrink-0 items-center justify-center rounded-lg border font-semibold tracking-tight transition-colors',
+    'inline-flex shrink-0 items-center justify-center rounded-lg border font-emphasis tracking-tight transition-colors',
     compact ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]',
     active
       ? 'border-accent bg-accent text-white'
@@ -133,7 +133,7 @@ interface FieldProps {
 export function Field({ label, hint, error, required, className, children }: FieldProps) {
   return (
     <label className={cx('flex flex-col gap-1.5', className)}>
-      <span className="text-sm font-semibold text-ink">
+      <span className="text-sm font-emphasis text-ink">
         {label}
         {required ? (
           <span className="text-danger" aria-hidden>
@@ -144,9 +144,9 @@ export function Field({ label, hint, error, required, className, children }: Fie
       </span>
       {children}
       {error ? (
-        <span className="text-xs font-medium text-danger">{error}</span>
+        <span className="text-xs font-body text-danger">{error}</span>
       ) : hint ? (
-        <span className="text-xs text-muted">{hint}</span>
+        <span className="text-xs font-body text-muted">{hint}</span>
       ) : null}
     </label>
   );
@@ -211,7 +211,7 @@ export const TextArea = forwardRef<
       className={cx(
         formControlWidthClass(className),
         !hasMinH && 'min-h-24',
-        'rounded-xl border border-line bg-input px-3.5 py-2.5 text-base font-medium text-ink outline-none placeholder:italic placeholder:font-normal placeholder:text-muted/50 focus:border-accent',
+        'rounded-xl border border-line bg-input px-3.5 py-2.5 text-base font-body text-ink outline-none placeholder:italic placeholder:font-body placeholder:text-muted/50 focus:border-accent',
         className,
       )}
       {...props}
@@ -230,7 +230,7 @@ export function StatusPill({
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-emphasis',
         statusClasses(status),
       )}
     >
@@ -243,7 +243,7 @@ export function Tag({ children, tone = 'neutral' }: { children: ReactNode; tone?
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-emphasis',
         toneClasses(tone),
       )}
     >
@@ -295,7 +295,7 @@ export function Avatar({
 export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 px-0.5">
-      <h2 className="text-[13px] font-semibold tracking-tight text-ink">{title}</h2>
+      <h2 className="text-[13px] font-emphasis tracking-tight text-ink">{title}</h2>
       {action}
     </div>
   );
@@ -317,7 +317,7 @@ export function LoadingBlock({ label = 'Loading…' }: { label?: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-muted">
       <Spinner />
-      <span className="text-sm font-medium">{label}</span>
+      <span className="text-sm font-body">{label}</span>
     </div>
   );
 }
@@ -337,8 +337,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-      <p className="text-sm font-bold text-ink">{title}</p>
-      {message ? <p className="max-w-xs text-sm text-muted">{message}</p> : null}
+      <p className="text-sm font-emphasis text-ink">{title}</p>
+      {message ? <p className="max-w-xs text-sm font-body text-muted">{message}</p> : null}
       {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
@@ -347,7 +347,7 @@ export function EmptyState({
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl bg-danger-soft px-6 py-10 text-center">
-      <p className="text-sm font-semibold text-danger">{message}</p>
+      <p className="text-sm font-emphasis text-danger">{message}</p>
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
           Try again
@@ -371,7 +371,7 @@ export function InlineNotice({
     <p
       role="alert"
       className={cx(
-        'text-sm font-medium leading-snug',
+        'text-sm font-body leading-snug',
         tone === 'danger' ? 'text-danger' : 'text-muted',
         className,
       )}
@@ -456,7 +456,7 @@ export function Sheet({
               </button>
             ) : null}
             {title ? (
-              <h3 className="min-w-0 flex-1 text-[1.05rem] font-semibold tracking-tight text-ink">
+              <h3 className="min-w-0 flex-1 text-sheet-title font-title tracking-tight text-ink">
                 {title}
               </h3>
             ) : (

@@ -86,7 +86,7 @@ export type UpdateProductDto = z.infer<typeof updateProductSchema>;
 const optionalScheduleInstant = z.union([z.string().min(1).max(40), z.null()]).optional();
 
 const createCollectionObjectSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required').max(160),
+  name: z.string().trim().max(160),
   description: z.string().trim().max(1000).optional(),
   coverImage: z
     .string()
@@ -269,6 +269,11 @@ export interface ProductView {
    * memberships were not loaded.
    */
   collectionNames: string[];
+  /**
+   * Those packs' tags and master category, for Edit design defaults.
+   * Omitted when memberships were not loaded.
+   */
+  collectionPacks?: { categories: string[]; masterCategoryId: string | null }[];
   /** ISO time when live on Explore; null when draft/hidden. */
   postedToMarketAt: string | null;
   createdBy: AuditActorView | null;
@@ -320,6 +325,8 @@ export interface CollectionView {
   photoCount: number;
   /** Up to 4 member image URLs for seller collage tiles. */
   previewImages: string[];
+  /** Owner library list: last photo of the newest member design. */
+  libraryThumb?: string | null;
   startsAt: string | null;
   endsAt: string | null;
   createdBy: AuditActorView | null;

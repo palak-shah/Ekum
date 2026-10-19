@@ -33,7 +33,9 @@ export function shouldShowSelectionWorkspaceBar(
   total: number,
   options?: { shopDockUp?: boolean; pageDockUp?: boolean; ownShop?: boolean; pageSelecting?: boolean },
 ): boolean {
-  if (total < 1) return false;
+  const selectingEmptyPack =
+    total < 1 && Boolean(options?.pageSelecting) && isDesignOrPackPath(pathname);
+  if (total < 1 && !selectingEmptyPack) return false;
   if (options?.shopDockUp || options?.pageDockUp) return false;
   if (pathOwnsBottomActionBand(pathname)) return false;
 

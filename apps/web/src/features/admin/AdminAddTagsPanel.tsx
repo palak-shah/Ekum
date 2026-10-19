@@ -36,7 +36,7 @@ export function AdminBulkPastePanel({
 
   return (
     <div className="rounded-xl border border-line p-3" data-testid="admin-bulk-paste-panel">
-      <p className="mb-1 text-sm font-medium text-ink">Bulk paste</p>
+      <p className="mb-1 text-sm font-emphasis text-ink">Bulk paste</p>
       {canMutate ? (
         <p className="mb-2 text-xs text-muted">
           {categoryLabel} · {kindLabel}
@@ -93,12 +93,12 @@ export function AdminBulkPastePanel({
                   className="min-w-0 flex-1"
                   aria-label={`Preview row ${row.index + 1}`}
                 />
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide">
+                <span className="shrink-0 text-[10px] font-body uppercase tracking-wide">
                   {row.status === 'duplicate_in_paste' ? 'repeated' : row.status}
                 </span>
                 <button
                   type="button"
-                  className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-muted"
+                  className="shrink-0 rounded-lg px-2 py-1 text-xs font-body text-muted"
                   onClick={() => onRemovePreviewRow(row.index)}
                   aria-label={`Remove ${row.label || 'row'}`}
                 >

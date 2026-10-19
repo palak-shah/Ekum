@@ -46,7 +46,7 @@ export function GroupProfileSheet({
         <button
           type="button"
           data-testid="group-photo-pick"
-          className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam text-sm font-semibold text-muted"
+          className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam text-sm font-body text-muted"
           onClick={() => fileRef.current?.click()}
         >
           {imageUrl ? (

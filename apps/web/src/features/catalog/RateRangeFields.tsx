@@ -8,6 +8,7 @@ import { rateRangeCaption } from './rateRange';
  * Pack rate: One rate vs A range as a pill switch for the whole collection.
  * Empty rate shows no “On request” caption (Who visibility stays separate).
  * Optional rateUnit + onRateUnit → “Rate per” + unit select (collection create/edit).
+ * `fixedOnly` is the design editor: same Rate per row, one amount, no range.
  */
 export function RateRangeFields({
   from,
@@ -18,6 +19,7 @@ export function RateRangeFields({
   rateUnit,
   onRateUnit,
   permittedUnits,
+  fixedOnly = false,
 }: {
   from: string;
   to: string;
@@ -30,6 +32,8 @@ export function RateRangeFields({
   onRateUnit?: (next: string) => void;
   /** When set, only these units appear (category-aware). */
   permittedUnits?: string[];
+  /** One amount only — no One rate / A range switch. */
+  fixedOnly?: boolean;
 }) {
   const unitOptions =
     permittedUnits && permittedUnits.length > 0 ? permittedUnits : [...unitValues];
@@ -40,7 +44,7 @@ export function RateRangeFields({
   useEffect(() => {
     if (to.trim()) setMode('range');
   }, [to]);
-  const rangeOpen = mode === 'range';
+  const rangeOpen = !fixedOnly && mode === 'range';
   const caption = rateRangeCaption(from, to);
   const danger = caption.startsWith('High rate');
   const showCaption = Boolean(caption);
@@ -54,7 +58,7 @@ export function RateRangeFields({
       <div className="flex flex-col gap-1">
         {unitSelect ? (
           <div className="flex w-full items-center gap-2">
-            <span className="shrink-0 text-sm font-semibold text-ink">Rate per</span>
+            <span className="shrink-0 text-sm font-emphasis text-ink">Rate per</span>
             <select
               data-testid="collection-rate-unit"
               aria-label="Rate unit"
@@ -70,8 +74,9 @@ export function RateRangeFields({
             </select>
           </div>
         ) : (
-          <span className="text-sm font-semibold text-ink">{label}</span>
+          <span className="text-sm font-emphasis text-ink">{label}</span>
         )}
+        {fixedOnly ? null : (
         <div
           role="radiogroup"
           aria-label={modeAria}
@@ -84,7 +89,7 @@ export function RateRangeFields({
             aria-checked={!rangeOpen}
             data-testid="collection-rate-mode-single"
             className={cx(
-              'min-h-8 rounded-full px-3 text-sm font-semibold tracking-tight transition-colors',
+              'min-h-8 rounded-full px-3 text-sm font-emphasis tracking-tight transition-colors',
               !rangeOpen ? 'bg-accent text-white' : 'bg-transparent text-muted',
             )}
             onClick={() => {
@@ -100,7 +105,7 @@ export function RateRangeFields({
             aria-checked={rangeOpen}
             data-testid="collection-rate-mode-range"
             className={cx(
-              'min-h-8 rounded-full px-3 text-sm font-semibold tracking-tight transition-colors',
+              'min-h-8 rounded-full px-3 text-sm font-emphasis tracking-tight transition-colors',
               rangeOpen ? 'bg-accent text-white' : 'bg-transparent text-muted',
             )}
             onClick={() => setMode('range')}
@@ -108,6 +113,7 @@ export function RateRangeFields({
             A range
           </button>
         </div>
+        )}
       </div>
       {rangeOpen ? (
         <div className="grid grid-cols-2 gap-2">
@@ -152,10 +158,10 @@ export function RateRangeFields({
           aria-label={singleAria}
         />
       )}
-      {showCaption ? (
+      {showCaption && !fixedOnly ? (
         <p
           data-testid="collection-rate-caption"
-          className={danger ? 'text-xs font-medium text-danger' : 'text-xs text-muted'}
+          className={danger ? 'text-xs font-emphasis text-danger' : 'text-xs text-muted'}
         >
           {caption}
         </p>

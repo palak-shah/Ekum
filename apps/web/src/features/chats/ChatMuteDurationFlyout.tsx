@@ -10,7 +10,7 @@ export const MUTE_FOR_OPTIONS: { id: MuteFor; label: string }[] = [
 ];
 
 const ITEM =
-  'flex w-full px-3.5 py-2.5 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
+  'flex w-full px-3.5 py-2.5 text-left text-sm font-emphasis tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
 
 export function ChatMuteDurationFlyout({
   host,

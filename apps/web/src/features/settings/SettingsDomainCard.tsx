@@ -21,7 +21,7 @@ export function SettingsDomainCard({
       className="flex items-center gap-3 border-b border-line px-3.5 py-3 last:border-b-0 hover:bg-foam"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-ink">{title}</span>
+        <span className="block text-sm font-emphasis text-ink">{title}</span>
         <span className="mt-0.5 block text-xs text-muted">{hint}</span>
       </span>
       <ChevronRightIcon className="shrink-0 text-muted" width={18} height={18} />
@@ -41,7 +41,7 @@ export function SettingsDomainGroup({
 }) {
   return (
     <section className="flex flex-col gap-1.5" data-testid={testId}>
-      <h2 className="px-0.5 text-[13px] font-semibold tracking-tight text-ink">{title}</h2>
+      <h2 className="px-0.5 text-[13px] font-emphasis tracking-tight text-ink">{title}</h2>
       <div className="overflow-hidden rounded-xl border border-line bg-surface">{children}</div>
     </section>
   );

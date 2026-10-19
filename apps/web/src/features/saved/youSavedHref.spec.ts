@@ -38,5 +38,17 @@ describe('youSavedHref', () => {
     expect(youLibraryWriteSearch({ tab: 'products', saved: true, select: true }).toString()).toBe(
       'tab=products&saved=1&select=1',
     );
+    expect(youLibraryWriteSearch({ tab: 'collections', drafts: true }).toString()).toBe(
+      'tab=collections&view=draft',
+    );
+    expect(
+      youLibraryWriteSearch({ tab: 'collections', drafts: true, archived: true }).get('view'),
+    ).toBe('draft');
+    expect(youLibraryWriteSearch({ tab: 'collections', archived: true }).get('view')).toBe(
+      'archived',
+    );
+    expect(youLibraryWriteSearch({ tab: 'collections', drafts: true, saved: true }).has('view')).toBe(
+      false,
+    );
   });
 });

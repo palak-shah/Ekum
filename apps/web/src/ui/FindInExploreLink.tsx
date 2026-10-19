@@ -30,7 +30,7 @@ export function FindInExploreLink({
       to={href}
       data-testid="find-in-explore-link"
       className={cx(
-        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-semibold tracking-tight transition-colors',
+        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-emphasis tracking-tight transition-colors',
         VARIANT_CLASS[variant],
         fullWidth && 'w-full',
         className,

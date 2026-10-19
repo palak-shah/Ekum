@@ -36,7 +36,7 @@ export function ChatMentionPicker({
             onPick(row);
           }}
         >
-          <span className="min-w-0 truncate text-sm font-semibold tracking-tight text-ink">
+          <span className="min-w-0 truncate text-sm font-emphasis tracking-tight text-ink">
             {row.name}
           </span>
           <span className="shrink-0 text-[11px] text-muted">{row.hint}</span>

@@ -124,9 +124,9 @@ export function NoteVoiceField({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-ink">
+        <p className="text-sm font-emphasis text-ink">
           {label}
-          {optional ? <span className="font-normal text-muted"> (optional)</span> : null}
+          {optional ? <span className="font-body text-muted"> (optional)</span> : null}
         </p>
         <button
           type="button"

@@ -156,7 +156,7 @@ export function DesignSheetPhotoCarousel({
               <ChevronRightIcon width={22} height={22} />
             </button>
             <p
-              className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-ink/55 px-2 py-0.5 text-[11px] font-semibold text-white"
+              className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-ink/55 px-2 py-0.5 text-[11px] font-emphasis text-white"
               data-testid="collection-design-photo-count"
             >
               {safeIndex + 1} / {urls.length}

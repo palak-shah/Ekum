@@ -94,9 +94,9 @@ export function CatalogDefaultsPage() {
       {saved ? <InlineNotice message="Saved" tone="muted" /> : null}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-ink">Who can see · buyer rights</h2>
+        <h2 className="text-sm font-emphasis text-ink">Who can see · buyer rights</h2>
         <div>
-          <p className="mb-2 text-sm font-semibold text-ink">Show rates?</p>
+          <p className="mb-2 text-sm font-emphasis text-ink">Show rates?</p>
           <div className="flex flex-col gap-1.5">
             {(
               [
@@ -111,7 +111,7 @@ export function CatalogDefaultsPage() {
                 className={cx(
                   'rounded-xl border px-3 py-2.5 text-left text-sm',
                   rateVisibility === value
-                    ? 'border-accent bg-accent/5 font-medium text-ink'
+                    ? 'border-accent bg-accent/5 font-emphasis text-ink'
                     : 'border-line text-muted',
                 )}
               >
@@ -142,7 +142,7 @@ export function CatalogDefaultsPage() {
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-ink">Rate per</span>
+          <span className="text-sm font-emphasis text-ink">Rate per</span>
           <select
             data-testid="catalog-defaults-rate-unit"
             aria-label="Rate unit"
@@ -156,7 +156,7 @@ export function CatalogDefaultsPage() {
                 setDispatchUnit(next);
               }
             }}
-            className="min-h-9 rounded-xl border border-line bg-surface px-2.5 text-sm font-semibold text-ink"
+            className="min-h-9 rounded-xl border border-line bg-surface px-2.5 text-sm font-emphasis text-ink"
           >
             {unitValues.map((u) => (
               <option key={u} value={u}>

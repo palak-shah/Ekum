@@ -1,70 +1,68 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { ChevronDownIcon } from '@/ui/icons';
 import { cx } from '@/lib/cx';
-import {
-  collectionPackDetailSections,
-  noteBlockOverflows,
-  PACK_DETAILS_COLLAPSED_MAX_H_CLASS,
-} from './collectionViewerChrome';
-import { PackDetailBlocks } from './PackDetailBlocks';
+import { collectionFactsLine } from './collectionViewerChrome';
 
+/**
+ * Album identity under the title: tags · price, then the unit sentence,
+ * then description behind About this collection.
+ */
 export function CollectionPackDetails({
   categories,
   description,
   rateBand,
+  journeyLine,
 }: {
   categories?: string[] | null;
   description?: string | null;
   rateBand?: string | null;
+  /** Shared pack journey, e.g. “Rates are per pc. Order and dispatch per set.” */
+  journeyLine?: string | null;
 }) {
-  const sections = collectionPackDetailSections({ categories, description, rateBand });
+  const facts = collectionFactsLine(categories, rateBand);
+  const about = description?.trim() || null;
+  const journey = journeyLine?.trim() || null;
   const [open, setOpen] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  const bodyRef = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
-    if (open) return;
-    const el = bodyRef.current;
-    if (!el) {
-      setOverflows(false);
-      return;
-    }
-    setOverflows(noteBlockOverflows(el.scrollHeight, el.clientHeight));
-  }, [open, categories, description, rateBand]);
-
-  if (sections.length === 0) return null;
-
-  const showToggle = open || overflows;
+  if (!facts && !about && !journey) return null;
 
   return (
-    <div className="relative px-0.5" data-testid="collection-pack-details">
-      <div
-        ref={bodyRef}
-        className={cx(
-          // Whole line boxes only — never mid-glyph clip (BM-07).
-          !open && cx(PACK_DETAILS_COLLAPSED_MAX_H_CLASS, 'overflow-hidden'),
-        )}
-      >
-        <PackDetailBlocks
-          sections={sections}
-          unlabeledKeys={['rate', 'description']}
-        />
-      </div>
-      {showToggle ? (
-        <button
-          type="button"
-          data-testid="collection-pack-details-more"
-          className={cx(
-            'text-sm font-semibold leading-5 text-accent',
-            // Collapsed: sit on the last clamped line — no extra row (BM-11).
-            open
-              ? 'mt-1'
-              : 'absolute bottom-0 right-0 z-[1] bg-gradient-to-l from-canvas from-60% to-transparent pl-8',
-          )}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? 'Show less' : 'read more'}
-        </button>
+    <div className="flex flex-col gap-1 px-0.5" data-testid="collection-pack-details">
+      {facts ? (
+        <p className="text-sm leading-5 text-ink" data-testid="collection-pack-facts">
+          {facts}
+        </p>
+      ) : null}
+      {journey ? (
+        <p className="text-xs leading-5 text-muted" data-testid="collection-pack-journey">
+          {journey}
+        </p>
+      ) : null}
+      {about ? (
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            data-testid="collection-about"
+            className="flex items-center gap-1 self-start text-sm font-emphasis leading-5 text-accent"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            About this collection
+            <ChevronDownIcon
+              width={16}
+              height={16}
+              className={cx('shrink-0 transition-transform', open && 'rotate-180')}
+            />
+          </button>
+          {open ? (
+            <p
+              className="whitespace-pre-wrap text-sm leading-5 text-ink"
+              data-testid="collection-pack-details-description"
+            >
+              {about}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

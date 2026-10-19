@@ -196,6 +196,7 @@ describe('iHandleDesk', () => {
     ).toEqual({
       kind: 'buy',
       cancel: true,
+      declineLogged: false,
       edit: false,
       acceptQuote: false,
       raiseReturn: false,
@@ -214,6 +215,7 @@ describe('iHandleDesk', () => {
     ).toEqual({
       kind: 'buy',
       cancel: true,
+      declineLogged: false,
       edit: true,
       acceptQuote: true,
       raiseReturn: false,
@@ -230,7 +232,44 @@ describe('iHandleDesk', () => {
       }),
     ).toEqual({
       kind: 'buy',
+      cancel: false,
+      declineLogged: true,
+      edit: false,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'requested',
+        createdBySeller: true,
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: false,
+      declineLogged: true,
+      edit: false,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'confirmed',
+        createdBySeller: false,
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'buy',
       cancel: true,
+      declineLogged: false,
       edit: false,
       acceptQuote: false,
       raiseReturn: false,

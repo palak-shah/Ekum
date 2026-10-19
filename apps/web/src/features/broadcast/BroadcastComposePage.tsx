@@ -156,7 +156,7 @@ export function BroadcastComposePage() {
       />
 
       <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-ink">What to share</p>
+        <p className="text-sm font-emphasis text-ink">What to share</p>
         <div className="flex flex-col gap-1.5">
           {(
             [
@@ -179,7 +179,7 @@ export function BroadcastComposePage() {
                   : 'border-line bg-surface',
               )}
             >
-              <p className="text-sm font-semibold text-ink">{label}</p>
+              <p className="text-sm font-emphasis text-ink">{label}</p>
               <p className="text-xs text-muted">{hint}</p>
             </button>
           ))}
@@ -188,7 +188,7 @@ export function BroadcastComposePage() {
 
       {kind === 'collection' ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-ink">Collection</p>
+          <p className="text-sm font-emphasis text-ink">Collection</p>
           {collections.isLoading ? (
             <LoadingBlock label="Loading collections…" />
           ) : publishedCollections.length === 0 ? (
@@ -208,12 +208,12 @@ export function BroadcastComposePage() {
                   className={cx(
                     'rounded-xl border px-3 py-2.5 text-left text-sm',
                     collectionId === collection.id
-                      ? 'border-accent bg-accent/5 font-medium text-ink'
+                      ? 'border-accent bg-accent/5 font-emphasis text-ink'
                       : 'border-line text-muted',
                   )}
                 >
                   {collection.name}
-                  <span className="ml-2 text-xs font-normal text-muted">
+                  <span className="ml-2 text-xs font-body text-muted">
                     {collection.productCount} design{collection.productCount === 1 ? '' : 's'}
                   </span>
                 </button>
@@ -260,10 +260,10 @@ export function BroadcastComposePage() {
         <>
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-ink">Buyer groups</p>
+              <p className="text-sm font-emphasis text-ink">Buyer groups</p>
               <button
                 type="button"
-                className="text-xs font-medium text-accent"
+                className="text-xs font-emphasis text-accent"
                 onClick={() => setGroupSheetOpen(true)}
               >
                 {buyerGroups.length > 0 ? 'Add group' : 'Create group'}
@@ -281,7 +281,7 @@ export function BroadcastComposePage() {
                     className={cx(
                       'rounded-full border px-3 py-1.5 text-sm',
                       lists.has(list.id)
-                        ? 'border-accent bg-accent/5 font-medium text-ink'
+                        ? 'border-accent bg-accent/5 font-emphasis text-ink'
                         : 'border-line bg-foam text-muted',
                     )}
                   >

@@ -112,7 +112,7 @@ export function OrderForBuyerSheet({
           <button
             type="button"
             data-testid="order-for-buyer-off-app"
-            className="self-start text-sm font-bold text-accent"
+            className="self-start text-sm font-emphasis text-accent"
             disabled={busy}
             onClick={() => {
               setOffApp((on) => !on);

@@ -38,7 +38,7 @@ import {
 } from './groupInfoTabs';
 
 const SETTING =
-  'flex w-full px-3.5 py-3 text-left text-sm font-semibold tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
+  'flex w-full px-3.5 py-3 text-left text-sm font-emphasis tracking-tight text-ink hover:bg-foam/70 disabled:opacity-40';
 
 function ChatYourTeam({
   teamRows,
@@ -56,12 +56,12 @@ function ChatYourTeam({
   return (
     <section data-testid="group-info-team-list">
       <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-        <h2 className="text-sm font-semibold tracking-tight text-ink">Your team</h2>
+        <h2 className="text-sm font-emphasis tracking-tight text-ink">Your team</h2>
         {canManage ? (
           <button
             type="button"
             data-testid="group-info-team-add"
-            className="text-[13px] font-semibold text-accent"
+            className="text-[13px] font-emphasis text-accent"
             onClick={onAdd}
           >
             Add
@@ -82,7 +82,7 @@ function ChatYourTeam({
               >
                 <Avatar name={person.name} size={48} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold tracking-tight text-ink">
+                  <span className="block truncate text-sm font-emphasis tracking-tight text-ink">
                     {person.name}
                   </span>
                   {person.role === 'owner' ? (
@@ -95,7 +95,7 @@ function ChatYourTeam({
                     data-testid={`group-info-person-remove-${person.userId}`}
                     aria-label={`Take ${person.name} off this chat`}
                     disabled={removePending}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center text-lg font-semibold text-muted hover:text-ink disabled:opacity-40"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center text-lg font-body text-muted hover:text-ink disabled:opacity-40"
                     onClick={() => onRemove(person.userId)}
                   >
                     ×
@@ -384,7 +384,7 @@ export function GroupInfoPage() {
               data-testid={`group-info-tab-${value}`}
               onClick={() => setTab(value)}
               className={cx(
-                'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-semibold tracking-tight',
+                'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-emphasis tracking-tight',
                 tab === value ? 'bg-surface text-ink shadow-[var(--shadow-soft)]' : 'text-muted',
               )}
             >
@@ -430,7 +430,7 @@ export function GroupInfoPage() {
                     >
                       <Avatar name={row.company.name} imageUrl={row.company.logoUrl} size={48} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold tracking-tight text-ink">
+                        <span className="block truncate text-sm font-emphasis tracking-tight text-ink">
                           {row.company.name}
                         </span>
                         <span className="block truncate text-xs text-muted">

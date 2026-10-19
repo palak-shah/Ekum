@@ -43,7 +43,7 @@ export function ThreadPeopleSheet({
       footer={
         existingChat && onOpenExisting ? (
           <div className="flex flex-col gap-2.5">
-            <p className="rounded-xl bg-foam px-3 py-2.5 text-sm font-medium text-ink">
+            <p className="rounded-xl bg-foam px-3 py-2.5 text-sm font-emphasis text-ink">
               Same as {existingLabel}.
             </p>
             <Button fullWidth onClick={() => onOpenExisting(existingChat.threadId)}>

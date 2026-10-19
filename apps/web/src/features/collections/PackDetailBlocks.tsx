@@ -24,12 +24,12 @@ export function PackDetailBlocks({
         return (
           <div key={section.key} data-testid={`${testIdPrefix}-${section.key}`}>
             {showLabel ? (
-              <p className="text-sm font-semibold leading-5 text-ink">{section.label}</p>
+              <p className="text-sm font-emphasis leading-5 text-ink">{section.label}</p>
             ) : null}
             <p
               className={cx(
                 // leading-5 keeps collapsed max-height on whole line boxes (BM-07).
-                'text-sm font-medium leading-5',
+                'text-sm font-emphasis leading-5',
                 showLabel ? 'text-muted' : 'text-ink',
                 section.key === 'description' && 'whitespace-pre-wrap',
               )}

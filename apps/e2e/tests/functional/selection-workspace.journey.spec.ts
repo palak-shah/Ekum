@@ -232,10 +232,9 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page.getByText('Checking availability…')).toHaveCount(0, { timeout: 15_000 });
     await page.getByTestId('selection-bookmark').click();
     await expect(page).toHaveURL(/saved/, { timeout: 15_000 });
-    await expect(page.getByTestId('you-library-filter')).toHaveAttribute('data-filter-active', 'true', {
+    await expect(page.getByTestId('you-library-view-summary')).toContainText('Bookmark', {
       timeout: 15_000,
     });
-    await expect(page.getByText(/Showing\s+Saved/)).toBeVisible();
     await expect(page.getByText('Cart is empty')).toHaveCount(0);
     await expect(page.getByTestId('app-toast')).toContainText(/bookmarked/i);
   });

@@ -5,10 +5,19 @@ import {
   collectionNameClash,
   coverUrlFromGrid,
   defaultCollectionName,
+  displayCollectionName,
   itemKey,
   nameFromFilename,
   type CreateGridItem,
 } from './collectionCreateHelpers';
+
+describe('displayCollectionName', () => {
+  it('names a blank draft Untitled', () => {
+    expect(displayCollectionName('')).toBe('Untitled');
+    expect(displayCollectionName('  ')).toBe('Untitled');
+    expect(displayCollectionName('Festive')).toBe('Festive');
+  });
+});
 
 describe('defaultCollectionName', () => {
   it('uses day and month', () => {

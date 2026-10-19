@@ -44,7 +44,7 @@ export function NetworkPage() {
             className="flex items-center justify-between border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-foam"
           >
             <div className="min-w-0">
-              <p className="text-sm font-medium text-ink">{item.label}</p>
+              <p className="text-sm font-emphasis text-ink">{item.label}</p>
               <p className="text-xs text-muted">{item.hint}</p>
             </div>
             <ChevronRightIcon className="shrink-0 text-muted" />

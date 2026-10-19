@@ -104,7 +104,7 @@ export function UnitsSettingsPage() {
             {rows.length > 1 ? (
               <button
                 type="button"
-                className="self-start text-xs font-medium text-danger"
+                className="self-start text-xs font-emphasis text-danger"
                 onClick={() => setRows(rows.filter((_, i) => i !== index))}
               >
                 Remove
@@ -114,7 +114,7 @@ export function UnitsSettingsPage() {
         ))}
         <button
           type="button"
-          className="self-start text-sm font-medium text-accent"
+          className="self-start text-sm font-emphasis text-accent"
           onClick={() => setRows([...rows, emptyRow()])}
         >
           Add conversion

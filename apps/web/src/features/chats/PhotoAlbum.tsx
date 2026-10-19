@@ -53,7 +53,7 @@ function Cell({
         <span
           data-testid="photo-album-overflow"
           className={cx(
-            'absolute inset-0 flex items-center justify-center bg-ink/55 font-semibold text-white',
+            'absolute inset-0 flex items-center justify-center bg-ink/55 font-emphasis text-white',
             overlayClass ?? 'text-2xl',
           )}
         >
@@ -209,7 +209,7 @@ export function PhotoAlbum({
           <span
             data-testid="photo-album-overflow"
             className={cx(
-              'absolute inset-0 flex items-center justify-center bg-ink/55 font-semibold text-white',
+              'absolute inset-0 flex items-center justify-center bg-ink/55 font-emphasis text-white',
               overlayClass,
             )}
           >

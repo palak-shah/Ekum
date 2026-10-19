@@ -40,7 +40,7 @@ export function collectionPackTradeDock(_input: {
 }
 
 /**
- * Owner manage dock (Designs · Photos · Replace) — packManage idle only.
+ * Owner manage dock (Update collection) — packManage idle only.
  * Selecting / this-album picks use SelectionWorkspaceBar (not a Delete dock).
  */
 export function collectionOwnerManageDock(input: {
@@ -176,6 +176,33 @@ export function collectionOwnerCanEditDesign(input: {
   const mine = input.myCompanyId?.trim();
   const product = input.productCompanyId?.trim();
   return Boolean(mine && product && mine === product);
+}
+
+export type DesignSheetUnderPhoto = {
+  tags: string[];
+  rate: string | null;
+  description: string | null;
+};
+
+/**
+ * Opened design, under the photo: tags on the left, rate on the right,
+ * description below. Each tag is its own label. Empty parts omitted.
+ */
+export function designSheetUnderPhoto(input: {
+  categories?: string[] | null;
+  description?: string | null;
+  rateLabel?: string | null;
+}): DesignSheetUnderPhoto {
+  const slots = categoriesToTagSlots(input.categories ?? []);
+  const tags = [slots.items, slots.sizes, slots.qualities]
+    .flat()
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  return {
+    tags,
+    rate: designSheetRateBand(input.rateLabel),
+    description: input.description?.trim() || null,
+  };
 }
 
 /** Honest design-sheet rate — omit empty / On request (same as Explore feed). */
