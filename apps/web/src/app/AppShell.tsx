@@ -50,6 +50,7 @@ import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
 import { YouLibraryHeaderMore } from '@/features/catalog/YouLibraryHeaderMore';
 import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
 import { HomeAccountMenu } from '@/features/home/HomeAccountMenu';
+import { TestDeploymentBadge } from '@/features/settings/TestDeploymentBadge';
 import {
   BackIcon,
   BellIcon,
@@ -255,6 +256,8 @@ export function AppShell() {
         onClose={() => setCreateOpen(false)}
         onPick={(href) => navigate(href)}
       />
+
+      <TestDeploymentBadge />
 
       <nav
         data-testid="app-bottom-nav"

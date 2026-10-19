@@ -60,13 +60,37 @@ export default defineConfig(({ mode }) => {
   ).replace(/\/$/, '');
   const webBuildId =
     webEnv.VITE_WEB_BUILD ||
+    webEnv.VITE_EKUM_BUILD_ID ||
+    rootEnv.EKUM_BUILD_ID ||
     rootEnv.EKUM_WEB_BUILD ||
     process.env.SOURCE_DATE_EPOCH ||
     new Date().toISOString();
+  const ekumVersion =
+    webEnv.VITE_EKUM_VERSION || rootEnv.EKUM_VERSION || '0.0.0-dev';
+  const ekumGitSha =
+    webEnv.VITE_EKUM_GIT_SHA || rootEnv.EKUM_GIT_SHA || 'unknown';
+  const ekumBuiltAt =
+    webEnv.VITE_EKUM_BUILT_AT || rootEnv.EKUM_BUILT_AT || new Date().toISOString();
+  const ekumDeploymentRaw =
+    webEnv.VITE_EKUM_DEPLOYMENT || rootEnv.EKUM_DEPLOYMENT || 'test';
+  const ekumDeployment = ekumDeploymentRaw === 'production' ? 'production' : 'test';
+  const versionJson = {
+    build: webBuildId,
+    version: ekumVersion,
+    buildId: webBuildId,
+    gitSha: ekumGitSha,
+    builtAt: ekumBuiltAt,
+    deployment: ekumDeployment,
+  };
 
   return {
   define: {
     'import.meta.env.VITE_WEB_BUILD': JSON.stringify(webBuildId),
+    'import.meta.env.VITE_EKUM_VERSION': JSON.stringify(ekumVersion),
+    'import.meta.env.VITE_EKUM_BUILD_ID': JSON.stringify(webBuildId),
+    'import.meta.env.VITE_EKUM_GIT_SHA': JSON.stringify(ekumGitSha),
+    'import.meta.env.VITE_EKUM_BUILT_AT': JSON.stringify(ekumBuiltAt),
+    'import.meta.env.VITE_EKUM_DEPLOYMENT': JSON.stringify(ekumDeployment),
   },
   plugins: [
     {
@@ -75,7 +99,7 @@ export default defineConfig(({ mode }) => {
         this.emitFile({
           type: 'asset',
           fileName: 'version.json',
-          source: JSON.stringify({ build: webBuildId }),
+          source: JSON.stringify(versionJson),
         });
       },
     },

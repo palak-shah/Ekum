@@ -15,6 +15,24 @@ describe('validateEnv', () => {
     expect(env.JWT_ACCESS_TTL).toBe('15m');
     expect(env.JWT_REFRESH_TTL).toBe('10y');
     expect(env.OTP_EXPOSE_DEV_CODE).toBe(false);
+    expect(env.EKUM_VERSION).toBe('0.0.0-dev');
+    expect(env.EKUM_BUILD_ID).toBe('dev');
+    expect(env.EKUM_GIT_SHA).toBe('unknown');
+    expect(env.EKUM_BUILT_AT).toBe('unknown');
+    expect(env.EKUM_DEPLOYMENT).toBe('test');
+  });
+
+  it('accepts baked version identity', () => {
+    const env = validateEnv({
+      ...base,
+      EKUM_VERSION: '0.1.0',
+      EKUM_BUILD_ID: 'build-1',
+      EKUM_GIT_SHA: 'deadbeef',
+      EKUM_BUILT_AT: '2026-10-19T06:00:00.000Z',
+      EKUM_DEPLOYMENT: 'production',
+    });
+    expect(env.EKUM_VERSION).toBe('0.1.0');
+    expect(env.EKUM_DEPLOYMENT).toBe('production');
   });
 
   it('coerces PORT to a number', () => {

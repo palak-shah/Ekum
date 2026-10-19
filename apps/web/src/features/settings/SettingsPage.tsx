@@ -116,6 +116,15 @@ export function SettingsPage() {
         ))}
       </SettingsDomainGroup>
 
+      <SettingsDomainGroup title="About" testId="settings-domain-about">
+        <SettingsDomainCard
+          to="/settings/about"
+          title="About Ekum"
+          hint="Version and build of this app and the API"
+          testId="settings-about-ekum"
+        />
+      </SettingsDomainGroup>
+
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-appearance">
         <h2 className="px-0.5 text-[13px] font-emphasis tracking-tight text-ink">Appearance</h2>
         <div className="rounded-xl border border-line bg-surface px-3.5 py-3">

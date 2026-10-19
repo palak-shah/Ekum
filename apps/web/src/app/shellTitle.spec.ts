@@ -74,6 +74,7 @@ describe('isMainMenuPath', () => {
       '/settings/paths',
       '/settings/catalog-defaults',
       '/settings/units',
+      '/settings/about',
       '/team',
       '/notifications',
       '/grants',

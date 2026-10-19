@@ -6,8 +6,11 @@ Production-like local stack: **PostgreSQL**, **Nest API**, **React SPA (static)*
 |--|--|
 | **Public URL** | http://localhost:8080 |
 | **Health** | http://localhost:8080/api/v1/health |
+| **Version** | http://localhost:8080/api/v1/version |
 | **Compose file** | [`docker-compose.yml`](../docker-compose.yml) |
 | **Env template** | [`.env.docker.example`](../.env.docker.example) → copy to `.env.docker` |
+| **Release version** | Root [`VERSION`](../VERSION) (semver `0.x.y`) |
+| **Changelog** | [`CHANGELOG.md`](../CHANGELOG.md) |
 
 Day-to-day hot reload still uses host `pnpm dev`. Use Docker for demos, full-stack smoke checks, and a consistent environment.
 
@@ -28,8 +31,10 @@ Optional on the host: Node/pnpm only if you also develop outside Compose.
 ```bash
 # from repo root
 cp .env.docker.example .env.docker
-pnpm docker:up          # or: npm run docker:up
+pnpm docker:up          # resolves VERSION + git meta, builds, tags, starts
 ```
+
+`pnpm docker:up` / `pnpm docker:build` run [`scripts/resolve-build-meta.mjs`](../scripts/resolve-build-meta.mjs) first (writes gitignored `.env.build`), bake identity into both images, tag `ekum-api` / `ekum-web` as `{VERSION}` and `sha-{shortSha}`, then start Compose.
 
 1. Wait until `pnpm docker:ps` shows `nginx` and `api` healthy.
 2. Open **http://localhost:8080** (prefer `localhost` over `127.0.0.1` if another process also binds 8080).
@@ -215,6 +220,30 @@ Do not run host API on :3000 and Compose Nginx expecting the Compose `api` servi
 
 ---
 
+## Version identity
+
+Each Compose build bakes **version** (from [`VERSION`](../VERSION)), **buildId**, **gitSha**, **builtAt**, and **deployment** (`test` \| `production`) into the API image (ENV) and the web image (Vite define + `version.json`).
+
+| Surface | How to read |
+|---------|-------------|
+| API | `GET /api/v1/version` |
+| PWA update poll | `GET /api/v1/web-build` → `{ build }` (build id; unchanged) |
+| Settings | **Settings → About Ekum** shows App (baked) and API (live fetch) side by side |
+| Images | `ekum-api:0.1.0`, `ekum-api:sha-<short>`, same for `ekum-web` |
+
+**Do not** hardcode version strings in the UI. Set `EKUM_DEPLOYMENT=production` only for real production; local and tunnel/beta stay `test` (discreet TEST badge).
+
+**Separate deploys:** rebuilding only `api` or only `web` updates that side of About. An API-only rebuild does **not** show **New version · Load**.
+
+Release checklist:
+
+1. Bump [`VERSION`](../VERSION) and note changes in [`CHANGELOG.md`](../CHANGELOG.md).  
+2. `EKUM_DEPLOYMENT=test` (or `production`) `pnpm docker:up`.  
+3. Confirm `curl -s http://localhost:8080/api/v1/version` and Settings → About Ekum.  
+4. `docker images ekum-api` / `ekum-web` show version + `sha-*` tags (not only `latest`).
+
+---
+
 ## Server (git pull + tunnel)
 
 Day-to-day work stays on **local Docker** (`http://localhost:8080`). The Linux box is updated by git and Compose rebuild. A **tunnel** (optional) exposes that stack for remote browser tests. **No Caddy** — the tunnel provider terminates HTTPS.
@@ -228,10 +257,11 @@ Spec: [`docs/superpowers/specs/2026-09-08-live-server-docker-deploy-design.md`](
 | URL | `http://localhost:8080` | Tunnel HTTPS (prefer `https://live.ekum.app`) |
 | `.env.docker` | Localhost origins | Public tunnel origin + distinct JWT secrets |
 | Workflow | Edit → rebuild/up → test | `git pull` → rebuild/up → tunnel test |
+| Deployment flag | `EKUM_DEPLOYMENT=test` | `test` for beta/tunnel; `production` for real prod |
 
 ### Ship to server
 
-1. Commit and push from your machine.  
+1. Commit and push from your machine (include `VERSION` / `CHANGELOG.md` when cutting a release).  
 2. SSH to the server → `git pull`.  
 3. Ensure server `.env.docker` uses the **tunnel public origin** (see commented block in [`.env.docker.example`](../.env.docker.example)):
 
@@ -240,13 +270,14 @@ Spec: [`docs/superpowers/specs/2026-09-08-live-server-docker-deploy-design.md`](
    - `PUBLIC_MEDIA_BASE_URL=https://live.ekum.app/media`  
    - `VITE_API_BASE_URL=/api/v1`  
    - `OTP_EXPOSE_DEV_CODE=true`, `NODE_ENV=development`  
+   - `EKUM_DEPLOYMENT=test` (or `production` for real prod)  
    - New `JWT_*_SECRET` values (≥32 chars)
 
-4. Rebuild and start: `docker compose up -d --build` (or `pnpm docker:up` if pnpm is available).  
+4. Rebuild and start: `pnpm docker:up` (preferred — writes `.env.build`, tags version + sha). Or: `node scripts/resolve-build-meta.mjs && docker compose --env-file .env.build up -d --build`.  
 5. Optional: `pnpm docker:seed` / Compose exec seed.  
 6. Point the tunnel at `http://127.0.0.1:8080` and open the public HTTPS URL.
 
-**Vite bake:** any change to `VITE_*` requires a **web image rebuild** on that machine before the browser sees it.
+**Vite bake:** any change to `VITE_*` or version meta requires a **web image rebuild** on that machine before the browser sees it. API identity changes require an **api** rebuild.
 
 ### Firewall
 
@@ -255,6 +286,9 @@ Prefer the tunnel targeting **loopback** (`127.0.0.1:8080`). If Compose publishe
 ### Verification checklist
 
 - [ ] Local: `http://localhost:8080/api/v1/health` → ok; login shows Dev code  
+- [ ] Local: `http://localhost:8080/api/v1/version` → version / buildId / gitSha / builtAt / deployment  
+- [ ] Settings → About Ekum shows App + API; TEST badge when `EKUM_DEPLOYMENT=test`  
+- [ ] `docker images` lists `ekum-api` / `ekum-web` with version and `sha-*` tags  
 - [ ] Server (SSH): `curl -s http://127.0.0.1:8080/api/v1/health` → ok after pull/rebuild  
 - [ ] Tunnel: open public HTTPS URL; SPA loads; login shows Dev code  
 - [ ] Media: image URLs use `{public origin}/media/...`

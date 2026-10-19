@@ -120,6 +120,7 @@ const UnitsSettingsPage = page(
   () => import('@/features/settings/UnitsSettingsPage'),
   'UnitsSettingsPage',
 );
+const AboutEkumPage = page(() => import('@/features/settings/AboutEkumPage'), 'AboutEkumPage');
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
 const SavedToYou = page(() => import('@/features/saved/SavedToYou'), 'SavedToYou');
 const SelectionPage = page(() => import('@/features/browse/SelectionPage'), 'SelectionPage');
@@ -264,6 +265,7 @@ export const router = createBrowserRouter([
               { path: 'settings/paths', element: <YourPathsPage /> },
               { path: 'settings/catalog-defaults', element: <CatalogDefaultsPage /> },
               { path: 'settings/units', element: <UnitsSettingsPage /> },
+              { path: 'settings/about', element: <AboutEkumPage /> },
               { path: 'team', element: <TeamPage /> },
               { path: 'saved', element: <SavedToYou /> },
               { path: 'selection', element: <SelectionPage /> },

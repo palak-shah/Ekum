@@ -8,9 +8,21 @@ RUN corepack enable && corepack prepare pnpm@11.18.0 --activate
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_PUBLIC_ORIGIN=http://localhost:8080
 ARG VITE_WEB_PUSH_PUBLIC_KEY=
+ARG VITE_EKUM_VERSION=0.0.0-dev
+ARG VITE_EKUM_BUILD_ID=dev
+ARG VITE_EKUM_GIT_SHA=unknown
+ARG VITE_EKUM_BUILT_AT=unknown
+ARG VITE_EKUM_DEPLOYMENT=test
+
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_PUBLIC_ORIGIN=$VITE_PUBLIC_ORIGIN \
-    VITE_WEB_PUSH_PUBLIC_KEY=$VITE_WEB_PUSH_PUBLIC_KEY
+    VITE_WEB_PUSH_PUBLIC_KEY=$VITE_WEB_PUSH_PUBLIC_KEY \
+    VITE_EKUM_VERSION=$VITE_EKUM_VERSION \
+    VITE_EKUM_BUILD_ID=$VITE_EKUM_BUILD_ID \
+    VITE_EKUM_GIT_SHA=$VITE_EKUM_GIT_SHA \
+    VITE_EKUM_BUILT_AT=$VITE_EKUM_BUILT_AT \
+    VITE_EKUM_DEPLOYMENT=$VITE_EKUM_DEPLOYMENT \
+    VITE_WEB_BUILD=$VITE_EKUM_BUILD_ID
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/config/package.json ./packages/config/
@@ -29,6 +41,18 @@ RUN pnpm --filter @ekum/domain-types build \
   && pnpm --filter @ekum/web build
 
 FROM nginx:alpine AS runtime
+
+ARG EKUM_VERSION=0.0.0-dev
+ARG EKUM_BUILD_ID=dev
+ARG EKUM_GIT_SHA=unknown
+ARG EKUM_BUILT_AT=unknown
+ARG EKUM_DEPLOYMENT=test
+
+LABEL org.opencontainers.image.title="ekum-web" \
+      org.opencontainers.image.version=$EKUM_VERSION \
+      org.opencontainers.image.revision=$EKUM_GIT_SHA \
+      org.opencontainers.image.created=$EKUM_BUILT_AT
+
 COPY docker/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

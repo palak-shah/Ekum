@@ -15,10 +15,13 @@ pnpm docker:up          # or: npm run docker:up
 
 | Script | Purpose |
 |--------|---------|
-| `pnpm docker:up` | Build + start |
+| `pnpm docker:up` | Resolve VERSION/git meta, build, tag `version` + `sha-*`, start |
+| `pnpm docker:build` | Same meta + build/tag without starting |
+| `pnpm docker:meta` | Write `.env.build` only |
 | `pnpm docker:down` | Stop (keep volumes) |
 | `pnpm docker:down:volumes` | Stop + wipe DB/media |
 | `pnpm docker:logs` | Follow logs |
 | `pnpm docker:ps` | Status |
 | `pnpm docker:seed` | Seed database |
-| `pnpm docker:build` | Build images only |
+
+Version check: `GET /api/v1/version` · Settings → **About Ekum** · see [`docs/docker.md`](../docs/docker.md#version-identity).

@@ -52,6 +52,16 @@ export const envSchema = z
      * User row already exists. Never ship production phones in frontend code.
      */
     PLATFORM_ADMIN_PHONES: z.string().default(''),
+    /** Release semver from root VERSION (baked at Docker build). */
+    EKUM_VERSION: z.string().default('0.0.0-dev'),
+    /** Unique per image build (not the release version). */
+    EKUM_BUILD_ID: z.string().default('dev'),
+    /** Full Git commit SHA at build time. */
+    EKUM_GIT_SHA: z.string().default('unknown'),
+    /** UTC ISO timestamp when the image was built. */
+    EKUM_BUILT_AT: z.string().default('unknown'),
+    /** Explicit deployment flavour for TEST badge — not inferred from NODE_ENV. */
+    EKUM_DEPLOYMENT: z.enum(['production', 'test']).default('test'),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.OTP_EXPOSE_DEV_CODE), {
     message: 'OTP_EXPOSE_DEV_CODE must be false in production',

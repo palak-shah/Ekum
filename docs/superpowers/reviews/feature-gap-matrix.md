@@ -297,6 +297,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Top-level Media tab | Rejected | — | Reject | |
 | Media | Upload failure UX | Partial | Untested | Recommended | |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
+| Platform | Version identity: `VERSION` + build meta bake; `GET /api/v1/version`; Settings → **About Ekum**; non-prod TEST badge; Docker tags version + sha | Works | Unit | Required | Completeness 2026-10-19-version-identity; registry push Later |
 | You / Settings | You: library (no identity card); shell **My collections** + Back + account avatar; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-09-my-collections-listing-chrome; 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
 | You / Catalog | Collection list: name (Draft chip / source / Archived); no `N designs`, shared-with, Published, or date | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
 | You / Catalog | Page ⋯ idle: Drafts (`view=draft`) · Archived · Bookmarks | Works | Unit + Functional | Required | Completeness 2026-10-17-you-library-drafts-view |

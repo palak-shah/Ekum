@@ -16,14 +16,15 @@
     "test:e2e:functional": "pnpm --filter @ekum/e2e test:functional",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up -d --build --remove-orphans && docker system prune -f",
+    "docker:meta": "node scripts/resolve-build-meta.mjs",
+    "docker:build": "node scripts/docker-build.mjs",
+    "docker:up": "node scripts/docker-up.mjs",
     "docker:prune": "docker system prune -f",
-    "docker:down": "docker compose down",
-    "docker:down:volumes": "docker compose down -v",
-    "docker:logs": "docker compose logs -f --tail=200",
-    "docker:ps": "docker compose ps",
-    "docker:seed": "docker compose exec -w /app api pnpm --filter @ekum/api db:seed"
+    "docker:down": "node scripts/resolve-build-meta.mjs && docker compose --env-file .env.build down",
+    "docker:down:volumes": "node scripts/resolve-build-meta.mjs && docker compose --env-file .env.build down -v",
+    "docker:logs": "node scripts/resolve-build-meta.mjs && docker compose --env-file .env.build logs -f --tail=200",
+    "docker:ps": "node scripts/resolve-build-meta.mjs && docker compose --env-file .env.build ps",
+    "docker:seed": "node scripts/resolve-build-meta.mjs && docker compose --env-file .env.build exec -w /app api pnpm --filter @ekum/api db:seed"
   },
   "devDependencies": {
     "prettier": "^3.4.2",

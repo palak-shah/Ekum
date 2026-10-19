@@ -1,5 +1,6 @@
 # Ekum Docker Compose — Postgres + API + web + Nginx gateway
 # Public entry: http://localhost:8080
+# Build identity: run via `pnpm docker:build` / `pnpm docker:up` (writes .env.build)
 
 services:
   postgres:
@@ -20,9 +21,16 @@ services:
       - ekum
 
   api:
+    image: ekum-api:${EKUM_IMAGE_TAG:-0.1.0}
     build:
       context: .
       dockerfile: docker/Dockerfile.api
+      args:
+        EKUM_VERSION: ${EKUM_VERSION:-0.1.0}
+        EKUM_BUILD_ID: ${EKUM_BUILD_ID:-dev}
+        EKUM_GIT_SHA: ${EKUM_GIT_SHA:-unknown}
+        EKUM_BUILT_AT: ${EKUM_BUILT_AT:-unknown}
+        EKUM_DEPLOYMENT: ${EKUM_DEPLOYMENT:-test}
     restart: unless-stopped
     env_file:
       - .env.docker
@@ -33,6 +41,8 @@ services:
       DATABASE_URL: postgresql://ekum:ekum@postgres:5432/ekum?schema=public
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       PUBLIC_MEDIA_BASE_URL: ${PUBLIC_MEDIA_BASE_URL:-http://localhost:8080/media}
+      # Version identity is baked into the image at build (Dockerfile ARG→ENV). Do not
+      # override here or a restart without rebuild can report the wrong build.
     volumes:
       - ekum_media:/app/apps/api/.media
     depends_on:
@@ -52,6 +62,7 @@ services:
       - ekum
 
   web:
+    image: ekum-web:${EKUM_IMAGE_TAG:-0.1.0}
     build:
       context: .
       dockerfile: docker/Dockerfile.web
@@ -59,6 +70,16 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VITE_PUBLIC_ORIGIN: ${VITE_PUBLIC_ORIGIN:-http://localhost:8080}
         VITE_WEB_PUSH_PUBLIC_KEY: ${VITE_WEB_PUSH_PUBLIC_KEY:-}
+        VITE_EKUM_VERSION: ${EKUM_VERSION:-0.1.0}
+        VITE_EKUM_BUILD_ID: ${EKUM_BUILD_ID:-dev}
+        VITE_EKUM_GIT_SHA: ${EKUM_GIT_SHA:-unknown}
+        VITE_EKUM_BUILT_AT: ${EKUM_BUILT_AT:-unknown}
+        VITE_EKUM_DEPLOYMENT: ${EKUM_DEPLOYMENT:-test}
+        EKUM_VERSION: ${EKUM_VERSION:-0.1.0}
+        EKUM_BUILD_ID: ${EKUM_BUILD_ID:-dev}
+        EKUM_GIT_SHA: ${EKUM_GIT_SHA:-unknown}
+        EKUM_BUILT_AT: ${EKUM_BUILT_AT:-unknown}
+        EKUM_DEPLOYMENT: ${EKUM_DEPLOYMENT:-test}
     restart: unless-stopped
     depends_on:
       - api

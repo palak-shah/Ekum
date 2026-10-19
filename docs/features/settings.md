@@ -2,7 +2,7 @@
 
 ## Purpose
 
-**You** (`/more`) is the design library (**Collections · Designs**; published list; **Draft / Archived / Saved** in Find). No company identity card on this screen; no follower / like counts. Shell title is **My collections** (same top band as Chats) with **Back** → Home and the same account avatar (top right) as Home — no ⋯, no shop **Share**. Account (**Profile**, **Network**, **My Collections**, **Settings**, **Log out**) is that avatar **bottom sheet** (icon + text; MoreActionsSheet) — Designs is the You tab beside Collections. **Settings** is **configure Ekum** (domain cards — not Edit). Today: **Business & Roles** (Team, Your paths when trading, **Catalog defaults**, **Units** when selling/trading), **Dispatch**, **Billing**. Samples and returns live on the **Orders** tab only (filter by type).
+**You** (`/more`) is the design library (**Collections · Designs**; published list; **Draft / Archived / Saved** in Find). No company identity card on this screen; no follower / like counts. Shell title is **My collections** (same top band as Chats) with **Back** → Home and the same account avatar (top right) as Home — no ⋯, no shop **Share**. Account (**Profile**, **Network**, **My Collections**, **Settings**, **Log out**) is that avatar **bottom sheet** (icon + text; MoreActionsSheet) — Designs is the You tab beside Collections. **Settings** is **configure Ekum** (domain cards — not Edit). Today: **Business & Roles** (Team, Your paths when trading, **Catalog defaults**, **Units** when selling/trading), **Dispatch**, **Billing**, **About Ekum**. Samples and returns live on the **Orders** tab only (filter by type).
 
 ## Who uses it
 
@@ -34,6 +34,8 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 6. Path (**Buyer talks to** · **Share a group**) is **Your paths**, not Profile. New middle-hop pair always starts **You**, group **Off** (see [TradeLane](../superpowers/specs/2026-09-02-tradelane-design.md)). Trade presence flags still exist on the company; Edit does not show buy / sell / trade switches.  
 7. **Your paths** (`/settings/paths`): search + list. Why-line + **?** — **next orders only** (open tickets stay). Each card is mill · buyer, then a closed **Buyer talks to** pick (You / mill shop) and **Share a group** On/Off (tap saves). Needs trading on the shop (not a Profile switch). Empty until a first middle-hop pair exists.
 8. **Catalog defaults** / **Units** store in `CompanySettings.tradeDefaults` (`publishDefaults`, `sellAsUsual`, `unitConversions`). New collection prefill Who and sell-as when the collection leaves those blank: **Rate per** (billing unit, default **pc**, same control as create collection), order unit / pcs-in-set / dispatch unit / MOQ. If they have never saved sell-as, order unit is **set**, Rate per / dispatch **pc**. Niche sellers (e.g. wedding lehengas) change defaults or that collection to order **pc** — then Place order stays per pc with no Sets chrome. Rate **amounts** and notes stay on the collection or design. MOQ is in the **order** unit. Official Item tags / Quality / work tags / Size options come from `GET /v1/catalog/taxonomy` (drill-down seed upserted on API boot + `db:seed`).
+9. **About Ekum** (`/settings/about`) — read-only identity of the **running** App (PWA bake) and **API** (`GET /api/v1/version`): version, build id, commit, built time. Labels are never hardcoded in the UI; they come from Docker/Vite build metadata. When App and API were rebuilt separately, the two blocks can differ — that is intentional. **New version · Load** stays the update prompt; About does not reload the app.
+10. **TEST badge** — when deployment is not `production` (`EKUM_DEPLOYMENT` / `VITE_EKUM_DEPLOYMENT`), a discreet kit Tag shows **TEST · {version} · {shortSha}** on About and a quiet chip in the shell so beta is not mistaken for prod. Mute; does not compete with **New version · Load**.
 
 ## Business rules
 
@@ -44,6 +46,8 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 | Contact person vs business | Profile edits business fields; auth user name is the person |
 | Appearance | Light / Dark / System; default System; per `userId` on device; no chat wallpaper picker |
 | Logout | Clears tokens; next open → login |
+| Version identity | Semver from root `VERSION`; build id unique per image; baked at build — not runtime UI constants |
+| Deployment flag | Explicit `production` \| `test` (not inferred from `NODE_ENV`) |
 
 ## Edge cases / empty states
 
@@ -59,6 +63,7 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 
 ## Where it lives
 
-- Web: `apps/web/src/features/settings/` (`MorePage`, `SettingsPage`, `SettingsDomainCard`, `ProfilePage`, `YourPathsPage`, `CatalogDefaultsPage`, `UnitsSettingsPage`), theme `apps/web/src/theme/` + master tokens `apps/web/src/theme/tokens.css`, catalog library on You, Home avatar menu `apps/web/src/features/home/HomeAccountMenu.tsx`, `apps/web/src/lib/tradePresence.ts`. **Your paths** at `/settings/paths`; **Catalog defaults** / **Units** when selling or trading. PWA update pill: `apps/web/src/lib/pwaUpdate.tsx` (prompt, not auto-reload).
-- API: `GET/PATCH /trade-lanes`, company patch in identity
+- Web: `apps/web/src/features/settings/` (`MorePage`, `SettingsPage`, `SettingsDomainCard`, `ProfilePage`, `YourPathsPage`, `CatalogDefaultsPage`, `UnitsSettingsPage`, `AboutEkumPage`), theme `apps/web/src/theme/` + master tokens `apps/web/src/theme/tokens.css`, catalog library on You, Home avatar menu `apps/web/src/features/home/HomeAccountMenu.tsx`, `apps/web/src/lib/tradePresence.ts`, `apps/web/src/lib/appVersion.ts`. **Your paths** at `/settings/paths`; **Catalog defaults** / **Units** when selling or trading; **About Ekum** at `/settings/about`. PWA update pill: `apps/web/src/lib/pwaUpdate.tsx` (prompt, not auto-reload).
+- API: `GET/PATCH /trade-lanes`, company patch in identity; public `GET /api/v1/version`
 - Contracts: `packages/domain-types` TradeLaneView + update schema
+- Ops: root `VERSION`, `CHANGELOG.md`, `docs/docker.md`
