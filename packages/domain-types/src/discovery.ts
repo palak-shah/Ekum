@@ -113,7 +113,7 @@ export interface CollectionCard {
   memberFind: string[];
   /** Silent first-design thumb (chat/OG). Not a pack cover. */
   coverImage: string | null;
-  /** Up to 4 first-photos of member designs. */
+  /** Up to 5 first-photos of member designs. */
   previewImages: string[];
   /** Distinct member-design thumbs (not extra shots). */
   imageCount: number;

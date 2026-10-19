@@ -65,7 +65,7 @@ describe('Explore shop header chrome', () => {
     expect(screen.getByTestId('explore-feed-categories')).toHaveTextContent('Sarees');
   });
 
-  it('shows teal rate and description when the pack has public rates and a note', () => {
+  it('shows the teal rate and leaves the note off the feed', () => {
     renderCard(
       <OpportunityCollectionCard
         opportunity={{
@@ -80,10 +80,9 @@ describe('Explore shop header chrome', () => {
         }}
       />,
     );
-    expect(screen.getByTestId('explore-feed-rate')).toHaveTextContent('₹430–₹1,450 /pc');
-    expect(screen.getByTestId('explore-feed-about-body')).toHaveTextContent(
-      'Festive cottons for monsoon counters.',
-    );
+    expect(screen.getByTestId('explore-feed-rate')).toHaveTextContent('₹430–₹1,450/pc');
+    expect(screen.queryByText('More…')).toBeNull();
+    expect(screen.queryByText('Festive cottons for monsoon counters.')).toBeNull();
   });
 
   it('puts the shop name on a search design tile (sr 17 T3)', () => {

@@ -53,4 +53,19 @@ describe('collectionPreviewFromRow', () => {
     expect(preview.previewImages).toEqual(['https://img/live']);
     expect(preview.imageCount).toBe(1);
   });
+
+  it('returns five preview urls and the full thumb count', () => {
+    const products = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({
+      product: { images: [`https://img/${id}`], status: 'published' as const },
+    }));
+    const preview = collectionPreviewFromRow({ products });
+    expect(preview.previewImages).toEqual([
+      'https://img/a',
+      'https://img/b',
+      'https://img/c',
+      'https://img/d',
+      'https://img/e',
+    ]);
+    expect(preview.imageCount).toBe(6);
+  });
 });

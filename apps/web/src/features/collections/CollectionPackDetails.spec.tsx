@@ -40,27 +40,30 @@ describe('CollectionPackDetails', () => {
     );
   });
 
-  it('keeps the description behind About this collection', async () => {
+  it('opens the description from more... on the facts line', async () => {
     const user = userEvent.setup();
     render(
       <CollectionPackDetails
-        categories={[]}
+        categories={['Fabric']}
         description="Festive sets this week."
-        rateBand={null}
+        rateBand="₹85–₹160 /mtr"
       />,
     );
     const about = screen.getByTestId('collection-about');
-    expect(about).toHaveTextContent('About this collection');
+    expect(about).toHaveTextContent('more...');
+    expect(about.className).toMatch(/text-muted/);
+    expect(screen.queryByText('About this collection')).toBeNull();
     expect(about).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByTestId('collection-pack-details-description')).toBeNull();
     await user.click(about);
+    expect(about).toHaveTextContent('less');
     expect(about).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('collection-pack-details-description')).toHaveTextContent(
       'Festive sets this week.',
     );
   });
 
-  it('omits About when there is no description', () => {
+  it('omits more... when there is no description', () => {
     render(
       <CollectionPackDetails categories={['S', 'M']} description={null} rateBand={null} />,
     );

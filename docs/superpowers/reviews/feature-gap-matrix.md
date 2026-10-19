@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-17 (typography weight pass)  
+**Updated:** 2026-10-19 (Explore collection photo)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)
 
@@ -9,6 +9,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Explore | Collection post: one photo, swipe up to 5, last card View more, name/rate/tags | Works | Unit | Required | Completeness 2026-10-19-explore-feed-carousel; no overlay chip; no count line; description on the collection; dots on icon row |
 | Platform | Typography weights: body 400 / emphasis 500 / title 600; Inter; no size redesign | Works | Unit | Required | Completeness 2026-10-17-typography-weight; `font-body`/`font-emphasis`/`font-title`; bold only badges+Avatar |
 | Catalog | You Collections list (published+draft, page ⋯, swipe More/Share); Designs grid | Works | Unit | Required | Completeness 2026-10-17-you-collections-list; `libraryCollectionThumb` |
 | Platform | Bottom nav only on Home, Chats, Explore, Orders; Explore Select still hides it | Works | Unit | Required | Completeness 2026-10-17-main-menu-bottom-nav; `isMainMenuPath` |
@@ -37,7 +38,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Buyer transporter at place (type + MRU history); OrderView; Dispatch prefill | Works | Unit | Required | Completeness 2026-10-08-buyer-transporter; `transporterMemory` + `TransporterField` |
 | Orders | Line note always one-line; Edit order × (not Remove); matches How many | Works | Unit | Required | Completeness 2026-10-08-order-line-edit-chrome; `HowManyLineNote` |
 | Orders | Dispatch multi LR + bill legs; parcels syncs rows; + bumps parcels | Works | Unit | Required | Completeness 2026-10-08-dispatch-lr-bill-legs; `shipment-legs.spec.ts` + `dispatchSheet` resize |
-| Orders | Detail parties (Purchase/Sales party books language, chat icon); Manual order no. shared; Personal note private; action-note + voice/photo; amend line notes; no Your move | Works | Unit + Functional | Required | Completeness 2026-10-07-order-detail-parties-notes + 2026-10-13-order-party-labels; `orders.detail-notes.journey.spec.ts` |
+| Orders | Detail parties (supplier / buyer; trader/agent cue; chat icon); Manual order no. shared; Personal note private; action-note + voice/photo; amend line notes; no Your move | Works | Unit + Functional | Required | Completeness 2026-10-07-order-detail-parties-notes + 2026-10-13-order-party-labels; rename 2026-10-19 supplier/buyer/trader-agent; `orders.detail-notes.journey.spec.ts` |
 | Orders | Trader: Sales-party buyer chat + mill card 1:1 after Send; fact strip full width (no PRI…) | Works | Unit | Required | Completeness 2026-10-14-order-party-mill-chat-facts |
 | Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
 | Orders | Per-line fulfill edit + Can’t supply on Dispatch sheet + packing PDF (phone viewer + quiet Share) | Works | Unit | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf |

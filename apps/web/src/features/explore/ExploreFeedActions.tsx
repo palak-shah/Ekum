@@ -8,6 +8,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
+import { cx } from '@/ui/kit';
 import {
   BookmarkIcon,
   ChatIcon,
@@ -24,14 +25,45 @@ import {
  * mosaic taps still toggle pick; icons stay usable.
  * Message = quick enquire (stay on feed).
  */
+/** Quiet slide marks for a multi-photo Explore post. Centered on the icon row. */
+export function ExploreFeedPhotoDots({
+  count,
+  index,
+}: {
+  count: number;
+  index: number;
+}) {
+  if (count < 2) return null;
+  const safe = Math.min(Math.max(index, 0), count - 1);
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1"
+      data-testid="explore-feed-photo-dots"
+      aria-hidden
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={cx('h-1 w-1 rounded-full', i === safe ? 'bg-ink' : 'bg-ink/30')}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function ExploreFeedActions({
   collection,
   product,
+  photoCount = 0,
+  photoIndex = 0,
 }: {
   collection?: CollectionCard;
   product?: ExploreProductCard;
   /** @deprecated Ignored — Selecting no longer grays feed actions. */
   selecting?: boolean;
+  /** Slides in the post photo strip. Dots show when this is 2 or more. */
+  photoCount?: number;
+  photoIndex?: number;
 }) {
   const me = useMyCompany();
   const trade = useTradePresence();
@@ -99,7 +131,7 @@ export function ExploreFeedActions({
   return (
     <>
       <div
-        className="flex items-center justify-between gap-2 pt-1.5 pb-0"
+        className="relative flex items-center justify-between gap-2 pt-1.5 pb-0"
         data-testid="explore-feed-actions"
       >
         <div className="flex items-center gap-0.5" data-testid="explore-feed-actions-lead">
@@ -147,6 +179,7 @@ export function ExploreFeedActions({
         >
           <BookmarkIcon width={24} height={24} />
         </ActionIcon>
+        <ExploreFeedPhotoDots count={photoCount} index={photoIndex} />
       </div>
       {shareOpen && canShare ? (
         <CatalogShareSheet

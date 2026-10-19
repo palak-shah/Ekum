@@ -16,17 +16,16 @@ export function exploreFeedRateLine(input: {
     dispatchUnit: input.dispatchUnit,
   });
   if (!formatted || formatted === 'On request') return null;
-  const displayUnit = input.unit;
-  if (!displayUnit && !input.dispatchUnit) return formatted;
-  return formatted.replace(/\/(?=[^/]+$)/, ' /');
+  return formatted;
 }
 
 export function exploreFeedCategoryLine(tags: string[] | null | undefined): string | null {
-  const line = packFeedDetailLine({ tags });
+  const list = tags ?? [];
+  const line = packFeedDetailLine({ tags: list, maxTags: list.length });
   return line || null;
 }
 
-/** Trim ends only — keep internal newlines for feed description clamp. */
+/** Trim ends only — keep internal newlines. */
 export function exploreFeedAboutText(description: string | null | undefined): string | null {
   const text = description?.trim();
   return text ? text : null;

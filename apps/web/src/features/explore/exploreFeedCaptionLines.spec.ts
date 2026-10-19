@@ -7,9 +7,9 @@ import {
 } from './exploreFeedCaptionLines';
 
 describe('exploreFeedRateLine', () => {
-  it('formats a band with a space before the unit slash', () => {
+  it('formats a band with the unit slash tight', () => {
     expect(exploreFeedRateLine({ rate: 430, rateMax: 1450, unit: 'pc' })).toBe(
-      '₹430–₹1,450 /pc',
+      '₹430–₹1,450/pc',
     );
   });
 
@@ -20,13 +20,16 @@ describe('exploreFeedRateLine', () => {
   it('shows pack rates per dispatch pc', () => {
     expect(
       exploreFeedRateLine({ rate: 640, unit: 'set', dispatchUnit: 'pc' }),
-    ).toBe('₹640 /pc');
+    ).toBe('₹640/pc');
   });
 });
 
 describe('exploreFeedCategoryLine', () => {
-  it('joins tags', () => {
+  it('joins every tag', () => {
     expect(exploreFeedCategoryLine(['Saree', 'Kurti fabric'])).toBe('Saree · Kurti fabric');
+    expect(exploreFeedCategoryLine(['Bedsheet', 'Double', 'Set', 'King'])).toBe(
+      'Bedsheet · Double · Set · King',
+    );
   });
 
   it('is null when empty', () => {

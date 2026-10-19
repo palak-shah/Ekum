@@ -3,7 +3,7 @@ import type { OrderView } from '@ekum/domain-types';
 export type ComplaintAgainstTarget = {
   companyId: string;
   name: string;
-  /** Quiet role cue — Trader | Supplier (not Seller/Buyer on card body). */
+  /** Quiet role cue — who is trading · who is supplying. */
   role: 'trader' | 'supplier' | 'shop';
   /** Prefer mill lot when complaining about a mill. */
   orderId: string;
@@ -72,8 +72,8 @@ export function complaintAgainstTargets(
 }
 
 export function complaintRoleCue(role: ComplaintAgainstTarget['role']): string {
-  if (role === 'trader') return 'Trader';
-  if (role === 'supplier') return 'Supplier';
+  if (role === 'trader') return 'trader/agent';
+  if (role === 'supplier') return 'supplier';
   return '';
 }
 

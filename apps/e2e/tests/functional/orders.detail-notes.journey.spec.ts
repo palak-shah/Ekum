@@ -20,7 +20,7 @@ test.describe('order detail parties and notes @functional @orders', () => {
     await expect(page.getByText(/\(you\)/)).toHaveCount(0);
     await expect(page.getByText(/Your move:/i)).toHaveCount(0);
     await expect(
-      page.getByText(/Purchase party|Sales party/).first(),
+      page.getByText(/supplier|buyer/).first(),
     ).toBeVisible();
 
     const chat = page.getByTestId('order-open-chat');

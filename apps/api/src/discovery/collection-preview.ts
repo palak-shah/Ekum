@@ -4,9 +4,12 @@ function memberIsPublished(product: { status?: string | null }): boolean {
   return product.status === ProductStatus.Published;
 }
 
+/** Explore swipe shows this many member thumbs; `imageCount` is the full set. */
+export const COLLECTION_PREVIEW_LIMIT = 5;
+
 /**
- * Collection card mosaic: first photo of each live member design (position order).
- * No pack cover. Extra shots on a design stay on the design, not the collage.
+ * Collection card preview: first photo of each live member design (position order).
+ * No pack cover. Extra shots on a design stay on the design, not the strip.
  * Unpublished members never count as a design on Explore / shop / search.
  */
 export function collectionPreviewFromRow(collection: {
@@ -23,7 +26,7 @@ export function collectionPreviewFromRow(collection: {
   }
 
   return {
-    previewImages: urls.slice(0, 4),
+    previewImages: urls.slice(0, COLLECTION_PREVIEW_LIMIT),
     imageCount: urls.length,
   };
 }

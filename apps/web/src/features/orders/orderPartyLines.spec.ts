@@ -9,28 +9,28 @@ const base = {
 };
 
 describe('orderPartyLines', () => {
-  it('buyer sees Purchase party only (supplier)', () => {
+  it('buyer sees supplier only', () => {
     const lines = orderPartyLines({ ...base, direction: 'buying', tradeMode: 'bilateral' });
     expect(lines).toEqual([
-      expect.objectContaining({ label: 'Purchase party', name: 'Yash Fabrics', you: false }),
+      expect.objectContaining({ label: 'supplier', name: 'Yash Fabrics', you: false }),
     ]);
   });
 
-  it('seller sees Sales party only (customer)', () => {
+  it('seller sees buyer only', () => {
     const lines = orderPartyLines({ ...base, direction: 'selling', tradeMode: 'bilateral' });
     expect(lines).toEqual([
-      expect.objectContaining({ label: 'Sales party', name: 'Rishabh Cloth Store', you: false }),
+      expect.objectContaining({ label: 'buyer', name: 'Rishabh Cloth Store', you: false }),
     ]);
   });
 
-  it('trader desk sees both Purchase then Sales', () => {
+  it('trader/agent desk sees both supplier then buyer', () => {
     const lines = orderPartyLines({ ...base, direction: 'selling', tradeMode: 'manage' });
-    expect(lines.map((l) => l.label)).toEqual(['Purchase party', 'Sales party']);
+    expect(lines.map((l) => l.label)).toEqual(['supplier', 'buyer']);
     expect(lines[0]).toEqual(
-      expect.objectContaining({ label: 'Purchase party', name: 'Yash Fabrics', you: true }),
+      expect.objectContaining({ label: 'supplier', name: 'Yash Fabrics', you: true }),
     );
     expect(lines[1]).toEqual(
-      expect.objectContaining({ label: 'Sales party', name: 'Rishabh Cloth Store', you: false }),
+      expect.objectContaining({ label: 'buyer', name: 'Rishabh Cloth Store', you: false }),
     );
   });
 
@@ -42,10 +42,10 @@ describe('orderPartyLines', () => {
       triVisible: true,
     });
     expect(lines).toHaveLength(2);
-    expect(lines.map((l) => l.label)).toEqual(['Purchase party', 'Sales party']);
+    expect(lines.map((l) => l.label)).toEqual(['supplier', 'buyer']);
   });
 
-  it('puts Open chat on Sales party for trader desk', () => {
+  it('puts Open chat on buyer for trader/agent desk', () => {
     const lines = orderPartyLines({ ...base, direction: 'selling', tradeMode: 'manage' });
     const ctx = { direction: 'selling', tradeMode: 'manage' } as const;
     expect(partyLineShowsOpenChat(lines[0]!, ctx)).toBe(false);

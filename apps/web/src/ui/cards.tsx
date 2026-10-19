@@ -26,7 +26,6 @@ import { ExploreFeedActions } from '@/features/explore/ExploreFeedActions';
 import {
   exploreFeedCategoryLine,
   exploreFeedRateLine,
-  exploreFeedSourceLine,
 } from '@/features/explore/exploreFeedCaptionLines';
 import { useMyCompany } from '@/lib/queries';
 import { albumMediaAspectClass, albumOverflowLabel } from './albumMosaic';
@@ -44,6 +43,13 @@ export const EXPLORE_POST_INSET_CLASS = 'px-4';
 export const EXPLORE_POST_MEDIA_INSET_CLASS = EXPLORE_POST_INSET_CLASS;
 export const EXPLORE_POST_HEADER_CLASS = `flex items-center gap-2.5 ${EXPLORE_POST_INSET_CLASS} pt-2 pb-2.5`;
 export const EXPLORE_POST_AVATAR = 36;
+
+/** Member thumbs swiped on an Explore collection post. */
+export const EXPLORE_COLLECTION_PREVIEW_CAP = 5;
+
+const EXPLORE_COLLECTION_PHOTO_CLASS = 'aspect-[4/5] w-full object-cover object-center';
+const EXPLORE_COLLECTION_PLACEHOLDER_CLASS =
+  'flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted';
 
 function ShopName({
   name,
@@ -198,7 +204,6 @@ export function OpportunityCollectionCard({
   const me = useMyCompany();
   const isOwn = Boolean(me.data?.id && company.id === me.data.id);
   const navigate = useNavigate();
-  const longPress = useLongPress(onLongSelect);
   const selecting = selectMode && onToggleSelect;
   const openAlbum = () => {
     onOpen?.();
@@ -215,13 +220,12 @@ export function OpportunityCollectionCard({
     unit: collection.rateUnit,
   });
   const categoryLine = exploreFeedCategoryLine(collection.categories);
-  const sourceLine = !isOwn
-    ? exploreFeedSourceLine(collection.sourceShopNames)
-    : null;
-  const detailLine = [sourceLine, categoryLine].filter(Boolean).join(' · ') || null;
   const headerCompany = isOwn
     ? { ...company, name: 'You' }
     : company;
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const previewUrls = collection.previewImages.slice(0, EXPLORE_COLLECTION_PREVIEW_CAP);
+  const hasMore = collection.imageCount > previewUrls.length && previewUrls.length > 0;
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
@@ -229,36 +233,53 @@ export function OpportunityCollectionCard({
         to={isOwn ? undefined : `/company/${company.id}`}
         trailing={explorePostHeaderTrailing(when, isOwn ? undefined : headerTrailing)}
       />
-      <button
-        type="button"
-        aria-label={selecting ? `Select ${collection.name}` : collection.name}
-        className={cx('relative block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS, LONG_PRESS_SURFACE_CLASS)}
-        onClick={onMediaClick}
-        {...longPress}
-      >
-        <SelectableMediaFrame selectMode={selectMode} selected={selected}>
-          <AlbumGrid
-            images={collection.previewImages}
-            imageCount={collection.previewImages.length}
-            alt={collection.name}
-            priority={priority}
-          />
-        </SelectableMediaFrame>
-      </button>
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
-        <ExploreFeedActions collection={collection} selecting={Boolean(selectMode)} />
+        <DesignPhotoCarousel
+          urls={previewUrls}
+          name={collection.name}
+          photoClassName={EXPLORE_COLLECTION_PHOTO_CLASS}
+          placeholderClassName={EXPLORE_COLLECTION_PLACEHOLDER_CLASS}
+          selectMode={Boolean(selecting)}
+          selected={selected}
+          onActivate={(index) => {
+            if (hasMore && index >= previewUrls.length) openAlbum();
+            else onMediaClick();
+          }}
+          onLongSelect={onLongSelect}
+          testId={`explore-collection-photos-${collection.id}`}
+          showDots={false}
+          showExtraBadge={false}
+          onIndexChange={setPhotoIndex}
+          priority={priority}
+          showArrows
+          endCard={
+            hasMore
+              ? {
+                  extraCount: collection.imageCount - previewUrls.length,
+                  testId: `explore-collection-view-more-${collection.id}`,
+                }
+              : null
+          }
+        />
+      </div>
+      <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+        <ExploreFeedActions
+          collection={collection}
+          selecting={Boolean(selectMode)}
+          photoCount={previewUrls.length + (hasMore ? 1 : 0)}
+          photoIndex={photoIndex}
+        />
       </div>
       <Link
         to={`/collections/${collection.id}`}
         data-testid={`explore-collection-open-${collection.id}`}
-        className={cx('block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
+        className={cx('block w-full text-left no-underline', EXPLORE_POST_MEDIA_INSET_CLASS)}
         onClick={() => onOpen?.()}
       >
         <ExploreFeedCaption
           title={collection.name}
           rateLine={rateLine}
-          categoryLine={detailLine}
-          about={collection.description}
+          categoryLine={categoryLine}
         />
       </Link>
     </article>
@@ -543,7 +564,7 @@ export function OpportunityDesignCard({
       <Link
         to={`/explore/products/${product.id}`}
         data-testid={`explore-design-open-${product.id}`}
-        className={cx('block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS)}
+        className={cx('block w-full text-left no-underline', EXPLORE_POST_MEDIA_INSET_CLASS)}
         onClick={() => onOpen?.()}
       >
         <ExploreFeedCaption
@@ -692,7 +713,8 @@ export function CollectionTile({
   /** Hide on a company profile shop shelf where the seller is already known. */
   showCompany?: boolean;
 }) {
-  const images = collection.previewImages;
+  /** Four-cell mosaic. Explore swipe reads the fifth URL from previewImages. */
+  const images = collection.previewImages.slice(0, 4);
   return (
     <Link
       to={`/collections/${collection.id}`}
@@ -948,6 +970,11 @@ export function CatalogFeedPost({
 /** Vertical Explore / market post — company header + WhatsApp album + title. */
 export function CollectionPost({ collection }: { collection: CollectionCard }) {
   const when = postedWhen(collection.updatedAt);
+  const navigate = useNavigate();
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const previewUrls = collection.previewImages.slice(0, EXPLORE_COLLECTION_PREVIEW_CAP);
+  const hasMore = collection.imageCount > previewUrls.length && previewUrls.length > 0;
+  const openAlbum = () => navigate(`/collections/${collection.id}`);
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
@@ -956,14 +983,37 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
         nameClassName="text-sm font-emphasis tracking-tight text-ink"
         trailing={explorePostHeaderTrailing(when)}
       />
-      <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
-        <AlbumGrid
-          images={collection.previewImages}
-          imageCount={collection.previewImages.length}
-          alt={collection.name}
+      <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
+        <DesignPhotoCarousel
+          urls={previewUrls}
+          name={collection.name}
+          photoClassName={EXPLORE_COLLECTION_PHOTO_CLASS}
+          placeholderClassName={EXPLORE_COLLECTION_PLACEHOLDER_CLASS}
+          onActivate={() => openAlbum()}
+          testId={`explore-collection-photos-${collection.id}`}
+          showDots={false}
+          showExtraBadge={false}
+          onIndexChange={setPhotoIndex}
+          showArrows
+          endCard={
+            hasMore
+              ? {
+                  extraCount: collection.imageCount - previewUrls.length,
+                  testId: `explore-collection-view-more-${collection.id}`,
+                }
+              : null
+          }
         />
-      </Link>
-      <Link to={`/collections/${collection.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
+        <ExploreFeedActions
+          collection={collection}
+          photoCount={previewUrls.length + (hasMore ? 1 : 0)}
+          photoIndex={photoIndex}
+        />
+      </div>
+      <Link
+        to={`/collections/${collection.id}`}
+        className={cx('block no-underline', EXPLORE_POST_MEDIA_INSET_CLASS)}
+      >
         <ExploreFeedCaption
           title={collection.name}
           rateLine={exploreFeedRateLine({
@@ -972,7 +1022,6 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
             unit: collection.rateUnit,
           })}
           categoryLine={exploreFeedCategoryLine(collection.categories)}
-          about={collection.description}
         />
       </Link>
     </article>
@@ -1001,7 +1050,10 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
           testId={`explore-product-photos-${product.id}`}
         />
       </div>
-      <Link to={`/explore/products/${product.id}`} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
+      <Link
+        to={`/explore/products/${product.id}`}
+        className={cx('block no-underline', EXPLORE_POST_MEDIA_INSET_CLASS)}
+      >
         <ExploreFeedCaption
           title={product.name}
           rateLine={exploreFeedRateLine({

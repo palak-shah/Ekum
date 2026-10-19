@@ -90,7 +90,9 @@ export function CollectionAlbumTile({
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const images = previewImages
     .map((url) => toAbsoluteMediaUrl(url) || url)
-    .filter(Boolean);
+    .filter(Boolean)
+    // Four-cell mosaic. The fifth preview URL is for the Explore swipe only.
+    .slice(0, 4);
   const mosaicCount = collectionAlbumMosaicCount({
     surface,
     productCount,
