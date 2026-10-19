@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../helpers/pageDiagnostics';
 import { loginAs } from '../helpers/auth';
 import { PHONES } from '../helpers/env';
 import { createOrder } from '../helpers/orders';

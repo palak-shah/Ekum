@@ -18,6 +18,7 @@ import { formatCatalogRate } from '@/lib/catalogRate';
 import { timeAgo } from '@/lib/format';
 import { warmCompanyFromExplore } from '@/features/company/warmCompanyQueries';
 import { Avatar, Chip, cx } from './kit';
+import { highlightSearchText } from './highlightMatch';
 import { ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
 import { shopIdentityLine, shopSellCategories } from './shopIdentity';
@@ -55,14 +56,16 @@ function ShopName({
   name,
   verification,
   className,
+  highlightQuery,
 }: {
   name: string;
   verification: string;
   className?: string;
+  highlightQuery?: string;
 }) {
   return (
     <p className={cx('flex min-w-0 items-center gap-1', className)}>
-      <span className="truncate">{name}</span>
+      <span className="truncate">{highlightSearchText(name, highlightQuery)}</span>
       {isGstVerified(verification) ? <GstTick /> : null}
     </p>
   );
@@ -142,11 +145,13 @@ export function CompanyRow({
   company,
   to,
   plain = false,
+  highlightQuery,
 }: {
   company: PublicCompanySummary | CompanyCard;
   to?: string;
   /** Flat list row (Explore sections) instead of a padded card. */
   plain?: boolean;
+  highlightQuery?: string;
 }) {
   const subtitle = shopIdentityLine(company.city, shopSellCategories(company));
   const inner = (
@@ -157,8 +162,13 @@ export function CompanyRow({
           name={company.name}
           verification={company.verification}
           className="text-sm font-emphasis tracking-tight text-ink"
+          highlightQuery={highlightQuery}
         />
-        {subtitle ? <p className="truncate text-xs font-body text-muted">{subtitle}</p> : null}
+        {subtitle ? (
+          <p className="truncate text-xs font-body text-muted">
+            {highlightSearchText(subtitle, highlightQuery)}
+          </p>
+        ) : null}
       </div>
       {to && !plain ? <ChevronRightIcon className="text-muted" /> : null}
     </div>
@@ -738,7 +748,13 @@ export function CollectionTile({
   );
 }
 
-export function CollectionListItem({ collection }: { collection: CollectionCard }) {
+export function CollectionListItem({
+  collection,
+  highlightQuery,
+}: {
+  collection: CollectionCard;
+  highlightQuery?: string;
+}) {
   const cover = collection.previewImages[0] ?? null;
   return (
     <Link
@@ -749,8 +765,12 @@ export function CollectionListItem({ collection }: { collection: CollectionCard 
         <CoverImage src={cover} alt={collection.name} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-emphasis text-ink">{collection.name}</p>
-        <p className="truncate text-xs text-muted">{collection.company.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">
+          {highlightSearchText(collection.name, highlightQuery)}
+        </p>
+        <p className="truncate text-xs text-muted">
+          {highlightSearchText(collection.company.name, highlightQuery)}
+        </p>
       </div>
       <ChevronRightIcon className="shrink-0 text-muted" />
     </Link>
@@ -868,6 +888,7 @@ export function CatalogFeedPost({
   onLongSelect,
   mediaTestId,
   openTestId,
+  highlightQuery,
 }: {
   name: string;
   meta?: string;
@@ -890,6 +911,7 @@ export function CatalogFeedPost({
   onLongSelect?: () => void;
   mediaTestId?: string;
   openTestId?: string;
+  highlightQuery?: string;
 }) {
   const longPress = useLongPress(onLongSelect);
   const shopTo = companyTo ?? (company ? `/company/${company.id}` : undefined);
@@ -897,7 +919,9 @@ export function CatalogFeedPost({
   const captionClass = cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS);
   const captionBody = (
     <>
-      <p className="text-sm font-emphasis tracking-tight text-ink">{name}</p>
+      <p className="text-sm font-emphasis tracking-tight text-ink">
+        {highlightSearchText(name, highlightQuery)}
+      </p>
       {source ? (
         <p
           className="text-sm font-emphasis tracking-tight text-ink"
@@ -1078,8 +1102,10 @@ export function ExploreFeedPost({ post }: { post: ExplorePost }) {
 
 export function ProductTile({
   product,
+  highlightQuery,
 }: {
   product: DiscoveryProductCard | ProductView;
+  highlightQuery?: string;
 }) {
   const image = 'images' in product ? product.images[0] ?? null : null;
   return (
@@ -1088,11 +1114,17 @@ export function ProductTile({
         <CoverImage src={image} alt={product.name} />
       </div>
       <div className="p-2.5">
-        <p className="truncate text-sm font-emphasis tracking-tight text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis tracking-tight text-ink">
+          {highlightSearchText(product.name, highlightQuery)}
+        </p>
         {'company' in product && product.company?.name ? (
-          <p className="truncate text-xs font-body text-muted">{product.company.name}</p>
+          <p className="truncate text-xs font-body text-muted">
+            {highlightSearchText(product.company.name, highlightQuery)}
+          </p>
         ) : 'companyName' in product && product.companyName?.trim() ? (
-          <p className="truncate text-xs font-body text-muted">{product.companyName.trim()}</p>
+          <p className="truncate text-xs font-body text-muted">
+            {highlightSearchText(product.companyName.trim(), highlightQuery)}
+          </p>
         ) : null}
         <p className="text-xs font-body text-muted">
           {formatCatalogRate({

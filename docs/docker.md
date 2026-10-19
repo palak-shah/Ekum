@@ -240,7 +240,8 @@ Release checklist:
 1. Bump [`VERSION`](../VERSION) and note changes in [`CHANGELOG.md`](../CHANGELOG.md).  
 2. `EKUM_DEPLOYMENT=test` (or `production`) `pnpm docker:up`.  
 3. Confirm `curl -s http://localhost:8080/api/v1/version` and Settings → About Ekum.  
-4. `docker images ekum-api` / `ekum-web` show version + `sha-*` tags (not only `latest`).
+4. `docker images ekum-api` / `ekum-web` show version + `sha-*` tags (not only `latest`).  
+5. After `pnpm docker:seed`, run `pnpm test:e2e:smoke:docker` (Chromium + WebKit against `:8080`). This is the post-deploy smoke. It does **not** replace the [device checklist](superpowers/qa/mobile-and-pwa-test-matrix.md).
 
 ---
 

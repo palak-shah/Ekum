@@ -295,9 +295,11 @@ Verification: Functional · Regression · Unit-only · Untested
 | Trader curation | Desk-chain Ask (via pack → desk; mill listing → mill; publish allow gates buyers) | Works | Unit + Functional | Required | Completeness 2026-09-09-relist-desk-chain; agent role Later |
 | Media | Catalog design upload | Works | Untested | Future | |
 | Media | Top-level Media tab | Rejected | — | Reject | |
-| Media | Upload failure UX | Partial | Untested | Recommended | |
+| Media | Upload failure UX | Works | Playwright | Recommended | Smoke `mobile.layout` stubs upload-url 500; composer stays usable |
 | Platform | PWA **New version · Load** (no silent reload) | Works | Unit | Required | Completeness 2026-09-23-pwa-update-prompt; HS one-shot after login only (2026-09-25-login-phone-type); chunk-404 Later |
 | Platform | Version identity: `VERSION` + build meta bake; `GET /api/v1/version`; Settings → **About Ekum**; non-prod TEST badge; Docker tags version + sha | Works | Unit | Required | Completeness 2026-10-19-version-identity; registry push Later |
+| Platform | Mobile/PWA Playwright gate: Chromium + WebKit smoke on `vite preview`; Docker `:8080` smoke on main; failure screenshots/video/trace | Works | Playwright | Required | Completeness 2026-10-19-mobile-e2e-pwa-gate. WebKit ≠ real iOS. Device checklist in `docs/superpowers/qa/mobile-and-pwa-test-matrix.md` |
+| Find | Typed search marks matching letters (same mark as in-thread search) on Chats, chat find, Orders, Explore results, You, collection Find | Works | Unit | Required | Completeness 2026-10-19-search-highlight |
 | You / Settings | You: library (no identity card); shell **My collections** + Back + account avatar; Home avatar = account menu (no My Designs — Designs tab on You); Settings domain cards | Works | Unit + Functional | Required | Completeness 2026-10-09-my-collections-listing-chrome; 2026-10-06-home-menu-drop-my-designs; 2026-09-29-home-account-menu; 2026-09-24-you-identity-settings-domains + 2026-09-28-you-chrome-own-listing + 2026-09-28-profile-hide-trade-toggles + 2026-09-28-you-library-parent-tabs |
 | You / Catalog | Collection list: name (Draft chip / source / Archived); no `N designs`, shared-with, Published, or date | Works | Unit | Required | Completeness 2026-10-09-my-collections-listing-chrome |
 | You / Catalog | Page ⋯ idle: Drafts (`view=draft`) · Archived · Bookmarks | Works | Unit + Functional | Required | Completeness 2026-10-17-you-library-drafts-view |
@@ -314,7 +316,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Album / list find (tags, design name, notes, SKU; not a permanent bar) | Works | Unit + Functional | Required | Completeness 2026-09-24-collection-on-demand-find |
 | Browse | Ask / Order / Designs taps (dock portal + How many on origin packs) | Works | Unit | Required | Pack qty sheet not curated-only; trade docks portaled; nav hidden while dock owns band |
 
-| Collections | Fixed select bar clips last card (BM-07) | Works | Untested (manual fix 2026-08-11) | Required | Padding clears nav + bar; add regression when practical |
+| Collections | Fixed select bar clips last card (BM-07) | Works | Playwright | Required | Smoke `mobile.layout` explore select dock; chaos functional still covers collection album |
 | Browse | Select all float as soon as select starts | Works | Unit | Required | Completeness 2026-08-21; spec select-all-float; not on Explore |
 | Browse | Repost sheet path-first (existing published · Add new → Publish + Save) | Works | Unit | Required | Completeness 2026-10-09-repost-sheet-path-first |
 

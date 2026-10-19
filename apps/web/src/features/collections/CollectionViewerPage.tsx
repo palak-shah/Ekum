@@ -142,6 +142,7 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
+import { highlightSearchText } from '@/ui/highlightMatch';
 import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import {
@@ -1219,6 +1220,7 @@ export function CollectionViewerPage() {
                   key={product.id}
                   variant="feed"
                   product={product}
+                  highlightQuery={deferredListSearch}
                   selected={designIsSelected(product.id)}
                   selectMode={selectMode}
                   shopLine={albumTileShopLine({
@@ -1240,6 +1242,7 @@ export function CollectionViewerPage() {
                   key={product.id}
                   variant="grid"
                   product={product}
+                  highlightQuery={deferredListSearch}
                   selected={designIsSelected(product.id)}
                   selectMode={selectMode}
                   shopLine={albumTileShopLine({
@@ -1667,6 +1670,7 @@ function AccessPendingCard({
 
 function DesignTile({
   product,
+  highlightQuery = '',
   selected,
   selectMode,
   variant,
@@ -1677,6 +1681,7 @@ function DesignTile({
   onLongSelect,
 }: {
   product: ProductView;
+  highlightQuery?: string;
   selected: boolean;
   selectMode: boolean;
   variant: 'feed' | 'grid';
@@ -1739,7 +1744,9 @@ function DesignTile({
           variant === 'feed' ? 'p-3' : 'p-2.5',
         )}
       >
-        <p className="truncate text-sm font-emphasis text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">
+          {highlightSearchText(product.name, highlightQuery)}
+        </p>
         {shopLine ? (
           <p
             className={cx(
@@ -1748,10 +1755,12 @@ function DesignTile({
             )}
             data-testid={curatedFrom ? 'collection-design-from' : undefined}
           >
-            {shopLine}
+            {highlightSearchText(shopLine, highlightQuery)}
           </p>
         ) : null}
-        {meta ? <p className="truncate text-xs text-muted">{meta}</p> : null}
+        {meta ? (
+          <p className="truncate text-xs text-muted">{highlightSearchText(meta, highlightQuery)}</p>
+        ) : null}
       </button>
     </div>
   );

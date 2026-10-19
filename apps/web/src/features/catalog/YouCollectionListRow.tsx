@@ -9,6 +9,7 @@ import {
   inboxSwipeReveal,
 } from '@/features/chats/inboxRowSwipe';
 import { CoverImage } from '@/ui/cards';
+import { highlightSearchText } from '@/ui/highlightMatch';
 import { MoreHorizontalIcon, PaperPlaneIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
@@ -38,6 +39,7 @@ export function YouCollectionListRow({
   onLongSelect,
   onMore,
   onShare,
+  highlightQuery = '',
 }: {
   collection: CollectionView;
   selecting: boolean;
@@ -51,6 +53,7 @@ export function YouCollectionListRow({
   onLongSelect: () => void;
   onMore: () => void;
   onShare: () => void;
+  highlightQuery?: string;
 }) {
   const navigate = useNavigate();
   const target = collectionAlbumOpenTarget({
@@ -110,7 +113,7 @@ export function YouCollectionListRow({
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">
-          {displayCollectionName(collection.name)}
+          {highlightSearchText(displayCollectionName(collection.name), highlightQuery)}
         </p>
         {meta || draft ? (
           <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">

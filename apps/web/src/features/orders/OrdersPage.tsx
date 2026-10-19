@@ -15,10 +15,11 @@ import type {
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { Avatar, Chip, EmptyState, LoadingBlock, SearchInput, StatusPill, cx } from '@/ui/kit';
+import { Avatar, Chip, EmptyState, ErrorState, LoadingBlock, SearchInput, StatusPill, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
+import { highlightSearchText } from '@/ui/highlightMatch';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
   getOrdersDirection,
@@ -205,6 +206,7 @@ export function OrdersPage() {
     (orders.isPending && !orders.data) ||
     (samples.isPending && !samples.data) ||
     (complaints.isPending && !complaints.data);
+  const ordersFailed = orders.isError && !orders.data;
 
   const syncFindParams = (statusFacet: string | null, kindFacet: TradeKindFacet | null) => {
     setSearchParams(
@@ -454,6 +456,8 @@ export function OrdersPage() {
 
       {loading ? (
         <LoadingBlock />
+      ) : ordersFailed ? (
+        <ErrorState message="Could not load orders." onRetry={() => void orders.refetch()} />
       ) : (
         <div className="min-h-[12rem]">
           {filtered.length > 0 ? (
@@ -463,6 +467,7 @@ export function OrdersPage() {
                   key={`${item.kind}-${item.id}`}
                   item={item}
                   companyId={me.data?.id ?? null}
+                  highlightQuery={find.needle}
                 />
               ))}
             </div>
@@ -509,9 +514,11 @@ function TradeListMedia({
 function TradeRow({
   item,
   companyId,
+  highlightQuery = '',
 }: {
   item: TradeListItem;
   companyId: string | null;
+  highlightQuery?: string;
 }) {
   if (item.kind === 'return') return null;
 
@@ -554,19 +561,19 @@ function TradeRow({
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
         <p className="min-w-0 truncate text-[15px] font-emphasis leading-tight tracking-[-0.02em] text-ink">
-          {name}
+          {highlightSearchText(name, highlightQuery)}
         </p>
         {facts ? (
           <p
             data-testid="trade-list-facts"
             className="mt-0.5 min-w-0 truncate text-[11px] font-body leading-snug text-muted"
           >
-            {facts}
+            {highlightSearchText(facts, highlightQuery)}
           </p>
         ) : null}
         {showContext ? (
           <p className="mt-0.5 min-w-0 truncate text-[12px] font-body leading-snug text-muted">
-            {preview}
+            {highlightSearchText(preview, highlightQuery)}
           </p>
         ) : null}
       </div>

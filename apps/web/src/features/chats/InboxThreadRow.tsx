@@ -5,6 +5,7 @@ import { timeAgo } from '@/lib/format';
 import { Avatar, cx } from '@/ui/kit';
 import { PinIcon } from '@/ui/icons';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
+import { highlightSearchText } from '@/ui/highlightMatch';
 import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
 import { inboxObjectLabel, inboxPreviewTypeKey, messagePreviewText } from './messagePreview';
@@ -25,6 +26,7 @@ export function InboxThreadRow({
   onToggle,
   onArchive,
   archiveLabel = 'Archive',
+  highlightQuery = '',
 }: {
   thread: ThreadSummary;
   selecting: boolean;
@@ -34,6 +36,8 @@ export function InboxThreadRow({
   onToggle: () => void;
   onArchive?: () => void;
   archiveLabel?: 'Archive' | 'Unarchive';
+  /** Typed inbox Find — marks matches in the title and preview. */
+  highlightQuery?: string;
 }) {
   const draft = useSyncExternalStore(
     subscribeChatDrafts,
@@ -64,7 +68,7 @@ export function InboxThreadRow({
             {thread.pinned ? (
               <PinIcon width={12} height={12} className="shrink-0 text-slate" aria-hidden />
             ) : null}
-            <span className="truncate">{title}</span>
+            <span className="truncate">{highlightSearchText(title, highlightQuery)}</span>
             {visibility ? (
               <span className="shrink-0 text-[11px] font-body text-muted">· {visibility}</span>
             ) : null}
@@ -88,7 +92,7 @@ export function InboxThreadRow({
               draftLine ? 'font-emphasis text-accent' : 'text-muted',
             )}
           >
-            {preview}
+            {highlightSearchText(preview, highlightQuery)}
           </p>
           {thread.unreadCount > 0 ? (
             <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-[11px] font-emphasis text-white">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTenDigitPhone, orderWhoMode } from './orderWho';
+import { isTenDigitPhone, orderForBuyerLoggedToast, orderWhoMode } from './orderWho';
 
 describe('orderWhoMode', () => {
   it('hides Who when they only buy', () => {
@@ -37,5 +37,12 @@ describe('isTenDigitPhone', () => {
   it('accepts a 10-digit number', () => {
     expect(isTenDigitPhone('9876543210')).toBe(true);
     expect(isTenDigitPhone('98765')).toBe(false);
+  });
+});
+
+describe('orderForBuyerLoggedToast', () => {
+  it('does not tell the buyer to Accept', () => {
+    expect(orderForBuyerLoggedToast('confirmed')).toBe('Logged.');
+    expect(orderForBuyerLoggedToast('requested')).toBe('Logged. Supplier can confirm.');
   });
 });

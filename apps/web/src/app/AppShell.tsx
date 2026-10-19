@@ -50,7 +50,11 @@ import { ChatsHeaderMore } from '@/features/chats/ChatsHeaderMore';
 import { YouLibraryHeaderMore } from '@/features/catalog/YouLibraryHeaderMore';
 import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
 import { HomeAccountMenu } from '@/features/home/HomeAccountMenu';
-import { TestDeploymentBadge } from '@/features/settings/TestDeploymentBadge';
+import {
+  TEST_BADGE_CLEARANCE_CLASS,
+  TestDeploymentBadge,
+} from '@/features/settings/TestDeploymentBadge';
+import { clientAppVersion, isNonProductionDeployment } from '@/lib/appVersion';
 import {
   BackIcon,
   BellIcon,
@@ -131,6 +135,8 @@ export function AppShell() {
     { shopDockUp, pageDockUp, ownShop, pageSelecting },
   );
   const hideAppNav = !isMainMenuPath(location.pathname) || selectionUp;
+  /** Fixed TEST chip overlays the top of the phone column on every route. */
+  const testBadgeClearance = isNonProductionDeployment(clientAppVersion().deployment);
   const wasOrdersPath = useRef(false);
 
   useEffect(() => {
@@ -156,6 +162,9 @@ export function AppShell() {
         'mx-auto flex w-full max-w-md flex-col bg-canvas',
         SHELL_FRAME_CLASS,
         SHELL_X_CONTAIN_CLASS,
+        // Parent of header + main: shell titles sit outside <main>, so padding
+        // only main would leave Home / Chats / Explore / Orders under the chip.
+        testBadgeClearance && TEST_BADGE_CLEARANCE_CLASS,
       )}
       data-testid="app-shell-frame"
     >
@@ -233,7 +242,8 @@ export function AppShell() {
                 SHELL_MAIN_SCROLL_CLASS,
                 'px-4',
                 ownsTopChrome || youRoot ? 'pt-0' : 'pt-3',
-                hideAppNav ? 'pb-0' : 'pb-28',
+                // Selection dock replaces the nav but is still fixed chrome (BM-07).
+                selectionUp ? 'pb-28' : hideAppNav ? 'pb-0' : 'pb-28',
               ),
         )}
       >

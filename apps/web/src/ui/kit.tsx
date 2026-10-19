@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useEffect,
   useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
@@ -414,6 +415,23 @@ export function Sheet({
   /** `full` = edge-to-edge; default hugs content up to 100dvh, then body scrolls. */
   size?: 'sheet' | 'full';
 }) {
+  useEffect(() => {
+    if (!open) return;
+    // Viewport shrink (soft keyboard) does not move focus. Keep the field in the sheet.
+    const scrollFocused = () => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return;
+      if (!active.closest('.ekum-sheet')) return;
+      active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    };
+    window.addEventListener('resize', scrollFocused);
+    window.visualViewport?.addEventListener('resize', scrollFocused);
+    return () => {
+      window.removeEventListener('resize', scrollFocused);
+      window.visualViewport?.removeEventListener('resize', scrollFocused);
+    };
+  }, [open]);
+
   if (!open || typeof document === 'undefined') {
     return null;
   }
@@ -432,7 +450,7 @@ export function Sheet({
       )}
       <div
         className={cx(
-          'ekum-sheet relative z-10 flex w-full max-w-md flex-col bg-surface',
+          'ekum-sheet relative z-10 flex min-h-0 w-full max-w-md flex-col overflow-hidden bg-surface',
           full
             ? 'h-[100dvh] max-h-[100dvh] rounded-none px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] shadow-none'
             : 'max-h-[100dvh] rounded-t-2xl px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',

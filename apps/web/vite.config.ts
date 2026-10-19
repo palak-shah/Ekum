@@ -204,5 +204,21 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
+  // `vite preview` is the production bundle. Proxy like dev so /api and /media
+  // stay same-origin (Compose nginx does this in Docker).
+  preview: {
+    port: 4173,
+    host: '127.0.0.1',
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
+      '/media': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
+    },
+  },
 };
 });

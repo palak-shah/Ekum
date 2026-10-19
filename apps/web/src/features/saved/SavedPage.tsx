@@ -19,6 +19,7 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { DesignSheet, type DesignSheetProduct } from '@/features/browse/DesignSheet';
 import { PageHeader } from '@/ui/PageHeader';
 import { AlbumGrid } from '@/ui/cards';
+import { highlightSearchText } from '@/ui/highlightMatch';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { useToast } from '@/ui/Toast';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
@@ -347,6 +348,7 @@ export function SavedPage({
                   <SavedGridTile
                     key={item.id}
                     item={item}
+                    highlightQuery={searchQuery}
                     selected={
                       item.kind === 'product'
                         ? Boolean(item.productId && shortlist.productIds.has(item.productId))
@@ -369,6 +371,7 @@ export function SavedPage({
                   <SavedFeedRow
                     key={item.id}
                     item={item}
+                    highlightQuery={searchQuery}
                     selected={
                       item.kind === 'product'
                         ? Boolean(item.productId && shortlist.productIds.has(item.productId))
@@ -432,6 +435,7 @@ export function SavedPage({
 
 function SavedGridTile({
   item,
+  highlightQuery = '',
   onOpen,
   onToggleSelect,
   onUnsave,
@@ -441,6 +445,7 @@ function SavedGridTile({
   removing,
 }: {
   item: SavedItemView;
+  highlightQuery?: string;
   onOpen: () => void;
   onToggleSelect?: () => void;
   onUnsave: () => void;
@@ -472,9 +477,9 @@ function SavedGridTile({
       </button>
       <button type="button" className="block w-full px-2.5 py-2.5 text-left" onClick={onOpen}>
         <p className={cx('truncate text-sm font-emphasis text-ink', item.available === false && 'opacity-45')}>
-          {item.name}
+          {highlightSearchText(item.name, highlightQuery)}
         </p>
-        <p className="truncate text-xs text-muted">{savedItemMeta(item)}</p>
+        <p className="truncate text-xs text-muted">{highlightSearchText(savedItemMeta(item), highlightQuery)}</p>
       </button>
       {!selectMode ? (
         <button
@@ -496,6 +501,7 @@ function SavedGridTile({
 
 function SavedFeedRow({
   item,
+  highlightQuery = '',
   onOpen,
   onToggleSelect,
   onUnsave,
@@ -505,6 +511,7 @@ function SavedFeedRow({
   removing,
 }: {
   item: SavedItemView;
+  highlightQuery?: string;
   onOpen: () => void;
   onToggleSelect?: () => void;
   onUnsave: () => void;
@@ -525,7 +532,7 @@ function SavedFeedRow({
         </Link>
         <Link to={`/company/${item.company.id}`} className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">
-            {item.company.name}
+            {highlightSearchText(item.company.name, highlightQuery)}
           </p>
           <p className="truncate text-xs font-body text-muted">
             {item.kind === 'product' ? 'Design' : 'Collection'}
@@ -556,9 +563,9 @@ function SavedFeedRow({
       </button>
       <button type="button" className="mt-2 block w-full px-4 text-left" onClick={onOpen}>
         <p className={cx('text-sm font-emphasis tracking-tight text-ink', item.available === false && 'opacity-45')}>
-          {item.name}
+          {highlightSearchText(item.name, highlightQuery)}
         </p>
-        <p className="text-xs font-body text-muted">{savedItemMeta(item)}</p>
+        <p className="text-xs font-body text-muted">{highlightSearchText(savedItemMeta(item), highlightQuery)}</p>
       </button>
     </article>
   );

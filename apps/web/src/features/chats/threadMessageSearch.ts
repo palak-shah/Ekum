@@ -1,5 +1,5 @@
-import { createElement, type ReactNode } from 'react';
 import type { MessageView } from '@ekum/domain-types';
+export { highlightSearchText } from '@/ui/highlightMatch';
 
 export type ThreadMessageViewScope =
   | 'all'
@@ -36,34 +36,6 @@ function metaOf(message: MessageView): Record<string, unknown> | null {
   return message.metadata && typeof message.metadata === 'object'
     ? (message.metadata as Record<string, unknown>)
     : null;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Split text and wrap case-insensitive matches in a light mark for in-chat search.
- */
-export function highlightSearchText(text: string, query: string | null | undefined): ReactNode {
-  const needle = query?.trim();
-  if (!needle || !text) return text;
-  const pattern = new RegExp(`(${escapeRegExp(needle)})`, 'gi');
-  const parts = text.split(pattern);
-  if (parts.length === 1) return text;
-  return parts.map((part, index) =>
-    part.toLowerCase() === needle.toLowerCase()
-      ? createElement(
-          'mark',
-          {
-            key: `${index}-${part}`,
-            className:
-              'rounded-[3px] bg-warning-soft px-0.5 font-emphasis text-warning-ink [box-decoration-break:clone]',
-          },
-          part,
-        )
-      : part,
-  );
 }
 
 /** Client-side match for stepper over loaded messages (mirrors server q fields). */

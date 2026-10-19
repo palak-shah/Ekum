@@ -36,6 +36,7 @@ import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { BottomTradeDock, DockIconButton } from '@/features/browse/BottomTradeDock';
 import { youLibraryPublishedSelectChrome } from '@/features/catalog/youLibrarySelectDock';
 import { CatalogFeedPost } from '@/ui/cards';
+import { highlightSearchText } from '@/ui/highlightMatch';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
 import { youCollectionRowMore } from '@/features/catalog/youLibraryRowMore';
@@ -920,6 +921,7 @@ export function MyCatalogPage({
                 <SellerProductTile
                   key={product.id}
                   product={product}
+                  highlightQuery={deferredListSearch}
                   variant={layout}
                   selecting={selecting}
                   selected={selectedIds.has(product.id)}
@@ -972,6 +974,7 @@ export function MyCatalogPage({
                   <YouCollectionListRow
                     key={collection.id}
                     collection={collection}
+                    highlightQuery={deferredListSearch}
                     selecting={selecting}
                     selected={selectedIds.has(collection.id)}
                     actionFocus={
@@ -1380,6 +1383,7 @@ export function MyCatalogPage({
 
 function SellerProductTile({
   product,
+  highlightQuery = '',
   variant,
   selecting,
   selected,
@@ -1388,6 +1392,7 @@ function SellerProductTile({
   onOpenPublished,
 }: {
   product: ProductView;
+  highlightQuery?: string;
   variant: DesignBrowseLayout;
   selecting: boolean;
   selected: boolean;
@@ -1414,6 +1419,7 @@ function SellerProductTile({
     return (
       <CatalogFeedPost
         name={product.name}
+        highlightQuery={highlightQuery}
         href={live ? undefined : `/catalog/products/${product.id}`}
         onOpen={live ? () => open() : undefined}
         images={product.images}
@@ -1453,7 +1459,9 @@ function SellerProductTile({
         )}
         {...longPress}
       >
-        <p className="truncate text-sm font-emphasis text-ink">{product.name}</p>
+        <p className="truncate text-sm font-emphasis text-ink">
+          {highlightSearchText(product.name, highlightQuery)}
+        </p>
       </button>
     </div>
   );

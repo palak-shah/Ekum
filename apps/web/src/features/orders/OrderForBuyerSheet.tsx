@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConnectionView, CreateForBuyerDto, CreateForBuyerResult } from '@ekum/domain-types';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { isTenDigitPhone } from '@/features/orders/orderWho';
+import { isTenDigitPhone, orderForBuyerLoggedToast } from '@/features/orders/orderWho';
 import { api, ApiError } from '@/lib/apiClient';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { useToast } from '@/ui/Toast';
@@ -80,7 +80,7 @@ export function OrderForBuyerSheet({
         onInvite(`${window.location.origin}${result.invitePath}`);
         return;
       }
-      showToast('Logged. They can Accept.');
+      showToast(orderForBuyerLoggedToast(result.order.status));
       onDone();
     },
     onError: (err) => {

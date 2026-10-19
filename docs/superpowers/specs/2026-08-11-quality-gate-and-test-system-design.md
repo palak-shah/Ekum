@@ -39,7 +39,9 @@ Rejected: E2E-only (too slow/flaky for pure UI math); checklist-only (won’t sc
 | Functional | `@functional` + module tag | Capability works end-to-end for users |
 | Gap matrix | `docs/superpowers/reviews/feature-gap-matrix.md` | Works / Partial / Missing / Later / Rejected |
 
-Commands: `pnpm test:e2e:smoke` · `pnpm test:e2e:functional`
+Commands: `pnpm test:e2e:smoke` · `pnpm test:e2e:functional` · `pnpm test:e2e:smoke:preview` · `pnpm test:e2e:smoke:docker`
+
+Mobile / PWA gate (what Playwright can prove vs a real phone): [`docs/superpowers/qa/mobile-and-pwa-test-matrix.md`](../qa/mobile-and-pwa-test-matrix.md). WebKit in CI is not iOS sign-off.
 
 ---
 

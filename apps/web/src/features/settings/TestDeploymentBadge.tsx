@@ -5,6 +5,13 @@ import {
 } from '@/lib/appVersion';
 import { Tag } from '@/ui/kit';
 
+/**
+ * Top inset so the fixed TEST chip does not cover the first title (BM-07).
+ * Badge sits at `max(0.35rem, safe-area)` and is about one tag tall.
+ */
+export const TEST_BADGE_CLEARANCE_CLASS =
+  'pt-[calc(max(0.35rem,env(safe-area-inset-top))+1.75rem)]';
+
 /** Quiet fixed chip — non-production only. Does not compete with New version · Load. */
 export function TestDeploymentBadge() {
   const app = clientAppVersion();

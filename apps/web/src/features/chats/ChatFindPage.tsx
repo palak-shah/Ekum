@@ -16,6 +16,7 @@ import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Chip, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { timeAgo } from '@/lib/format';
+import { highlightSearchText } from '@/ui/highlightMatch';
 
 const KIND_LABEL: Record<CrossChatFindKind, string> = {
   photos: 'Photos',
@@ -297,9 +298,17 @@ export function ChatFindPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-emphasis text-ink">{title}</p>
+                    <p className="truncate text-sm font-emphasis text-ink">
+                      {highlightSearchText(title, query)}
+                    </p>
                     <p className="truncate text-sm text-muted">
-                      {cue ? `${cue} · ${label}` : label}
+                      {cue ? (
+                        <>
+                          {cue} · {highlightSearchText(label, query)}
+                        </>
+                      ) : (
+                        highlightSearchText(label, query)
+                      )}
                     </p>
                   </div>
                   <p className="shrink-0 text-[10px] text-muted">{timeAgo(row.message.createdAt)}</p>

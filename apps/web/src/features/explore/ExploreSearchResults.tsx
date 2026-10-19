@@ -106,12 +106,12 @@ export function ExploreSearchResults({
         <LoadingBlock />
       ) : filter === 'all' ? (
         hasUniversal && universal ? (
-          <UniversalResults data={universal} onPick={onPickQuery} />
+          <UniversalResults data={universal} query={q} onPick={onPickQuery} />
         ) : (
           <EmptyState title="No matches" message={`Nothing found for "${q}".`} />
         )
       ) : typed && typed.results.length > 0 ? (
-        <TypedResults type={filter} results={typed.results} />
+        <TypedResults type={filter} query={q} results={typed.results} />
       ) : (
         <EmptyState title="No matches" message={`Nothing found for "${q}".`} />
       )}
@@ -150,9 +150,11 @@ function HintLinks({
 
 function UniversalResults({
   data,
+  query,
   onPick,
 }: {
   data: UniversalSearchResults;
+  query: string;
   onPick: (value: string) => void;
 }) {
   return (
@@ -167,6 +169,7 @@ function UniversalResults({
                 company={company}
                 to={`/company/${company.id}`}
                 plain
+                highlightQuery={query}
               />
             ))}
           </div>
@@ -178,7 +181,7 @@ function UniversalResults({
           <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Collections</h2>
           <div className="flex flex-col gap-2">
             {data.collections.map((collection) => (
-              <CollectionListItem key={collection.id} collection={collection} />
+              <CollectionListItem key={collection.id} collection={collection} highlightQuery={query} />
             ))}
           </div>
         </section>
@@ -190,7 +193,7 @@ function UniversalResults({
           <div className="grid grid-cols-2 gap-3">
             {data.designs.map((product) => (
               <Link key={product.id} to={`/explore/products/${product.id}`}>
-                <ProductTile product={product} />
+                <ProductTile product={product} highlightQuery={query} />
               </Link>
             ))}
           </div>
@@ -205,16 +208,24 @@ function UniversalResults({
 
 function TypedResults({
   type,
+  query,
   results,
 }: {
   type: SearchType;
+  query: string;
   results: (CompanyCard | CollectionCard | DiscoveryProductCard)[];
 }) {
   if (type === 'company') {
     return (
       <div className="flex flex-col divide-y divide-line/70">
         {(results as CompanyCard[]).map((company) => (
-          <CompanyRow key={company.id} company={company} to={`/company/${company.id}`} plain />
+          <CompanyRow
+            key={company.id}
+            company={company}
+            to={`/company/${company.id}`}
+            plain
+            highlightQuery={query}
+          />
         ))}
       </div>
     );
@@ -223,7 +234,7 @@ function TypedResults({
     return (
       <div className="flex flex-col gap-2">
         {(results as CollectionCard[]).map((collection) => (
-          <CollectionListItem key={collection.id} collection={collection} />
+          <CollectionListItem key={collection.id} collection={collection} highlightQuery={query} />
         ))}
       </div>
     );
@@ -232,7 +243,7 @@ function TypedResults({
     <div className="grid grid-cols-2 gap-3">
       {(results as DiscoveryProductCard[]).map((product) => (
         <Link key={product.id} to={`/explore/products/${product.id}`}>
-          <ProductTile product={product} />
+          <ProductTile product={product} highlightQuery={query} />
         </Link>
       ))}
     </div>

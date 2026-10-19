@@ -331,6 +331,7 @@ export function ChatsPage() {
                 <InboxThreadRow
                   key={thread.id}
                   thread={thread}
+                  highlightQuery={deferredQuery}
                   selecting={false}
                   selected={menuThread?.id === thread.id}
                   canMenu
