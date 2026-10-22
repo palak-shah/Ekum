@@ -8,6 +8,7 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { useToast } from '@/ui/Toast';
 import { Button, Field, InlineNotice, LoadingBlock, TextInput } from '@/ui/kit';
+import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
 import { AdminBulkPastePanel } from './AdminAddTagsPanel';
 import { AdminTagList } from './AdminTagList';
 import {
@@ -200,7 +201,7 @@ export function AdminTagsPage() {
 
       <Field label="Master category">
         <select
-          className="h-10 w-full rounded-xl border border-line bg-canvas px-3 text-[16px] text-ink"
+          className={`h-10 w-full ${SELECT_FIELD_CLASS} px-3 text-[16px] text-ink`}
           value={categoryId}
           onChange={(e) => {
             setCategoryId(e.target.value);
@@ -219,7 +220,7 @@ export function AdminTagsPage() {
 
       <Field label="Option type">
         <select
-          className="h-10 w-full rounded-xl border border-line bg-canvas px-3 text-[16px] text-ink"
+          className={`h-10 w-full ${SELECT_FIELD_CLASS} px-3 text-[16px] text-ink`}
           value={kind}
           onChange={(e) => {
             setKind(e.target.value as OptionKind | '');

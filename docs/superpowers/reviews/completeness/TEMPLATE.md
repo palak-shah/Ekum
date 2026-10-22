@@ -25,6 +25,7 @@
 2. **Duplicates another feature?**  
 3. **Should reuse an existing workflow?**  
 4. **Naming matches the app?** (plain trader language; You / business name; Requests vs Accept; no Seller/Buyer in chat card body)
+5. **Units?** If a rate or qty string changes: whose (pack vs design) · which (order / dispatch / Rate per) · surface. Pack on Explore = collection; solo design = that design.
 
 **Philosophy conflict?** No | Yes → disposition must be Reject or Redesign.
 
@@ -47,6 +48,7 @@ Mark each: OK · Gap · N/A · Later
 | Scalability | | |
 | Mobile interactions | | Including: fixed/sticky bars clear last content (BM-07)? |
 | First glance (BM-11) | | Phone width: one job is loudest; optional chrome quiet; name+unit not a broken wrap; taps land. Green tests do not skip this. |
+| Units (order / dispatch / Rate per) | | N/A unless a ₹ or qty string changes. Pack Explore card = collection; solo design = that design. Whose · which · surface named? Album vs Explore unit match? Blank pack no invented ₹? |
 | Accessibility | | |
 | Platform consistency | | |
 

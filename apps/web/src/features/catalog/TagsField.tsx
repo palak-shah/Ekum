@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CatalogTagView, CreateCatalogTagDto } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
+import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 
 const MAX_SELECTED = 20;
 
@@ -65,13 +66,13 @@ export function TagsField({
     <>
       <Field
         label={label}
-        hint="Buyers find this collection by these tags. Pick from the list or add your own."
+        info="Buyers find this collection by these tags. Pick from the list or add your own."
       >
         <button
           type="button"
           data-testid="tags-field-open"
           onClick={() => setOpen(true)}
-          className="flex min-h-12 w-full flex-col gap-1 rounded-xl border border-line bg-surface px-3 py-2 text-left"
+          className={`flex min-h-12 w-full flex-col gap-1 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3 py-2 text-left`}
         >
           <span
             className={cx(

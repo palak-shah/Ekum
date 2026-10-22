@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { SendIcon, ShareIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
+import { COMPOSER_SHELL_CLASS } from '@/ui/fieldFill';
 import { chatComposerHeightPx } from '@/features/chats/chatComposerHeight';
 
 /**
@@ -46,10 +47,7 @@ export function ShareComposerBar({
   return (
     <div className="flex min-w-0 items-end gap-2" data-testid="share-composer">
       <div
-        className={cx(
-          'flex min-h-11 min-w-0 flex-1 items-end rounded-2xl border bg-foam px-3 py-1.5',
-          'border-line focus-within:border-accent/50',
-        )}
+        className={cx('flex min-h-11 min-w-0 flex-1 items-end px-3 py-1.5', COMPOSER_SHELL_CLASS)}
       >
         <textarea
           ref={ref}

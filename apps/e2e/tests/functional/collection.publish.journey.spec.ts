@@ -1,12 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
-test.describe('seller collection publish @functional @collections', () => {
+test.describe('seller collection publish @functional @release @collections', () => {
   test('add-and-go chrome; sticky dock; no bottom nav', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/catalog/collections/new');
 
     await expect(page.getByTestId('collection-create-dock')).toBeVisible();
+    await expect(
+      page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId('collection-create-dock').getByRole('button', { name: 'Add designs to continue' }),
+    ).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Chats' })).toHaveCount(0);
     await expect(page.getByLabel('Collection name')).toBeVisible();
     await expect(page.getByText('Collection name', { exact: false })).toContainText('*');
@@ -14,7 +23,10 @@ test.describe('seller collection publish @functional @collections', () => {
       'placeholder',
       'Name this collection',
     );
-    await expect(page.getByText('Product description')).toHaveCount(0);
+    await expect(page.getByTestId('collection-product-details')).toBeVisible();
+    await expect(page.getByText('Product details')).toBeVisible();
+    await expect(page.getByTestId('collection-master-category')).toBeVisible();
+    await expect(page.getByTestId('collection-master-category')).not.toContainText('Pick category');
     await expect(page.getByTestId('collection-rate-mode-single')).toBeVisible();
     await expect(page.getByTestId('collection-rate-mode-range')).toBeVisible();
     await expect(page.getByTestId('collection-rate-caption')).toHaveCount(0);
@@ -50,6 +62,14 @@ test.describe('seller collection publish @functional @collections', () => {
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
 
+    await expect(page.getByTestId('collection-album-change')).toHaveText(/1 design · tap to change/);
+    await expect(
+      page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }),
+    ).toBeVisible();
+    await page.getByTestId('collection-tag-item').fill('Silk pack');
+    await page.getByTestId('collection-tag-item').press('Enter');
+    await page.getByTestId('collection-tag-item-dismiss').click();
+    await page.getByTestId('collection-album-change').click();
     await expect(page.getByTestId('collection-add-designs')).toHaveText(/Add from existing designs/i);
     await expect(page.getByTestId('collection-add-photos')).toHaveText(/Add photos/i);
 
@@ -59,9 +79,16 @@ test.describe('seller collection publish @functional @collections', () => {
       .first()
       .click();
     const memberSheet = page.getByRole('dialog').filter({ hasText: 'Update this design' });
+    await expect(memberSheet.getByLabel('Remove Silk pack')).toBeVisible();
     await expect(memberSheet.getByRole('heading', { name: 'Update this design' })).toBeVisible();
+    await expect(memberSheet.getByTestId('design-master-category')).toBeVisible();
+    await expect(memberSheet.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await expect(memberSheet.getByTestId('collection-set-contains')).toHaveCount(0);
     await expect(memberSheet.getByTestId('collection-member-add-photos')).toBeVisible();
-    await expect(memberSheet.getByRole('button', { name: 'Use same as all designs' })).toBeVisible();
+    await expect(memberSheet.getByRole('button', { name: 'Use same as all designs' })).toHaveCount(0);
     await memberSheet.getByRole('button', { name: 'Done' }).click();
   });
 
@@ -83,10 +110,11 @@ test.describe('seller collection publish @functional @collections', () => {
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByLabel('Collection name').fill(collectionName);
+    await page.getByTestId('collection-master-category').selectOption({ index: 1 });
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page).toHaveURL(/\/catalog/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/more\?tab=collections/, { timeout: 15_000 });
 
     const catalogLink = page.getByRole('link', { name: new RegExp(collectionName) }).first();
     await expect(catalogLink).toBeVisible({ timeout: 15_000 });

@@ -10,7 +10,14 @@ describe('RateRangeFields', () => {
     expect(screen.getByTestId('collection-rate-mode-single')).toHaveTextContent('One rate');
     expect(screen.getByTestId('collection-rate-mode-range')).toHaveTextContent('A range');
     expect(screen.queryByTestId('collection-rate-to')).toBeNull();
-    expect(screen.getByTestId('collection-rate-from')).toHaveAttribute('placeholder', 'Enter rate');
+    expect(screen.getByTestId('collection-rate-from')).toHaveAttribute('placeholder', 'Rate');
+    expect(screen.getByTestId('collection-rate-from').className).toContain('placeholder:not-italic');
+    expect(screen.getByTestId('collection-rate-from').className).toContain('placeholder:text-sm');
+    expect(screen.getByTestId('collection-rate-from').className).toContain('placeholder:text-muted');
+    expect(screen.getByTestId('collection-rate-from').className).not.toMatch(
+      /(?:^|\s)placeholder:italic(?:\s|$)/,
+    );
+    expect(screen.getAllByTestId('collection-rate-prefix')).toHaveLength(1);
     expect(screen.queryByTestId('collection-rate-caption')).toBeNull();
     expect(screen.queryByText('On request')).toBeNull();
     expect(screen.queryByTestId('collection-rate-unit')).toBeNull();
@@ -24,11 +31,27 @@ describe('RateRangeFields', () => {
     expect(screen.getByTestId('collection-rate-to')).toBeTruthy();
     expect(screen.getByLabelText('Rate from')).toBeTruthy();
     expect(screen.getByLabelText('Rate to')).toBeTruthy();
-    expect(screen.getByTestId('collection-rate-from')).not.toHaveAttribute(
-      'placeholder',
-      'Enter rate',
+    expect(screen.getByTestId('collection-rate-from')).not.toHaveAttribute('placeholder', 'Rate');
+    expect(screen.getAllByTestId('collection-rate-prefix')).toHaveLength(2);
+    expect(screen.queryByTestId('collection-rate-caption')).toBeNull();
+  });
+
+  it('warns when the high rate is below the low rate', () => {
+    render(
+      <RateRangeFields from="1200" to="800" onFrom={() => undefined} onTo={() => undefined} />,
     );
-    expect(screen.getByTestId('collection-rate-caption')).toHaveTextContent('₹1,200');
+    expect(screen.getByTestId('collection-rate-caption')).toHaveTextContent(
+      'High rate must be at least the low rate.',
+    );
+  });
+
+  it('does not echo a formatted ₹ under a filled one-rate field', () => {
+    render(
+      <RateRangeFields from="2000" to="" onFrom={() => undefined} onTo={() => undefined} />,
+    );
+    expect(screen.getByTestId('collection-rate-from')).toHaveValue('2000');
+    expect(screen.queryByTestId('collection-rate-caption')).toBeNull();
+    expect(screen.queryByText('₹2,000')).toBeNull();
   });
 
   it('One rate clears the high end', async () => {
@@ -55,6 +78,8 @@ describe('RateRangeFields', () => {
     expect(screen.getByText('Rate per')).toBeTruthy();
     const select = screen.getByTestId('collection-rate-unit');
     expect(select).toHaveValue('pc');
+    expect(select.className).toContain('bg-input');
+    expect(select.className).toMatch(/(?:^|\s)text-sm(?:\s|$)/);
     await user.selectOptions(select, 'set');
     expect(onRateUnit).toHaveBeenCalledWith('set');
   });
@@ -80,7 +105,8 @@ describe('RateRangeFields', () => {
     expect(screen.getByTestId('collection-rate-unit')).toHaveValue('set');
     const amount = screen.getByTestId('collection-rate-from');
     expect(amount).toHaveValue('1200');
-    expect(amount).toHaveAttribute('placeholder', 'Enter rate');
+    expect(amount).toHaveAttribute('placeholder', 'Rate');
+    expect(screen.getAllByTestId('collection-rate-prefix')).toHaveLength(1);
     expect(amount).toHaveAttribute('inputmode', 'decimal');
     await user.selectOptions(screen.getByTestId('collection-rate-unit'), 'pc');
     expect(onRateUnit).toHaveBeenCalledWith('pc');

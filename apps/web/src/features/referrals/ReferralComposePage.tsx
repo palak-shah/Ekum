@@ -7,6 +7,7 @@ import { canNativeShare, inviteShareCopy, shareOrCopyInvite } from '@/lib/shareI
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Button, Card, Field, LoadingBlock, TextArea } from '@/ui/kit';
+import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
 
 export function ReferralComposePage() {
   const navigate = useNavigate();
@@ -100,7 +101,7 @@ export function ReferralComposePage() {
         <select
           value={targetCompanyId}
           onChange={(event) => setTargetCompanyId(event.target.value)}
-          className="rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-accent"
+          className={`${SELECT_FIELD_CLASS} px-3.5 py-2.5 text-sm text-ink focus:border-line`}
         >
           <option value="">Connect with me</option>
           {activeConnections.map((connection) => (

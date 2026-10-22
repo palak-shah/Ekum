@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { HowManyLineHeading } from './HowManyLineHeading';
 
 describe('HowManyLineHeading', () => {
-  it('keeps the name clean and shows price per set — no Set or /pc', () => {
+  it('keeps the name clean and shows ₹/unit', () => {
     render(
       <HowManyLineHeading
         name="Linen Summer"
@@ -15,8 +15,7 @@ describe('HowManyLineHeading', () => {
     );
     expect(screen.queryByTestId('how-many-sold-as')).toBeNull();
     expect(screen.getByText('Linen Summer')).toBeTruthy();
-    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹4,800');
-    expect(screen.getByTestId('how-many-facts').textContent).not.toMatch(/pc|Set/i);
+    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹1,200/pc');
   });
 
   it('shows pcs in the set when sizes on the sheet differ', () => {
@@ -30,11 +29,20 @@ describe('HowManyLineHeading', () => {
         showPackSize
       />,
     );
-    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹2,000 · 1 set = 20 pcs');
+    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹100/pc · 1 set = 20 pcs');
   });
 
-  it('shows Piece only when order unit is pc', () => {
+  it('native line is name + rate — no Piece or Metre', () => {
     render(<HowManyLineHeading name="Saree" unit="pc" rate={1000} />);
-    expect(screen.getByTestId('how-many-sold-as')).toHaveTextContent('Piece');
+    expect(screen.queryByTestId('how-many-sold-as')).toBeNull();
+    expect(screen.queryByText('Piece')).toBeNull();
+    expect(screen.queryByText('Metre')).toBeNull();
+    expect(screen.getByTestId('how-many-facts')).toHaveTextContent('₹1,000/pc');
+  });
+
+  it('hides price when there is no rate', () => {
+    render(<HowManyLineHeading name="Saree" unit="mtr" />);
+    expect(screen.queryByTestId('how-many-facts')).toBeNull();
+    expect(screen.queryByText(/₹/)).toBeNull();
   });
 });

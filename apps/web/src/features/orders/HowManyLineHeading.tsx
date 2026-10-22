@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { isPackOrderUnit } from '@/lib/catalogRate';
 import {
   howManyLineExtra,
@@ -5,10 +6,14 @@ import {
   howManySetContentsMissing,
   howManyUnitShort,
 } from '@/features/orders/howManyLineMeta';
+import { OrderDesignTitle } from '@/features/orders/OrderDesignTitle';
+import { designSubtextClass } from '@/ui/designLineChrome';
+import { CloseIcon } from '@/ui/icons';
+import { cx } from '@/ui/kit';
 
 /**
- * Name only on pack lines (no “Set” beside it). Native lines keep Piece / Metre.
- * Quiet line is price per set — not “1 pc · ₹/pc”.
+ * Name only — no Piece / Metre / Set beside it.
+ * Quiet line is rate when a rate exists; pack size only when sizes on the sheet differ.
  */
 export function HowManyLineHeading({
   name,
@@ -29,48 +34,82 @@ export function HowManyLineHeading({
   rate?: number | null;
   rateMax?: number | null;
   shop?: string | null;
-  /** When sizes differ — `₹… · 1 set = 20 pcs`, not `20 pcs · ₹` (that reads as price for those pcs). */
+  /** When sizes differ — `₹… · 1 set = 20 pcs`, not `20 pcs · ₹`. */
   showPackSize?: boolean;
 }) {
-  const soldAs = isPackOrderUnit(unit) ? null : howManyUnitShort(unit);
   const price = howManyLineExtra({ unit, dispatchUnit, piecesPerPack, moq, rate, rateMax });
   const contents = showPackSize
     ? howManyPackContentsLabel(unit, piecesPerPack, dispatchUnit)
     : null;
   const one = (howManyUnitShort(unit) ?? 'set').toLowerCase();
-  const packLine = contents ? `1 ${one} = ${contents}` : null;
+  const packLine = contents && isPackOrderUnit(unit) ? `1 ${one} = ${contents}` : null;
   const extra = [price, packLine].filter(Boolean).join(' · ') || null;
-  const contentsMissing = howManySetContentsMissing(unit, piecesPerPack);
 
   return (
-    <div className="min-w-0 flex-1">
-      <p className="flex min-w-0 items-baseline gap-1.5">
-        <span className="min-w-0 truncate text-[15px] font-emphasis tracking-tight text-ink">
-          {name}
-        </span>
-        {soldAs ? (
-          <span
-            className="shrink-0 text-[12px] font-body text-muted"
-            data-testid="how-many-sold-as"
-          >
-            {soldAs}
-          </span>
-        ) : null}
-      </p>
-      {shop?.trim() ? <p className="truncate text-[12px] text-muted">{shop}</p> : null}
-      {extra ? (
-        <p className="mt-0.5 truncate text-[12px] text-muted" data-testid="how-many-facts">
-          {extra}
+    <OrderDesignTitle
+      name={name}
+      extra={
+        <>
+          {shop?.trim() ? <p className={designSubtextClass}>{shop}</p> : null}
+          {extra ? (
+            <p className={cx('mt-0.5', designSubtextClass)} data-testid="how-many-facts">
+              {extra}
+            </p>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+/** Qty row under the name: − n + (unit lives on the group or footer). */
+export function HowManyQtyRow({
+  unit,
+  piecesPerPack,
+  stepper,
+}: {
+  unit?: string | null;
+  piecesPerPack?: number | null;
+  stepper: ReactNode;
+}) {
+  const missing = howManySetContentsMissing(unit, piecesPerPack);
+  return (
+    <div
+      className={cx('flex min-w-0 items-center gap-2', !missing && 'justify-end')}
+      data-testid="how-many-qty-row"
+    >
+      {missing ? (
+        <p className={cx('min-w-0 flex-1', designSubtextClass)} data-testid="how-many-set-contents-missing">
+          {missing}
         </p>
       ) : null}
-      {contentsMissing ? (
-        <p
-          className="mt-0.5 text-[12px] font-body text-muted"
-          data-testid="how-many-set-contents-missing"
-        >
-          {contentsMissing}
-        </p>
-      ) : null}
+      {stepper}
     </div>
+  );
+}
+
+/** Line-item × — top-right, beside the product name. */
+export function HowManyRemoveButton({
+  name,
+  disabled,
+  onClick,
+  testId = 'how-many-remove',
+}: {
+  name: string;
+  disabled?: boolean;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-label={`Remove ${name}`}
+      data-testid={testId}
+      className="shrink-0 p-0.5 text-muted disabled:opacity-45"
+      onClick={onClick}
+    >
+      <CloseIcon width={16} height={16} />
+    </button>
   );
 }

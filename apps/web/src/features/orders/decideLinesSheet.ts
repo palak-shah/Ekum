@@ -19,6 +19,25 @@ export function decideLinesTally(
   return { confirm, decline };
 }
 
+/** Confirm needs ≥1 tick and qty ≥ 1 on each. Rate is optional. */
+export function decideLinesConfirmReady(
+  itemIds: string[],
+  actions: Record<string, DecideLineAction>,
+  qtyById: Record<string, string>,
+  lineQtyById: Record<string, number>,
+): boolean {
+  let confirming = 0;
+  for (const id of itemIds) {
+    if (actions[id] === 'decline') continue;
+    confirming += 1;
+    const typed = qtyById[id];
+    const qty =
+      typed != null && typed.trim() !== '' ? Number(typed) : (lineQtyById[id] ?? 0);
+    if (!Number.isFinite(qty) || qty < 1) return false;
+  }
+  return confirming >= 1;
+}
+
 /** Resolve confirm qty: keep line qty if blank/invalid; min 1 — no buyer-ask cap. */
 export function resolveDecideConfirmQty(
   raw: string | undefined,

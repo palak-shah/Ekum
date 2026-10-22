@@ -3,6 +3,11 @@ export function displayCollectionName(name: string | null | undefined): string {
   return trimmed || 'Untitled';
 }
 
+/** API / client category misses land on Category, not Collection name. */
+export function isCollectionCategoryError(message: string | null | undefined): boolean {
+  return Boolean(message?.trim() && /category/i.test(message));
+}
+
 /** Auto name for a new collection when the seller has not typed one. */
 export function defaultCollectionName(now = new Date()): string {
   const day = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 import { ChevronRightIcon } from '@/ui/icons';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
+import { PHOTO_STRIP_TOUCH_CLASS } from '@/ui/mobileOverflow';
 import { cx } from '@/ui/kit';
 
 /**
@@ -13,6 +14,7 @@ export function DesignPhotoCarousel({
   name,
   photoClassName,
   placeholderClassName,
+  frameClassName,
   selectMode = false,
   selected = false,
   unavailableReason,
@@ -32,6 +34,8 @@ export function DesignPhotoCarousel({
   /** Applied to each photo (aspect / object-fit). */
   photoClassName: string;
   placeholderClassName?: string;
+  /** Clip + corner radius on the photo frame (Explore). */
+  frameClassName?: string;
   selectMode?: boolean;
   selected?: boolean;
   unavailableReason?: string;
@@ -93,6 +97,8 @@ export function DesignPhotoCarousel({
   const endLabel = endCard
     ? `+${endCard.extraCount} ${endCard.extraCount === 1 ? 'more design' : 'more designs'}`
     : '';
+  const arrowClass =
+    'absolute top-1/2 z-[2] flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-ink shadow-sm backdrop-blur-[2px] opacity-0 pointer-events-none transition duration-150 group-hover:pointer-events-auto group-hover:opacity-100 hover:scale-110 hover:bg-white hover:shadow-md';
 
   const scrollToIndex = (index: number) => {
     const el = scrollerRef.current;
@@ -114,7 +120,11 @@ export function DesignPhotoCarousel({
         type="button"
         aria-label={activateLabel}
         onClick={() => onActivate(0)}
-        className={cx('relative block w-full', LONG_PRESS_SURFACE_CLASS)}
+        className={cx(
+          'relative block w-full touch-pan-y',
+          frameClassName,
+          LONG_PRESS_SURFACE_CLASS,
+        )}
         {...longPress}
         data-testid={testId}
       >
@@ -137,7 +147,11 @@ export function DesignPhotoCarousel({
         type="button"
         aria-label={activateLabel}
         onClick={() => onActivate(0)}
-        className={cx('relative block w-full', LONG_PRESS_SURFACE_CLASS)}
+        className={cx(
+          'relative block w-full touch-pan-y',
+          frameClassName,
+          LONG_PRESS_SURFACE_CLASS,
+        )}
         {...longPress}
         data-testid={testId}
       >
@@ -149,6 +163,7 @@ export function DesignPhotoCarousel({
           <img
             src={urls[0]}
             alt={name}
+            draggable={false}
             className={cx(photoClassName, unavailableReason && 'opacity-45')}
             loading={priority ? 'eager' : 'lazy'}
           />
@@ -171,7 +186,7 @@ export function DesignPhotoCarousel({
   }
 
   return (
-    <div className={cx('relative w-full', LONG_PRESS_SURFACE_CLASS)} {...longPress}>
+    <div className={cx('group relative w-full', frameClassName, LONG_PRESS_SURFACE_CLASS)} {...longPress}>
       <SelectableMediaFrame
         selectMode={selectMode && !unavailableReason}
         selected={selected}
@@ -183,7 +198,7 @@ export function DesignPhotoCarousel({
           data-photo-index={safeIndex}
           className={cx(
             'flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden',
-            'touch-pan-x overscroll-x-contain',
+            PHOTO_STRIP_TOUCH_CLASS,
             '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           )}
           onScroll={() => {
@@ -280,7 +295,7 @@ export function DesignPhotoCarousel({
             type="button"
             aria-label="Previous photo"
             data-testid="explore-photo-prev"
-            className="absolute left-2 top-1/2 z-[2] flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/55 text-ink/70 backdrop-blur-[2px]"
+            className={cx(arrowClass, 'left-2')}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -295,7 +310,7 @@ export function DesignPhotoCarousel({
             type="button"
             aria-label="Next photo"
             data-testid="explore-photo-next"
-            className="absolute right-2 top-1/2 z-[2] flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/55 text-ink/70 backdrop-blur-[2px]"
+            className={cx(arrowClass, 'right-2')}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();

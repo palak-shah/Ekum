@@ -21,6 +21,8 @@ import {
   OrderStatus,
   OrderTradeMode,
   OrderTrailType,
+  amendTrailChange,
+  amendTrailSummary,
   quoteTrailSummary,
   shortOrderLabel,
   type AmendOrderDto,
@@ -653,16 +655,30 @@ export class OrderService {
     const refreshed = await this.loadForParty(id, actorCompanyId);
     const orderLabel = shortOrderLabel(id, { inquiry });
     const actorLabel = order.buyer.name;
+    const change = amendTrailChange(
+      order.items.map((item) => ({
+        productId: item.productId,
+        quantity:
+          typeof item.quantity === 'object' && item.quantity && 'toNumber' in item.quantity
+            ? item.quantity.toNumber()
+            : Number(item.quantity),
+      })),
+      snapshots.map((row) => ({
+        productId: typeof row.productId === 'string' ? row.productId : null,
+        quantity: Number(row.quantity),
+      })),
+    );
+    const summary = amendTrailSummary(change);
+    const designCount = refreshed.items.length;
     await this.postOrderCard(
       order.buyerCompanyId,
       order.sellerCompanyId,
       actorCompanyId,
-      dto.note ??
-        `${actorLabel} updated · ${refreshed.items.length} design${refreshed.items.length === 1 ? '' : 's'}`,
+      dto.note ?? `${actorLabel} · ${summary}`,
       id,
       {
         status: OrderStatus.Requested,
-        itemCount: refreshed.items.length,
+        itemCount: designCount,
         event: OrderChatEvent.OrderUpdated,
         orderLabel,
         actorLabel,
@@ -676,7 +692,8 @@ export class OrderService {
       type: OrderTrailType.Updated,
       actorCompanyId,
       actorUserId: userId,
-      detail: `${refreshed.items.length} design${refreshed.items.length === 1 ? '' : 's'}`,
+      summary,
+      detail: null,
       note: dto.note?.trim() || null,
       ...(await this.trailVoiceFields(actorCompanyId, dto)),
     });
@@ -1447,19 +1464,20 @@ export class OrderService {
           message: 'Confirm quantity must be at least 1.',
         });
       }
+      // Rate is optional on Confirm — lock qty even when the bill is still empty.
       const existingRate = item.rate != null ? item.rate.toNumber() : null;
       const nextRate = line.rate ?? existingRate;
-      if (nextRate == null || !Number.isFinite(nextRate) || nextRate <= 0) {
+      if (nextRate != null && (!Number.isFinite(nextRate) || nextRate <= 0)) {
         throw new BadRequestException({
-          code: 'RATE_REQUIRED',
-          message: 'Set a rate before confirming.',
+          code: 'RATE_INVALID',
+          message: 'Rate must be more than 0 when set.',
         });
       }
       await this.prisma.orderItem.update({
         where: { id: item.id },
         data: {
           quantity: nextQty,
-          rate: nextRate,
+          ...(nextRate != null ? { rate: nextRate } : {}),
           lineStatus: OrderLineStatus.Confirmed,
         },
       });

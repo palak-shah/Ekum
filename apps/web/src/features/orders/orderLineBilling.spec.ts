@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatDualQty,
+  formatOrderQty,
   formatPackingSlipTotal,
   lineBillAmount,
   orderLineBillingCaptions,
@@ -17,6 +18,14 @@ describe('orderLineBilling', () => {
     expect(
       formatDualQty({ quantity: 10, unit: 'set', piecesPerPack: null, dispatchUnit: 'mtr' }),
     ).toBe('10 sets');
+    expect(
+      formatDualQty({ quantity: 50, unit: 'set', piecesPerPack: 1, dispatchUnit: 'set' }),
+    ).toBe('50 sets');
+    expect(
+      formatDualQty({ quantity: 27, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' }),
+    ).toBe('27 sets');
+    expect(formatOrderQty({ quantity: 10, unit: 'set' })).toBe('10 sets');
+    expect(formatOrderQty({ quantity: 70, unit: 'mtr' })).toBe('70 mtrs');
   });
 
   it('builds packing slip total', () => {
@@ -33,6 +42,14 @@ describe('orderLineBilling', () => {
         lines: [{ quantity: 10, unit: 'set', piecesPerPack: null, dispatchUnit: 'pc' }],
       }),
     ).toBe('Total 10 sets');
+    expect(
+      formatPackingSlipTotal({
+        lines: [
+          { quantity: 50, unit: 'set', piecesPerPack: 1, dispatchUnit: 'set' },
+          { quantity: 27, unit: 'set', piecesPerPack: 1, dispatchUnit: 'set' },
+        ],
+      }),
+    ).toBe('Total 77 sets');
   });
 
   it('captions match trader example', () => {
@@ -52,6 +69,10 @@ describe('orderLineBilling', () => {
     expect(
       lineBillAmount({ quantity: 10, rate: 100, unit: 'set', piecesPerPack: 4 }),
     ).toBe(4000);
+    // Price per pc, order/dispatch in sets: 2 sets × 2 pcs × ₹100 = ₹400.
+    expect(
+      lineBillAmount({ quantity: 2, rate: 100, unit: 'set', piecesPerPack: 2 }),
+    ).toBe(400);
   });
 
   it('omits ₹ and pcs when pack size blank', () => {

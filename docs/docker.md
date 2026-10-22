@@ -235,13 +235,17 @@ Each Compose build bakes **version** (from [`VERSION`](../VERSION)), **buildId**
 
 **Separate deploys:** rebuilding only `api` or only `web` updates that side of About. An API-only rebuild does **not** show **New version · Load**.
 
-Release checklist:
+Release checklist (solo — enforced):
+
+See [`docs/superpowers/qa/RELEASE.md`](superpowers/qa/RELEASE.md).
 
 1. Bump [`VERSION`](../VERSION) and note changes in [`CHANGELOG.md`](../CHANGELOG.md).  
-2. `EKUM_DEPLOYMENT=test` (or `production`) `pnpm docker:up`.  
-3. Confirm `curl -s http://localhost:8080/api/v1/version` and Settings → About Ekum.  
-4. `docker images ekum-api` / `ekum-web` show version + `sha-*` tags (not only `latest`).  
-5. After `pnpm docker:seed`, run `pnpm test:e2e:smoke:docker` (Chromium + WebKit against `:8080`). This is the post-deploy smoke. It does **not** replace the [device checklist](superpowers/qa/mobile-and-pwa-test-matrix.md).
+2. `pnpm release:check` — writes `docs/superpowers/qa/releases/<sha>.json`.  
+3. Record Android Chrome + PWA and iPhone Safari + Home Screen PWA (`pnpm release:signoff`). Viewport smoke is not a phone.  
+4. `EKUM_DEPLOYMENT=test pnpm docker:up` for local/beta. **`EKUM_DEPLOYMENT=production` refuses `docker:up` unless that SHA is `PASS` or `EXCEPTION_APPROVED`.**  
+5. Confirm `curl -s http://localhost:8080/api/v1/version` and Settings → About Ekum.  
+6. `docker images ekum-api` / `ekum-web` show version + `sha-*` tags (not only `latest`).  
+7. After production is up: `pnpm release:post` (health + version SHA + `pnpm test:e2e:smoke:docker`). Does **not** replace the [device checklist](superpowers/qa/mobile-and-pwa-test-matrix.md).
 
 ---
 

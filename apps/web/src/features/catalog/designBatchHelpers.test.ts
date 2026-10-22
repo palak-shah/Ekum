@@ -74,8 +74,11 @@ describe('detailsCardTitle', () => {
 describe('overridesFromSheet', () => {
   const shared = {
     category: 'Sarees',
+    masterCategoryId: 'cat-1',
     rate: '1200',
     unit: 'piece',
+    dispatchUnit: 'set',
+    piecesPerPack: '4',
     moq: '100',
     notes: '',
   };

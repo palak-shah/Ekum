@@ -30,7 +30,7 @@ function order(partial: Partial<OrderView>): OrderView {
 
 describe('orderNeedsYouLabel', () => {
   it('names send quote when seller still needs rates', () => {
-    expect(orderNeedsYouLabel(order({}))).toBe('Needs you · Send quote');
+    expect(orderNeedsYouLabel(order({}))).toBe('Needs you Send quote');
   });
 
   it('returns null when nothing to do', () => {
@@ -85,9 +85,7 @@ describe('orderNeedsYouLabel', () => {
         { name: 'Ahmedabad Loom Co', orderId: null },
       ],
     });
-    expect(orderNeedsYouLabel(trading)).toBe(
-      'Needs you · Send to Surat Silk House + Ahmedabad Loom Co',
-    );
+    expect(orderNeedsYouLabel(trading)).toBe('Needs you Accept & forward');
   });
 
   it('names one mill to send to', () => {
@@ -97,7 +95,7 @@ describe('orderNeedsYouLabel', () => {
           linkedMills: [{ name: 'Ahmedabad Loom Co', orderId: null }],
         }),
       ),
-    ).toBe('Needs you · Send to Ahmedabad Loom Co');
+    ).toBe('Needs you Accept & forward');
   });
 
   it('is quiet when waiting on mill rates', () => {

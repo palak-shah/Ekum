@@ -80,6 +80,7 @@ import { useVoiceRecorder } from '@/features/voice/useVoiceRecorder';
 import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
 import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
 import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, SearchInput, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { COMPOSER_SHELL_CLASS } from '@/ui/fieldFill';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 import {
@@ -2567,7 +2568,7 @@ export function ThreadPage() {
             </p>
           ) : null}
           {pendingVoice ? (
-            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
+            <div className={cx('flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5', COMPOSER_SHELL_CLASS)}>
               <VoicePlayer
                 src={pendingVoice.previewUrl}
                 durationMs={pendingVoice.durationMs}
@@ -2603,7 +2604,7 @@ export function ThreadPage() {
               onPick={pickMention}
             />
           ) : null}
-          <div className="flex min-w-0 flex-1 items-end gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
+          <div className={cx('flex min-w-0 flex-1 items-end gap-2 px-2 py-1.5', COMPOSER_SHELL_CLASS)}>
             <button
               type="button"
               aria-label="Attach"

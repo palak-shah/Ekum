@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decideLinesConfirmReady,
   decideLinesPayload,
   decideLinesTally,
   defaultLineActions,
@@ -57,6 +58,35 @@ describe('decideLinesSheet', () => {
     expect(resolveDecideConfirmQty('99', 10)).toBe(99);
     expect(resolveDecideConfirmQty('', 7)).toBe(7);
     expect(resolveDecideConfirmQty('abc', 7)).toBe(7);
+  });
+
+  it('omits rate on confirm when the box is blank', () => {
+    expect(
+      decideLinesPayload(
+        ['a'],
+        { a: 'confirm' },
+        'confirm',
+        { a: '50' },
+        { a: 12 },
+        { a: '' },
+        () => null,
+      ),
+    ).toEqual([{ orderItemId: 'a', action: 'confirm', quantity: 50 }]);
+  });
+
+  it('Confirm is ready with qty even when rate is blank', () => {
+    expect(
+      decideLinesConfirmReady(['a', 'b'], { a: 'confirm', b: 'confirm' }, { a: '50', b: '' }, {
+        a: 12,
+        b: 12,
+      }),
+    ).toBe(true);
+    expect(
+      decideLinesConfirmReady(['a'], { a: 'decline' }, { a: '50' }, { a: 12 }),
+    ).toBe(false);
+    expect(
+      decideLinesConfirmReady(['a'], { a: 'confirm' }, { a: '0' }, { a: 12 }),
+    ).toBe(false);
   });
 
   it('qtysWithSharedValue fills or restores defaults', () => {

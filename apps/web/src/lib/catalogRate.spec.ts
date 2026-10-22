@@ -29,6 +29,7 @@ describe('catalogRate', () => {
     expect(formatCatalogRate({ rate: 640, unit: 'set', dispatchUnit: 'set' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 640, unit: 'set', dispatchUnit: 'pc' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 94, unit: 'set', dispatchUnit: 'mtr' })).toBe('₹94/mtr');
+    expect(formatCatalogRate({ rate: 91, unit: 'mtr' })).toBe('₹91/mtr');
     expect(formatCatalogRate({ rate: 640, unit: 'pc' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 800, unit: 'mtr' })).toBe('₹800/mtr');
   });

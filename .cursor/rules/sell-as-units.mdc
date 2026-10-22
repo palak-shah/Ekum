@@ -1,0 +1,30 @@
+---
+description: Whose unit (pack vs design) and which unit (order vs Rate per) — catch Explore /pc vs mtr class bugs
+alwaysApply: true
+---
+
+# Sell-as units (required when a rate or qty string changes)
+
+Three different units exist. Name all three before shipping a `₹…/…` or Total line.
+
+| Kind | Field | Job |
+|------|--------|-----|
+| Order | `unit` | How many / Place order qty |
+| Dispatch | `dispatchUnit` | What they send |
+| Rate | `catalogRateUnit` (Rate per) | What the rupee is per |
+
+## Whose unit on Explore
+
+- **Pack card** → the **collection** (pack Rate per + Order taken in). Stamp followers; never infer leftover member `/pc`.
+- **Solo design card** → that **design**. Packs on Explore do not grow extra design tiles.
+- Mixed member rate units → omit the unit rather than pick one.
+
+## Do not mix
+
+- Qty is order unit. ₹ is Rate per. `₹91/set` when rate is `/mtr` is invented money unless pack size is defined and conversion is shown.
+- Blank/`0` pack → no `=` and no ₹ (clear `piecesPerPack` with `null`).
+- Album Rate per mtr + Explore `/pc` is a **blocker**, not polish.
+
+## Completeness / tests
+
+Any Explore, album, How many, or billing change must answer: **whose** (pack vs design) · **which** (order / dispatch / rate) · **surface**. Lock pack vs design cards in separate specs (`collectionCardRateFields` vs `formatCatalogRate` on the product).

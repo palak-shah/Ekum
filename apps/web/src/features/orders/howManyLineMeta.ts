@@ -36,9 +36,8 @@ function inr(amount: number): string {
 }
 
 /**
- * Quiet money under the name.
- * Pack path: price of one order unit (rate × pack) — no “1 pc” and no “/pc”.
- * Native path: catalog rate with its unit.
+ * Quiet money under the name — always ₹/unit (`formatCatalogRate`).
+ * Never rate × pack on the line; conversion lives on Total.
  */
 export function howManyLineExtra(product: {
   unit?: string | null;
@@ -49,22 +48,21 @@ export function howManyLineExtra(product: {
   rateMax?: number | null;
 }): string | null {
   const bits: string[] = [];
-  if (isPackOrderUnit(product.unit)) {
-    const pack = packSizeForUnit(product.unit, product.piecesPerPack);
-    if (pack != null && product.rate != null) {
-      const low = product.rate * pack;
-      const high =
-        product.rateMax != null && product.rateMax > product.rate
-          ? product.rateMax * pack
-          : null;
-      bits.push(high != null ? `${inr(low)}–${inr(high)}` : inr(low));
-    }
-  } else {
-    const rate = formatCatalogRate(product);
-    if (rate !== 'On request') bits.push(rate);
-  }
+  const rate = formatCatalogRate(product);
+  if (rate !== 'On request') bits.push(rate);
   if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
   return bits.length > 0 ? bits.join(' · ') : null;
+}
+
+/** Rate on a line — always ₹/unit. Null when on request. */
+export function orderRateText(input: {
+  rate?: number | null;
+  rateMax?: number | null;
+  unit?: string | null;
+  dispatchUnit?: string | null;
+}): string | null {
+  const text = formatCatalogRate(input);
+  return text === 'On request' ? null : text;
 }
 
 export function howManySoldAs(
@@ -175,25 +173,9 @@ export function howManyTotalPcsLabel(
   return `Total ${qtyPhrase(qty, unit)} = ${total} ${unitCountNoun(contents, total)}`;
 }
 
+/** Plural trade short — same vocabulary as rates (`mtrs`, `pcs`, not “metres”). */
 export function qtyCountNoun(unit: string | null | undefined): string {
-  switch (unit?.trim()) {
-    case 'set':
-      return 'sets';
-    case 'dozen':
-      return 'dozens';
-    case 'mtr':
-      return 'metres';
-    case 'than':
-      return 'thans';
-    case 'kg':
-      return 'kg';
-    case 'box':
-      return 'boxes';
-    case 'bundle':
-      return 'bundles';
-    default:
-      return 'pieces';
-  }
+  return unitCountNoun(unit, 2);
 }
 
 /** Visible stepper caption — Capitalized unit noun. */
@@ -202,20 +184,99 @@ export function qtyStepperUnitLabel(unit: string | null | undefined): string {
   return noun.charAt(0).toUpperCase() + noun.slice(1);
 }
 
+export function howManyOrderUnitKey(unit: string | null | undefined): string {
+  return unit?.trim() || 'pc';
+}
+
+/** Pack units first (set / dozen / box / bundle), then mtr, then pc. */
+function howManyUnitGroupRank(unit: string): number {
+  if (isPackOrderUnit(unit)) {
+    if (unit === 'set') return 0;
+    if (unit === 'dozen') return 1;
+    if (unit === 'box') return 2;
+    if (unit === 'bundle') return 3;
+    return 4;
+  }
+  if (unit === 'mtr') return 10;
+  if (unit === 'pc') return 20;
+  if (unit === 'than') return 21;
+  if (unit === 'kg') return 22;
+  return 30;
+}
+
+export type HowManyUnitGroup<T> = {
+  unit: string;
+  label: string;
+  items: T[];
+};
+
+/** Restack by order unit; pick order stays inside each group. */
+export function groupHowManyByOrderUnit<T>(
+  items: T[],
+  unitOf: (item: T) => string | null | undefined,
+): HowManyUnitGroup<T>[] {
+  const buckets = new Map<string, T[]>();
+  const firstAt = new Map<string, number>();
+  items.forEach((item, index) => {
+    const unit = howManyOrderUnitKey(unitOf(item));
+    if (!firstAt.has(unit)) firstAt.set(unit, index);
+    const list = buckets.get(unit) ?? [];
+    list.push(item);
+    buckets.set(unit, list);
+  });
+  return [...buckets.keys()]
+    .sort((a, b) => {
+      const rank = howManyUnitGroupRank(a) - howManyUnitGroupRank(b);
+      if (rank !== 0) return rank;
+      return (firstAt.get(a) ?? 0) - (firstAt.get(b) ?? 0);
+    })
+    .map((unit) => ({
+      unit,
+      label: qtyStepperUnitLabel(unit),
+      items: buckets.get(unit) ?? [],
+    }));
+}
+
+/** Last design in restacked order — Done on the last qty after grouping. */
+export function lastGroupedItem<T>(
+  items: T[],
+  unitOf: (item: T) => string | null | undefined,
+): T | undefined {
+  const groups = groupHowManyByOrderUnit(items, unitOf);
+  return groups.at(-1)?.items.at(-1);
+}
+
+export function howManyOrderUnitsMixed(
+  items: Array<{ unit?: string | null }>,
+): boolean {
+  return groupHowManyByOrderUnit(items, (item) => item.unit).length > 1;
+}
+
 export type HowManyQtyLine = {
   quantity: number | null;
   unit?: string | null;
   piecesPerPack?: number | null;
   dispatchUnit?: string | null;
   rate?: number | null;
+  lineStatus?: string | null;
 };
 
+export type OrderUnitRole = 'ordering' | 'dispatching';
+
+/** `Order in Mtrs` / `Dispatch in Sets`. Always a job header, even one family. */
+export function orderUnitSheetHeading(
+  unit: string | null | undefined,
+  role: OrderUnitRole,
+): string {
+  const label = qtyStepperUnitLabel(unit);
+  return role === 'dispatching' ? `Dispatch in ${label}` : `Order in ${label}`;
+}
+
 /**
- * Journey dispatch for the banner.
- * Order + dispatch both set (or legacy dispatch `pc`) → dispatch is the order unit;
+ * Journey: order + dispatch both set (or legacy dispatch `pc`) → dispatch is the order unit;
  * rate stays pc via catalogRateUnit.
  */
-function bannerJourney(
+export function orderLineUnitJourney(
   unit: string | null | undefined,
   dispatchUnit: string | null | undefined,
 ): { order: string; dispatch: string; rate: string } {
@@ -229,13 +290,30 @@ function bannerJourney(
   return { order, dispatch, rate };
 }
 
+/**
+ * Convert pack qty on Total only when the group unit’s rate is a different unit.
+ * pc/mtr never convert. Same order=dispatch=rate → no `100 sets = 100 sets`.
+ */
+export function packQtyConversionWanted(line: {
+  unit?: string | null;
+  piecesPerPack?: number | null;
+  dispatchUnit?: string | null;
+}): boolean {
+  if (!isPackOrderUnit(line.unit)) return false;
+  if (howManyPcsPerUnit(line.unit, line.piecesPerPack) == null) return false;
+  const journey = orderLineUnitJourney(line.unit, line.dispatchUnit);
+  return !(
+    journey.order === journey.dispatch && journey.dispatch === journey.rate
+  );
+}
+
 /** Quiet line: default “Rates are per pc. Order and dispatch per set.” Follows each design’s units. */
 export function howManySetsBanner(
   products: Array<{ unit?: string | null; dispatchUnit?: string | null }>,
 ): string | null {
   const pack = products.filter((p) => isPackOrderUnit(p.unit));
   if (pack.length === 0) return null;
-  const rows = pack.map((p) => bannerJourney(p.unit, p.dispatchUnit));
+  const rows = pack.map((p) => orderLineUnitJourney(p.unit, p.dispatchUnit));
   const first = rows[0]!;
   const same = rows.every(
     (r) => r.order === first.order && r.dispatch === first.dispatch && r.rate === first.rate,
@@ -247,23 +325,36 @@ export function howManySetsBanner(
   return `Rates are per ${first.rate}. Order per ${first.order}. Dispatch per ${first.dispatch}.`;
 }
 
-/**
- * Footer: `2 sets = 12 pcs` when contents known; else `2 sets`.
- * Optional money when every line with qty+rate is billable.
- * Native-only sheet: `2 pcs` / metres.
- */
-export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
-  primary: string;
-  hint?: string;
+export type HowManyFooterSummary = {
+  rows: string[];
   money?: string;
-} | null {
+};
+
+function packContentsUnit(line: HowManyQtyLine): string {
+  return (
+    catalogRateUnit({ unit: line.unit, dispatchUnit: line.dispatchUnit }) ??
+    line.dispatchUnit?.trim() ??
+    'pc'
+  );
+}
+
+/**
+ * Footer: one row per unit family (`2 sets = 12 pcs`, `70 mtrs`).
+ * Conversion only for group units when rate unit differs and pack is known.
+ * Optional money only when every counted line is billable.
+ */
+export function howManyOrderFooterSummary(
+  lines: HowManyQtyLine[],
+  opts?: { packConversion?: boolean },
+): HowManyFooterSummary | null {
+  const convertPack = opts?.packConversion !== false;
   const withQty = lines.filter((l) => l.quantity != null && l.quantity > 0);
   if (withQty.length === 0) return null;
 
   const moneyTotal = (() => {
     const priced = withQty.filter((l) => l.rate != null);
-    if (priced.length === 0) return null;
-    if (priced.length !== withQty.length) return null;
+    if (priced.length === 0) return undefined;
+    if (priced.length !== withQty.length) return undefined;
     const total = orderBillTotal(
       priced.map((l) => ({
         quantity: l.quantity!,
@@ -272,52 +363,76 @@ export function howManyOrderFooterSummary(lines: HowManyQtyLine[]): {
         piecesPerPack: l.piecesPerPack,
       })),
     );
-    if (total == null) return null;
+    if (total == null) return undefined;
     return `₹${total.toLocaleString('en-IN')}`;
   })();
 
-  const packLines = withQty.filter((l) => isPackOrderUnit(l.unit));
-  if (packLines.length > 0) {
-    const total = packLines.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
-    const noun =
-      packLines.every((l) => l.unit?.trim() === 'set')
-        ? 'sets'
-        : packLines.every((l) => l.unit?.trim() === 'dozen')
-          ? 'dozens'
-          : 'packs';
-    const packs = packLines.map((l) => howManyPcsPerUnit(l.unit, l.piecesPerPack));
-    const allKnown = packs.every((p) => p != null);
-    // Unknown pcs-per-set: sets only — they settle contents in chat. No "= n pcs".
-    if (!allKnown) {
-      return {
-        primary: `${total} ${noun}`,
-        money: moneyTotal ?? undefined,
-      };
+  const rows: string[] = [];
+  const packGroups = new Map<string, HowManyQtyLine[]>();
+  const nativeGroups = new Map<string, HowManyQtyLine[]>();
+
+  for (const line of withQty) {
+    if (isPackOrderUnit(line.unit)) {
+      const orderUnit = line.unit?.trim() || 'set';
+      const pack = howManyPcsPerUnit(line.unit, line.piecesPerPack);
+      const key =
+        pack == null ? `${orderUnit}|unknown` : `${orderUnit}|${packContentsUnit(line)}`;
+      const group = packGroups.get(key) ?? [];
+      group.push(line);
+      packGroups.set(key, group);
+    } else {
+      const unit = line.unit?.trim() || 'pc';
+      const group = nativeGroups.get(unit) ?? [];
+      group.push(line);
+      nativeGroups.set(unit, group);
     }
-    const totalPcs = packLines.reduce(
+  }
+
+  for (const [key, group] of packGroups) {
+    const [orderUnit, contents] = key.split('|') as [string, string];
+    const total = group.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
+    const noun = unitCountNoun(orderUnit, total);
+    const convert =
+      convertPack &&
+      contents !== 'unknown' &&
+      group.every((line) => packQtyConversionWanted(line));
+    if (!convert) {
+      rows.push(`${total} ${noun}`);
+      continue;
+    }
+    const totalPcs = group.reduce(
       (sum, l) => sum + (l.quantity ?? 0) * (howManyPcsPerUnit(l.unit, l.piecesPerPack) ?? 0),
       0,
     );
-    const contents =
-      catalogRateUnit({
-        unit: packLines[0]?.unit,
-        dispatchUnit: packLines[0]?.dispatchUnit,
-      }) ?? 'pc';
-    const dNoun = unitCountNoun(contents, totalPcs);
-    return {
-      primary: `${total} ${noun} = ${totalPcs} ${dNoun}`,
-      money: moneyTotal ?? undefined,
-    };
+    rows.push(`${total} ${noun} = ${totalPcs} ${unitCountNoun(contents, totalPcs)}`);
   }
 
-  const unit = withQty[0]?.unit?.trim() || 'pc';
-  const sameUnit = withQty.every((l) => (l.unit?.trim() || 'pc') === unit);
-  if (!sameUnit) return null;
-  const total = withQty.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
-  return {
-    primary: `${total} ${qtyCountNoun(unit)}`,
-    money: moneyTotal ?? undefined,
-  };
+  for (const [unit, group] of nativeGroups) {
+    const total = group.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
+    rows.push(`${total} ${unitCountNoun(unit, total)}`);
+  }
+
+  if (rows.length === 0) return null;
+  return moneyTotal ? { rows, money: moneyTotal } : { rows };
+}
+
+export type TicketTotalUnitRow = {
+  unit: string;
+  qty: string;
+  money: string | null;
+};
+
+export type TicketTotalSummary = {
+  units: TicketTotalUnitRow[];
+  /** Mixed: sum of billed families when any ₹ exists. */
+  grand: string | null;
+  /** Highlight under Total — uncounted remaining lines. */
+  missingCue: string | null;
+};
+
+function formatTicketMoney(amount: number | null): string | null {
+  if (amount == null) return null;
+  return inr(amount);
 }
 
 /** Bill amount for How many money when a single line is fully known. */
@@ -329,4 +444,85 @@ export function howManyLineBillAmount(line: HowManyQtyLine): number | null {
     unit: line.unit,
     piecesPerPack: line.piecesPerPack,
   });
+}
+
+function sumBillable(lines: HowManyQtyLine[]): number | null {
+  let total = 0;
+  let any = false;
+  for (const line of lines) {
+    const amount = howManyLineBillAmount(line);
+    if (amount == null) continue;
+    any = true;
+    total += amount;
+  }
+  return any ? Math.round(total * 100) / 100 : null;
+}
+
+/** Why this remaining line is in qty but not in ₹. */
+export function ticketLineSkipReason(line: HowManyQtyLine): 'rate' | 'pack' | null {
+  if (line.quantity == null || line.quantity <= 0) return null;
+  if (howManyLineBillAmount(line) != null) return null;
+  if (isPackOrderUnit(line.unit) && howManyPcsPerUnit(line.unit, line.piecesPerPack) == null) {
+    return 'pack';
+  }
+  return 'rate';
+}
+
+/** One cue: Missing rates and/or No pcs in a set. */
+export function ticketTotalMissingCue(lines: HowManyQtyLine[]): string | null {
+  let rate = false;
+  let pack = false;
+  for (const line of lines) {
+    const reason = ticketLineSkipReason(line);
+    if (reason === 'rate') rate = true;
+    if (reason === 'pack') pack = true;
+  }
+  if (rate && pack) return 'Missing rates · no pcs in a set';
+  if (rate) return 'Missing rates';
+  if (pack) return 'No pcs in a set';
+  return null;
+}
+
+function familyPackUnknown(lines: HowManyQtyLine[]): boolean {
+  return lines.some(
+    (line) =>
+      isPackOrderUnit(line.unit) && howManyPcsPerUnit(line.unit, line.piecesPerPack) == null,
+  );
+}
+
+function familyQtyLabel(lines: HowManyQtyLine[]): string {
+  const qty = lines.reduce((sum, line) => sum + (line.quantity ?? 0), 0);
+  const unit = lines[0]?.unit;
+  if (familyPackUnknown(lines)) {
+    return `${qty} ${unitCountNoun(unit, qty)}`;
+  }
+  return howManyOrderFooterSummary(lines)?.rows[0] ?? `${qty} ${unitCountNoun(unit, qty)}`;
+}
+
+/**
+ * Ticket mill-bill: qty of remaining lines, ₹ of billable lines.
+ * Conversion when group unit’s rate differs. Unknown pack → no ₹ on that family.
+ */
+export function ticketTotalSummary(lines: HowManyQtyLine[]): TicketTotalSummary | null {
+  const withQty = lines.filter(
+    (line) => line.lineStatus !== 'declined' && line.quantity != null && line.quantity > 0,
+  );
+  if (withQty.length === 0) return null;
+
+  const grouped = groupHowManyByOrderUnit(withQty, (line) => line.unit);
+  const units = grouped.map((group) => {
+    const packUnknown = familyPackUnknown(group.items);
+    return {
+      unit: group.unit,
+      qty: familyQtyLabel(group.items),
+      money: packUnknown ? null : formatTicketMoney(sumBillable(group.items)),
+    };
+  });
+  if (units.length === 0) return null;
+
+  const anyPackUnknown = grouped.some((group) => familyPackUnknown(group.items));
+  const billed = sumBillable(withQty);
+  const grand =
+    units.length > 1 && !anyPackUnknown ? formatTicketMoney(billed) : null;
+  return { units, grand, missingCue: ticketTotalMissingCue(withQty) };
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MasterCategorySlug } from '@ekum/domain-types';
-import { resolveCompanyMasterOptions } from './companyMasterOptions';
+import {
+  defaultProfileMasterCategoryId,
+  resolveCompanyMasterOptions,
+} from './companyMasterOptions';
 
 const catalog = [
   {
@@ -74,5 +77,30 @@ describe('resolveCompanyMasterOptions', () => {
 
   it('returns no options when master and super categories are empty', () => {
     expect(resolveCompanyMasterOptions(catalog, [], [])).toEqual([]);
+  });
+});
+
+describe('defaultProfileMasterCategoryId', () => {
+  it('returns the sole deal-in category', () => {
+    expect(
+      defaultProfileMasterCategoryId(
+        catalog,
+        [MasterCategorySlug.WomensUnstitched],
+        [],
+      ),
+    ).toBe('3');
+  });
+
+  it('returns null when the shop deals in more than one', () => {
+    expect(
+      defaultProfileMasterCategoryId(
+        catalog,
+        [
+          MasterCategorySlug.WomensReadymadeEthnic,
+          MasterCategorySlug.WomensReadymadeWestern,
+        ],
+        [],
+      ),
+    ).toBeNull();
   });
 });

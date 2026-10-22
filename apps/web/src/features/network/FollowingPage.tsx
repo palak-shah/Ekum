@@ -55,7 +55,7 @@ export function FollowingPage() {
       ) : (
         <EmptyState
           title="None yet"
-          message="Request catalog access on Explore or a shop to add businesses here."
+          message="Request access on Explore or a shop to add businesses here."
         />
       )}
     </div>

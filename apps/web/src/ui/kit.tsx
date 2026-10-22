@@ -13,12 +13,14 @@ import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/
 import { initials } from '@/lib/format';
 import { avatarTone } from '@/ui/avatarTone';
 import { BackIcon, CloseIcon, SearchIcon } from '@/ui/icons';
+import { InfoHint } from '@/ui/InfoHint';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
-import { formControlWidthClass, textInputChromeClass } from '@/ui/mobileOverflow';
+import { textInputChromeClass } from '@/ui/mobileOverflow';
 
 export { cx } from '@/lib/cx';
+export { InfoHint } from '@/ui/InfoHint';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -123,6 +125,8 @@ export function Card({
 interface FieldProps {
   label: string;
   hint?: string;
+  /** Instructional copy on the shared circle i — not live status (that stays `hint`). */
+  info?: string;
   error?: string | null;
   /** Shows a red * on the label so required is obvious before submit. */
   required?: boolean;
@@ -131,17 +135,20 @@ interface FieldProps {
   children: ReactNode;
 }
 
-export function Field({ label, hint, error, required, className, children }: FieldProps) {
+export function Field({ label, hint, info, error, required, className, children }: FieldProps) {
   return (
     <label className={cx('flex flex-col gap-1.5', className)}>
-      <span className="text-sm font-emphasis text-ink">
-        {label}
-        {required ? (
-          <span className="text-danger" aria-hidden>
-            {' '}
-            *
-          </span>
-        ) : null}
+      <span className="flex items-center gap-0.5">
+        <span className="text-sm font-emphasis text-ink">
+          {label}
+          {required ? (
+            <span className="text-danger" aria-hidden>
+              {' '}
+              *
+            </span>
+          ) : null}
+        </span>
+        {info ? <InfoHint label={`About ${label}`}>{info}</InfoHint> : null}
       </span>
       {children}
       {error ? (
@@ -204,15 +211,19 @@ export const SearchInput = forwardRef<
 export const TextArea = forwardRef<
   HTMLTextAreaElement,
   TextareaHTMLAttributes<HTMLTextAreaElement>
->(function TextArea({ className, ...props }, ref) {
+>(function TextArea({ className, disabled, readOnly, ...props }, ref) {
+  const locked = Boolean(disabled || readOnly);
   const hasMinH = Boolean(className && /(?:^|\s)(?:\S+:)*min-h-/.test(` ${className}`));
+  const chromeSource = [!hasMinH ? 'min-h-24' : '', className].filter(Boolean).join(' ');
   return (
     <textarea
       ref={ref}
+      disabled={disabled}
+      readOnly={readOnly}
       className={cx(
-        formControlWidthClass(className),
+        textInputChromeClass(chromeSource, { locked }),
         !hasMinH && 'min-h-24',
-        'rounded-xl border border-line bg-input px-3.5 py-2.5 text-base font-body text-ink outline-none placeholder:italic placeholder:font-body placeholder:text-muted/50 focus:border-accent',
+        'px-3.5 py-2.5',
         className,
       )}
       {...props}
@@ -393,6 +404,8 @@ export function Sheet({
   onBack,
   backTestId = 'sheet-back',
   title,
+  titleInfo,
+  titleInfoTestId,
   headerAction,
   children,
   footer,
@@ -405,6 +418,9 @@ export function Sheet({
   onBack?: () => void;
   backTestId?: string;
   title?: string;
+  /** Instructional copy on the shared circle i beside the title. */
+  titleInfo?: string;
+  titleInfoTestId?: string;
   /** Optional control before Close (e.g. ⋯). */
   headerAction?: ReactNode;
   children: ReactNode;
@@ -458,10 +474,29 @@ export function Sheet({
         )}
       >
         {full ? null : (
-          <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
+          <>
+            <button
+              type="button"
+              aria-label="Close"
+              data-testid="sheet-close"
+              onClick={onClose}
+              className={cx(
+                listSquareButtonClass,
+                'absolute right-2 top-2 z-20 text-slate',
+              )}
+            >
+              <CloseIcon width={20} height={20} />
+            </button>
+            <div className="mx-auto mb-3.5 h-1 w-[42px] shrink-0 rounded-full bg-line" />
+          </>
         )}
         {title || onBack || full ? (
-          <div className={cx('flex shrink-0 items-center gap-2', full ? 'mb-3' : 'mb-4')}>
+          <div
+            className={cx(
+              'flex shrink-0 items-center gap-2',
+              full ? 'mb-3' : headerAction ? 'mb-4 pr-24' : 'mb-4 pr-10',
+            )}
+          >
             {onBack ? (
               <button
                 type="button"
@@ -474,21 +509,33 @@ export function Sheet({
               </button>
             ) : null}
             {title ? (
-              <h3 className="min-w-0 flex-1 text-sheet-title font-title tracking-tight text-ink">
-                {title}
-              </h3>
+              <div className="flex min-w-0 flex-1 items-center gap-0.5">
+                <h3 className="min-w-0 truncate text-sheet-title font-title tracking-tight text-ink">
+                  {title}
+                </h3>
+                {titleInfo ? (
+                  <InfoHint label={`About ${title}`} testId={titleInfoTestId}>
+                    {titleInfo}
+                  </InfoHint>
+                ) : null}
+              </div>
             ) : (
               <span className="min-w-0 flex-1" />
             )}
-            {headerAction}
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={onClose}
-              className={cx(listSquareButtonClass, 'text-slate')}
-            >
-              <CloseIcon width={20} height={20} />
-            </button>
+            {full ? headerAction : null}
+            {full ? (
+              <button
+                type="button"
+                aria-label="Close"
+                data-testid="sheet-close"
+                onClick={onClose}
+                className={cx(listSquareButtonClass, 'text-slate')}
+              >
+                <CloseIcon width={20} height={20} />
+              </button>
+            ) : headerAction ? (
+              <div className="absolute right-12 top-2 z-20">{headerAction}</div>
+            ) : null}
           </div>
         ) : null}
         {full ? (

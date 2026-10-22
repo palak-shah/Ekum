@@ -45,8 +45,8 @@
   /* Count badges (nav / chips) — not alert tangerine */
   --ekum-badge: #22c55e;
 
-  /* Form fields — subtle cool fill on white page */
-  --ekum-input: #f0f2f5;
+  /* Form fields — prototype idle fill (near-white sage); focused → surface */
+  --ekum-input: #f4f7f6;
 
   /* Chat thread (theme wallpaper — not user-selectable) */
   --ekum-chat-bg: #efeae2;

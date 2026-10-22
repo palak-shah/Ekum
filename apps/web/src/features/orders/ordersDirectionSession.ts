@@ -1,36 +1,33 @@
-export type OrdersDirection = 'all' | 'buying' | 'selling';
+export type OrdersListTab = 'selling' | 'buying' | 'others';
 
-const DEFAULT_DIRECTION: OrdersDirection = 'all';
+const DEFAULT_TAB: OrdersListTab = 'selling';
 
-let sessionDirection: OrdersDirection = DEFAULT_DIRECTION;
+let sessionTab: OrdersListTab = DEFAULT_TAB;
 
 export function isOrdersAppPath(pathname: string): boolean {
   return pathname === '/orders' || pathname.startsWith('/orders/');
 }
 
-export function getOrdersDirection(): OrdersDirection {
-  return sessionDirection;
+export function getOrdersListTab(): OrdersListTab {
+  return sessionTab;
 }
 
-export function setOrdersDirection(next: OrdersDirection): void {
-  sessionDirection = next;
+export function setOrdersListTab(next: OrdersListTab): void {
+  sessionTab = next;
 }
 
-export function resetOrdersDirection(): void {
-  sessionDirection = DEFAULT_DIRECTION;
+export function resetOrdersListTab(): void {
+  sessionTab = DEFAULT_TAB;
 }
 
-/** When leaving the Orders tree, drop Buy/Sell so the next entry is All. */
+/** When leaving the Orders tree, the next entry opens on Selling. */
 export function noteOrdersPathChange(pathname: string, wasOrders: boolean): boolean {
   const isOrders = isOrdersAppPath(pathname);
-  if (wasOrders && !isOrders) resetOrdersDirection();
+  if (wasOrders && !isOrders) resetOrdersListTab();
   return isOrders;
 }
 
-export function tradeMatchesDirection(
-  itemDirection: string,
-  filter: OrdersDirection,
-): boolean {
-  if (filter === 'all') return true;
-  return itemDirection === filter;
+export function orderMatchesListTab(direction: string, tab: OrdersListTab): boolean {
+  if (tab === 'others') return false;
+  return direction === tab;
 }

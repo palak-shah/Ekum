@@ -51,11 +51,6 @@ import { YouLibraryHeaderMore } from '@/features/catalog/YouLibraryHeaderMore';
 import { ChatsHeaderNew } from '@/features/chats/ChatsHeaderNew';
 import { HomeAccountMenu } from '@/features/home/HomeAccountMenu';
 import {
-  TEST_BADGE_CLEARANCE_CLASS,
-  TestDeploymentBadge,
-} from '@/features/settings/TestDeploymentBadge';
-import { clientAppVersion, isNonProductionDeployment } from '@/lib/appVersion';
-import {
   BackIcon,
   BellIcon,
   ChatIcon,
@@ -135,8 +130,6 @@ export function AppShell() {
     { shopDockUp, pageDockUp, ownShop, pageSelecting },
   );
   const hideAppNav = !isMainMenuPath(location.pathname) || selectionUp;
-  /** Fixed TEST chip overlays the top of the phone column on every route. */
-  const testBadgeClearance = isNonProductionDeployment(clientAppVersion().deployment);
   const wasOrdersPath = useRef(false);
 
   useEffect(() => {
@@ -162,9 +155,6 @@ export function AppShell() {
         'mx-auto flex w-full max-w-md flex-col bg-canvas',
         SHELL_FRAME_CLASS,
         SHELL_X_CONTAIN_CLASS,
-        // Parent of header + main: shell titles sit outside <main>, so padding
-        // only main would leave Home / Chats / Explore / Orders under the chip.
-        testBadgeClearance && TEST_BADGE_CLEARANCE_CLASS,
       )}
       data-testid="app-shell-frame"
     >
@@ -266,8 +256,6 @@ export function AppShell() {
         onClose={() => setCreateOpen(false)}
         onPick={(href) => navigate(href)}
       />
-
-      <TestDeploymentBadge />
 
       <nav
         data-testid="app-bottom-nav"

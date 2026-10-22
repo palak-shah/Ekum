@@ -2,7 +2,48 @@ import { useEffect, useState } from 'react';
 import { Unit, unitValues } from '@ekum/domain-types';
 import { cx } from '@/lib/cx';
 import { Field, TextInput } from '@/ui/kit';
+import {
+  FIELD_FOCUS_WITHIN_FILL_CLASS,
+  FIELD_IDLE_FILL_CLASS,
+  SELECT_FIELD_CLASS,
+} from '@/ui/fieldFill';
 import { rateRangeCaption } from './rateRange';
+
+function RateAmountInput({
+  value,
+  onChange,
+  testId,
+  ariaLabel,
+  placeholder,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  testId: string;
+  ariaLabel: string;
+  placeholder?: string;
+}) {
+  return (
+    <div
+      className={`flex min-h-10 items-center gap-2 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3.5 text-sm ${FIELD_FOCUS_WITHIN_FILL_CLASS}`}
+    >
+      <span className="shrink-0 font-body text-muted" data-testid="collection-rate-prefix" aria-hidden>
+        ₹
+      </span>
+      <TextInput
+        data-testid={testId}
+        className="min-h-0 flex-1 border-0 bg-transparent px-0 text-sm tabular-nums focus:border-transparent"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        inputMode="decimal"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+      />
+    </div>
+  );
+}
 
 /**
  * Pack rate: One rate vs A range as a pill switch for the whole collection.
@@ -47,15 +88,16 @@ export function RateRangeFields({
   const rangeOpen = !fixedOnly && mode === 'range';
   const caption = rateRangeCaption(from, to);
   const danger = caption.startsWith('High rate');
-  const showCaption = Boolean(caption);
+  /** Echo ₹ under the field repeats the input — only the range error stays. */
+  const showCaption = danger;
   const unitSelect = Boolean(onRateUnit);
   const selectedUnit = (rateUnit?.trim() || Unit.Piece) as string;
   const modeAria = unitSelect ? `Rate per ${selectedUnit} mode` : `${label} mode`;
   const singleAria = unitSelect ? `Rate per ${selectedUnit}` : label;
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {unitSelect ? (
           <div className="flex w-full items-center gap-2">
             <span className="shrink-0 text-sm font-emphasis text-ink">Rate per</span>
@@ -64,7 +106,7 @@ export function RateRangeFields({
               aria-label="Rate unit"
               value={selectedUnit}
               onChange={(e) => onRateUnit?.(e.target.value)}
-              className="min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-[16px] text-ink"
+              className={`min-h-10 min-w-0 flex-1 ${SELECT_FIELD_CLASS} px-3 text-sm text-ink`}
             >
               {unitOptions.map((u) => (
                 <option key={u} value={u}>
@@ -117,45 +159,30 @@ export function RateRangeFields({
       </div>
       {rangeOpen ? (
         <div className="grid grid-cols-2 gap-2">
-          <Field label="From" className="gap-0.5">
-            <TextInput
-              data-testid="collection-rate-from"
-              className="min-h-9"
+          <Field label="From">
+            <RateAmountInput
+              testId="collection-rate-from"
               value={from}
-              onChange={(e) => onFrom(e.target.value)}
-              inputMode="decimal"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              aria-label="Rate from"
+              onChange={onFrom}
+              ariaLabel="Rate from"
             />
           </Field>
-          <Field label="To" className="gap-0.5">
-            <TextInput
-              data-testid="collection-rate-to"
-              className="min-h-9"
+          <Field label="To">
+            <RateAmountInput
+              testId="collection-rate-to"
               value={to}
-              onChange={(e) => onTo(e.target.value)}
-              inputMode="decimal"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              aria-label="Rate to"
+              onChange={onTo}
+              ariaLabel="Rate to"
             />
           </Field>
         </div>
       ) : (
-        <TextInput
-          data-testid="collection-rate-from"
-          className="min-h-9"
+        <RateAmountInput
+          testId="collection-rate-from"
           value={from}
-          onChange={(e) => onFrom(e.target.value)}
-          inputMode="decimal"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="Enter rate"
-          aria-label={singleAria}
+          onChange={onFrom}
+          placeholder="Rate"
+          ariaLabel={singleAria}
         />
       )}
       {showCaption && !fixedOnly ? (

@@ -38,7 +38,7 @@ describe('FeedDesignPhotoCarousel', () => {
     expect(onActivate).toHaveBeenCalledWith(0);
   });
 
-  it('uses touch-pan-x so the feed can swipe photos sideways', () => {
+  it('lets iPhone scroll the feed from the photo (BM-07)', () => {
     render(
       <FeedDesignPhotoCarousel
         urls={['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg']}
@@ -48,8 +48,8 @@ describe('FeedDesignPhotoCarousel', () => {
         onActivate={() => undefined}
       />,
     );
-    expect(screen.getByTestId('collection-feed-photo-carousel').className).toMatch(
-      /touch-pan-x/,
-    );
+    const strip = screen.getByTestId('collection-feed-photo-carousel').className;
+    expect(strip).toMatch(/touch-\[pan-x_pan-y\]/);
+    expect(strip).not.toMatch(/(?:^|\s)touch-pan-x(?:\s|$)/);
   });
 });

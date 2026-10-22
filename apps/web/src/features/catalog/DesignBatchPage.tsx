@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateProductDto,
+  MasterCategoryView,
   PostProductToMarketDto,
   ProductView,
 } from '@ekum/domain-types';
-import { Unit, unitValues } from '@ekum/domain-types';
+import { categoriesToTagSlots, tagSlotsToCategories } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
@@ -16,7 +17,8 @@ import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
-import { Button, Field, Sheet, TextInput, cx } from '@/ui/kit';
+import { Button, Field, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { FIELD_FOCUS_FILL_CLASS, FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 import { CameraIcon } from '@/ui/icons';
 import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
@@ -35,7 +37,11 @@ import {
 } from './PublishAudienceFields';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { catalogRateFieldLabel } from '@/lib/catalogRate';
-import { TagsField } from './TagsField';
+import { CascadeTagsFields } from './CascadeTagsFields';
+import { MasterCategoryField } from './MasterCategoryField';
+import { OrderDispatchAccordion } from './OrderDispatchAccordion';
+import { parsePiecesPerPack } from './orderDispatchPreview';
+import { defaultProfileMasterCategoryId } from './companyMasterOptions';
 import {
   createProductIdentity,
   detailsCardTitle,
@@ -75,7 +81,7 @@ function ExpandableNotes({
   }, [value, expand]);
 
   return (
-    <textarea
+    <TextArea
       ref={ref}
       value={value}
       placeholder={placeholder}
@@ -83,10 +89,7 @@ function ExpandableNotes({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       onChange={(e) => onChange(e.target.value)}
-      className={cx(
-        'w-full resize-none overflow-hidden rounded-[13px] border border-line bg-surface px-3.5 py-2.5 text-base font-body text-ink outline-none placeholder:font-body placeholder:text-muted focus:border-accent',
-        expand ? 'min-h-24' : 'min-h-10',
-      )}
+      className={cx('resize-none overflow-hidden rounded-[13px]', expand ? 'min-h-24' : 'min-h-10')}
     />
   );
 }
@@ -156,8 +159,11 @@ function parseCategories(raw: string) {
 function hasOverrides(o: DraftOverrides) {
   return (
     o.category !== undefined ||
+    o.masterCategoryId !== undefined ||
     o.rate !== undefined ||
     o.unit !== undefined ||
+    o.dispatchUnit !== undefined ||
+    o.piecesPerPack !== undefined ||
     o.moq !== undefined ||
     o.notes !== undefined
   );
@@ -204,16 +210,24 @@ export function DesignBatchPage() {
   );
 
   const [sharedCategory, setSharedCategory] = useState(memory.category);
+  const [sharedMasterCategoryId, setSharedMasterCategoryId] = useState<string | null>(null);
   const [sharedRate, setSharedRate] = useState('');
   const [sharedUnit, setSharedUnit] = useState(memory.unit);
+  const [sharedDispatchUnit, setSharedDispatchUnit] = useState('');
+  const [sharedPiecesPerPack, setSharedPiecesPerPack] = useState('');
   const [sharedMoq, setSharedMoq] = useState('');
   const [sharedNotes, setSharedNotes] = useState('');
+  const [sharedOrderDispatchOpen, setSharedOrderDispatchOpen] = useState(false);
 
   const [sheetCategory, setSheetCategory] = useState('');
+  const [sheetMasterCategoryId, setSheetMasterCategoryId] = useState<string | null>(null);
   const [sheetRate, setSheetRate] = useState('');
   const [sheetUnit, setSheetUnit] = useState('');
+  const [sheetDispatchUnit, setSheetDispatchUnit] = useState('');
+  const [sheetPiecesPerPack, setSheetPiecesPerPack] = useState('');
   const [sheetMoq, setSheetMoq] = useState('');
   const [sheetNotes, setSheetNotes] = useState('');
+  const [sheetOrderDispatchOpen, setSheetOrderDispatchOpen] = useState(false);
 
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
   const connections = useQuery({
@@ -231,7 +245,40 @@ export function DesignBatchPage() {
     queryFn: () => api.get<CompanySettingsView>('/settings'),
     enabled: publishOpen,
   });
+  const masterCategoriesQuery = useQuery({
+    queryKey: ['catalog-master-categories'],
+    queryFn: () => api.get<MasterCategoryView[]>('/catalog/master-categories'),
+    staleTime: 60_000,
+  });
+  const catalogMasterOptions = masterCategoriesQuery.data ?? [];
+  const profileMasterDefaultId = useMemo(
+    () =>
+      defaultProfileMasterCategoryId(
+        masterCategoriesQuery.data,
+        company.data?.masterCategories,
+        company.data?.superCategories,
+      ),
+    [
+      masterCategoriesQuery.data,
+      company.data?.masterCategories,
+      company.data?.superCategories,
+    ],
+  );
+  const sharedSlots = useMemo(
+    () => categoriesToTagSlots(parseCategories(sharedCategory)),
+    [sharedCategory],
+  );
+  const sheetSlots = useMemo(
+    () => categoriesToTagSlots(parseCategories(sheetCategory)),
+    [sheetCategory],
+  );
   const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
+
+  useEffect(() => {
+    if (sharedMasterCategoryId) return;
+    if (!profileMasterDefaultId) return;
+    setSharedMasterCategoryId(profileMasterDefaultId);
+  }, [profileMasterDefaultId, sharedMasterCategoryId]);
 
   useEffect(() => {
     if (!publishOpen || !settings.data) return;
@@ -316,10 +363,14 @@ export function DesignBatchPage() {
 
   const openUpdateSheet = (draft: Draft) => {
     setSheetCategory(draft.overrides.category ?? sharedCategory);
+    setSheetMasterCategoryId(draft.overrides.masterCategoryId ?? sharedMasterCategoryId);
     setSheetRate(draft.overrides.rate ?? sharedRate);
     setSheetUnit(draft.overrides.unit ?? sharedUnit);
+    setSheetDispatchUnit(draft.overrides.dispatchUnit ?? sharedDispatchUnit);
+    setSheetPiecesPerPack(draft.overrides.piecesPerPack ?? sharedPiecesPerPack);
     setSheetMoq(draft.overrides.moq ?? sharedMoq);
     setSheetNotes(draft.overrides.notes ?? sharedNotes);
+    setSheetOrderDispatchOpen(false);
     setEditDraftId(draft.id);
   };
 
@@ -530,33 +581,27 @@ export function DesignBatchPage() {
     const next = overridesFromSheet(
       {
         category: sheetCategory,
+        masterCategoryId: sheetMasterCategoryId,
         rate: sheetRate,
         unit: sheetUnit,
+        dispatchUnit: sheetDispatchUnit,
+        piecesPerPack: sheetPiecesPerPack,
         moq: sheetMoq,
         notes: sheetNotes,
       },
       {
         category: sharedCategory,
+        masterCategoryId: sharedMasterCategoryId,
         rate: sharedRate,
         unit: sharedUnit,
+        dispatchUnit: sharedDispatchUnit,
+        piecesPerPack: sharedPiecesPerPack,
         moq: sharedMoq,
         notes: sharedNotes,
       },
     );
     setDrafts((prev) =>
       prev.map((d) => (d.id === editDraftId ? { ...d, overrides: next } : d)),
-    );
-  };
-
-  const clearSheetOverrides = () => {
-    if (!editDraftId) return;
-    setSheetCategory(sharedCategory);
-    setSheetRate(sharedRate);
-    setSheetUnit(sharedUnit);
-    setSheetMoq(sharedMoq);
-    setSheetNotes(sharedNotes);
-    setDrafts((prev) =>
-      prev.map((d) => (d.id === editDraftId ? { ...d, overrides: {} } : d)),
     );
   };
 
@@ -577,8 +622,11 @@ export function DesignBatchPage() {
 
   const effectiveFor = (d: Draft) => ({
     category: d.overrides.category ?? sharedCategory,
+    masterCategoryId: d.overrides.masterCategoryId ?? sharedMasterCategoryId,
     rate: d.overrides.rate ?? sharedRate,
     unit: d.overrides.unit ?? sharedUnit,
+    dispatchUnit: d.overrides.dispatchUnit ?? sharedDispatchUnit,
+    piecesPerPack: d.overrides.piecesPerPack ?? sharedPiecesPerPack,
     moq: d.overrides.moq ?? sharedMoq,
     notes: d.overrides.notes ?? sharedNotes,
   });
@@ -635,7 +683,10 @@ export function DesignBatchPage() {
               moq: e.moq.trim() ? Number(e.moq) : null,
               description: e.notes.trim() || undefined,
               unit: (e.unit || undefined) as CreateProductDto['unit'],
+              dispatchUnit: (e.dispatchUnit || undefined) as CreateProductDto['dispatchUnit'],
+              piecesPerPack: parsePiecesPerPack(e.piecesPerPack),
               categories: parseCategories(e.category),
+              masterCategoryId: e.masterCategoryId,
               images,
             };
             try {
@@ -730,21 +781,6 @@ export function DesignBatchPage() {
     maxDesigns: MAX_DESIGNS,
     maxPhotosPerDesign: null,
   });
-
-  const unitSelect = (value: string, onChange: (v: string) => void) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="min-h-11 w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base text-ink focus:border-accent"
-    >
-      <option value="">—</option>
-      {unitValues.map((unit) => (
-        <option key={unit} value={unit}>
-          {unit === Unit.Metre ? 'metre' : unit}
-        </option>
-      ))}
-    </select>
-  );
 
   const sectionTitle = (title: string) => (
     <p className="mb-2 text-base font-emphasis text-ink">{title}</p>
@@ -903,7 +939,7 @@ export function DesignBatchPage() {
                       placeholder="SKU"
                       disabled={busy}
                       aria-label="SKU"
-                      className="min-h-9 w-full rounded-lg border border-line bg-surface px-1.5 text-center text-xs font-emphasis text-ink outline-none focus:border-accent disabled:opacity-50"
+                      className={`min-h-9 w-full rounded-lg border border-line ${FIELD_IDLE_FILL_CLASS} px-1.5 text-center text-xs font-emphasis text-ink outline-none ${FIELD_FOCUS_FILL_CLASS} focus:border-line disabled:opacity-50`}
                     />
                   </div>
                 );
@@ -917,31 +953,47 @@ export function DesignBatchPage() {
           <section className="rounded-2xl border border-line bg-surface p-4">
             {sectionTitle(detailsCardTitle(drafts.length))}
             <div className="flex flex-col gap-3">
-              <TagsField
-                label="Tags"
-                value={parseCategories(sharedCategory)}
-                onChange={(tags) => setSharedCategory(tags.join(', '))}
+              <MasterCategoryField
+                value={sharedMasterCategoryId}
+                onChange={(next) => setSharedMasterCategoryId(next || null)}
+                options={catalogMasterOptions}
               />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={catalogRateFieldLabel(sharedUnit)}>
-                  <TextInput
-                    value={sharedRate}
-                    onChange={(e) => setSharedRate(e.target.value)}
-                    {...rateFieldInputProps}
-                  />
-                </Field>
-                <Field label="Unit">{unitSelect(sharedUnit, setSharedUnit)}</Field>
-              </div>
-              <Field label="Minimum order">
+              <CascadeTagsFields
+                items={sharedSlots.items}
+                qualities={sharedSlots.qualities}
+                sizes={sharedSlots.sizes}
+                masterCategoryId={sharedMasterCategoryId}
+                onItems={(items) =>
+                  setSharedCategory(tagSlotsToCategories({ ...sharedSlots, items }).join(', '))
+                }
+                onQualities={(qualities) =>
+                  setSharedCategory(
+                    tagSlotsToCategories({ ...sharedSlots, qualities }).join(', '),
+                  )
+                }
+                onSizes={(sizes) =>
+                  setSharedCategory(tagSlotsToCategories({ ...sharedSlots, sizes }).join(', '))
+                }
+              />
+              <Field label={catalogRateFieldLabel(sharedUnit)}>
                 <TextInput
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  value={sharedMoq}
-                  onChange={(e) => setSharedMoq(e.target.value)}
-                  placeholder="100 pieces"
+                  value={sharedRate}
+                  onChange={(e) => setSharedRate(e.target.value)}
+                  {...rateFieldInputProps}
                 />
               </Field>
+              <OrderDispatchAccordion
+                orderUnit={sharedUnit}
+                piecesPerPack={sharedPiecesPerPack}
+                dispatchUnit={sharedDispatchUnit}
+                moq={sharedMoq}
+                onOrderUnit={setSharedUnit}
+                onPiecesPerPack={setSharedPiecesPerPack}
+                onDispatchUnit={setSharedDispatchUnit}
+                onMoq={setSharedMoq}
+                open={sharedOrderDispatchOpen}
+                onToggle={() => setSharedOrderDispatchOpen((open) => !open)}
+              />
               <Field label="Notes">
                 <ExpandableNotes
                   value={sharedNotes}
@@ -1074,11 +1126,6 @@ export function DesignBatchPage() {
               >
                 Done
               </Button>
-              {drafts.length > 1 ? (
-                <Button variant="ghost" fullWidth onClick={clearSheetOverrides}>
-                  Use same as all designs
-                </Button>
-              ) : null}
               <Button variant="ghost" fullWidth onClick={() => removeDraft(editDraft.id)}>
                 Remove design
               </Button>
@@ -1138,31 +1185,47 @@ export function DesignBatchPage() {
             </div>
 
             <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
-              <TagsField
-                label="Tags"
-                value={parseCategories(sheetCategory)}
-                onChange={(tags) => setSheetCategory(tags.join(', '))}
+              <MasterCategoryField
+                value={sheetMasterCategoryId}
+                onChange={(next) => setSheetMasterCategoryId(next || null)}
+                options={catalogMasterOptions}
               />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={catalogRateFieldLabel(sheetUnit)}>
-                  <TextInput
-                    value={sheetRate}
-                    onChange={(e) => setSheetRate(e.target.value)}
-                    {...rateFieldInputProps}
-                  />
-                </Field>
-                <Field label="Unit">{unitSelect(sheetUnit, setSheetUnit)}</Field>
-              </div>
-              <Field label="Minimum order">
+              <CascadeTagsFields
+                items={sheetSlots.items}
+                qualities={sheetSlots.qualities}
+                sizes={sheetSlots.sizes}
+                masterCategoryId={sheetMasterCategoryId}
+                onItems={(items) =>
+                  setSheetCategory(tagSlotsToCategories({ ...sheetSlots, items }).join(', '))
+                }
+                onQualities={(qualities) =>
+                  setSheetCategory(
+                    tagSlotsToCategories({ ...sheetSlots, qualities }).join(', '),
+                  )
+                }
+                onSizes={(sizes) =>
+                  setSheetCategory(tagSlotsToCategories({ ...sheetSlots, sizes }).join(', '))
+                }
+              />
+              <Field label={catalogRateFieldLabel(sheetUnit)}>
                 <TextInput
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  value={sheetMoq}
-                  onChange={(e) => setSheetMoq(e.target.value)}
-                  placeholder="100 pieces"
+                  value={sheetRate}
+                  onChange={(e) => setSheetRate(e.target.value)}
+                  {...rateFieldInputProps}
                 />
               </Field>
+              <OrderDispatchAccordion
+                orderUnit={sheetUnit}
+                piecesPerPack={sheetPiecesPerPack}
+                dispatchUnit={sheetDispatchUnit}
+                moq={sheetMoq}
+                onOrderUnit={setSheetUnit}
+                onPiecesPerPack={setSheetPiecesPerPack}
+                onDispatchUnit={setSheetDispatchUnit}
+                onMoq={setSheetMoq}
+                open={sheetOrderDispatchOpen}
+                onToggle={() => setSheetOrderDispatchOpen((open) => !open)}
+              />
               <Field label="Notes">
                 <ExpandableNotes
                   value={sheetNotes}

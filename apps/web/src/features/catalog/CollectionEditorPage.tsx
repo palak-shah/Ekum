@@ -28,7 +28,7 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { resolveCompanyMasterOptions } from './companyMasterOptions';
+import { defaultProfileMasterCategoryId } from './companyMasterOptions';
 import {
   readCollectionApplyToAll,
   writeCollectionApplyToAll,
@@ -38,12 +38,14 @@ import { acquireMediaStream } from '@/lib/mediaSession';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
+import { LibraryPickTile } from './LibraryPickTile';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import {
   Button,
   Field,
+  InfoHint,
   LoadingBlock,
   Sheet,
   TextArea,
@@ -65,7 +67,12 @@ import {
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { COLLECTION_QUICK_PHOTO_CAP, collectionCameraMaxShots, collectionNameClash } from './collectionCreateHelpers';
+import {
+  COLLECTION_QUICK_PHOTO_CAP,
+  collectionCameraMaxShots,
+  collectionNameClash,
+  isCollectionCategoryError,
+} from './collectionCreateHelpers';
 import {
   createProductIdentity,
   nameForNewDesign,
@@ -75,15 +82,16 @@ import {
   collectSameForAllDiffIds,
   emptySameForAll,
   preferredPackUnit,
-  forceSameForAllToForm,
   productFieldsFromMember,
-  sameForAllIsEmpty,
+  packMemberProductPatch,
   sameForAllSummary,
   sortDiffFirst,
   designFollowsPackRate,
   stampCreatePhotoMemberForm,
   unanimousMemberRate,
-  unionTags,
+  packTagPatchesForOwnDesigns,
+  packTagsForMember,
+  packTagsPatch,
   type MemberDesignForm,
   type RateConflict,
   type SameForAllDetails,
@@ -95,13 +103,15 @@ import {
   catalogRateFieldLabel,
   isPackOrderUnit,
 } from '@/lib/catalogRate';
+import { GrowingDescriptionField } from './GrowingDescriptionField';
 import { RateRangeFields } from './RateRangeFields';
 import { CascadeTagsFields } from './CascadeTagsFields';
-import { OrderDispatchFields } from './OrderDispatchFields';
-import { orderDispatchSectionSummary } from './orderDispatchPreview';
+import { MasterCategoryField } from './MasterCategoryField';
+import { OrderDispatchAccordion } from './OrderDispatchAccordion';
 import { collectionEditShowsMemberGrid } from './collectionEditDetailsOnly';
 import { collectionGalleryInputProps } from './collectionGalleryInput';
 import { AddDesignsControl } from './AddDesignsControl';
+import { CreateAlbumChangeStrip } from './CreateAlbumChangeStrip';
 import {
   CAMERA_APPEND_SOFT_MAX,
   morePhotosEntry,
@@ -281,15 +291,25 @@ export function CollectionEditorPage() {
   const [pendingPublish, setPendingPublish] = useState(false);
   const [whoExpanded, setWhoExpanded] = useState(false);
   const [orderDispatchExpanded, setOrderDispatchExpanded] = useState(false);
+  const [memberOrderDispatchOpen, setMemberOrderDispatchOpen] = useState(false);
   const [defaultsPrefillDone, setDefaultsPrefillDone] = useState(false);
   const cameraAppendRef = useRef<CameraAppendTarget | null>(null);
   const [cameraAppend, setCameraAppend] = useState<CameraAppendTarget | null>(null);
   const resumeMemberSheetRef = useRef<MemberSheetState | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedSnapshotRef = useRef<string | null>(null);
+  /** Identity from GET once per collection — refetch must not wipe a typed name. */
+  const identityHydratedId = useRef<string | null>(null);
+
+  useEffect(() => {
+    identityHydratedId.current = null;
+    rateFieldsHydrated.current = false;
+    sellAsHydrated.current = false;
+  }, [id]);
   /** Create mode: photos and/or library designs; Publish/Share after create. */
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
   const [libraryPicks, setLibraryPicks] = useState<Set<string>>(new Set());
+  const [createMembersExpanded, setCreateMembersExpanded] = useState(false);
   /** Members present when Add designs opened — hide them for the session (not Replace). */
   const [libraryExcludeIds, setLibraryExcludeIds] = useState<Set<string>>(() => new Set());
 
@@ -320,9 +340,10 @@ export function CollectionEditorPage() {
     queryFn: () => api.get<MasterCategoryView[]>('/catalog/master-categories'),
     staleTime: 60_000,
   });
-  const companyMasterOptions = useMemo(
+  const catalogMasterOptions = masterCategoriesQuery.data ?? [];
+  const profileMasterDefaultId = useMemo(
     () =>
-      resolveCompanyMasterOptions(
+      defaultProfileMasterCategoryId(
         masterCategoriesQuery.data,
         company.data?.masterCategories,
         company.data?.superCategories,
@@ -336,10 +357,10 @@ export function CollectionEditorPage() {
 
   useEffect(() => {
     if (form.masterCategoryId) return;
-    if (companyMasterOptions.length === 1) {
-      setForm((prev) => ({ ...prev, masterCategoryId: companyMasterOptions[0].id }));
+    if (profileMasterDefaultId) {
+      setForm((prev) => ({ ...prev, masterCategoryId: profileMasterDefaultId }));
     }
-  }, [companyMasterOptions, form.masterCategoryId]);
+  }, [profileMasterDefaultId, form.masterCategoryId]);
 
   const masterTaxonomy = useQuery({
     queryKey: ['catalog-master-taxonomy', form.masterCategoryId],
@@ -456,10 +477,9 @@ export function CollectionEditorPage() {
           piecesPerPack: photo.piecesPerPack,
           moq: photo.moq,
           notes: photo.notes,
-          categories:
-            photo.tagsDirty || photo.categories.length > 0
-              ? photo.categories
-              : [...form.categories],
+          categories: photo.tagsDirty
+            ? photo.categories
+            : packTagsForMember(photo.categories, form.categories),
         },
       })),
       ...memberDiffSources.map((product) => ({
@@ -493,6 +513,14 @@ export function CollectionEditorPage() {
     [company.data?.id, ceilingMembers],
   );
   const createMemberCount = readyCreatePhotos.length + createLibraryDesigns.length;
+  const hasCreateMembers =
+    pendingPhotos.length > 0 ||
+    createLibraryDesigns.length > 0 ||
+    (editing && selectedProducts.length > 0);
+
+  useEffect(() => {
+    if (!hasCreateMembers) setCreateMembersExpanded(false);
+  }, [hasCreateMembers]);
   const createCoverUrl =
     readyCreatePhotos[0]?.images[0]?.imageUrl ??
     createLibraryDesigns[0]?.images[0] ??
@@ -501,6 +529,10 @@ export function CollectionEditorPage() {
   useEffect(() => {
     if (existing.data) {
       const loadedCategories = existing.data.categories ?? [];
+      const firstLoad = identityHydratedId.current !== existing.data.id;
+      identityHydratedId.current = existing.data.id;
+      setSelected(new Set(existing.data.products.map((product) => product.id)));
+      if (!firstLoad) return;
       setForm({
         name: existing.data.name,
         description: existing.data.description ?? '',
@@ -509,7 +541,6 @@ export function CollectionEditorPage() {
         masterCategoryId: existing.data.masterCategoryId ?? null,
       });
       setTagSlotsState(categoriesToTagSlots(loadedCategories));
-      setSelected(new Set(existing.data.products.map((product) => product.id)));
       // Pack rate lives on the collection; fall back to unanimous members for older packs.
       const loadedRate =
         existing.data.rate != null
@@ -683,12 +714,30 @@ export function CollectionEditorPage() {
     void queryClient.invalidateQueries({ queryKey: ['explore'] });
   };
 
-  const persistDesigns = async (productIds: string[], collectionId = id) => {
+  const persistDesigns = async (
+    productIds: string[],
+    collectionId = id,
+    opts?: { skipInvalidate?: boolean },
+  ) => {
     if (!collectionId) return false;
     setSavingDesigns(true);
     try {
       await api.put(`/collections/${collectionId}/products`, { productIds });
-      invalidate(collectionId);
+      const byId = new Map<string, ProductView>();
+      for (const product of selectableDesigns) byId.set(product.id, product);
+      for (const product of existing.data?.products ?? []) byId.set(product.id, product);
+      for (const product of selectedProducts) byId.set(product.id, product);
+      const listed = productIds
+        .map((productId) => byId.get(productId))
+        .filter((product): product is ProductView => Boolean(product));
+      for (const row of packTagPatchesForOwnDesigns(
+        listed,
+        form.categories,
+        company.data?.id,
+      )) {
+        await api.patch(`/products/${row.id}`, { categories: row.categories });
+      }
+      if (!opts?.skipInvalidate) invalidate(collectionId);
       return true;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not update designs.';
@@ -725,15 +774,26 @@ export function CollectionEditorPage() {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
       }
+      const packRate = combineRateInput(rateFrom, rateTo).trim();
+      const packParsed = parseRateInput(packRate);
+      const dto: CreateCollectionDto = {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        coverImage: form.coverImage.trim() || undefined,
+        categories: form.categories,
+        masterCategoryId: form.masterCategoryId,
+        rate: packParsed.rate,
+        rateMax: packParsed.rateMax,
+      };
+      await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
       const unpublishedOwn = selectedProducts.filter(
         (product) =>
           product.status === ProductStatus.Draft && product.companyId === company.data?.id,
       ).length;
-      const saved = await persistDesigns([...selected]);
+      const saved = await persistDesigns([...selected], id, { skipInvalidate: true });
       if (!saved) {
         return { unpublishedOwn: 0, designsFailed: true as const };
       }
-      const packRate = combineRateInput(rateFrom, rateTo).trim();
       const previousPackRate = formatRateInput(
         existing.data?.rate ?? null,
         existing.data?.rateMax ?? null,
@@ -752,43 +812,30 @@ export function CollectionEditorPage() {
             notes: packShared.notes,
             categories: [],
           });
-          const patch: Record<string, unknown> = {};
-          // Empty or still on the old pack rate → follow the new pack rate.
-          if (
-            packRate &&
-            designFollowsPackRate(
+          const patch = packMemberProductPatch({
+            parsed,
+            followsPackRate: designFollowsPackRate(
               { rate: product.rate, rateMax: product.rateMax },
               previousPackRate,
-            )
-          ) {
-            patch.rate = parsed.rate;
-            patch.rateMax = parsed.rateMax;
-          }
-          if (applyToAll) {
-            if (parsed.unit) patch.unit = parsed.unit;
-            if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
-            if (parsed.piecesPerPack != null) patch.piecesPerPack = parsed.piecesPerPack;
-            if (parsed.moq != null) patch.moq = parsed.moq;
-          }
+            ),
+            packRate,
+            applyToAll,
+          });
           if (Object.keys(patch).length === 0) continue;
           await api.patch(`/products/${product.id}`, patch);
         }
       }
-      const packParsed = parseRateInput(packRate);
-      const dto: CreateCollectionDto = {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        coverImage: form.coverImage.trim() || undefined,
-        categories: form.categories,
-        masterCategoryId: form.masterCategoryId,
-        rate: packParsed.rate,
-        rateMax: packParsed.rateMax,
-      };
-      await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
       return { unpublishedOwn, designsFailed: false as const };
     },
     onSuccess: ({ unpublishedOwn, designsFailed }) => {
       if (designsFailed) return;
+      savedSnapshotRef.current = JSON.stringify({
+        name: form.name,
+        description: form.description,
+        coverImage: form.coverImage,
+        categories: form.categories,
+        productIds: [...selected].sort(),
+      });
       invalidate();
       showToast(unpublishedOwn > 0 ? 'Published' : 'Updated');
     },
@@ -1205,6 +1252,7 @@ export function CollectionEditorPage() {
         const imageUrl = await uploadImage(file);
         const identity = createProductIdentity(uniqueDraftSku(takenSkus));
         takenSkus.push(identity.sku);
+        const categories = packTagsForMember([], form.categories);
         const parsed = productFieldsFromMember({
           name: identity.name,
           rate: shared.rate,
@@ -1213,13 +1261,13 @@ export function CollectionEditorPage() {
           piecesPerPack: shared.piecesPerPack,
           moq: shared.moq,
           notes: shared.notes,
-          categories: [],
+          categories,
         });
         const dto: CreateProductDto = {
           name: identity.name,
           sku: identity.sku,
           images: [imageUrl],
-          categories: [],
+          categories,
           description: parsed.description,
           rate: parsed.rate ?? undefined,
           rateMax: parsed.rateMax ?? undefined,
@@ -1274,7 +1322,7 @@ export function CollectionEditorPage() {
         setError('Enter a collection name.');
         return;
       }
-      if (companyMasterOptions.length > 1 && !form.masterCategoryId) {
+      if (!form.masterCategoryId && catalogMasterOptions.length > 0) {
         setError('Pick a category.');
         return;
       }
@@ -1353,7 +1401,7 @@ export function CollectionEditorPage() {
       }
       const createdIds: string[] = [];
       for (const photo of readyCreatePhotos) {
-        const categories = unionTags(photo.categories, form.categories);
+        const categories = packTagsForMember(photo.categories, form.categories);
         const displayName = nameForNewDesign(photo.name, photo.sku);
         const stamped = stampCreatePhotoMemberForm(
           {
@@ -1385,17 +1433,14 @@ export function CollectionEditorPage() {
         } satisfies CreateProductDto);
         createdIds.push(product.id);
       }
-      // Pack Rate fills designs with no rate; design’s own rate wins. Apply stamps units/MOQ.
+      // Pack Rate fills designs with no rate; design’s own rate wins. Followers
+      // also get Rate per units. Apply stamps pack size / MOQ.
       for (const productId of libraryPicks) {
         const product = selectableDesigns.find((p) => p.id === productId);
         if (!product) continue;
         const patch: Record<string, unknown> = {};
-        if (applyToAll || form.categories.length > 0) {
-          const nextTags = unionTags(product.categories ?? [], form.categories);
-          if (nextTags.length !== (product.categories ?? []).length) {
-            patch.categories = nextTags;
-          }
-        }
+        const nextTags = packTagsPatch(product.categories, form.categories);
+        if (nextTags) patch.categories = nextTags;
         const parsed = productFieldsFromMember({
           name: product.name,
           rate: packShared.rate,
@@ -1406,23 +1451,19 @@ export function CollectionEditorPage() {
           notes: packShared.notes,
           categories: [],
         });
-        if (
-          packRate &&
-          designFollowsPackRate(
-            { rate: product.rate, rateMax: product.rateMax },
-            '',
-          ) &&
-          !opts.keepRateIds.has(productId)
-        ) {
-          patch.rate = parsed.rate;
-          patch.rateMax = parsed.rateMax;
-        }
-        if (applyToAll) {
-          if (parsed.unit) patch.unit = parsed.unit;
-          if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
-          if (parsed.piecesPerPack != null) patch.piecesPerPack = parsed.piecesPerPack;
-          if (parsed.moq != null) patch.moq = parsed.moq;
-        }
+        Object.assign(
+          patch,
+          packMemberProductPatch({
+            parsed,
+            followsPackRate:
+              designFollowsPackRate(
+                { rate: product.rate, rateMax: product.rateMax },
+                '',
+              ) && !opts.keepRateIds.has(productId),
+            packRate,
+            applyToAll,
+          }),
+        );
         if (Object.keys(patch).length === 0) continue;
         await api.patch(`/products/${productId}`, patch);
       }
@@ -1463,15 +1504,16 @@ export function CollectionEditorPage() {
             ? 'Published'
             : 'Collection saved',
       );
+      const stayOnEditor = appended || !opts.publish;
       navigate(
-        appended ? `/catalog/collections/${collectionId}` : '/catalog?tab=collections',
-        appended
+        stayOnEditor ? `/catalog/collections/${collectionId}` : '/catalog?tab=collections',
+        stayOnEditor
           ? { replace: true }
           : {
               replace: true,
               state: {
-                collectionFilter: opts.publish ? 'published' : 'draft',
-                productFilter: opts.publish ? 'published' : 'draft',
+                collectionFilter: 'published',
+                productFilter: 'published',
               },
             },
       );
@@ -1684,6 +1726,7 @@ export function CollectionEditorPage() {
   const discard = useDiscardGuard(collectionDirty, leaveBypassRef);
 
   const openMemberDesignSheet = (product: ProductView) => {
+    const categories = packTagsForMember(product.categories, form.categories);
     setMemberForm({
       name: product.name,
       rate: formatRateInput(product.rate, product.rateMax ?? null),
@@ -1696,22 +1739,22 @@ export function CollectionEditorPage() {
         product.piecesPerPack != null ? String(product.piecesPerPack) : '',
       moq: product.moq != null ? String(product.moq) : '',
       notes: product.description ?? '',
-      categories: product.categories ?? [],
+      categories,
     });
-    setMemberTagSlots(categoriesToTagSlots(product.categories ?? []));
+    setMemberTagSlots(categoriesToTagSlots(categories));
     setMemberPhotos(
       product.images.map((url) => ({ id: crypto.randomUUID(), url })),
     );
+    setMemberOrderDispatchOpen(false);
     setMemberSheet({ kind: 'product', productId: product.id });
   };
 
   const openPendingDesignSheet = (localId: string) => {
     const photo = pendingPhotos.find((p) => p.localId === localId);
     if (!photo) return;
-    const pendingCats =
-      photo.tagsDirty || photo.categories.length > 0
-        ? photo.categories
-        : [...form.categories];
+    const pendingCats = photo.tagsDirty
+      ? photo.categories
+      : packTagsForMember(photo.categories, form.categories);
     setMemberForm({
       name: nameForNewDesign(photo.name, photo.sku),
       rate: photo.rate,
@@ -1734,6 +1777,7 @@ export function CollectionEditorPage() {
           url: img.imageUrl ?? img.previewUrl,
         })),
     );
+    setMemberOrderDispatchOpen(false);
     setMemberSheet({ kind: 'pending', localId });
   };
 
@@ -1814,17 +1858,6 @@ export function CollectionEditorPage() {
     }
   };
 
-  const useSameAsAllOnMember = () => {
-    if (!memberSheet) return;
-    const next = forceSameForAllToForm(memberForm, { ...sameForAll, categories: [] });
-    const categories = unionTags(memberForm.categories, form.categories);
-    setMemberForm({
-      ...next,
-      categories,
-    });
-    setMemberTagSlots(categoriesToTagSlots(categories));
-  };
-
   const sameForAllLine = sameForAllSummary(sameForAll);
   const whoSummary = (() => {
     const who =
@@ -1849,7 +1882,7 @@ export function CollectionEditorPage() {
         kind: 'photo' as const,
         photo,
       })),
-      ...createLibraryDesigns.map((product) => ({
+      ...(editing ? selectedProducts : createLibraryDesigns).map((product) => ({
         id: product.id,
         kind: 'library' as const,
         product,
@@ -1874,6 +1907,7 @@ export function CollectionEditorPage() {
   };
 
   const onMasterCategoryChange = (nextId: string) => {
+    if (isCollectionCategoryError(error)) setError(null);
     if (nextId === form.masterCategoryId) return;
     const oldId = form.masterCategoryId;
     const hasTags =
@@ -1965,11 +1999,14 @@ export function CollectionEditorPage() {
   );
 
   const identityFields = (
-    <div className="flex flex-col gap-1.5">
-      <Field label="Collection name" required error={error} className="gap-0.5">
+    <div className="flex flex-col gap-3">
+      <Field
+        label="Collection name"
+        required
+        error={isCollectionCategoryError(error) ? null : error}
+      >
         <TextInput
           aria-label="Collection name"
-          className="min-h-9"
           value={form.name}
           onChange={(e) => {
             setError(null);
@@ -1978,140 +2015,129 @@ export function CollectionEditorPage() {
           autoComplete="off"
         />
       </Field>
-      {companyMasterOptions.length > 1 ? (
-        <Field label="Category" required className="gap-0.5">
-          <select
-            data-testid="collection-master-category"
-            aria-label="Master category"
-            className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-[16px] text-ink"
-            value={form.masterCategoryId ?? ''}
-            onChange={(e) => onMasterCategoryChange(e.target.value)}
-          >
-            <option value="">Pick category…</option>
-            {companyMasterOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      ) : null}
-      <RateRangeFields
-        from={rateFrom}
-        to={rateTo}
-        rateUnit={
-          catalogRateDisplayUnit({
-            unit: sameForAll.unit || Unit.Set,
-            dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
-          }) ?? Unit.Piece
-        }
-        permittedUnits={permittedUnits}
-        onRateUnit={(next) => {
-          setSameForAll((prev) => {
-            const orderUnit = prev.unit || Unit.Set;
-            if (isPackOrderUnit(orderUnit)) {
-              // Rate per pc (or same as order) → journey stays on the pack unit.
-              // Never write pc onto dispatch — that was the legacy encoding that
-              // made Dispatch flip back to pc. Other rate units may sit on dispatch.
-              if (next === Unit.Piece || next === orderUnit) {
-                return { ...prev, dispatchUnit: orderUnit };
-              }
-              return { ...prev, dispatchUnit: next };
-            }
-            return { ...prev, unit: next };
-          });
-        }}
-        onFrom={(next) => {
-          setRateFrom(next);
-          setSameForAll((prev) => ({ ...prev, rate: combineRateInput(next, rateTo) }));
-        }}
-        onTo={(next) => {
-          setRateTo(next);
-          setSameForAll((prev) => ({ ...prev, rate: combineRateInput(rateFrom, next) }));
-        }}
-      />
-      <Field label="Description" className="gap-0.5">
-        <TextArea
-          className="min-h-16 py-2"
+      <Field label="Description">
+        <GrowingDescriptionField
           value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          onChange={(description) => setForm({ ...form, description })}
         />
       </Field>
-      <CascadeTagsFields
-        items={tagSlots.items}
-        qualities={tagSlots.qualities}
-        sizes={tagSlots.sizes}
-        masterCategoryId={form.masterCategoryId}
-        onItems={(items) => setTagSlots({ ...tagSlots, items })}
-        onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
-        onSizes={(sizes) => setTagSlots({ ...tagSlots, sizes })}
-      />
+      <div className="flex flex-col gap-2" data-testid="collection-product-details">
+        <p className="text-xs font-body uppercase tracking-wide text-muted">Product details</p>
+        <MasterCategoryField
+          required
+          value={form.masterCategoryId}
+          onChange={onMasterCategoryChange}
+          options={catalogMasterOptions}
+          error={isCollectionCategoryError(error) ? error : null}
+        />
+        <CascadeTagsFields
+          items={tagSlots.items}
+          qualities={tagSlots.qualities}
+          sizes={tagSlots.sizes}
+          masterCategoryId={form.masterCategoryId}
+          onItems={(items) => setTagSlots({ ...tagSlots, items })}
+          onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
+          onSizes={(sizes) => setTagSlots({ ...tagSlots, sizes })}
+        />
+        <RateRangeFields
+          from={rateFrom}
+          to={rateTo}
+          rateUnit={
+            catalogRateDisplayUnit({
+              unit: sameForAll.unit || Unit.Set,
+              dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
+            }) ?? Unit.Piece
+          }
+          permittedUnits={permittedUnits}
+          onRateUnit={(next) => {
+            setSameForAll((prev) => {
+              const orderUnit = prev.unit || Unit.Set;
+              if (isPackOrderUnit(orderUnit)) {
+                // Rate per pc (or same as order) → journey stays on the pack unit.
+                // Never write pc onto dispatch — that was the legacy encoding that
+                // made Dispatch flip back to pc. Other rate units may sit on dispatch.
+                if (next === Unit.Piece || next === orderUnit) {
+                  return { ...prev, dispatchUnit: orderUnit };
+                }
+                return { ...prev, dispatchUnit: next };
+              }
+              return { ...prev, unit: next };
+            });
+          }}
+          onFrom={(next) => {
+            setRateFrom(next);
+            setSameForAll((prev) => ({ ...prev, rate: combineRateInput(next, rateTo) }));
+          }}
+          onTo={(next) => {
+            setRateTo(next);
+            setSameForAll((prev) => ({ ...prev, rate: combineRateInput(rateFrom, next) }));
+          }}
+        />
+      </div>
       {isCreate ? whoExpandable : null}
       <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={applyToAll}
-          data-testid="collection-apply-all"
+        <div
           className={cx(
-            'flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm',
-            applyToAll
-              ? 'border-accent bg-accent/5 font-emphasis text-ink'
-              : 'border-line text-ink',
+            'flex w-full items-center gap-1 rounded-xl border px-3 py-3',
+            applyToAll ? 'border-accent bg-accent/5' : 'border-line',
           )}
-          onClick={() => setApplyToAllRemembered(!applyToAll)}
         >
-          <span
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={applyToAll}
+            data-testid="collection-apply-all"
             className={cx(
-              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
-              applyToAll ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+              'flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left text-sm',
+              applyToAll ? 'font-emphasis text-ink' : 'text-ink',
             )}
-            aria-hidden
+            onClick={() => setApplyToAllRemembered(!applyToAll)}
           >
-            {applyToAll ? <CheckIcon width={14} height={14} strokeWidth={2.5} /> : null}
-          </span>
-          <span>Apply this info to all designs</span>
-        </button>
-        <p className="px-0.5 text-xs text-muted">
-          Units and MOQ — not rates. Designs keep their own rate.
-        </p>
+            <span
+              className={cx(
+                'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
+                applyToAll ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+              )}
+              aria-hidden
+            >
+              {applyToAll ? <CheckIcon width={14} height={14} strokeWidth={2.5} /> : null}
+            </span>
+            <span>Apply this info to all designs</span>
+          </button>
+          <InfoHint
+            label="About applying to all designs"
+            testId="collection-apply-all-info"
+          >
+            Fills empty rates. Won’t replace a design that already has a rate.
+            Tags add on. Units and MOQ stamp when this is on.
+          </InfoHint>
+        </div>
       </div>
-      <CollectionExpandableSection
-        title="Order and dispatch"
-        summary={orderDispatchSectionSummary({
-          orderUnit: sameForAll.unit || Unit.Set,
-          piecesPerPack: sameForAll.piecesPerPack,
-          dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
-          moq: sameForAll.moq,
-        })}
+      <OrderDispatchAccordion
+        orderUnit={sameForAll.unit || Unit.Set}
+        piecesPerPack={sameForAll.piecesPerPack}
+        dispatchUnit={sameForAll.dispatchUnit || Unit.Set}
+        moq={sameForAll.moq}
+        onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
+        onPiecesPerPack={(piecesPerPack) =>
+          setSameForAll((prev) => ({ ...prev, piecesPerPack }))
+        }
+        onDispatchUnit={(dispatchUnit) =>
+          setSameForAll((prev) => ({
+            ...prev,
+            dispatchUnit: normalizePackDispatchUnit(prev.unit || Unit.Set, dispatchUnit),
+          }))
+        }
+        onMoq={(moq) => setSameForAll((prev) => ({ ...prev, moq }))}
         open={orderDispatchExpanded}
         onToggle={() => setOrderDispatchExpanded((v) => !v)}
-        testId="collection-order-dispatch"
-      >
-        <OrderDispatchFields
-          hideHeading
-          orderUnit={sameForAll.unit || Unit.Set}
-          piecesPerPack={sameForAll.piecesPerPack}
-          dispatchUnit={sameForAll.dispatchUnit || Unit.Set}
-          moq={sameForAll.moq}
-          onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
-          onPiecesPerPack={(piecesPerPack) =>
-            setSameForAll((prev) => ({ ...prev, piecesPerPack }))
-          }
-          onDispatchUnit={(dispatchUnit) =>
-            setSameForAll((prev) => ({
-              ...prev,
-              dispatchUnit: normalizePackDispatchUnit(prev.unit || Unit.Set, dispatchUnit),
-            }))
-          }
-          onMoq={(moq) => setSameForAll((prev) => ({ ...prev, moq }))}
-        />
-      </CollectionExpandableSection>
+      />
     </div>
   );
 
   const categoryReady =
-    companyMasterOptions.length <= 1 || Boolean(form.masterCategoryId);
+    Boolean(form.masterCategoryId) ||
+    (masterCategoriesQuery.isFetched && catalogMasterOptions.length === 0);
   const canOpenCreatePublish =
     !creating &&
     !quickUploading &&
@@ -2276,148 +2302,172 @@ export function CollectionEditorPage() {
         </div>
       ) : null}
 
-      {collectionEditShowsMemberGrid(editing) ? (
+      {collectionEditShowsMemberGrid({
+        editing,
+        unpublished: isDraft || isArchived,
+      }) ? (
         <>
-          {pendingPhotos.length === 0 && createLibraryDesigns.length === 0 ? (
-            <AddDesignsControl
-              size="hero"
-              uploading={quickUploading}
-              disabled={quickUploading}
-              photosDisabled={pendingPhotos.length >= QUICK_PHOTO_CAP}
-              onDesigns={pickSourceDesigns}
-              onPhotos={pickSourcePhotos}
-            />
-          ) : (
-            <CappedMediaGrid
-              items={createAlbumTiles}
-              getKey={(tile) => tile.id}
-              overflowPreviewUrl={(tile) =>
-                tile.kind === 'photo'
-                  ? tile.photo.images[0]?.previewUrl ?? null
-                  : tile.product.images[0] ?? null
-              }
-              renderTile={(tile) => {
-                if (tile.kind === 'photo') {
-                  const { photo } = tile;
-                  const isDiff = diffIds.has(photo.localId);
-                  return (
-                    <div
-                      className={cx(
-                        'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
-                        isDiff ? 'bg-accent/10 ring-2 ring-inset ring-accent' : null,
-                      )}
-                      data-testid={isDiff ? 'collection-diff-tile' : undefined}
-                    >
-                      <button
-                        type="button"
-                        className="absolute inset-0 block text-left"
-                        data-testid="collection-pending-tile"
-                        onClick={() => openPendingDesignSheet(photo.localId)}
-                        aria-label={`Edit design · ${nameForNewDesign(photo.name, photo.sku)}`}
-                      >
-                        {photo.images[0] ? (
-                          <img
-                            src={photo.images[0].previewUrl}
-                            alt=""
-                            className="absolute inset-0 h-full w-full object-cover"
-                          />
-                        ) : null}
-                      </button>
-                      {isDiff ? (
-                        <span
-                          data-testid="collection-diff-badge"
-                          className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
-                        >
-                          Diff
-                        </span>
-                      ) : null}
-                      {photo.images.some((img) => img.uploading) ? (
-                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-emphasis text-white">
-                          …
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        aria-label="Remove photo"
-                        className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
-                        onClick={() => removePending(photo.localId)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  );
-                }
-                const { product } = tile;
-                const isDiff = diffIds.has(product.id);
-                return (
-                  <div
-                    className={cx(
-                      'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
-                      isDiff ? 'bg-accent/10 ring-2 ring-inset ring-accent' : null,
-                    )}
-                    data-testid={isDiff ? 'collection-diff-tile' : undefined}
-                  >
-                    <button
-                      type="button"
-                      className="absolute inset-0 block text-left"
-                      onClick={() => openMemberDesignSheet(product)}
-                      aria-label={`Edit design · ${product.name}`}
-                    >
-                      {product.images[0] ? (
-                        <img
-                          src={product.images[0]}
-                          alt=""
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-lg font-body text-muted">
-                          {product.name.charAt(0)}
-                        </div>
-                      )}
-                    </button>
-                    {isDiff ? (
-                      <span
-                        data-testid="collection-diff-badge"
-                        className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
-                      >
-                        Diff
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${product.name}`}
-                      className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
-                      onClick={() => toggleLibraryPick(product.id)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              }}
-            />
-          )}
-
-          {pendingPhotos.length > 0 || createLibraryDesigns.length > 0 ? (
-            <>
+          <div className="flex flex-col gap-3">
+            {!hasCreateMembers ? (
               <AddDesignsControl
-                size="compact"
+                size="hero"
                 uploading={quickUploading}
                 disabled={quickUploading}
                 photosDisabled={pendingPhotos.length >= QUICK_PHOTO_CAP}
                 onDesigns={pickSourceDesigns}
                 onPhotos={pickSourcePhotos}
               />
-              <p className="text-xs text-muted" data-testid="collection-create-design-tip">
-                {albumTip}
-              </p>
-            </>
-          ) : null}
+            ) : (
+              <>
+                <CreateAlbumChangeStrip
+                  count={createAlbumTiles.length}
+                  expanded={createMembersExpanded}
+                  onToggle={() => setCreateMembersExpanded((open) => !open)}
+                  thumbs={createAlbumTiles.flatMap((tile) => {
+                    const src =
+                      tile.kind === 'photo'
+                        ? tile.photo.images[0]?.previewUrl
+                        : tile.product.images[0];
+                    return src ? [{ key: tile.id, src }] : [];
+                  })}
+                />
+                {createMembersExpanded ? (
+                  <>
+                    <CappedMediaGrid
+                      items={createAlbumTiles}
+                      getKey={(tile) => tile.id}
+                      overflowPreviewUrl={(tile) =>
+                        tile.kind === 'photo'
+                          ? tile.photo.images[0]?.previewUrl ?? null
+                          : tile.product.images[0] ?? null
+                      }
+                      renderTile={(tile) => {
+                        if (tile.kind === 'photo') {
+                          const { photo } = tile;
+                          const isDiff = diffIds.has(photo.localId);
+                          return (
+                            <div
+                              className={cx(
+                                'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
+                                isDiff ? 'bg-accent/10 ring-2 ring-inset ring-accent' : null,
+                              )}
+                              data-testid={isDiff ? 'collection-diff-tile' : undefined}
+                            >
+                              <button
+                                type="button"
+                                className="absolute inset-0 block text-left"
+                                data-testid="collection-pending-tile"
+                                onClick={() => openPendingDesignSheet(photo.localId)}
+                                aria-label={`Edit design · ${nameForNewDesign(photo.name, photo.sku)}`}
+                              >
+                                {photo.images[0] ? (
+                                  <img
+                                    src={photo.images[0].previewUrl}
+                                    alt=""
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                ) : null}
+                              </button>
+                              {isDiff ? (
+                                <span
+                                  data-testid="collection-diff-badge"
+                                  className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
+                                >
+                                  Diff
+                                </span>
+                              ) : null}
+                              {photo.images.some((img) => img.uploading) ? (
+                                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/40 text-xs font-emphasis text-white">
+                                  …
+                                </span>
+                              ) : null}
+                              <button
+                                type="button"
+                                aria-label="Remove photo"
+                                className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                                onClick={() => removePending(photo.localId)}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        }
+                        const { product } = tile;
+                        const isDiff = diffIds.has(product.id);
+                        return (
+                          <div
+                            className={cx(
+                              'relative aspect-square min-w-0 w-full overflow-hidden rounded-xl bg-foam',
+                              isDiff ? 'bg-accent/10 ring-2 ring-inset ring-accent' : null,
+                            )}
+                            data-testid={isDiff ? 'collection-diff-tile' : undefined}
+                          >
+                            <button
+                              type="button"
+                              className="absolute inset-0 block text-left"
+                              onClick={() => openMemberDesignSheet(product)}
+                              aria-label={`Edit design · ${product.name}`}
+                            >
+                              {product.images[0] ? (
+                                <img
+                                  src={product.images[0]}
+                                  alt=""
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-lg font-body text-muted">
+                                  {product.name.charAt(0)}
+                                </div>
+                              )}
+                            </button>
+                            {isDiff ? (
+                              <span
+                                data-testid="collection-diff-badge"
+                                className="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
+                              >
+                                Diff
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              aria-label={`Remove ${product.name}`}
+                              className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-ink/70 text-xs text-white"
+                              onClick={() =>
+                                editing ? toggle(product.id) : toggleLibraryPick(product.id)
+                              }
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      }}
+                    />
+                    <AddDesignsControl
+                      size="compact"
+                      uploading={quickUploading}
+                      disabled={quickUploading}
+                      photosDisabled={pendingPhotos.length >= QUICK_PHOTO_CAP}
+                      onDesigns={pickSourceDesigns}
+                      onPhotos={pickSourcePhotos}
+                    />
+                    <p className="text-xs text-muted" data-testid="collection-create-design-tip">
+                      {albumTip}
+                    </p>
+                  </>
+                ) : null}
+              </>
+            )}
+          </div>
 
           {identityFields}
         </>
       ) : null}
 
-      {editing ? (
+      {editing &&
+      !collectionEditShowsMemberGrid({
+        editing,
+        unpublished: isDraft || isArchived,
+      }) ? (
         <div className="flex flex-col gap-4" data-testid="collection-edit-details">
           {identityFields}
         </div>
@@ -2648,36 +2698,14 @@ export function CollectionEditorPage() {
                       : selected.has(product.id)
                     : libraryPicks.has(product.id);
                   return (
-                    <button
-                      type="button"
+                    <LibraryPickTile
+                      name={product.name}
+                      imageUrl={product.images[0]}
+                      selected={on}
                       onClick={() =>
                         editing ? toggle(product.id) : toggleLibraryPick(product.id)
                       }
-                      className={cx(
-                        'relative aspect-square w-full min-w-0 overflow-hidden rounded-xl border-2 bg-foam text-left',
-                        on ? 'border-accent' : 'border-transparent',
-                      )}
-                    >
-                      {product.images[0] ? (
-                        <img
-                          src={product.images[0]}
-                          alt=""
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-lg font-body text-muted">
-                          {product.name.charAt(0)}
-                        </div>
-                      )}
-                      {on ? (
-                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-emphasis text-white">
-                          ✓
-                        </span>
-                      ) : null}
-                      <span className="absolute inset-x-0 bottom-0 z-[1] truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
-                        {product.name}
-                      </span>
-                    </button>
+                    />
                   );
                 }}
               />
@@ -2783,13 +2811,6 @@ export function CollectionEditorPage() {
             >
               {memberSaving ? 'Saving…' : 'Done'}
             </Button>
-            {!sameForAllIsEmpty(sameForAll) &&
-            (pendingPhotos.length + (editing ? selectedProducts.length : libraryPicks.size) >
-              1) ? (
-              <Button variant="ghost" fullWidth disabled={memberSaving} onClick={useSameAsAllOnMember}>
-                Use same as all designs
-              </Button>
-            ) : null}
           </div>
         }
       >
@@ -2865,6 +2886,13 @@ export function CollectionEditorPage() {
                 ) : null;
               })()
             : null}
+          <MasterCategoryField
+            locked={Boolean(form.masterCategoryId)}
+            value={form.masterCategoryId}
+            onChange={onMasterCategoryChange}
+            options={catalogMasterOptions}
+            testId="design-master-category"
+          />
           <CascadeTagsFields
             items={memberTagSlots.items}
             qualities={memberTagSlots.qualities}
@@ -2918,7 +2946,7 @@ export function CollectionEditorPage() {
               })
             }
           />
-          <OrderDispatchFields
+          <OrderDispatchAccordion
             orderUnit={memberForm.unit || Unit.Set}
             piecesPerPack={memberForm.piecesPerPack}
             dispatchUnit={memberForm.dispatchUnit || Unit.Set}
@@ -2931,6 +2959,8 @@ export function CollectionEditorPage() {
               setMemberForm({ ...memberForm, dispatchUnit })
             }
             onMoq={(moq) => setMemberForm({ ...memberForm, moq })}
+            open={memberOrderDispatchOpen}
+            onToggle={() => setMemberOrderDispatchOpen((open) => !open)}
           />
           <Field label="Notes">
             <TextArea

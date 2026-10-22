@@ -1,0 +1,27 @@
+{
+  "version": "0.0.0",
+  "gitSha": "<full-40-char-sha>",
+  "decision": "AWAITING_DEVICE",
+  "automated": {
+    "lint": "not-run",
+    "typecheck": "not-run",
+    "unit": "not-run",
+    "build": "not-run",
+    "smokePreview": "not-run",
+    "smokeDocker": "not-run",
+    "releaseJourneys": "not-run"
+  },
+  "playwright": {
+    "chromiumMobile": true,
+    "webkitMobile": true,
+    "viewports": ["390x844", "412x915"]
+  },
+  "devices": [
+    { "platform": "android", "mode": "chrome", "os": "", "date": "", "tester": "", "result": "not-run", "notes": "" },
+    { "platform": "android", "mode": "pwa", "os": "", "date": "", "tester": "", "result": "not-run", "notes": "" },
+    { "platform": "iphone", "mode": "safari", "os": "", "date": "", "tester": "", "result": "not-run", "notes": "" },
+    { "platform": "iphone", "mode": "pwa", "os": "", "date": "", "tester": "", "result": "not-run", "notes": "" }
+  ],
+  "defects": [],
+  "exception": { "reason": "", "recordedBy": "", "followUp": "" }
+}

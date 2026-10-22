@@ -142,6 +142,69 @@ describe('packingSlip', () => {
     expect(packingSlipLines(input).join('\n')).toMatch(/Total 80 pcs and 20 sets/);
   });
 
+  it('prints this LR in ticket order — no 1:1 sets (= sets)', async () => {
+    const input = {
+      orderId: 'cmvexp6gf004jeqacczgm633l',
+      counterpartName: 'Jaipur Emporium',
+      shipment: {
+        ...shipment,
+        parcelCount: 1,
+        items: [
+          { orderItemId: 'banarasi', name: 'Banarasi Silk Saree', quantity: 50 },
+          { orderItemId: 'georgette', name: 'Georgette Party Saree', quantity: 27 },
+        ],
+      },
+      orderItems: [
+        {
+          id: 'georgette',
+          name: 'Georgette Party Saree',
+          sku: 'GEO-014',
+          unit: 'set',
+          dispatchUnit: 'set',
+          piecesPerPack: 1,
+          image: null,
+          images: [],
+          quantity: 50,
+          requestedQuantity: 50,
+          remainingQuantity: 23,
+          shippedQuantity: 27,
+          lineStatus: 'confirmed',
+        },
+        {
+          id: 'banarasi',
+          name: 'Banarasi Silk Saree',
+          sku: 'BNS-001',
+          unit: 'set',
+          dispatchUnit: 'set',
+          piecesPerPack: 1,
+          image: null,
+          images: [],
+          quantity: 50,
+          requestedQuantity: 50,
+          remainingQuantity: 0,
+          shippedQuantity: 50,
+          lineStatus: 'dispatched',
+        },
+      ] as never[],
+    };
+    expect(packingSlipRows(input).map((r) => ({ name: r.name, quantity: r.quantity }))).toEqual([
+      { name: 'Georgette Party Saree', quantity: '27 sets' },
+      { name: 'Banarasi Silk Saree', quantity: '50 sets' },
+    ]);
+    const text = packingSlipLines(input).join('\n');
+    expect(text).toMatch(/Total 77 sets/);
+    expect(text).not.toMatch(/=\s*50 sets/);
+    expect(text).not.toMatch(/77 sets and 77 sets/);
+    const pdf = new TextDecoder('latin1').decode(
+      await packingSlipPdfBytes({ ...input, options: { showPhotos: false } }),
+    );
+    expect(pdf).toContain('27 sets');
+    expect(pdf).toContain('50 sets');
+    expect(pdf).toContain('Total 77 sets');
+    expect(pdf).not.toContain('50 sets (=');
+    expect(pdf).not.toContain('77 sets and 77 sets');
+  });
+
   it('builds a printable PDF header with Helvetica-Bold', async () => {
     const bytes = await packingSlipPdfBytes({
       orderId: 'cmorderabcdefghijk',

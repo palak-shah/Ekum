@@ -16,7 +16,18 @@ export {
   packSizeForUnit,
 };
 
-/** Dual qty for packing slip / facts: `10 set (= 40 pc)` or `10 set` when blank. */
+/** Order-unit qty only (action sheets): `10 sets` — conversion lives in the footer. */
+export function formatOrderQty(input: {
+  quantity: number;
+  unit?: string | null;
+}): string {
+  const qty = input.quantity;
+  const unit = input.unit?.trim();
+  if (!unit) return String(qty);
+  return `${qty} ${unitCountNoun(unit, qty)}`;
+}
+
+/** Dual qty for packing slip: `10 sets (= 40 pcs)`. Skip 1:1 (`50 sets`, not `50 sets (= 50 sets)`). */
 export function formatDualQty(input: {
   quantity: number;
   unit?: string | null;
@@ -29,10 +40,12 @@ export function formatDualQty(input: {
   const primary = unit ? `${qty} ${orderNoun}` : String(qty);
   if (!isPackOrderUnit(unit)) return primary;
   const pack = packSizeForUnit(unit, input.piecesPerPack);
-  if (pack == null) return primary;
+  if (pack == null || pack === 1) return primary;
   const dispatchQty = qty * pack;
   const dispatch = input.dispatchUnit?.trim() || 'pc';
-  return `${primary} (= ${dispatchQty} ${unitCountNoun(dispatch, dispatchQty)})`;
+  const dispatchNoun = unitCountNoun(dispatch, dispatchQty);
+  if (dispatchQty === qty && dispatchNoun === orderNoun) return primary;
+  return `${primary} (= ${dispatchQty} ${dispatchNoun})`;
 }
 
 /** Packing-slip / How many style total: `Total 80 pc and 20 sets` when dispatch known. */
@@ -79,6 +92,9 @@ export function formatPackingSlipTotal(input: {
     packLines.every((l) => (l.dispatchUnit?.trim() || 'pc') === (packLines[0]?.dispatchUnit?.trim() || 'pc'))
       ? packLines[0]?.dispatchUnit?.trim() || 'pc'
       : 'pc';
+  if (dispatchTotal === orderTotal) {
+    return `Total ${orderTotal} ${orderNoun}`;
+  }
   return `Total ${dispatchTotal} ${unitCountNoun(dispatch, dispatchTotal)} and ${orderTotal} ${orderNoun}`;
 }
 

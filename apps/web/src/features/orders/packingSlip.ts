@@ -72,9 +72,18 @@ export type PackingSlipRow = {
   imageUrl: string | null;
 };
 
-/** Qty in order unit; dual set+dispatch when pack size known. */
+function packingSlipShipmentLines(input: PackingSlipInput) {
+  const orderIndex = new Map((input.orderItems ?? []).map((item, i) => [item.id, i]));
+  return [...input.shipment.items].sort((a, b) => {
+    const ai = orderIndex.get(a.orderItemId) ?? Number.MAX_SAFE_INTEGER;
+    const bi = orderIndex.get(b.orderItemId) ?? Number.MAX_SAFE_INTEGER;
+    return ai - bi;
+  });
+}
+
+/** Qty in order unit; dual only when pack converts (not 1:1). Ticket order. */
 export function packingSlipRows(input: PackingSlipInput): PackingSlipRow[] {
-  return input.shipment.items.map((row) => {
+  return packingSlipShipmentLines(input).map((row) => {
     const source = input.orderItems?.find((item) => item.id === row.orderItemId);
     const quantity = source
       ? formatDualQty({
@@ -94,7 +103,7 @@ export function packingSlipRows(input: PackingSlipInput): PackingSlipRow[] {
 }
 
 export function packingSlipTotalLine(input: PackingSlipInput): string | null {
-  const lines = input.shipment.items.map((row) => {
+  const lines = packingSlipShipmentLines(input).map((row) => {
     const source = input.orderItems?.find((item) => item.id === row.orderItemId);
     return {
       quantity: row.quantity,

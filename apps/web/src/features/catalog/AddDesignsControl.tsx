@@ -1,4 +1,5 @@
 import { cx } from '@/lib/cx';
+import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 import { CameraIcon, ProductIcon } from '@/ui/icons';
 
 export function AddDesignsControl({
@@ -21,7 +22,7 @@ export function AddDesignsControl({
   const icon = hero ? 22 : 18;
 
   const tileClass = cx(
-    'flex min-w-0 items-center justify-center border border-dashed border-line bg-foam font-emphasis text-ink hover:bg-line/30 disabled:opacity-40',
+    `flex min-w-0 items-center justify-center border border-dashed border-line ${FIELD_IDLE_FILL_CLASS} font-emphasis text-accent hover:bg-surface disabled:opacity-40`,
     hero
       ? 'min-h-40 flex-col gap-2 rounded-2xl px-3 text-sm'
       : 'min-h-12 gap-2 rounded-xl px-2 text-sm',
@@ -36,7 +37,7 @@ export function AddDesignsControl({
         disabled={disabled}
         onClick={onDesigns}
       >
-        <ProductIcon width={icon} height={icon} className="shrink-0 text-muted" />
+        <ProductIcon width={icon} height={icon} className="shrink-0" />
         <span className="text-center leading-snug">Add from existing designs</span>
       </button>
       <button
@@ -46,7 +47,7 @@ export function AddDesignsControl({
         disabled={disabled || photosDisabled}
         onClick={onPhotos}
       >
-        <CameraIcon width={icon} height={icon} className="shrink-0 text-muted" />
+        <CameraIcon width={icon} height={icon} className="shrink-0" />
         <span className="truncate">
           {uploading ? (hero ? 'Uploading…' : 'Adding…') : 'Add photos'}
         </span>

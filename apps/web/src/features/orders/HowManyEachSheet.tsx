@@ -7,15 +7,23 @@ import {
   QtyStepper,
   SameForAllEditor,
   sameForAllChipLabel,
+  seedSameForAllQty,
 } from '@/features/orders/QtyStepper';
 import { applyHowManyDetail } from '@/features/orders/howManyHydrate';
-import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
+import {
+  HowManyLineHeading,
+  HowManyQtyRow,
+  HowManyRemoveButton,
+} from '@/features/orders/HowManyLineHeading';
+import { HowManyGroupedLines } from '@/features/orders/HowManyGroupedLines';
 import {
   howManyOrderFooterSummary,
+  howManyOrderUnitsMixed,
   howManyPackSizesDiffer,
-  howManySetsBanner,
   qtyCountNoun,
 } from '@/features/orders/howManyLineMeta';
+import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
 import { howManySingleGoesTo, howManySplitBanner } from '@/features/orders/howManySplitBanner';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
@@ -23,9 +31,8 @@ import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
 import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
-import { Button, InlineNotice, Sheet, cx } from '@/ui/kit';
+import { Button, InlineNotice, Sheet } from '@/ui/kit';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
 import { readRememberedQty, rememberQty } from '@/features/orders/qtyEachMemory';
 import {
   readLastTransporter,
@@ -299,8 +306,9 @@ export function HowManyEachSheet({
       rate: product.rate ?? null,
     })),
   );
-  const setsBanner = howManySetsBanner(activeProducts);
   const packSizesDiffer = howManyPackSizesDiffer(activeProducts);
+  const unitsMixed = howManyOrderUnitsMixed(activeProducts);
+  const showSameForAll = activeProducts.length > 1 && !unitsMixed;
 
   const showTicketExtras =
     sheetJob === 'ask' ||
@@ -309,24 +317,7 @@ export function HowManyEachSheet({
   /** Sticky: qty/₹ + primary CTA only — Note / transporter / buyer live in the scroll. */
   const decideFooter = (
     <div className="flex flex-col gap-2.5" data-testid="how-many-footer">
-      {footerSummary ? (
-        <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[15px] font-emphasis tracking-tight text-ink">{footerSummary.primary}</p>
-            {footerSummary.money ? (
-              <p
-                className="shrink-0 text-[15px] font-emphasis tracking-tight text-ink"
-                data-testid="how-many-billing-total"
-              >
-                {footerSummary.money}
-              </p>
-            ) : null}
-          </div>
-          {footerSummary.hint ? (
-            <p className="text-[12px] font-body text-muted">{footerSummary.hint}</p>
-          ) : null}
-        </div>
-      ) : null}
+      {footerSummary ? <OrderQtyFooterSummary summary={footerSummary} /> : null}
       {showAskButton ? (
         <Button
           fullWidth
@@ -396,16 +387,7 @@ export function HowManyEachSheet({
               Order goes to <span className="font-emphasis">{goesTo}</span>
             </p>
           ) : null}
-          {setsBanner ? (
-            <p
-              data-testid="how-many-sets-banner"
-              className="text-[13px] font-body leading-snug text-muted"
-            >
-              {setsBanner}
-            </p>
-          ) : null}
-
-          {activeProducts.length > 1 ? (
+          {showSameForAll ? (
             sameOpen ? (
               <SameForAllEditor
                 disabled={busy || sameDraft == null || sameDraft <= 0}
@@ -427,7 +409,9 @@ export function HowManyEachSheet({
                 data-testid="same-for-all-chip"
                 className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink disabled:opacity-45"
                 onClick={() => {
-                  setSameDraft(null);
+                  setSameDraft(
+                    seedSameForAllQty(Object.values(overrides), sharedQty),
+                  );
                   setSameOpen(true);
                 }}
               >
@@ -436,80 +420,86 @@ export function HowManyEachSheet({
             )
           ) : null}
 
-          <ul
-            className="overflow-x-hidden rounded-xl border border-line bg-surface"
-            data-testid="how-many-lines"
-            {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
-          >
-            {lines.map(({ product, quantity }, index) => {
+          <HowManyGroupedLines
+            items={lines}
+            unitOf={(line) => line.product.unit}
+            getKey={(line) => line.product.id}
+            testId="how-many-lines"
+            lineTestId="how-many-line"
+            renderLine={({ product, quantity }, _index, last) => {
               const thumbs = howManyPhotoUrls(product);
               const thumb = thumbs[0] ?? null;
               const noteValue = notes[product.id] ?? '';
               const noun = qtyCountNoun(product.unit);
               return (
-                <li
-                  key={product.id}
-                  className={cx('px-3 py-2.5', index > 0 && 'border-t border-line/70')}
-                  data-testid="how-many-line"
-                >
-                  <div className="flex items-start gap-2.5">
-                    {thumb ? (
-                      <button
-                        type="button"
-                        data-testid={`how-many-photo-${product.id}`}
-                        className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
-                        aria-label={`View photo for ${product.name}`}
-                        onClick={() => {
-                          setPhotoIndex(galleryIndexForProduct(activeProducts, product.id));
-                          setPhotoOpen(true);
-                        }}
-                      >
-                        <img src={thumb} alt="" className="h-full w-full object-cover" />
-                      </button>
-                    ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
-                        {product.name.charAt(0)}
-                      </div>
-                    )}
-                    <HowManyLineHeading
-                      name={product.name}
-                      unit={product.unit}
-                      dispatchUnit={product.dispatchUnit}
-                      piecesPerPack={product.piecesPerPack}
-                      moq={product.moq}
-                      rate={product.rate}
-                      rateMax={product.rateMax}
-                      shop={multiShop ? product.companyName : null}
-                      showPackSize={packSizesDiffer}
-                    />
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                    <QtyStepper
-                      value={quantity}
-                      disabled={busy}
-                      chainQty
-                      enterKeyHint={index === lines.length - 1 ? 'done' : 'next'}
-                      aria-label={`${noun} for ${product.name}`}
-                      onChange={(next) => {
-                        setOverrides((prev) => ({ ...prev, [product.id]: next }));
-                        if (next != null) persistQty(next);
-                      }}
-                    />
-                    </div>
-                    {canRemove ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        aria-label={`Remove ${product.name}`}
-                        className="shrink-0 px-1 text-lg leading-none text-muted disabled:opacity-45"
-                        onClick={() => {
-                          setRemoved((prev) => new Set(prev).add(product.id));
-                          onRemoveProduct?.(product.id);
-                        }}
-                      >
-                        ×
-                      </button>
-                    ) : null}
-                  </div>
+                <>
+                  <OrderLineStack
+                    trailingBelow
+                    photo={
+                      thumb ? (
+                        <button
+                          type="button"
+                          data-testid={`how-many-photo-${product.id}`}
+                          className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
+                          aria-label={`View photo for ${product.name}`}
+                          onClick={() => {
+                            setPhotoIndex(galleryIndexForProduct(activeProducts, product.id));
+                            setPhotoOpen(true);
+                          }}
+                        >
+                          <img src={thumb} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
+                          {product.name.charAt(0)}
+                        </div>
+                      )
+                    }
+                    title={
+                      <HowManyLineHeading
+                        name={product.name}
+                        unit={product.unit}
+                        dispatchUnit={product.dispatchUnit}
+                        piecesPerPack={product.piecesPerPack}
+                        moq={product.moq}
+                        rate={product.rate}
+                        rateMax={product.rateMax}
+                        shop={multiShop ? product.companyName : null}
+                        showPackSize={packSizesDiffer}
+                      />
+                    }
+                    nameEnd={
+                      canRemove ? (
+                        <HowManyRemoveButton
+                          name={product.name}
+                          disabled={busy}
+                          onClick={() => {
+                            setRemoved((prev) => new Set(prev).add(product.id));
+                            onRemoveProduct?.(product.id);
+                          }}
+                        />
+                      ) : null
+                    }
+                    trailing={
+                      <HowManyQtyRow
+                        unit={product.unit}
+                        piecesPerPack={product.piecesPerPack}
+                        stepper={
+                          <QtyStepper
+                            value={quantity}
+                            disabled={busy}
+                            chainQty
+                            enterKeyHint={last ? 'done' : 'next'}
+                            aria-label={`${noun} for ${product.name}`}
+                            onChange={(next) => {
+                              setOverrides((prev) => ({ ...prev, [product.id]: next }));
+                              if (next != null) persistQty(next);
+                            }}
+                          />
+                        }
+                      />
+                    }
+                  />
                   <HowManyLineNote
                     value={noteValue}
                     disabled={busy}
@@ -521,10 +511,10 @@ export function HowManyEachSheet({
                       }))
                     }
                   />
-                </li>
+                </>
               );
-            })}
-          </ul>
+            }}
+          />
 
           {showTicketExtras ? (
             <div

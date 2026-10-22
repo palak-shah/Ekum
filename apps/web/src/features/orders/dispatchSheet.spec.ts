@@ -6,10 +6,14 @@ import {
   dispatchLineCountLine,
   dispatchLineKindLine,
   dispatchPayloadLines,
+  dispatchQtyAfterSelect,
   dispatchSheetItems,
   dispatchThisLrLabel,
   dispatchThisLrTally,
+  dispatchThisLrFooterSummary,
+  dispatchQtyFooterRows,
   emptyDispatchLeg,
+  fulfillDispatchItems,
   previousDispatchesCue,
   resizeDispatchLegs,
   seedDispatchLegsFromShipment,
@@ -45,14 +49,52 @@ describe('dispatchSheet', () => {
     expect(shippableDispatchItems([a, b, declined]).map((row) => row.id)).toEqual(['a', 'b']);
   });
 
+  it('lists remaining-0 fulfill lines on the sheet, unselected', () => {
+    const done = line({
+      id: 'd',
+      remainingQuantity: 0,
+      shippedQuantity: 20,
+      lineStatus: 'dispatched',
+    });
+    expect(fulfillDispatchItems([a, done, declined]).map((row) => row.id)).toEqual(['a', 'd']);
+    expect(dispatchSheetItems([a, declined, done]).map((row) => row.id)).toEqual(['a', 'd', 'c']);
+    expect(defaultDispatchOn([a, done])).toEqual({ a: true, d: false });
+    expect(defaultDispatchQty([a, done])).toEqual({ a: '20', d: '' });
+    expect(dispatchQtyAfterSelect(done, '')).toBe('1');
+    expect(dispatchQtyAfterSelect(done, '4')).toBe('4');
+    expect(
+      dispatchPayloadLines([a, done], { a: true, d: false }, { a: '20', d: '' }),
+    ).toEqual([{ orderItemId: 'a', quantity: 20 }]);
+    expect(
+      dispatchPayloadLines([a, done], { a: true, d: true }, { a: '20', d: '1' }),
+    ).toEqual([
+      { orderItemId: 'a', quantity: 20 },
+      { orderItemId: 'd', quantity: 1 },
+    ]);
+  });
+
   it('lists Can’t supply after shippable for the sheet', () => {
     expect(cantSupplyDispatchItems([a, declined, b]).map((row) => row.id)).toEqual(['c']);
     expect(dispatchSheetItems([a, declined, b]).map((row) => row.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('defaults all on at remaining', () => {
+  it('defaults remaining lines on at remaining', () => {
     expect(defaultDispatchOn([a, b])).toEqual({ a: true, b: true });
     expect(defaultDispatchQty([a, b])).toEqual({ a: '20', b: '10' });
+  });
+
+  it('pending tally ignores remaining-0 lines that stay off', () => {
+    const done = line({
+      id: 'd',
+      remainingQuantity: 0,
+      shippedQuantity: 20,
+      lineStatus: 'dispatched',
+    });
+    expect(dispatchThisLrTally([a, done], { a: true, d: false }, { a: '20', d: '' })).toEqual({
+      designs: 1,
+      pieces: 20,
+      later: 0,
+    });
   });
 
   it('omits off lines from payload (not qty 0)', () => {
@@ -61,16 +103,36 @@ describe('dispatchSheet', () => {
     ).toEqual([{ orderItemId: 'a', quantity: 20 }]);
   });
 
+  it('This LR footer is qty plus amount when every ticked line is billed', () => {
+    const billed = line({
+      id: 'a',
+      unit: 'pc',
+      rate: 100,
+      remainingQuantity: 15,
+    });
+    const summary = dispatchThisLrFooterSummary([billed], { a: true }, { a: '15' });
+    expect(summary?.rows).toEqual(['15 pcs']);
+    expect(summary?.money).toBe('₹1,500');
+  });
+
   it('tallies this LR vs later', () => {
     const tally = dispatchThisLrTally([a, b], { a: true, b: false }, { a: '15', b: '10' });
     expect(tally).toEqual({ designs: 1, pieces: 15, later: 1 });
-    expect(dispatchThisLrLabel(tally)).toBe('This LR · 1 design · 15 pcs');
+    expect(dispatchThisLrLabel({ designs: tally.designs, pieces: tally.pieces })).toBe(
+      'This LR · 1 design · 15 pcs',
+    );
+    expect(
+      dispatchThisLrLabel({
+        designs: 1,
+        rows: dispatchQtyFooterRows([a], { a: true }, { a: '15' }),
+      }),
+    ).toBe('This LR · 1 design · 15 pcs');
   });
 
-  it('shows sku · unit and ordered / pending', () => {
+  it('shows sku only on the kind line — unit is not beside the name', () => {
     expect(
       dispatchLineKindLine(line({ id: 'a', sku: 'EK-AB12', unit: 'mtr', remainingQuantity: 20 })),
-    ).toBe('EK-AB12 · per mtr');
+    ).toBe('EK-AB12');
     expect(
       dispatchLineCountLine(line({ id: 'a', requestedQuantity: 20, remainingQuantity: 8 })),
     ).toBe('20 ordered · pending 8');

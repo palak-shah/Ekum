@@ -34,7 +34,7 @@ export function TransporterField({
         data-testid={testId}
         value={value}
         disabled={disabled}
-        placeholder={compact ? 'Transporter · optional' : 'Optional'}
+        placeholder="Transporter · optional"
         aria-label="Transporter"
         autoComplete="off"
         onFocus={() => setFocused(true)}

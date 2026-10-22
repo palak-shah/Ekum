@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { accessTokenFromPage, createOrder } from '../../helpers/orders';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
-test.describe('orders chrome @functional @orders', () => {
+test.describe('orders chrome @functional @release @orders', () => {
   test('Pending and Completed tabs; no loader flash on switch', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/orders');
@@ -21,7 +21,7 @@ test.describe('orders chrome @functional @orders', () => {
     await expect(page.getByText('Loading…')).toHaveCount(0);
   });
 
-  test('Buy/Sell is a temporary filter on one row; All after leaving Orders', async ({
+  test('Selling Buying Others stay on one phone width; Selling after leaving Orders', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -29,31 +29,85 @@ test.describe('orders chrome @functional @orders', () => {
     await page.goto('/orders');
 
     const filters = page.getByTestId('orders-list-filters');
+    await expect(page.getByTestId('orders-tab-selling')).toHaveAttribute('aria-selected', 'true');
     await expect(filters.getByRole('button', { name: 'Pending' })).toBeVisible();
-    const all = page.getByTestId('orders-direction-all');
-    if ((await all.count()) === 0) return;
-
-    await expect(all).toBeVisible();
-    const box = await filters.boundingBox();
-    expect(box).toBeTruthy();
-    expect(box!.height).toBeLessThan(48);
+    await expect(filters.getByRole('button', { name: 'Completed' })).toBeVisible();
     const noOverflow = await filters.evaluate(
       (el) => el.scrollWidth <= el.clientWidth + 1,
     );
     expect(noOverflow).toBe(true);
 
-    await page.getByTestId('orders-direction-buying').click();
+    await page.getByTestId('orders-tab-buying').click();
     const first = page.locator('a[href^="/orders/"]').first();
     if ((await first.count()) === 0) return;
     await first.click();
     await expect(page).toHaveURL(/\/orders\/[^/?]+/, { timeout: 10_000 });
     await page.goBack();
-    await expect(page.getByTestId('orders-direction-buying')).toBeVisible();
-    await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 });
+    await expect(page.getByTestId('orders-tab-buying')).toHaveAttribute('aria-selected', 'true');
 
     await page.getByRole('link', { name: 'Home' }).click();
     await page.goto('/orders');
-    await expect(page.getByTestId('orders-direction-all')).toBeVisible();
+    await expect(page.getByTestId('orders-tab-selling')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('How many Same for all opens seeded from typed qty', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    await page.goto('/collections/seed-col-ravi-daily');
+    await expect(page.getByRole('heading', { name: 'Saree Daily' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.evaluate(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('ekum:qty-each:')) localStorage.removeItem(key);
+      }
+    });
+    await page.getByRole('button', { name: 'Select' }).click();
+    await page.getByRole('button', { name: 'Select all' }).click();
+    await page.getByRole('button', { name: 'Order', exact: true }).click();
+    await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 10_000 });
+    const firstQty = page.getByRole('textbox', { name: /^sets for/i }).first();
+    await firstQty.click();
+    await firstQty.pressSequentially('12');
+    await expect(firstQty).toHaveValue('12');
+    await page.getByTestId('same-for-all-chip').click();
+    await expect(
+      page.getByRole('textbox', { name: 'Same quantity for all designs' }),
+    ).toHaveValue('12');
+    await expect(page.getByTestId('transporter-field')).toHaveAttribute(
+      'placeholder',
+      'Transporter · optional',
+    );
+  });
+
+  test('ticket Total skips a declined line', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      items: [
+        { productId: 'seed-prod-1', quantity: 10 },
+        { productId: 'seed-prod-2', quantity: 20 },
+      ],
+    });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${order.id}`);
+    await expect(page.getByTestId('order-ticket-qty-total')).toContainText('30 sets', {
+      timeout: 15_000,
+    });
+
+    await page.getByTestId('order-dock-confirm').click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    await sheet.getByRole('button', { name: 'Decline Georgette Party Saree' }).click();
+    await sheet.getByTestId('order-lines-confirm').click();
+    await expect(sheet).toBeHidden({ timeout: 15_000 });
+
+    await expect(page.getByTestId('order-ticket-qty-total')).toContainText('10 sets');
+    await expect(page.getByTestId('order-ticket-qty-total')).not.toContainText('30 sets');
   });
 
   test('How many each uses editable qty stepper', async ({ page }) => {
@@ -186,9 +240,12 @@ test.describe('orders chrome @functional @orders', () => {
     const sheetDeclineBox = await sheetDecline.boundingBox();
     expect(sheetConfirmBox && sheetDeclineBox).toBeTruthy();
     expect(sheetDeclineBox!.x).toBeLessThan(sheetConfirmBox!.x);
-    await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toContainText('Asked');
+    await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toHaveCount(0);
     await expect(sheet.locator('[data-testid^="order-lines-qty-"]')).toBeVisible();
-    await expect(sheet.locator('[data-testid^="order-lines-rate-"]')).toBeVisible();
+    const rateInput = sheet.locator('[data-testid^="order-lines-rate-"]');
+    await expect(rateInput).toBeVisible();
+    await rateInput.fill('');
+    await expect(sheetConfirm).toBeEnabled();
   });
 
   test('buyer dock sticks Cancel and Edit', async ({ page }) => {
@@ -224,11 +281,12 @@ test.describe('orders chrome @functional @orders', () => {
 
     await loginAsRavi(page);
     await page.goto('/orders');
-    const row = page.locator(`a[data-testid="trade-list-row"][href="/orders/${order.id}"]`);
+    const row = page.locator(`[data-order-id="${order.id}"]`);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row.getByTestId('orders-needs-you')).toBeVisible();
     await expect(row.getByTestId('trade-list-facts')).toContainText(/Order #/);
-    await expect(row.getByTestId('trade-list-facts')).toContainText(/1 design/);
+    await expect(row.getByTestId('trade-list-facts')).toContainText(/1 design 20 sets/);
+    await expect(row.getByRole('button', { name: 'Confirm' })).toHaveCount(0);
     await row.click();
     await expect(page).toHaveURL(new RegExp(`/orders/${order.id}`), { timeout: 10_000 });
   });
@@ -237,7 +295,11 @@ test.describe('orders chrome @functional @orders', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAsMeena(page);
     await page.goto('/orders');
-    const rows = page.locator('a[href^="/orders/"]');
+    await page.getByTestId('orders-tab-buying').click();
+    const rows = page.locator('[data-testid="trade-list-row"][href^="/orders/"]');
+    if ((await rows.count()) === 0) {
+      await page.getByTestId('orders-summary-completed').click();
+    }
     await expect(rows.first()).toBeVisible({ timeout: 15_000 });
     const last = rows.last();
     await last.scrollIntoViewIfNeeded();

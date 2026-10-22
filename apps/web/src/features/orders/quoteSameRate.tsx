@@ -141,9 +141,9 @@ function SameQtyRateFields({
         <TextInput
           id="same-for-all-qty"
           autoFocus
-          type="number"
-          min={1}
           inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete="off"
           className={inputClassQty}
           value={qtyDraft}
           aria-label="Same quantity for all designs"
@@ -263,12 +263,12 @@ export function SameQtyRateForAll({
         }}
       >
         {/*
-          One wider tile spans tick + gap + thumb (5.75rem) so “Same for all”
+          One wider tile spans tick + gap + thumb (4.75rem) so “Same for all”
           reads larger; gap-2.5 then Qty|Rate matches the decide-row name column.
         */}
         <div className="flex items-start gap-2.5">
           <div
-            className="flex h-16 w-[5.75rem] min-h-16 shrink-0 items-center justify-center rounded-xl bg-foam px-1.5 text-center text-xs font-body leading-snug text-muted"
+            className="flex h-12 w-[4.75rem] min-h-12 shrink-0 items-center justify-center rounded-lg bg-foam px-1.5 text-center text-xs font-body leading-snug text-muted"
             data-testid="same-for-all-thumb"
           >
             Same for all

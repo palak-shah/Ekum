@@ -58,6 +58,14 @@ describe('CatalogSerializer', () => {
     expect(serializer.toProductView(product(null)).rateMax).toBeNull();
   });
 
+  it('exposes a design master category', () => {
+    const view = serializer.toProductView({
+      ...product(null),
+      masterCategoryId: 'cat-solo',
+    } as unknown as Product);
+    expect(view.masterCategoryId).toBe('cat-solo');
+  });
+
   it('carries collection tags for design defaults', () => {
     const view = serializer.toProductView({
       ...product(null),

@@ -73,8 +73,7 @@ function asItem(o: OrderView): TradeListItem {
 }
 
 describe('tradeListProtocol', () => {
-  it('seller confirm/quote → waiting to confirm order (once)', () => {
-    expect(tradeListProtocol(asItem(order({})))).toBe('Waiting for you to confirm order');
+  it('prints Needs you Send quote when rates are missing', () => {
     expect(
       tradeListProtocol(
         asItem(
@@ -100,10 +99,39 @@ describe('tradeListProtocol', () => {
           }),
         ),
       ),
-    ).toBe('Waiting for you to confirm order');
+    ).toBe('Needs you Send quote');
   });
 
-  it('dispatch pending uses ship protocol', () => {
+  it('prints Needs you Confirm when the seller can lock as asked', () => {
+    expect(
+      tradeListProtocol(
+        asItem(
+          order({
+            items: [
+              {
+                id: 'i1',
+                productId: null,
+                name: 'A',
+                sku: null,
+                rate: 10,
+                unit: 'pc',
+                image: null,
+                images: [],
+                quantity: 10,
+                requestedQuantity: 10,
+                lineStatus: 'open',
+                shippedQuantity: 0,
+                remainingQuantity: 10,
+                note: null,
+              },
+            ],
+          }),
+        ),
+      ),
+    ).toBe('Needs you Confirm');
+  });
+
+  it('prints Needs you Dispatch — not Dispatch pending', () => {
     expect(
       tradeListProtocol(
         asItem(
@@ -130,7 +158,20 @@ describe('tradeListProtocol', () => {
           }),
         ),
       ),
-    ).toBe('Nothing dispatched yet · Dispatch pending');
+    ).toBe('Needs you Dispatch');
+  });
+
+  it('prints Needs you Accept & forward for an I-handle parent', () => {
+    expect(
+      tradeListProtocol(
+        asItem(
+          order({
+            tradeMode: 'manage',
+            linkedMills: [{ name: 'Ahmedabad Loom Co', orderId: null }],
+          }),
+        ),
+      ),
+    ).toBe('Needs you Accept & forward');
   });
 });
 

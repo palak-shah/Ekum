@@ -41,7 +41,16 @@ test.describe('add designs batch @functional @catalog @creation', () => {
     await expect(page.getByRole('heading', { name: 'Update this design' })).toBeVisible();
     const sheet = page.getByRole('dialog');
     await expect(sheet.getByText('Category')).toBeVisible();
-    await expect(sheet.getByRole('button', { name: 'Use same as all designs' })).toBeVisible();
+    await expect(sheet.getByText('Item tags')).toBeVisible();
+    await expect(sheet.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await expect(sheet.getByTestId('collection-set-contains-unit')).toHaveCount(0);
+    await sheet.getByTestId('collection-order-dispatch-toggle').click();
+    await expect(sheet.getByTestId('collection-set-contains-unit')).toBeVisible();
+    await expect(sheet.getByTestId('collection-set-contains-cluster')).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Use same as all designs' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Details for this design' })).toHaveCount(0);
   });
 });

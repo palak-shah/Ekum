@@ -1,4 +1,4 @@
-/** Default note when requesting catalog access (connect). */
+/** Default note when sending an access request (connect). */
 
 export const DEFAULT_ACCESS_REQUEST_NOTE =
   'Hi — I’d like to connect to see your rates and designs.';

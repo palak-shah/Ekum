@@ -6,6 +6,7 @@ import {
   coverUrlFromGrid,
   defaultCollectionName,
   displayCollectionName,
+  isCollectionCategoryError,
   itemKey,
   nameFromFilename,
   type CreateGridItem,
@@ -16,6 +17,14 @@ describe('displayCollectionName', () => {
     expect(displayCollectionName('')).toBe('Untitled');
     expect(displayCollectionName('  ')).toBe('Untitled');
     expect(displayCollectionName('Festive')).toBe('Festive');
+  });
+});
+
+describe('isCollectionCategoryError', () => {
+  it('matches Pick a category copy from the API', () => {
+    expect(isCollectionCategoryError('Pick a category from the list.')).toBe(true);
+    expect(isCollectionCategoryError('Pick a category.')).toBe(true);
+    expect(isCollectionCategoryError('Enter a collection name.')).toBe(false);
   });
 });
 

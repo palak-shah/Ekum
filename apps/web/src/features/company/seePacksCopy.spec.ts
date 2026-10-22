@@ -4,7 +4,7 @@ import { seePacksShopLabel, shopWriteLabel } from './seePacksCopy';
 describe('seePacksShopLabel', () => {
   it('asks, then Requested, then Has access', () => {
     expect(seePacksShopLabel({ pending: false, allowed: false })).toBe(
-      'Request catalog access',
+      'Request access',
     );
     expect(seePacksShopLabel({ pending: true, allowed: false })).toBe('Requested');
     expect(seePacksShopLabel({ pending: false, allowed: true })).toBe('Has access');

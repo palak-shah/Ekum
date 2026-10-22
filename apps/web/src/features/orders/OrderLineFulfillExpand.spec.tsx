@@ -180,6 +180,32 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.getByTestId('order-line-cant-supply-toggle')).toBeTruthy();
   });
 
+  it('does not repeat per mtr under the name — unit lives on Total', () => {
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        canEdit={false}
+        item={item({
+          name: 'Chiffon Roll',
+          unit: 'mtr',
+          quantity: 10,
+          requestedQuantity: 10,
+          remainingQuantity: 10,
+          rate: 128,
+          lineStatus: 'requested',
+        })}
+        hasLastLr={false}
+        lastLrQty={0}
+        expanded={false}
+      />,
+    );
+    expect(screen.queryByTestId('order-line-identity')).toBeNull();
+    expect(screen.queryByText('per mtr')).toBeNull();
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10');
+    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/mtrs|sets/);
+    expect(screen.getByText('Chiffon Roll')).toBeTruthy();
+  });
+
   it('opens Send quote from Can’t supply cue before lock', () => {
     const onOpenQuote = vi.fn();
     render(

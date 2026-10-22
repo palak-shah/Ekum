@@ -4,7 +4,7 @@ export function seePacksShopLabel(input: {
 }): string {
   if (input.allowed) return 'Has access';
   if (input.pending) return 'Requested';
-  return 'Request catalog access';
+  return 'Request access';
 }
 
 /** Message = first write. Chat = already connected. */

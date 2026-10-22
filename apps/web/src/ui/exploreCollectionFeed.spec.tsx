@@ -82,7 +82,9 @@ describe('Explore collection photo', () => {
     expect(screen.queryByTestId('explore-collection-view-more-col1')).toBeNull();
     const next = screen.getByTestId('explore-photo-next');
     expect(next).toBeInTheDocument();
-    expect(next.className).toMatch(/bg-white\/55/);
+    expect(next.className).toMatch(/group-hover:opacity-100/);
+    expect(next.className).toMatch(/hover:bg-white/);
+    expect(next.className).toMatch(/bg-white\/80/);
     expect(screen.queryByTestId('explore-photo-prev')).toBeNull();
     expect(screen.getByTestId('explore-feed-rate')).toHaveTextContent('₹94–₹180/pc');
     expect(screen.getByTestId('explore-feed-categories')).toHaveTextContent(

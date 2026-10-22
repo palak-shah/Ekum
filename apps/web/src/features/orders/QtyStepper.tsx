@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { TextInput, cx } from '@/ui/kit';
+import { cx } from '@/ui/kit';
+import {
+  designSubtextClass,
+  stepperBtnClass,
+  stepperQtyInputClass,
+  stepperTrackClass,
+} from '@/ui/designLineChrome';
 import { ORDER_QTY_ATTR, onOrderQtyEnterKeyDown } from '@/features/orders/orderQtyFocus';
-
-const STEPPER_BTN =
-  'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-lg font-emphasis text-ink disabled:opacity-45';
-
-const STEPPER_INPUT =
-  'h-10 w-14 max-w-14 shrink-0 min-h-10 px-1 text-center text-base font-title tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 /** Parse typed wholesale qty — empty/invalid while typing returns null. */
 export function parseQtyDraft(raw: string): number | null {
@@ -24,7 +24,9 @@ export function parseQtyDraft(raw: string): number | null {
  * Enter/Done typically submits (Apply).
  */
 function qtyDraft(value: number | null): string {
-  return value != null && value > 0 ? String(value) : '';
+  if (value == null) return '';
+  if (value < 0) return '';
+  return String(value);
 }
 
 export function QtyStepper({
@@ -36,6 +38,8 @@ export function QtyStepper({
   chainQty = false,
   autoFocus = false,
   unitLabel,
+  inputTestId,
+  align = 'end',
   'aria-label': ariaLabel = 'Pieces',
 }: {
   value: number | null;
@@ -50,6 +54,9 @@ export function QtyStepper({
   autoFocus?: boolean;
   /** Visible unit caption above the stepper (e.g. Sets). */
   unitLabel?: string | null;
+  /** Inner count field — Confirm / Dispatch keep their line test ids. */
+  inputTestId?: string;
+  align?: 'start' | 'end';
   'aria-label'?: string;
 }) {
   const [focused, setFocused] = useState(false);
@@ -64,26 +71,28 @@ export function QtyStepper({
   };
 
   return (
-    <div className="flex flex-col items-end gap-0.5">
+    <div className={cx('flex flex-col gap-0.5', align === 'start' ? 'items-start' : 'items-end')}>
       {unitLabel?.trim() ? (
-        <span
-          className="text-[11px] font-body tracking-tight text-muted"
-          data-testid="qty-stepper-unit"
-        >
+        <span className={designSubtextClass} data-testid="qty-stepper-unit">
           {unitLabel.trim()}
         </span>
       ) : null}
-    <div className="flex items-center gap-1.5" role="group" aria-label={ariaLabel}>
+    <div
+      className={stepperTrackClass}
+      role="group"
+      aria-label={ariaLabel}
+      data-testid="qty-stepper"
+    >
       <button
         type="button"
-        className={STEPPER_BTN}
+        className={stepperBtnClass}
         disabled={disabled || value == null || value <= 1}
         aria-label={`Decrease ${ariaLabel}`}
         onClick={() => onChange(Math.max(1, (value ?? 1) - step))}
       >
         −
       </button>
-      <TextInput
+      <input
         inputMode="numeric"
         pattern="[0-9]*"
         autoComplete="off"
@@ -91,7 +100,8 @@ export function QtyStepper({
         enterKeyHint={enterKeyHint}
         disabled={disabled}
         aria-label={ariaLabel}
-        className={STEPPER_INPUT}
+        data-testid={inputTestId}
+        className={stepperQtyInputClass}
         value={draft}
         {...(chainQty ? { [ORDER_QTY_ATTR]: '' } : {})}
         onFocus={(event) => {
@@ -116,7 +126,7 @@ export function QtyStepper({
       />
       <button
         type="button"
-        className={STEPPER_BTN}
+        className={stepperBtnClass}
         disabled={disabled}
         aria-label={`Increase ${ariaLabel}`}
         onClick={() => onChange(Math.min(1_000_000, (value ?? 0) + step))}
@@ -131,6 +141,18 @@ export function QtyStepper({
 export function sameForAllChipLabel(appliedQty: number | null | undefined): string {
   if (appliedQty == null || appliedQty <= 0) return 'Same for all';
   return `Same for all · ${appliedQty}`;
+}
+
+/** Last typed line qty, else remembered shared qty — never open Same for all blank. */
+export function seedSameForAllQty(
+  typedQtys: ReadonlyArray<number | null | undefined>,
+  sharedQty: number | null,
+): number | null {
+  for (let i = typedQtys.length - 1; i >= 0; i--) {
+    const n = typedQtys[i];
+    if (n != null && n > 0) return n;
+  }
+  return sharedQty != null && sharedQty > 0 ? sharedQty : null;
 }
 
 /** Idle chip after a shared rate Apply — blank until a real rate is set (never ₹0). */

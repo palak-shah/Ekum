@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button, InlineNotice, LoadingBlock, cx } from '@/ui/kit';
+import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
 import { OrderDispatchFields } from '@/features/catalog/OrderDispatchFields';
 import {
   DEFAULT_DISPATCH_UNIT,
@@ -156,7 +157,7 @@ export function CatalogDefaultsPage() {
                 setDispatchUnit(next);
               }
             }}
-            className="min-h-9 rounded-xl border border-line bg-surface px-2.5 text-sm font-emphasis text-ink"
+            className={`min-h-9 ${SELECT_FIELD_CLASS} px-2.5 text-sm font-emphasis text-ink`}
           >
             {unitValues.map((u) => (
               <option key={u} value={u}>

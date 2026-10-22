@@ -18,6 +18,7 @@ import { formatCatalogRate } from '@/lib/catalogRate';
 import { timeAgo } from '@/lib/format';
 import { warmCompanyFromExplore } from '@/features/company/warmCompanyQueries';
 import { Avatar, Chip, cx } from './kit';
+import { designNameClass } from './designLineChrome';
 import { highlightSearchText } from './highlightMatch';
 import { ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
@@ -38,7 +39,7 @@ import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress }
 export const COVER_IMAGE_ROOT_MARGIN = '600px 0px';
 
 /** Explore feed chrome — same tightness as Chats rows. */
-export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 border-b border-line/70 pb-2.5';
+export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 pb-2.5';
 export const EXPLORE_POST_INSET_CLASS = 'px-4';
 /** Mosaic + pack name share the page gutter with the header (not under the avatar). */
 export const EXPLORE_POST_MEDIA_INSET_CLASS = EXPLORE_POST_INSET_CLASS;
@@ -51,6 +52,8 @@ export const EXPLORE_COLLECTION_PREVIEW_CAP = 5;
 const EXPLORE_COLLECTION_PHOTO_CLASS = 'aspect-[4/5] w-full object-cover object-center';
 const EXPLORE_COLLECTION_PLACEHOLDER_CLASS =
   'flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted';
+/** Instagram-like curve on Explore feed photos. */
+export const EXPLORE_PHOTO_FRAME_CLASS = 'overflow-hidden rounded-2xl';
 
 function ShopName({
   name,
@@ -75,7 +78,8 @@ function ShopPostHeader({
   company,
   to,
   trailing,
-  nameClassName = 'text-[15px] font-emphasis tracking-tight text-ink',
+  nameClassName = designNameClass,
+  showIdentity = true,
 }: {
   company: PublicCompanySummary | CompanyCard | {
     id: string;
@@ -90,9 +94,13 @@ function ShopPostHeader({
   to?: string;
   trailing?: ReactNode;
   nameClassName?: string;
+  /** City · sell tags under the name. Off on Explore posts. */
+  showIdentity?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const identity = shopIdentityLine(company.city, shopSellCategories(company));
+  const identity = showIdentity
+    ? shopIdentityLine(company.city, shopSellCategories(company))
+    : '';
   const warm = () => warmCompanyFromExplore(queryClient, company.id);
   const identityBlock = (
     <>
@@ -242,6 +250,7 @@ export function OpportunityCollectionCard({
         company={headerCompany}
         to={isOwn ? undefined : `/company/${company.id}`}
         trailing={explorePostHeaderTrailing(when, isOwn ? undefined : headerTrailing)}
+        showIdentity={false}
       />
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
         <DesignPhotoCarousel
@@ -249,6 +258,7 @@ export function OpportunityCollectionCard({
           name={collection.name}
           photoClassName={EXPLORE_COLLECTION_PHOTO_CLASS}
           placeholderClassName={EXPLORE_COLLECTION_PLACEHOLDER_CLASS}
+          frameClassName={EXPLORE_PHOTO_FRAME_CLASS}
           selectMode={Boolean(selecting)}
           selected={selected}
           onActivate={(index) => {
@@ -373,7 +383,7 @@ export function OpportunityBusinessCard({
 
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
-      <ShopPostHeader company={company} to={shopTo} />
+      <ShopPostHeader company={company} to={shopTo} showIdentity={false} />
       <Link to={shopTo} className={cx('block', EXPLORE_POST_MEDIA_INSET_CLASS)}>
         {hasShopVisual ? (
           <>
@@ -554,12 +564,14 @@ export function OpportunityDesignCard({
         company={isOwn ? { ...company, name: 'You' } : company}
         to={isOwn ? undefined : `/company/${company.id}`}
         trailing={explorePostHeaderTrailing(when, isOwn ? undefined : headerTrailing)}
+        showIdentity={false}
       />
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
         <DesignPhotoCarousel
           urls={product.images}
           name={product.name}
           photoClassName="aspect-[4/5] w-full object-cover object-center"
+          frameClassName={EXPLORE_PHOTO_FRAME_CLASS}
           placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted"
           selectMode={selectMode}
           selected={selected}
@@ -1006,6 +1018,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
         to={`/company/${collection.company.id}`}
         nameClassName="text-sm font-emphasis tracking-tight text-ink"
         trailing={explorePostHeaderTrailing(when)}
+        showIdentity={false}
       />
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
         <DesignPhotoCarousel
@@ -1013,6 +1026,7 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
           name={collection.name}
           photoClassName={EXPLORE_COLLECTION_PHOTO_CLASS}
           placeholderClassName={EXPLORE_COLLECTION_PLACEHOLDER_CLASS}
+          frameClassName={EXPLORE_PHOTO_FRAME_CLASS}
           onActivate={() => openAlbum()}
           testId={`explore-collection-photos-${collection.id}`}
           showDots={false}
@@ -1063,12 +1077,14 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
         to={`/company/${product.company.id}`}
         nameClassName="text-sm font-emphasis tracking-tight text-ink"
         trailing={explorePostHeaderTrailing(when)}
+        showIdentity={false}
       />
       <div className={EXPLORE_POST_MEDIA_INSET_CLASS}>
         <DesignPhotoCarousel
           urls={product.images}
           name={product.name}
           photoClassName="aspect-[4/5] w-full object-cover object-center"
+          frameClassName={EXPLORE_PHOTO_FRAME_CLASS}
           placeholderClassName="flex aspect-[4/5] w-full items-center justify-center bg-foam text-3xl font-body text-muted"
           onActivate={() => navigate(`/explore/products/${product.id}`)}
           testId={`explore-product-photos-${product.id}`}

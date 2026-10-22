@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQtyDraft, sameForAllChipLabel } from './QtyStepper';
+import { parseQtyDraft, sameForAllChipLabel, seedSameForAllQty } from './QtyStepper';
 
 describe('parseQtyDraft', () => {
   it('accepts typed wholesale counts', () => {
@@ -19,5 +19,13 @@ describe('sameForAllChipLabel', () => {
   it('is blank until a count exists, then shows last applied qty', () => {
     expect(sameForAllChipLabel(null)).toBe('Same for all');
     expect(sameForAllChipLabel(200)).toBe('Same for all · 200');
+  });
+});
+
+describe('seedSameForAllQty', () => {
+  it('uses the last typed line qty before remembered shared', () => {
+    expect(seedSameForAllQty([12, null, 8], 4)).toBe(8);
+    expect(seedSameForAllQty([null, null], 8)).toBe(8);
+    expect(seedSameForAllQty([], null)).toBeNull();
   });
 });

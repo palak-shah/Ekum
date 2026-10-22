@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { TEST_BADGE_CLEARANCE_CLASS } from '@/features/settings/TestDeploymentBadge';
 import {
   isNonProductionDeployment,
   shortGitSha,
@@ -24,10 +23,5 @@ describe('appVersion helpers', () => {
     expect(testBadgeLabel({ version: '0.1.0', gitSha: 'deadbeefcafe' })).toBe(
       'TEST · 0.1.0 · deadbee',
     );
-  });
-
-  it('clears the fixed TEST chip with top padding and the safe area (BM-07)', () => {
-    expect(TEST_BADGE_CLEARANCE_CLASS.startsWith('pt-')).toBe(true);
-    expect(TEST_BADGE_CLEARANCE_CLASS).toContain('safe-area-inset-top');
   });
 });

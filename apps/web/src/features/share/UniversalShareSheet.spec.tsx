@@ -97,7 +97,7 @@ describe('UniversalShareSheet', () => {
     expect(send.className).not.toMatch(/bg-accent/);
     expect(native.className).not.toMatch(/bg-accent/);
     expect(screen.getByTestId('share-composer-text').closest('div')?.className).toMatch(
-      /bg-foam/,
+      /bg-input/,
     );
 
     const { userEvent } = await import('@testing-library/user-event');

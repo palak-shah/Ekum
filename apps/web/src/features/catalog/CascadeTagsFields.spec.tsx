@@ -5,18 +5,22 @@ import { CascadeTagsFields } from './CascadeTagsFields';
 
 vi.mock('@/lib/apiClient', () => ({
   api: {
-    get: vi.fn().mockResolvedValue({
-      category: {
-        id: 'c1',
-        slug: 'womens_readymade_ethnic',
-        label: 'Womens – Readymade – Ethnic',
-        active: true,
-        sortOrder: 1,
-      },
-      itemTypes: ['Kurti'],
-      qualities: ['Cotton'],
-      sizes: ['M'],
-      units: ['pc'],
+    get: vi.fn(async (path: string) => {
+      if (path === '/products') return [{ categories: ['Kurti'] }];
+      if (path === '/collections') return [];
+      return {
+        category: {
+          id: 'c1',
+          slug: 'womens_readymade_ethnic',
+          label: 'Womens – Readymade – Ethnic',
+          active: true,
+          sortOrder: 1,
+        },
+        itemTypes: ['Kurti'],
+        qualities: ['Cotton'],
+        sizes: ['M'],
+        units: ['pc'],
+      };
     }),
   },
 }));

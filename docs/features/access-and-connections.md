@@ -12,11 +12,11 @@ Any company can request / follow; the other Approves. Both use **Network → Con
 
 ### Follow
 
-1. On company / Explore → **Request catalog access** asks (same Follow API; sell-only shops still show it). Shop button: lock + **Request catalog access** · lock + **Requested** (outline) · unlock + **Has access**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Shop **⋯ → Remove connection** is the same cancel. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone / Connections catalog rows are treated as **Followers** (not open to the whole platform).
+1. On company / Explore → **Request access** asks (same Follow API; sell-only shops still show it). Shop button: lock + **Request access** · lock + **Requested** (outline) · unlock + **Has access**. Cancel cancels a pending ask or ends an allowed follow — Followers-audience shop packs and feed go away immediately. Shop **⋯ → Remove connection** is the same cancel. Connection / Selected / Granted on request / chat share stay as their own doors. Legacy Everyone / Connections catalog rows are treated as **Followers** (not open to the whole platform).
 2. Shop **You → Network → They see mine**: one list. **Find** filters name/city. Pending asks sit **on top, newest first**, with why-line **Wants to see your new packs** then Allow / Decline — not a tap-through screen. When asks exist, chips **All** | **Asked · N** (All = asks + who already sees you / Stopped). Home Needs `/network/followers?tab=asked` selects the Asked chip. Each allowed card has **See** / **Share** and quiet **Stop**. Stop keeps the card as **Stopped**. Tick See or Share to let them in again. **Decline** still clears the ask. The other shop never sees look vs pack. Chats **Requests** still has the same why-line + Allow / Decline for a new ask. If they ask again while Stopped, they return to the top as Asked.
 3. **You → Network → I see theirs**: allowed follows only — no grant type. Row action **Stop seeing**.
 4. Allowed follows see Followers-audience posts on Home Followed and Explore. Pending does not.
-5. **Request access** (invite / Find on Ekum) is Connect — not Follow. Approve lives on **Chats → Requests**, not a Network list.
+5. **Access request** (invite / Find on Ekum) is Connect — not Follow. Approve lives on **Chats → Requests**, not a Network list. Find still shows **Request access**; that is Connect, not this shop look-through.
 
 ### Request access (Connect)
 

@@ -26,6 +26,23 @@ describe('collectionAlbumOpenTarget', () => {
     ).toEqual({ href: '/catalog/collections/c1' });
   });
 
+  it('library draft and ready open the editor, not an empty album', () => {
+    expect(
+      collectionAlbumOpenTarget({
+        surface: 'library',
+        id: 'c1',
+        status: CollectionStatus.Draft,
+      }),
+    ).toEqual({ href: '/catalog/collections/c1' });
+    expect(
+      collectionAlbumOpenTarget({
+        surface: 'library',
+        id: 'c1',
+        status: CollectionStatus.Ready,
+      }),
+    ).toEqual({ href: '/catalog/collections/c1' });
+  });
+
   it('shelf own shop passes packManage; other shop does not', () => {
     expect(
       collectionAlbumOpenTarget({ surface: 'shelf', id: 'c1', packManage: true }),

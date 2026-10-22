@@ -7,6 +7,7 @@ import {
   sameForAllSummary,
 } from './rateInput';
 import { DEFAULT_DISPATCH_UNIT, DEFAULT_SELL_AS_UNIT } from './publishDefaults';
+import { parsePiecesPerPack } from './orderDispatchPreview';
 
 /** Packed order units show “1 set contains”. */
 export function unitAsksPiecesPerSet(unit: string): boolean {
@@ -88,10 +89,13 @@ export type MemberDesignForm = {
   categories: string[];
 };
 
+/** Flattened tag cap — same as TagSuggestInput. */
+export const PACK_TAG_CAP = 20;
+
 /** Union tags — amend only missing; never drop existing. */
 export function unionTags(existing: string[], incoming: string[]): string[] {
   const seen = new Set(existing.map((t) => t.trim().toLowerCase()).filter(Boolean));
-  const out = [...existing];
+  const out = [...existing.map((t) => t.trim()).filter(Boolean)];
   for (const tag of incoming) {
     const trimmed = tag.trim();
     if (!trimmed) continue;
@@ -99,6 +103,50 @@ export function unionTags(existing: string[], incoming: string[]): string[] {
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(trimmed);
+  }
+  return out;
+}
+
+/** Own tags first, then pack tags, capped. */
+export function packTagsForMember(
+  existing: string[] | null | undefined,
+  pack: string[] | null | undefined,
+): string[] {
+  return unionTags(existing ?? [], pack ?? []).slice(0, PACK_TAG_CAP);
+}
+
+/** Categories to PATCH, or null when the union adds nothing. */
+export function packTagsPatch(
+  existing: string[] | null | undefined,
+  pack: string[] | null | undefined,
+): string[] | null {
+  const prev = (existing ?? []).map((tag) => tag.trim()).filter(Boolean);
+  const next = packTagsForMember(prev, pack);
+  if (next.length === prev.length) return null;
+  return next;
+}
+
+export type PackTaggableProduct = {
+  id: string;
+  companyId?: string | null;
+  categories?: string[] | null;
+};
+
+/** Own-company members that still need pack tags appended. */
+export function packTagPatchesForOwnDesigns(
+  products: PackTaggableProduct[],
+  packTags: string[],
+  ownCompanyId: string | null | undefined,
+): Array<{ id: string; categories: string[] }> {
+  if (!ownCompanyId || packTags.length === 0) return [];
+  const seen = new Set<string>();
+  const out: Array<{ id: string; categories: string[] }> = [];
+  for (const product of products) {
+    if (!product.id || seen.has(product.id)) continue;
+    seen.add(product.id);
+    if (product.companyId !== ownCompanyId) continue;
+    const next = packTagsPatch(product.categories, packTags);
+    if (next) out.push({ id: product.id, categories: next });
   }
   return out;
 }
@@ -195,7 +243,7 @@ export function applySameForAllToForm(
 }
 
 /**
- * Force shared units / MOQ / notes onto member (Apply / Use same as all).
+ * Force shared units / MOQ / notes onto member (pack Apply).
  * Rate never overwrites — pack rate and design rate stay separate; only empty design rates fill.
  */
 export function forceSameForAllToForm(
@@ -279,21 +327,51 @@ export function productFieldsFromMember(
   categories?: string[];
 } {
   const parsed = parseRateInput(form.rate);
-  const pcs = form.piecesPerPack.trim() ? Number(form.piecesPerPack) : undefined;
   return {
     description: form.notes.trim() || undefined,
     rate: parsed.rate,
     rateMax: parsed.rateMax,
     unit: form.unit || undefined,
     dispatchUnit: form.dispatchUnit.trim() ? form.dispatchUnit : undefined,
-    piecesPerPack:
-      pcs != null && Number.isFinite(pcs) && pcs > 0 ? Math.floor(pcs) : undefined,
+    piecesPerPack: parsePiecesPerPack(form.piecesPerPack),
     moq: form.moq.trim() ? Number(form.moq) : undefined,
     categories:
       opts?.includeEmptyCategories || form.categories.length > 0
         ? form.categories
         : undefined,
   };
+}
+
+export type PackMemberFields = ReturnType<typeof productFieldsFromMember>;
+
+/**
+ * Own-design PATCH from pack Rate per + Apply to all.
+ * Followers of the pack rate get the rupee **and** unit/dispatch (Explore Rate per).
+ * Pack size / MOQ still need Apply to all. Empty or 0 pack → null (clear).
+ */
+export function packMemberProductPatch(opts: {
+  parsed: PackMemberFields;
+  followsPackRate: boolean;
+  packRate: string;
+  applyToAll: boolean;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  const { parsed, followsPackRate, packRate, applyToAll } = opts;
+  if (packRate.trim() && followsPackRate) {
+    patch.rate = parsed.rate;
+    patch.rateMax = parsed.rateMax;
+    if (parsed.unit) patch.unit = parsed.unit;
+    if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
+  }
+  if (applyToAll) {
+    if (parsed.unit) patch.unit = parsed.unit;
+    if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
+    if (parsed.piecesPerPack !== undefined) {
+      patch.piecesPerPack = parsed.piecesPerPack;
+    }
+    if (parsed.moq != null) patch.moq = parsed.moq;
+  }
+  return patch;
 }
 
 export type RateConflict = {

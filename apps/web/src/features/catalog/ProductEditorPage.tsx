@@ -42,9 +42,16 @@ import { RateRangeFields } from './RateRangeFields';
 import { generateDraftSku, nameForNewDesign } from './designBatchHelpers';
 import { invalidateAfterProductEdit } from './productEditorInvalidate';
 import { CascadeTagsFields } from './CascadeTagsFields';
-import { resolveCompanyMasterOptions } from './companyMasterOptions';
+import { MasterCategoryField } from './MasterCategoryField';
+import { OrderDispatchAccordion } from './OrderDispatchAccordion';
+import { parsePiecesPerPack } from './orderDispatchPreview';
+import {
+  defaultProfileMasterCategoryId,
+  resolveCompanyMasterOptions,
+} from './companyMasterOptions';
 import {
   applyDesignRateUnit,
+  designCategoryLockedByPack,
   designEditorCategories,
   designMasterCategoryId,
 } from './designEditorDefaults';
@@ -79,6 +86,7 @@ export function ProductEditorPage() {
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [orderDispatchOpen, setOrderDispatchOpen] = useState(false);
   const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
   const [uploading, setUploading] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -93,8 +101,10 @@ export function ProductEditorPage() {
     moq: '',
     unit: editing ? '' : memory.unit,
     dispatchUnit: '',
+    piecesPerPack: '',
     description: '',
     categories: editing ? '' : memory.category,
+    masterCategoryId: null as string | null,
   });
   const [publishAudience, setPublishAudience] = useState<PublishAudienceState>(() =>
     emptyPublishAudienceState(),
@@ -137,17 +147,34 @@ export function ProductEditorPage() {
       ),
     [masterCategoriesQuery.data, company.data?.masterCategories, company.data?.superCategories],
   );
-  const masterCategoryId = designMasterCategoryId(
-    existing.data?.collectionPacks ?? [],
+  const catalogMasterOptions = masterCategoriesQuery.data ?? [];
+  const packs = existing.data?.collectionPacks ?? [];
+  const categoryLocked = designCategoryLockedByPack(packs);
+  const profileMasterDefaultId = useMemo(
+    () =>
+      defaultProfileMasterCategoryId(
+        masterCategoriesQuery.data,
+        company.data?.masterCategories,
+        company.data?.superCategories,
+      ),
+    [
+      masterCategoriesQuery.data,
+      company.data?.masterCategories,
+      company.data?.superCategories,
+    ],
+  );
+  const resolvedMasterCategoryId = designMasterCategoryId(
+    packs,
     companyMasterOptions.map((option) => option.id),
+    form.masterCategoryId,
   );
   const masterTaxonomy = useQuery({
-    queryKey: ['catalog-master-taxonomy', masterCategoryId],
+    queryKey: ['catalog-master-taxonomy', resolvedMasterCategoryId],
     queryFn: () =>
       api.get<MasterTaxonomyView>(
-        `/catalog/master-taxonomy?categoryId=${encodeURIComponent(masterCategoryId!)}`,
+        `/catalog/master-taxonomy?categoryId=${encodeURIComponent(resolvedMasterCategoryId!)}`,
       ),
-    enabled: Boolean(masterCategoryId),
+    enabled: Boolean(resolvedMasterCategoryId),
     staleTime: 60_000,
   });
   const permittedUnits = masterTaxonomy.data?.units ?? [];
@@ -181,11 +208,16 @@ export function ProductEditorPage() {
             : String(existing.data.moq),
         unit: existing.data.unit ?? '',
         dispatchUnit: existing.data.dispatchUnit ?? '',
+        piecesPerPack:
+          existing.data.piecesPerPack === null || existing.data.piecesPerPack === undefined
+            ? ''
+            : String(existing.data.piecesPerPack),
         description: existing.data.description ?? '',
         categories: designEditorCategories(
           existing.data.categories,
           existing.data.collectionPacks ?? [],
         ).join(', '),
+        masterCategoryId: existing.data.masterCategoryId ?? null,
       });
       setImageUrls(existing.data.images);
       setPublishAudience(
@@ -208,15 +240,29 @@ export function ProductEditorPage() {
             : String(existing.data.moq),
         unit: existing.data.unit ?? '',
         dispatchUnit: existing.data.dispatchUnit ?? '',
+        piecesPerPack:
+          existing.data.piecesPerPack === null || existing.data.piecesPerPack === undefined
+            ? ''
+            : String(existing.data.piecesPerPack),
         description: existing.data.description ?? '',
         categories: designEditorCategories(
           existing.data.categories,
           existing.data.collectionPacks ?? [],
         ).join(', '),
+        masterCategoryId: existing.data.masterCategoryId ?? null,
         images: existing.data.images,
       });
     }
   }, [existing.data]);
+
+  useEffect(() => {
+    if (editing) return;
+    if (form.masterCategoryId) return;
+    if (!profileMasterDefaultId) return;
+    setForm((prev) =>
+      prev.masterCategoryId ? prev : { ...prev, masterCategoryId: profileMasterDefaultId },
+    );
+  }, [editing, form.masterCategoryId, profileMasterDefaultId]);
 
   useEffect(() => {
     if (!marketOpen || !settings.data) return;
@@ -283,7 +329,9 @@ export function ProductEditorPage() {
         ? (form.dispatchUnit as (typeof unitValues)[number])
         : undefined,
       description: form.description.trim() || undefined,
+      piecesPerPack: parsePiecesPerPack(form.piecesPerPack),
       categories: parseList(form.categories),
+      masterCategoryId: resolvedMasterCategoryId,
       images: imageUrls,
     };
   };
@@ -399,8 +447,10 @@ export function ProductEditorPage() {
         moq: form.moq,
         unit: form.unit,
         dispatchUnit: form.dispatchUnit,
+        piecesPerPack: form.piecesPerPack,
         description: form.description,
         categories: form.categories,
+        masterCategoryId: form.masterCategoryId,
         images: imageUrls,
       }),
     [form, imageUrls],
@@ -632,11 +682,17 @@ export function ProductEditorPage() {
         onFrom={(next) => setForm({ ...form, rate: next })}
         onTo={() => undefined}
       />
+      <MasterCategoryField
+        locked={categoryLocked}
+        value={resolvedMasterCategoryId}
+        onChange={(next) => setForm({ ...form, masterCategoryId: next || null })}
+        options={catalogMasterOptions}
+      />
       <CascadeTagsFields
         items={tagSlots.items}
         qualities={tagSlots.qualities}
         sizes={tagSlots.sizes}
-        masterCategoryId={masterCategoryId}
+        masterCategoryId={resolvedMasterCategoryId}
         onItems={(items) =>
           setForm({
             ...form,
@@ -655,6 +711,18 @@ export function ProductEditorPage() {
             categories: tagSlotsToCategories({ ...tagSlots, sizes }).join(', '),
           })
         }
+      />
+      <OrderDispatchAccordion
+        orderUnit={form.unit}
+        piecesPerPack={form.piecesPerPack}
+        dispatchUnit={form.dispatchUnit}
+        moq={form.moq}
+        onOrderUnit={(unit) => setForm({ ...form, unit })}
+        onPiecesPerPack={(piecesPerPack) => setForm({ ...form, piecesPerPack })}
+        onDispatchUnit={(dispatchUnit) => setForm({ ...form, dispatchUnit })}
+        onMoq={(moq) => setForm({ ...form, moq })}
+        open={orderDispatchOpen}
+        onToggle={() => setOrderDispatchOpen((open) => !open)}
       />
 
       <div className="flex flex-col gap-3">
@@ -680,16 +748,6 @@ export function ProductEditorPage() {
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
                 disabled={Boolean(existing.data?.sku)}
                 placeholder="Leave blank to auto-assign"
-              />
-            </Field>
-            <Field label="Minimum order" hint="Pieces · blank if no minimum">
-              <TextInput
-                type="number"
-                min={1}
-                inputMode="numeric"
-                value={form.moq}
-                onChange={(e) => setForm({ ...form, moq: e.target.value })}
-                placeholder="100"
               />
             </Field>
             <Field

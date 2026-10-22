@@ -8,6 +8,7 @@
     "test:smoke:preview": "playwright test -c playwright.preview.config.ts --grep @smoke --workers=1",
     "test:smoke:docker": "playwright test -c playwright.docker.config.ts --grep @smoke --workers=1",
     "test:functional": "playwright test --grep @functional --workers=1",
+    "test:release": "playwright test --grep @release --workers=1",
     "test:ui": "playwright test --ui",
     "typecheck": "tsc --noEmit"
   },

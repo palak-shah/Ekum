@@ -1,5 +1,6 @@
 import { shortOrderLabel } from '@ekum/domain-types';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
+import { formatOrderQty } from '@/features/orders/orderLineBilling';
 import { orderSheetTitle } from './orderQtyUi';
 import { orderListMillCue, orderListRoleBit } from './tradeListRole';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
@@ -18,7 +19,7 @@ export function tradeListPreview(
   const needs = tradeNeedsYouLabel(item);
   if (needs) {
     // List already has a left accent for Needs you — show only the verb (Dispatch, Confirm…).
-    const verb = needs.replace(/^Needs you ·\s*/, '').trim() || needs;
+    const verb = needs.replace(/^Needs you\s+/, '').trim() || needs;
     return { preview: verb, accent: true };
   }
 
@@ -49,12 +50,38 @@ export function tradeListPreview(
   return { preview: '', accent: false };
 }
 
-/** Always-on identity: order # and how many designs. */
+/** Shared order-unit tally for the facts line, or null when mixed / unknown. */
+export function tradeListQtyFact(
+  items: Array<{ quantity?: number; unit?: string | null; lineStatus?: string | null }>,
+): string | null {
+  const lines = items.filter((item) => item.lineStatus !== 'declined');
+  if (lines.length === 0) return null;
+  if (lines.some((item) => item.quantity == null || !Number.isFinite(item.quantity))) return null;
+  const unit = (lines[0]?.unit ?? '').trim();
+  if (!unit) return null;
+  if (!lines.every((item) => (item.unit ?? '').trim() === unit)) return null;
+  const qty = lines.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+  if (qty <= 0) return null;
+  return formatOrderQty({ quantity: qty, unit });
+}
+
+/** Remaining lines for list facts — declined drop out of design count and qty. */
+export function tradeListFactLines<
+  T extends { lineStatus?: string | null },
+>(items: T[]): T[] {
+  const remaining = items.filter((item) => item.lineStatus !== 'declined');
+  return remaining.length > 0 ? remaining : items;
+}
+
+/** Always-on identity: `Order #VONR 2 designs 12 sets` (qty when the unit is shared). */
 export function tradeListFacts(item: TradeListItem): string {
   if (item.kind === 'order') {
     const order = item.order;
     const idLabel = shortOrderLabel(order.id, { inquiry: order.intent === 'inquiry' });
-    return `${idLabel} · ${orderSheetTitle(order.items.length)}`;
+    const lines = tradeListFactLines(order.items);
+    const designs = orderSheetTitle(lines.length);
+    const qty = tradeListQtyFact(order.items);
+    return [idLabel, designs, qty].filter(Boolean).join(' ');
   }
   if (item.kind === 'sample') {
     return `Sample · 1 design`;

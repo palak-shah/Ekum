@@ -63,7 +63,7 @@ describe('SameQtyRateForAll', () => {
         onCancel={vi.fn()}
       />,
     );
-    expect(screen.getByTestId('same-qty-for-all-input')).toHaveValue(40);
+    expect(screen.getByTestId('same-qty-for-all-input')).toHaveValue('40');
     expect(screen.getByTestId('same-rate-for-all-input')).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Apply' }));

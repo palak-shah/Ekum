@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   tradeListFacts,
   tradeListPreview,
+  tradeListQtyFact,
   tradeListThumbs,
   tradeListWhen,
 } from './tradeListPreview';
@@ -40,8 +41,7 @@ describe('tradeListPreview', () => {
     const { preview, accent } = tradeListPreview(item, 'buyer-co');
     expect(accent).toBe(false);
     expect(preview).toBe('');
-    expect(tradeListFacts(item)).toMatch(/Order #/);
-    expect(tradeListFacts(item)).toContain('1 design');
+    expect(tradeListFacts(item)).toMatch(/^Order #\S+ 1 design$/);
   });
 
   it('marks I-handle sell as Trading', () => {
@@ -91,8 +91,56 @@ describe('tradeListPreview', () => {
     const { preview, accent } = tradeListPreview(item, 'seller-co');
     expect(accent).toBe(true);
     expect(preview).toBe('Send quote');
-    expect(tradeListFacts(item)).toMatch(/Order #/);
-    expect(tradeListFacts(item)).toContain('1 design');
+    expect(tradeListFacts(item)).toMatch(/^Order #\S+ 1 design 10 pcs$/);
+  });
+
+  it('facts keep designs and summed qty, spaces not middot', () => {
+    const item = {
+      kind: 'order',
+      id: 'cm-vonr',
+      createdAt: '2026-09-07T00:00:00.000Z',
+      updatedAt: '2026-09-07T00:00:00.000Z',
+      direction: 'selling',
+      order: {
+        id: 'cm-vonr',
+        status: 'requested',
+        direction: 'selling',
+        tradeMode: 'bilateral',
+        intent: 'order',
+        items: [
+          { name: 'A', quantity: 7, unit: 'set', lineStatus: 'open' },
+          { name: 'B', quantity: 5, unit: 'set', lineStatus: 'open' },
+        ],
+        counterpart: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', verification: 'none', logoUrl: null },
+        createdAt: '2026-09-07T00:00:00.000Z',
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      },
+    } as TradeListItem;
+    expect(tradeListFacts(item)).toBe('Order #VONR 2 designs 12 sets');
+    expect(tradeListFacts(item)).not.toContain('·');
+    const mixed = {
+      ...item,
+      order: {
+        ...item.order,
+        items: [
+          { name: 'A', quantity: 12, unit: 'set', lineStatus: 'open' },
+          { name: 'B', quantity: 8, unit: 'mtr', lineStatus: 'open' },
+        ],
+      },
+    } as TradeListItem;
+    expect(tradeListFacts(mixed)).toBe('Order #VONR 2 designs');
+    expect(
+      tradeListQtyFact([
+        { quantity: 10, unit: 'mtr', lineStatus: 'open' },
+        { quantity: 10, unit: 'mtr', lineStatus: 'open' },
+      ]),
+    ).toBe('20 mtrs');
+    expect(
+      tradeListQtyFact([
+        { quantity: 12, unit: 'set', lineStatus: 'open' },
+        { quantity: 8, unit: 'mtr', lineStatus: 'open' },
+      ]),
+    ).toBeNull();
   });
 
   it('prefers updatedAt for when', () => {

@@ -3,6 +3,9 @@ import {
   howManyLineExtra,
   howManyLineMeta,
   howManyOrderFooterSummary,
+  ticketTotalSummary,
+  ticketLineSkipReason,
+  ticketTotalMissingCue,
   howManyPackContentsLabel,
   howManyPackSizesDiffer,
   howManySetContentsMissing,
@@ -10,6 +13,9 @@ import {
   howManySoldAs,
   howManyTotalPcsLabel,
   howManyUnitShort,
+  groupHowManyByOrderUnit,
+  lastGroupedItem,
+  howManyOrderUnitsMixed,
   qtyCountNoun,
   qtyStepperUnitLabel,
 } from './howManyLineMeta';
@@ -53,8 +59,24 @@ describe('howManyLineMeta', () => {
     ).toBe('Piece');
     expect(howManyUnitShort('pc')).toBe('Piece');
     expect(howManyLineExtra({ unit: 'pc' })).toBeNull();
-    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 4, rate: 640 })).toBe('₹2,560');
-    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 1, rate: 1100 })).toBe('₹1,100');
+    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 4, rate: 640 })).toBe('₹640/pc');
+    expect(howManyLineExtra({ unit: 'set', piecesPerPack: 1, rate: 1100 })).toBe('₹1,100/pc');
+    expect(
+      howManyLineExtra({
+        unit: 'set',
+        dispatchUnit: 'mtr',
+        piecesPerPack: 39,
+        rate: 91,
+      }),
+    ).toBe('₹91/mtr');
+    expect(
+      howManyLineExtra({
+        unit: 'set',
+        dispatchUnit: 'mtr',
+        piecesPerPack: 39,
+        rate: 91,
+      }),
+    ).not.toBe('₹3,549');
   });
 
   it('totals pcs for sets when pcs-per-set is known', () => {
@@ -63,10 +85,39 @@ describe('howManyLineMeta', () => {
     expect(howManyTotalPcsLabel(5, 'set', null)).toBeNull();
     expect(howManyTotalPcsLabel(null, 'set', 4)).toBeNull();
     expect(howManyTotalPcsLabel(2, 'pc', 4)).toBeNull();
-    expect(howManyTotalPcsLabel(2, 'dozen', null)).toBe('Total 2 dozens = 24 pcs');
+    expect(howManyTotalPcsLabel(2, 'dozen', null)).toBe('Total 2 dozen = 24 pcs');
     expect(qtyCountNoun('set')).toBe('sets');
-    expect(qtyCountNoun('pc')).toBe('pieces');
+    expect(qtyCountNoun('pc')).toBe('pcs');
+    expect(qtyCountNoun('mtr')).toBe('mtrs');
     expect(qtyStepperUnitLabel('set')).toBe('Sets');
+  });
+
+  it('restacks mixed units: pack first, pick order inside the group', () => {
+    const grouped = groupHowManyByOrderUnit(
+      [
+        { id: 'mtr-a', unit: 'mtr' },
+        { id: 'set-a', unit: 'set' },
+        { id: 'mtr-b', unit: 'mtr' },
+        { id: 'set-b', unit: 'set' },
+      ],
+      (row) => row.unit,
+    );
+    expect(grouped.map((g) => g.label)).toEqual(['Sets', 'Mtrs']);
+    expect(grouped[0]!.items.map((row) => row.id)).toEqual(['set-a', 'set-b']);
+    expect(grouped[1]!.items.map((row) => row.id)).toEqual(['mtr-a', 'mtr-b']);
+    expect(
+      lastGroupedItem(
+        [
+          { id: 'mtr-a', unit: 'mtr' },
+          { id: 'set-a', unit: 'set' },
+          { id: 'mtr-b', unit: 'mtr' },
+          { id: 'set-b', unit: 'set' },
+        ],
+        (row) => row.unit,
+      )?.id,
+    ).toBe('mtr-b');
+    expect(howManyOrderUnitsMixed([{ unit: 'set' }, { unit: 'set' }])).toBe(false);
+    expect(howManyOrderUnitsMixed([{ unit: 'set' }, { unit: 'mtr' }])).toBe(true);
   });
 
   it('shows pack size on a line only when sizes on the sheet differ', () => {
@@ -108,7 +159,7 @@ describe('howManyLineMeta', () => {
       howManyOrderFooterSummary([
         { quantity: 2, unit: 'set', piecesPerPack: 6, dispatchUnit: 'pc' },
       ]),
-    ).toEqual({ primary: '2 sets = 12 pcs' });
+    ).toEqual({ rows: ['2 sets = 12 pcs'] });
     expect(
       howManyOrderFooterSummary([
         {
@@ -119,10 +170,32 @@ describe('howManyLineMeta', () => {
           rate: 100,
         },
       ]),
-    ).toEqual({ primary: '10 sets = 40 pcs', money: '₹4,000' });
+    ).toEqual({ rows: ['10 sets = 40 pcs'], money: '₹4,000' });
     expect(
       howManyOrderFooterSummary([{ quantity: 2, unit: 'set', piecesPerPack: null }]),
-    ).toEqual({ primary: '2 sets' });
+    ).toEqual({ rows: ['2 sets'] });
+    expect(
+      howManyOrderFooterSummary([
+        {
+          quantity: 3,
+          unit: 'set',
+          dispatchUnit: 'mtr',
+          piecesPerPack: null,
+          rate: 91,
+        },
+      ]),
+    ).toEqual({ rows: ['3 sets'] });
+    expect(
+      howManyOrderFooterSummary([
+        {
+          quantity: 3,
+          unit: 'set',
+          dispatchUnit: 'mtr',
+          piecesPerPack: 39,
+          rate: 91,
+        },
+      ]),
+    ).toEqual({ rows: ['3 sets = 117 mtrs'], money: '₹10,647' });
     expect(
       howManyOrderFooterSummary([
         { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
@@ -130,15 +203,130 @@ describe('howManyLineMeta', () => {
         { quantity: 30, unit: 'set', piecesPerPack: 2, dispatchUnit: 'pc' },
         { quantity: 30, unit: 'set', piecesPerPack: 3, dispatchUnit: 'pc' },
       ]),
-    ).toEqual({ primary: '120 sets = 210 pcs' });
+    ).toEqual({ rows: ['120 sets = 210 pcs'] });
     expect(
       howManyOrderFooterSummary([
         { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
         { quantity: 30, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc' },
       ]),
-    ).toEqual({ primary: '60 sets = 60 pcs' });
+    ).toEqual({ rows: ['60 sets = 60 pcs'] });
     expect(howManyOrderFooterSummary([{ quantity: 2, unit: 'pc' }])).toEqual({
-      primary: '2 pieces',
+      rows: ['2 pcs'],
+    });
+    expect(howManyOrderFooterSummary([{ quantity: 70, unit: 'mtr', rate: 111 }])).toEqual({
+      rows: ['70 mtrs'],
+      money: '₹7,770',
+    });
+    expect(
+      howManyOrderFooterSummary([
+        { quantity: 10, unit: 'set', piecesPerPack: 4, dispatchUnit: 'pc', rate: 100 },
+        { quantity: 5, unit: 'mtr', rate: 50 },
+      ]),
+    ).toEqual({
+      rows: ['10 sets = 40 pcs', '5 mtrs'],
+      money: '₹4,250',
+    });
+    expect(
+      howManyOrderFooterSummary([
+        { quantity: 10, unit: 'set', piecesPerPack: 4, dispatchUnit: 'pc', rate: 100 },
+        { quantity: 5, unit: 'mtr' },
+      ]),
+    ).toEqual({ rows: ['10 sets = 40 pcs', '5 mtrs'] });
+    expect(
+      howManyOrderFooterSummary(
+        [{ quantity: 12, unit: 'set', piecesPerPack: 1, dispatchUnit: 'pc', rate: 120 }],
+        { packConversion: false },
+      ),
+    ).toEqual({ rows: ['12 sets'], money: '₹1,440' });
+  });
+
+  it('ticket Total: per-unit ₹ then All when mixed and billable', () => {
+    expect(
+      ticketTotalSummary([
+        { quantity: 50, unit: 'set', piecesPerPack: 1, rate: 1290 },
+        { quantity: 50, unit: 'set', piecesPerPack: 1, rate: 1290 },
+        { quantity: 50, unit: 'pc', rate: 100 },
+      ]),
+    ).toEqual({
+      units: [
+        { unit: 'set', qty: '100 sets = 100 pcs', money: '₹1,29,000' },
+        { unit: 'pc', qty: '50 pcs', money: '₹5,000' },
+      ],
+      grand: '₹1,34,000',
+      missingCue: null,
+    });
+    expect(
+      ticketTotalSummary([
+        { quantity: 50, unit: 'set', piecesPerPack: 1, rate: 1290 },
+        { quantity: 50, unit: 'set', piecesPerPack: 1 },
+        { quantity: 50, unit: 'pc', rate: 100 },
+      ]),
+    ).toEqual({
+      units: [
+        { unit: 'set', qty: '100 sets = 100 pcs', money: '₹64,500' },
+        { unit: 'pc', qty: '50 pcs', money: '₹5,000' },
+      ],
+      grand: '₹69,500',
+      missingCue: 'Missing rates',
+    });
+    expect(
+      ticketTotalSummary([
+        { quantity: 10, unit: 'set', piecesPerPack: 4, dispatchUnit: 'pc', rate: 100 },
+        { quantity: 5, unit: 'mtr' },
+      ]),
+    ).toEqual({
+      units: [
+        { unit: 'set', qty: '10 sets = 40 pcs', money: '₹4,000' },
+        { unit: 'mtr', qty: '5 mtrs', money: null },
+      ],
+      grand: '₹4,000',
+      missingCue: 'Missing rates',
+    });
+    expect(
+      ticketTotalSummary([
+        { quantity: 10, unit: 'mtr', rate: 128 },
+        { quantity: 10, unit: 'mtr', rate: 160 },
+      ]),
+    ).toEqual({
+      units: [{ unit: 'mtr', qty: '20 mtrs', money: '₹2,880' }],
+      grand: null,
+      missingCue: null,
+    });
+    expect(
+      ticketTotalSummary([
+        { quantity: 10, unit: 'mtr', rate: 128 },
+        { quantity: 10, unit: 'mtr', rate: 160, lineStatus: 'declined' },
+      ]),
+    ).toEqual({
+      units: [{ unit: 'mtr', qty: '10 mtrs', money: '₹1,280' }],
+      grand: null,
+      missingCue: null,
+    });
+    expect(ticketLineSkipReason({ quantity: 10, unit: 'set', rate: 100 })).toBe('pack');
+    expect(ticketTotalMissingCue([{ quantity: 10, unit: 'set', rate: 100 }])).toBe(
+      'No pcs in a set',
+    );
+    expect(
+      ticketTotalSummary([{ quantity: 10, unit: 'set', rate: 100 }]),
+    ).toEqual({
+      units: [{ unit: 'set', qty: '10 sets', money: null }],
+      grand: null,
+      missingCue: 'No pcs in a set',
+    });
+    expect(
+      ticketTotalSummary([
+        {
+          quantity: 3,
+          unit: 'set',
+          dispatchUnit: 'mtr',
+          piecesPerPack: null,
+          rate: 91,
+        },
+      ]),
+    ).toEqual({
+      units: [{ unit: 'set', qty: '3 sets', money: null }],
+      grand: null,
+      missingCue: 'No pcs in a set',
     });
   });
 });

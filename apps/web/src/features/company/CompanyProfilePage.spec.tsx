@@ -156,7 +156,7 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(await screen.findByTestId('company-follow')).toBeInTheDocument();
     expect(screen.getByTestId('company-message')).toHaveTextContent('Message');
     expect(screen.queryByTestId('company-request')).toBeNull();
-    expect(screen.getByTestId('company-follow')).toHaveTextContent('Request catalog access');
+    expect(screen.getByTestId('company-follow')).toHaveTextContent('Request access');
     expect(screen.queryByTestId('company-follow-hint')).toBeNull();
     expect(screen.getByTestId('company-more')).toHaveAttribute('aria-label', 'More');
   });
@@ -288,10 +288,10 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(rows).toEqual(['Share', 'Mute', 'Block', 'Remove connection']);
   });
 
-  it('shows lock with Request catalog access when idle', async () => {
+  it('shows lock with Request access when idle', async () => {
     renderPage(false);
     const follow = await screen.findByTestId('company-follow');
-    expect(follow).toHaveTextContent('Request catalog access');
+    expect(follow).toHaveTextContent('Request access');
     expect(follow.querySelector('svg')).toBeTruthy();
   });
 

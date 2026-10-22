@@ -39,6 +39,8 @@ describe('OrderDispatchFields set-contains', () => {
     render(<Harness />);
     expect(screen.getByTestId('collection-order-unit')).toHaveValue(Unit.Set);
     expect(screen.getByTestId('collection-dispatch-unit')).toHaveValue(Unit.Set);
+    expect(screen.getByTestId('collection-order-unit').className).toContain('bg-input');
+    expect(screen.getByTestId('collection-dispatch-unit').className).toContain('bg-input');
   });
 
   it('falls back empty dispatch to set even when order unit is mtr', () => {
@@ -47,20 +49,38 @@ describe('OrderDispatchFields set-contains', () => {
     expect(screen.getByTestId('collection-dispatch-unit')).toHaveValue(Unit.Set);
   });
 
-  it('shows placeholder 4 pc when order+dispatch are set (rate unit pc)', () => {
+  it('shows placeholder 4 with pc suffix when empty', () => {
     render(<Harness />);
     expect(screen.getByTestId('collection-set-contains')).toHaveAttribute(
       'placeholder',
-      '4 pc',
+      '4',
     );
+    expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('pc');
   });
 
-  it('shows placeholder 4 mtr when dispatch/rate unit is mtr', () => {
+  it('shows mtr suffix when dispatch/rate unit is mtr', () => {
     render(<Harness initialDispatch={Unit.Metre} />);
-    expect(screen.getByTestId('collection-set-contains')).toHaveAttribute(
-      'placeholder',
-      '4 mtr',
-    );
+    expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('mtr');
+  });
+
+  it('shows n unit while they type (4 pcs)', () => {
+    render(<Harness initialPieces="4" />);
+    expect(screen.getByTestId('collection-set-contains')).toHaveValue('4');
+    expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('pcs');
+  });
+
+  it('keeps the unit next to the number (not at the far right)', () => {
+    render(<Harness initialPieces="4" />);
+    const cluster = screen.getByTestId('collection-set-contains-cluster');
+    expect(cluster).toHaveClass('w-fit');
+    expect(screen.getByTestId('collection-set-contains')).toHaveClass('w-[4ch]');
+    expect(screen.getByTestId('collection-set-contains')).toHaveClass('text-right');
+    expect(screen.getByTestId('collection-set-contains')).not.toHaveClass('flex-1');
+  });
+
+  it('keeps singular unit at 1 pc', () => {
+    render(<Harness initialPieces="1" />);
+    expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('pc');
   });
 
   it('summarizes contains in rate unit not as 12 sets', async () => {

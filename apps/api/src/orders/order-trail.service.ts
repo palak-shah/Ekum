@@ -4,6 +4,8 @@ import {
   OrderLineStatus,
   OrderTrailType,
   isBareQuotedTrailSummary,
+  isDesignCountTrailDetail,
+  isQtyEchoUpdatedTrailSummary,
   orderTrailLabel,
   quoteTrailSummary,
   type OrderTrailEventView,
@@ -80,6 +82,7 @@ export class OrderTrailService {
       });
     }
     rows = await this.healBareQuotedSummaries(orderId, rows);
+    rows = await this.healUpdatedTrailCopy(rows);
     const hide = names.upstreamNamesToHide ?? [];
     return rows.map((row) => {
       let who: string | null = null;
@@ -155,6 +158,29 @@ export class OrderTrailService {
         data: { summary },
       });
       next[i] = { ...row, summary };
+    }
+    return next;
+  }
+
+  /**
+   * Drop metres (already on ticket Total) and "N designs" from Updated rows.
+   * `Updated — 60 mtrs` → `Updated qty`. Bare Updated stays Updated.
+   */
+  private async healUpdatedTrailCopy(rows: OrderTrailEvent[]): Promise<OrderTrailEvent[]> {
+    const next = [...rows];
+    for (let i = 0; i < next.length; i++) {
+      const row = next[i]!;
+      if (row.type !== OrderTrailType.Updated) continue;
+      const summary = isQtyEchoUpdatedTrailSummary(row.summary)
+        ? 'Updated qty'
+        : row.summary;
+      const detail = isDesignCountTrailDetail(row.detail) ? null : row.detail;
+      if (summary === row.summary && detail === row.detail) continue;
+      await this.prisma.orderTrailEvent.update({
+        where: { id: row.id },
+        data: { summary, detail },
+      });
+      next[i] = { ...row, summary, detail };
     }
     return next;
   }

@@ -25,15 +25,27 @@ import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import { NoteAttachField } from '@/features/voice/NoteAttachField';
 import { type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
-import { QtyStepper, SameForAllEditor, parseQtyDraft, sameForAllChipLabel } from '@/features/orders/QtyStepper';
-import { HowManyLineHeading } from '@/features/orders/HowManyLineHeading';
+import {
+  QtyStepper,
+  SameForAllEditor,
+  parseQtyDraft,
+  sameForAllChipLabel,
+  seedSameForAllQty,
+} from '@/features/orders/QtyStepper';
+import {
+  HowManyLineHeading,
+  HowManyQtyRow,
+  HowManyRemoveButton,
+} from '@/features/orders/HowManyLineHeading';
+import { HowManyGroupedLines } from '@/features/orders/HowManyGroupedLines';
 import {
   howManyOrderFooterSummary,
+  howManyOrderUnitsMixed,
   howManyPackSizesDiffer,
-  howManySetsBanner,
   qtyCountNoun,
 } from '@/features/orders/howManyLineMeta';
-import { ORDER_QTY_SCOPE_ATTR } from '@/features/orders/orderQtyFocus';
+import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
 import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
 import {
   readLastTransporter,
@@ -378,6 +390,8 @@ export function OrderBuilderPage() {
       photos.length > 0 &&
       photos.every((line) => line.imageUrl && !line.uploading && Number(line.quantity) > 0) &&
       !uploading;
+  const packSizesDiffer = howManyPackSizesDiffer(standardLines);
+  const showSameForAll = standardLines.length > 1 && !howManyOrderUnitsMixed(standardLines);
 
   const discardActive = useMemo(
     () =>
@@ -447,7 +461,7 @@ export function OrderBuilderPage() {
               emptyMessage="Connect with a business first, then place an order."
             />
           ) : null}
-          {standardLines.length > 1 ? (
+          {showSameForAll ? (
             sameOpen ? (
               <SameForAllEditor
                 disabled={sameDraft == null || sameDraft <= 0}
@@ -473,7 +487,12 @@ export function OrderBuilderPage() {
                 data-testid="same-for-all-chip"
                 className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink"
                 onClick={() => {
-                  setSameDraft(null);
+                  setSameDraft(
+                    seedSameForAllQty(
+                      standardLines.map((line) => parseQtyDraft(line.quantity)),
+                      parseQtyDraft(bulkQty),
+                    ),
+                  );
                   setSameOpen(true);
                 }}
               >
@@ -481,90 +500,80 @@ export function OrderBuilderPage() {
               </button>
             )
           ) : null}
-          {(() => {
-            const banner = howManySetsBanner(standardLines);
-            return banner ? (
-              <p
-                data-testid="how-many-sets-banner"
-                className="text-[13px] font-body leading-snug text-muted"
-              >
-                {banner}
-              </p>
-            ) : null;
-          })()}
-          <ul
-            className="overflow-hidden rounded-xl border border-line bg-surface"
-            data-testid="order-builder-lines"
-            {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
-          >
-            {(() => {
-              const packSizesDiffer = howManyPackSizesDiffer(standardLines);
-              return standardLines.map((line, index) => {
+          <HowManyGroupedLines
+            items={standardLines}
+            unitOf={(line) => line.unit}
+            getKey={(line) => line.productId}
+            testId="order-builder-lines"
+            lineClassName="px-3 py-3"
+            renderLine={(line, _index, last) => {
               const qty = parseQtyDraft(line.quantity);
               const noun = qtyCountNoun(line.unit);
               return (
-                <li
-                  key={line.productId}
-                  className={cx('px-3 py-3', index > 0 && 'border-t border-line/70')}
-                >
-                  <div className="flex items-start gap-3">
-                    {line.image ? (
-                      <img
-                        src={line.image}
-                        alt=""
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
-                        {line.name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start gap-2">
-                        <HowManyLineHeading
-                          name={line.name}
-                          unit={line.unit}
-                          dispatchUnit={line.dispatchUnit}
-                          piecesPerPack={line.piecesPerPack}
-                          rate={line.rate}
-                          rateMax={line.rateMax}
-                          showPackSize={packSizesDiffer}
+                <>
+                  <OrderLineStack
+                    trailingBelow
+                    photo={
+                      line.image ? (
+                        <img
+                          src={line.image}
+                          alt=""
+                          className="h-12 w-12 shrink-0 rounded-lg object-cover"
                         />
-                        {standardLines.length > 1 ? (
-                          <button
-                            type="button"
-                            aria-label={`Remove ${line.name}`}
-                            className="shrink-0 px-1 text-lg leading-none text-muted"
-                            onClick={() =>
-                              setStandardLines((prev) =>
-                                prev.filter((item) => item.productId !== line.productId),
-                              )
-                            }
-                          >
-                            ×
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <QtyStepper
-                        value={qty}
-                        chainQty
-                        enterKeyHint={index === standardLines.length - 1 ? 'done' : 'next'}
-                        aria-label={`${noun} for ${line.name}`}
-                        onChange={(next) => {
-                          if (next != null) rememberQty(sellerId || sellerFromUrl, next);
-                          setStandardLines((prev) =>
-                            prev.map((item) =>
-                              item.productId === line.productId
-                                ? { ...item, quantity: next == null ? '' : String(next) }
-                                : item,
-                            ),
-                          );
-                        }}
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
+                          {line.name.charAt(0)}
+                        </div>
+                      )
+                    }
+                    title={
+                      <HowManyLineHeading
+                        name={line.name}
+                        unit={line.unit}
+                        dispatchUnit={line.dispatchUnit}
+                        piecesPerPack={line.piecesPerPack}
+                        rate={line.rate}
+                        rateMax={line.rateMax}
+                        showPackSize={packSizesDiffer}
                       />
-                    </div>
-                  </div>
+                    }
+                    nameEnd={
+                      standardLines.length > 1 ? (
+                        <HowManyRemoveButton
+                          name={line.name}
+                          onClick={() =>
+                            setStandardLines((prev) =>
+                              prev.filter((item) => item.productId !== line.productId),
+                            )
+                          }
+                        />
+                      ) : null
+                    }
+                    trailing={
+                      <HowManyQtyRow
+                        unit={line.unit}
+                        piecesPerPack={line.piecesPerPack}
+                        stepper={
+                          <QtyStepper
+                            value={qty}
+                            chainQty
+                            enterKeyHint={last ? 'done' : 'next'}
+                            aria-label={`${noun} for ${line.name}`}
+                            onChange={(next) => {
+                              if (next != null) rememberQty(sellerId || sellerFromUrl, next);
+                              setStandardLines((prev) =>
+                                prev.map((item) =>
+                                  item.productId === line.productId
+                                    ? { ...item, quantity: next == null ? '' : String(next) }
+                                    : item,
+                                ),
+                              );
+                            }}
+                          />
+                        }
+                      />
+                    }
+                  />
                   <HowManyLineNote
                     value={line.note}
                     ariaLabel={`Note for ${line.name}`}
@@ -578,11 +587,10 @@ export function OrderBuilderPage() {
                       )
                     }
                   />
-                </li>
+                </>
               );
-            });
-            })()}
-          </ul>
+            }}
+          />
         </div>
       ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
@@ -726,22 +734,7 @@ export function OrderBuilderPage() {
             rate: line.rate ?? null,
           })),
         );
-        return summary ? (
-          <div data-testid="how-many-sets-summary" className="flex flex-col gap-0.5">
-            <p className="text-[15px] font-emphasis tracking-tight text-ink">{summary.primary}</p>
-            {summary.money ? (
-              <p
-                className="text-[15px] font-emphasis tracking-tight text-ink"
-                data-testid="how-many-billing-total"
-              >
-                {summary.money}
-              </p>
-            ) : null}
-            {summary.hint ? (
-              <p className="text-[12px] font-body text-muted">{summary.hint}</p>
-            ) : null}
-          </div>
-        ) : null;
+        return summary ? <OrderQtyFooterSummary summary={summary} /> : null;
       })()}
 
       <TransporterField

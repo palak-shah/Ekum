@@ -10,7 +10,11 @@ export function collectionAlbumOpenTarget(input: {
   status?: string;
   packManage?: boolean;
 }): { href: string; state?: { packManage: true } } {
-  if (input.surface === 'library' && input.status === CollectionStatus.Archived) {
+  const unpublished =
+    input.status === CollectionStatus.Draft ||
+    input.status === CollectionStatus.Ready ||
+    input.status === CollectionStatus.Archived;
+  if (input.surface === 'library' && unpublished) {
     return { href: `/catalog/collections/${input.id}` };
   }
   const href = `/collections/${input.id}`;

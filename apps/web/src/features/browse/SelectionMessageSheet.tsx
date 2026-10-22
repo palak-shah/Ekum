@@ -11,6 +11,7 @@ import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
 import { SendIcon } from '@/ui/icons';
 import { Avatar, Sheet, cx } from '@/ui/kit';
+import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 
 type AttachPreview = {
   key: string;
@@ -155,7 +156,9 @@ export function SelectionMessageSheet({
         ) : null}
         <div className="flex items-center gap-2.5 pb-1" aria-label={`Message ${toName}`}>
           <Avatar name={myName} imageUrl={me.data?.logoUrl} size={36} />
-          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-foam pl-3.5 pr-1.5 focus-within:border-line">
+          <div
+            className={`flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border border-line ${FIELD_IDLE_FILL_CLASS} pl-3.5 pr-1.5 focus-within:border-line`}
+          >
             <input
               ref={inputRef}
               type="text"

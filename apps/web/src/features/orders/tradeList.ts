@@ -1,4 +1,5 @@
 import type { ComplaintView, OrderView, ReturnView, SampleView } from '@ekum/domain-types';
+import type { OrdersListTab } from './ordersDirectionSession';
 import {
   matchesCompleted,
   matchesNeeds,
@@ -90,6 +91,26 @@ export function toTradeItems(
     })),
   ];
   return rows.sort((a, b) => sortKey(b) - sortKey(a));
+}
+
+/** Others shows a sample once. Skip converted rows and designs already on an order between the same shops. */
+export function samplesForOthersList(samples: SampleView[], orders: OrderView[]): SampleView[] {
+  return samples.filter((sample) => {
+    if (sample.status === 'converted') return false;
+    if (!sample.productId) return true;
+    const attached = orders.some(
+      (order) =>
+        order.buyerCompanyId === sample.buyerCompanyId &&
+        order.sellerCompanyId === sample.sellerCompanyId &&
+        order.items.some((item) => item.productId === sample.productId),
+    );
+    return !attached;
+  });
+}
+
+export function tradeMatchesListTab(item: TradeListItem, tab: OrdersListTab): boolean {
+  if (tab === 'others') return item.kind === 'sample' || item.kind === 'complaint';
+  return item.kind === 'order' && item.direction === tab;
 }
 
 export function matchesTradeNeeds(item: TradeListItem): boolean {

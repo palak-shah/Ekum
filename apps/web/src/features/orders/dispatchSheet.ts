@@ -1,5 +1,5 @@
 import type { OrderItemView, OrderShipmentView } from '@ekum/domain-types';
-import { formatUnit } from '@/lib/format';
+import { howManyOrderFooterSummary } from '@/features/orders/howManyLineMeta';
 
 export type DispatchLegDraft = {
   lrNumber: string;
@@ -107,11 +107,15 @@ export function shipmentPrimaryLabel(
   return fallback;
 }
 
+/** Confirmed / dispatched lines still pending — remaining > 0. */
 export function shippableDispatchItems(items: OrderItemView[]): OrderItemView[] {
+  return fulfillDispatchItems(items).filter((item) => item.remainingQuantity > 0);
+}
+
+/** Every confirmed / dispatched line, including remaining 0 (extras). */
+export function fulfillDispatchItems(items: OrderItemView[]): OrderItemView[] {
   return items.filter(
-    (item) =>
-      (item.lineStatus === 'confirmed' || item.lineStatus === 'dispatched') &&
-      item.remainingQuantity > 0,
+    (item) => item.lineStatus === 'confirmed' || item.lineStatus === 'dispatched',
   );
 }
 
@@ -120,21 +124,34 @@ export function cantSupplyDispatchItems(items: OrderItemView[]): OrderItemView[]
   return items.filter((item) => item.lineStatus === 'declined');
 }
 
-/** Shippable first, then Can’t supply — full list for the Dispatch sheet. */
+/** Fulfill lines first (including remaining 0), then Can’t supply. */
 export function dispatchSheetItems(items: OrderItemView[]): OrderItemView[] {
-  return [...shippableDispatchItems(items), ...cantSupplyDispatchItems(items)];
+  return [...fulfillDispatchItems(items), ...cantSupplyDispatchItems(items)];
 }
 
 export function defaultDispatchOn(items: OrderItemView[]): Record<string, boolean> {
   const on: Record<string, boolean> = {};
-  for (const item of items) on[item.id] = true;
+  for (const item of items) on[item.id] = item.remainingQuantity > 0;
   return on;
 }
 
 export function defaultDispatchQty(items: OrderItemView[]): Record<string, string> {
   const qty: Record<string, string> = {};
-  for (const item of items) qty[item.id] = String(item.remainingQuantity);
+  for (const item of items) {
+    qty[item.id] = item.remainingQuantity > 0 ? String(item.remainingQuantity) : '';
+  }
   return qty;
+}
+
+/** When they tick a line: keep a typed qty, else remaining, else 1 for extras. */
+export function dispatchQtyAfterSelect(
+  item: Pick<OrderItemView, 'remainingQuantity'>,
+  current: string | undefined,
+): string {
+  const n = Number(current);
+  if (Number.isFinite(n) && n >= 1) return String(Math.floor(n));
+  if (item.remainingQuantity > 0) return String(item.remainingQuantity);
+  return '1';
 }
 
 const DISPATCH_QTY_MAX = 1_000_000;
@@ -177,23 +194,57 @@ export function dispatchThisLrTally(
     if (on[item.id]) {
       designs += 1;
       pieces += lineDispatchQty(item, qty);
-    } else {
+    } else if (item.remainingQuantity > 0) {
       later += 1;
     }
   }
   return { designs, pieces, later };
 }
 
-export function dispatchThisLrLabel(tally: { designs: number; pieces: number }): string {
-  const d = tally.designs === 1 ? 'design' : 'designs';
-  return `This LR · ${tally.designs} ${d} · ${tally.pieces} pcs`;
+export function dispatchThisLrFooterSummary(
+  items: OrderItemView[],
+  on: Record<string, boolean>,
+  qty: Record<string, string>,
+) {
+  const active = items.filter((item) => on[item.id] === true);
+  return howManyOrderFooterSummary(
+    active.map((item) => ({
+      quantity: lineDispatchQty(item, qty),
+      unit: item.unit,
+      piecesPerPack: item.piecesPerPack,
+      dispatchUnit: item.dispatchUnit,
+      rate: item.rate,
+    })),
+  );
 }
 
-/** SKU · per mtr — unit with the design, not glued to the Price box. */
+export function dispatchQtyFooterRows(
+  items: OrderItemView[],
+  on: Record<string, boolean>,
+  qty: Record<string, string>,
+): string[] {
+  return dispatchThisLrFooterSummary(items, on, qty)?.rows ?? [];
+}
+
+export function dispatchThisLrLabel(input: {
+  designs: number;
+  rows?: string[];
+  pieces?: number;
+}): string {
+  const d = input.designs === 1 ? 'design' : 'designs';
+  const rows = input.rows ?? [];
+  if (rows.length === 1) {
+    return `This LR · ${input.designs} ${d} · ${rows[0]}`;
+  }
+  if (rows.length === 0 && input.pieces != null) {
+    return `This LR · ${input.designs} ${d} · ${input.pieces} pcs`;
+  }
+  return `This LR · ${input.designs} ${d}`;
+}
+
+/** SKU only — unit lives on qty / footer, not beside the name. */
 export function dispatchLineKindLine(item: Pick<OrderItemView, 'sku' | 'unit'>): string | null {
-  const unit = formatUnit(item.unit);
-  const bits = [item.sku?.trim(), unit ? `per ${unit}` : null].filter(Boolean);
-  return bits.length > 0 ? bits.join(' · ') : null;
+  return item.sku?.trim() || null;
 }
 
 /** Ordered / shipped / pending — show dispatched when some already left. */

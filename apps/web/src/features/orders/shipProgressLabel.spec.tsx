@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import {
-  SettlePendingSummary,
   SettleQtyColumns,
   ShipProgressHint,
   fulfillmentNeedsAttention,
@@ -78,11 +77,4 @@ describe('fulfillment row highlight', () => {
     );
   });
 
-  it('shows settle summary only when pieces pending', () => {
-    const { rerender } = render(<SettlePendingSummary designCount={2} pendingPieces={80} />);
-    expect(screen.getByTestId('settle-pending-summary').textContent).toMatch(/2 designs/);
-    expect(screen.getByTestId('settle-pending-summary').textContent).toMatch(/80 pending/);
-    rerender(<SettlePendingSummary designCount={0} pendingPieces={0} />);
-    expect(screen.queryByTestId('settle-pending-summary')).toBeNull();
-  });
 });

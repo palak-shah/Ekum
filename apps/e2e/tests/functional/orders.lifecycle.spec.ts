@@ -7,7 +7,7 @@ import {
 } from '../../helpers/orders';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
-test.describe('order lifecycle @functional @orders', () => {
+test.describe('order lifecycle @functional @release @orders', () => {
   test('request → quote → accept → confirmed living card', async ({ page }) => {
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);

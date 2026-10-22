@@ -47,6 +47,11 @@ test.describe('add designs creation @functional @media @creation @catalog', () =
     await tile.click();
 
     await expect(page).toHaveURL(/\/catalog\/products\//, { timeout: 15_000 });
+    await expect(page.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await page.getByRole('button', { name: 'Show details' }).click();
     await expect(page.getByLabel(/Reference \/ SKU|SKU/i)).toHaveValue(sku);
     await expect(
       page.locator('img[src*="/media"], img[src*="http"], img[src^="blob:"]').first(),

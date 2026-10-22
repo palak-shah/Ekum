@@ -484,8 +484,8 @@ export const quoteOrderSchema = z
 export type QuoteOrderDto = z.infer<typeof quoteOrderSchema>;
 
 /**
- * Seller confirms / declines open lines — may set qty + rate in one step
- * (everyday path without Send quote).
+ * Seller confirms / declines open lines — may set qty and optional rate in one
+ * step (everyday path without Send quote). Rate is not required to lock.
  */
 export const decideOrderLinesSchema = z.object({
   items: z

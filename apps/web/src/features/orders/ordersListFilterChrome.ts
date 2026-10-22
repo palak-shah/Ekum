@@ -1,20 +1,19 @@
 /**
- * BM-07: Pending/Completed + All/Buy/Sell share one compact row at 390px.
- * Status chips stay the stronger group; direction is a quieter secondary group.
+ * BM-07: Selling / Buying / Others, then Pending / Completed counts.
+ * Both rows stay inside 390px without a horizontal scrollbar.
  */
 export function ordersListFilterChrome(): {
-  attentionDirectionLayout: 'row';
-  rowClass: string;
-  statusChipClass: string;
-  directionGroupClass: string;
-  directionBtnClass: string;
+  tabRowClass: string;
+  tabClass: string;
+  summaryGridClass: string;
+  summaryClass: string;
 } {
   return {
-    attentionDirectionLayout: 'row',
-    rowClass: 'flex min-w-0 w-full flex-nowrap items-center justify-between gap-2',
-    statusChipClass: 'px-2.5',
-    directionGroupClass:
-      'flex shrink-0 rounded-full border border-line bg-surface p-0.5',
-    directionBtnClass: 'rounded-full px-2 py-1 text-[11px] font-emphasis tracking-tight',
+    tabRowClass: 'grid min-w-0 grid-cols-3 border-b border-line',
+    tabClass:
+      'relative min-h-11 text-[15px] font-emphasis tracking-tight',
+    summaryGridClass: 'grid min-w-0 grid-cols-2 gap-2',
+    summaryClass:
+      'min-h-11 rounded-xl border px-3 py-1.5 text-left text-[13px] font-body leading-tight',
   };
 }

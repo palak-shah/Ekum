@@ -2,48 +2,30 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CollectionExpandableSection } from './CollectionExpandableSection';
-import { OrderDispatchFields } from './OrderDispatchFields';
-import { orderDispatchSectionSummary } from './orderDispatchPreview';
+import { OrderDispatchAccordion } from './OrderDispatchAccordion';
 
-/** Pack create/edit wrap — same shape as CollectionEditorPage identityFields. */
+/** Same collapsed job on collection create/edit and add/edit design. */
 function PackOrderDispatchAccordion() {
   const [open, setOpen] = useState(false);
-  const orderUnit = 'set';
-  const piecesPerPack = '1';
-  const dispatchUnit = 'set';
-  const moq = '';
   return (
-    <CollectionExpandableSection
-      title="Order and dispatch"
-      summary={orderDispatchSectionSummary({
-        orderUnit,
-        piecesPerPack,
-        dispatchUnit,
-        moq,
-      })}
+    <OrderDispatchAccordion
+      orderUnit="set"
+      piecesPerPack="1"
+      dispatchUnit="set"
+      moq=""
+      onOrderUnit={() => undefined}
+      onPiecesPerPack={() => undefined}
+      onDispatchUnit={() => undefined}
+      onMoq={() => undefined}
       open={open}
       onToggle={() => setOpen((v) => !v)}
-      testId="collection-order-dispatch"
-    >
-      <OrderDispatchFields
-        hideHeading
-        orderUnit={orderUnit}
-        piecesPerPack={piecesPerPack}
-        dispatchUnit={dispatchUnit}
-        moq={moq}
-        onOrderUnit={() => undefined}
-        onPiecesPerPack={() => undefined}
-        onDispatchUnit={() => undefined}
-        onMoq={() => undefined}
-      />
-    </CollectionExpandableSection>
+    />
   );
 }
 
 afterEach(() => cleanup());
 
-describe('Order and dispatch accordion (collection create/edit)', () => {
+describe('Order and dispatch accordion (collection + add/edit design)', () => {
   it('starts collapsed — fields hidden until opened', async () => {
     const user = userEvent.setup();
     render(<PackOrderDispatchAccordion />);

@@ -97,6 +97,15 @@ export const CloseIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Quiet how-to — one mark for sheets and fields (`InfoHint`). */
+export const InfoIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v6" />
+    <circle cx="12" cy="8" r="0.85" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
 /** Quiet secondary edit (dispatch prior LR, etc.). */
 export const PencilIcon = (props: IconProps) => (
   <Icon {...props}>

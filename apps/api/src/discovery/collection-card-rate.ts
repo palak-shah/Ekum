@@ -25,9 +25,9 @@ function memberRateUnit(product: RateMember): string {
 
 /**
  * Explore / shop / album rate band — only when the pack publishes rates as
- * visible. On request → omit. Prefer saved pack rate; else min–max from priced
- * members (blanks ignored). Mixed rate units → omit.
- * Pack path rate unit is dispatch (not order unit).
+ * visible. On request → omit. Pack Rate per only when priced members follow it
+ * (or none are priced yet). Else min–max from priced members. Mixed rate units
+ * → omit. Pack path rate unit is dispatch (not order unit).
  */
 export function collectionCardRateFields(input: {
   rateVisibility: string;
@@ -39,6 +39,8 @@ export function collectionCardRateFields(input: {
   if (input.rateVisibility !== RateVisibility.Visible) return empty;
 
   const packRate = asNumber(input.rate);
+  const packMax = asNumber(input.rateMax);
+  const packHigh = packRate != null && packMax != null && packMax > packRate ? packMax : packRate;
   const members = (input.products ?? []).map((entry) => entry.product);
   const unitFromMembers = (() => {
     const units = members.map((p) => memberRateUnit(p)).filter(Boolean);
@@ -46,15 +48,6 @@ export function collectionCardRateFields(input: {
     const unique = new Set(units);
     return unique.size === 1 ? units[0]! : null;
   })();
-
-  if (packRate != null) {
-    const packMax = asNumber(input.rateMax);
-    return {
-      rateMin: packRate,
-      rateMax: packMax != null && packMax > packRate ? packMax : null,
-      rateUnit: unitFromMembers,
-    };
-  }
 
   const priced = members
     .map((product) => {
@@ -68,6 +61,18 @@ export function collectionCardRateFields(input: {
       };
     })
     .filter((row): row is { rate: number; high: number; unit: string } => row != null);
+
+  const membersFollowPack =
+    packRate != null &&
+    priced.every((row) => row.rate === packRate && row.high === packHigh);
+
+  if (packRate != null && (priced.length === 0 || membersFollowPack)) {
+    return {
+      rateMin: packRate,
+      rateMax: packHigh != null && packHigh > packRate ? packHigh : null,
+      rateUnit: unitFromMembers,
+    };
+  }
 
   if (priced.length === 0) return empty;
   const units = new Set(priced.map((row) => row.unit));

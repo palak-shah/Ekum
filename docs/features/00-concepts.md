@@ -73,7 +73,7 @@ flowchart LR
 
 | Mechanism | What it is |
 |-----------|------------|
-| **Request catalog access** | Shop ask (was Follow / See new collections). Idle: lock + **Request catalog access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Collection share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — tap off deletes the follow. No Followers feed or Followers shop collections after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
+| **Request access** | Shop ask (was Follow / See new collections). Idle: lock + **Request access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Collection share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — tap off deletes the follow. No Followers feed or Followers shop collections after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
 | **Message** | First shop chat. Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. No shop **Request** button. |
 | **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). |
 | **Collection view Ask** | **Ask to see this collection** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not collection/relist). Deny silent. |
@@ -153,7 +153,8 @@ Everyday kit is **WhatsApp-tight**, not 48px everywhere:
 | `Button` / `TextInput` / `SearchInput` | 40px tall. Field type stays **16px** (iOS must not zoom). |
 | `Chip` | 28px |
 | List square (search trailing / sheet Close) | 40×40 |
-| Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px** |
+| Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px**. How many / Edit / Confirm / quote numbers: **14px emphasis tabular-nums** (`designLineChrome`) |
+| Quiet info (`InfoHint`) | Circle **i** next to a title or label. Tap shows instructional copy. One icon — change `InfoIcon` / `InfoHint` and every screen follows. Live status stays `Field.hint` under the field. |
 | Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order + dispatch journey in sets**, **price / “1 set contains” / billing per pc**. Rate per prefers **pc** when offered (else a offered unit e.g. **mtr**). Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
 | Nav ＋ / camera shutter | Stay 48px |
 

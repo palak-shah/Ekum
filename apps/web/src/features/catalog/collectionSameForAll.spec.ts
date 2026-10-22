@@ -13,9 +13,13 @@ import {
   memberDiffersFromSameForAll,
   preferredPackUnit,
   productFieldsFromMember,
+  packMemberProductPatch,
   sortDiffFirst,
   unionTags,
   unitAsksPiecesPerSet,
+  packTagsForMember,
+  packTagsPatch,
+  packTagPatchesForOwnDesigns,
 } from './collectionSameForAll';
 
 describe('unitAsksPiecesPerSet', () => {
@@ -72,6 +76,45 @@ describe('preferredPackUnit / clampSameForAllUnits', () => {
 describe('unionTags', () => {
   it('amends only missing tags', () => {
     expect(unionTags(['Silk', 'Red'], ['silk', 'Wedding'])).toEqual(['Silk', 'Red', 'Wedding']);
+  });
+});
+
+describe('packTagsPatch', () => {
+  it('appends missing pack tags and skips when already present', () => {
+    expect(packTagsForMember(['Kurti'], ['Kurti', 'S'])).toEqual(['Kurti', 'S']);
+    expect(packTagsPatch(['Kurti'], ['Kurti', 'S'])).toEqual(['Kurti', 'S']);
+    expect(packTagsPatch(['Kurti', 'S'], ['kurti'])).toBeNull();
+    expect(packTagsPatch(['Kurti'], [])).toBeNull();
+  });
+
+  it('caps at 20 tags', () => {
+    const own = Array.from({ length: 19 }, (_, i) => `T${i}`);
+    expect(packTagsForMember(own, ['A', 'B'])).toEqual([...own, 'A']);
+  });
+
+  it('stamps own-company designs only', () => {
+    expect(
+      packTagPatchesForOwnDesigns(
+        [
+          { id: 'own-plain', companyId: 'shop', categories: [] },
+          { id: 'own-tagged', companyId: 'shop', categories: ['Kurti'] },
+          { id: 'mill', companyId: 'mill', categories: [] },
+          { id: 'own-plain', companyId: 'shop', categories: [] },
+        ],
+        ['Sarees'],
+        'shop',
+      ),
+    ).toEqual([
+      { id: 'own-plain', categories: ['Sarees'] },
+      { id: 'own-tagged', categories: ['Kurti', 'Sarees'] },
+    ]);
+    expect(
+      packTagPatchesForOwnDesigns(
+        [{ id: 'own-plain', companyId: 'shop', categories: [] }],
+        ['Sarees'],
+        undefined,
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -375,6 +418,107 @@ describe('productFieldsFromMember', () => {
       piecesPerPack: 6,
       moq: 10,
       categories: undefined,
+    });
+  });
+
+  it('empty or 0 in 1 set contains clears pack size', () => {
+    const blank = {
+      name: 'X',
+      rate: '91',
+      unit: 'set',
+      dispatchUnit: 'mtr',
+      moq: '',
+      notes: '',
+      categories: [] as string[],
+    };
+    expect(productFieldsFromMember({ ...blank, piecesPerPack: '' }).piecesPerPack).toBeNull();
+    expect(productFieldsFromMember({ ...blank, piecesPerPack: '0' }).piecesPerPack).toBeNull();
+  });
+});
+
+describe('packMemberProductPatch', () => {
+  const mtrParsed = productFieldsFromMember({
+    name: 'X',
+    rate: '91',
+    unit: 'set',
+    dispatchUnit: 'mtr',
+    piecesPerPack: '39',
+    moq: '',
+    notes: '',
+    categories: [],
+  });
+
+  it('stamps Rate per onto pack-rate followers without Apply to all', () => {
+    expect(
+      packMemberProductPatch({
+        parsed: mtrParsed,
+        followsPackRate: true,
+        packRate: '91',
+        applyToAll: false,
+      }),
+    ).toEqual({
+      rate: 91,
+      rateMax: null,
+      unit: 'set',
+      dispatchUnit: 'mtr',
+    });
+  });
+
+  it('does not stamp pack size unless Apply to all', () => {
+    expect(
+      packMemberProductPatch({
+        parsed: mtrParsed,
+        followsPackRate: true,
+        packRate: '91',
+        applyToAll: false,
+      }).piecesPerPack,
+    ).toBeUndefined();
+  });
+
+  it('leaves a design with its own rate alone unless Apply to all', () => {
+    expect(
+      packMemberProductPatch({
+        parsed: mtrParsed,
+        followsPackRate: false,
+        packRate: '91',
+        applyToAll: false,
+      }),
+    ).toEqual({});
+  });
+
+  it('Apply to all still does not overwrite a filled design rate', () => {
+    expect(
+      packMemberProductPatch({
+        parsed: mtrParsed,
+        followsPackRate: false,
+        packRate: '91',
+        applyToAll: true,
+      }).rate,
+    ).toBeUndefined();
+  });
+
+  it('Apply to all sends null when 1 set contains is empty or 0', () => {
+    const cleared = productFieldsFromMember({
+      name: 'X',
+      rate: '91',
+      unit: 'set',
+      dispatchUnit: 'mtr',
+      piecesPerPack: '0',
+      moq: '',
+      notes: '',
+      categories: [],
+    });
+    expect(
+      packMemberProductPatch({
+        parsed: cleared,
+        followsPackRate: false,
+        packRate: '',
+        applyToAll: true,
+      }),
+    ).toEqual({
+      unit: 'set',
+      dispatchUnit: 'mtr',
+      piecesPerPack: null,
     });
   });
 });

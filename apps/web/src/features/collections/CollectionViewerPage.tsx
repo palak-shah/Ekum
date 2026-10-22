@@ -128,10 +128,16 @@ import {
 import {
   COLLECTION_QUICK_PHOTO_CAP,
   collectionCameraMaxShots,
+  displayCollectionName,
 } from '@/features/catalog/collectionCreateHelpers';
 import { collectionGalleryInputProps } from '@/features/catalog/collectionGalleryInput';
 import { createProductIdentity, uniqueDraftSku } from '@/features/catalog/designBatchHelpers';
-import { productFieldsFromMember } from '@/features/catalog/collectionSameForAll';
+import {
+  packTagPatchesForOwnDesigns,
+  packTagsForMember,
+  productFieldsFromMember,
+} from '@/features/catalog/collectionSameForAll';
+import { LibraryPickTile } from '@/features/catalog/LibraryPickTile';
 import {
   Button,
   Card,
@@ -498,6 +504,19 @@ export function CollectionViewerPage() {
 
   const persistOwnerMembers = async (productIds: string[]) => {
     await api.put(`/collections/${id}/products`, { productIds });
+    const byId = new Map<string, ProductView>();
+    for (const product of collection.data?.products ?? []) byId.set(product.id, product);
+    for (const product of myProducts.data ?? []) byId.set(product.id, product);
+    const listed = productIds
+      .map((productId) => byId.get(productId))
+      .filter((product): product is ProductView => Boolean(product));
+    for (const row of packTagPatchesForOwnDesigns(
+      listed,
+      collection.data?.categories ?? [],
+      myCompanyId,
+    )) {
+      await api.patch(`/products/${row.id}`, { categories: row.categories });
+    }
     invalidateOwnerPack();
   };
 
@@ -677,6 +696,7 @@ export function CollectionViewerPage() {
         const imageUrl = await uploadImage(file);
         const identity = createProductIdentity(uniqueDraftSku(takenSkus));
         takenSkus.push(identity.sku);
+        const categories = packTagsForMember([], collection.data?.categories);
         const parsed = productFieldsFromMember({
           name: identity.name,
           rate:
@@ -690,13 +710,13 @@ export function CollectionViewerPage() {
           piecesPerPack: seed?.piecesPerPack != null ? String(seed.piecesPerPack) : '',
           moq: seed?.moq != null ? String(seed.moq) : '',
           notes: '',
-          categories: [],
+          categories,
         });
         const dto: CreateProductDto = {
           name: identity.name,
           sku: identity.sku,
           images: [imageUrl],
-          categories: [],
+          categories,
           description: parsed.description,
           rate: parsed.rate ?? undefined,
           rateMax: parsed.rateMax ?? undefined,
@@ -962,7 +982,7 @@ export function CollectionViewerPage() {
       */}
       <PageHeader
         className="mb-0"
-        title={data.name}
+        title={displayCollectionName(data.name)}
         subtitle={headerSubtitle}
         titleTo={isOwner ? undefined : `/company/${data.company.id}`}
         action={
@@ -1283,7 +1303,7 @@ export function CollectionViewerPage() {
             {askToSee.isPending ? 'Asking…' : 'Ask to see this collection'}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-emphasis text-accent">
-            Request catalog access on their shop
+            Request access on their shop
           </Link>
         </Card>
       )}
@@ -1451,34 +1471,12 @@ export function CollectionViewerPage() {
                       ? replaceDraft.has(product.id)
                       : libraryPicks.has(product.id);
                   return (
-                    <button
-                      type="button"
+                    <LibraryPickTile
+                      name={product.name}
+                      imageUrl={product.images[0]}
+                      selected={on}
                       onClick={() => toggleOwnerLibraryPick(product.id)}
-                      className={cx(
-                        'relative aspect-square w-full min-w-0 overflow-hidden rounded-xl border-2 bg-foam text-left',
-                        on ? 'border-accent' : 'border-transparent',
-                      )}
-                    >
-                      {product.images[0] ? (
-                        <img
-                          src={product.images[0]}
-                          alt=""
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-lg font-body text-muted">
-                          {product.name.charAt(0)}
-                        </div>
-                      )}
-                      {on ? (
-                        <span className="absolute right-1 top-1 z-[1] flex h-6 w-6 items-center justify-center rounded-full bg-badge text-sm font-emphasis text-white">
-                          ✓
-                        </span>
-                      ) : null}
-                      <span className="absolute inset-x-0 bottom-0 z-[1] truncate bg-surface/95 px-1.5 py-1 text-sm text-ink">
-                        {product.name}
-                      </span>
-                    </button>
+                    />
                   );
                 }}
               />
@@ -1662,7 +1660,7 @@ function AccessPendingCard({
         {opening ? 'Opening…' : 'Open chat'}
       </Button>
       <Link to={`/company/${companyId}`} className="text-xs font-emphasis text-accent">
-        Request catalog access on their shop
+        Request access on their shop
       </Link>
     </Card>
   );

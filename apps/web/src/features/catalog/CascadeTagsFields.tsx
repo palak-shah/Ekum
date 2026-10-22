@@ -1,17 +1,15 @@
+import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   MasterOptionKind,
+  type CollectionView,
   type MasterOptionKind as OptionKind,
   type MasterTaxonomyView,
+  type ProductView,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { TagSuggestInput } from './TagSuggestInput';
-
-function filterPool(pool: string[], query: string): string[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return pool.slice(0, 40);
-  return pool.filter((label) => label.toLowerCase().includes(q)).slice(0, 40);
-}
+import { collectUsedTagSlots, filterTagSuggestions } from './tagSuggestionPool';
 
 export function CascadeTagsFields({
   items,
@@ -44,6 +42,21 @@ export function CascadeTagsFields({
     staleTime: 60_000,
   });
 
+  const products = useQuery({
+    queryKey: ['my-products'],
+    queryFn: () => api.get<ProductView[]>('/products'),
+    staleTime: 60_000,
+  });
+  const collections = useQuery({
+    queryKey: ['my-collections'],
+    queryFn: () => api.get<CollectionView[]>('/collections'),
+    staleTime: 60_000,
+  });
+  const usedSlots = useMemo(
+    () => collectUsedTagSlots([...(products.data ?? []), ...(collections.data ?? [])]),
+    [products.data, collections.data],
+  );
+
   const itemPool = taxonomy.data?.itemTypes ?? [];
   const qualityPool = taxonomy.data?.qualities ?? [];
   const sizePool = taxonomy.data?.sizes ?? [];
@@ -66,13 +79,13 @@ export function CascadeTagsFields({
   };
 
   return (
-    <div className="flex flex-col gap-1.5" data-testid="collection-product-tags">
+    <div className="flex flex-col gap-2" data-testid="collection-product-tags">
       <TagSuggestInput
         label="Item tags"
         testId="collection-tag-item"
         values={items}
         onChange={onItems}
-        suggestionsFor={(query) => filterPool(itemPool, query)}
+        suggestionsFor={(query) => filterTagSuggestions(query, itemPool, usedSlots.items)}
         onCustomCommit={(label) => persistCustom(MasterOptionKind.ItemType, label)}
       />
       <TagSuggestInput
@@ -80,7 +93,7 @@ export function CascadeTagsFields({
         testId="collection-tag-quality"
         values={qualities}
         onChange={onQualities}
-        suggestionsFor={(query) => filterPool(qualityPool, query)}
+        suggestionsFor={(query) => filterTagSuggestions(query, qualityPool, usedSlots.qualities)}
         onCustomCommit={(label) => persistCustom(MasterOptionKind.Quality, label)}
       />
       <TagSuggestInput
@@ -88,7 +101,7 @@ export function CascadeTagsFields({
         testId="collection-tag-size"
         values={sizes}
         onChange={onSizes}
-        suggestionsFor={(query) => filterPool(sizePool, query)}
+        suggestionsFor={(query) => filterTagSuggestions(query, sizePool, usedSlots.sizes)}
         onCustomCommit={(label) => persistCustom(MasterOptionKind.Size, label)}
       />
     </div>

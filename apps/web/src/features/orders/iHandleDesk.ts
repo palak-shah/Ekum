@@ -182,11 +182,7 @@ export function traderIHandleNeedsYou(order: OrderView): boolean {
 
 export function traderIHandleNeedsYouLabel(order: OrderView): string | null {
   if (!traderIHandleNeedsYou(order)) return null;
-  const unsent = unsentMillNames(order);
-  if (unsent.length === 1) return `Needs you · Send to ${unsent[0]}`;
-  if (unsent.length === 2) return `Needs you · Send to ${unsent[0]} + ${unsent[1]}`;
-  if (unsent.length > 2) return `Needs you · Send to ${unsent.length} mills`;
-  return null;
+  return 'Needs you Accept & forward';
 }
 
 /** Retired fold — always false. Seller desk CTAs stay on the face. */

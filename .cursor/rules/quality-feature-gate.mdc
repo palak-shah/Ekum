@@ -28,6 +28,7 @@ Missing: functionality, business rules, workflows, edge cases, permissions, user
 2. Duplicate another feature?
 3. Should reuse an existing workflow?
 4. Naming matches the app (You/business name; Requests vs Accept; no Seller/Buyer on chat card body)?
+5. **Units (Required if a rate or qty string changes):** whose (pack vs design) · which (order / dispatch / Rate per) · surface? Pack on Explore = collection; solo design = that design. See `sell-as-units`.
 
 If the ask **conflicts with Ekum product philosophy** (see `docs/features/00-concepts.md` and area docs): recommend **Reject** or **Redesign** — not document-and-build, not a green test of the wrong model.
 

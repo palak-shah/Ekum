@@ -82,6 +82,8 @@ export class CatalogSerializer {
       dispatchUnit: (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
       piecesPerPack: product.piecesPerPack ?? null,
       categories: product.categories,
+      masterCategoryId:
+        (product as { masterCategoryId?: string | null }).masterCategoryId ?? null,
       images: product.images,
       status: product.status,
       audience: product.audience ?? 'connections',

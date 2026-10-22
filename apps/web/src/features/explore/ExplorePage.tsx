@@ -27,6 +27,7 @@ import {
   BusinessShopTile,
 } from '@/ui/cards';
 import { Avatar, Button, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 import { ListSquareButton, listSquareButtonClass } from '@/ui/ListSearchRow';
 import { BackIcon, CartIcon, FilterIcon, SearchIcon } from '@/ui/icons';
 import { ExploreSearchResults } from './ExploreSearchResults';
@@ -826,7 +827,7 @@ export function ExplorePage() {
             <button
               type="button"
               onClick={openSearch}
-              className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3.5 text-sm font-body text-muted"
+              className={`flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3.5 text-sm font-body text-muted`}
             >
               <SearchIcon width={16} height={16} className="shrink-0" />
               <span className="truncate">{EXPLORE_SEARCH_HINT}</span>

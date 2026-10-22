@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { ordersListFilterChrome } from './ordersListFilterChrome';
 
 describe('ordersListFilterChrome (BM-07)', () => {
-  it('keeps status and direction on one compact row (fits 390px)', () => {
+  it('keeps tabs and the two summaries inside a phone width', () => {
     const chrome = ordersListFilterChrome();
-    expect(chrome.attentionDirectionLayout).toBe('row');
-    expect(chrome.rowClass).toContain('flex-nowrap');
-    expect(chrome.rowClass).toContain('justify-between');
-    expect(chrome.statusChipClass).toBe('px-2.5');
-    expect(chrome.directionBtnClass).toContain('text-[11px]');
+    expect(chrome.tabRowClass).toContain('grid-cols-3');
+    expect(chrome.tabClass).toContain('relative');
+    expect(chrome.summaryGridClass).toContain('grid-cols-2');
+    expect(chrome.summaryClass).toContain('min-h-11');
   });
 });

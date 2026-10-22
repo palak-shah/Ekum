@@ -43,6 +43,25 @@ describe('orderDispatchSectionSummary', () => {
       }),
     ).toBe('set · 5 mtrs · dispatch mtr');
   });
+
+  it('treats 0 or blank pack as unset', () => {
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'set',
+        piecesPerPack: '0',
+        dispatchUnit: 'mtr',
+        moq: '',
+      }),
+    ).toBe('set · dispatch mtr');
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'set',
+        piecesPerPack: '',
+        dispatchUnit: 'mtr',
+        moq: '',
+      }),
+    ).toBe('set · dispatch mtr');
+  });
 });
 
 describe('collectionGalleryInputProps', () => {

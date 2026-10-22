@@ -57,7 +57,8 @@ describe('Explore shop header chrome', () => {
     renderCard(<OpportunityCollectionCard opportunity={opportunity} />);
     expect(screen.getByText('Surat Silk House')).toBeInTheDocument();
     expect(screen.getByTestId('gst-tick')).toBeInTheDocument();
-    expect(screen.getByText('Surat · Fabric, Dress material')).toBeInTheDocument();
+    expect(screen.queryByText('Surat · Fabric, Dress material')).toBeNull();
+    expect(screen.queryByText('Dress material')).toBeNull();
     expect(screen.queryByText(/Connected/)).toBeNull();
     expect(screen.queryByText('GST verified')).toBeNull();
     expect(screen.queryByText(/9 designs/)).toBeNull();

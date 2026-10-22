@@ -15,18 +15,18 @@ import type {
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { Avatar, Chip, EmptyState, ErrorState, LoadingBlock, SearchInput, StatusPill, cx } from '@/ui/kit';
+import { Avatar, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
 import { highlightSearchText } from '@/ui/highlightMatch';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
-  getOrdersDirection,
-  setOrdersDirection,
-  tradeMatchesDirection,
-  type OrdersDirection,
+  getOrdersListTab,
+  setOrdersListTab,
+  type OrdersListTab,
 } from '@/features/orders/ordersDirectionSession';
+import { ordersListEmptyCopy } from '@/features/orders/ordersListEmpty';
 import {
   dateFacetFromNeedle,
   emptyFindState,
@@ -40,8 +40,10 @@ import {
 import {
   matchesTradeCompleted,
   matchesTradePending,
+  samplesForOthersList,
   sortTradePending,
   toTradeItems,
+  tradeMatchesListTab,
   type TradeListItem,
 } from './tradeList';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
@@ -50,7 +52,7 @@ import {
   tradeListPreview,
   tradeListWhen,
 } from './tradeListPreview';
-import { tradeListProtocol, tradeListStatusLabel } from './tradeListProtocol';
+import { tradeListProtocol } from './tradeListProtocol';
 import { OrdersFilterMenu } from './OrdersFilterMenu';
 import {
   statusFitsTab,
@@ -89,7 +91,11 @@ export function OrdersPage() {
   const statusParam = params.get('status');
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [direction, setDirectionState] = useState<OrdersDirection>(() => getOrdersDirection());
+  const [listTab, setListTabState] = useState<OrdersListTab>(() =>
+    kindFromParam(kindParam) === 'sample' || kindFromParam(kindParam) === 'complaint'
+      ? 'others'
+      : getOrdersListTab(),
+  );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     statusFilterFromParam(filterParam),
   );
@@ -121,6 +127,10 @@ export function OrdersPage() {
   useEffect(() => {
     const next = kindFromParam(kindParam);
     setFind((prev) => (prev.kindFacet === next ? prev : { ...prev, kindFacet: next }));
+    if (next === 'sample' || next === 'complaint') {
+      setOrdersListTab('others');
+      setListTabState('others');
+    }
   }, [kindParam]);
 
   useEffect(() => {
@@ -164,7 +174,7 @@ export function OrdersPage() {
     () =>
       toTradeItems(
         orders.data?.results ?? [],
-        samples.data?.results ?? [],
+        samplesForOthersList(samples.data?.results ?? [], orders.data?.results ?? []),
         [],
         complaints.data?.results ?? [],
       ),
@@ -182,24 +192,34 @@ export function OrdersPage() {
   );
   const filterIconActive = filterApplied || menuOpen;
 
+  const inTab = useMemo(
+    () => merged.filter((item) => tradeMatchesListTab(item, listTab)),
+    [merged, listTab],
+  );
+
   const filtered = useMemo(() => {
-    const rows = merged.filter((item) => {
+    const rows = inTab.filter((item) => {
       if (!tradeMatchesFind(item, deferredFind)) return false;
-      if (!tradeMatchesDirection(item.direction, direction)) return false;
       if (findOverridesAttention) return true;
       if (statusFilter === 'pending') return matchesTradePending(item);
       return matchesTradeCompleted(item);
     });
     if (findOverridesAttention || statusFilter !== 'pending') return rows;
     return sortTradePending(rows);
-  }, [merged, deferredFind, direction, statusFilter, findOverridesAttention]);
+  }, [inTab, deferredFind, statusFilter, findOverridesAttention]);
 
-  const setDirection = (next: OrdersDirection) => {
-    setOrdersDirection(next);
-    setDirectionState(next);
+  const counted = inTab.filter((item) => tradeMatchesFind(item, deferredFind));
+  const pendingCount = counted.filter((item) => matchesTradePending(item)).length;
+  const completedCount = counted.filter((item) => matchesTradeCompleted(item)).length;
+
+  const setListTab = (next: OrdersListTab) => {
+    setOrdersListTab(next);
+    setListTabState(next);
+    if (next !== 'others' && (find.kindFacet === 'sample' || find.kindFacet === 'complaint')) {
+      setKindFacet(null);
+    }
   };
 
-  const showDirection = merged.length > 0;
   const filterChrome = ordersListFilterChrome();
 
   const loading =
@@ -223,6 +243,10 @@ export function OrdersPage() {
   };
 
   const setKindFacet = (kind: TradeKindFacet | null) => {
+    if (kind === 'sample' || kind === 'complaint') {
+      setOrdersListTab('others');
+      setListTabState('others');
+    }
     setFind((prev) => {
       const next = { ...prev, kindFacet: kind, needle: '' };
       syncFindParams(prev.statusFacet, kind);
@@ -369,20 +393,53 @@ export function OrdersPage() {
 
       <div
         data-testid="orders-list-filters"
-        className={cx('min-w-0', findOverridesAttention && 'opacity-50')}
+        className={cx('flex min-w-0 flex-col gap-2', findOverridesAttention && 'opacity-50')}
       >
-        <div className={filterChrome.rowClass}>
-          <div className="flex min-w-0 gap-1.5" role="group" aria-label="Open or finished">
-            {(
-              [
-                ['pending', 'Pending'],
-                ['completed', 'Completed'],
-              ] as const
-            ).map(([value, label]) => (
-              <Chip
+        <div className={filterChrome.tabRowClass} role="tablist" aria-label="Whose orders">
+          {(
+            [
+              ['selling', 'Selling'],
+              ['buying', 'Buying'],
+              ['others', 'Others'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={listTab === value}
+              data-testid={`orders-tab-${value}`}
+              onClick={() => setListTab(value)}
+              className={cx(
+                filterChrome.tabClass,
+                listTab === value ? 'text-accent' : 'text-muted',
+              )}
+            >
+              {label}
+              <span
+                aria-hidden
+                className={cx(
+                  'absolute inset-x-0 bottom-0 h-1',
+                  listTab === value ? 'bg-accent' : 'bg-transparent',
+                )}
+              />
+            </button>
+          ))}
+        </div>
+        <div className={filterChrome.summaryGridClass} role="group" aria-label="Open or finished">
+          {(
+            [
+              ['pending', 'Pending', pendingCount],
+              ['completed', 'Completed', completedCount],
+            ] as const
+          ).map(([value, label, count]) => {
+            const on = !findOverridesAttention && statusFilter === value;
+            return (
+              <button
                 key={value}
-                className={filterChrome.statusChipClass}
-                active={!findOverridesAttention && statusFilter === value}
+                type="button"
+                data-testid={`orders-summary-${value}`}
+                aria-pressed={on}
                 onClick={() => {
                   if (statusFilter === value && !findOverridesAttention) return;
                   setStatusFilter(value);
@@ -418,39 +475,20 @@ export function OrdersPage() {
                     { replace: true },
                   );
                 }}
+                className={cx(
+                  filterChrome.summaryClass,
+                  on
+                    ? 'border-accent bg-foam text-accent'
+                    : 'border-line bg-surface text-muted',
+                )}
               >
+                <span className="block text-[20px] font-emphasis tabular-nums leading-tight text-ink">
+                  {count}
+                </span>
                 {label}
-              </Chip>
-            ))}
-          </div>
-          {showDirection ? (
-            <div
-              className={filterChrome.directionGroupClass}
-              role="group"
-              aria-label="Buy or sell"
-            >
-              {(
-                [
-                  ['all', 'All'],
-                  ['buying', 'Buy'],
-                  ['selling', 'Sell'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  data-testid={`orders-direction-${value}`}
-                  onClick={() => setDirection(value)}
-                  className={cx(
-                    filterChrome.directionBtnClass,
-                    direction === value ? 'bg-ink text-white' : 'text-muted',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          ) : null}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -473,20 +511,12 @@ export function OrdersPage() {
             </div>
           ) : (
             <EmptyState
-              title={
-                findOverridesAttention
-                  ? find.kindFacet === 'complaint'
-                    ? 'No complaints yet'
-                    : 'No matches'
-                  : statusFilter === 'pending'
-                    ? 'No open orders'
-                    : 'No completed orders'
-              }
-              message={
-                findOverridesAttention
-                  ? 'Try another find, or clear filters.'
-                  : 'Orders, samples, and complaints show up here.'
-              }
+              {...ordersListEmptyCopy({
+                tab: listTab,
+                status: statusFilter,
+                searching: findOverridesAttention,
+                complaintFind: find.kindFacet === 'complaint',
+              })}
             />
           )}
         </div>
@@ -522,17 +552,12 @@ function TradeRow({
 }) {
   if (item.kind === 'return') return null;
 
+  const orderId = item.kind === 'order' ? item.order.id : null;
   const needsLabel = tradeNeedsYouLabel(item);
   const { preview, accent } = tradeListPreview(item, companyId);
   const facts = tradeListFacts(item);
   const when = explorePostedWhen(tradeListWhen(item));
   const protocol = tradeListProtocol(item);
-  const status =
-    item.kind === 'order'
-      ? item.order.status
-      : item.kind === 'sample'
-        ? item.sample.status
-        : item.complaint.status;
   const name =
     item.kind === 'order'
       ? item.order.counterpart.name
@@ -550,12 +575,24 @@ function TradeRow({
 
   const rowClass = cx(
     'flex w-full flex-col gap-2 rounded-xl border bg-surface px-3 py-3 text-left',
-    needsLabel ? 'border-l-[3px] border-l-accent border-line' : 'border-line',
+    needsLabel ? 'border-l-2 border-l-accent border-line' : 'border-line',
     (item.kind === 'order' || item.kind === 'complaint') &&
       'hover:border-accent/40 hover:bg-accent/[0.03] active:bg-accent/[0.05]',
   );
 
   const media = <TradeListMedia name={name} logoUrl={logoUrl} />;
+
+  const protocolEl = protocol ? (
+    <p
+      data-testid={needsLabel ? 'orders-needs-you' : 'trade-list-protocol'}
+      className={cx(
+        'mt-0.5 min-w-0 truncate text-[12px] leading-snug',
+        needsLabel ? 'font-emphasis text-accent' : 'font-body text-muted',
+      )}
+    >
+      {protocol}
+    </p>
+  ) : null;
 
   const meta = (
     <div className="flex items-start justify-between gap-2">
@@ -563,6 +600,7 @@ function TradeRow({
         <p className="min-w-0 truncate text-[15px] font-emphasis leading-tight tracking-[-0.02em] text-ink">
           {highlightSearchText(name, highlightQuery)}
         </p>
+        {protocolEl}
         {facts ? (
           <p
             data-testid="trade-list-facts"
@@ -577,33 +615,21 @@ function TradeRow({
           </p>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
-        <StatusPill status={status} label={tradeListStatusLabel(status)} />
-        <span className="text-[11px] font-body tabular-nums text-muted">{when}</span>
-      </div>
+      <span className="shrink-0 text-[11px] font-body tabular-nums text-muted">{when}</span>
     </div>
   );
 
-  const protocolEl = protocol ? (
-    <p
-      data-testid={needsLabel ? 'orders-needs-you' : 'trade-list-protocol'}
-      className={cx(
-        'border-t border-line/70 pt-2 text-[12px] leading-snug',
-        needsLabel ? 'font-emphasis text-accent' : 'font-body text-muted',
-      )}
-    >
-      {protocol}
-    </p>
-  ) : null;
+  const body = (
+    <div className="flex w-full items-start gap-3">
+      {media}
+      <div className="min-w-0 flex-1">{meta}</div>
+    </div>
+  );
 
   if (item.kind === 'sample') {
     return (
       <div data-needs-you={needsLabel ? 'true' : undefined} className={rowClass}>
-        <div className="flex w-full items-start gap-3">
-          {media}
-          <div className="min-w-0 flex-1">{meta}</div>
-        </div>
-        {protocolEl}
+        {body}
       </div>
     );
   }
@@ -622,30 +648,20 @@ function TradeRow({
   if (!to) {
     return (
       <div data-testid="trade-list-row" className={rowClass}>
-        <div className="flex w-full items-start gap-3">
-          {media}
-          <div className="min-w-0 flex-1">{meta}</div>
-        </div>
-        {protocolEl}
+        {body}
       </div>
     );
   }
 
   return (
-    <div
+    <Link
+      to={to}
       data-testid="trade-list-row"
+      data-order-id={orderId ?? undefined}
       data-needs-you={needsLabel ? 'true' : undefined}
-      className={rowClass}
+      className={cx(rowClass, 'text-inherit no-underline')}
     >
-      <Link to={to} className="flex w-full items-start gap-3 text-inherit no-underline">
-        {media}
-        <div className="min-w-0 flex-1">{meta}</div>
-      </Link>
-      {protocol ? (
-        <Link to={to} className="block text-inherit no-underline">
-          {protocolEl}
-        </Link>
-      ) : null}
-    </div>
+      {body}
+    </Link>
   );
 }

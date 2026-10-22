@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Run docker smoke + @release journeys (RC)
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -42,7 +46,7 @@ jobs:
       - name: Build
         run: pnpm build
 
-  # Blocks PRs and main. Production web build (vite preview) + service worker.
+  # Blocks every push and PR. Production web build (vite preview) + service worker.
   # WebKit is Playwright's engine, not a real iPhone — see docs/superpowers/qa/mobile-and-pwa-test-matrix.md
   e2e-smoke-preview:
     runs-on: ubuntu-latest
@@ -163,6 +167,73 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-docker-smoke
+          path: |
+            apps/e2e/test-results
+            apps/e2e/playwright-report
+          if-no-files-found: ignore
+
+  # RC only: Chromium mobile @release journeys (Vite dev). Not every push.
+  e2e-release:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_candidate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ekum
+          POSTGRES_PASSWORD: ekum
+          POSTGRES_DB: ekum
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ekum -d ekum"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ekum:ekum@127.0.0.1:5432/ekum?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-0123456789abcdef0123456789abcdef
+      OTP_EXPOSE_DEV_CODE: true
+      JOBS_ENABLED: false
+      CORS_ORIGINS: http://127.0.0.1:5173
+      VITE_API_BASE_URL: /api/v1
+      EKUM_API_URL: http://127.0.0.1:3000/api/v1
+      EKUM_WEB_URL: http://127.0.0.1:5173
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @ekum/e2e exec playwright install --with-deps chromium
+
+      - name: Prepare database
+        run: |
+          pnpm --filter @ekum/api prisma:generate
+          pnpm --filter @ekum/domain-types build
+          pnpm --filter @ekum/api exec prisma migrate deploy
+          pnpm --filter @ekum/api db:seed
+
+      - name: Run @release journeys
+        run: pnpm test:e2e:release
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-release-journeys
           path: |
             apps/e2e/test-results
             apps/e2e/playwright-report

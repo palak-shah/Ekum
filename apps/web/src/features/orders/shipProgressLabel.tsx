@@ -119,25 +119,3 @@ export function SettleQtyColumns({
   );
 }
 
-/** Sticky settle summary — scan totals without reading every row. */
-export function SettlePendingSummary({
-  designCount,
-  pendingPieces,
-}: {
-  designCount: number;
-  pendingPieces: number;
-}) {
-  if (pendingPieces <= 0) return null;
-  return (
-    <div
-      className="rounded-xl border border-accent/40 bg-accent/5 px-3 py-2.5"
-      data-testid="settle-pending-summary"
-    >
-      <p className="text-sm font-emphasis text-accent">
-        {designCount} {designCount === 1 ? 'design' : 'designs'} ·{' '}
-        <span className="tabular-nums">{pendingPieces}</span> pending
-      </p>
-      <p className="mt-0.5 text-[12px] text-muted">Highlighted rows won’t ship. Rest already out.</p>
-    </div>
-  );
-}

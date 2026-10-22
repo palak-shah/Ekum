@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  amendTrailChange,
+  amendTrailSummary,
   collapseQuotedTrailEvents,
   isBareQuotedTrailSummary,
+  isBareUpdatedTrailSummary,
+  isDesignCountTrailDetail,
+  isQtyEchoUpdatedTrailSummary,
   quoteTrailSummary,
   type OrderTrailEventView,
 } from '@ekum/domain-types';
@@ -20,6 +25,51 @@ function step(
     ...partial,
   };
 }
+
+describe('amendTrailSummary', () => {
+  it('names qty vs remove — no metres (Total already has them)', () => {
+    expect(
+      amendTrailSummary(amendTrailChange([{ productId: 'a', quantity: 10 }], [{ productId: 'a', quantity: 12 }])),
+    ).toBe('Updated qty');
+    expect(
+      amendTrailSummary(
+        amendTrailChange(
+          [
+            { productId: 'a', quantity: 10 },
+            { productId: 'b', quantity: 10 },
+          ],
+          [{ productId: 'a', quantity: 10 }],
+        ),
+      ),
+    ).toBe('Removed 1 design');
+    expect(
+      amendTrailSummary(
+        amendTrailChange(
+          [
+            { productId: 'a', quantity: 10 },
+            { productId: 'b', quantity: 10 },
+            { productId: 'c', quantity: 10 },
+          ],
+          [{ productId: 'a', quantity: 12 }],
+        ),
+      ),
+    ).toBe('Updated qty · Removed 2 designs');
+    expect(amendTrailSummary({ qtyChanged: false, removedCount: 0, addedCount: 0 })).toBe(
+      'Updated',
+    );
+  });
+
+  it('treats null and plain Updated as bare; metres echo is not bare', () => {
+    expect(isBareUpdatedTrailSummary(null)).toBe(true);
+    expect(isBareUpdatedTrailSummary('Updated')).toBe(true);
+    expect(isBareUpdatedTrailSummary('Updated qty')).toBe(false);
+    expect(isQtyEchoUpdatedTrailSummary('Updated — 60 mtrs')).toBe(true);
+    expect(isQtyEchoUpdatedTrailSummary('Updated qty')).toBe(false);
+    expect(isDesignCountTrailDetail('6 designs')).toBe(true);
+    expect(isDesignCountTrailDetail('1 design')).toBe(true);
+    expect(isDesignCountTrailDetail('Updated qty')).toBe(false);
+  });
+});
 
 describe('quoteTrailSummary', () => {
   it('labels the first quote with the total', () => {

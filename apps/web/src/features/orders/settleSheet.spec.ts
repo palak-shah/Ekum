@@ -4,7 +4,9 @@ import {
   clampSettleQtyInput,
   defaultSettleFinalQty,
   lineSettleFinalQty,
-  orderLineFactsWithSettleFinal,
+  lineSettleLeftoverQty,
+  orderLineFactsForSettleRemainder,
+  settleLeftoverFooterSummary,
   settlePayloadLines,
   settleSheetItems,
 } from './settleSheet';
@@ -56,15 +58,42 @@ describe('settleSheet', () => {
     ]);
   });
 
-  it('previews settled facts at Final qty', () => {
-    const preview = orderLineFactsWithSettleFinal(
+  it('previews remainder with Ordered kept', () => {
+    const leftover = orderLineFactsForSettleRemainder(
       { quantity: 20, remainingQuantity: 5, shippedQuantity: 15 },
       12,
     );
-    expect(preview).toEqual({
-      quantity: 12,
-      remainingQuantity: 0,
+    expect(leftover).toEqual({
+      quantity: 20,
+      remainingQuantity: 8,
       shippedQuantity: 12,
     });
+    const extra = orderLineFactsForSettleRemainder(
+      { quantity: 20, remainingQuantity: 0, shippedQuantity: 23 },
+      23,
+    );
+    expect(extra).toEqual({
+      quantity: 20,
+      remainingQuantity: 0,
+      shippedQuantity: 23,
+    });
+    expect(lineSettleLeftoverQty(item({ id: 'a', quantity: 20, shippedQuantity: 15 }), { a: '15' })).toBe(
+      5,
+    );
+    expect(lineSettleLeftoverQty(item({ id: 'a', quantity: 20, shippedQuantity: 15 }), { a: '12' })).toBe(
+      8,
+    );
+  });
+
+  it('groups leftover in the footer without money', () => {
+    const summary = settleLeftoverFooterSummary(
+      [
+        item({ id: 'a', quantity: 20, shippedQuantity: 15, remainingQuantity: 5, unit: 'pc' }),
+        item({ id: 'b', quantity: 10, shippedQuantity: 4, remainingQuantity: 6, unit: 'pc', rate: 50 }),
+      ],
+      { a: '15', b: '4' },
+    );
+    expect(summary?.rows).toEqual(['11 pcs']);
+    expect(summary?.money).toBeUndefined();
   });
 });

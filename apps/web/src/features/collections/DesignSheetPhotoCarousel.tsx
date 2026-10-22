@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackIcon, ChevronRightIcon } from '@/ui/icons';
+import { PHOTO_STRIP_TOUCH_CLASS } from '@/ui/mobileOverflow';
 import { cx } from '@/ui/kit';
 
 /**
@@ -80,7 +81,7 @@ export function DesignSheetPhotoCarousel({
           }
           className={cx(
             'flex max-h-[min(70dvh,28rem)] w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-2xl bg-foam',
-            'touch-pan-x overscroll-x-contain',
+            PHOTO_STRIP_TOUCH_CLASS,
             '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           )}
           onScroll={() => {

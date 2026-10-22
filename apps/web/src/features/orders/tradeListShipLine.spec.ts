@@ -65,7 +65,7 @@ describe('tradeListShipLine', () => {
           ],
         }),
       ),
-    ).toBe('19 of 40 pieces dispatched · Dispatch pending');
+    ).toBe('19 of 40 pcs dispatched · Dispatch pending');
   });
 
   it('set config — N of M sets (no piecesPerPack conversion)', () => {
@@ -174,7 +174,7 @@ describe('tradeListShipLine', () => {
 describe('set vs pc helpers stay consistent with list (no conversion drift)', () => {
   it('How many pack helpers still convert for Place only', () => {
     expect(qtyCountNoun('set')).toBe('sets');
-    expect(qtyCountNoun('pc')).toBe('pieces');
+    expect(qtyCountNoun('pc')).toBe('pcs');
     expect(howManySetsBanner([{ unit: 'set', dispatchUnit: 'pc' }])).toBe(
       'Rates are per pc. Order and dispatch per set.',
     );
@@ -182,6 +182,6 @@ describe('set vs pc helpers stay consistent with list (no conversion drift)', ()
       howManyOrderFooterSummary([
         { quantity: 2, unit: 'set', piecesPerPack: 6, dispatchUnit: 'pc' },
       ]),
-    ).toEqual({ primary: '2 sets = 12 pcs' });
+    ).toEqual({ rows: ['2 sets = 12 pcs'] });
   });
 });

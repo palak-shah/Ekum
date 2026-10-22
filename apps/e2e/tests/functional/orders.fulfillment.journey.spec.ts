@@ -8,7 +8,7 @@ import {
 } from '../../helpers/orders';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
-test.describe('order fulfillment @functional @orders', () => {
+test.describe('order fulfillment @functional @release @orders', () => {
   test('confirmed → dispatch closes as dispatched (no Mark delivered)', async ({ page }) => {
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);
@@ -34,7 +34,7 @@ test.describe('order fulfillment @functional @orders', () => {
     await page.getByTestId('order-dispatch-open').click();
 
     const dispatchSheet = page.getByRole('dialog');
-    await expect(dispatchSheet.getByRole('heading', { name: 'Dispatch' })).toBeVisible();
+    await expect(dispatchSheet.getByRole('heading', { name: 'Dispatch', exact: true })).toBeVisible();
     await expect(dispatchSheet.getByTestId('order-line-photo').first()).toBeVisible();
     const lineName = dispatchSheet.getByTestId('order-dispatch-line-name').first();
     const lineQty = dispatchSheet.getByTestId('order-dispatch-line-qty').first();
@@ -62,7 +62,55 @@ test.describe('order fulfillment @functional @orders', () => {
     await expect(page.getByTestId('order-deliver')).toHaveCount(0);
   });
 
-  test('partial dispatch shows pending; Settle shows Dispatched and Pending', async ({ page }) => {
+  test('partial dispatch shows pending; Settle submit → settled', async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+
+    const { id: orderId, threadId } = await setupConfirmedOrder(
+      page.request,
+      meenaToken,
+      raviToken,
+    );
+    const detailed = await getOrder(page.request, raviToken, orderId);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected order items');
+    const half = Math.max(1, Math.floor(first.quantity / 2));
+
+    await dispatchOrder(page.request, raviToken, orderId, {
+      items: [{ orderItemId: first.id, quantity: half }],
+    });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByText('Part shipped').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-line-fact-shipped').first()).toBeVisible();
+    await expect(page.getByTestId('order-line-fact-balance').first()).toBeVisible();
+    await expect(page.getByTestId('order-settle-open')).toBeVisible();
+
+    await page.getByTestId('order-settle-open').click();
+    const settleSheet = page.getByRole('dialog');
+    await expect(settleSheet.getByRole('heading', { name: 'Settle order' })).toBeVisible();
+    await expect(settleSheet.getByTestId('settle-line-pending').first()).toBeVisible();
+    await expect(settleSheet.getByTestId('order-settle-line-qty').first()).toBeVisible();
+    await expect(settleSheet.getByTestId('order-settle-line-preview').first()).toBeVisible();
+    await expect(settleSheet.getByText('Final').first()).toBeVisible();
+    await expect(settleSheet.getByText('Ordered').first()).toBeVisible();
+    await expect(settleSheet.getByTestId('order-settle-tally')).toBeVisible();
+    await settleSheet.getByTestId('order-settle-confirm').click();
+    await expect(settleSheet).toBeHidden({ timeout: 15_000 });
+
+    const afterSettle = await getOrder(page.request, raviToken, orderId);
+    expect(afterSettle.status).toMatch(/settled/i);
+
+    await loginAsMeena(page);
+    await page.goto(`/chats/${threadId}`);
+    await expect(page.getByText(/Settled/i).first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('partial dispatch then Dispatch more as a second LR', async ({ page }) => {
     test.setTimeout(90_000);
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);
@@ -76,27 +124,26 @@ test.describe('order fulfillment @functional @orders', () => {
     const half = Math.max(1, Math.floor(first.quantity / 2));
 
     await dispatchOrder(page.request, raviToken, orderId, {
+      lrNumber: 'LR-1',
       items: [{ orderItemId: first.id, quantity: half }],
     });
 
     await loginAsRavi(page);
     await page.goto(`/orders/${orderId}`);
-    await expect(page.getByTestId('ship-progress-pending').first()).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.getByTestId('ship-progress-pending').first()).toContainText(/pending/);
-    await expect(page.getByTestId('ship-progress-hint').first()).toContainText(/dispatched/);
-    await expect(page.getByTestId('ship-progress-hint').first()).not.toContainText(/shipped/);
-    await expect(page.getByTestId('ship-progress-hint').first()).not.toContainText(/\bleft\b/);
+    await expect(page.getByTestId('order-dispatch-open')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-dispatch-open').click();
+    const dispatchSheet = page.getByRole('dialog');
+    await expect(
+      dispatchSheet.getByRole('heading', { name: 'Dispatch', exact: true }),
+    ).toBeVisible();
+    await dispatchSheet.getByPlaceholder('LR number').first().fill('LR-2');
+    await dispatchSheet.getByTestId('order-dispatch-confirm').click();
+    await expect(dispatchSheet).toBeHidden({ timeout: 15_000 });
 
-    await page.getByTestId('order-settle-open').first().click();
-    const settleSheet = page.getByRole('dialog');
-    await expect(settleSheet.getByRole('heading', { name: 'Settle order' })).toBeVisible();
-    await expect(settleSheet.getByTestId('settle-pending-summary')).toBeVisible();
-    await expect(settleSheet.getByTestId('settle-line-pending').first()).toBeVisible();
-    await expect(settleSheet.getByTestId('order-settle-line-qty').first()).toBeVisible();
-    await expect(settleSheet.getByTestId('order-line-facts').first()).toBeVisible();
-    await expect(settleSheet.getByText('Final').first()).toBeVisible();
+    const after = await getOrder(page.request, raviToken, orderId);
+    expect(after.status).toMatch(/dispatched/i);
+    expect(after.shipments?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(after.shipments?.some((row) => row.lrNumber === 'LR-2')).toBe(true);
   });
 
   test('dispatch more shows prior LR; edit pulses Dispatch edited', async ({ page }) => {

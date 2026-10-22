@@ -13,12 +13,17 @@ import {
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import {
   OrderLineFacts,
+  OrderLineMoneyLine,
   orderLineBalance,
   orderLineBalanceRowClass,
 } from '@/features/orders/OrderLineFacts';
+import {
+  ticketUnbilledWash,
+  useTicketUnbilledHighlight,
+} from '@/features/orders/OrderUnitGroupedList';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { OrderDesignTitle } from '@/features/orders/OrderDesignTitle';
 import { OrderLineNoteCue } from '@/features/orders/OrderLineNoteCue';
-import { orderLineIdentitySecondary } from '@/features/orders/orderLineIdentity';
 import { CloseIcon, PencilIcon } from '@/ui/icons';
 import { Button, TextInput, cx } from '@/ui/kit';
 import { COMPACT_QTY_INPUT_CLASS } from '@/ui/mobileOverflow';
@@ -40,7 +45,8 @@ type Props = {
 };
 
 /**
- * Uniform stack: thumb · name/identity · fact strip (Balance-tinted card).
+ * Uniform stack: thumb · name · fact strip (Balance-tinted card).
+ * Unit lives in Qty / ticket summary — not a second sold-as under the name.
  * Expand opens from the quiet pencil only (not the whole row). Edit-only —
  * Can’t supply / Last LR. New LRs go through the dock Dispatch sheet.
  */
@@ -63,9 +69,9 @@ export function OrderLineFulfillExpand({
   const showExtra = !cantSupply && extra > 0;
   const leftover = orderLineLeftoverCue(item);
   const cue = orderLineCantSupplyCue(cantSupply);
-  const identity = orderLineIdentitySecondary(item);
   const balance = orderLineBalance(item);
   const isComplete = !cantSupply && balance?.tone === 'done';
+  const unbilledOn = useTicketUnbilledHighlight();
   /** Collapsed grayed rows: cue only — toggle lives in expand / Send quote. */
   const showCollapsedSupplyCue = cantSupply && !expanded;
   const quoteFromCue = Boolean(!canEdit && cantSupply && onOpenQuote && showCollapsedSupplyCue);
@@ -84,7 +90,7 @@ export function OrderLineFulfillExpand({
     canEdit ? (
       <button
         type="button"
-        className="mt-0.5 inline-flex text-muted/70"
+        className="inline-flex shrink-0 p-1 text-muted/70"
         data-testid={expanded ? 'order-line-close-edit' : 'order-line-edit-icon'}
         aria-expanded={expanded}
         aria-label={expanded ? `Close edit ${item.name}` : `Edit ${item.name}`}
@@ -101,6 +107,7 @@ export function OrderLineFulfillExpand({
         expanded && canEdit && 'bg-accent/5',
         !expanded && !cantSupply && orderLineBalanceRowClass(item),
         !expanded && quoteCantSupplyRowClass(cantSupply),
+        ticketUnbilledWash(item, unbilledOn),
       )}
       data-testid={
         cantSupply
@@ -119,24 +126,11 @@ export function OrderLineFulfillExpand({
         muted={cantSupply || Boolean(leftover)}
         photo={photo}
         title={
-          <p
-            className={cx(
-              'line-clamp-2 break-words text-sm font-emphasis',
-              cantSupply || leftover ? 'text-muted' : 'text-ink',
-            )}
-          >
-            {item.name}
-          </p>
-        }
-        secondary={
-          identity ? (
-            <p
-              className="truncate text-[12px] font-emphasis text-slate"
-              data-testid="order-line-identity"
-            >
-              {identity}
-            </p>
-          ) : null
+          <OrderDesignTitle
+            name={item.name}
+            muted={cantSupply || Boolean(leftover)}
+            extra={<OrderLineMoneyLine item={item} />}
+          />
         }
         cues={
           <>
@@ -162,7 +156,7 @@ export function OrderLineFulfillExpand({
             {item.note && !expanded ? <OrderLineNoteCue note={item.note} /> : null}
           </>
         }
-        trailing={editControl}
+        nameEnd={editControl}
         facts={!expanded ? <OrderLineFacts item={item} /> : null}
       />
 

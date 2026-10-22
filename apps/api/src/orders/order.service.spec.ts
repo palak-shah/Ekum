@@ -543,7 +543,7 @@ describe('OrderService.create snapshots', () => {
         kind: OrderKind.Standard,
         buyerCompanyId: 'buyer',
         sellerCompanyId: 'seller',
-        items: [openItem('oi1', 10)],
+        items: [{ ...openItem('oi1', 10), productId: 'p1' }],
       },
     });
     await service.amend('buyer', 'u1', 'o1', {
@@ -563,6 +563,14 @@ describe('OrderService.create snapshots', () => {
         orderLabel: expect.stringMatching(/^Inquiry #/),
       }),
     });
+    expect(String(captured.messageCreate?.body)).toMatch(/Updated qty · Added 1 design/);
+    expect(captured.trailAppends).toContainEqual(
+      expect.objectContaining({
+        type: 'updated',
+        summary: 'Updated qty · Added 1 design',
+        detail: null,
+      }),
+    );
   });
 
   it('lets the buyer amend I-handle lines owned by the mill', async () => {
@@ -933,8 +941,8 @@ describe('OrderService decideLines', () => {
     expect(captured.itemUpdates.some((u) => u.quantity === 8 && u.rate === 110)).toBe(true);
   });
 
-  it('rejects confirm without a rate', async () => {
-    const { service } = makeService({
+  it('allows confirm without a rate', async () => {
+    const { service, captured } = makeService({
       order: {
         id: 'o1',
         status: OrderStatus.Requested,
@@ -943,16 +951,11 @@ describe('OrderService decideLines', () => {
         items: [openItem('oi1', 5)],
       },
     });
-    try {
-      await service.decideLines('seller', 'u1', 'o1', {
-        items: [{ orderItemId: 'oi1', action: 'confirm', quantity: 5 }],
-      });
-      throw new Error('expected RATE_REQUIRED');
-    } catch (error) {
-      expect((error as { getResponse?: () => unknown }).getResponse?.()).toMatchObject({
-        code: 'RATE_REQUIRED',
-      });
-    }
+    await service.decideLines('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', action: 'confirm', quantity: 5 }],
+    });
+    expect(captured.updateData?.status).toBe(OrderStatus.Confirmed);
+    expect(captured.itemUpdates.some((u) => u.quantity === 5 && u.rate == null)).toBe(true);
   });
 });
 

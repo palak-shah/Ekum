@@ -31,8 +31,6 @@ import { navigateBackOr } from '@/lib/navigateBackOr';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import {
-  SettlePendingSummary,
-  fulfillmentRowClass,
   orderLineOverShipped,
   orderLineShowsPending,
 } from '@/features/orders/shipProgressLabel';
@@ -40,18 +38,17 @@ import {
   defaultDispatchOn,
   defaultDispatchQty,
   dispatchPayloadLines,
-  dispatchThisLrLabel,
   dispatchThisLrTally,
+  dispatchThisLrFooterSummary,
   emptyDispatchLeg,
   lineDispatchQty,
-  lineDispatchOverBy,
   resizeDispatchLegs,
   seedDispatchLegsFromShipment,
   shipmentLegDisplayLines,
   shipmentLegImageUrls,
-  shippableDispatchItems,
+  fulfillDispatchItems,
+  dispatchQtyAfterSelect,
   cantSupplyDispatchItems,
-  dispatchLineKindLine,
   previousDispatchesCue,
   type DispatchLegDraft,
 } from '@/features/orders/dispatchSheet';
@@ -59,7 +56,8 @@ import {
   clampSettleQtyInput,
   defaultSettleFinalQty,
   lineSettleFinalQty,
-  orderLineFactsWithSettleFinal,
+  orderLineFactsForSettleRemainder,
+  settleLeftoverFooterSummary,
   settlePayloadLines,
   settleSheetItems,
 } from '@/features/orders/settleSheet';
@@ -74,6 +72,7 @@ import {
   timelineVisibleSlice,
 } from '@/features/orders/orderTimelineDisplay';
 import {
+  decideLinesConfirmReady,
   decideLinesPayload,
   decideLinesTally,
   defaultLineActions,
@@ -116,17 +115,30 @@ import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import { orderPartyLines, partyLineShowsOpenChat } from '@/features/orders/orderPartyLines';
 import {
   OrderLineFacts,
+  OrderLineMoneyLine,
   formatOrderLinePriceAmount,
   orderLineBalance,
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
 } from '@/features/orders/OrderLineFacts';
+import { QtyStepper } from '@/features/orders/QtyStepper';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
+import { OrderDesignTitle } from '@/features/orders/OrderDesignTitle';
+import {
+  howManyOrderUnitsMixed,
+  lastGroupedItem,
+} from '@/features/orders/howManyLineMeta';
+import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
 import { OrderLineNoteCue } from '@/features/orders/OrderLineNoteCue';
 import { orderLineIdentitySecondary } from '@/features/orders/orderLineIdentity';
+import {
+  OrderTicketBillBlock,
+  OrderUnitGroupedList,
+  TicketLineWash,
+} from '@/features/orders/OrderUnitGroupedList';
 import { orderBillTotal } from '@/features/orders/orderLineBilling';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
-import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
+import { AmendOrderSheet } from '@/features/orders/AmendOrderSheet';
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import { TransporterField } from '@/features/orders/TransporterField';
 import { rememberTransporter } from '@/features/orders/transporterMemory';
@@ -182,6 +194,16 @@ import {
   cx,
 } from '@/ui/kit';
 import { COMPACT_QTY_INPUT_CLASS, COMPACT_SHEET_NUM_INPUT_CLASS, COMPACT_SHEET_RATE_INPUT_CLASS } from '@/ui/mobileOverflow';
+import { compactQtyFieldLabelClass } from '@/ui/designLineChrome';
+import {
+  DispatchLinePreview,
+  DispatchLineRemainder,
+} from '@/features/orders/DispatchLinePreview';
+import {
+  SettleLinePreview,
+  SettleLineRemainder,
+} from '@/features/orders/SettleLinePreview';
+import { DispatchLrBillInputs } from '@/features/orders/DispatchLrBillInputs';
 import { ORDER_QTY_SCOPE_ATTR, orderQtyInputProps } from '@/features/orders/orderQtyFocus';
 
 /** Page Send quote — shorter than the sheet footer, still full width. */
@@ -219,7 +241,7 @@ function RateFigure({
 }
 
 function rateAmount(rate: number | null): string {
-  if (rate == null) return '—';
+  if (rate == null) return '';
   return `₹${rate.toLocaleString('en-IN')}`;
 }
 
@@ -475,7 +497,7 @@ function OrderLinePhoto({
       ? 'h-[3.15rem] w-[3.15rem] min-h-[3.15rem] min-w-[3.15rem] shrink-0 rounded-lg'
       : size === 'md'
         ? 'h-[3.675rem] w-[3.675rem] min-h-[3.675rem] min-w-[3.675rem] shrink-0 rounded-xl'
-        : 'h-16 w-16 min-h-16 min-w-16 shrink-0 rounded-xl';
+        : 'h-12 w-12 min-h-12 min-w-12 shrink-0 rounded-lg';
   if (!url) {
     return (
       <div
@@ -516,6 +538,7 @@ function OrderLineCantSupplyFace({
   size = 'lg',
   children,
   className,
+  soldAs = true,
 }: {
   item: OrderItemView;
   items: OrderItemView[];
@@ -524,29 +547,28 @@ function OrderLineCantSupplyFace({
   size?: 'lg' | 'md' | 'sm';
   children?: ReactNode;
   className?: string;
+  /** Mill Send qty is a bare number — keep per mtr. Ticket Total carries the unit. */
+  soldAs?: boolean;
 }) {
   const leftover = orderLineLeftoverCue(item);
   const faded = cantSupply || Boolean(leftover);
   const cue = orderLineCantSupplyCue(cantSupply);
-  const identity = orderLineIdentitySecondary(item);
+  const identity = soldAs ? orderLineIdentitySecondary(item) : null;
   return (
     <OrderLineStack
       className={className}
       muted={faded}
       photo={<OrderLinePhoto item={item} items={items} onOpen={onOpen} size={size} />}
       title={
-        <p
-          className={cx(
-            'line-clamp-2 break-words text-sm font-emphasis',
-            faded ? 'text-muted' : 'text-ink',
-          )}
-        >
-          {item.name}
-        </p>
+        <OrderDesignTitle
+          name={item.name}
+          muted={faded}
+          extra={<OrderLineMoneyLine item={item} />}
+        />
       }
       secondary={
         identity ? (
-          <p className="truncate text-[12px] font-emphasis text-slate" data-testid="order-line-identity">
+          <p className="mt-0.5 truncate text-[12px] font-body text-muted" data-testid="order-line-identity">
             {identity}
           </p>
         ) : null
@@ -899,8 +921,8 @@ export function OrderDetailPage() {
     onError: (err) => setSheetError(actionErrorMessage(err, 'Could not update.')),
   });
 
-  const shippableItems = useMemo(
-    () => shippableDispatchItems(order.data?.items ?? []),
+  const dispatchLines = useMemo(
+    () => fulfillDispatchItems(order.data?.items ?? []),
     [order.data?.items],
   );
 
@@ -910,9 +932,22 @@ export function OrderDetailPage() {
   );
 
   const dispatchTally = useMemo(
-    () => dispatchThisLrTally(shippableItems, shipOn, shipQty),
-    [shippableItems, shipOn, shipQty],
+    () => dispatchThisLrTally(dispatchLines, shipOn, shipQty),
+    [dispatchLines, shipOn, shipQty],
   );
+  const dispatchThisLrSummary = useMemo(
+    () => dispatchThisLrFooterSummary(dispatchLines, shipOn, shipQty),
+    [dispatchLines, shipOn, shipQty],
+  );
+  const settleLines = useMemo(
+    () => settleSheetItems(order.data?.items ?? []),
+    [order.data?.items],
+  );
+  const settleLeftoverSummary = useMemo(
+    () => settleLeftoverFooterSummary(settleLines, settleQty),
+    [settleLines, settleQty],
+  );
+  const lastSettleId = lastGroupedItem(settleLines, (row) => row.unit)?.id;
 
   const priorShipments = order.data?.shipments ?? [];
   const priorListShown = priorListOpen || Boolean(editingShipmentId);
@@ -925,7 +960,7 @@ export function OrderDetailPage() {
         imageUrls: (leg.imageUrls?.length ?? 0) > 0 ? leg.imageUrls : undefined,
       }));
       const lrNumber = legs.find((leg) => leg.lrNumber)?.lrNumber;
-      const items = dispatchPayloadLines(shippableItems, shipOn, shipQty);
+      const items = dispatchPayloadLines(dispatchLines, shipOn, shipQty);
       if (items.length < 1) {
         throw new ApiError({
           statusCode: 400,
@@ -1079,7 +1114,7 @@ export function OrderDetailPage() {
 
   const submitDispatch = () => {
     setDispatchError(null);
-    if (dispatchPayloadLines(shippableItems, shipOn, shipQty).length < 1) {
+    if (dispatchPayloadLines(dispatchLines, shipOn, shipQty).length < 1) {
       setDispatchError('Turn on at least one design for this LR.');
       return;
     }
@@ -1400,11 +1435,11 @@ export function OrderDetailPage() {
   };
 
   const openDispatchSheet = () => {
-    const pending = shippableDispatchItems(order.data?.items ?? []);
+    const lines = fulfillDispatchItems(order.data?.items ?? []);
     setEditingShipmentId(null);
     setPriorListOpen(false);
-    setShipOn(defaultDispatchOn(pending));
-    setShipQty(defaultDispatchQty(pending));
+    setShipOn(defaultDispatchOn(lines));
+    setShipQty(defaultDispatchQty(lines));
     setDispatch({
       legs: [emptyDispatchLeg()],
       transporter: dispatchTransporterPrefill(order.data?.transporter),
@@ -1419,9 +1454,9 @@ export function OrderDetailPage() {
     if (!order.data || order.data.status === 'settled') return;
     // Keep new-dispatch draft; open sheet and expand this earlier LR inline.
     if (!dispatchOpen) {
-      const pending = shippableDispatchItems(order.data.items);
-      setShipOn(defaultDispatchOn(pending));
-      setShipQty(defaultDispatchQty(pending));
+      const lines = fulfillDispatchItems(order.data.items);
+      setShipOn(defaultDispatchOn(lines));
+      setShipQty(defaultDispatchQty(lines));
       setDispatch({
         legs: [emptyDispatchLeg()],
         transporter: dispatchTransporterPrefill(order.data.transporter),
@@ -1465,14 +1500,10 @@ export function OrderDetailPage() {
   );
 
   const linesConfirmReady = useMemo(() => {
-    const confirming = openItems.filter((item) => lineActions[item.id] !== 'decline');
-    if (confirming.length < 1) return false;
-    return confirming.every((item) => {
-      const qty = Number(lineConfirmQty[item.id] || item.quantity || 0);
-      const rateOk = quoteRateNumber(lineConfirmRates[item.id]) != null;
-      return qty > 0 && rateOk;
-    });
-  }, [openItems, lineActions, lineConfirmQty, lineConfirmRates]);
+    const lineQtyById: Record<string, number> = {};
+    for (const item of openItems) lineQtyById[item.id] = item.quantity;
+    return decideLinesConfirmReady(openItemIds, lineActions, lineConfirmQty, lineQtyById);
+  }, [openItems, openItemIds, lineActions, lineConfirmQty]);
 
   const confirmRateDefaults = useMemo(() => {
     const next: Record<string, string> = {};
@@ -1512,21 +1543,6 @@ export function OrderDetailPage() {
     );
     return { count: supplyable.length, total, of: quoteItems.length };
   }, [quoteItems, unavailable, rates, offerQty]);
-
-  const orderBillingTotal = useMemo(() => {
-    const data = order.data;
-    if (!data) return null;
-    return orderBillTotal(
-      data.items
-        .filter((item) => item.lineStatus !== 'declined')
-        .map((item) => ({
-          quantity: item.quantity,
-          rate: item.rate,
-          unit: item.unit,
-          piecesPerPack: item.piecesPerPack,
-        })),
-    );
-  }, [order.data]);
 
   const actionDockKind = useMemo(() => {
     const data = order.data;
@@ -1625,24 +1641,11 @@ export function OrderDetailPage() {
   });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
-  const sharedByYou =
-    data.tradeMode === 'direct' &&
-    data.facilitatorCompanyId &&
-    companyId === data.facilitatorCompanyId;
-  // Title already has the shop name — only keep a subtitle when role isn’t obvious.
-  const roleSubtitle = sharedByYou
-    ? `Shared · ${data.sellerName}`
-    : isInquiry
-      ? data.direction === 'buying'
-        ? `Inquiry to ${data.counterpart.name}`
-        : `Inquiry from ${data.counterpart.name}`
-      : undefined;
 
   return (
     <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && 'pb-24')}>
       <PageHeader
-        title={`${idLabel} · ${data.counterpart.name}`}
-        subtitle={roleSubtitle}
+        title={idLabel}
         onBack={onOrderBack}
         action={
           <div className="flex items-start gap-1">
@@ -1679,7 +1682,7 @@ export function OrderDetailPage() {
             <MoreActionsSheet
               open={orderMenuOpen}
               onClose={() => setOrderMenuOpen(false)}
-              title={`${idLabel} · ${data.counterpart.name}`}
+              title={idLabel}
               testId="order-more-sheet"
               items={[
                 {
@@ -1844,15 +1847,6 @@ export function OrderDetailPage() {
         ) : null}
       </Card>
 
-      {orderBillingTotal != null ? (
-        <p
-          className="text-sm font-title tabular-nums text-ink"
-          data-testid="order-billing-total"
-        >
-          Billing · ₹{orderBillingTotal.toLocaleString('en-IN')}
-        </p>
-      ) : null}
-
       {data.millDesks && data.millDesks.length > 0
         ? data.millDesks.map((desk) => {
             const rows = itemsForMill(data.items, desk);
@@ -1894,12 +1888,18 @@ export function OrderDetailPage() {
                       />
                     ) : null}
                   </div>
-                  {rows.map((item) => {
+                  <OrderTicketBillBlock items={rows}>
+                  <OrderUnitGroupedList
+                    items={rows}
+                    unitOf={(item) => item.unit}
+                    getKey={(item) => item.id}
+                  >
+                    {(item) => {
                     const millLine = millLineForParent(desk, item.id);
                     const cantSupply = item.lineStatus === 'declined';
                     return (
-                      <div
-                        key={item.id}
+                      <TicketLineWash
+                        item={item}
                         className={cx(
                           'flex w-full items-center gap-3 rounded-xl px-1 pt-3',
                           !cantSupply && orderLineBalanceRowClass(item),
@@ -1913,6 +1913,7 @@ export function OrderDetailPage() {
                           items={data.items}
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
+                          soldAs={false}
                         >
                           <OrderLineFacts item={item} />
                           {millLine?.millRate != null && desk.millQuoted ? (
@@ -1921,9 +1922,11 @@ export function OrderDetailPage() {
                             </p>
                           ) : null}
                         </OrderLineCantSupplyFace>
-                      </div>
+                      </TicketLineWash>
                     );
-                  })}
+                    }}
+                  </OrderUnitGroupedList>
+                  </OrderTicketBillBlock>
                 </Card>
               );
             }
@@ -2027,16 +2030,14 @@ export function OrderDetailPage() {
                 ) : null}
                 {!desk.held && desk.millQuoted ? (
                   <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-end gap-2 border-t border-line pt-2">
-                    <p className="text-[10px] font-body uppercase tracking-wide text-muted">
-                      Design
-                    </p>
-                    <p className="text-center text-[10px] font-body uppercase tracking-wide text-muted">
+                    <p className={compactQtyFieldLabelClass}>Design</p>
+                    <p className={cx(compactQtyFieldLabelClass, 'text-center')}>
                       From
                       <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
                         {desk.sellerName}
                       </span>
                     </p>
-                    <p className="text-center text-[10px] font-body uppercase tracking-wide text-muted">
+                    <p className={cx(compactQtyFieldLabelClass, 'text-center')}>
                       To
                       <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
                         {data.counterpart.name}
@@ -2075,15 +2076,9 @@ export function OrderDetailPage() {
                       className="grid grid-cols-[minmax(0,1fr)_4.5rem_7rem] gap-x-2 gap-y-0"
                       {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
                     >
-                      <p className="pb-2 text-[10px] font-body uppercase tracking-wide text-muted">
-                        Design
-                      </p>
-                      <p className="pb-2 text-center text-[10px] font-body uppercase tracking-wide text-muted">
-                        Qty
-                      </p>
-                      <p className="pb-2 text-center text-[10px] font-body uppercase tracking-wide text-muted">
-                        Rate
-                      </p>
+                      <p className={cx(compactQtyFieldLabelClass, 'pb-2')}>Design</p>
+                      <p className={cx(compactQtyFieldLabelClass, 'pb-2 text-center')}>Qty</p>
+                      <p className={cx(compactQtyFieldLabelClass, 'pb-2 text-center')}>Rate</p>
                       {rows.map((item) => {
                         const cantSupply = item.lineStatus === 'declined';
                         return (
@@ -2102,7 +2097,9 @@ export function OrderDetailPage() {
                             onOpen={openPhotoViewer}
                           />
                           <TextInput
-                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="off"
                             className={COMPACT_SHEET_NUM_INPUT_CLASS}
                             value={millQty[item.id] ?? String(item.quantity)}
                             onChange={(e) =>
@@ -2131,7 +2128,14 @@ export function OrderDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  rows.map((item) => {
+                  <>
+                  <OrderTicketBillBlock items={rows}>
+                  <OrderUnitGroupedList
+                    items={rows}
+                    unitOf={(item) => item.unit}
+                    getKey={(item) => item.id}
+                  >
+                    {(item) => {
                     const millLine = millLineForParent(desk, item.id);
                     const cells = desk.millQuoted
                       ? millFromToCells({
@@ -2158,8 +2162,8 @@ export function OrderDetailPage() {
                     const isComplete =
                       !cantSupply && orderLineBalance(item)?.tone === 'done';
                     return (
-                      <div
-                        key={item.id}
+                      <TicketLineWash
+                        item={item}
                         className={cx(
                           'rounded-xl px-2 pt-3',
                           !cantSupply && orderLineBalanceRowClass(item),
@@ -2186,6 +2190,7 @@ export function OrderDetailPage() {
                           items={data.items}
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
+                          soldAs={false}
                         >
                           {!cells ? <OrderLineFacts item={item} /> : null}
                         </OrderLineCantSupplyFace>
@@ -2204,9 +2209,12 @@ export function OrderDetailPage() {
                             />
                           </>
                         ) : null}
-                      </div>
+                      </TicketLineWash>
                     );
-                  })
+                    }}
+                  </OrderUnitGroupedList>
+                  </OrderTicketBillBlock>
+                  </>
                 )}
                 {desk.held ? (
                   <div className="flex items-center justify-end gap-2">
@@ -2258,14 +2266,19 @@ export function OrderDetailPage() {
       {showOrderParentItemsList(data.millDesks) ? (
       <Card className="flex flex-col gap-2" data-testid="order-parent-items">
         {lineFulfillError ? <InlineNotice message={lineFulfillError} /> : null}
-        {data.items.map((item) => {
+        <OrderTicketBillBlock items={data.items}>
+        <OrderUnitGroupedList
+          items={data.items}
+          unitOf={(item) => item.unit}
+          getKey={(item) => item.id}
+        >
+          {(item) => {
           const canEdit = sellerCanFulfillEdit(data);
           const expanded = expandedLineId === item.id;
           const lastLr = latestShipmentForLine(data.shipments, item.id);
           const lastLrQty = lastLr ? lineShippedOnShipment(lastLr, item.id) : 0;
           return (
             <OrderLineFulfillExpand
-              key={item.id}
               item={item}
               canEdit={canEdit}
               hasLastLr={Boolean(lastLr)}
@@ -2297,7 +2310,9 @@ export function OrderDetailPage() {
               }}
             />
           );
-        })}
+          }}
+        </OrderUnitGroupedList>
+        </OrderTicketBillBlock>
         {data.note ? <p className="border-t border-line pt-2 text-sm text-muted">{data.note}</p> : null}
         {data.noteVoiceUrl ? (
           <div className="border-t border-line pt-2">
@@ -2645,7 +2660,8 @@ export function OrderDetailPage() {
               ? ` · ₹${quoteSummary.total.toLocaleString('en-IN')}`
               : ''}
           </p>
-          {quoteItems.filter((item) => !unavailable[item.id]).length > 1 ? (
+          {quoteItems.filter((item) => !unavailable[item.id]).length > 1 &&
+          !howManyOrderUnitsMixed(quoteItems.filter((item) => !unavailable[item.id])) ? (
             <SameQtyRateForAll
               show
               open={quoteSameOpen}
@@ -2690,10 +2706,19 @@ export function OrderDetailPage() {
           ) : null}
           {(() => {
             const showFrom = (data.millDesks ?? []).some((desk) => desk.millQuoted && !desk.held);
-            const lastOfferQtyId = quoteItems.filter((item) => !unavailable[item.id]).at(-1)?.id;
+            const lastOfferQtyId = lastGroupedItem(
+              quoteItems.filter((item) => !unavailable[item.id]),
+              (item) => item.unit,
+            )?.id;
             return (
-              <div className="flex flex-col gap-2">
-                {quoteItems.map((item) => {
+              <OrderUnitGroupedList
+                items={quoteItems}
+                unitOf={(row) => row.unit}
+                getKey={(row) => row.id}
+                headingTestId="order-sheet-unit-heading"
+                testId="order-quote-unit-groups"
+              >
+                {(item) => {
                   const millLine = (data.millDesks ?? [])
                     .filter((desk) => desk.millQuoted && !desk.held)
                     .map((desk) => ({ desk, line: millLineForParent(desk, item.id) }))
@@ -2704,7 +2729,6 @@ export function OrderDetailPage() {
                       ? rateUnitSuffix(item.unit, item.dispatchUnit)
                       : '';
                   const cantSupply = Boolean(unavailable[item.id]);
-                  const identity = orderLineIdentitySecondary(item);
                   const offerN = Number(offerQty[item.id]);
                   const rateN = Number(rates[item.id]);
                   const factsItem = {
@@ -2738,23 +2762,7 @@ export function OrderDetailPage() {
                             size="lg"
                           />
                         }
-                        title={
-                          <p
-                            className={cx(
-                              'line-clamp-2 break-words text-sm font-emphasis',
-                              cantSupply ? 'text-muted' : 'text-ink',
-                            )}
-                          >
-                            {item.name}
-                          </p>
-                        }
-                        secondary={
-                          identity ? (
-                            <p className="truncate text-[12px] font-emphasis text-slate">
-                              {identity}
-                            </p>
-                          ) : null
-                        }
+                        title={<OrderDesignTitle name={item.name} muted={cantSupply} />}
                         cues={
                           <>
                             {orderLineLeftoverCue(item) ? (
@@ -2803,14 +2811,15 @@ export function OrderDetailPage() {
                               <div className="min-w-0 flex-1 pr-2">
                                 <label
                                   htmlFor={`quote-qty-${item.id}`}
-                                  className="text-[10px] font-body uppercase tracking-wide text-muted"
+                                  className={compactQtyFieldLabelClass}
                                 >
                                   Qty
                                 </label>
                                 <TextInput
                                   id={`quote-qty-${item.id}`}
-                                  type="number"
-                                  min={1}
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  autoComplete="off"
                                   className={COMPACT_SHEET_NUM_INPUT_CLASS}
                                   data-testid={`quote-qty-${item.id}`}
                                   value={offerQty[item.id] ?? ''}
@@ -2827,7 +2836,7 @@ export function OrderDetailPage() {
                               <div className="min-w-0 flex-[1.4] pl-2">
                                 <label
                                   htmlFor={`quote-rate-${item.id}`}
-                                  className="text-[10px] font-body uppercase tracking-wide text-muted"
+                                  className={compactQtyFieldLabelClass}
                                 >
                                   Rate
                                 </label>
@@ -2864,8 +2873,8 @@ export function OrderDetailPage() {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                }}
+              </OrderUnitGroupedList>
             );
           })()}
           <NoteAttachField
@@ -2893,6 +2902,8 @@ export function OrderDetailPage() {
         open={linesOpen}
         onClose={() => closeSheet('lines')}
         title="Confirm / decline lines"
+        titleInfo="Tick what you can supply; set qty — rate if you have it. Confirm locks the ticket. Send quote is optional for a soft offer. Decline all drops every design."
+        titleInfoTestId="order-lines-why"
         footer={
           <div className="flex flex-col gap-2">
             {sheetError && linesOpen ? <InlineNotice message={sheetError} /> : null}
@@ -2930,10 +2941,6 @@ export function OrderDetailPage() {
         }
       >
         <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          <p className="text-sm text-muted" data-testid="order-lines-why">
-            Tick what you can supply; set qty and rate — Confirm locks the ticket. Send quote
-            is optional for a soft offer. Decline all drops every design.
-          </p>
           {openItems.length > 0 ? (
             <div
               className="flex items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
@@ -2951,7 +2958,10 @@ export function OrderDetailPage() {
           ) : (
             <InlineNotice message="No open designs left." />
           )}
-          {openItems.filter((item) => lineActions[item.id] !== 'decline').length > 1 ? (
+          {openItems.filter((item) => lineActions[item.id] !== 'decline').length > 1 &&
+          !howManyOrderUnitsMixed(
+            openItems.filter((item) => lineActions[item.id] !== 'decline'),
+          ) ? (
             <SameQtyRateForAll
               show
               open={linesSameOpen}
@@ -2995,12 +3005,21 @@ export function OrderDetailPage() {
               onCancel={() => setLinesSameOpen(false)}
             />
           ) : null}
-          {openItems.map((item) => {
+          {(() => {
+            const lastConfirmQtyId = lastGroupedItem(
+              openItems.filter((row) => lineActions[row.id] !== 'decline'),
+              (row) => row.unit,
+            )?.id;
+            return (
+          <OrderUnitGroupedList
+            items={openItems}
+            unitOf={(row) => row.unit}
+            getKey={(row) => row.id}
+            headingTestId="order-sheet-unit-heading"
+            testId="order-lines-unit-groups"
+          >
+          {(item) => {
             const on = lineActions[item.id] !== 'decline';
-            const identity = orderLineIdentitySecondary(item);
-            const lastConfirmQtyId = openItems.filter(
-              (row) => lineActions[row.id] !== 'decline',
-            ).at(-1)?.id;
             const typedQty = Number(lineConfirmQty[item.id]);
             const typedRate = quoteRateNumber(lineConfirmRates[item.id]);
             const factsQty =
@@ -3054,14 +3073,7 @@ export function OrderDetailPage() {
                       size="lg"
                     />
                   }
-                  title={
-                    <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
-                  }
-                  secondary={
-                    identity ? (
-                      <p className="truncate text-[12px] font-emphasis text-slate">{identity}</p>
-                    ) : null
-                  }
+                  title={<OrderDesignTitle name={item.name} muted={!on} />}
                   cues={
                     <>
                       {orderLineLeftoverCue(item) ? (
@@ -3069,20 +3081,7 @@ export function OrderDetailPage() {
                           {orderLineLeftoverCue(item)}
                         </p>
                       ) : null}
-                      {on ? (
-                        <p
-                          className="truncate text-[11px] font-body text-muted"
-                          data-testid={`order-lines-asked-${item.id}`}
-                        >
-                          {quoteSheetReferenceCue({
-                            asked: item.requestedQuantity,
-                            hasSellerQuote: data.hasSellerQuote === true,
-                            quotedQty: item.quantity,
-                            quotedRate: item.rate,
-                            formatAmount: formatOrderLinePriceAmount,
-                          })}
-                        </p>
-                      ) : (
+                      {on ? null : (
                         <p className="truncate text-[11px] font-body text-muted">Declined</p>
                       )}
                     </>
@@ -3094,44 +3093,26 @@ export function OrderDetailPage() {
                         data-testid={`order-lines-qty-rate-${item.id}`}
                       >
                         <div className="min-w-0 flex-1 pr-2">
-                          <label
-                            htmlFor={`confirm-qty-${item.id}`}
-                            className="text-[10px] font-body uppercase tracking-wide text-muted"
-                          >
-                            Qty
-                          </label>
-                          <TextInput
-                            id={`confirm-qty-${item.id}`}
-                            type="number"
-                            min={1}
-                            data-testid={`order-lines-qty-${item.id}`}
+                          <p className={compactQtyFieldLabelClass}>Qty</p>
+                          <QtyStepper
+                            value={Number(lineConfirmQty[item.id]) || item.quantity}
+                            chainQty
+                            align="start"
+                            enterKeyHint={item.id === lastConfirmQtyId ? 'done' : 'next'}
+                            inputTestId={`order-lines-qty-${item.id}`}
                             aria-label={`Quantity for ${item.name}`}
-                            className={COMPACT_SHEET_NUM_INPUT_CLASS}
-                            value={lineConfirmQty[item.id] ?? String(item.quantity)}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
+                            onChange={(next) =>
                               setLineConfirmQty((prev) => ({
                                 ...prev,
-                                [item.id]: event.target.value,
+                                [item.id]: String(next ?? item.quantity),
                               }))
                             }
-                            onBlur={() => {
-                              const raw = lineConfirmQty[item.id];
-                              const n = Number(raw);
-                              if (!Number.isFinite(n) || n < 1) {
-                                setLineConfirmQty((prev) => ({
-                                  ...prev,
-                                  [item.id]: String(item.quantity),
-                                }));
-                              }
-                            }}
-                            {...orderQtyInputProps(item.id === lastConfirmQtyId)}
                           />
                         </div>
                         <div className="min-w-0 flex-[1.4] pl-2">
                           <label
                             htmlFor={`confirm-rate-${item.id}`}
-                            className="text-[10px] font-body uppercase tracking-wide text-muted"
+                            className={compactQtyFieldLabelClass}
                           >
                             Rate
                           </label>
@@ -3157,7 +3138,10 @@ export function OrderDetailPage() {
                 />
               </div>
             );
-          })}
+          }}
+          </OrderUnitGroupedList>
+            );
+          })()}
           <NoteAttachField
             label="Note"
             note={linesNote}
@@ -3243,97 +3227,16 @@ export function OrderDetailPage() {
         onClose={() => closeSheet('dispatch')}
         title="Dispatch"
         footer={
-          editingShipmentId || shippableItems.length === 0 ? undefined : (
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <TransporterField
-                value={dispatch.transporter ?? ''}
-                onChange={(next) =>
-                  setDispatch((prev) => ({ ...prev, transporter: next }))
-                }
-              />
-              <Field label="Parcels">
-                <TextInput
-                  type="number"
-                  min={1}
-                  value={dispatch.parcelCount ?? ''}
-                  placeholder="1"
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    if (!raw) {
-                      setDispatch((prev) => ({
-                        ...prev,
-                        parcelCount: undefined,
-                        legs: resizeDispatchLegs(prev.legs, 1),
-                      }));
-                      return;
-                    }
-                    const n = Number(raw);
-                    setDispatch((prev) => ({
-                      ...prev,
-                      parcelCount: n,
-                      legs: resizeDispatchLegs(prev.legs, n),
-                    }));
-                  }}
-                />
-              </Field>
-            </div>
-            <div className="flex flex-col gap-1.5" data-testid="order-dispatch-legs">
-              <div className="grid grid-cols-2 gap-2">
-                <p className="text-sm font-emphasis text-ink">LR number</p>
-                <p className="text-sm font-emphasis text-ink">Bill no</p>
-              </div>
-              {dispatch.legs.map((leg, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col gap-1.5"
-                  data-testid="order-dispatch-leg-row"
-                >
-                  <div className="grid grid-cols-2 gap-2">
-                    <TextInput
-                      value={leg.lrNumber}
-                      placeholder="Optional"
-                      aria-label={`LR number ${index + 1}`}
-                      onChange={(event) =>
-                        setDispatch((prev) => ({
-                          ...prev,
-                          legs: prev.legs.map((row, i) =>
-                            i === index ? { ...row, lrNumber: event.target.value } : row,
-                          ),
-                        }))
-                      }
-                    />
-                    <TextInput
-                      value={leg.billNumber}
-                      placeholder="Optional"
-                      aria-label={`Bill no ${index + 1}`}
-                      onChange={(event) =>
-                        setDispatch((prev) => ({
-                          ...prev,
-                          legs: prev.legs.map((row, i) =>
-                            i === index ? { ...row, billNumber: event.target.value } : row,
-                          ),
-                        }))
-                      }
-                    />
-                  </div>
-                  <LegPhotoAttach
-                    images={leg.imageUrls ?? []}
-                    testIdPrefix={`order-dispatch-leg-${index}`}
-                    onImagesChange={(imageUrls) =>
-                      setDispatch((prev) => ({
-                        ...prev,
-                        legs: prev.legs.map((row, i) =>
-                          i === index ? { ...row, imageUrls } : row,
-                        ),
-                      }))
-                    }
-                  />
-                </div>
-              ))}
-            </div>
+          editingShipmentId || dispatchLines.length === 0 ? undefined : (
+          <div className="flex flex-col gap-1.5">
             {dispatchError && !editingShipmentId ? (
               <InlineNotice message={dispatchError} />
+            ) : null}
+            {dispatchThisLrSummary ? (
+              <div data-testid="order-dispatch-tally">
+                <p className="text-[12px] font-body text-muted">This LR</p>
+                <OrderQtyFooterSummary summary={dispatchThisLrSummary} />
+              </div>
             ) : null}
             <Button
               fullWidth
@@ -3348,142 +3251,129 @@ export function OrderDetailPage() {
         }
       >
         <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          {shippableItems.length === 0 && declinedDispatchItems.length === 0 ? (
+          {dispatchLines.length === 0 && declinedDispatchItems.length === 0 ? (
             <p className="px-1 text-sm text-muted">Nothing left for a new LR.</p>
           ) : (
             <>
-              {shippableItems.length > 0 ? (
-              <div
-                className="flex items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
-                data-testid="order-dispatch-tally"
+              <OrderUnitGroupedList
+                items={dispatchLines}
+                unitOf={(row) => row.unit}
+                getKey={(row) => row.id}
+                role="dispatching"
+                headingTestId="order-sheet-unit-heading"
+                testId="order-dispatch-unit-groups"
               >
-                <p className="min-w-0 truncate text-sm font-emphasis text-accent">
-                  {dispatchThisLrLabel(dispatchTally)}
-                </p>
-                {dispatchTally.later > 0 ? (
-                  <p className="shrink-0 text-[12px] font-body text-muted">
-                    {dispatchTally.later} pending
-                  </p>
-                ) : null}
-              </div>
-              ) : (
-                <p className="px-1 text-sm text-muted">Nothing left for a new LR.</p>
-              )}
-              {shippableItems.map((item) => {
-                const on = shipOn[item.id] !== false;
-                const kind = dispatchLineKindLine(item);
+              {(item) => {
+                const on = shipOn[item.id] === true;
                 const thisLr = on ? lineDispatchQty(item, shipQty) : 0;
-                const overBy = on ? lineDispatchOverBy(item, shipQty) : 0;
                 const factsItem = orderLineFactsWithThisLr(item, thisLr, on);
-                const lastDispatchQtyId = shippableItems
-                  .filter((line) => shipOn[line.id] !== false)
-                  .at(-1)?.id;
+                const lastDispatchQtyId = lastGroupedItem(
+                  dispatchLines.filter((line) => shipOn[line.id] === true),
+                  (line) => line.unit,
+                )?.id;
                 return (
                   <div
                     key={item.id}
                     className={cx(
-                      'flex items-start gap-2 rounded-xl px-2 py-2',
-                      on
-                        ? orderLineBalance(factsItem)
-                          ? orderLineBalanceRowClass(factsItem)
-                          : 'bg-accent/5'
-                        : 'bg-foam/50',
+                      'flex flex-col gap-1.5 rounded-xl px-2.5 py-2',
+                      orderLineBalanceRowClass(factsItem) ||
+                        (on ? 'bg-accent/5' : 'bg-foam/50'),
                     )}
                     data-testid="order-dispatch-line"
                   >
-                    <button
-                      type="button"
-                      className={cx(
-                        'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
-                        on
-                          ? 'border-accent bg-accent text-white'
-                          : 'border-line bg-surface text-transparent',
-                      )}
-                      aria-pressed={on}
-                      aria-label={on ? `Later ${item.name}` : `This LR ${item.name}`}
-                      data-testid="order-dispatch-line-toggle"
-                      onClick={() =>
-                        setShipOn((prev) => ({
-                          ...prev,
-                          [item.id]: !on,
-                        }))
-                      }
-                    >
-                      <CheckIcon
-                        width={12}
-                        height={12}
-                        data-testid="order-dispatch-line-check"
-                        aria-hidden
-                      />
-                    </button>
-                    <OrderLineStack
-                      className="min-w-0 flex-1"
-                      photo={
-                        <OrderLinePhoto
-                          item={item}
-                          items={data.items}
-                          onOpen={openPhotoViewer}
-                          size="lg"
+                    <div className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        className={cx(
+                          'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
+                          on
+                            ? 'border-accent bg-accent text-white'
+                            : 'border-line bg-surface text-transparent',
+                        )}
+                        aria-pressed={on}
+                        aria-label={on ? `Later ${item.name}` : `This LR ${item.name}`}
+                        data-testid="order-dispatch-line-toggle"
+                        onClick={() => {
+                          const next = !on;
+                          setShipOn((prev) => ({
+                            ...prev,
+                            [item.id]: next,
+                          }));
+                          if (next) {
+                            setShipQty((prev) => ({
+                              ...prev,
+                              [item.id]: dispatchQtyAfterSelect(item, prev[item.id]),
+                            }));
+                          }
+                        }}
+                      >
+                        <CheckIcon
+                          width={12}
+                          height={12}
+                          data-testid="order-dispatch-line-check"
+                          aria-hidden
                         />
-                      }
-                      title={
-                        <p
-                          data-testid="order-dispatch-line-name"
-                          className="truncate text-sm font-emphasis text-ink"
-                        >
-                          {item.name}
-                        </p>
-                      }
-                      secondary={
-                        kind ? (
-                          <p
-                            className="truncate text-[12px] font-emphasis text-slate"
-                            data-testid="order-dispatch-line-kind"
-                          >
-                            {kind}
-                          </p>
-                        ) : null
-                      }
-                      cues={
-                        orderLineLeftoverCue(item) ? (
-                          <p className="truncate text-[11px] font-emphasis text-ink">
-                            {orderLineLeftoverCue(item)}
-                          </p>
-                        ) : null
-                      }
-                      facts={<OrderLineFacts item={factsItem} />}
-                      trailing={
-                        <div className="flex flex-col items-end gap-0.5">
-                          <label
-                            htmlFor={`dispatch-this-lr-${item.id}`}
-                            className="text-[10px] font-body uppercase tracking-wide text-muted"
-                          >
-                            This LR
-                          </label>
-                          <TextInput
-                            id={`dispatch-this-lr-${item.id}`}
-                            type="number"
-                            min={1}
-                            disabled={!on}
-                            data-testid="order-dispatch-line-qty"
-                            aria-label={`This LR quantity for ${item.name}`}
-                            className={cx(
-                              COMPACT_QTY_INPUT_CLASS,
-                              overBy > 0 && 'border-info ring-1 ring-info/40',
-                            )}
-                            value={shipQty[item.id] ?? String(lineDispatchQty(item, shipQty))}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                              setShipQty((prev) => ({ ...prev, [item.id]: event.target.value }))
-                            }
-                            {...orderQtyInputProps(item.id === lastDispatchQtyId)}
+                      </button>
+                      <OrderLineStack
+                        className="min-w-0 flex-1"
+                        photo={
+                          <OrderLinePhoto
+                            item={item}
+                            items={data.items}
+                            onOpen={openPhotoViewer}
+                            size="lg"
                           />
-                        </div>
-                      }
-                    />
+                        }
+                        title={
+                          <OrderDesignTitle
+                            name={item.name}
+                            nameTestId="order-dispatch-line-name"
+                            extra={<OrderLineMoneyLine item={item} />}
+                          />
+                        }
+                        cues={
+                          orderLineLeftoverCue(item) ? (
+                            <p className="truncate text-[11px] font-emphasis text-ink">
+                              {orderLineLeftoverCue(item)}
+                            </p>
+                          ) : null
+                        }
+                        trailing={
+                          <DispatchLineRemainder
+                            item={item}
+                            thisLrQty={thisLr}
+                            includeThisLr={on}
+                          />
+                        }
+                        facts={
+                          <DispatchLinePreview
+                            item={item}
+                            thisLrControl={
+                              <QtyStepper
+                                value={on ? thisLr : 0}
+                                disabled={!on}
+                                chainQty
+                                align="start"
+                                enterKeyHint={item.id === lastDispatchQtyId ? 'done' : 'next'}
+                                inputTestId="order-dispatch-line-qty"
+                                aria-label={`This LR quantity for ${item.name}`}
+                                onChange={(next) => {
+                                  if (!on) return;
+                                  setShipQty((prev) => ({
+                                    ...prev,
+                                    [item.id]: String(next ?? 1),
+                                  }));
+                                }}
+                              />
+                            }
+                          />
+                        }
+                      />
+                    </div>
                   </div>
                 );
-              })}
+              }}
+              </OrderUnitGroupedList>
               {declinedDispatchItems.length > 0 ? (
                 <div className="flex flex-col gap-2 pt-1" data-testid="order-dispatch-cant-supply">
                   {declinedDispatchItems.map((item) => (
@@ -3505,9 +3395,7 @@ export function OrderDetailPage() {
                             size="sm"
                           />
                         }
-                        title={
-                          <p className="truncate text-sm font-body text-muted">{item.name}</p>
-                        }
+                        title={<OrderDesignTitle name={item.name} muted />}
                         trailing={
                           <button
                             type="button"
@@ -3528,6 +3416,86 @@ export function OrderDetailPage() {
               ) : null}
             </>
           )}
+          {!editingShipmentId && dispatchLines.length > 0 ? (
+            <div className="flex flex-col gap-1.5 pt-1">
+              <div className="grid grid-cols-2 gap-2">
+                <TransporterField
+                  value={dispatch.transporter ?? ''}
+                  onChange={(next) =>
+                    setDispatch((prev) => ({ ...prev, transporter: next }))
+                  }
+                />
+                <Field label="Parcels">
+                  <TextInput
+                    type="number"
+                    min={1}
+                    value={dispatch.parcelCount ?? ''}
+                    placeholder="1"
+                    onChange={(event) => {
+                      const raw = event.target.value;
+                      if (!raw) {
+                        setDispatch((prev) => ({
+                          ...prev,
+                          parcelCount: undefined,
+                          legs: resizeDispatchLegs(prev.legs, 1),
+                        }));
+                        return;
+                      }
+                      const n = Number(raw);
+                      setDispatch((prev) => ({
+                        ...prev,
+                        parcelCount: n,
+                        legs: resizeDispatchLegs(prev.legs, n),
+                      }));
+                    }}
+                  />
+                </Field>
+              </div>
+              <div className="flex flex-col gap-1.5" data-testid="order-dispatch-legs">
+                {dispatch.legs.map((leg, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col gap-1.5"
+                    data-testid="order-dispatch-leg-row"
+                  >
+                    <DispatchLrBillInputs
+                      lrNumber={leg.lrNumber}
+                      billNumber={leg.billNumber}
+                      index={index}
+                      onLrNumber={(next) =>
+                        setDispatch((prev) => ({
+                          ...prev,
+                          legs: prev.legs.map((row, i) =>
+                            i === index ? { ...row, lrNumber: next } : row,
+                          ),
+                        }))
+                      }
+                      onBillNumber={(next) =>
+                        setDispatch((prev) => ({
+                          ...prev,
+                          legs: prev.legs.map((row, i) =>
+                            i === index ? { ...row, billNumber: next } : row,
+                          ),
+                        }))
+                      }
+                    />
+                    <LegPhotoAttach
+                      images={leg.imageUrls ?? []}
+                      testIdPrefix={`order-dispatch-leg-${index}`}
+                      onImagesChange={(imageUrls) =>
+                        setDispatch((prev) => ({
+                          ...prev,
+                          legs: prev.legs.map((row, i) =>
+                            i === index ? { ...row, imageUrls } : row,
+                          ),
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {priorShipments.length > 0 ? (
             <div className="flex flex-col gap-2" data-testid="order-dispatch-prior">
               <button
@@ -3630,9 +3598,17 @@ export function OrderDetailPage() {
                             className="mt-3 flex flex-col gap-2 border-t border-line pt-3"
                             data-testid="order-dispatch-prior-expand"
                           >
-                            {(data.items ?? [])
-                              .filter((item) => editShipOn[item.id] !== undefined)
-                              .map((item) => {
+                            <OrderUnitGroupedList
+                              items={(data.items ?? []).filter(
+                                (item) => editShipOn[item.id] !== undefined,
+                              )}
+                              unitOf={(row) => row.unit}
+                              getKey={(row) => row.id}
+                              role="dispatching"
+                              headingTestId="order-sheet-unit-heading"
+                              testId="order-dispatch-edit-unit-groups"
+                            >
+                              {(item) => {
                                 const active = editShipOn[item.id] !== false;
                                 return (
                                   <div
@@ -3679,7 +3655,8 @@ export function OrderDetailPage() {
                                     />
                                   </div>
                                 );
-                              })}
+                              }}
+                            </OrderUnitGroupedList>
                             <div className="grid grid-cols-2 gap-2">
                               <TransporterField
                                 value={editDispatch.transporter ?? ''}
@@ -3718,48 +3695,33 @@ export function OrderDetailPage() {
                               </Field>
                             </div>
                             <div className="flex flex-col gap-1.5" data-testid="order-dispatch-edit-legs">
-                              <div className="grid grid-cols-2 gap-2">
-                                <p className="text-sm font-emphasis text-ink">LR number</p>
-                                <p className="text-sm font-emphasis text-ink">Bill no</p>
-                              </div>
                               {editDispatch.legs.map((leg, index) => (
                                 <div
                                   key={index}
                                   className="flex flex-col gap-1.5"
                                   data-testid="order-dispatch-edit-leg-row"
                                 >
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <TextInput
-                                      value={leg.lrNumber}
-                                      placeholder="Optional"
-                                      aria-label={`LR number ${index + 1}`}
-                                      onChange={(event) =>
-                                        setEditDispatch((prev) => ({
-                                          ...prev,
-                                          legs: prev.legs.map((row, i) =>
-                                            i === index
-                                              ? { ...row, lrNumber: event.target.value }
-                                              : row,
-                                          ),
-                                        }))
-                                      }
-                                    />
-                                    <TextInput
-                                      value={leg.billNumber}
-                                      placeholder="Optional"
-                                      aria-label={`Bill no ${index + 1}`}
-                                      onChange={(event) =>
-                                        setEditDispatch((prev) => ({
-                                          ...prev,
-                                          legs: prev.legs.map((row, i) =>
-                                            i === index
-                                              ? { ...row, billNumber: event.target.value }
-                                              : row,
-                                          ),
-                                        }))
-                                      }
-                                    />
-                                  </div>
+                                  <DispatchLrBillInputs
+                                    lrNumber={leg.lrNumber}
+                                    billNumber={leg.billNumber}
+                                    index={index}
+                                    onLrNumber={(next) =>
+                                      setEditDispatch((prev) => ({
+                                        ...prev,
+                                        legs: prev.legs.map((row, i) =>
+                                          i === index ? { ...row, lrNumber: next } : row,
+                                        ),
+                                      }))
+                                    }
+                                    onBillNumber={(next) =>
+                                      setEditDispatch((prev) => ({
+                                        ...prev,
+                                        legs: prev.legs.map((row, i) =>
+                                          i === index ? { ...row, billNumber: next } : row,
+                                        ),
+                                      }))
+                                    }
+                                  />
                                   <LegPhotoAttach
                                     images={leg.imageUrls ?? []}
                                     testIdPrefix={`order-dispatch-edit-leg-${index}`}
@@ -3814,110 +3776,96 @@ export function OrderDetailPage() {
         onClose={() => closeSheet('settle')}
         title="Settle order"
         footer={
-          <Button
-            fullWidth
-            data-testid="order-settle-confirm"
-            disabled={settleOrder.isPending}
-            onClick={() => settleOrder.mutate()}
-          >
-            {settleOrder.isPending ? 'Settling…' : 'Settle order'}
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            {sheetError && settleOpen ? <InlineNotice message={sheetError} /> : null}
+            {settleLeftoverSummary ? (
+              <div data-testid="order-settle-tally">
+                <p className="text-[12px] font-body text-muted">Won’t ship</p>
+                <OrderQtyFooterSummary summary={settleLeftoverSummary} />
+              </div>
+            ) : null}
+            <Button
+              fullWidth
+              data-testid="order-settle-confirm"
+              disabled={settleOrder.isPending}
+              onClick={() => settleOrder.mutate()}
+            >
+              {settleOrder.isPending ? 'Settling…' : 'Settle order'}
+            </Button>
+          </div>
         }
       >
-        <div className="flex flex-col gap-3 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          <p className="text-sm text-muted">
-            Set Final qty (≤ shipped). Won’t ship the rest — ticket closes as Settled.
-          </p>
-          {(() => {
-            const settleLines = settleSheetItems(data.items ?? []);
-            const pendingLines = settleLines.filter((item) => (item.remainingQuantity ?? 0) > 0);
-            const pendingPieces = pendingLines.reduce(
-              (sum, item) => sum + (item.remainingQuantity ?? 0),
-              0,
-            );
-            const lastSettleId = settleLines.at(-1)?.id;
-            return (
-              <>
-                <SettlePendingSummary
-                  designCount={pendingLines.length}
-                  pendingPieces={pendingPieces}
-                />
-                {settleLines.map((item) => {
-                  const pending = item.remainingQuantity ?? 0;
-                  const finalQty = lineSettleFinalQty(item, settleQty);
-                  const factsItem = orderLineFactsWithSettleFinal(item, finalQty);
-                  const identity = orderLineIdentitySecondary(item);
-                  return (
-                    <div
-                      key={item.id}
-                      className={cx('px-1 py-1', fulfillmentRowClass(pending))}
-                      data-testid={
-                        pending > 0 ? 'settle-line-pending' : 'settle-line-done'
-                      }
-                    >
-                      <OrderLineStack
-                        photo={
-                          <OrderLinePhoto
-                            item={item}
-                            items={data.items}
-                            onOpen={openPhotoViewer}
-                            size="lg"
+        <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
+          <p className="text-sm text-muted">Closes leftover. No new LR.</p>
+          <OrderUnitGroupedList
+            items={settleLines}
+            unitOf={(row) => row.unit}
+            getKey={(row) => row.id}
+            headingTestId="order-sheet-unit-heading"
+            testId="order-settle-unit-groups"
+          >
+            {(item) => {
+              const pending = item.remainingQuantity ?? 0;
+              const finalQty = lineSettleFinalQty(item, settleQty);
+              const previewItem = orderLineFactsForSettleRemainder(item, finalQty);
+              return (
+                <div
+                  key={item.id}
+                  className={cx(
+                    'flex flex-col gap-1.5 rounded-xl px-2.5 py-2',
+                    orderLineBalanceRowClass(previewItem) || 'bg-foam/50',
+                  )}
+                  data-testid={
+                    pending > 0 ? 'settle-line-pending' : 'settle-line-done'
+                  }
+                >
+                  <OrderLineStack
+                    photo={
+                      <OrderLinePhoto
+                        item={item}
+                        items={data.items}
+                        onOpen={openPhotoViewer}
+                        size="lg"
+                      />
+                    }
+                    title={
+                      <OrderDesignTitle
+                        name={item.name}
+                        extra={<OrderLineMoneyLine item={item} />}
+                      />
+                    }
+                    trailing={<SettleLineRemainder item={item} finalQty={finalQty} />}
+                    facts={
+                      <SettleLinePreview
+                        item={item}
+                        finalControl={
+                          <TextInput
+                            id={`settle-final-${item.id}`}
+                            type="number"
+                            min={0}
+                            max={item.shippedQuantity ?? 0}
+                            data-testid="order-settle-line-qty"
+                            aria-label={`Final quantity for ${item.name}`}
+                            className={COMPACT_QTY_INPUT_CLASS}
+                            value={settleQty[item.id] ?? String(finalQty)}
+                            onChange={(event) => {
+                              const shipped = item.shippedQuantity ?? 0;
+                              const next = clampSettleQtyInput(event.target.value, shipped);
+                              setSettleQty((prev) => ({
+                                ...prev,
+                                [item.id]: next,
+                              }));
+                            }}
+                            {...orderQtyInputProps(item.id === lastSettleId)}
                           />
                         }
-                        title={
-                          <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
-                        }
-                        secondary={
-                          identity ? (
-                            <p className="truncate text-[12px] font-emphasis text-slate">
-                              {identity}
-                            </p>
-                          ) : null
-                        }
-                        cues={
-                          orderLineLeftoverCue(item) ? (
-                            <p className="truncate text-[11px] font-emphasis text-ink">
-                              {orderLineLeftoverCue(item)}
-                            </p>
-                          ) : null
-                        }
-                        facts={<OrderLineFacts item={factsItem} />}
-                        trailing={
-                          <div className="flex flex-col items-end gap-0.5">
-                            <label
-                              htmlFor={`settle-final-${item.id}`}
-                              className="text-[10px] font-body uppercase tracking-wide text-muted"
-                            >
-                              Final
-                            </label>
-                            <TextInput
-                              id={`settle-final-${item.id}`}
-                              type="number"
-                              min={0}
-                              max={item.shippedQuantity ?? 0}
-                              data-testid="order-settle-line-qty"
-                              aria-label={`Final quantity for ${item.name}`}
-                              className={COMPACT_QTY_INPUT_CLASS}
-                              value={settleQty[item.id] ?? String(finalQty)}
-                              onChange={(event) => {
-                                const shipped = item.shippedQuantity ?? 0;
-                                const next = clampSettleQtyInput(event.target.value, shipped);
-                                setSettleQty((prev) => ({
-                                  ...prev,
-                                  [item.id]: next,
-                                }));
-                              }}
-                              {...orderQtyInputProps(item.id === lastSettleId)}
-                            />
-                          </div>
-                        }
                       />
-                    </div>
-                  );
-                })}
-              </>
-            );
-          })()}
+                    }
+                  />
+                </div>
+              );
+            }}
+          </OrderUnitGroupedList>
           <NoteAttachField
             label="Note"
             note={settleNote}
@@ -3927,117 +3875,45 @@ export function OrderDetailPage() {
             images={settleNoteImages}
             onImagesChange={setSettleNoteImages}
           />
-          {sheetError && settleOpen ? <InlineNotice message={sheetError} /> : null}
         </div>
       </Sheet>
 
-      <Sheet
+      <AmendOrderSheet
         open={amendOpen}
         onClose={() => closeSheet('amend')}
         title={isInquiry ? 'Edit inquiry' : 'Edit order'}
-      >
-        <div className="flex flex-col gap-3" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          {(data.items ?? [])
-            .filter((item) => item.productId)
-            .map((item) => {
-              const pid = item.productId!;
-              const removed = amendRemoved.has(pid);
-              const lastAmendPid = [...(data.items ?? [])]
-                .filter((line) => line.productId && !amendRemoved.has(line.productId))
-                .at(-1)?.productId;
-              const toggleRemoved = () =>
-                setAmendRemoved((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(pid)) next.delete(pid);
-                  else next.add(pid);
-                  return next;
-                });
-              return (
-                <div
-                  key={item.id}
-                  className={cx(
-                    'flex flex-col gap-1.5 rounded-xl bg-foam/40 p-3',
-                    removed && 'opacity-50',
-                  )}
-                  data-testid="order-amend-line"
-                >
-                  <div className="flex items-center gap-2">
-                    <OrderLinePhoto
-                      item={item}
-                      items={data.items}
-                      onOpen={openPhotoViewer}
-                      size="sm"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
-                      {item.sku ? <p className="truncate text-[11px] text-muted">{item.sku}</p> : null}
-                    </div>
-                    {!removed ? (
-                      <TextInput
-                        type="number"
-                        min={1}
-                        className={COMPACT_QTY_INPUT_CLASS}
-                        value={amendQty[pid] ?? String(item.quantity)}
-                        onChange={(event) =>
-                          setAmendQty((prev) => ({ ...prev, [pid]: event.target.value }))
-                        }
-                        {...orderQtyInputProps(pid === lastAmendPid)}
-                      />
-                    ) : null}
-                    {removed ? (
-                      <button
-                        type="button"
-                        className="shrink-0 px-1 text-[12px] font-body text-muted"
-                        data-testid="order-amend-undo"
-                        onClick={toggleRemoved}
-                      >
-                        Undo
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label={`Remove ${item.name}`}
-                        className="shrink-0 px-1 text-lg leading-none text-muted"
-                        data-testid="order-amend-remove"
-                        onClick={toggleRemoved}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  {!removed ? (
-                    <HowManyLineNote
-                      value={amendLineNotes[pid] ?? ''}
-                      onChange={(value) =>
-                        setAmendLineNotes((prev) => ({ ...prev, [pid]: value }))
-                      }
-                      ariaLabel={`Note for ${item.name}`}
-                    />
-                  ) : null}
-                </div>
-              );
-            })}
-          {sheetError && amendOpen ? <InlineNotice message={sheetError} /> : null}
-          <TransporterField
-            value={amendTransporter}
-            onChange={setAmendTransporter}
-            disabled={amendOrder.isPending}
-            testId="amend-transporter-field"
-          />
-          <NoteAttachField
-            label="Note"
-            note={amendNote}
-            onNoteChange={setAmendNote}
-            voice={amendNoteVoice}
-            onVoiceChange={setAmendNoteVoice}
-            images={amendNoteImages}
-            onImagesChange={setAmendNoteImages}
-          />
-          <Button fullWidth onClick={() => amendOrder.mutate()} disabled={amendOrder.isPending}>
-            {amendOrder.isPending ? 'Saving…' : 'Save changes'}
-          </Button>
-        </div>
-      </Sheet>
+        items={data.items ?? []}
+        qty={amendQty}
+        onQty={(productId, next) =>
+          setAmendQty((prev) => ({ ...prev, [productId]: next == null ? '' : String(next) }))
+        }
+        removed={amendRemoved}
+        onToggleRemoved={(productId) =>
+          setAmendRemoved((prev) => {
+            const next = new Set(prev);
+            if (next.has(productId)) next.delete(productId);
+            else next.add(productId);
+            return next;
+          })
+        }
+        lineNotes={amendLineNotes}
+        onLineNote={(productId, value) =>
+          setAmendLineNotes((prev) => ({ ...prev, [productId]: value }))
+        }
+        transporter={amendTransporter}
+        onTransporter={setAmendTransporter}
+        transporterDisabled={amendOrder.isPending}
+        note={amendNote}
+        onNote={setAmendNote}
+        voice={amendNoteVoice}
+        onVoice={setAmendNoteVoice}
+        images={amendNoteImages}
+        onImages={setAmendNoteImages}
+        error={sheetError && amendOpen ? sheetError : null}
+        saving={amendOrder.isPending}
+        onSave={() => amendOrder.mutate()}
+        onOpenPhoto={(item) => openPhotoViewer(galleryIndexForItem(data.items ?? [], item.id))}
+      />
 
 
       <Sheet
@@ -4081,18 +3957,23 @@ export function OrderDetailPage() {
                   size="sm"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-emphasis text-ink">{item.name}</p>
-                  {orderLineLeftoverCue(item) ? (
-                    <p className="truncate text-[11px] font-emphasis text-ink">
-                      {orderLineLeftoverCue(item)}
-                    </p>
-                  ) : null}
+                  <OrderDesignTitle
+                    name={item.name}
+                    extra={
+                      orderLineLeftoverCue(item) ? (
+                        <p className="truncate text-[11px] font-emphasis text-ink">
+                          {orderLineLeftoverCue(item)}
+                        </p>
+                      ) : null
+                    }
+                  />
                   <div className="mt-1 flex gap-2">
                     <Field label="Qty">
                       <TextInput
-                        type="number"
-                        min={1}
-                        className="min-h-10"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="off"
+                        className={COMPACT_SHEET_NUM_INPUT_CLASS}
                         value={changeQty[item.productId!] ?? ''}
                         onChange={(event) =>
                           setChangeQty((prev) => ({
@@ -4105,9 +3986,9 @@ export function OrderDetailPage() {
                     </Field>
                     <Field label="Rate">
                       <TextInput
-                        type="number"
-                        min={0}
-                        className="min-h-10"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        className={COMPACT_SHEET_RATE_INPUT_CLASS}
                         value={changeRate[item.productId!] ?? ''}
                         onChange={(event) =>
                           setChangeRate((prev) => ({

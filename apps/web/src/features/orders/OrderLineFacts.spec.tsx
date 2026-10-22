@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import {
   OrderLineFacts,
+  OrderLineMoneyLine,
   formatOrderLineBalance,
   orderLineBalance,
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
+  orderLineMoneyCue,
 } from './OrderLineFacts';
 
 describe('OrderLineFacts', () => {
@@ -25,15 +27,17 @@ describe('OrderLineFacts', () => {
     );
     expect(screen.getByTestId('order-line-facts').className).toContain('divide-x');
     expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('Qty');
-    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20 sets');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20');
+    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/sets|mtrs/);
     expect(screen.getByTestId('order-line-fact-price')).toHaveTextContent('Price');
     expect(screen.getByTestId('order-line-fact-price')).toHaveTextContent('₹640');
-    expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
+    expect(screen.getByTestId('order-line-fact-bill')).toHaveTextContent('Bill');
+    expect(screen.getByTestId('order-line-fact-bill').textContent).not.toMatch(/₹/);
     expect(screen.queryByTestId('order-line-fact-shipped')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-balance')).toBeNull();
   });
 
-  it('bills sets × pack × rate and shows dual qty', () => {
+  it('bills sets × pack × rate; Qty is a number (pack conversion stays in captions)', () => {
     render(
       <OrderLineFacts
         density="detail"
@@ -47,14 +51,49 @@ describe('OrderLineFacts', () => {
         }}
       />,
     );
-    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 sets (= 40 pcs)');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10');
+    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/sets|pcs/);
     expect(screen.getByTestId('order-line-fact-bill')).toHaveTextContent('₹4,000');
     expect(screen.getByTestId('order-line-billing-captions')).toHaveTextContent(
       '1 set = 4 pcs · price per pc = ₹100 · order = 10 sets = 40 pcs · ₹4,000',
     );
   });
 
-  it('hides Price when rate is missing', () => {
+  it('sheet qty stays in the order unit — no (= N pcs) conversion', () => {
+    render(
+      <OrderLineFacts
+        density="sheet"
+        dualQty={false}
+        item={{
+          quantity: 10,
+          rate: 100,
+          unit: 'set',
+          piecesPerPack: 4,
+          dispatchUnit: 'pc',
+          lineStatus: 'requested',
+        }}
+      />,
+    );
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 sets');
+    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/40/);
+  });
+
+  it('ticket Qty is a number — mill metres stay on Total', () => {
+    render(
+      <OrderLineFacts
+        item={{
+          quantity: 10,
+          rate: 128,
+          unit: 'mtr',
+          lineStatus: 'requested',
+        }}
+      />,
+    );
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10');
+    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/mtr/);
+  });
+
+  it('keeps empty Price and Bill columns when rate is missing', () => {
     render(
       <OrderLineFacts
         item={{
@@ -65,8 +104,12 @@ describe('OrderLineFacts', () => {
         }}
       />,
     );
-    expect(screen.getByTestId('order-line-fact-qty')).toBeTruthy();
-    expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20');
+    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/sets/);
+    expect(screen.getByTestId('order-line-fact-price')).toHaveTextContent('Price');
+    expect(screen.getByTestId('order-line-fact-price').textContent).not.toMatch(/₹/);
+    expect(screen.getByTestId('order-line-fact-bill')).toHaveTextContent('Bill');
+    expect(screen.getByTestId('order-line-fact-bill').textContent).not.toMatch(/₹/);
   });
 
   it('uses a quiet one-line summary in sheets when density=sheet', () => {
@@ -102,7 +145,7 @@ describe('OrderLineFacts', () => {
     );
     expect(screen.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'compact');
     expect(screen.getByTestId('order-line-facts').className).toContain('divide-x');
-    expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('Ship');
+    expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('Shipped');
     expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('Balance');
     expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('-20');
   });
@@ -122,6 +165,9 @@ describe('OrderLineFacts', () => {
     expect(bill).toHaveTextContent('₹4,250');
     expect(bill.textContent).not.toMatch(/₹4…|₹4\.\.\./);
     expect(bill.className).toMatch(/flex-\[1\.4\]|min-w-\[4\.5rem\]/);
+    expect(bill.querySelector('p:last-child')?.className ?? bill.className).not.toMatch(
+      /text-right/,
+    );
   });
 
   it('shows full Price label (not PRI…) and full-width strip', () => {
@@ -155,8 +201,16 @@ describe('OrderLineFacts', () => {
         }}
       />,
     );
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('Ordered');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20');
+    expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('Shipped');
     expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('15');
     expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('-5');
+    expect(screen.queryByTestId('order-line-money-info')).toBeNull();
+    expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
+    expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
+    const openValue = screen.getByTestId('order-line-fact-balance').querySelector('p:last-child');
+    expect(openValue?.className).toContain('text-tangerine');
 
     rerender(
       <OrderLineFacts
@@ -172,7 +226,7 @@ describe('OrderLineFacts', () => {
     );
     expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('+40');
     const overValue = screen.getByTestId('order-line-fact-balance').querySelector('p:last-child');
-    expect(overValue?.className).toContain('text-info');
+    expect(overValue?.className).toContain('text-tangerine');
     expect(overValue?.className).not.toContain('text-ink');
 
     rerender(
@@ -265,7 +319,7 @@ describe('orderLineBalance', () => {
         remainingQuantity: 5,
         shippedQuantity: 15,
       }),
-    ).toContain('bg-warning-soft');
+    ).not.toMatch(/bg-warning-soft|bg-success-soft|bg-info-soft/);
     expect(
       orderLineBalanceRowClass({
         quantity: 20,
@@ -275,6 +329,29 @@ describe('orderLineBalance', () => {
         remainingQuantity: 0,
         shippedQuantity: 25,
       }),
-    ).toContain('bg-info-soft');
+    ).not.toMatch(/bg-success-soft|bg-tangerine/);
+  });
+
+  it('after confirm strip is Ordered · Shipped · Balance; money lives on the name', () => {
+    const item = {
+      quantity: 50,
+      rate: 1290,
+      unit: 'pc',
+      lineStatus: 'confirmed' as const,
+      remainingQuantity: 50,
+      shippedQuantity: 0,
+    };
+    expect(orderLineMoneyCue(item)).toBe('Price ₹1,290/pc · Bill ₹64,500');
+    const { rerender } = render(<OrderLineMoneyLine item={item} />);
+    expect(screen.getByTestId('order-line-money-info').className).toMatch(/text-\[12px\]/);
+    expect(screen.getByTestId('order-line-money-info')).toHaveTextContent('Price ₹1,290/pc');
+    rerender(<OrderLineFacts density="detail" item={item} />);
+    expect(screen.getByTestId('order-line-facts').className).toContain('grid-cols-3');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('Ordered');
+    expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('Shipped');
+    expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('Balance');
+    expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
+    expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
+    expect(screen.queryByTestId('order-line-money-info')).toBeNull();
   });
 });

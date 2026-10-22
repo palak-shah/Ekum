@@ -10,7 +10,7 @@ describe('ExploreFeedFollowAction', () => {
     render(<ExploreFeedFollowAction onFollow={onFollow} />);
 
     await user.click(screen.getByTestId('explore-feed-follow'));
-    expect(screen.getByRole('button', { name: 'Request catalog access' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request access' })).toBeInTheDocument();
     expect(onFollow).toHaveBeenCalledOnce();
   });
 

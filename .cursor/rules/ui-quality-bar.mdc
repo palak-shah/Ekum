@@ -90,6 +90,20 @@ If a screen seems to need a **different** component or interaction than the prod
 
 Treat unasked one-offs as a **blocking design bug**, not polish.
 
+### 4c. Theme is a component (Required)
+
+Same job → same class, whole app. Field fill, search chrome, composer shells, and − n + all use `FIELD_IDLE_FILL_CLASS` (`bg-input` ← `--ekum-input` in `tokens.css`). Change that token or class once; do not paint a page-local `bg-*` on a field.
+
+**Feature meaning stays a feature custom** (still from tokens, not a one-off hex). Example: fully dispatched lines wash `bg-success-soft`; pills go through `status.ts`. That is orders meaning, not “make this page’s inputs green.”
+
+**When the user asks to restyle a field (or other shared control) on one screen:**
+
+1. **Stop** — that would be per-feature chrome.
+2. **Challenge:** change the shared class (whole app), or confirm an explicit exception.
+3. Only ship a per-page field fill after they explicitly allow it.
+
+Do **not** challenge status / kind / highlight tokens that already encode feature meaning.
+
 ## When in doubt
 
 Non-technical textile wholesalers: **plain words, one job per screen, no chrome that fights the content.** Prefer matching a nearby screen over a clever new pattern. Quantities are usually **dozens/hundreds of pieces** — prefer large, tappable piece counts and “same for all”, not tiny retail-style chips (10/15/20). When placing a control, ask whether a trader’s thumb hits the everyday job first.

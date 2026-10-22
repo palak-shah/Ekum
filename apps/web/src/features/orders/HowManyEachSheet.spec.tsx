@@ -67,13 +67,125 @@ function renderSheet(props?: {
 }
 
 describe('HowManyEachSheet line chrome', () => {
-  it('puts sold-as beside the name and shows a one-line note field', () => {
+  it('keeps the name clean and shows a one-line note field', () => {
     renderSheet();
-    expect(screen.getByText('Navy')).toBeInTheDocument();
-    expect(screen.getByText('Set')).toBeInTheDocument();
-    expect(screen.getByText('4 pcs')).toBeInTheDocument();
+    const name = screen.getByText('Navy');
+    expect(name).toBeInTheDocument();
+    expect(name.className).not.toMatch(/truncate/);
+    expect(screen.queryByText('Set')).toBeNull();
+    expect(screen.queryByText('Metre')).toBeNull();
+    expect(screen.queryByTestId('how-many-sold-as')).toBeNull();
     expect(screen.queryByTestId('how-many-add-note')).toBeNull();
     expect(screen.getByTestId('how-many-note')).toBeInTheDocument();
+  });
+
+  it('puts − n + on a qty row under the name so the title can wrap', () => {
+    renderSheet();
+    const row = screen.getByTestId('how-many-qty-row');
+    expect(within(row).queryByText('Sets')).toBeNull();
+    expect(within(row).getByRole('button', { name: /Increase/i })).toBeInTheDocument();
+    const track = screen.getByTestId('qty-stepper');
+    expect(track.className).toMatch(/bg-input/);
+    expect(track.className).not.toMatch(/bg-foam/);
+    expect(track.className).not.toMatch(/border/);
+    expect(screen.getByTestId('how-many-unit-heading')).toHaveTextContent(
+      'Order in Sets',
+    );
+    expect(screen.getByTestId('sheet-close').className).toMatch(/absolute/);
+  });
+
+  it('puts line × beside the product name, not on the qty row', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="c1"
+            products={[
+              product,
+              { ...product, id: 'p2', name: 'Ivory' },
+            ]}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const line = screen.getAllByTestId('how-many-line')[0]!;
+    expect(within(line).getByTestId('how-many-remove')).toBeInTheDocument();
+    expect(within(line).getByTestId('how-many-qty-row').querySelector('[data-testid=how-many-remove]')).toBeNull();
+    expect(screen.getByTestId('same-for-all-chip')).toBeInTheDocument();
+    expect(screen.getByTestId('how-many-unit-heading')).toHaveTextContent(
+      'Order in Sets',
+    );
+  });
+
+  it('groups mixed units, restacks pack first, and hides Same for all', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="c1"
+            products={[
+              { ...product, id: 'm1', name: 'Grey mill', unit: 'mtr', piecesPerPack: null },
+              { ...product, id: 's1', name: 'Navy', unit: 'set', piecesPerPack: 12 },
+              { ...product, id: 's2', name: 'Ivory', unit: 'set', piecesPerPack: 20 },
+            ]}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const headings = screen.getAllByTestId('how-many-unit-heading');
+    expect(headings.map((el) => el.textContent)).toEqual([
+      'Order in Sets',
+      'Order in Mtrs',
+    ]);
+    const names = screen.getAllByTestId('how-many-line').map(
+      (line) => within(line).getAllByText(/Navy|Ivory|Grey mill/)[0]?.textContent,
+    );
+    expect(names).toEqual(['Navy', 'Ivory', 'Grey mill']);
+    expect(screen.queryByTestId('same-for-all-chip')).toBeNull();
+    expect(screen.getByText(/1 set = 20 pcs/)).toBeInTheDocument();
+    expect(
+      screen.getAllByTestId('how-many-qty-row').every((row) => !within(row).queryByText('Sets')),
+    ).toBe(true);
+  });
+
+  it('opens Same for all seeded from the last typed line qty', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="c1"
+            products={[
+              product,
+              { ...product, id: 'p2', name: 'Ivory' },
+            ]}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const navyQty = screen.getByRole('textbox', { name: /sets for Navy/i });
+    await user.click(navyQty);
+    await user.keyboard('{Control>}a{/Control}');
+    await user.type(navyQty, '12');
+    await user.click(screen.getByTestId('same-for-all-chip'));
+    expect(
+      screen.getByRole('textbox', { name: 'Same quantity for all designs' }),
+    ).toHaveValue('12');
   });
 
   it('puts optional Transporter after the design lines (not in sticky footer)', () => {

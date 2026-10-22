@@ -295,6 +295,8 @@ model Product {
   /** Dispatch units in one order unit (set/dozen/box); null = not set. */
   piecesPerPack Int?
   categories  String[] @default([])
+  /** Master Category when this design is not in a pack (pack Category wins in the UI). */
+  masterCategoryId String?
   images      String[] @default([])
   status      String   @default("draft") // ProductStatus
   // Market post fields (Explore). Publish sets audience + postedToMarketAt together.
@@ -316,6 +318,7 @@ model Product {
   company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdByUser   User?               @relation("ProductCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedByUser   User?               @relation("ProductUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  masterCategory  MasterCategory?     @relation(fields: [masterCategoryId], references: [id], onDelete: SetNull)
   collections     CollectionProduct[]
   savedItems      SavedItem[]
   relistGrants    ProductRelistGrant[]
@@ -324,6 +327,7 @@ model Product {
   @@index([postedToMarketAt])
   @@index([createdByUserId])
   @@index([updatedByUserId])
+  @@index([masterCategoryId])
 }
 
 /// A curated set of products. Separate from Product and joined many-to-many, so
@@ -418,6 +422,7 @@ model MasterCategory {
   optionLinks MasterOptionLink[]
   units       CategoryUnit[]
   collections Collection[]
+  products    Product[]
   customTags  CompanyCustomTag[]
 }
 

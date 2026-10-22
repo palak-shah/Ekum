@@ -112,3 +112,74 @@ describe('OrderTrailService heal bare Quoted', () => {
     expect(updates).toHaveLength(2);
   });
 });
+
+describe('OrderTrailService heal Updated copy', () => {
+  it('strips metres echo and N designs — Total already has the tally', async () => {
+    const rows = [
+      {
+        id: 'u1',
+        type: OrderTrailType.Updated,
+        at: new Date('2026-10-20T10:00:00Z'),
+        actorCompanyId: 'buyer',
+        actorUserId: 'u1',
+        summary: null,
+        detail: '6 designs',
+        note: null,
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+      },
+      {
+        id: 'u2',
+        type: OrderTrailType.Updated,
+        at: new Date('2026-10-21T10:00:00Z'),
+        actorCompanyId: 'buyer',
+        actorUserId: 'u1',
+        summary: 'Updated — 60 mtrs',
+        detail: '6 designs',
+        note: null,
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+      },
+    ];
+    const updates: { id: string; summary: string | null; detail: string | null }[] = [];
+    const prisma = {
+      orderTrailEvent: {
+        findMany: async () => rows,
+        update: async (args: {
+          where: { id: string };
+          data: { summary?: string | null; detail?: string | null };
+        }) => {
+          const row = rows.find((r) => r.id === args.where.id);
+          if (row) {
+            if (args.data.summary !== undefined) row.summary = args.data.summary;
+            if (args.data.detail !== undefined) row.detail = args.data.detail;
+          }
+          updates.push({
+            id: args.where.id,
+            summary: args.data.summary ?? row?.summary ?? null,
+            detail: args.data.detail ?? row?.detail ?? null,
+          });
+          return row;
+        },
+      },
+      order: {
+        findUnique: async () => null,
+      },
+    };
+    const service = new OrderTrailService(prisma as never);
+    const view = await service.listForViewer('o1', 'buyer', {
+      buyerName: 'Buyer',
+      sellerName: 'Seller',
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'seller',
+      staffByUserId: new Map(),
+    });
+    expect(view.map((step) => ({ summary: step.summary, detail: step.detail }))).toEqual([
+      { summary: 'Updated', detail: null },
+      { summary: 'Updated qty', detail: null },
+    ]);
+    expect(updates.map((row) => row.id)).toEqual(['u1', 'u2']);
+  });
+});

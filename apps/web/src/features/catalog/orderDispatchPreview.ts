@@ -26,6 +26,26 @@ export function orderContentsUnit(orderUnit: string, dispatchUnit: string): stri
   );
 }
 
+/** Empty or 0 is unset (clears stored pack). Positive integers only. */
+export function parsePiecesPerPack(
+  raw: string | number | null | undefined,
+): number | null {
+  if (raw == null) return null;
+  const n = typeof raw === 'string' ? (raw.trim() ? Number(raw.trim()) : NaN) : raw;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.floor(n);
+}
+
+/** Live suffix beside the contains number: empty → `pc`; `1` → `pc`; `4` → `pcs`. */
+export function setContainsUnitLabel(
+  pieces: string,
+  contentsUnit: string,
+): string {
+  const n = Number(pieces.trim());
+  if (Number.isFinite(n) && n > 0) return unitCountNoun(contentsUnit, n);
+  return contentsUnit;
+}
+
 /** `10 sets (= 40 pcs)` when pack size is known. */
 export function orderDispatchPreview(
   orderUnit: string,
@@ -33,9 +53,9 @@ export function orderDispatchPreview(
   dispatchUnit: string,
   sampleQty = 10,
 ): string {
-  const pack = typeof piecesPerPack === 'string' ? Number(piecesPerPack) : piecesPerPack;
+  const pack = parsePiecesPerPack(piecesPerPack);
   const orderNoun = unitCountNoun(orderUnit, sampleQty);
-  if (pack == null || !Number.isFinite(pack) || pack <= 0) {
+  if (pack == null) {
     return `${sampleQty} ${orderNoun}`;
   }
   const contentsUnit = orderContentsUnit(orderUnit, dispatchUnit);
@@ -52,16 +72,11 @@ export function orderDispatchSectionSummary(input: {
 }): string {
   const unit = input.orderUnit.trim() || 'set';
   const parts = [unit];
-  const pcs = input.piecesPerPack.trim();
+  const n = parsePiecesPerPack(input.piecesPerPack);
   const dispatch = input.dispatchUnit.trim() || unit;
   const contents = orderContentsUnit(unit, dispatch);
-  if (pcs) {
-    const n = Number(pcs);
-    parts.push(
-      Number.isFinite(n) && n > 0
-        ? `${pcs} ${unitCountNoun(contents, n)}`
-        : `${pcs} ${unitCountNoun(contents, 2)}`,
-    );
+  if (n != null) {
+    parts.push(`${n} ${unitCountNoun(contents, n)}`);
   }
   if (dispatch && dispatch !== unit) parts.push(`dispatch ${dispatch}`);
   const moq = input.moq.trim();

@@ -51,6 +51,8 @@ pnpm docker:up          # or: npm run docker:up
 
 See [`docs/docker.md`](docs/docker.md) for architecture, scripts, env, and troubleshooting.
 
+**Production ship:** [`docs/superpowers/qa/RELEASE.md`](docs/superpowers/qa/RELEASE.md). `EKUM_DEPLOYMENT=production pnpm docker:up` refuses an untested SHA.
+
 
 ## Getting started (local without Compose)
 

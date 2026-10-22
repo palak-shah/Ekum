@@ -1,15 +1,21 @@
 export type DraftOverrides = {
   category?: string;
+  masterCategoryId?: string | null;
   rate?: string;
   unit?: string;
+  dispatchUnit?: string;
+  piecesPerPack?: string;
   moq?: string;
   notes?: string;
 };
 
 export type SharedDetails = {
   category: string;
+  masterCategoryId: string | null;
   rate: string;
   unit: string;
+  dispatchUnit: string;
+  piecesPerPack: string;
   moq: string;
   notes: string;
 };
@@ -70,8 +76,13 @@ export function overridesFromSheet(
 ): DraftOverrides {
   const next: DraftOverrides = {};
   if (sheet.category !== shared.category) next.category = sheet.category;
+  if (sheet.masterCategoryId !== shared.masterCategoryId) {
+    next.masterCategoryId = sheet.masterCategoryId;
+  }
   if (sheet.rate !== shared.rate) next.rate = sheet.rate;
   if (sheet.unit !== shared.unit) next.unit = sheet.unit;
+  if (sheet.dispatchUnit !== shared.dispatchUnit) next.dispatchUnit = sheet.dispatchUnit;
+  if (sheet.piecesPerPack !== shared.piecesPerPack) next.piecesPerPack = sheet.piecesPerPack;
   if (sheet.moq !== shared.moq) next.moq = sheet.moq;
   if (sheet.notes !== shared.notes) next.notes = sheet.notes;
   return next;

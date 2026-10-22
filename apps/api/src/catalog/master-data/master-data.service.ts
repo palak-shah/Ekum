@@ -287,16 +287,14 @@ export class MasterDataService implements OnModuleInit {
       select: { masterCategories: true },
     });
     const slugs = company?.masterCategories ?? [];
-    if (slugs.length === 0) return masterCategoryId ?? null;
-
-    if (slugs.length === 1 && !masterCategoryId) {
-      const row = await this.prisma.masterCategory.findUnique({
-        where: { slug: slugs[0] },
-      });
-      return row?.id ?? null;
-    }
 
     if (!masterCategoryId) {
+      if (slugs.length === 1) {
+        const row = await this.prisma.masterCategory.findUnique({
+          where: { slug: slugs[0] },
+        });
+        return row?.id ?? null;
+      }
       if (!required) return null;
       throw new BadRequestException({
         code: 'CATEGORY_REQUIRED',
@@ -310,10 +308,10 @@ export class MasterDataService implements OnModuleInit {
         active: true,
       },
     });
-    if (!cat || (slugs.length > 0 && !slugs.includes(cat.slug))) {
+    if (!cat) {
       throw new BadRequestException({
         code: 'CATEGORY_NOT_ALLOWED',
-        message: 'Pick a category you deal in.',
+        message: 'Pick a category from the list.',
       });
     }
     return cat.id;

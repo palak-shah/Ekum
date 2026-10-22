@@ -44,21 +44,21 @@ describe('collectionCardRateFields', () => {
     ).toEqual({ rateMin: null, rateMax: null, rateUnit: null });
   });
 
-  it('prefers pack rate over stale member stamps', () => {
+  it('uses member band when designs kept their own rate', () => {
     expect(
       collectionCardRateFields({
         rateVisibility: 'visible',
-        rate: 1500,
+        rate: 50,
         rateMax: null,
         products: [
-          { product: { rate: 1200, rateMax: null, unit: 'pc' } },
-          { product: { rate: 1200, rateMax: null, unit: 'pc' } },
+          { product: { rate: 1680, rateMax: null, unit: 'pc' } },
+          { product: { rate: 1680, rateMax: null, unit: 'pc' } },
         ],
       }),
-    ).toEqual({ rateMin: 1500, rateMax: null, rateUnit: 'pc' });
+    ).toEqual({ rateMin: 1680, rateMax: null, rateUnit: 'pc' });
   });
 
-  it('pack rate with mixed member units omits rateUnit', () => {
+  it('omits band when pack rate disagrees and member units mix', () => {
     expect(
       collectionCardRateFields({
         rateVisibility: 'visible',
@@ -69,7 +69,18 @@ describe('collectionCardRateFields', () => {
           { product: { rate: 800, unit: 'mtr' } },
         ],
       }),
-    ).toEqual({ rateMin: 1500, rateMax: null, rateUnit: null });
+    ).toEqual({ rateMin: null, rateMax: null, rateUnit: null });
+  });
+
+  it('keeps pack rate when no member is priced yet', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 50,
+        rateMax: null,
+        products: [{ product: { rate: null, unit: 'pc' } }],
+      }),
+    ).toEqual({ rateMin: 50, rateMax: null, rateUnit: 'pc' });
   });
 
   it('uses dispatch unit for pack order members (Rate per mtr not set/pc)', () => {
@@ -82,5 +93,19 @@ describe('collectionCardRateFields', () => {
         ],
       }),
     ).toEqual({ rateMin: 94, rateMax: 100, rateUnit: 'mtr' });
+  });
+
+  it('pack rate 91 + Rate per mtr infers Explore ₹91/mtr', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 91,
+        rateMax: null,
+        products: [
+          { product: { rate: 91, unit: 'set', dispatchUnit: 'mtr' } },
+          { product: { rate: 91, unit: 'set', dispatchUnit: 'mtr' } },
+        ],
+      }),
+    ).toEqual({ rateMin: 91, rateMax: null, rateUnit: 'mtr' });
   });
 });

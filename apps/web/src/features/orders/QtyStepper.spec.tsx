@@ -41,6 +41,11 @@ describe('QtyStepper first count', () => {
     render(<QtyStepper value={null} aria-label="Pieces" onChange={vi.fn()} />);
     expect(screen.getByRole('textbox', { name: 'Pieces' })).toHaveValue('');
   });
+
+  it('shows 0 when the Dispatch line is off', () => {
+    render(<QtyStepper value={0} disabled aria-label="This LR" onChange={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: 'This LR' })).toHaveValue('0');
+  });
 });
 
 describe('QtyStepper step', () => {

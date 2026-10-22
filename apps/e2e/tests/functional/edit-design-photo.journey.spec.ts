@@ -8,6 +8,11 @@ test.describe('edit design photos @functional @catalog', () => {
     await expect(page.getByRole('heading', { name: 'Edit design' })).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await expect(page.getByRole('button', { name: 'Show details' })).toBeVisible();
 
     const thumb = page.getByTestId('design-photo-thumb').first();
     await expect(thumb).toBeVisible({ timeout: 15_000 });

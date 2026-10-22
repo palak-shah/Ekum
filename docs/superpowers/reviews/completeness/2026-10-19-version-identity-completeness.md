@@ -14,7 +14,7 @@
 | Lens | Summary findings |
 |------|------------------|
 | Product Manager | Support/ops need to know what code is running when PWA and API ship separately. Traders rarely open About; keep it off the daily path under Settings. Semver `0.x.y` + unique build id is enough for beta. |
-| UX Designer | One quiet Settings domain card **About Ekum**. Full details on that page (App + API). Non-prod: discreet **TEST · version · shortSha** Tag — mute, not a second New version pill. No chrome on everyday trader jobs beyond a tiny fixed chip. |
+| UX Designer | One quiet Settings domain card **About Ekum**. Full details on that page (App + API). Non-prod: discreet **TEST · version · shortSha** Tag on About only — mute, not a second New version pill. No chrome on everyday trader jobs. |
 | Solution Architect | Bake identity at image build (ARG→ENV / Vite define); never hardcode UI labels. Extend existing `VITE_WEB_BUILD` / `version.json` / `/api/v1/web-build`. New public `GET /api/v1/version`. Compose `image:` tags + sha retag via docker scripts. Explicit `EKUM_DEPLOYMENT` (not NODE_ENV). |
 
 ---
@@ -74,7 +74,7 @@ None Required for this slice.
 - Public `GET /api/v1/version`
 - Expanded `version.json` (keep `build`)
 - Settings → About Ekum (App + API blocks)
-- Non-prod TEST badge (About + quiet AppShell chip)
+- Non-prod TEST badge on About Ekum only (no shell chip)
 - Docs: settings.md, docker.md, gap-matrix
 - Unit tests for API config/version + web helpers/About
 

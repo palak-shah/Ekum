@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyDesignRateUnit,
+  designCategoryLockedByPack,
   designEditorCategories,
   designMasterCategoryId,
 } from './designEditorDefaults';
 
 describe('design editor defaults', () => {
-  it('keeps the design tags when they are already set', () => {
+  it('appends collection tags onto the design’s own tags', () => {
     expect(
       designEditorCategories(['Kurti'], [{ categories: ['Sarees'], masterCategoryId: 'cat-1' }]),
-    ).toEqual(['Kurti']);
+    ).toEqual(['Kurti', 'Sarees']);
   });
 
   it('applies collection tags when the design has none', () => {
@@ -27,6 +28,12 @@ describe('design editor defaults', () => {
     ).toBe('pack-cat');
     expect(designMasterCategoryId([], ['shop-cat'])).toBe('shop-cat');
     expect(designMasterCategoryId([], ['a', 'b'])).toBeNull();
+    expect(designMasterCategoryId([], ['a', 'b'], 'own-cat')).toBe('own-cat');
+    expect(
+      designMasterCategoryId([{ masterCategoryId: 'pack-cat' }], ['shop-cat'], 'own-cat'),
+    ).toBe('pack-cat');
+    expect(designCategoryLockedByPack([{ masterCategoryId: 'pack-cat' }])).toBe(true);
+    expect(designCategoryLockedByPack([{ masterCategoryId: null }])).toBe(false);
   });
 
   it('defaults a set order to rate per pc without writing pc onto dispatch', () => {

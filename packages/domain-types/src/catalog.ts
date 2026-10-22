@@ -50,6 +50,8 @@ const createProductObjectSchema = z.object({
   /** Pieces in one set/dozen/box; null clears on update. */
   piecesPerPack: z.number().int().positive().max(1_000_000).nullable().optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
+  /** Master Category when this design is not in a pack. */
+  masterCategoryId: z.string().min(1).nullable().optional(),
   images: z
     .array(
       z.string().url({
@@ -255,6 +257,8 @@ export interface ProductView {
   /** Pieces in one set/dozen/box; null when not set. */
   piecesPerPack: number | null;
   categories: string[];
+  /** Master Category when this design is not in a pack (null when unset / pack-only). */
+  masterCategoryId?: string | null;
   images: string[];
   status: string;
   audience: string;

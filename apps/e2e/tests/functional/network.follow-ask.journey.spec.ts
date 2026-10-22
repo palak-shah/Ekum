@@ -20,7 +20,7 @@ test.describe('follow-ask extra gate @functional @network', () => {
     await page.goto(`/company/${KAVITA_COMPANY}`);
     const follow = page.getByTestId('company-follow');
     await expect(follow).toBeVisible({ timeout: 15_000 });
-    await expect(follow).toHaveText('Request catalog access');
+    await expect(follow).toHaveText('Request access');
     await follow.click();
     await expect(follow).toHaveText('Requested', { timeout: 10_000 });
 
@@ -33,8 +33,9 @@ test.describe('follow-ask extra gate @functional @network', () => {
     await expect(page.getByTestId('follow-ask-row')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/Jaipur Emporium/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /Asked/ })).toBeVisible();
-    await expect(page.getByRole('checkbox', { name: 'They can see my collections' })).toBeChecked();
-    await expect(page.getByRole('checkbox', { name: 'They can share my collections' })).not.toBeChecked();
+    const askRow = page.getByTestId('follow-ask-row');
+    await expect(askRow.getByRole('checkbox', { name: 'They can see my collections' })).toBeChecked();
+    await expect(askRow.getByRole('checkbox', { name: 'They can share my collections' })).not.toBeChecked();
     await page.getByRole('button', { name: 'Allow' }).click();
     await expect(page.getByTestId('follow-ask-row')).toHaveCount(0, { timeout: 10_000 });
 
@@ -76,7 +77,7 @@ test.describe('follow-ask extra gate @functional @network', () => {
 
     await loginAsMeena(page);
     await page.goto(`/company/${KAVITA_COMPANY}`);
-    await expect(page.getByTestId('company-follow')).toHaveText('Request catalog access', {
+    await expect(page.getByTestId('company-follow')).toHaveText('Request access', {
       timeout: 15_000,
     });
 

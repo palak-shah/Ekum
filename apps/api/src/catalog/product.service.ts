@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   ProductStatus,
   type CreateProductDto,
@@ -17,12 +17,14 @@ import { rememberPublishDefaults } from './publish-policy';
 import { resolveProductSku } from './sku';
 import { draftPacksLeftWithoutPublishedDesign } from './draft-packs-after-design-hide';
 import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
+import { MasterDataService } from './master-data/master-data.service';
 
 @Injectable()
 export class ProductService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serializer: CatalogSerializer,
+    @Optional() private readonly masterData?: MasterDataService,
   ) {}
 
   async create(
@@ -32,27 +34,38 @@ export class ProductService {
   ): Promise<ProductView> {
     const sku = await resolveProductSku(this.prisma, companyId, dto.sku);
     const name = dto.name?.trim() || sku;
+    const masterCategoryId =
+      prismaModelHasField('Product', 'masterCategoryId') && this.masterData
+        ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId, {
+            required: false,
+          })
+        : (dto.masterCategoryId ?? null);
     const product = await this.prisma.product.create({
       data: withPrismaField(
         'Product',
-        'dispatchUnit',
-        {
-          companyId,
-          name,
-          sku,
-          description: dto.description ?? null,
-          moq: dto.moq ?? null,
-          rate: dto.rate ?? null,
-          rateMax: dto.rateMax ?? null,
-          // Platform default: order + dispatch journey in sets; rate/billing per pc.
-          unit: dto.unit ?? 'set',
-          piecesPerPack: dto.piecesPerPack ?? null,
-          categories: dto.categories,
-          images: dto.images,
-          createdByUserId: userId,
-          updatedByUserId: userId,
-        },
-        dto.dispatchUnit ?? 'set',
+        'masterCategoryId',
+        withPrismaField(
+          'Product',
+          'dispatchUnit',
+          {
+            companyId,
+            name,
+            sku,
+            description: dto.description ?? null,
+            moq: dto.moq ?? null,
+            rate: dto.rate ?? null,
+            rateMax: dto.rateMax ?? null,
+            // Platform default: order + dispatch journey in sets; rate/billing per pc.
+            unit: dto.unit ?? 'set',
+            piecesPerPack: dto.piecesPerPack ?? null,
+            categories: dto.categories,
+            images: dto.images,
+            createdByUserId: userId,
+            updatedByUserId: userId,
+          },
+          dto.dispatchUnit ?? 'set',
+        ),
+        masterCategoryId,
       ),
       include: productActorInclude,
     });
@@ -89,6 +102,14 @@ export class ProductService {
     if (!sku) {
       sku = await resolveProductSku(this.prisma, companyId, dto.sku, id);
     }
+    const masterCategoryId =
+      dto.masterCategoryId !== undefined &&
+      prismaModelHasField('Product', 'masterCategoryId') &&
+      this.masterData
+        ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId, {
+            required: false,
+          })
+        : undefined;
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -103,6 +124,7 @@ export class ProductService {
         ...(dto.dispatchUnit !== undefined && prismaModelHasField('Product', 'dispatchUnit')
           ? { dispatchUnit: dto.dispatchUnit }
           : {}),
+        ...(masterCategoryId !== undefined ? { masterCategoryId } : {}),
         categories: dto.categories,
         images: dto.images,
         updatedByUserId: userId,

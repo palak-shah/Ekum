@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TagSuggestInput } from './TagSuggestInput';
 
 describe('TagSuggestInput', () => {
-  it('keeps the list open so a second tag can be added', async () => {
+  it('keeps remaining suggestions after a pick; Escape blurs to exit', async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     const { rerender } = render(
@@ -30,9 +30,33 @@ describe('TagSuggestInput', () => {
         testId="collection-tag-item"
       />,
     );
+    expect(screen.getByRole('listbox')).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Saree' })).toBeTruthy();
     expect(screen.queryByRole('option', { name: 'Readymade' })).toBeNull();
     expect(screen.getByLabelText('Remove Readymade')).toBeTruthy();
+    await user.click(screen.getByTestId('collection-tag-item-dismiss'));
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByTestId('collection-tag-item')).not.toHaveFocus();
+  });
+
+  it('opens the list on the page body so sticky chrome cannot clip it', async () => {
+    const user = userEvent.setup();
+    render(
+      <div className="overflow-hidden">
+        <TagSuggestInput
+          label="Item tags"
+          values={[]}
+          onChange={() => {}}
+          suggestionsFor={() => ['Readymade', 'Saree']}
+          testId="collection-tag-item"
+        />
+      </div>,
+    );
+    await user.click(screen.getByTestId('collection-tag-item'));
+    const list = screen.getByRole('listbox');
+    expect(list.parentElement).toBe(document.body);
+    expect(list.className).toContain('fixed');
+    expect(list.className).toContain('z-[80]');
   });
 
   it('uses the word tags on the field label', () => {

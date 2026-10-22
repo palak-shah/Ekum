@@ -1,6 +1,15 @@
 import { isPackOrderUnit, Unit, unitValues } from '@ekum/domain-types';
 import { Field, TextInput } from '@/ui/kit';
-import { orderContentsUnit, orderDispatchPreview } from './orderDispatchPreview';
+import {
+  FIELD_FOCUS_WITHIN_FILL_CLASS,
+  FIELD_IDLE_FILL_CLASS,
+  SELECT_FIELD_CLASS,
+} from '@/ui/fieldFill';
+import {
+  orderContentsUnit,
+  orderDispatchPreview,
+  setContainsUnitLabel,
+} from './orderDispatchPreview';
 import { DEFAULT_DISPATCH_UNIT, DEFAULT_SELL_AS_UNIT } from './publishDefaults';
 
 export function OrderDispatchFields({
@@ -38,7 +47,8 @@ export function OrderDispatchFields({
         : orderUnit === Unit.Bundle
           ? '1 bundle contains'
           : '1 set contains';
-  const containsPlaceholder = `4 ${contentsUnit}`;
+  const containsPlaceholder = '4';
+  const containsUnitLabel = setContainsUnitLabel(piecesPerPack, contentsUnit);
 
   const handleOrderUnit = (next: string) => {
     if (next === Unit.Dozen && !piecesPerPack.trim()) {
@@ -64,7 +74,7 @@ export function OrderDispatchFields({
           data-testid="collection-order-unit"
           value={order}
           onChange={(e) => handleOrderUnit(e.target.value)}
-          className="min-h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink"
+          className={`min-h-12 w-full ${SELECT_FIELD_CLASS} px-3 text-sm text-ink`}
         >
           {unitValues.map((u) => (
             <option key={u} value={u}>
@@ -74,20 +84,34 @@ export function OrderDispatchFields({
         </select>
       </Field>
       <Field label={containsLabel}>
-        <TextInput
-          data-testid="collection-set-contains"
-          value={piecesPerPack}
-          onChange={(e) => onPiecesPerPack(e.target.value)}
-          inputMode="numeric"
-          placeholder={containsPlaceholder}
-        />
+        <div
+          className={`flex min-h-10 w-fit items-center gap-1 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3 text-sm ${FIELD_FOCUS_WITHIN_FILL_CLASS}`}
+          data-testid="collection-set-contains-cluster"
+        >
+          <TextInput
+            data-testid="collection-set-contains"
+            className="min-h-0 w-[4ch] border-0 bg-transparent px-0 text-right text-sm tabular-nums focus:border-transparent"
+            value={piecesPerPack}
+            onChange={(e) => onPiecesPerPack(e.target.value)}
+            inputMode="numeric"
+            placeholder={containsPlaceholder}
+            aria-label={containsLabel}
+          />
+          <span
+            className="shrink-0 font-body text-muted"
+            data-testid="collection-set-contains-unit"
+            aria-hidden
+          >
+            {containsUnitLabel}
+          </span>
+        </div>
       </Field>
       <Field label="Dispatch unit">
         <select
           data-testid="collection-dispatch-unit"
           value={dispatch}
           onChange={(e) => onDispatchUnit(e.target.value)}
-          className="min-h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink"
+          className={`min-h-12 w-full ${SELECT_FIELD_CLASS} px-3 text-sm text-ink`}
         >
           {unitValues.map((u) => (
             <option key={u} value={u}>
