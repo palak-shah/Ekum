@@ -61,12 +61,13 @@ export function collectionCardRateFields(input: {
   const packMax = asNumber(input.rateMax);
   const packHigh = packRate != null && packMax != null && packMax > packRate ? packMax : packRate;
   const members = (input.products ?? []).map((entry) => entry.product);
-  const agreedUnit = (rows: RateMember[]): string | null => {
-    const units = rows.map((p) => memberRateUnit(p)).filter(Boolean);
-    if (units.length === 0) return null;
-    const unique = new Set(units);
-    return unique.size === 1 ? units[0]! : null;
+  const agreedRateUnit = (units: string[]): string | null => {
+    const clean = units.filter(Boolean);
+    if (clean.length === 0) return null;
+    return new Set(clean).size === 1 ? clean[0]! : null;
   };
+  const agreedUnit = (rows: RateMember[]): string | null =>
+    agreedRateUnit(rows.map((p) => memberRateUnit(p)));
 
   const priced = members
     .map((product) => {
@@ -86,7 +87,7 @@ export function collectionCardRateFields(input: {
     return {
       rateMin: packRate,
       rateMax: packHigh != null && packHigh > packRate ? packHigh : null,
-      rateUnit: stored || agreedUnit(priced.map((row) => ({ unit: row.unit }))) || agreedUnit(members),
+      rateUnit: stored || agreedRateUnit(priced.map((row) => row.unit)) || agreedUnit(members),
     };
   }
 

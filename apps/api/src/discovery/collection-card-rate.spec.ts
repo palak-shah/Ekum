@@ -198,6 +198,33 @@ describe('collectionCardRateFields', () => {
     ).toEqual({ rateMin: 90, rateMax: 110, rateUnit: 'mtr' });
   });
 
+  it('keeps Rate per set on a pack rupee when priced members share /set', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 91,
+        products: [
+          {
+            product: {
+              rate: 91,
+              unit: 'set',
+              dispatchUnit: 'set',
+              catalogRateUnit: 'set',
+            },
+          },
+          {
+            product: {
+              rate: 91,
+              unit: 'set',
+              dispatchUnit: 'set',
+              catalogRateUnit: 'set',
+            },
+          },
+        ],
+      }),
+    ).toEqual({ rateMin: 91, rateMax: null, rateUnit: 'set' });
+  });
+
   it('keeps collection Rate per mtr when an unpriced member still has leftover /pc', () => {
     expect(
       collectionCardRateFields({
