@@ -1,3 +1,8 @@
+import { MEDIA_VARIANT, mediaVariantUrl, type MediaVariant } from '@ekum/domain-types';
+
+export type { MediaVariant };
+export { MEDIA_VARIANT };
+
 /**
  * Media URLs must be absolute http(s) for Zod create schemas. Local/beta often
  * mints relative `/media/…`, `http://localhost:8080/media/…`, or a raw LAN
@@ -39,4 +44,21 @@ export function toAbsoluteMediaUrl(
 
 function isAppMediaPath(pathname: string): boolean {
   return pathname === '/media' || pathname.startsWith('/media/');
+}
+
+/**
+ * Display URL for a stored original. blob:, data:, and non-managed hosts stay
+ * unchanged. Seed catalog rewrites to `seed/thumbnail1|2/{name}.webp`.
+ * PhotoViewer must keep `original`.
+ */
+export function mediaDisplayUrl(
+  url: string | null | undefined,
+  variant: MediaVariant = MEDIA_VARIANT.Thumbnail1,
+  origin?: string,
+): string {
+  const absolute =
+    origin !== undefined ? toAbsoluteMediaUrl(url, origin) : toAbsoluteMediaUrl(url);
+  if (!absolute) return '';
+  if (variant === MEDIA_VARIANT.Original) return absolute;
+  return mediaVariantUrl(absolute, variant);
 }

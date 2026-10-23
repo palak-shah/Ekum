@@ -36,7 +36,11 @@ export const publishedCollectionMemberWhere = {
   product: { status: ProductStatus.Published },
 } as const;
 
-/** Prisma include fragment shared by explore, search, and company shop. */
+/**
+ * Prisma include fragment shared by explore, search, and company shop.
+ * Load every live member (not a preview slice) so pack ₹ can fall back to
+ * design min–max when priced designs are not at the front of the album.
+ */
 export const collectionCardInclude = {
   company: true,
   _count: {
@@ -47,7 +51,6 @@ export const collectionCardInclude = {
   products: {
     where: publishedCollectionMemberWhere,
     orderBy: { position: 'asc' as const },
-    take: 12,
     include: {
       product: {
         select: {
@@ -61,6 +64,8 @@ export const collectionCardInclude = {
           rate: true,
           rateMax: true,
           unit: true,
+          dispatchUnit: true,
+          catalogRateUnit: true,
           company: { select: { name: true } },
         },
       },

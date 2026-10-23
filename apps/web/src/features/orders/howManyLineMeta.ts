@@ -18,9 +18,16 @@ function dispatchContentsLabel(
   pack: number,
   unit?: string | null,
   dispatchUnit?: string | null,
+  catalogRateUnitStored?: string | null,
 ): string {
   const contents =
-    catalogRateUnit({ unit, dispatchUnit }) ?? dispatchUnit?.trim() ?? 'pc';
+    catalogRateUnit({
+      unit,
+      dispatchUnit,
+      catalogRateUnit: catalogRateUnitStored,
+    }) ??
+    dispatchUnit?.trim() ??
+    'pc';
   return `${pack} ${unitCountNoun(contents, pack)}`;
 }
 
@@ -42,6 +49,7 @@ function inr(amount: number): string {
 export function howManyLineExtra(product: {
   unit?: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   moq?: number | null;
   rate?: number | null;
@@ -60,6 +68,7 @@ export function orderRateText(input: {
   rateMax?: number | null;
   unit?: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
 }): string | null {
   const text = formatCatalogRate(input);
   return text === 'On request' ? null : text;
@@ -69,13 +78,14 @@ export function howManySoldAs(
   unit: string | null | undefined,
   piecesPerPack?: number | null,
   dispatchUnit?: string | null,
+  catalogRateUnitStored?: string | null,
 ): string | null {
   const key = unit?.trim();
   if (!key) return null;
   const label = SOLD_AS[key] ?? key;
   const pack = packSizeForUnit(unit, piecesPerPack);
   if (pack != null) {
-    return `${label} · ${dispatchContentsLabel(pack, unit, dispatchUnit)}`;
+    return `${label} · ${dispatchContentsLabel(pack, unit, dispatchUnit, catalogRateUnitStored)}`;
   }
   return label;
 }
@@ -84,13 +94,19 @@ export function howManySoldAs(
 export function howManyLineMeta(product: {
   unit?: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   moq?: number | null;
   rate?: number | null;
   rateMax?: number | null;
 }): string | null {
   const bits: string[] = [];
-  const sold = howManySoldAs(product.unit, product.piecesPerPack, product.dispatchUnit);
+  const sold = howManySoldAs(
+    product.unit,
+    product.piecesPerPack,
+    product.dispatchUnit,
+    product.catalogRateUnit,
+  );
   if (sold) bits.push(sold);
   if (product.moq != null && product.moq > 0) bits.push(`min ${product.moq}`);
   const rate = formatCatalogRate(product);
@@ -103,11 +119,18 @@ export function howManyPackContentsLabel(
   unit: string | null | undefined,
   piecesPerPack?: number | null,
   dispatchUnit?: string | null,
+  catalogRateUnitStored?: string | null,
 ): string | null {
   const pack = packSizeForUnit(unit, piecesPerPack);
   if (pack == null) return null;
   const contents =
-    catalogRateUnit({ unit, dispatchUnit }) ?? dispatchUnit?.trim() ?? 'pc';
+    catalogRateUnit({
+      unit,
+      dispatchUnit,
+      catalogRateUnit: catalogRateUnitStored,
+    }) ??
+    dispatchUnit?.trim() ??
+    'pc';
   return `${pack} ${unitCountNoun(contents, pack)}`;
 }
 
@@ -257,6 +280,7 @@ export type HowManyQtyLine = {
   unit?: string | null;
   piecesPerPack?: number | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   rate?: number | null;
   lineStatus?: string | null;
 };
@@ -279,6 +303,7 @@ export function orderUnitSheetHeading(
 export function orderLineUnitJourney(
   unit: string | null | undefined,
   dispatchUnit: string | null | undefined,
+  catalogRateUnitStored?: string | null,
 ): { order: string; dispatch: string; rate: string } {
   const order = unit?.trim() || 'set';
   const stored = dispatchUnit?.trim() || '';
@@ -286,7 +311,12 @@ export function orderLineUnitJourney(
     !stored || stored === order || (isPackOrderUnit(order) && stored === 'pc')
       ? order
       : stored;
-  const rate = catalogRateUnit({ unit: order, dispatchUnit: stored || order }) ?? 'pc';
+  const rate =
+    catalogRateUnit({
+      unit: order,
+      dispatchUnit: stored || order,
+      catalogRateUnit: catalogRateUnitStored,
+    }) ?? 'pc';
   return { order, dispatch, rate };
 }
 
@@ -298,10 +328,11 @@ export function packQtyConversionWanted(line: {
   unit?: string | null;
   piecesPerPack?: number | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
 }): boolean {
   if (!isPackOrderUnit(line.unit)) return false;
   if (howManyPcsPerUnit(line.unit, line.piecesPerPack) == null) return false;
-  const journey = orderLineUnitJourney(line.unit, line.dispatchUnit);
+  const journey = orderLineUnitJourney(line.unit, line.dispatchUnit, line.catalogRateUnit);
   return !(
     journey.order === journey.dispatch && journey.dispatch === journey.rate
   );
@@ -309,11 +340,17 @@ export function packQtyConversionWanted(line: {
 
 /** Quiet line: default “Rates are per pc. Order and dispatch per set.” Follows each design’s units. */
 export function howManySetsBanner(
-  products: Array<{ unit?: string | null; dispatchUnit?: string | null }>,
+  products: Array<{
+    unit?: string | null;
+    dispatchUnit?: string | null;
+    catalogRateUnit?: string | null;
+  }>,
 ): string | null {
   const pack = products.filter((p) => isPackOrderUnit(p.unit));
   if (pack.length === 0) return null;
-  const rows = pack.map((p) => orderLineUnitJourney(p.unit, p.dispatchUnit));
+  const rows = pack.map((p) =>
+    orderLineUnitJourney(p.unit, p.dispatchUnit, p.catalogRateUnit),
+  );
   const first = rows[0]!;
   const same = rows.every(
     (r) => r.order === first.order && r.dispatch === first.dispatch && r.rate === first.rate,
@@ -332,7 +369,11 @@ export type HowManyFooterSummary = {
 
 function packContentsUnit(line: HowManyQtyLine): string {
   return (
-    catalogRateUnit({ unit: line.unit, dispatchUnit: line.dispatchUnit }) ??
+    catalogRateUnit({
+      unit: line.unit,
+      dispatchUnit: line.dispatchUnit,
+      catalogRateUnit: line.catalogRateUnit,
+    }) ??
     line.dispatchUnit?.trim() ??
     'pc'
   );

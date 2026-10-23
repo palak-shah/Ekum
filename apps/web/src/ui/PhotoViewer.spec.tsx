@@ -71,6 +71,38 @@ describe('PhotoViewer', () => {
     );
   });
 
+  it('loads the original URL, not a thumbnail sibling', () => {
+    render(
+      <PhotoViewer
+        open
+        urls={['http://localhost:3000/media/c1/a.jpg']}
+        index={0}
+        onIndex={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(document.querySelector('[data-testid="photo-viewer"] img')).toHaveAttribute(
+      'src',
+      'http://localhost:3000/media/c1/a.jpg',
+    );
+  });
+
+  it('keeps the original/ file for zoom after relocate, never thumbnail2', () => {
+    render(
+      <PhotoViewer
+        open
+        urls={['http://localhost:3000/media/c1/original/saree.jpg']}
+        index={0}
+        onIndex={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(document.querySelector('[data-testid="photo-viewer"] img')).toHaveAttribute(
+      'src',
+      'http://localhost:3000/media/c1/original/saree.jpg',
+    );
+  });
+
   it('portals above shell chrome (body + z-100)', () => {
     render(
       <PhotoViewer open urls={['a.jpg']} index={0} onIndex={() => {}} onClose={() => {}} />,

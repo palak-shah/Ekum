@@ -15,6 +15,7 @@ export function OrderDispatchAccordion({
   open,
   onToggle,
   testId = 'collection-order-dispatch',
+  contentsUnit,
 }: {
   orderUnit: string;
   piecesPerPack: string;
@@ -27,6 +28,8 @@ export function OrderDispatchAccordion({
   open: boolean;
   onToggle: () => void;
   testId?: string;
+  /** Rate per unit so “1 set contains” matches collection details / Explore. */
+  contentsUnit?: string;
 }) {
   return (
     <CollectionExpandableSection
@@ -36,6 +39,7 @@ export function OrderDispatchAccordion({
         piecesPerPack,
         dispatchUnit,
         moq,
+        contentsUnit,
       })}
       open={open}
       onToggle={onToggle}
@@ -47,6 +51,7 @@ export function OrderDispatchAccordion({
         piecesPerPack={piecesPerPack}
         dispatchUnit={dispatchUnit}
         moq={moq}
+        contentsUnit={contentsUnit}
         onOrderUnit={onOrderUnit}
         onPiecesPerPack={onPiecesPerPack}
         onDispatchUnit={onDispatchUnit}

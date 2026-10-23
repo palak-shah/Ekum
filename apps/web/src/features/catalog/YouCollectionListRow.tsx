@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CollectionStatus, type CollectionView } from '@ekum/domain-types';
+import { CollectionStatus, MEDIA_VARIANT, type CollectionView } from '@ekum/domain-types';
 import { collectionAlbumOpenTarget } from '@/features/collections/collectionAlbumTileModel';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
 import { displayCollectionName } from '@/features/catalog/collectionCreateHelpers';
@@ -109,7 +109,7 @@ export function YouCollectionListRow({
   const body = (
     <>
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl">
-        <CoverImage src={thumb} alt={displayCollectionName(collection.name)} className="h-16 w-16" priority />
+        <CoverImage src={thumb} alt={displayCollectionName(collection.name)} className="h-16 w-16" priority variant={MEDIA_VARIANT.Thumbnail1} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">

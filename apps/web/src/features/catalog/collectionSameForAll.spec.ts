@@ -14,6 +14,10 @@ import {
   preferredPackUnit,
   productFieldsFromMember,
   packMemberProductPatch,
+  packStampShared,
+  packSellAsFromCollection,
+  hydratePackSellAsState,
+  ownMembersForPackStamp,
   sortDiffFirst,
   unionTags,
   unitAsksPiecesPerSet,
@@ -36,6 +40,7 @@ describe('emptySameForAll', () => {
     expect(emptySameForAll('set')).toMatchObject({
       unit: 'set',
       dispatchUnit: 'set',
+      catalogRateUnit: 'pc',
     });
   });
 
@@ -43,6 +48,7 @@ describe('emptySameForAll', () => {
     expect(emptySameForAll()).toMatchObject({
       unit: 'set',
       dispatchUnit: 'set',
+      catalogRateUnit: 'pc',
     });
   });
 });
@@ -52,6 +58,7 @@ describe('blankSameForAll', () => {
     expect(blankSameForAll()).toMatchObject({
       unit: '',
       dispatchUnit: '',
+      catalogRateUnit: '',
       rate: '',
     });
   });
@@ -64,12 +71,13 @@ describe('preferredPackUnit / clampSameForAllUnits', () => {
 
   it('clamps a forbidden rate-on-dispatch unit to set', () => {
     const { next, changed } = clampSameForAllUnits(
-      { ...emptySameForAll('set'), dispatchUnit: 'mtr' },
+      { ...emptySameForAll('set'), dispatchUnit: 'mtr', catalogRateUnit: 'mtr' },
       ['set', 'pc'],
     );
     expect(changed).toBe(true);
     expect(next.dispatchUnit).toBe('set');
     expect(next.unit).toBe('set');
+    expect(next.catalogRateUnit).toBe('mtr');
   });
 });
 
@@ -127,6 +135,7 @@ describe('memberDiffersFromSameForAll', () => {
           rate: '900',
           unit: 'pc',
           dispatchUnit: '',
+          catalogRateUnit: '',
           piecesPerPack: '',
           moq: '',
           notes: '',
@@ -145,6 +154,7 @@ describe('memberDiffersFromSameForAll', () => {
           rate: '900',
           unit: 'pc',
           dispatchUnit: '',
+          catalogRateUnit: '',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -188,6 +198,7 @@ describe('collectSameForAllDiffIds', () => {
           rate: '1200',
           unit: 'pc',
           dispatchUnit: 'pc',
+          catalogRateUnit: 'pc',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -201,6 +212,7 @@ describe('collectSameForAllDiffIds', () => {
           rate: '900',
           unit: 'pc',
           dispatchUnit: 'pc',
+          catalogRateUnit: 'pc',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -220,6 +232,7 @@ describe('collectSameForAllDiffIds', () => {
           rate: '1200',
           unit: 'pc',
           dispatchUnit: '',
+          catalogRateUnit: '',
           piecesPerPack: '',
           moq: '100',
           notes: '',
@@ -251,6 +264,7 @@ describe('applySameForAllToForm', () => {
           rate: '1',
           unit: 'pc',
           dispatchUnit: '',
+          catalogRateUnit: '',
           piecesPerPack: '',
           moq: '',
           notes: 'old',
@@ -261,6 +275,7 @@ describe('applySameForAllToForm', () => {
           rate: '1200-1400',
           unit: 'mtr',
           dispatchUnit: 'mtr',
+          catalogRateUnit: 'mtr',
           piecesPerPack: '6',
           moq: '50',
           notes: 'new',
@@ -271,6 +286,7 @@ describe('applySameForAllToForm', () => {
       rate: '1',
       unit: 'pc',
       dispatchUnit: 'mtr',
+      catalogRateUnit: 'mtr',
       piecesPerPack: '6',
       moq: '50',
       notes: 'old',
@@ -286,6 +302,7 @@ describe('applySameForAllToForm', () => {
           rate: '1',
           unit: 'pc',
           dispatchUnit: '',
+          catalogRateUnit: '',
           piecesPerPack: '2',
           moq: '',
           notes: 'old',
@@ -296,6 +313,7 @@ describe('applySameForAllToForm', () => {
           rate: '1200',
           unit: 'mtr',
           dispatchUnit: 'mtr',
+          catalogRateUnit: 'mtr',
           piecesPerPack: '6',
           moq: '50',
           notes: '',
@@ -306,6 +324,7 @@ describe('applySameForAllToForm', () => {
       rate: '1',
       unit: 'mtr',
       dispatchUnit: 'mtr',
+      catalogRateUnit: 'mtr',
       piecesPerPack: '6',
       moq: '50',
       notes: 'old',
@@ -320,6 +339,7 @@ describe('stampCreatePhotoMemberForm', () => {
     rate: '',
     unit: 'set',
     dispatchUnit: 'pc',
+    catalogRateUnit: 'pc',
     piecesPerPack: '',
     moq: '',
     notes: '',
@@ -330,6 +350,7 @@ describe('stampCreatePhotoMemberForm', () => {
     rate: '1200-1400',
     unit: 'set',
     dispatchUnit: 'pc',
+    catalogRateUnit: 'pc',
     piecesPerPack: '4',
     moq: '20',
     notes: '',
@@ -376,6 +397,11 @@ describe('designFollowsPackRate', () => {
     expect(designFollowsPackRate({ rate: 900, rateMax: null }, '1200')).toBe(false);
     expect(designFollowsPackRate({ rate: 1200, rateMax: null }, '')).toBe(false);
   });
+
+  it('follows create when the design rupee already matches the new pack rate', () => {
+    expect(designFollowsPackRate({ rate: 91, rateMax: null }, '', '91')).toBe(true);
+    expect(designFollowsPackRate({ rate: 1680, rateMax: null }, '', '91')).toBe(false);
+  });
 });
 
 describe('unanimousMemberRate', () => {
@@ -404,6 +430,7 @@ describe('productFieldsFromMember', () => {
         rate: '1200-1400',
         unit: 'pc',
         dispatchUnit: 'pc',
+        catalogRateUnit: 'pc',
         piecesPerPack: '6',
         moq: '10',
         notes: 'silk',
@@ -415,10 +442,26 @@ describe('productFieldsFromMember', () => {
       rateMax: 1400,
       unit: 'pc',
       dispatchUnit: 'pc',
+      catalogRateUnit: 'pc',
       piecesPerPack: 6,
       moq: 10,
       categories: undefined,
     });
+  });
+
+  it('does not throw when Rate per is missing on an older form', () => {
+    expect(
+      productFieldsFromMember({
+        name: 'X',
+        rate: '',
+        unit: 'set',
+        dispatchUnit: 'set',
+        piecesPerPack: '47',
+        moq: '',
+        notes: '',
+        categories: [],
+      } as Parameters<typeof productFieldsFromMember>[0]).catalogRateUnit,
+    ).toBeUndefined();
   });
 
   it('empty or 0 in 1 set contains clears pack size', () => {
@@ -427,6 +470,7 @@ describe('productFieldsFromMember', () => {
       rate: '91',
       unit: 'set',
       dispatchUnit: 'mtr',
+      catalogRateUnit: 'mtr',
       moq: '',
       notes: '',
       categories: [] as string[],
@@ -436,12 +480,121 @@ describe('productFieldsFromMember', () => {
   });
 });
 
+describe('packSellAsFromCollection', () => {
+  it('prefers collection Rate per and 1 set contains over the first member', () => {
+    expect(
+      packSellAsFromCollection(
+        { unit: 'set', dispatchUnit: 'kg', piecesPerPack: 39 },
+        { unit: 'set', dispatchUnit: 'mtr', piecesPerPack: null },
+      ),
+    ).toEqual({
+      unit: 'set',
+      dispatchUnit: 'kg',
+      catalogRateUnit: 'kg',
+      piecesPerPack: '39',
+    });
+  });
+
+  it('keeps Rate per mtr when dispatch is set', () => {
+    expect(
+      packSellAsFromCollection({
+        unit: 'set',
+        dispatchUnit: 'set',
+        catalogRateUnit: 'mtr',
+        piecesPerPack: 47,
+      }),
+    ).toEqual({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: '47',
+    });
+  });
+
+  it('falls back to the first member on older packs with no collection sell-as', () => {
+    expect(
+      packSellAsFromCollection(
+        { unit: null, dispatchUnit: null, piecesPerPack: null },
+        { unit: 'set', dispatchUnit: 'mtr', piecesPerPack: 12 },
+      ),
+    ).toEqual({
+      unit: 'set',
+      dispatchUnit: 'mtr',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: '12',
+    });
+  });
+});
+
+describe('hydratePackSellAsState', () => {
+  it('keeps Rate per and 1 set contains when Strict Mode runs the updater twice', () => {
+    const sellAs = {
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: '47',
+    };
+    const opts = { rate: '', moq: '' };
+    const once = hydratePackSellAsState(emptySameForAll('set'), sellAs, opts);
+    const twice = hydratePackSellAsState(once, sellAs, opts);
+    expect(twice).toMatchObject({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: '47',
+    });
+  });
+});
+
+describe('packStampShared', () => {
+  it('keeps Rate per and Dispatch independently from the editor', () => {
+    expect(
+      packStampShared(
+        {
+          ...emptySameForAll('set'),
+          dispatchUnit: 'set',
+          catalogRateUnit: 'mtr',
+          piecesPerPack: '39',
+        },
+        '91',
+      ),
+    ).toMatchObject({
+      rate: '91',
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: '39',
+    });
+  });
+});
+
+describe('ownMembersForPackStamp', () => {
+  it('stamps own designs even when Apply to all is off — skips curated peers', () => {
+    expect(
+      ownMembersForPackStamp(
+        [
+          { id: 'a', companyId: 'ravi' },
+          { id: 'b', companyId: 'meena' },
+        ],
+        'ravi',
+      ).map((row) => row.id),
+    ).toEqual(['a']);
+  });
+
+  it('stamps nothing until the owning company id is known (avoid 403 on peers)', () => {
+    expect(
+      ownMembersForPackStamp([{ id: 'a', companyId: 'ravi' }], undefined),
+    ).toEqual([]);
+  });
+});
+
 describe('packMemberProductPatch', () => {
   const mtrParsed = productFieldsFromMember({
     name: 'X',
     rate: '91',
     unit: 'set',
-    dispatchUnit: 'mtr',
+    dispatchUnit: 'set',
+    catalogRateUnit: 'mtr',
     piecesPerPack: '39',
     moq: '',
     notes: '',
@@ -460,11 +613,13 @@ describe('packMemberProductPatch', () => {
       rate: 91,
       rateMax: null,
       unit: 'set',
-      dispatchUnit: 'mtr',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: 39,
     });
   });
 
-  it('does not stamp pack size unless Apply to all', () => {
+  it('writes 1 set contains onto members without Apply to all', () => {
     expect(
       packMemberProductPatch({
         parsed: mtrParsed,
@@ -472,10 +627,10 @@ describe('packMemberProductPatch', () => {
         packRate: '91',
         applyToAll: false,
       }).piecesPerPack,
-    ).toBeUndefined();
+    ).toBe(39);
   });
 
-  it('leaves a design with its own rate alone unless Apply to all', () => {
+  it('still writes Rate per and pack size onto a design with its own rupee', () => {
     expect(
       packMemberProductPatch({
         parsed: mtrParsed,
@@ -483,7 +638,28 @@ describe('packMemberProductPatch', () => {
         packRate: '91',
         applyToAll: false,
       }),
-    ).toEqual({});
+    ).toEqual({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: 39,
+    });
+  });
+
+  it('stamps Rate per onto followers even when the rupee is empty', () => {
+    expect(
+      packMemberProductPatch({
+        parsed: mtrParsed,
+        followsPackRate: true,
+        packRate: '',
+        applyToAll: false,
+      }),
+    ).toEqual({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+      piecesPerPack: 39,
+    });
   });
 
   it('Apply to all still does not overwrite a filled design rate', () => {
@@ -502,7 +678,8 @@ describe('packMemberProductPatch', () => {
       name: 'X',
       rate: '91',
       unit: 'set',
-      dispatchUnit: 'mtr',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
       piecesPerPack: '0',
       moq: '',
       notes: '',
@@ -517,7 +694,8 @@ describe('packMemberProductPatch', () => {
       }),
     ).toEqual({
       unit: 'set',
-      dispatchUnit: 'mtr',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
       piecesPerPack: null,
     });
   });

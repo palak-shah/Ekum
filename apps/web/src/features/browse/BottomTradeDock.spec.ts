@@ -11,6 +11,13 @@ describe('bottomTradeDockClass', () => {
     expect(cls).toContain('pointer-events-auto');
     expect(cls).toContain('z-50');
     expect(cls).toContain('bottom-0');
+    expect(cls).toContain('bg-surface/95');
+  });
+
+  it('sits above the tab bar only when the page still shows nav', () => {
+    const cls = bottomTradeDockClass(true);
+    expect(cls).toContain('bottom-20');
+    expect(cls).not.toMatch(/(?:^|\s)bottom-0(?:\s|$)/);
   });
 
   it('Order clearance is tighter than selection dock clearance', () => {

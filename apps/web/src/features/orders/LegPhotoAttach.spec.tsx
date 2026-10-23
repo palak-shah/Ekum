@@ -10,9 +10,10 @@ vi.mock('@/ui/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
-vi.mock('@/lib/mediaUrl', () => ({
-  toAbsoluteMediaUrl: (url: string) => url,
-}));
+vi.mock('@/lib/mediaUrl', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/mediaUrl')>();
+  return { ...actual, toAbsoluteMediaUrl: (url: string) => url };
+});
 
 describe('LegPhotoAttach', () => {
   beforeEach(() => {

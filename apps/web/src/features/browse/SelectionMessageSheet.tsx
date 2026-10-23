@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { StartDirectThreadResult } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type StartDirectThreadResult } from '@ekum/domain-types';
 import {
   postCatalogCardsToThread,
   type CatalogCardCollection,
@@ -11,6 +11,7 @@ import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
 import { SendIcon } from '@/ui/icons';
 import { Avatar, Sheet, cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 
 type AttachPreview = {
@@ -137,7 +138,7 @@ export function SelectionMessageSheet({
                   }
                 >
                   {item.image ? (
-                    <img src={item.image} alt="" className="h-full w-full object-cover" />
+                    <ManagedImage src={item.image} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
                       {item.name.slice(0, 1).toUpperCase()}

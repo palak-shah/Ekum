@@ -47,6 +47,8 @@ const createProductObjectSchema = z.object({
   unit: z.enum(unitValues).optional(),
   /** Dispatch unit when it differs from order taken in (`unit`). */
   dispatchUnit: z.enum(unitValues).optional().nullable(),
+  /** Rate per (billing). Independent of dispatch. */
+  catalogRateUnit: z.enum(unitValues).optional().nullable(),
   /** Pieces in one set/dozen/box; null clears on update. */
   piecesPerPack: z.number().int().positive().max(1_000_000).nullable().optional(),
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
@@ -102,6 +104,14 @@ const createCollectionObjectSchema = z.object({
   categories: z.array(z.string().trim().min(1)).max(20).default([]),
   /** Master Category for this pack (filters tags/units). */
   masterCategoryId: z.string().min(1).nullable().optional(),
+  /** Order taken in for this pack (editor hydrates from here, not first member). */
+  unit: z.enum(unitValues).optional().nullable(),
+  /** What they send. Independent of Rate per. */
+  dispatchUnit: z.enum(unitValues).optional().nullable(),
+  /** Rate per (billing). Independent of dispatch. */
+  catalogRateUnit: z.enum(unitValues).optional().nullable(),
+  /** Dispatch units in one order unit; null clears. */
+  piecesPerPack: z.number().int().positive().max(1_000_000).nullable().optional(),
   /** Live window start. null clears. */
   startsAt: optionalScheduleInstant,
   /** Live window end. null = evergreen. */
@@ -254,6 +264,8 @@ export interface ProductView {
   unit: string | null;
   /** How they dispatch (pcs / mtrs) when different from order unit. */
   dispatchUnit?: string | null;
+  /** Rate per (billing). Independent of dispatch. */
+  catalogRateUnit?: string | null;
   /** Pieces in one set/dozen/box; null when not set. */
   piecesPerPack: number | null;
   categories: string[];
@@ -301,6 +313,14 @@ export interface CollectionView {
   rate: number | null;
   /** High end when pack rate is a range. */
   rateMax: number | null;
+  /** Order taken in for this pack. */
+  unit: string | null;
+  /** What they send. Independent of Rate per. */
+  dispatchUnit: string | null;
+  /** Rate per (billing). Independent of dispatch. */
+  catalogRateUnit?: string | null;
+  /** Dispatch units in one order unit; null when not given. */
+  piecesPerPack: number | null;
   /** Tag labels (search bridge; same shape as Product.categories). */
   categories: string[];
   /** Master Category for this pack (null when unset / legacy). */
@@ -402,6 +422,7 @@ export interface ProductSnapshot {
   rate: number | null;
   unit: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   image: string | null;
 }

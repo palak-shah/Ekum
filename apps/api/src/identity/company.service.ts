@@ -23,7 +23,10 @@ import { TokenService } from '../auth/token.service';
 import { CompanySerializer } from '../access/company.serializer';
 import { VisibilityService } from '../access/visibility.service';
 import { collectionMemberFind } from '../catalog/collection-member-find';
-import { collectionCardRateFields } from '../discovery/collection-card-rate';
+import {
+  collectionCardRateFields,
+  collectionCardRateVisibility,
+} from '../discovery/collection-card-rate';
 import { collectionSourceShopNames } from '../discovery/discovery.serializer';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
@@ -344,9 +347,14 @@ export class CompanyService {
     return toCursorPage(live, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
       const rate = collectionCardRateFields({
-        rateVisibility: row.rateVisibility,
+        rateVisibility: collectionCardRateVisibility({
+          rateVisibility: row.rateVisibility,
+          packCompanyId: row.companyId,
+          viewerCompanyId,
+        }),
         rate: row.rate,
         rateMax: row.rateMax,
+        catalogRateUnit: (row as { catalogRateUnit?: string | null }).catalogRateUnit,
         products: row.products,
       });
       return {

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,6 +19,10 @@ import { YouHeaderShare } from '@/features/settings/YouHeaderShare';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, Field, LoadingBlock, Tag, TextArea, TextInput, cx } from '@/ui/kit';
+import {
+  BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
+} from '@/features/browse/BottomTradeDock';
 import { SuggestInput } from '@/ui/SuggestInput';
 
 const FALLBACK_MASTER_OPTIONS = masterCategorySlugValues.map((slug) => ({
@@ -213,7 +216,7 @@ export function ProfilePage() {
     <div
       className={cx(
         'flex flex-col gap-4',
-        editing ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]' : 'pb-8',
+        editing ? BOTTOM_DOCK_CLEARANCE_CLASS : 'pb-8',
       )}
     >
       <PageHeader
@@ -404,25 +407,22 @@ export function ProfilePage() {
         )}
       </Field>
       {editing
-        ? createPortal(
-            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
-              <div className="mx-auto max-w-md">
+        ? (
+            <BottomTradeDock testId="profile-update-dock" aboveAppNav={false}>
                 <Button
                   fullWidth
                   data-testid="profile-update"
+                  loading={save.isPending}
                   disabled={
                     !form.name.trim() ||
                     !form.city.trim() ||
-                    form.masterCategories.length === 0 ||
-                    save.isPending
+                    form.masterCategories.length === 0
                   }
                   onClick={() => save.mutate()}
                 >
-                  {save.isPending ? 'Updating…' : 'Update'}
+                  Update
                 </Button>
-              </div>
-            </div>,
-            document.body,
+            </BottomTradeDock>
           )
         : (
             <>

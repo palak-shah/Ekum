@@ -150,7 +150,7 @@ export function ContinuousCamera({
   /** Blank the shell immediately when handing off to Gallery / Designs (no camera flash). */
   const [handoff, setHandoff] = useState(false);
 
-  const stopStream = useCallback((mode: 'soft' | 'hard' = 'soft') => {
+  const stopStream = useCallback((mode: 'soft' | 'hard' = 'hard') => {
     streamRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
@@ -191,7 +191,7 @@ export function ContinuousCamera({
 
   useEffect(() => {
     if (!open) {
-      stopStream('soft');
+      stopStream('hard');
       setHandoff(false);
       setShots((prev) => {
         revokeShots(prev);
@@ -243,14 +243,14 @@ export function ContinuousCamera({
         }
         const stream = acquired.stream;
         if (cancelled) {
-          releaseMediaStream('camera');
+          releaseMediaStream('camera', { hard: true });
           return;
         }
         streamRef.current = stream;
         const video = await waitForVideoEl(() => videoRef.current);
         if (!video) {
           streamRef.current = null;
-          releaseMediaStream('camera');
+          releaseMediaStream('camera', { hard: true });
           if (!cancelled && attempt < 1) {
             void start(attempt + 1);
             return;
@@ -262,7 +262,7 @@ export function ContinuousCamera({
         await video.play();
         if (cancelled) {
           streamRef.current = null;
-          releaseMediaStream('camera');
+          releaseMediaStream('camera', { hard: true });
           return;
         }
 
@@ -292,7 +292,7 @@ export function ContinuousCamera({
 
     return () => {
       cancelled = true;
-      stopStream();
+      stopStream('hard');
     };
   }, [open, stopStream, revokeShots]);
 
@@ -376,7 +376,7 @@ export function ContinuousCamera({
   const handleCancel = () => {
     revokeShots(shots);
     setShots([]);
-    stopStream('soft');
+    stopStream('hard');
     onCancel();
   };
 
@@ -386,7 +386,7 @@ export function ContinuousCamera({
     const appendId = sessionAppendRef.current;
     revokeShots(shots);
     setShots([]);
-    stopStream('soft');
+    stopStream('hard');
     onDone(files, appendId);
   };
 

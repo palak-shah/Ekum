@@ -42,6 +42,18 @@ export class JobQueue {
     }
     await this.enqueue(type, {}, nextDailyRun(hourUtc));
   }
+
+  /**
+   * One-shot job: enqueue if this type has never been queued. Restarts must not
+   * dump another full thumbnail backfill.
+   */
+  async ensureOnce(type: JobType, payload: Record<string, unknown> = {}): Promise<void> {
+    const existing = await this.prisma.job.count({ where: { type } });
+    if (existing > 0) {
+      return;
+    }
+    await this.enqueue(type, payload);
+  }
 }
 
 /** The next UTC instant at the given hour (today if still ahead, else tomorrow). */

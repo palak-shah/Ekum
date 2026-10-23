@@ -1,4 +1,4 @@
-import { Unit } from '@ekum/domain-types';
+import { Unit, catalogRateUnit as inferCatalogRateUnit } from '@ekum/domain-types';
 import type { SameForAllDetails } from './rateInput';
 import {
   formatRateInput,
@@ -6,7 +6,11 @@ import {
   sameForAllIsEmpty,
   sameForAllSummary,
 } from './rateInput';
-import { DEFAULT_DISPATCH_UNIT, DEFAULT_SELL_AS_UNIT } from './publishDefaults';
+import {
+  DEFAULT_DISPATCH_UNIT,
+  DEFAULT_RATE_UNIT,
+  DEFAULT_SELL_AS_UNIT,
+} from './publishDefaults';
 import { parsePiecesPerPack } from './orderDispatchPreview';
 
 /** Packed order units show “1 set contains”. */
@@ -19,7 +23,7 @@ export { sameForAllIsEmpty, sameForAllSummary, parseRateInput };
 
 /**
  * Platform usual shell: order + dispatch journey in **sets** (or the passed pack unit).
- * Rate stays **pc** via catalogRateUnit when order === dispatch set — not stored here.
+ * Rate per stays **pc** until they choose (independent of dispatch).
  * Pass `unit: ''` only for Diff “nothing shared” fixtures.
  */
 export const emptySameForAll = (unit = DEFAULT_SELL_AS_UNIT): SameForAllDetails => ({
@@ -27,6 +31,7 @@ export const emptySameForAll = (unit = DEFAULT_SELL_AS_UNIT): SameForAllDetails 
   rate: '',
   unit,
   dispatchUnit: unit.trim() ? unit.trim() : DEFAULT_DISPATCH_UNIT,
+  catalogRateUnit: DEFAULT_RATE_UNIT,
   piecesPerPack: '',
   moq: '',
   notes: '',
@@ -38,6 +43,7 @@ export const blankSameForAll = (): SameForAllDetails => ({
   rate: '',
   unit: '',
   dispatchUnit: '',
+  catalogRateUnit: '',
   piecesPerPack: '',
   moq: '',
   notes: '',
@@ -83,6 +89,7 @@ export type MemberDesignForm = {
   rate: string;
   unit: string;
   dispatchUnit: string;
+  catalogRateUnit: string;
   piecesPerPack: string;
   moq: string;
   notes: string;
@@ -168,6 +175,13 @@ export function memberDiffersFromSameForAll(
     return true;
   }
   if (
+    shared.catalogRateUnit.trim() &&
+    form.catalogRateUnit.trim() &&
+    form.catalogRateUnit !== shared.catalogRateUnit
+  ) {
+    return true;
+  }
+  if (
     shared.piecesPerPack.trim() &&
     form.piecesPerPack.trim() !== shared.piecesPerPack.trim()
   ) {
@@ -228,6 +242,11 @@ export function applySameForAllToForm(
       : shared.dispatchUnit.trim()
         ? shared.dispatchUnit
         : form.dispatchUnit,
+    catalogRateUnit: form.catalogRateUnit.trim()
+      ? form.catalogRateUnit
+      : shared.catalogRateUnit.trim()
+        ? shared.catalogRateUnit
+        : form.catalogRateUnit,
     piecesPerPack: form.piecesPerPack.trim()
       ? form.piecesPerPack
       : shared.piecesPerPack.trim()
@@ -255,6 +274,9 @@ export function forceSameForAllToForm(
     rate: form.rate.trim() ? form.rate : shared.rate.trim() ? shared.rate : form.rate,
     unit: shared.unit.trim() ? shared.unit : form.unit,
     dispatchUnit: shared.dispatchUnit.trim() ? shared.dispatchUnit : form.dispatchUnit,
+    catalogRateUnit: shared.catalogRateUnit.trim()
+      ? shared.catalogRateUnit
+      : form.catalogRateUnit,
     piecesPerPack: shared.piecesPerPack.trim()
       ? shared.piecesPerPack
       : form.piecesPerPack,
@@ -293,11 +315,16 @@ export function designHasOwnRate(rate: number | null | undefined): boolean {
 export function designFollowsPackRate(
   design: { rate: number | null | undefined; rateMax?: number | null },
   previousPackRate: string,
+  incomingPackRate?: string,
 ): boolean {
   if (design.rate == null) return true;
+  const own = formatRateInput(design.rate, design.rateMax ?? null);
   const prev = previousPackRate.trim();
-  if (!prev) return false;
-  return formatRateInput(design.rate, design.rateMax ?? null) === prev;
+  if (prev && own === prev) return true;
+  const incoming = incomingPackRate?.trim() ?? '';
+  // Create: no stored pack rate yet — same rupee as this pack follows Rate per.
+  if (!prev && incoming && own === incoming) return true;
+  return false;
 }
 
 /** Shared pack rate string when every priced member matches; else ''. */
@@ -322,6 +349,7 @@ export function productFieldsFromMember(
   rateMax?: number | null;
   unit?: string;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   moq?: number;
   categories?: string[];
@@ -333,6 +361,7 @@ export function productFieldsFromMember(
     rateMax: parsed.rateMax,
     unit: form.unit || undefined,
     dispatchUnit: form.dispatchUnit.trim() ? form.dispatchUnit : undefined,
+    catalogRateUnit: form.catalogRateUnit?.trim() ? form.catalogRateUnit : undefined,
     piecesPerPack: parsePiecesPerPack(form.piecesPerPack),
     moq: form.moq.trim() ? Number(form.moq) : undefined,
     categories:
@@ -344,10 +373,107 @@ export function productFieldsFromMember(
 
 export type PackMemberFields = ReturnType<typeof productFieldsFromMember>;
 
+type PackSellAsSource = {
+  unit?: string | null;
+  dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
+  piecesPerPack?: number | string | null;
+};
+
+/** Stored Rate per, else legacy inference from dispatch≠order. */
+export function storedCatalogRateUnit(source: PackSellAsSource): string {
+  const stored = source.catalogRateUnit?.trim();
+  if (stored) return stored;
+  return (
+    inferCatalogRateUnit({
+      unit: source.unit,
+      dispatchUnit: source.dispatchUnit,
+    }) ?? DEFAULT_RATE_UNIT
+  );
+}
+
 /**
- * Own-design PATCH from pack Rate per + Apply to all.
- * Followers of the pack rate get the rupee **and** unit/dispatch (Explore Rate per).
- * Pack size / MOQ still need Apply to all. Empty or 0 pack → null (clear).
+ * Collection details first; first member only fills gaps on older packs.
+ */
+export function packSellAsFromCollection(
+  collection: PackSellAsSource,
+  firstMember?: PackSellAsSource | null,
+): Pick<SameForAllDetails, 'unit' | 'dispatchUnit' | 'catalogRateUnit' | 'piecesPerPack'> {
+  const unit = collection.unit?.trim() || firstMember?.unit?.trim() || Unit.Set;
+  const dispatchUnit =
+    collection.dispatchUnit?.trim() || firstMember?.dispatchUnit?.trim() || unit;
+  const catalogRateUnit =
+    collection.catalogRateUnit?.trim() ||
+    firstMember?.catalogRateUnit?.trim() ||
+    storedCatalogRateUnit({ unit, dispatchUnit, catalogRateUnit: collection.catalogRateUnit });
+  const pieces =
+    collection.piecesPerPack != null && String(collection.piecesPerPack).trim() !== ''
+      ? collection.piecesPerPack
+      : firstMember?.piecesPerPack;
+  const n = parsePiecesPerPack(pieces);
+  return {
+    unit,
+    dispatchUnit,
+    catalogRateUnit,
+    piecesPerPack: n == null ? '' : String(n),
+  };
+}
+
+/**
+ * First-load merge for the collection editor. Pure so React Strict Mode’s
+ * double updater call cannot drop Rate per / 1 set contains back to set.
+ */
+export function hydratePackSellAsState(
+  prev: SameForAllDetails,
+  sellAs: Pick<SameForAllDetails, 'unit' | 'dispatchUnit' | 'catalogRateUnit' | 'piecesPerPack'>,
+  opts: { rate: string; moq: string },
+): SameForAllDetails {
+  return {
+    ...prev,
+    rate: opts.rate || prev.rate,
+    unit: sellAs.unit,
+    dispatchUnit: sellAs.dispatchUnit,
+    catalogRateUnit: sellAs.catalogRateUnit || prev.catalogRateUnit,
+    piecesPerPack: sellAs.piecesPerPack,
+    moq: opts.moq || prev.moq,
+  };
+}
+
+/** Own-company members the collection editor may PATCH (skip curated peers). */
+export function ownMembersForPackStamp<T extends { companyId?: string | null }>(
+  products: T[],
+  ownerCompanyId: string | null | undefined,
+): T[] {
+  const owner = ownerCompanyId?.trim();
+  if (!owner) return [];
+  return products.filter((product) => product.companyId === owner);
+}
+
+/**
+ * Collection details as stored on members. Uses the editor’s order / Rate per
+ * / 1 set contains — not a derived display unit that can lag one render.
+ */
+export function packStampShared(
+  details: SameForAllDetails,
+  packRate: string,
+): SameForAllDetails {
+  const unit = details.unit.trim() || Unit.Set;
+  return {
+    ...details,
+    rate: packRate,
+    unit,
+    dispatchUnit: details.dispatchUnit.trim() || unit,
+    catalogRateUnit: details.catalogRateUnit.trim() || DEFAULT_RATE_UNIT,
+  };
+}
+
+/**
+ * Own-design PATCH from collection details.
+ * Rate per + 1 set contains persist on every own member (the editor hydrates
+ * from members — skipping this made Update look like a no-op).
+ * Pack rupee still only overwrites designs that follow the pack rate.
+ * Apply to all adds MOQ; it still never overwrites a filled design rate.
+ * Empty or 0 pack → piecesPerPack null (clear).
  */
 export function packMemberProductPatch(opts: {
   parsed: PackMemberFields;
@@ -357,20 +483,17 @@ export function packMemberProductPatch(opts: {
 }): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   const { parsed, followsPackRate, packRate, applyToAll } = opts;
+  if (parsed.unit) patch.unit = parsed.unit;
+  if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
+  if (parsed.catalogRateUnit) patch.catalogRateUnit = parsed.catalogRateUnit;
+  if (parsed.piecesPerPack !== undefined) {
+    patch.piecesPerPack = parsed.piecesPerPack;
+  }
   if (packRate.trim() && followsPackRate) {
     patch.rate = parsed.rate;
     patch.rateMax = parsed.rateMax;
-    if (parsed.unit) patch.unit = parsed.unit;
-    if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
   }
-  if (applyToAll) {
-    if (parsed.unit) patch.unit = parsed.unit;
-    if (parsed.dispatchUnit) patch.dispatchUnit = parsed.dispatchUnit;
-    if (parsed.piecesPerPack !== undefined) {
-      patch.piecesPerPack = parsed.piecesPerPack;
-    }
-    if (parsed.moq != null) patch.moq = parsed.moq;
-  }
+  if (applyToAll && parsed.moq != null) patch.moq = parsed.moq;
   return patch;
 }
 

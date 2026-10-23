@@ -17,7 +17,7 @@ function makeService(opts: {
     updatedAt: Date;
     company: { id: string; name: string };
     _count: { products: number };
-    products?: Array<{ product: { images: string[] } }>;
+    products?: Array<{ product: { images: string[]; status?: string } }>;
   }>;
 }) {
   const prisma = {
@@ -57,8 +57,8 @@ describe('CompanyService.listPublishedCollections', () => {
           company: { id: 'seller', name: 'Surat Silk House' },
           _count: { products: 4 },
           products: [
-            { product: { images: ['https://img/a'] } },
-            { product: { images: ['https://img/b'] } },
+            { product: { images: ['https://img/a'], status: 'published' } },
+            { product: { images: ['https://img/b'], status: 'published' } },
           ],
         },
       ],

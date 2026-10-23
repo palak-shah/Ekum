@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -13,6 +12,7 @@ import type {
   ProductView,
 } from '@ekum/domain-types';
 import {
+  MEDIA_VARIANT,
   ProductStatus,
   PublishAudience,
   Unit,
@@ -25,6 +25,7 @@ import { useMyCompany } from '@/lib/queries';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { SaveOrDiscardSheet } from '@/ui/SaveOrDiscardSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
@@ -32,6 +33,10 @@ import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/u
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 import { CameraIcon, CollectionIcon, LockIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
+import {
+  BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
+} from '@/features/browse/BottomTradeDock';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
 import { productStatusLine, auditLine } from './productStatusSummary';
@@ -44,7 +49,7 @@ import { invalidateAfterProductEdit } from './productEditorInvalidate';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
-import { parsePiecesPerPack } from './orderDispatchPreview';
+import { parsePiecesPerPack, piecesPerPackFieldValue } from './orderDispatchPreview';
 import {
   defaultProfileMasterCategoryId,
   resolveCompanyMasterOptions,
@@ -101,6 +106,7 @@ export function ProductEditorPage() {
     moq: '',
     unit: editing ? '' : memory.unit,
     dispatchUnit: '',
+    catalogRateUnit: '',
     piecesPerPack: '',
     description: '',
     categories: editing ? '' : memory.category,
@@ -179,11 +185,14 @@ export function ProductEditorPage() {
   });
   const permittedUnits = masterTaxonomy.data?.units ?? [];
   const rateUnit =
-    catalogRateDisplayUnit({
+    form.catalogRateUnit.trim() ||
+    (catalogRateDisplayUnit({
       unit: form.unit || Unit.Set,
       dispatchUnit: form.dispatchUnit || form.unit || Unit.Set,
+      catalogRateUnit: form.catalogRateUnit,
       offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
-    }) ?? Unit.Piece;
+    }) ??
+      Unit.Piece);
   const tagSlots = categoriesToTagSlots(parseList(form.categories));
 
   const canPublishAlready = Boolean(company.data?.capabilities.publish);
@@ -208,10 +217,8 @@ export function ProductEditorPage() {
             : String(existing.data.moq),
         unit: existing.data.unit ?? '',
         dispatchUnit: existing.data.dispatchUnit ?? '',
-        piecesPerPack:
-          existing.data.piecesPerPack === null || existing.data.piecesPerPack === undefined
-            ? ''
-            : String(existing.data.piecesPerPack),
+        catalogRateUnit: existing.data.catalogRateUnit ?? '',
+        piecesPerPack: piecesPerPackFieldValue(existing.data.piecesPerPack),
         description: existing.data.description ?? '',
         categories: designEditorCategories(
           existing.data.categories,
@@ -240,10 +247,8 @@ export function ProductEditorPage() {
             : String(existing.data.moq),
         unit: existing.data.unit ?? '',
         dispatchUnit: existing.data.dispatchUnit ?? '',
-        piecesPerPack:
-          existing.data.piecesPerPack === null || existing.data.piecesPerPack === undefined
-            ? ''
-            : String(existing.data.piecesPerPack),
+        catalogRateUnit: existing.data.catalogRateUnit ?? '',
+        piecesPerPack: piecesPerPackFieldValue(existing.data.piecesPerPack),
         description: existing.data.description ?? '',
         categories: designEditorCategories(
           existing.data.categories,
@@ -318,16 +323,20 @@ export function ProductEditorPage() {
     const resolvedSku =
       form.sku.trim() || existing.data?.sku?.trim() || generateDraftSku();
     const name = nameForNewDesign(form.name, resolvedSku);
+    const rateUnits = applyDesignRateUnit(
+      form.unit || Unit.Set,
+      rateUnit,
+      form.dispatchUnit,
+    );
     return {
       name,
       sku: form.sku.trim() || (existing.data?.sku ? undefined : resolvedSku),
       rate: parsed.rate,
       rateMax: null,
       moq: form.moq.trim() ? Number(form.moq) : null,
-      unit: form.unit ? (form.unit as (typeof unitValues)[number]) : undefined,
-      dispatchUnit: form.dispatchUnit
-        ? (form.dispatchUnit as (typeof unitValues)[number])
-        : undefined,
+      unit: rateUnits.unit as (typeof unitValues)[number],
+      dispatchUnit: (form.dispatchUnit.trim() || rateUnits.dispatchUnit) as (typeof unitValues)[number],
+      catalogRateUnit: (form.catalogRateUnit.trim() || rateUnits.catalogRateUnit) as (typeof unitValues)[number],
       description: form.description.trim() || undefined,
       piecesPerPack: parsePiecesPerPack(form.piecesPerPack),
       categories: parseList(form.categories),
@@ -447,6 +456,7 @@ export function ProductEditorPage() {
         moq: form.moq,
         unit: form.unit,
         dispatchUnit: form.dispatchUnit,
+        catalogRateUnit: form.catalogRateUnit,
         piecesPerPack: form.piecesPerPack,
         description: form.description,
         categories: form.categories,
@@ -538,7 +548,7 @@ export function ProductEditorPage() {
       ];
 
   return (
-    <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-8')}>
+    <div className={cx('flex flex-col gap-4', editing ? BOTTOM_DOCK_CLEARANCE_CLASS : 'pb-8')}>
       {editing ? (
         <SaveOrDiscardSheet
           open={discard.confirmOpen}
@@ -624,7 +634,7 @@ export function ProductEditorPage() {
                   setPhotoOpen(true);
                 }}
               >
-                <img src={url} alt="" className="h-full w-full object-cover" />
+                <ManagedImage src={url} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
               </button>
               <button
                 type="button"
@@ -677,7 +687,10 @@ export function ProductEditorPage() {
         rateUnit={rateUnit}
         permittedUnits={permittedUnits}
         onRateUnit={(next) =>
-          setForm((prev) => ({ ...prev, ...applyDesignRateUnit(prev.unit, next) }))
+          setForm((prev) => ({
+            ...prev,
+            ...applyDesignRateUnit(prev.unit, next, prev.dispatchUnit),
+          }))
         }
         onFrom={(next) => setForm({ ...form, rate: next })}
         onTo={() => undefined}
@@ -717,6 +730,7 @@ export function ProductEditorPage() {
         piecesPerPack={form.piecesPerPack}
         dispatchUnit={form.dispatchUnit}
         moq={form.moq}
+        contentsUnit={rateUnit}
         onOrderUnit={(unit) => setForm({ ...form, unit })}
         onPiecesPerPack={(piecesPerPack) => setForm({ ...form, piecesPerPack })}
         onDispatchUnit={(dispatchUnit) => setForm({ ...form, dispatchUnit })}
@@ -766,24 +780,24 @@ export function ProductEditorPage() {
       </div>
 
       {editing && existing.data
-        ? createPortal(
-            <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
-              <div className="mx-auto flex max-w-md gap-2">
+        ? (
+            <BottomTradeDock testId="product-editor-dock" aboveAppNav={false}>
                 <Button
                   className="min-w-0 flex-1"
-                  disabled={save.isPending || uploading}
+                  loading={save.isPending}
+                  disabled={uploading}
                   onClick={() => save.mutate()}
                 >
-                  {save.isPending ? 'Updating…' : 'Update'}
+                  Update
                 </Button>
                 {isArchived ? (
                   <Button
                     variant="secondary"
                     className="min-w-0 flex-1"
-                    disabled={restore.isPending}
+                    loading={restore.isPending}
                     onClick={() => restore.mutate()}
                   >
-                    {restore.isPending ? 'Restoring…' : 'Restore'}
+                    Restore
                   </Button>
                 ) : isDraft ? (
                   <Button
@@ -803,17 +817,16 @@ export function ProductEditorPage() {
                     Visibility
                   </Button>
                 )}
-              </div>
-            </div>,
-            document.body,
+            </BottomTradeDock>
           )
         : (
           <Button
             fullWidth
-            disabled={save.isPending || uploading}
+            loading={save.isPending}
+            disabled={uploading}
             onClick={() => save.mutate()}
           >
-            {save.isPending ? 'Saving…' : 'Save design'}
+            Save design
           </Button>
         )}
 
@@ -853,14 +866,11 @@ export function ProductEditorPage() {
         footer={
           <Button
             fullWidth
-            disabled={!canSubmitMarket || postToMarket.isPending}
+            loading={postToMarket.isPending}
+            disabled={!canSubmitMarket}
             onClick={() => postToMarket.mutate()}
           >
-            {postToMarket.isPending
-              ? 'Publishing…'
-              : onMarket
-                ? 'Update visibility'
-                : 'Publish'}
+            {onMarket ? 'Update visibility' : 'Publish'}
           </Button>
         }
       >

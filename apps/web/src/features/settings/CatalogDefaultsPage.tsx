@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  isPackOrderUnit,
   RateVisibility,
   Unit,
   unitValues,
@@ -31,6 +30,7 @@ export function CatalogDefaultsPage() {
   const [allowDownload, setAllowDownload] = useState(false);
   const [unit, setUnit] = useState(DEFAULT_SELL_AS_UNIT);
   const [dispatchUnit, setDispatchUnit] = useState(DEFAULT_DISPATCH_UNIT);
+  const [catalogRateUnit, setCatalogRateUnit] = useState(Unit.Piece);
   const [piecesPerPack, setPiecesPerPack] = useState('');
   const [moq, setMoq] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +45,7 @@ export function CatalogDefaultsPage() {
     setAllowDownload(pub.allowDownload);
     setUnit(sell.unit || DEFAULT_SELL_AS_UNIT);
     setDispatchUnit(sell.dispatchUnit || DEFAULT_DISPATCH_UNIT);
+    setCatalogRateUnit(sell.catalogRateUnit || Unit.Piece);
     setPiecesPerPack(sell.piecesPerPack);
     setMoq(sell.moq);
   }, [settings.data]);
@@ -61,6 +62,7 @@ export function CatalogDefaultsPage() {
           sellAsUsual: {
             unit,
             dispatchUnit,
+            catalogRateUnit,
             piecesPerPack: piecesPerPack.trim() || undefined,
             moq: moq.trim() || undefined,
           },
@@ -82,7 +84,13 @@ export function CatalogDefaultsPage() {
   const order = unit || DEFAULT_SELL_AS_UNIT;
   const dispatch = dispatchUnit.trim() || DEFAULT_DISPATCH_UNIT;
   const ratePer =
-    catalogRateDisplayUnit({ unit: order, dispatchUnit: dispatch }) ?? Unit.Piece;
+    catalogRateUnit.trim() ||
+    catalogRateDisplayUnit({
+      unit: order,
+      dispatchUnit: dispatch,
+      catalogRateUnit,
+    }) ||
+    Unit.Piece;
 
   return (
     <div className="flex flex-col gap-5 pb-8">
@@ -149,13 +157,7 @@ export function CatalogDefaultsPage() {
             aria-label="Rate unit"
             value={ratePer}
             onChange={(e) => {
-              const next = e.target.value;
-              // Rate per pc must not write pc onto Dispatch (journey stays set).
-              if (isPackOrderUnit(order) && (next === Unit.Piece || next === order)) {
-                setDispatchUnit(order);
-              } else {
-                setDispatchUnit(next);
-              }
+              setCatalogRateUnit(e.target.value);
             }}
             className={`min-h-9 ${SELECT_FIELD_CLASS} px-2.5 text-sm font-emphasis text-ink`}
           >
@@ -174,6 +176,7 @@ export function CatalogDefaultsPage() {
           piecesPerPack={piecesPerPack}
           dispatchUnit={dispatch}
           moq={moq}
+          contentsUnit={ratePer}
           onOrderUnit={setUnit}
           onPiecesPerPack={setPiecesPerPack}
           onDispatchUnit={setDispatchUnit}
@@ -181,8 +184,8 @@ export function CatalogDefaultsPage() {
         />
       </section>
 
-      <Button fullWidth disabled={save.isPending} onClick={() => save.mutate()}>
-        {save.isPending ? 'Saving…' : 'Save defaults'}
+      <Button fullWidth loading={save.isPending} onClick={() => save.mutate()}>
+        Save defaults
       </Button>
     </div>
   );

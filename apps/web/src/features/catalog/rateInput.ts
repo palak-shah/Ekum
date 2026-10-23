@@ -10,6 +10,8 @@ export type SameForAllDetails = {
   rate: string;
   unit: string;
   dispatchUnit: string;
+  /** Rate per (billing). Independent of dispatch. */
+  catalogRateUnit: string;
   /** Pieces in one set / dozen / box — empty when unset. */
   piecesPerPack: string;
   moq: string;

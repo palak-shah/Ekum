@@ -29,6 +29,14 @@ describe('catalogRate', () => {
     expect(formatCatalogRate({ rate: 640, unit: 'set', dispatchUnit: 'set' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 640, unit: 'set', dispatchUnit: 'pc' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 94, unit: 'set', dispatchUnit: 'mtr' })).toBe('₹94/mtr');
+    expect(
+      formatCatalogRate({
+        rate: 91,
+        unit: 'set',
+        dispatchUnit: 'set',
+        catalogRateUnit: 'mtr',
+      }),
+    ).toBe('₹91/mtr');
     expect(formatCatalogRate({ rate: 91, unit: 'mtr' })).toBe('₹91/mtr');
     expect(formatCatalogRate({ rate: 640, unit: 'pc' })).toBe('₹640/pc');
     expect(formatCatalogRate({ rate: 800, unit: 'mtr' })).toBe('₹800/mtr');
@@ -37,6 +45,7 @@ describe('catalogRate', () => {
   it('labels create rate field per dispatch when pack', () => {
     expect(catalogRateFieldLabel('set', 'pc')).toBe('Rate per pc');
     expect(catalogRateFieldLabel('set', 'mtr')).toBe('Rate per mtr');
+    expect(catalogRateFieldLabel('set', 'set', undefined, 'mtr')).toBe('Rate per mtr');
     expect(catalogRateFieldLabel('pc')).toBe('Rate');
   });
 });

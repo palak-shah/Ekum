@@ -7,7 +7,7 @@ import {
 } from './DispatchLrBillInputs';
 
 describe('DispatchLrBillInputs', () => {
-  it('names empty fields LR number and Bill number', () => {
+  it('names empty fields LR number and Bill Number/Bale Number', () => {
     render(
       <DispatchLrBillInputs
         lrNumber=""
@@ -21,13 +21,15 @@ describe('DispatchLrBillInputs', () => {
       'placeholder',
       DISPATCH_LR_NUMBER_PLACEHOLDER,
     );
-    expect(screen.getByLabelText('Bill number 1')).toHaveAttribute(
-      'placeholder',
-      DISPATCH_BILL_NUMBER_PLACEHOLDER,
-    );
+    expect(
+      screen.getByLabelText(`${DISPATCH_BILL_NUMBER_PLACEHOLDER} 1`),
+    ).toHaveAttribute('placeholder', DISPATCH_BILL_NUMBER_PLACEHOLDER);
     expect(screen.getByLabelText('LR number 1')).not.toHaveAttribute(
       'placeholder',
       'Optional',
+    );
+    expect(screen.getByLabelText('LR number 1').parentElement).toHaveClass(
+      'grid-cols-[minmax(0,1fr)_minmax(0,1.75fr)]',
     );
   });
 
@@ -46,9 +48,8 @@ describe('DispatchLrBillInputs', () => {
       'placeholder',
       'LR number',
     );
-    expect(screen.getByLabelText('Bill number 3')).toHaveAttribute(
-      'placeholder',
-      'Bill number',
-    );
+    expect(
+      screen.getByLabelText(`${DISPATCH_BILL_NUMBER_PLACEHOLDER} 3`),
+    ).toHaveAttribute('placeholder', DISPATCH_BILL_NUMBER_PLACEHOLDER);
   });
 });

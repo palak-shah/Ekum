@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { ApiError } from '@/lib/apiClient';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { Button, TextArea, cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { CameraIcon, ImageIcon, MicIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { voiceStageFromClip } from './chatVoiceHold';
@@ -333,7 +335,7 @@ export function NoteAttachField({
         <div className="flex flex-wrap gap-2">
           {images.map((url) => (
             <div key={url} className="relative h-14 w-14 overflow-hidden rounded-lg bg-foam">
-              <img src={url} alt="" className="h-full w-full object-cover" />
+              <ManagedImage src={url} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
               <button
                 type="button"
                 aria-label="Remove photo"

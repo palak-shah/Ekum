@@ -30,6 +30,11 @@ function bindPageHideOnce() {
   window.addEventListener('pagehide', () => {
     disposeMediaSession();
   });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      hardStop('camera');
+    }
+  });
 }
 
 export function streamHasLiveTrack(stream: MediaStream, kind: MediaKind): boolean {

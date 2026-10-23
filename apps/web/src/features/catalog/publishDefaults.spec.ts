@@ -39,6 +39,7 @@ describe('publishDefaults', () => {
     expect(readCompanySellAsUsual(null)).toEqual({
       unit: 'set',
       dispatchUnit: 'set',
+      catalogRateUnit: 'pc',
       piecesPerPack: '',
       moq: '',
     });
@@ -64,6 +65,7 @@ describe('publishDefaults', () => {
     ).toEqual({
       unit: 'set',
       dispatchUnit: 'set',
+      catalogRateUnit: 'pc',
       piecesPerPack: '6',
       moq: '12',
     });

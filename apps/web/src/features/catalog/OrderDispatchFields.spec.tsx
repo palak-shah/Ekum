@@ -9,10 +9,12 @@ function Harness({
   initialOrderUnit = Unit.Set,
   initialPieces = '',
   initialDispatch = Unit.Set,
+  contentsUnit,
 }: {
   initialOrderUnit?: string;
   initialPieces?: string;
   initialDispatch?: string;
+  contentsUnit?: string;
 }) {
   const [orderUnit, setOrderUnit] = useState(initialOrderUnit);
   const [piecesPerPack, setPiecesPerPack] = useState(initialPieces);
@@ -24,6 +26,7 @@ function Harness({
       piecesPerPack={piecesPerPack}
       dispatchUnit={dispatchUnit}
       moq={moq}
+      contentsUnit={contentsUnit}
       onOrderUnit={setOrderUnit}
       onPiecesPerPack={setPiecesPerPack}
       onDispatchUnit={setDispatchUnit}
@@ -63,6 +66,40 @@ describe('OrderDispatchFields set-contains', () => {
     expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('mtr');
   });
 
+  it('uses Rate per (contentsUnit) even when dispatch is still set', () => {
+    render(<Harness contentsUnit={Unit.Metre} />);
+    expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('mtr');
+  });
+
+  it('treats typed 0 as not given and keeps Rate per unit', async () => {
+    const user = userEvent.setup();
+    render(<Harness initialPieces="4" contentsUnit={Unit.Metre} />);
+    const input = screen.getByTestId('collection-set-contains');
+    await user.clear(input);
+    await user.type(input, '0');
+    expect(input).toHaveValue('');
+    expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('mtr');
+  });
+
+  it('hides the 4 placeholder while the field is focused', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const input = screen.getByTestId('collection-set-contains');
+    expect(input).toHaveAttribute('placeholder', '4');
+    await user.click(input);
+    expect(input).not.toHaveAttribute('placeholder');
+  });
+
+  it('keeps typed digits in the value (not a vanishing 4ch box)', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const input = screen.getByTestId('collection-set-contains');
+    await user.click(input);
+    await user.type(input, '39');
+    expect(input).toHaveValue('39');
+    expect(input).toHaveClass('w-12');
+  });
+
   it('shows n unit while they type (4 pcs)', () => {
     render(<Harness initialPieces="4" />);
     expect(screen.getByTestId('collection-set-contains')).toHaveValue('4');
@@ -73,9 +110,14 @@ describe('OrderDispatchFields set-contains', () => {
     render(<Harness initialPieces="4" />);
     const cluster = screen.getByTestId('collection-set-contains-cluster');
     expect(cluster).toHaveClass('w-fit');
-    expect(screen.getByTestId('collection-set-contains')).toHaveClass('w-[4ch]');
-    expect(screen.getByTestId('collection-set-contains')).toHaveClass('text-right');
-    expect(screen.getByTestId('collection-set-contains')).not.toHaveClass('flex-1');
+    const input = screen.getByTestId('collection-set-contains');
+    // 4ch + text-right hid typed digits (caret still blinked). Same box as − n +.
+    expect(input).toHaveClass('w-12');
+    expect(input).toHaveClass('text-center');
+    expect(input).toHaveClass('text-base');
+    expect(input).not.toHaveClass('flex-1');
+    expect(input).not.toHaveClass('w-[4ch]');
+    expect(input).not.toHaveClass('text-right');
   });
 
   it('keeps singular unit at 1 pc', () => {
@@ -93,6 +135,15 @@ describe('OrderDispatchFields set-contains', () => {
         moq: '',
       }),
     ).toBe('set · 12 pcs');
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'set',
+        piecesPerPack: '47',
+        dispatchUnit: 'set',
+        moq: '',
+        contentsUnit: 'mtr',
+      }),
+    ).toBe('set · 47 mtrs');
   });
 
   it('autofills 12 when order unit becomes dozen and field is empty', async () => {

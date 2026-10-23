@@ -204,16 +204,11 @@ export function BuyerGroupFormSheet({
 
         <Button
           fullWidth
-          disabled={!draft.name.trim() || save.isPending}
+          loading={save.isPending}
+          disabled={!draft.name.trim()}
           onClick={() => save.mutate()}
         >
-          {save.isPending
-            ? draft.id
-              ? 'Updating…'
-              : 'Saving…'
-            : draft.id
-              ? 'Update group'
-              : 'Create group'}
+          {draft.id ? 'Update group' : 'Create group'}
         </Button>
         {allowDelete && draft.id ? (
           <Button

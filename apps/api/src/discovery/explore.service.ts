@@ -43,8 +43,11 @@ import {
   isCollectionLiveForBuyers,
   liveWindowClauses,
 } from '../catalog/collection-schedule';
-import { collectionCardRateFields } from './collection-card-rate';
-import { collectionCardInclude, publishedCollectionMemberWhere } from './collection-preview';
+import {
+  collectionCardRateFields,
+  collectionCardRateVisibility,
+} from './collection-card-rate';
+import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import { rankWindowTake } from './rank-window';
 import {
@@ -452,13 +455,7 @@ export class ExploreService {
         AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
         OR: audienceOr,
       },
-      include: {
-        ...collectionCardInclude,
-        products: {
-          where: publishedCollectionMemberWhere,
-          include: { product: { select: { images: true, companyId: true, status: true } } },
-        },
-      },
+      include: collectionCardInclude,
       orderBy: [{ exploreActivityAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
       take: 80,
     });
@@ -466,7 +463,9 @@ export class ExploreService {
     return withLiveDesigns(rows)
       .filter((row) => isDirectedAudience(row.audience) || broadcastCollectionIds.includes(row.id))
       .map((row) => {
-        const card = this.discovery.toCollectionCard(row);
+        const card = this.discovery.toCollectionCard(row, {
+          viewerCompanyId,
+        });
         const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
         return {
           postedAt: row.exploreActivityAt ?? row.updatedAt,
@@ -588,7 +587,7 @@ export class ExploreService {
       return toCursorPage(
         page,
         query.limit,
-        (row) => this.toExplorePost(row, stamps),
+        (row) => this.toExplorePost(row, stamps, viewerCompanyId),
         (row) => row.feedId,
       );
     }
@@ -660,7 +659,7 @@ export class ExploreService {
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row, stamps),
+      (row) => this.toExplorePost(row, stamps, viewerCompanyId),
       (row) => row.feedId,
     );
   }
@@ -1110,13 +1109,18 @@ export class ExploreService {
       });
     }
 
-    const card = this.discovery.toCollectionCard(collection);
+    const card = this.discovery.toCollectionCard(collection, { viewerCompanyId });
     // Album facts: pack rate first; else min–max priced designs. Owner always
     // sees the band; on_request hides it from other users only.
     const albumRate = collectionCardRateFields({
-      rateVisibility: isOwner ? RateVisibility.Visible : collection.rateVisibility,
+      rateVisibility: collectionCardRateVisibility({
+        rateVisibility: collection.rateVisibility,
+        packCompanyId: collection.companyId,
+        viewerCompanyId,
+      }),
       rate: collection.rate,
       rateMax: collection.rateMax,
+      catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
       products: collection.products,
     });
     const description = collection.description?.trim() || null;
@@ -1624,6 +1628,7 @@ export class ExploreService {
     return toCursorPage(rows, limit, (row) =>
       this.discovery.toCollectionCard(row, {
         viewerReposted: stamps.collections.has(row.id),
+        viewerCompanyId,
       }),
     );
   }
@@ -1694,6 +1699,7 @@ export class ExploreService {
   private toExplorePost(
     row: FeedRow,
     stamps: { collections: Set<string>; products: Set<string> },
+    viewerCompanyId: string,
   ): ExplorePost {
     if (row.kind === 'collection' && row.collection) {
       return {
@@ -1702,6 +1708,7 @@ export class ExploreService {
         postedAt: row.postedAt.toISOString(),
         collection: this.discovery.toCollectionCard(row.collection, {
           viewerReposted: stamps.collections.has(row.collection.id),
+          viewerCompanyId,
         }),
       };
     }

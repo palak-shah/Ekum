@@ -100,11 +100,12 @@ export function OwnerPackManageDock({
       ) : onUpdate ? (
         <Button
           fullWidth
+          loading={updatePending}
           disabled={updateDisabled || busy}
           data-testid="collection-editor-update"
           onClick={onUpdate}
         >
-          {updatePending ? 'Updating…' : 'Update collection'}
+          Update collection
         </Button>
       ) : (
         <>

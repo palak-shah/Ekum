@@ -72,6 +72,15 @@ describe('howManyLineMeta', () => {
     expect(
       howManyLineExtra({
         unit: 'set',
+        dispatchUnit: 'set',
+        catalogRateUnit: 'mtr',
+        piecesPerPack: 47,
+        rate: 91,
+      }),
+    ).toBe('₹91/mtr');
+    expect(
+      howManyLineExtra({
+        unit: 'set',
         dispatchUnit: 'mtr',
         piecesPerPack: 39,
         rate: 91,
@@ -154,6 +163,9 @@ describe('howManyLineMeta', () => {
     expect(howManySetsBanner([{ unit: 'set', dispatchUnit: 'mtr' }])).toBe(
       'Rates are per mtr. Order per set. Dispatch per mtr.',
     );
+    expect(
+      howManySetsBanner([{ unit: 'set', dispatchUnit: 'set', catalogRateUnit: 'mtr' }]),
+    ).toBe('Rates are per mtr. Order and dispatch per set.');
     expect(howManySetsBanner([{ unit: 'pc' }])).toBeNull();
     expect(
       howManyOrderFooterSummary([

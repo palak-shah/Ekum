@@ -1,6 +1,6 @@
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { ShareLinkView } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type ShareLinkView } from '@ekum/domain-types';
 import { designSetPath } from '@/features/browse/designSetPath';
 import { DesignAlbumGrid } from '@/features/chats/DesignAlbumGrid';
 import { api } from '@/lib/apiClient';
@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { stashInviteReturn } from '@/lib/inviteReturn';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { Button, ErrorState, LoadingBlock } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 function viewerPath(data: ShareLinkView): string {
   if (data.kind === 'collection') return `/collections/${data.targetId}`;
@@ -82,9 +83,10 @@ export function ShareLinkLandingPage() {
                 onOpenDesign={() => goJoin()}
               />
             ) : data.image ? (
-              <img
+              <ManagedImage
                 src={toAbsoluteMediaUrl(data.image)}
                 alt=""
+                variant={MEDIA_VARIANT.Thumbnail2}
                 className="aspect-[4/5] w-full object-cover"
               />
             ) : (
@@ -96,7 +98,7 @@ export function ShareLinkLandingPage() {
         ) : (
           <div className="overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-soft)]">
             {data.image ? (
-              <img src={data.image} alt="" className="aspect-[4/5] w-full object-cover" />
+              <ManagedImage src={data.image} alt="" variant={MEDIA_VARIANT.Thumbnail2} className="aspect-[4/5] w-full object-cover" />
             ) : (
               <div className="flex aspect-[4/5] w-full items-center justify-center bg-accent text-lg font-emphasis text-white">
                 Ekum
@@ -120,9 +122,10 @@ export function ShareLinkLandingPage() {
                 className="overflow-hidden rounded-2xl border border-line bg-surface text-left"
               >
                 {design.image ? (
-                  <img
+                  <ManagedImage
                     src={design.image}
                     alt=""
+                    variant={MEDIA_VARIANT.Thumbnail1}
                     className="aspect-[3/4] w-full object-cover"
                   />
                 ) : (

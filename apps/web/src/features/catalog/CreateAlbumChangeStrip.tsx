@@ -1,4 +1,6 @@
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { cx } from '@/lib/cx';
+import { ManagedImage } from '@/ui/ManagedImage';
 import {
   CREATE_ALBUM_STRIP_MAX,
   createAlbumChangeLabel,
@@ -36,7 +38,7 @@ export function CreateAlbumChangeStrip({
               )}
               style={{ zIndex: i }}
             >
-              <img src={thumb.src} alt="" className="h-full w-full object-cover" />
+              <ManagedImage src={thumb.src} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
             </span>
           ))}
         </span>

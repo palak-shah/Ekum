@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
+  MEDIA_VARIANT,
   documentFromMessage,
   documentTypeCue,
   photoUrlsFromMessage,
@@ -12,6 +13,7 @@ import { api } from '@/lib/apiClient';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { timeAgo } from '@/lib/format';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { Chip, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
 import { ChevronRightIcon } from '@/ui/icons';
 import { chatMediaKindChrome } from './chatMediaKindChrome';
@@ -193,7 +195,7 @@ export function GroupInfoMediaPanel({
                     aria-label="Photo"
                     onClick={() => setViewerIndex(group.startIndex + localIndex)}
                   >
-                    <img src={cell.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <ManagedImage src={cell.url} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" loading="lazy" />
                   </button>
                 ))}
               </div>
@@ -233,9 +235,10 @@ export function GroupInfoMediaPanel({
                     )}
                   >
                     {thumb ? (
-                      <img
+                      <ManagedImage
                         src={toAbsoluteMediaUrl(thumb) ?? thumb}
                         alt=""
+                        variant={MEDIA_VARIANT.Thumbnail1}
                         className="h-full w-full object-cover"
                         loading="lazy"
                       />

@@ -3,7 +3,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { JobQueue } from './job-queue.service';
 import { JobRunner } from './job-runner.service';
 import { JOB_HANDLERS, type JobHandler } from './job.types';
+import { storageProvider } from '../media/storage/storage.provider';
 import { MediaThumbnailHandler } from './handlers/media-thumbnail.handler';
+import { MediaThumbnailBackfillHandler } from './handlers/media-thumbnail-backfill.handler';
 import { ReturnWindowHandler } from './handlers/return-window.handler';
 import { NotificationDigestHandler } from './handlers/notification-digest.handler';
 import { CollectionExpireHandler } from './handlers/collection-expire.handler';
@@ -17,9 +19,11 @@ import { CollectionExpireHandler } from './handlers/collection-expire.handler';
 @Module({
   imports: [NotificationsModule],
   providers: [
+    storageProvider,
     JobQueue,
     JobRunner,
     MediaThumbnailHandler,
+    MediaThumbnailBackfillHandler,
     ReturnWindowHandler,
     NotificationDigestHandler,
     CollectionExpireHandler,
@@ -27,12 +31,14 @@ import { CollectionExpireHandler } from './handlers/collection-expire.handler';
       provide: JOB_HANDLERS,
       useFactory: (
         media: MediaThumbnailHandler,
+        backfill: MediaThumbnailBackfillHandler,
         returnWindow: ReturnWindowHandler,
         digest: NotificationDigestHandler,
         collectionExpire: CollectionExpireHandler,
-      ): JobHandler[] => [media, returnWindow, digest, collectionExpire],
+      ): JobHandler[] => [media, backfill, returnWindow, digest, collectionExpire],
       inject: [
         MediaThumbnailHandler,
+        MediaThumbnailBackfillHandler,
         ReturnWindowHandler,
         NotificationDigestHandler,
         CollectionExpireHandler,

@@ -124,6 +124,7 @@ export type ItemFacts = {
   rate: number | null;
   unit: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   remainingQuantity?: number;
   shippedQuantity?: number;
@@ -205,6 +206,7 @@ export function orderLineMoneyCue(item: ItemFacts): string | null {
     rate: item.rate,
     unit: item.unit,
     dispatchUnit: item.dispatchUnit,
+    catalogRateUnit: item.catalogRateUnit,
   });
   if (rate) bits.push(`Price ${rate}`);
   const bill = lineBillAmount({
@@ -274,6 +276,7 @@ export function orderLineFactCellDefs(item: ItemFacts): OrderLineFactCellDef[] {
             rate: item.rate,
             unit: item.unit,
             dispatchUnit: item.dispatchUnit,
+            catalogRateUnit: item.catalogRateUnit,
           }) ?? formatOrderLinePriceAmount(item.rate!))
         : '',
       testId: 'order-line-fact-price',
@@ -443,6 +446,7 @@ export function OrderLineFacts({
                 rate: item.rate,
                 unit: item.unit,
                 dispatchUnit: item.dispatchUnit,
+                catalogRateUnit: item.catalogRateUnit,
               }) ?? formatOrderLinePriceAmount(item.rate!)}
             </span>
           </>

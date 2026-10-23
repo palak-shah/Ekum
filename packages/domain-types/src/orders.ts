@@ -622,6 +622,7 @@ export interface OrderItemView {
   rate: number | null;
   unit: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   image: string | null;
   images: string[];

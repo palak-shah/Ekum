@@ -46,24 +46,29 @@ export class ProductService {
         'masterCategoryId',
         withPrismaField(
           'Product',
-          'dispatchUnit',
-          {
-            companyId,
-            name,
-            sku,
-            description: dto.description ?? null,
-            moq: dto.moq ?? null,
-            rate: dto.rate ?? null,
-            rateMax: dto.rateMax ?? null,
-            // Platform default: order + dispatch journey in sets; rate/billing per pc.
-            unit: dto.unit ?? 'set',
-            piecesPerPack: dto.piecesPerPack ?? null,
-            categories: dto.categories,
-            images: dto.images,
-            createdByUserId: userId,
-            updatedByUserId: userId,
-          },
-          dto.dispatchUnit ?? 'set',
+          'catalogRateUnit',
+          withPrismaField(
+            'Product',
+            'dispatchUnit',
+            {
+              companyId,
+              name,
+              sku,
+              description: dto.description ?? null,
+              moq: dto.moq ?? null,
+              rate: dto.rate ?? null,
+              rateMax: dto.rateMax ?? null,
+              // Platform default: order + dispatch journey in sets; rate/billing per pc.
+              unit: dto.unit ?? 'set',
+              piecesPerPack: dto.piecesPerPack ?? null,
+              categories: dto.categories,
+              images: dto.images,
+              createdByUserId: userId,
+              updatedByUserId: userId,
+            },
+            dto.dispatchUnit ?? 'set',
+          ),
+          dto.catalogRateUnit ?? null,
         ),
         masterCategoryId,
       ),
@@ -123,6 +128,10 @@ export class ProductService {
         ...(dto.piecesPerPack !== undefined ? { piecesPerPack: dto.piecesPerPack } : {}),
         ...(dto.dispatchUnit !== undefined && prismaModelHasField('Product', 'dispatchUnit')
           ? { dispatchUnit: dto.dispatchUnit }
+          : {}),
+        ...(dto.catalogRateUnit !== undefined &&
+        prismaModelHasField('Product', 'catalogRateUnit')
+          ? { catalogRateUnit: dto.catalogRateUnit }
           : {}),
         ...(masterCategoryId !== undefined ? { masterCategoryId } : {}),
         categories: dto.categories,

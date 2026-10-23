@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
-import { AlbumGrid, COVER_IMAGE_ROOT_MARGIN } from './cards';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { AlbumGrid, COVER_IMAGE_ROOT_MARGIN, CoverImage } from './cards';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 
 class FakeIntersectionObserver {
   static instances: FakeIntersectionObserver[] = [];
@@ -50,5 +51,49 @@ describe('CoverImage easy load', () => {
       expect(screen.getByRole('img')).toHaveAttribute('src', 'https://media.test/pack.jpg');
     });
     expect(screen.getByRole('img')).toHaveAttribute('decoding', 'async');
+  });
+
+  it('requests thumbnail2 for managed catalog photos', async () => {
+    render(
+      <AlbumGrid
+        images={['http://localhost:3000/media/c1/pack.jpg']}
+        imageCount={1}
+        alt="Wedding"
+        priority
+      />,
+    );
+    expect(screen.getByRole('img')).toHaveAttribute(
+      'src',
+      'http://localhost:3000/media/c1/thumbnail2/pack.webp',
+    );
+  });
+});
+
+describe('CoverImage which variant', () => {
+  afterEach(() => cleanup());
+
+  it('defaults to thumbnail2 for Explore / feed cards', () => {
+    render(
+      <CoverImage src="http://localhost:3000/media/c1/original/a.jpg" alt="Feed" priority />,
+    );
+    expect(screen.getByRole('img')).toHaveAttribute(
+      'src',
+      'http://localhost:3000/media/c1/thumbnail2/a.webp',
+    );
+  });
+
+  it('uses thumbnail1 when a list row asks for card size', () => {
+    render(
+      <CoverImage
+        src="http://localhost:3000/media/c1/original/a.jpg"
+        alt="Row"
+        priority
+        variant={MEDIA_VARIANT.Thumbnail1}
+      />,
+    );
+    expect(screen.getByRole('img')).toHaveAttribute(
+      'src',
+      'http://localhost:3000/media/c1/thumbnail1/a.webp',
+    );
   });
 });

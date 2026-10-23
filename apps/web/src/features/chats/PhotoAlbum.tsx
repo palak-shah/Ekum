@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
+import { MEDIA_VARIANT, type MediaVariant } from '@ekum/domain-types';
 
 const GUTTER = 2;
 
@@ -19,6 +21,7 @@ function Cell({
   overlayClass,
   locked,
   well = 'bg-foam',
+  variant = MEDIA_VARIANT.Thumbnail1,
 }: {
   src: string;
   className?: string;
@@ -29,6 +32,7 @@ function Cell({
   locked?: boolean;
   /** Trade-card thumbs use canvas — foam washed incoming cards pale green. */
   well?: string;
+  variant?: MediaVariant;
 }) {
   return (
     <button
@@ -44,9 +48,10 @@ function Cell({
         className,
       )}
     >
-      <img
+      <ManagedImage
         src={src}
         alt=""
+        variant={variant}
         className={cx('h-full w-full object-cover', locked ? 'blur-[3px] scale-110' : null)}
       />
       {overlay ? (
@@ -196,9 +201,10 @@ export function PhotoAlbum({
           locked ? 'cursor-default' : null,
         )}
       >
-        <img
+        <ManagedImage
           src={urlAt(preview, 0)}
           alt=""
+          variant={compact ? MEDIA_VARIANT.Thumbnail1 : MEDIA_VARIANT.Thumbnail2}
           className={cx(
             'w-full object-cover',
             compact ? 'max-h-28' : 'max-h-72',

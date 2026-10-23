@@ -355,6 +355,7 @@ export const mediaStatusValues = values(MediaStatus);
 /** The background job types processed by the Postgres-backed job runner. */
 export const JobType = {
   MediaThumbnail: 'media.thumbnail',
+  MediaThumbnailBackfill: 'media.thumbnail.backfill',
   ReturnWindowExpire: 'return_window.expire',
   NotificationDigest: 'notification.digest',
   CollectionExpire: 'collection.expire',

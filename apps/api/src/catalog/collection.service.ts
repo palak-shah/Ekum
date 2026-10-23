@@ -149,6 +149,21 @@ export class CollectionService {
               ...(masterCategoryId !== null && prismaModelHasField('Collection', 'masterCategoryId')
                 ? { masterCategoryId }
                 : {}),
+              ...(dto.unit !== undefined && prismaModelHasField('Collection', 'unit')
+                ? { unit: dto.unit }
+                : {}),
+              ...(dto.dispatchUnit !== undefined &&
+              prismaModelHasField('Collection', 'dispatchUnit')
+                ? { dispatchUnit: dto.dispatchUnit }
+                : {}),
+              ...(dto.catalogRateUnit !== undefined &&
+              prismaModelHasField('Collection', 'catalogRateUnit')
+                ? { catalogRateUnit: dto.catalogRateUnit }
+                : {}),
+              ...(dto.piecesPerPack !== undefined &&
+              prismaModelHasField('Collection', 'piecesPerPack')
+                ? { piecesPerPack: dto.piecesPerPack }
+                : {}),
               startsAt: startsAt === undefined ? null : startsAt,
               endsAt: endsAt === undefined ? null : endsAt,
               createdByUserId: userId,
@@ -328,6 +343,19 @@ export class CollectionService {
           : {}),
         ...(dto.rateMax !== undefined && prismaModelHasField('Collection', 'rateMax')
           ? { rateMax: dto.rateMax }
+          : {}),
+        ...(dto.unit !== undefined && prismaModelHasField('Collection', 'unit')
+          ? { unit: dto.unit }
+          : {}),
+        ...(dto.dispatchUnit !== undefined && prismaModelHasField('Collection', 'dispatchUnit')
+          ? { dispatchUnit: dto.dispatchUnit }
+          : {}),
+        ...(dto.catalogRateUnit !== undefined &&
+        prismaModelHasField('Collection', 'catalogRateUnit')
+          ? { catalogRateUnit: dto.catalogRateUnit }
+          : {}),
+        ...(dto.piecesPerPack !== undefined && prismaModelHasField('Collection', 'piecesPerPack')
+          ? { piecesPerPack: dto.piecesPerPack }
           : {}),
         ...(dto.categories !== undefined ? { categories: dto.categories } : {}),
         ...(dto.masterCategoryId !== undefined &&

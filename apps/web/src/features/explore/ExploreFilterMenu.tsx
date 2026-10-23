@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { createPortal } from 'react-dom';
 import { Button, SearchInput, cx } from '@/ui/kit';
 import { BackIcon, CheckIcon, ChevronRightIcon } from '@/ui/icons';
+import { readFilterMenuPosition } from '@/ui/filterMenuPosition';
 import {
   allVisibleSelected,
   addVisible,
@@ -100,11 +101,8 @@ export function ExploreFilterMenu({
     const place = () => {
       const anchor = anchorRef.current;
       if (!anchor) return;
-      const rect = anchor.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
+      const wide = view === 'category' || view === 'city';
+      setPos(readFilterMenuPosition(anchor, panelRef.current, window.innerWidth, wide));
     };
     place();
     window.addEventListener('resize', place);

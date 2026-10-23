@@ -16,7 +16,7 @@ import {
 } from '@/lib/designBrowseLayout';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
-import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
+import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
@@ -171,7 +171,7 @@ function emptyProductCopy(filter: ProductFilter): { title: string; message: stri
       return {
         title: 'No designs',
         message:
-          'Publish a design for Explore, or publish a collection — collection designs show here too (not as separate Explore tiles).',
+          'Create a collection and add photos — those designs show here (not as separate Explore tiles).',
       };
     case 'archived':
       return {
@@ -181,7 +181,7 @@ function emptyProductCopy(filter: ProductFilter): { title: string; message: stri
     case 'draft':
       return {
         title: 'No draft designs',
-        message: 'Add designs, or create a collection — photos become designs here.',
+        message: 'Create a collection — photos become designs here.',
       };
   }
 }
@@ -219,7 +219,6 @@ export function MyCatalogPage({
   const canCurateOwn = selling || trading;
   const youSaved = embedded && (!catalogTabs || isYouSavedSearch(searchParams));
   const tab = tabFromSearch(searchParams);
-  const [postOpen, setPostOpen] = useState(false);
   const [sheetProduct, setSheetProduct] = useState<ProductView | null>(null);
   const [sheetIndex, setSheetIndex] = useState(0);
   const [layout, setLayout] = useState<DesignBrowseLayout>(() =>
@@ -755,17 +754,6 @@ export function MyCatalogPage({
             })}
           </div>
         ) : null}
-        {catalogTabs && !selecting && tab === 'products' ? (
-          <button
-            type="button"
-            data-testid="you-library-add"
-            aria-label="Add"
-            onClick={() => setPostOpen(true)}
-            className="relative z-0 ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_2px_8px_rgba(15,76,71,0.35)] hover:bg-accent-dark"
-          >
-            <PlusIcon width={20} height={20} />
-          </button>
-        ) : null}
       </div>
 
       {catalogTabs && tab === 'collections' && !selecting && !youSaved && !archivedCollections ? (
@@ -952,7 +940,9 @@ export function MyCatalogPage({
                   : publishedElsewhereHint ? (
                       <Button onClick={closeLibraryFind}>Show live</Button>
                     ) : productFilter === 'draft' ? (
-                      <Button onClick={() => setPostOpen(true)}>Add</Button>
+                      <Button onClick={() => navigate('/catalog/collections/new')}>
+                        New collection
+                      </Button>
                     ) : undefined
               }
             />
@@ -1351,32 +1341,6 @@ export function MyCatalogPage({
         />
       )}
 
-      <Sheet open={postOpen} onClose={() => setPostOpen(false)} title="What are you posting?">
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setPostOpen(false);
-              navigate('/catalog/products/new');
-            }}
-            className="rounded-2xl border border-line px-4 py-3.5 text-left"
-          >
-            <p className="text-sm font-emphasis text-ink">Single design</p>
-            <p className="mt-0.5 text-xs text-muted">One product post on Explore</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPostOpen(false);
-              navigate('/catalog/collections/new');
-            }}
-            className="rounded-2xl border border-line px-4 py-3.5 text-left"
-          >
-            <p className="text-sm font-emphasis text-ink">Collection</p>
-            <p className="mt-0.5 text-xs text-muted">Album of designs as one post</p>
-          </button>
-        </div>
-      </Sheet>
     </div>
   );
 }

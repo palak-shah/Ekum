@@ -24,8 +24,8 @@ export function SaveOrDiscardSheet({
       title="Save changes?"
       footer={
         <div className="flex flex-col gap-2" data-testid="save-or-discard-sheet">
-          <Button fullWidth autoFocus={open} disabled={saving} onClick={onSave}>
-            {saving ? 'Saving…' : 'Save'}
+          <Button fullWidth autoFocus={open} loading={saving} onClick={onSave}>
+            Save
           </Button>
           <Button
             fullWidth

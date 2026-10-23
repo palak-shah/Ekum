@@ -2,12 +2,14 @@
  * Local seed thumbnails for demo catalog. Avoids picsum.photos (unreliable / 503).
  * Committed photos live in prisma/seed-assets/; seed copies them to
  * apps/api/.media/seed/ and mountLocalMedia serves GET /media/seed/...
+ * Sibling thumbs live at seed/thumbnail1|{2}/{name}.webp; stored URLs stay the jpg.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { deflateSync } from 'node:zlib';
+import { deriveImageVariants } from '../media/derive-image-variants';
 import { resolveLocalMediaRoot } from '../media/local-media-root';
 
 export const SEED_IMAGE_NAMES = [
@@ -153,6 +155,8 @@ export async function ensureSeedImages(options?: {
   const assetsDir = options?.assetsDir ?? resolveSeedAssetsDir();
   const dir = join(mediaRoot, 'seed');
   await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, 'thumbnail1'), { recursive: true });
+  await mkdir(join(dir, 'thumbnail2'), { recursive: true });
 
   const urls = {} as Record<SeedImageName, string>;
   for (const name of SEED_IMAGE_NAMES) {
@@ -164,9 +168,20 @@ export async function ensureSeedImages(options?: {
       const [r, g, b] = SEED_COLORS[name];
       await writeFile(dest, solidColorPng(r, g, b));
     }
+    await writeSeedThumbnails(dir, name, dest);
     urls[name] = seedImageUrl(name, options?.publicMediaBase);
   }
   return urls;
+}
+
+async function writeSeedThumbnails(dir: string, name: SeedImageName, originalPath: string): Promise<void> {
+  try {
+    const variants = await deriveImageVariants(await readFile(originalPath));
+    await writeFile(join(dir, 'thumbnail1', `${name}.webp`), variants.thumbnail1);
+    await writeFile(join(dir, 'thumbnail2', `${name}.webp`), variants.thumbnail2);
+  } catch {
+    // Same as Media.failed: Explore/Orders fall back to the original jpg.
+  }
 }
 
 /** Stable fingerprint so tests can assert PNG output without golden files. */

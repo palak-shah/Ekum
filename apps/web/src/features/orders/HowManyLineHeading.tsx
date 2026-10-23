@@ -19,6 +19,7 @@ export function HowManyLineHeading({
   name,
   unit,
   dispatchUnit,
+  catalogRateUnit,
   piecesPerPack,
   moq,
   rate,
@@ -29,6 +30,7 @@ export function HowManyLineHeading({
   name: string;
   unit?: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   moq?: number | null;
   rate?: number | null;
@@ -37,9 +39,17 @@ export function HowManyLineHeading({
   /** When sizes differ — `₹… · 1 set = 20 pcs`, not `20 pcs · ₹`. */
   showPackSize?: boolean;
 }) {
-  const price = howManyLineExtra({ unit, dispatchUnit, piecesPerPack, moq, rate, rateMax });
+  const price = howManyLineExtra({
+    unit,
+    dispatchUnit,
+    catalogRateUnit,
+    piecesPerPack,
+    moq,
+    rate,
+    rateMax,
+  });
   const contents = showPackSize
-    ? howManyPackContentsLabel(unit, piecesPerPack, dispatchUnit)
+    ? howManyPackContentsLabel(unit, piecesPerPack, dispatchUnit, catalogRateUnit)
     : null;
   const one = (howManyUnitShort(unit) ?? 'set').toLowerCase();
   const packLine = contents && isPackOrderUnit(unit) ? `1 ${one} = ${contents}` : null;

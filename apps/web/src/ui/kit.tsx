@@ -16,7 +16,9 @@ import { BackIcon, CloseIcon, SearchIcon } from '@/ui/icons';
 import { InfoHint } from '@/ui/InfoHint';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { textInputChromeClass } from '@/ui/mobileOverflow';
 
 export { cx } from '@/lib/cx';
@@ -36,9 +38,19 @@ const BUTTON_VARIANT: Record<ButtonVariant, string> = {
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   fullWidth?: boolean;
+  /** Shared click-lock: Spinner + disabled so they cannot double-tap. */
+  loading?: boolean;
 }
 
-export function Button({ variant = 'primary', fullWidth, className, ...props }: ButtonProps) {
+export function Button({
+  variant = 'primary',
+  fullWidth,
+  className,
+  loading = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={cx(
@@ -47,8 +59,20 @@ export function Button({ variant = 'primary', fullWidth, className, ...props }: 
         fullWidth && 'w-full',
         className,
       )}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading ? (
+        <Spinner
+          label={false}
+          className={
+            variant === 'primary' ? 'border-white/35 border-t-white' : undefined
+          }
+        />
+      ) : null}
+      {children}
+    </button>
   );
 }
 
@@ -161,13 +185,27 @@ export function Field({ label, hint, info, error, required, className, children 
 }
 
 export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function TextInput({ className, disabled, readOnly, ...props }, ref) {
+  function TextInput(
+    { className, disabled, readOnly, placeholder, onFocus, onBlur, ...props },
+    ref,
+  ) {
     const locked = Boolean(disabled || readOnly);
+    const [focused, setFocused] = useState(false);
     return (
       <input
         ref={ref}
         disabled={disabled}
         readOnly={readOnly}
+        {...props}
+        placeholder={focused ? undefined : placeholder}
+        onFocus={(event) => {
+          setFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocused(false);
+          onBlur?.(event);
+        }}
         className={cx(
           // text-base (16px) avoids iOS focus-zoom unless caller sets compact text-*;
           // width / pad / min-h merge via textInputChromeClass (BM-07 clipped nums).
@@ -175,7 +213,6 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
           textInputChromeClass(className, { locked }),
           className,
         )}
-        {...props}
       />
     );
   },
@@ -211,8 +248,12 @@ export const SearchInput = forwardRef<
 export const TextArea = forwardRef<
   HTMLTextAreaElement,
   TextareaHTMLAttributes<HTMLTextAreaElement>
->(function TextArea({ className, disabled, readOnly, ...props }, ref) {
+>(function TextArea(
+  { className, disabled, readOnly, placeholder, onFocus, onBlur, ...props },
+  ref,
+) {
   const locked = Boolean(disabled || readOnly);
+  const [focused, setFocused] = useState(false);
   const hasMinH = Boolean(className && /(?:^|\s)(?:\S+:)*min-h-/.test(` ${className}`));
   const chromeSource = [!hasMinH ? 'min-h-24' : '', className].filter(Boolean).join(' ');
   return (
@@ -220,13 +261,22 @@ export const TextArea = forwardRef<
       ref={ref}
       disabled={disabled}
       readOnly={readOnly}
+      {...props}
+      placeholder={focused ? undefined : placeholder}
+      onFocus={(event) => {
+        setFocused(true);
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        onBlur?.(event);
+      }}
       className={cx(
         textInputChromeClass(chromeSource, { locked }),
         !hasMinH && 'min-h-24',
         'px-3.5 py-2.5',
         className,
       )}
-      {...props}
     />
   );
 });
@@ -277,9 +327,10 @@ export function Avatar({
   const [broken, setBroken] = useState(false);
   if (src && !broken) {
     return (
-      <img
+      <ManagedImage
         src={src}
         alt={name}
+        variant={MEDIA_VARIANT.Thumbnail1}
         className="shrink-0 rounded-full object-cover"
         style={{ width: size, height: size }}
         draggable={false}
@@ -313,14 +364,22 @@ export function SectionHeader({ title, action }: { title: string; action?: React
   );
 }
 
-export function Spinner({ className }: { className?: string }) {
+export function Spinner({
+  className,
+  label = 'Loading',
+}: {
+  className?: string;
+  /** `false` when the parent already exposes busy (Button loading). */
+  label?: string | false;
+}) {
   return (
     <span
       className={cx(
         'inline-block h-5 w-5 animate-spin rounded-full border-2 border-line border-t-accent',
         className,
       )}
-      aria-label="Loading"
+      aria-label={label === false ? undefined : label}
+      aria-hidden={label === false ? true : undefined}
     />
   );
 }

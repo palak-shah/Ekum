@@ -4,6 +4,8 @@ import { ChevronRightIcon } from '@/ui/icons';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { PHOTO_STRIP_TOUCH_CLASS } from '@/ui/mobileOverflow';
 import { cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 
 /**
  * Universal design photo strip: swipe sideways when a design has 2+ photos.
@@ -160,9 +162,10 @@ export function DesignPhotoCarousel({
           selected={selected}
           checkClassName="right-2 top-2"
         >
-          <img
+          <ManagedImage
             src={urls[0]}
             alt={name}
+            variant={MEDIA_VARIANT.Thumbnail2}
             draggable={false}
             className={cx(photoClassName, unavailableReason && 'opacity-45')}
             loading={priority ? 'eager' : 'lazy'}
@@ -242,9 +245,10 @@ export function DesignPhotoCarousel({
                 minWidth: viewportW > 0 ? viewportW : '100%',
               }}
             >
-              <img
+              <ManagedImage
                 src={url}
                 alt={i === safeIndex ? name : ''}
+                variant={MEDIA_VARIANT.Thumbnail2}
                 draggable={false}
                 className={cx(
                   photoClassName,

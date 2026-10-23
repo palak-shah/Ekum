@@ -94,18 +94,22 @@ export function defaultRateUnit(offered: readonly string[]): string {
 
 /**
  * Rate / contents unit for pack order path.
- * Platform usual: order + dispatch journey in **set**, rate and “1 set contains” in **pc**.
- * When dispatch equals the order pack unit (both set), rate stays pc — not ₹/set.
- * A distinct dispatch (pc, mtr, …) is the rate unit (legacy pack-rate-on-dispatch).
+ * Stored `catalogRateUnit` wins. Else legacy: dispatch≠order → that dispatch;
+ * order+dispatch both set → pc (not ₹/set).
  */
 export function catalogRateUnit(input: {
   unit?: string | null;
   dispatchUnit?: string | null;
+  /** Stored Rate per. Independent of dispatch. */
+  catalogRateUnit?: string | null;
   offeredRateUnits?: readonly string[];
 }): string | null {
+  const stored = input.catalogRateUnit?.trim();
+  if (stored) return stored;
   if (isPackOrderUnit(input.unit)) {
     const order = input.unit?.trim() ?? '';
     const d = input.dispatchUnit?.trim();
+    // Legacy: Rate per sat on dispatch when it differed from order.
     if (d && d !== order) return d;
     return defaultRateUnit(input.offeredRateUnits ?? ['pc']);
   }

@@ -276,10 +276,11 @@ export function SettingsPage() {
           <Button
             fullWidth
             data-testid="billing-firm-save"
-            disabled={!firm.name.trim() || createFirm.isPending}
+            loading={createFirm.isPending}
+            disabled={!firm.name.trim()}
             onClick={saveFirm}
           >
-            {createFirm.isPending ? 'Saving…' : 'Save firm'}
+            Save firm
           </Button>
         </div>
       </Sheet>

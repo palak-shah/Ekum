@@ -113,6 +113,10 @@ describe('CatalogSerializer', () => {
     const view = serializer.toCollectionView(collection);
     expect(view.rate).toBe(1200);
     expect(view.rateMax).toBe(1400);
+    expect(view.unit).toBeNull();
+    expect(view.dispatchUnit).toBeNull();
+    expect(view.catalogRateUnit).toBeNull();
+    expect(view.piecesPerPack).toBeNull();
     expect(view.productCount).toBe(3);
     expect(view.companyId).toBe('company-1');
     expect(view.categories).toEqual([]);

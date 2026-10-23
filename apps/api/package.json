@@ -12,7 +12,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "media:relocate-originals": "tsx scripts/relocate-media-originals.ts",
+    "media:relocate-originals:apply": "tsx scripts/relocate-media-originals.ts --apply"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

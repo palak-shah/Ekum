@@ -79,6 +79,24 @@ describe('acquireMediaStream session reuse', () => {
     expect(track.stop).toHaveBeenCalled();
   });
 
+  it('hard-stops the camera when the tab is hidden', async () => {
+    const track = fakeTrack('video');
+    const stream = fakeStream([track]);
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia },
+    });
+
+    await acquireMediaStream('camera', { video: true, audio: false });
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(track.stop).toHaveBeenCalled();
+  });
+
   it('hard-releases camera so Gallery handoff does not leave a live stream', async () => {
     const track = fakeTrack('video');
     const stream = fakeStream([track]);

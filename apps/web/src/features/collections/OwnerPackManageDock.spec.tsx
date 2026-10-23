@@ -21,6 +21,25 @@ describe('OwnerPackManageDock', () => {
     expect(screen.queryByTestId('owner-pack-replace')).toBeNull();
   });
 
+  it('shows the shared Button loader while Update is in flight', () => {
+    render(
+      <OwnerPackManageDock
+        selecting={false}
+        canDelete={false}
+        canRemove={false}
+        onDelete={vi.fn()}
+        onRemove={vi.fn()}
+        onUpdate={vi.fn()}
+        updatePending
+      />,
+    );
+    const button = screen.getByTestId('collection-editor-update');
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button.querySelector('.animate-spin')).toBeTruthy();
+    expect(button).toHaveTextContent('Update collection');
+  });
+
   it('opens Designs · Photos · Replace from Update collection', async () => {
     const user = userEvent.setup();
     const onAddDesigns = vi.fn();

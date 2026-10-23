@@ -222,6 +222,7 @@ export function PhotoViewer({
         onPointerCancel={onPointerUp}
       >
         {src ? (
+          /* Zoom stays on the stored original — never a thumbnail sibling. */
           <img
             src={src}
             alt={caption ?? ''}

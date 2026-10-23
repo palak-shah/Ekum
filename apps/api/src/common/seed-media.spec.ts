@@ -38,6 +38,9 @@ describe('seedMedia', () => {
     expect(bytes.subarray(0, 8)).toEqual(
       Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     );
+    const thumb = await readFile(join(mediaRoot, 'seed', 'thumbnail1', 'millot.webp'));
+    expect(thumb.subarray(0, 4)).toEqual(Buffer.from('RIFF'));
+    await readFile(join(mediaRoot, 'seed', 'thumbnail2', 'millot.webp'));
   });
 
   it('ensureSeedImages copies committed jpg assets', async () => {

@@ -37,8 +37,25 @@ describe('design editor defaults', () => {
   });
 
   it('defaults a set order to rate per pc without writing pc onto dispatch', () => {
-    expect(applyDesignRateUnit('set', 'pc')).toEqual({ unit: 'set', dispatchUnit: 'set' });
-    expect(applyDesignRateUnit('set', 'mtr')).toEqual({ unit: 'set', dispatchUnit: 'mtr' });
-    expect(applyDesignRateUnit('pc', 'mtr')).toEqual({ unit: 'mtr', dispatchUnit: 'mtr' });
+    expect(applyDesignRateUnit('set', 'pc', 'set')).toEqual({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'pc',
+    });
+    expect(applyDesignRateUnit('set', 'mtr', 'set')).toEqual({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+    });
+    expect(applyDesignRateUnit('set', 'mtr', 'kg')).toEqual({
+      unit: 'set',
+      dispatchUnit: 'kg',
+      catalogRateUnit: 'mtr',
+    });
+    expect(applyDesignRateUnit('pc', 'mtr', 'pc')).toEqual({
+      unit: 'mtr',
+      dispatchUnit: 'pc',
+      catalogRateUnit: 'mtr',
+    });
   });
 });

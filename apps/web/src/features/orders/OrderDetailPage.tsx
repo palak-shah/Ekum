@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  MEDIA_VARIANT,
   agreementStepLabel,
   buildOrderTimelineSteps,
   collapseQuotedTrailEvents,
@@ -27,6 +28,7 @@ import {
 import { useCompanyId } from '@/lib/auth';
 import { formatDate, formatRate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { navigateBackOr } from '@/lib/navigateBackOr';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
@@ -204,6 +206,10 @@ import {
   SettleLineRemainder,
 } from '@/features/orders/SettleLinePreview';
 import { DispatchLrBillInputs } from '@/features/orders/DispatchLrBillInputs';
+import {
+  BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
+} from '@/features/browse/BottomTradeDock';
 import { ORDER_QTY_SCOPE_ATTR, orderQtyInputProps } from '@/features/orders/orderQtyFocus';
 
 /** Page Send quote — shorter than the sheet footer, still full width. */
@@ -368,9 +374,10 @@ function OrderTimeline({
                               )
                             }
                           >
-                            <img
+                            <ManagedImage
                               src={toAbsoluteMediaUrl(url)}
                               alt=""
+                              variant={MEDIA_VARIANT.Thumbnail1}
                               className="h-full w-full object-cover"
                             />
                           </button>
@@ -525,7 +532,7 @@ function OrderLinePhoto({
         onOpen(galleryIndexForItem(items, item.id));
       }}
     >
-      <img src={url} alt="" className="h-full w-full object-cover" />
+      <ManagedImage src={url} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
     </button>
   );
 }
@@ -1643,7 +1650,7 @@ export function OrderDetailPage() {
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
 
   return (
-    <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && 'pb-24')}>
+    <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && BOTTOM_DOCK_CLEARANCE_CLASS)}>
       <PageHeader
         title={idLabel}
         onBack={onOrderBack}
@@ -1751,9 +1758,10 @@ export function OrderDetailPage() {
                     openNotePhotos(data.personalNote!.images, index, 'Personal note')
                   }
                 >
-                  <img
+                  <ManagedImage
                     src={toAbsoluteMediaUrl(url)}
                     alt=""
+                    variant={MEDIA_VARIANT.Thumbnail1}
                     className="h-full w-full object-cover"
                   />
                 </button>
@@ -2390,9 +2398,10 @@ export function OrderDetailPage() {
                       openNotePhotos(ref.images, index, ref.manualOrderNo ?? 'Manual order')
                     }
                   >
-                    <img
+                    <ManagedImage
                       src={toAbsoluteMediaUrl(url)}
                       alt=""
+                      variant={MEDIA_VARIANT.Thumbnail1}
                       className="h-full w-full object-cover"
                     />
                   </button>
@@ -2506,10 +2515,7 @@ export function OrderDetailPage() {
       </div>
 
       {actionDock.kind !== 'none' ? (
-        <div
-          data-testid="order-action-dock"
-          className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md gap-2 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur"
-        >
+        <BottomTradeDock testId="order-action-dock" aboveAppNav={false}>
           {actionDock.kind === 'buy' ? (
             <>
               {actionDock.declineLogged ? (
@@ -2649,7 +2655,7 @@ export function OrderDetailPage() {
               ) : null}
             </>
           )}
-        </div>
+        </BottomTradeDock>
       ) : null}
 
       <Sheet open={quoteOpen} onClose={() => closeSheet('quote')} title="Send quote">

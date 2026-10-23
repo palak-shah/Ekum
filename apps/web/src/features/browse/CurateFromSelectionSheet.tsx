@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  MEDIA_VARIANT,
   CollectionStatus,
   type CollectionDetailView,
   type CollectionView,
@@ -41,6 +42,7 @@ import { useToast } from '@/ui/Toast';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { BookmarkIcon, CollectionIcon, PlusIcon } from '@/ui/icons';
 import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 type RepostMode = 'choose' | 'existing' | 'new';
 
@@ -387,7 +389,7 @@ export function CurateFromSelectionSheet({
           >
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam">
               {row.thumbUrl && isHttpUrl(row.thumbUrl) ? (
-                <img src={row.thumbUrl} alt="" className="h-full w-full object-cover" />
+                <ManagedImage src={row.thumbUrl} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
               ) : (
                 <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
                   {row.name.slice(0, 1).toUpperCase()}
@@ -487,10 +489,11 @@ export function CurateFromSelectionSheet({
     ) : mode === 'new' && nameClash ? (
       <Button
         fullWidth
-        disabled={saving || allowed.length < 1}
+        loading={saving}
+        disabled={allowed.length < 1}
         onClick={() => void addToExisting(nameClash)}
       >
-        {saving ? 'Saving…' : CURATE_ADD_TO_IT}
+        {CURATE_ADD_TO_IT}
       </Button>
     ) : null;
 

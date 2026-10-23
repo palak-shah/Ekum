@@ -7,6 +7,7 @@ export function exploreFeedRateLine(input: {
   rateMax?: number | null;
   unit: string | null | undefined;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
 }): string | null {
   if (input.rate == null) return null;
   const formatted = formatCatalogRate({
@@ -14,6 +15,7 @@ export function exploreFeedRateLine(input: {
     rateMax: input.rateMax,
     unit: input.unit,
     dispatchUnit: input.dispatchUnit,
+    catalogRateUnit: input.catalogRateUnit,
   });
   if (!formatted || formatted === 'On request') return null;
   return formatted;

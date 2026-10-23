@@ -7,7 +7,7 @@ import type {
   PostProductToMarketDto,
   ProductView,
 } from '@ekum/domain-types';
-import { categoriesToTagSlots, tagSlotsToCategories } from '@ekum/domain-types';
+import { MEDIA_VARIANT, Unit, categoriesToTagSlots, tagSlotsToCategories } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
@@ -17,6 +17,7 @@ import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
 import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { ContinuousCamera } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { Button, Field, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { FIELD_FOCUS_FILL_CLASS, FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 import { CameraIcon } from '@/ui/icons';
@@ -36,7 +37,7 @@ import {
   type PublishAudienceState,
 } from './PublishAudienceFields';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
-import { catalogRateFieldLabel } from '@/lib/catalogRate';
+import { catalogRateDisplayUnit, catalogRateFieldLabel } from '@/lib/catalogRate';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
@@ -895,9 +896,10 @@ export function DesignBatchPage() {
                         aria-label={d.name || 'Update design'}
                       >
                         {lead ? (
-                          <img
+                          <ManagedImage
                             src={lead.previewUrl}
                             alt=""
+                            variant={MEDIA_VARIANT.Thumbnail1}
                             className="absolute inset-0 h-full w-full object-cover"
                           />
                         ) : null}
@@ -975,7 +977,7 @@ export function DesignBatchPage() {
                   setSharedCategory(tagSlotsToCategories({ ...sharedSlots, sizes }).join(', '))
                 }
               />
-              <Field label={catalogRateFieldLabel(sharedUnit)}>
+              <Field label={catalogRateFieldLabel(sharedUnit, sharedDispatchUnit)}>
                 <TextInput
                   value={sharedRate}
                   onChange={(e) => setSharedRate(e.target.value)}
@@ -987,6 +989,12 @@ export function DesignBatchPage() {
                 piecesPerPack={sharedPiecesPerPack}
                 dispatchUnit={sharedDispatchUnit}
                 moq={sharedMoq}
+                contentsUnit={
+                  catalogRateDisplayUnit({
+                    unit: sharedUnit,
+                    dispatchUnit: sharedDispatchUnit,
+                  }) ?? Unit.Piece
+                }
                 onOrderUnit={setSharedUnit}
                 onPiecesPerPack={setSharedPiecesPerPack}
                 onDispatchUnit={setSharedDispatchUnit}
@@ -1007,7 +1015,7 @@ export function DesignBatchPage() {
           <div className="flex flex-col gap-2">
             <Button
               fullWidth
-              disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
+              disabled={!allUploaded || readyCount === 0 || uploading || saveAll.isPending}
               onClick={() => setPublishOpen(true)}
             >
               Publish {readyCount || drafts.length}
@@ -1015,11 +1023,12 @@ export function DesignBatchPage() {
             <Button
               variant="secondary"
               fullWidth
-              disabled={!allUploaded || readyCount === 0 || saveAll.isPending || uploading}
+              loading={saveAll.isPending && !publishOpen}
+              disabled={!allUploaded || readyCount === 0 || uploading}
               onClick={() => saveAll.mutate({})}
             >
-              {saveAll.isPending && !publishOpen
-                ? progressLabel || 'Saving…'
+              {saveAll.isPending && !publishOpen && progressLabel
+                ? progressLabel
                 : `Save ${readyCount || drafts.length} design${(readyCount || drafts.length) === 1 ? '' : 's'} in Draft`}
             </Button>
           </div>
@@ -1035,10 +1044,11 @@ export function DesignBatchPage() {
         footer={
           <Button
             fullWidth
-            disabled={!canSubmitPublish || saveAll.isPending}
+            loading={saveAll.isPending}
+            disabled={!canSubmitPublish}
             onClick={() => saveAll.mutate({ publish: true })}
           >
-            {saveAll.isPending ? progressLabel || 'Publishing…' : `Publish ${readyCount}`}
+            {saveAll.isPending && progressLabel ? progressLabel : `Publish ${readyCount}`}
           </Button>
         }
       >
@@ -1154,7 +1164,7 @@ export function DesignBatchPage() {
                     key={img.id}
                     className="relative aspect-square overflow-hidden rounded-xl bg-foam"
                   >
-                    <img src={img.previewUrl} alt="" className="h-full w-full object-cover" />
+                    <ManagedImage src={img.previewUrl} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                     {img.uploading ? (
                       <div className="absolute inset-0 flex items-center justify-center bg-ink/40 text-sm font-emphasis text-white">
                         …
@@ -1207,7 +1217,7 @@ export function DesignBatchPage() {
                   setSheetCategory(tagSlotsToCategories({ ...sheetSlots, sizes }).join(', '))
                 }
               />
-              <Field label={catalogRateFieldLabel(sheetUnit)}>
+              <Field label={catalogRateFieldLabel(sheetUnit, sheetDispatchUnit)}>
                 <TextInput
                   value={sheetRate}
                   onChange={(e) => setSheetRate(e.target.value)}
@@ -1219,6 +1229,12 @@ export function DesignBatchPage() {
                 piecesPerPack={sheetPiecesPerPack}
                 dispatchUnit={sheetDispatchUnit}
                 moq={sheetMoq}
+                contentsUnit={
+                  catalogRateDisplayUnit({
+                    unit: sheetUnit,
+                    dispatchUnit: sheetDispatchUnit,
+                  }) ?? Unit.Piece
+                }
                 onOrderUnit={setSheetUnit}
                 onPiecesPerPack={setSheetPiecesPerPack}
                 onDispatchUnit={setSheetDispatchUnit}

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { JobStatus, JobType } from '@ekum/domain-types';
+import { JobStatus, JobType, MediaStatus } from '@ekum/domain-types';
 import type { Env } from '../core/config/config.schema';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { JobQueue } from './job-queue.service';
@@ -55,6 +55,9 @@ export class JobRunner implements OnApplicationBootstrap, OnModuleDestroy {
     // Seed the recurring digest sweep, then begin polling.
     await this.queue.ensureDaily(JobType.NotificationDigest, DIGEST_HOUR_UTC).catch((error) => {
       this.logger.warn(`Could not seed digest job: ${describe(error)}`);
+    });
+    await this.queue.ensureOnce(JobType.MediaThumbnailBackfill).catch((error) => {
+      this.logger.warn(`Could not seed media thumbnail backfill: ${describe(error)}`);
     });
     const pollMs = this.config.get('JOBS_POLL_MS', { infer: true });
     this.timer = setInterval(() => void this.tick(), pollMs);
@@ -106,6 +109,9 @@ export class JobRunner implements OnApplicationBootstrap, OnModuleDestroy {
           ? { status: JobStatus.Failed, lastError: message }
           : { status: JobStatus.Pending, lastError: message, runAt: backoff(job.attempts) },
       });
+      if (exhausted) {
+        await markThumbnailMediaFailed(this.prisma, job);
+      }
       this.logger.warn(
         `Job ${job.id} (${job.type}) ${exhausted ? 'failed permanently' : 'will retry'}: ${message}`,
       );
@@ -134,6 +140,19 @@ export class JobRunner implements OnApplicationBootstrap, OnModuleDestroy {
 function backoff(attempts: number): Date {
   const delayMs = Math.min(2 ** attempts * 1000, 5 * 60_000);
   return new Date(Date.now() + delayMs);
+}
+
+export async function markThumbnailMediaFailed(
+  prisma: PrismaService,
+  job: Pick<ClaimedJob, 'type' | 'payload'>,
+): Promise<void> {
+  if (job.type !== JobType.MediaThumbnail) return;
+  const mediaId = typeof job.payload?.mediaId === 'string' ? job.payload.mediaId : null;
+  if (!mediaId) return;
+  await prisma.media.updateMany({
+    where: { id: mediaId },
+    data: { status: MediaStatus.Failed },
+  });
 }
 
 function describe(error: unknown): string {

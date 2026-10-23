@@ -109,6 +109,47 @@ describe('ContinuousCamera shell', () => {
     expect(track.stop).toHaveBeenCalled();
   });
 
+  it('hard-stops the camera when Cancel leaves the viewfinder', async () => {
+    const track = {
+      kind: 'video',
+      readyState: 'live' as MediaStreamTrackState,
+      enabled: true,
+      stop: vi.fn(function (this: { readyState: MediaStreamTrackState }) {
+        this.readyState = 'ended';
+      }),
+      getCapabilities: () => ({}),
+      applyConstraints: vi.fn(async () => undefined),
+    };
+    const stream = {
+      getTracks: () => [track],
+      getVideoTracks: () => [track],
+      getAudioTracks: () => [],
+    } as unknown as MediaStream;
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      mediaDevices: { getUserMedia },
+    });
+    HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
+
+    const onCancel = vi.fn();
+    render(
+      <ContinuousCamera
+        open
+        maxShots={3}
+        onDone={() => undefined}
+        onCancel={onCancel}
+        onUnavailable={() => undefined}
+      />,
+    );
+    await screen.findByTestId('continuous-camera');
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+
+    screen.getByRole('button', { name: 'Cancel' }).click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(track.stop).toHaveBeenCalled();
+  });
+
   it('hides Designs when onDesigns is omitted', async () => {
     render(
       <ContinuousCamera

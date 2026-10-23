@@ -54,8 +54,8 @@ describe('MediaService.createUploadUrl', () => {
     expect(ticket.uploadUrl).toContain('sig=');
     expect(ticket.blobUrl).toBe('https://host/c1/x.jpg');
     expect(created.data).toMatchObject({ companyId: 'c1', status: MediaStatus.Pending });
-    // The blob path must be namespaced under the company id.
-    expect(String(created.data?.blobPath)).toMatch(/^c1\//);
+    // Image originals live under companyId/original/.
+    expect(String(created.data?.blobPath)).toMatch(/^c1\/original\//);
   });
 });
 
@@ -65,6 +65,53 @@ describe('MediaService.complete', () => {
     const view = await service.complete('c1', 'm1');
     expect(enqueue).toHaveBeenCalledWith(JobType.MediaThumbnail, { mediaId: 'm1' });
     expect(view.id).toBe('m1');
+  });
+
+  it('completes a multi-photo batch without generating thumbs on the upload request', async () => {
+    const rows = new Map(
+      ['m1', 'm2', 'm3'].map((id) => [
+        id,
+        {
+          id,
+          companyId: 'c1',
+          status: MediaStatus.Pending,
+          kind: MediaKind.Image,
+          contentType: 'image/jpeg',
+          url: `https://host/c1/original/${id}.jpg`,
+          thumbnailUrl: null,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ]),
+    );
+    const putObject = vi.fn();
+    const enqueue = vi.fn(async () => 'job');
+    const prisma = {
+      media: {
+        findUnique: async ({ where }: { where: { id: string } }) => rows.get(where.id) ?? null,
+        update: async () => undefined,
+      },
+    } as unknown as PrismaService;
+    const config = { get: () => '10m' } as unknown as ConfigService<Env, true>;
+    const storage = {
+      createUploadTarget: () => ({
+        uploadUrl: 'https://host/put',
+        method: 'PUT' as const,
+        headers: {},
+      }),
+      publicUrl: (path: string) => `https://host/${path}`,
+      putObject,
+    } as unknown as StorageDriver;
+    const service = new MediaService(prisma, config, { enqueue } as unknown as JobQueue, storage);
+
+    const views = await Promise.all(['m1', 'm2', 'm3'].map((id) => service.complete('c1', id)));
+
+    expect(views.map((view) => view.id)).toEqual(['m1', 'm2', 'm3']);
+    expect(putObject).not.toHaveBeenCalled();
+    expect(enqueue.mock.calls).toEqual([
+      [JobType.MediaThumbnail, { mediaId: 'm1' }],
+      [JobType.MediaThumbnail, { mediaId: 'm2' }],
+      [JobType.MediaThumbnail, { mediaId: 'm3' }],
+    ]);
   });
 
   it('marks audio ready without thumbnail job', async () => {

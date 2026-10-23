@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useTradePresence } from '@/lib/tradePresence';
 import { Button } from '@/ui/kit';
+import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { pickSelectionLabel, shouldShowAlbumSelectActions } from './albumSelectModel';
 
 /**
@@ -39,7 +39,7 @@ export function AlbumSelectBar({
 }) {
   const { trading } = useTradePresence();
   const total = albumCount + designCount;
-  if (total < 1 || typeof document === 'undefined') return null;
+  if (total < 1) return null;
 
   const shown = shouldShowAlbumSelectActions({ designCount, albumCount, trading });
   const showOrder = Boolean(onOrder && canOrder && shown.order);
@@ -48,9 +48,9 @@ export function AlbumSelectBar({
   const showBookmark = Boolean(onSave && shown.bookmark);
   const busy = sharing || saving;
 
-  return createPortal(
-    <div className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md">
-      <div className="mx-auto flex max-w-md flex-col gap-2">
+  return (
+    <BottomTradeDock testId="album-select-bar" aboveAppNav>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-emphasis text-ink">{pickSelectionLabel(albumCount, designCount)}</p>
           <button type="button" className="text-xs font-emphasis text-accent" onClick={onClear}>
@@ -81,7 +81,6 @@ export function AlbumSelectBar({
           ) : null}
         </div>
       </div>
-    </div>,
-    document.body,
+    </BottomTradeDock>
   );
 }

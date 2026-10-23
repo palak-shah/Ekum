@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectionPreviewFromRow } from './collection-preview';
+import { collectionCardInclude, collectionPreviewFromRow } from './collection-preview';
 
 describe('collectionPreviewFromRow', () => {
   it('uses the first photo of each design and ignores pack cover and extra shots', () => {
@@ -67,5 +67,20 @@ describe('collectionPreviewFromRow', () => {
       'https://img/e',
     ]);
     expect(preview.imageCount).toBe(6);
+  });
+});
+
+describe('collectionCardInclude', () => {
+  it('loads Rate per so Explore can reuse the album design min–max', () => {
+    expect(collectionCardInclude.products.take).toBeUndefined();
+    expect(collectionCardInclude.products.include.product.select).toEqual(
+      expect.objectContaining({
+        rate: true,
+        rateMax: true,
+        unit: true,
+        dispatchUnit: true,
+        catalogRateUnit: true,
+      }),
+    );
   });
 });

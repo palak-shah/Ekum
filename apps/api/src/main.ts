@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import type { Env } from './core/config/config.schema';
+import { ensureSeedImages } from './common/seed-media';
 import { mountLocalMedia } from './media/local-media.mount';
 import { resolveLocalMediaRoot } from './media/local-media-root';
 
@@ -29,6 +30,7 @@ async function bootstrap(): Promise<void> {
   const azureKey = config.get('AZURE_STORAGE_KEY', { infer: true });
   if (!azureAccount || !azureKey) {
     const mediaRoot = resolveLocalMediaRoot();
+    await ensureSeedImages({ mediaRoot });
     mountLocalMedia(app, mediaRoot);
     app.get(Logger).warn(`Local media mounted at ${mediaRoot}`);
   }

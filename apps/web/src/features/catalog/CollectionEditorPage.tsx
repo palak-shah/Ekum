@@ -16,6 +16,7 @@ import type {
 } from '@ekum/domain-types';
 import {
   CollectionStatus,
+  MEDIA_VARIANT,
   ProductStatus,
   PublishAudience,
   RateVisibility,
@@ -38,6 +39,7 @@ import { acquireMediaStream } from '@/lib/mediaSession';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { LibraryPickTile } from './LibraryPickTile';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -55,6 +57,10 @@ import {
 import { CollectionExpandableSection } from './CollectionExpandableSection';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
+import {
+  BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
+} from '@/features/browse/BottomTradeDock';
 import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
 import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
 import {
@@ -84,6 +90,11 @@ import {
   preferredPackUnit,
   productFieldsFromMember,
   packMemberProductPatch,
+  packStampShared,
+  packSellAsFromCollection,
+  hydratePackSellAsState,
+  storedCatalogRateUnit,
+  ownMembersForPackStamp,
   sameForAllSummary,
   sortDiffFirst,
   designFollowsPackRate,
@@ -98,11 +109,9 @@ import {
 } from './collectionSameForAll';
 import { formatRateInput, parseRateInput } from './rateInput';
 import { combineRateInput, splitRateInput } from './rateRange';
-import {
-  catalogRateDisplayUnit,
-  catalogRateFieldLabel,
-  isPackOrderUnit,
-} from '@/lib/catalogRate';
+import { catalogRateDisplayUnit, isPackOrderUnit } from '@/lib/catalogRate';
+import { applyDesignRateUnit } from './designEditorDefaults';
+import { piecesPerPackFieldValue } from './orderDispatchPreview';
 import { GrowingDescriptionField } from './GrowingDescriptionField';
 import { RateRangeFields } from './RateRangeFields';
 import { CascadeTagsFields } from './CascadeTagsFields';
@@ -116,7 +125,6 @@ import {
   CAMERA_APPEND_SOFT_MAX,
   morePhotosEntry,
 } from './designBatchHelpers';
-import { createPortal } from 'react-dom';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 import {
   CameraIcon,
@@ -176,6 +184,7 @@ type PendingPhoto = {
   rate: string;
   unit: string;
   dispatchUnit: string;
+  catalogRateUnit: string;
   piecesPerPack: string;
   moq: string;
   notes: string;
@@ -192,6 +201,24 @@ type CameraAppendTarget =
   | { kind: 'product'; productId: string };
 
 type MemberPhotoThumb = { id: string; url: string };
+
+function collectionEditorSnapshot(input: {
+  name: string;
+  description: string;
+  coverImage: string;
+  categories: string[];
+  masterCategoryId: string | null;
+  productIds: string[];
+  rateFrom: string;
+  rateTo: string;
+  unit: string;
+  dispatchUnit: string;
+  catalogRateUnit: string;
+  piecesPerPack: string;
+  moq: string;
+}): string {
+  return JSON.stringify(input);
+}
 
 export function CollectionEditorPage() {
   const { id: routeId } = useParams();
@@ -269,6 +296,7 @@ export function CollectionEditorPage() {
     rate: '',
     unit: Unit.Set,
     dispatchUnit: Unit.Set,
+    catalogRateUnit: Unit.Piece,
     piecesPerPack: '',
     moq: '',
     notes: '',
@@ -284,8 +312,6 @@ export function CollectionEditorPage() {
   const [rateFrom, setRateFrom] = useState('');
   const [rateTo, setRateTo] = useState('');
   const rateFieldsHydrated = useRef(false);
-  /** Pack sell-as from members — once only so refetch cannot wipe a Dispatch edit. */
-  const sellAsHydrated = useRef(false);
   const [rateConflicts, setRateConflicts] = useState<RateConflict[] | null>(null);
   const [rateConflictKeepIds, setRateConflictKeepIds] = useState<Set<string>>(new Set());
   const [pendingPublish, setPendingPublish] = useState(false);
@@ -304,7 +330,6 @@ export function CollectionEditorPage() {
   useEffect(() => {
     identityHydratedId.current = null;
     rateFieldsHydrated.current = false;
-    sellAsHydrated.current = false;
   }, [id]);
   /** Create mode: photos and/or library designs; Publish/Share after create. */
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
@@ -372,6 +397,17 @@ export function CollectionEditorPage() {
     staleTime: 60_000,
   });
   const permittedUnits = masterTaxonomy.data?.units ?? [];
+  const packRateUnit =
+    sameForAll.catalogRateUnit.trim() ||
+    (catalogRateDisplayUnit({
+      unit: sameForAll.unit || Unit.Set,
+      dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
+      catalogRateUnit: sameForAll.catalogRateUnit,
+      offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
+    }) ??
+      Unit.Piece);
+  const packSharedDetails = (packRate: string): SameForAllDetails =>
+    packStampShared(sameForAll, packRate);
 
   const settings = useQuery({
     queryKey: ['company-settings'],
@@ -474,6 +510,7 @@ export function CollectionEditorPage() {
           rate: photo.rate,
           unit: photo.unit,
           dispatchUnit: photo.dispatchUnit,
+          catalogRateUnit: photo.catalogRateUnit,
           piecesPerPack: photo.piecesPerPack,
           moq: photo.moq,
           notes: photo.notes,
@@ -492,8 +529,8 @@ export function CollectionEditorPage() {
             product.unit || Unit.Set,
             product.dispatchUnit || Unit.Set,
           ),
-          piecesPerPack:
-            product.piecesPerPack != null ? String(product.piecesPerPack) : '',
+          catalogRateUnit: storedCatalogRateUnit(product),
+          piecesPerPack: piecesPerPackFieldValue(product.piecesPerPack),
           moq: product.moq != null ? String(product.moq) : '',
           notes: product.description ?? '',
           categories: product.categories ?? [],
@@ -553,27 +590,24 @@ export function CollectionEditorPage() {
         rateFieldsHydrated.current = true;
       }
       const first = existing.data.products[0];
-      setSameForAll((prev) => {
-        const nextRate = loadedRate || prev.rate;
-        if (sellAsHydrated.current) {
-          return { ...prev, rate: nextRate };
-        }
-        sellAsHydrated.current = true;
-        const unit = first?.unit || prev.unit || Unit.Set;
-        const dispatchUnit = normalizePackDispatchUnit(
-          unit,
-          first?.dispatchUnit || prev.dispatchUnit || Unit.Set,
-        );
-        return {
-          ...prev,
-          rate: nextRate,
-          unit,
-          dispatchUnit,
-          piecesPerPack:
-            first?.piecesPerPack != null ? String(first.piecesPerPack) : prev.piecesPerPack,
-          moq: first?.moq != null ? String(first.moq) : prev.moq,
-        };
-      });
+      const sellAs = packSellAsFromCollection(existing.data, first);
+      const sellAsDispatch = normalizePackDispatchUnit(sellAs.unit, sellAs.dispatchUnit);
+      // Pure updater — a ref gate inside setState dropped mtr/47 on Strict Mode’s second call.
+      setSameForAll((prev) =>
+        hydratePackSellAsState(
+          prev,
+          {
+            unit: sellAs.unit,
+            dispatchUnit: sellAsDispatch,
+            catalogRateUnit: sellAs.catalogRateUnit,
+            piecesPerPack: sellAs.piecesPerPack,
+          },
+          {
+            rate: loadedRate,
+            moq: first?.moq != null ? String(first.moq) : '',
+          },
+        ),
+      );
       setPublishAudience(
         restorePublishAudienceState({
           audience: existing.data.audience || PublishAudience.Followers,
@@ -588,12 +622,20 @@ export function CollectionEditorPage() {
       setStartsAt(toDateInput(existing.data.startsAt));
       setEndsAt(toDateInput(existing.data.endsAt));
       setEvergreen(!existing.data.endsAt);
-      savedSnapshotRef.current = JSON.stringify({
+      savedSnapshotRef.current = collectionEditorSnapshot({
         name: existing.data.name,
         description: existing.data.description ?? '',
         coverImage: existing.data.coverImage ?? '',
         categories: existing.data.categories ?? [],
+        masterCategoryId: existing.data.masterCategoryId ?? null,
         productIds: existing.data.products.map((product) => product.id).sort(),
+        rateFrom: splitRateInput(loadedRate).from,
+        rateTo: splitRateInput(loadedRate).to,
+        unit: sellAs.unit,
+        dispatchUnit: sellAsDispatch,
+        catalogRateUnit: sellAs.catalogRateUnit,
+        piecesPerPack: sellAs.piecesPerPack,
+        moq: first?.moq != null ? String(first.moq) : '',
       });
     }
   }, [existing.data]);
@@ -620,6 +662,7 @@ export function CollectionEditorPage() {
       ...prev,
       unit: sell.unit || prev.unit || Unit.Set,
       dispatchUnit: sell.dispatchUnit || prev.dispatchUnit || Unit.Set,
+      catalogRateUnit: sell.catalogRateUnit || prev.catalogRateUnit,
       piecesPerPack: prev.piecesPerPack || sell.piecesPerPack,
       moq: prev.moq || sell.moq,
     }));
@@ -776,6 +819,18 @@ export function CollectionEditorPage() {
       }
       const packRate = combineRateInput(rateFrom, rateTo).trim();
       const packParsed = parseRateInput(packRate);
+      const packSharedForDto = packStampShared(sameForAll, packRate);
+      const sellAs = productFieldsFromMember({
+        name: form.name,
+        rate: packSharedForDto.rate,
+        unit: packSharedForDto.unit,
+        dispatchUnit: packSharedForDto.dispatchUnit,
+        catalogRateUnit: packSharedForDto.catalogRateUnit,
+        piecesPerPack: packSharedForDto.piecesPerPack,
+        moq: packSharedForDto.moq,
+        notes: packSharedForDto.notes,
+        categories: [],
+      });
       const dto: CreateCollectionDto = {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
@@ -784,57 +839,71 @@ export function CollectionEditorPage() {
         masterCategoryId: form.masterCategoryId,
         rate: packParsed.rate,
         rateMax: packParsed.rateMax,
+        unit: sellAs.unit ?? null,
+        dispatchUnit: sellAs.dispatchUnit ?? null,
+        catalogRateUnit: sellAs.catalogRateUnit ?? null,
+        piecesPerPack: sellAs.piecesPerPack ?? null,
       };
       await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
+      const ownerCompanyId = existing.data?.companyId ?? company.data?.id;
       const unpublishedOwn = selectedProducts.filter(
         (product) =>
-          product.status === ProductStatus.Draft && product.companyId === company.data?.id,
+          product.status === ProductStatus.Draft && product.companyId === ownerCompanyId,
       ).length;
-      const saved = await persistDesigns([...selected], id, { skipInvalidate: true });
-      if (!saved) {
-        return { unpublishedOwn: 0, designsFailed: true as const };
-      }
       const previousPackRate = formatRateInput(
         existing.data?.rate ?? null,
         existing.data?.rateMax ?? null,
       );
-      const packShared: SameForAllDetails = { ...sameForAll, rate: packRate };
-      if (packRate || applyToAll) {
-        for (const product of selectedProducts) {
-          if (product.companyId !== company.data?.id) continue;
-          const parsed = productFieldsFromMember({
-            name: product.name,
-            rate: packShared.rate,
-            unit: packShared.unit,
-            dispatchUnit: packShared.dispatchUnit,
-            piecesPerPack: packShared.piecesPerPack,
-            moq: packShared.moq,
-            notes: packShared.notes,
-            categories: [],
-          });
-          const patch = packMemberProductPatch({
-            parsed,
-            followsPackRate: designFollowsPackRate(
-              { rate: product.rate, rateMax: product.rateMax },
-              previousPackRate,
-            ),
+      const packShared: SameForAllDetails = packSharedDetails(packRate);
+      // Stamp Rate per + 1 set contains before membership PUT — that rewrite
+      // used to abort this loop, so Update looked saved while units vanished.
+      for (const product of ownMembersForPackStamp(selectedProducts, ownerCompanyId)) {
+        const parsed = productFieldsFromMember({
+          name: product.name,
+          rate: packShared.rate,
+          unit: packShared.unit,
+          dispatchUnit: packShared.dispatchUnit,
+          catalogRateUnit: packShared.catalogRateUnit,
+          piecesPerPack: packShared.piecesPerPack,
+          moq: packShared.moq,
+          notes: packShared.notes,
+          categories: [],
+        });
+        const patch = packMemberProductPatch({
+          parsed,
+          followsPackRate: designFollowsPackRate(
+            { rate: product.rate, rateMax: product.rateMax },
+            previousPackRate,
             packRate,
-            applyToAll,
-          });
-          if (Object.keys(patch).length === 0) continue;
-          await api.patch(`/products/${product.id}`, patch);
-        }
+          ),
+          packRate,
+          applyToAll,
+        });
+        if (Object.keys(patch).length === 0) continue;
+        await api.patch(`/products/${product.id}`, patch);
+      }
+      const saved = await persistDesigns([...selected], id, { skipInvalidate: true });
+      if (!saved) {
+        return { unpublishedOwn: 0, designsFailed: true as const };
       }
       return { unpublishedOwn, designsFailed: false as const };
     },
     onSuccess: ({ unpublishedOwn, designsFailed }) => {
       if (designsFailed) return;
-      savedSnapshotRef.current = JSON.stringify({
+      savedSnapshotRef.current = collectionEditorSnapshot({
         name: form.name,
         description: form.description,
         coverImage: form.coverImage,
         categories: form.categories,
+        masterCategoryId: form.masterCategoryId,
         productIds: [...selected].sort(),
+        rateFrom,
+        rateTo,
+        unit: sameForAll.unit,
+        dispatchUnit: sameForAll.dispatchUnit,
+        catalogRateUnit: sameForAll.catalogRateUnit,
+        piecesPerPack: sameForAll.piecesPerPack,
+        moq: sameForAll.moq,
       });
       invalidate();
       showToast(unpublishedOwn > 0 ? 'Published' : 'Updated');
@@ -1198,6 +1267,7 @@ export function CollectionEditorPage() {
         rate: shared.rate,
         unit: shared.unit || Unit.Set,
         dispatchUnit: shared.dispatchUnit || Unit.Set,
+        catalogRateUnit: shared.catalogRateUnit || Unit.Piece,
         piecesPerPack: shared.piecesPerPack,
         moq: shared.moq,
         notes: shared.notes,
@@ -1258,6 +1328,7 @@ export function CollectionEditorPage() {
           rate: shared.rate,
           unit: shared.unit || Unit.Set,
           dispatchUnit: shared.dispatchUnit || Unit.Set,
+          catalogRateUnit: shared.catalogRateUnit || Unit.Piece,
           piecesPerPack: shared.piecesPerPack,
           moq: shared.moq,
           notes: shared.notes,
@@ -1273,6 +1344,7 @@ export function CollectionEditorPage() {
           rateMax: parsed.rateMax ?? undefined,
           unit: parsed.unit as CreateProductDto['unit'],
           dispatchUnit: parsed.dispatchUnit as CreateProductDto['dispatchUnit'],
+          catalogRateUnit: parsed.catalogRateUnit as CreateProductDto['catalogRateUnit'],
           piecesPerPack: parsed.piecesPerPack,
           moq: parsed.moq ?? undefined,
         };
@@ -1374,7 +1446,7 @@ export function CollectionEditorPage() {
     packRate?: string;
   }) => {
       const packRate = (opts.packRate ?? combineRateInput(rateFrom, rateTo)).trim();
-      const packShared: SameForAllDetails = { ...sameForAll, rate: packRate };
+      const packShared: SameForAllDetails = packSharedDetails(packRate);
       const coverRaw = createCoverUrl ? toAbsoluteMediaUrl(createCoverUrl) : '';
       const cover =
         coverRaw && /^https?:\/\//i.test(coverRaw) ? coverRaw : undefined;
@@ -1392,6 +1464,20 @@ export function CollectionEditorPage() {
           masterCategoryId: form.masterCategoryId,
           rate: packParsed.rate,
           rateMax: packParsed.rateMax,
+          unit: packShared.unit || null,
+          dispatchUnit: packShared.dispatchUnit || null,
+          catalogRateUnit: packShared.catalogRateUnit || null,
+          piecesPerPack: productFieldsFromMember({
+            name: opts.name,
+            rate: packShared.rate,
+            unit: packShared.unit,
+            dispatchUnit: packShared.dispatchUnit,
+            catalogRateUnit: packShared.catalogRateUnit,
+            piecesPerPack: packShared.piecesPerPack,
+            moq: packShared.moq,
+            notes: packShared.notes,
+            categories: [],
+          }).piecesPerPack,
           ...(cover ? { coverImage: cover } : {}),
         } satisfies CreateCollectionDto);
         collectionId = created.id;
@@ -1409,6 +1495,7 @@ export function CollectionEditorPage() {
             rate: photo.rate,
             unit: photo.unit,
             dispatchUnit: photo.dispatchUnit,
+            catalogRateUnit: photo.catalogRateUnit,
             piecesPerPack: photo.piecesPerPack,
             moq: photo.moq,
             notes: photo.notes,
@@ -1428,6 +1515,7 @@ export function CollectionEditorPage() {
           rateMax: fields.rateMax ?? undefined,
           unit: fields.unit as CreateProductDto['unit'],
           dispatchUnit: fields.dispatchUnit as CreateProductDto['dispatchUnit'],
+          catalogRateUnit: fields.catalogRateUnit as CreateProductDto['catalogRateUnit'],
           piecesPerPack: fields.piecesPerPack,
           moq: fields.moq ?? undefined,
         } satisfies CreateProductDto);
@@ -1446,6 +1534,7 @@ export function CollectionEditorPage() {
           rate: packShared.rate,
           unit: packShared.unit,
           dispatchUnit: packShared.dispatchUnit,
+          catalogRateUnit: packShared.catalogRateUnit,
           piecesPerPack: packShared.piecesPerPack,
           moq: packShared.moq,
           notes: packShared.notes,
@@ -1459,6 +1548,7 @@ export function CollectionEditorPage() {
               designFollowsPackRate(
                 { rate: product.rate, rateMax: product.rateMax },
                 '',
+                packRate,
               ) && !opts.keepRateIds.has(productId),
             packRate,
             applyToAll,
@@ -1688,14 +1778,22 @@ export function CollectionEditorPage() {
 
   const editSnapshot = useMemo(
     () =>
-      JSON.stringify({
+      collectionEditorSnapshot({
         name: form.name,
         description: form.description,
         coverImage: form.coverImage,
         categories: form.categories,
+        masterCategoryId: form.masterCategoryId,
         productIds: [...selected].sort(),
+        rateFrom,
+        rateTo,
+        unit: sameForAll.unit,
+        dispatchUnit: sameForAll.dispatchUnit,
+        catalogRateUnit: sameForAll.catalogRateUnit,
+        piecesPerPack: sameForAll.piecesPerPack,
+        moq: sameForAll.moq,
       }),
-    [form, selected],
+    [form, selected, rateFrom, rateTo, sameForAll],
   );
   const collectionDirty = useMemo(() => {
     if (quickUploading || savingDesigns || creating) return true;
@@ -1735,8 +1833,8 @@ export function CollectionEditorPage() {
         product.unit || Unit.Set,
         product.dispatchUnit || Unit.Set,
       ),
-      piecesPerPack:
-        product.piecesPerPack != null ? String(product.piecesPerPack) : '',
+      catalogRateUnit: storedCatalogRateUnit(product),
+      piecesPerPack: piecesPerPackFieldValue(product.piecesPerPack),
       moq: product.moq != null ? String(product.moq) : '',
       notes: product.description ?? '',
       categories,
@@ -1763,6 +1861,7 @@ export function CollectionEditorPage() {
         photo.unit || Unit.Set,
         photo.dispatchUnit || Unit.Set,
       ),
+      catalogRateUnit: photo.catalogRateUnit,
       piecesPerPack: photo.piecesPerPack,
       moq: photo.moq,
       notes: photo.notes,
@@ -1797,6 +1896,7 @@ export function CollectionEditorPage() {
                   rate: memberForm.rate,
                   unit: memberForm.unit,
                   dispatchUnit: memberForm.dispatchUnit,
+                  catalogRateUnit: memberForm.catalogRateUnit,
                   piecesPerPack: memberForm.piecesPerPack,
                   moq: memberForm.moq,
                   notes: memberForm.notes,
@@ -1840,6 +1940,7 @@ export function CollectionEditorPage() {
           rateMax: fields.rateMax,
           unit: fields.unit,
           dispatchUnit: fields.dispatchUnit ?? null,
+          catalogRateUnit: fields.catalogRateUnit ?? null,
           piecesPerPack: fields.piecesPerPack ?? null,
           moq: fields.moq ?? null,
           categories: memberForm.categories,
@@ -2042,26 +2143,15 @@ export function CollectionEditorPage() {
         <RateRangeFields
           from={rateFrom}
           to={rateTo}
-          rateUnit={
-            catalogRateDisplayUnit({
-              unit: sameForAll.unit || Unit.Set,
-              dispatchUnit: sameForAll.dispatchUnit || Unit.Set,
-            }) ?? Unit.Piece
-          }
+          rateUnit={packRateUnit}
           permittedUnits={permittedUnits}
           onRateUnit={(next) => {
             setSameForAll((prev) => {
               const orderUnit = prev.unit || Unit.Set;
               if (isPackOrderUnit(orderUnit)) {
-                // Rate per pc (or same as order) → journey stays on the pack unit.
-                // Never write pc onto dispatch — that was the legacy encoding that
-                // made Dispatch flip back to pc. Other rate units may sit on dispatch.
-                if (next === Unit.Piece || next === orderUnit) {
-                  return { ...prev, dispatchUnit: orderUnit };
-                }
-                return { ...prev, dispatchUnit: next };
+                return { ...prev, catalogRateUnit: next };
               }
-              return { ...prev, unit: next };
+              return { ...prev, unit: next, catalogRateUnit: next };
             });
           }}
           onFrom={(next) => {
@@ -2109,7 +2199,8 @@ export function CollectionEditorPage() {
             testId="collection-apply-all-info"
           >
             Fills empty rates. Won’t replace a design that already has a rate.
-            Tags add on. Units and MOQ stamp when this is on.
+            Tags add on. Rate per and 1 set contains save with Update.
+            MOQ stamps when this is on.
           </InfoHint>
         </div>
       </div>
@@ -2118,6 +2209,7 @@ export function CollectionEditorPage() {
         piecesPerPack={sameForAll.piecesPerPack}
         dispatchUnit={sameForAll.dispatchUnit || Unit.Set}
         moq={sameForAll.moq}
+        contentsUnit={packRateUnit}
         onOrderUnit={(unit) => setSameForAll((prev) => ({ ...prev, unit }))}
         onPiecesPerPack={(piecesPerPack) =>
           setSameForAll((prev) => ({ ...prev, piecesPerPack }))
@@ -2261,7 +2353,7 @@ export function CollectionEditorPage() {
   }
 
   return (
-    <div className={cx('flex flex-col gap-4', editing ? 'pb-44' : 'pb-52')}>
+    <div className={cx('flex flex-col gap-4', BOTTOM_DOCK_CLEARANCE_CLASS)}>
       <DiscardChangesSheet
         open={discard.confirmOpen}
         onCancel={discard.cancelLeave}
@@ -2361,9 +2453,10 @@ export function CollectionEditorPage() {
                                 aria-label={`Edit design · ${nameForNewDesign(photo.name, photo.sku)}`}
                               >
                                 {photo.images[0] ? (
-                                  <img
+                                  <ManagedImage
                                     src={photo.images[0].previewUrl}
                                     alt=""
+                                    variant={MEDIA_VARIANT.Thumbnail1}
                                     className="absolute inset-0 h-full w-full object-cover"
                                   />
                                 ) : null}
@@ -2409,9 +2502,10 @@ export function CollectionEditorPage() {
                               aria-label={`Edit design · ${product.name}`}
                             >
                               {product.images[0] ? (
-                                <img
+                                <ManagedImage
                                   src={product.images[0]}
                                   alt=""
+                                  variant={MEDIA_VARIANT.Thumbnail1}
                                   className="absolute inset-0 h-full w-full object-cover"
                                 />
                               ) : (
@@ -2492,7 +2586,7 @@ export function CollectionEditorPage() {
             onRemove={() => void onEditorRemove()}
             onUpdate={() => save.mutate()}
             updatePending={save.isPending || savingDesigns}
-            updateDisabled={!form.name.trim() || selected.size < 1 || save.isPending || savingDesigns}
+            updateDisabled={!form.name.trim() || selected.size < 1}
           />
           <OwnerPackReplaceSheet
             open={replaceSheetOpen}
@@ -2512,15 +2606,11 @@ export function CollectionEditorPage() {
         </>
       ) : null}
 
-      {!editing
-        ? createPortal(
-            <div
-              className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
-              data-testid="collection-create-dock"
-            >
-              <div className="mx-auto flex max-w-md gap-2">
+      {!editing ? (
+            <BottomTradeDock testId="collection-create-dock" aboveAppNav={false}>
                 <Button
                   className="min-w-0 flex-1"
+                  loading={creating}
                   disabled={!canOpenCreatePublish}
                   onClick={() => {
                     if (!canCreatePublish) {
@@ -2541,21 +2631,19 @@ export function CollectionEditorPage() {
                     void onCreate({ publish: true });
                   }}
                 >
-                  {creating ? 'Publishing…' : 'Create & Publish'}
+                  Create & Publish
                 </Button>
                 <Button
                   variant="secondary"
                   className="min-w-0 flex-1"
+                  loading={creating}
                   disabled={!canCreateDraft}
                   onClick={() => void onCreate()}
                 >
-                  {creating ? 'Saving…' : 'Save in Draft'}
+                  Save in Draft
                 </Button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </BottomTradeDock>
+          ) : null}
 
       <input
         ref={designFileRef}
@@ -2669,10 +2757,10 @@ export function CollectionEditorPage() {
                   setLibraryOpen(false);
                   setReplaceDraft(null);
                   abandonReplaceIfPending();
-                  navigate('/catalog/products/new');
+                  openCollectionCamera();
                 }}
               >
-                Add a design
+                Add photos
               </Button>
             </div>
           ) : pickerDesigns.length === 0 ? (
@@ -2727,9 +2815,10 @@ export function CollectionEditorPage() {
         footer={
           <Button
             fullWidth
+            loading={creating || publish.isPending}
             disabled={
               editing
-                ? !canSubmitPublish || publish.isPending
+                ? !canSubmitPublish
                 : !canCreatePublish
             }
             onClick={() => {
@@ -2740,13 +2829,11 @@ export function CollectionEditorPage() {
               publish.mutate();
             }}
           >
-            {creating || publish.isPending
-              ? 'Publishing…'
-              : !editing
-                ? 'Create & Publish'
-                : isPublished
-                  ? 'Update visibility'
-                  : 'Publish'}
+            {!editing
+              ? 'Create & Publish'
+              : isPublished
+                ? 'Update visibility'
+                : 'Publish'}
           </Button>
         }
       >
@@ -2796,20 +2883,21 @@ export function CollectionEditorPage() {
             {memberSheetCanSetLive ? (
               <Button
                 fullWidth
-                disabled={memberSaving || savingDesigns}
+                loading={savingDesigns}
+                disabled={memberSaving}
                 data-testid="collection-member-sheet-set-live"
                 onClick={() => void setMemberLiveInPack()}
               >
-                {savingDesigns ? 'Publishing…' : 'Publish'}
+                Publish
               </Button>
             ) : null}
             <Button
               fullWidth
               variant={memberSheetCanSetLive ? 'secondary' : 'primary'}
-              disabled={memberSaving}
+              loading={memberSaving}
               onClick={() => void saveMemberSheet()}
             >
-              {memberSaving ? 'Saving…' : 'Done'}
+              Done
             </Button>
           </div>
         }
@@ -2823,7 +2911,7 @@ export function CollectionEditorPage() {
                   key={img.id}
                   className="relative aspect-square overflow-hidden rounded-xl bg-foam"
                 >
-                  <img src={img.url} alt="" className="h-full w-full object-cover" />
+                  <ManagedImage src={img.url} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                   {memberPhotos.length > 1 ? (
                     <button
                       type="button"
@@ -2927,12 +3015,29 @@ export function CollectionEditorPage() {
             }}
           />
           <RateRangeFields
-            label={catalogRateFieldLabel(
-              memberForm.unit || Unit.Set,
-              memberForm.dispatchUnit || Unit.Set,
-            )}
             from={splitRateInput(memberForm.rate).from}
             to={splitRateInput(memberForm.rate).to}
+            rateUnit={
+              memberForm.catalogRateUnit.trim() ||
+              (catalogRateDisplayUnit({
+                unit: memberForm.unit || Unit.Set,
+                dispatchUnit: memberForm.dispatchUnit || Unit.Set,
+                catalogRateUnit: memberForm.catalogRateUnit,
+                offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
+              }) ??
+                Unit.Piece)
+            }
+            permittedUnits={permittedUnits}
+            onRateUnit={(next) =>
+              setMemberForm({
+                ...memberForm,
+                ...applyDesignRateUnit(
+                  memberForm.unit || Unit.Set,
+                  next,
+                  memberForm.dispatchUnit,
+                ),
+              })
+            }
             onFrom={(next) =>
               setMemberForm({
                 ...memberForm,
@@ -2951,6 +3056,16 @@ export function CollectionEditorPage() {
             piecesPerPack={memberForm.piecesPerPack}
             dispatchUnit={memberForm.dispatchUnit || Unit.Set}
             moq={memberForm.moq}
+            contentsUnit={
+              memberForm.catalogRateUnit.trim() ||
+              (catalogRateDisplayUnit({
+                unit: memberForm.unit || Unit.Set,
+                dispatchUnit: memberForm.dispatchUnit || Unit.Set,
+                catalogRateUnit: memberForm.catalogRateUnit,
+                offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
+              }) ??
+                Unit.Piece)
+            }
             onOrderUnit={(unit) => setMemberForm({ ...memberForm, unit })}
             onPiecesPerPack={(piecesPerPack) =>
               setMemberForm({ ...memberForm, piecesPerPack })

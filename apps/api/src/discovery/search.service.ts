@@ -169,7 +169,9 @@ export class SearchService {
       include: collectionCardInclude,
       ...cursorArgs(query),
     });
-    return toCursorPage(rows, query.limit, (row) => this.discovery.toCollectionCard(row));
+    return toCursorPage(rows, query.limit, (row) =>
+      this.discovery.toCollectionCard(row, { viewerCompanyId }),
+    );
   }
 
   private async designs(

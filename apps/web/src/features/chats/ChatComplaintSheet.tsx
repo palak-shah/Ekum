@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ComplaintView, CursorPage, MessageView, OrderView } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type ComplaintView, type CursorPage, type MessageView, type OrderView } from '@ekum/domain-types';
 import {
   complaintOrderHaystack,
   complaintOrderThumb,
@@ -10,6 +10,7 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { statusLabel } from '@/lib/status';
 import { useToast } from '@/ui/Toast';
 import {
@@ -38,9 +39,10 @@ function OrderThumb({ order, title }: { order: OrderView; title: string }) {
   const src = complaintOrderThumb(order);
   if (src) {
     return (
-      <img
+      <ManagedImage
         src={toAbsoluteMediaUrl(src)}
         alt=""
+        variant={MEDIA_VARIANT.Thumbnail1}
         className="h-12 w-12 shrink-0 rounded-lg object-cover"
       />
     );
@@ -263,9 +265,10 @@ export function ChatComplaintSheet({
               <div className="flex flex-wrap gap-2">
                 {images.map((url) => (
                   <div key={url} className="relative h-12 w-12 shrink-0">
-                    <img
+                    <ManagedImage
                       src={toAbsoluteMediaUrl(url)}
                       alt=""
+                      variant={MEDIA_VARIANT.Thumbnail1}
                       className="h-12 w-12 rounded-lg object-cover"
                     />
                     <button

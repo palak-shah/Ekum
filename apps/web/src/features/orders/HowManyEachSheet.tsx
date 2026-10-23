@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import type { ExploreProductPreviewView, ProductView } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type ExploreProductPreviewView, type ProductView } from '@ekum/domain-types';
 import { orderWhoMode } from '@/features/orders/orderWho';
 import { orderSheetTitle } from '@/features/orders/orderQtyUi';
 import {
@@ -33,6 +33,7 @@ import { useToast } from '@/ui/Toast';
 import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
 import { Button, InlineNotice, Sheet } from '@/ui/kit';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { readRememberedQty, rememberQty } from '@/features/orders/qtyEachMemory';
 import {
   readLastTransporter,
@@ -447,7 +448,7 @@ export function HowManyEachSheet({
                             setPhotoOpen(true);
                           }}
                         >
-                          <img src={thumb} alt="" className="h-full w-full object-cover" />
+                          <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                         </button>
                       ) : (
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
@@ -460,6 +461,7 @@ export function HowManyEachSheet({
                         name={product.name}
                         unit={product.unit}
                         dispatchUnit={product.dispatchUnit}
+                        catalogRateUnit={product.catalogRateUnit}
                         piecesPerPack={product.piecesPerPack}
                         moq={product.moq}
                         rate={product.rate}

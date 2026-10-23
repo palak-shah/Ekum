@@ -121,8 +121,8 @@ export function UnitsSettingsPage() {
         </button>
       </div>
 
-      <Button fullWidth disabled={save.isPending} onClick={() => save.mutate()}>
-        {save.isPending ? 'Saving…' : 'Save units'}
+      <Button fullWidth loading={save.isPending} onClick={() => save.mutate()}>
+        Save units
       </Button>
     </div>
   );

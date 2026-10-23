@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { BackIcon, ChevronRightIcon } from '@/ui/icons';
 import { PHOTO_STRIP_TOUCH_CLASS } from '@/ui/mobileOverflow';
 import { cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 
 /**
  * Design photos in the collection sheet.
@@ -112,9 +114,10 @@ export function DesignSheetPhotoCarousel({
               data-testid={i === safeIndex ? 'collection-design-photo-slide-active' : undefined}
               aria-hidden={i !== safeIndex}
             >
-              <img
+              <ManagedImage
                 src={url}
                 alt=""
+                variant={MEDIA_VARIANT.Thumbnail2}
                 draggable={false}
                 className="pointer-events-none max-h-[min(70dvh,28rem)] w-full select-none object-contain"
               />

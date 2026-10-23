@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import type { ThreadDetail } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type ThreadDetail } from '@ekum/domain-types';
 import { uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { Button, Field, Sheet, TextInput } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 export function GroupProfileSheet({
   open,
@@ -50,7 +51,7 @@ export function GroupProfileSheet({
           onClick={() => fileRef.current?.click()}
         >
           {imageUrl ? (
-            <img src={toAbsoluteMediaUrl(imageUrl) ?? imageUrl} alt="" className="h-full w-full object-cover" />
+            <ManagedImage src={toAbsoluteMediaUrl(imageUrl) ?? imageUrl} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
           ) : (
             'Photo'
           )}

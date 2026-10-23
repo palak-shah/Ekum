@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { uploadImage } from '@/lib/mediaUpload';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { ApiError } from '@/lib/apiClient';
 import { TextInput, cx } from '@/ui/kit';
 import { CameraIcon } from '@/ui/icons';
@@ -83,7 +85,7 @@ export function GroupIdentityHero({
             onClick={pickPhoto}
           >
             {photo ? (
-              <img src={photo} alt="" className="h-full w-full object-cover" />
+              <ManagedImage src={photo} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
             ) : (
               initial
             )}
@@ -94,7 +96,7 @@ export function GroupIdentityHero({
             style={circleStyle}
           >
             {photo ? (
-              <img src={photo} alt="" className="h-full w-full object-cover" />
+              <ManagedImage src={photo} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
             ) : (
               initial
             )}

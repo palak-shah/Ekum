@@ -42,19 +42,26 @@ export function designMasterCategoryId(
 }
 
 /**
- * Rate per change, same as collection: pack orders keep the order unit.
- * pc (or the order unit itself) does not write pc onto dispatch.
+ * Rate per change does not rewrite Dispatch.
+ * Pack orders keep the order unit; native path Rate per is the order unit.
  */
 export function applyDesignRateUnit(
   orderUnit: string,
   nextRateUnit: string,
-): { unit: string; dispatchUnit: string } {
+  dispatchUnit?: string,
+): { unit: string; dispatchUnit: string; catalogRateUnit: string } {
   const order = orderUnit.trim() || Unit.Set;
+  const dispatch = dispatchUnit?.trim();
   if (isPackOrderUnit(order)) {
-    if (nextRateUnit === Unit.Piece || nextRateUnit === order) {
-      return { unit: order, dispatchUnit: order };
-    }
-    return { unit: order, dispatchUnit: nextRateUnit };
+    return {
+      unit: order,
+      dispatchUnit: dispatch || order,
+      catalogRateUnit: nextRateUnit,
+    };
   }
-  return { unit: nextRateUnit, dispatchUnit: nextRateUnit };
+  return {
+    unit: nextRateUnit,
+    dispatchUnit: dispatch || nextRateUnit,
+    catalogRateUnit: nextRateUnit,
+  };
 }

@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 /** Initial visible tiles (3×3) and expand step for multi-image grids. */
 export const CAPPED_MEDIA_PAGE = 9;
@@ -56,9 +58,10 @@ export function CappedMediaGrid<T>({
       aria-label={`Load more, ${remaining} left`}
     >
       {preview ? (
-        <img
+        <ManagedImage
           src={preview}
           alt=""
+          variant={MEDIA_VARIANT.Thumbnail1}
           className="absolute inset-0 h-full w-full object-cover blur-sm scale-105"
         />
       ) : (

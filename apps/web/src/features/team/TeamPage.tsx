@@ -289,7 +289,7 @@ export function TeamPage() {
               {editError ? <InlineNotice message={editError} /> : null}
               <Button
                 fullWidth
-                disabled={updateMember.isPending}
+                loading={updateMember.isPending}
                 onClick={() =>
                   updateMember.mutate({
                     userId: editMember.userId,
@@ -297,7 +297,7 @@ export function TeamPage() {
                   })
                 }
               >
-                {updateMember.isPending ? 'Updating…' : 'Update'}
+                Update
               </Button>
               <Button
                 variant="secondary"

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Unit, unitValues } from '@ekum/domain-types';
+import { useEffect, useRef, useState } from 'react';
+import { Unit, defaultRateUnit, unitValues } from '@ekum/domain-types';
 import { cx } from '@/lib/cx';
 import { Field, TextInput } from '@/ui/kit';
 import {
@@ -45,6 +45,18 @@ function RateAmountInput({
   );
 }
 
+/** Keep the current Rate per visible if the category list dropped it (then coerce). */
+export function ratePerSelectOptions(
+  permitted: readonly string[] | undefined,
+  current: string,
+): string[] {
+  const base = permitted && permitted.length > 0 ? [...permitted] : [...unitValues];
+  if (current && !base.includes(current)) {
+    return [current, ...base];
+  }
+  return base;
+}
+
 /**
  * Pack rate: One rate vs A range as a pill switch for the whole collection.
  * Empty rate shows no “On request” caption (Who visibility stays separate).
@@ -76,8 +88,6 @@ export function RateRangeFields({
   /** One amount only — no One rate / A range switch. */
   fixedOnly?: boolean;
 }) {
-  const unitOptions =
-    permittedUnits && permittedUnits.length > 0 ? permittedUnits : [...unitValues];
   const [mode, setMode] = useState<'single' | 'range'>(() =>
     Boolean(to.trim()) ? 'range' : 'single',
   );
@@ -92,6 +102,17 @@ export function RateRangeFields({
   const showCaption = danger;
   const unitSelect = Boolean(onRateUnit);
   const selectedUnit = (rateUnit?.trim() || Unit.Piece) as string;
+  const unitOptions = ratePerSelectOptions(permittedUnits, selectedUnit);
+  const onRateUnitRef = useRef(onRateUnit);
+  onRateUnitRef.current = onRateUnit;
+  // Category change can drop pc from the list — keep the select valid and
+  // write the new Rate per so Update actually persists mtr/kg.
+  useEffect(() => {
+    const emit = onRateUnitRef.current;
+    if (!emit || !permittedUnits || permittedUnits.length === 0) return;
+    if (permittedUnits.includes(selectedUnit)) return;
+    emit(defaultRateUnit(permittedUnits));
+  }, [permittedUnits, selectedUnit]);
   const modeAria = unitSelect ? `Rate per ${selectedUnit} mode` : `${label} mode`;
   const singleAria = unitSelect ? `Rate per ${selectedUnit}` : label;
 

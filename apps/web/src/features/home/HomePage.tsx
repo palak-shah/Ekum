@@ -2,15 +2,16 @@ import { useMemo, useState, type ComponentType, type SVGProps } from 'react';
 import { useAuth, useCompanyId } from '@/lib/auth';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type {
-  CollectionViewGrantView,
-  CompanyCard,
-  CursorPage,
-  ExploreHomeView,
-  ExplorePost,
-  FollowAskView,
-  OrderView,
-  ThreadSummary,
+import {
+  MEDIA_VARIANT,
+  type CollectionViewGrantView,
+  type CompanyCard,
+  type CursorPage,
+  type ExploreHomeView,
+  type ExplorePost,
+  type FollowAskView,
+  type OrderView,
+  type ThreadSummary,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
@@ -423,7 +424,7 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
               My designs
             </Link>
             <Link
-              to="/catalog/products/new"
+              to="/catalog/collections/new"
               className="block text-center text-sm font-body text-muted"
             >
               {buying ? 'Add designs' : 'Add designs to start'}
@@ -548,7 +549,7 @@ function HomeLookRail({ posts }: { posts: HomePostGroup[] }) {
             to={homePostGroupLink(group)}
             className="relative h-[7.25rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-linen"
           >
-            <CoverImage src={src} alt="" priority />
+            <CoverImage src={src} alt="" priority variant={MEDIA_VARIANT.Thumbnail1} />
             <span className="absolute inset-x-0 bottom-0 truncate bg-ink/55 px-1.5 py-1 text-[10px] font-emphasis text-white">
               {group.companyName}
             </span>
@@ -577,7 +578,7 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
     >
       {thumb ? (
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
-          <CoverImage src={thumb} alt="" />
+          <CoverImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} />
         </div>
       ) : (
         <Avatar name={group.companyName} size={56} />

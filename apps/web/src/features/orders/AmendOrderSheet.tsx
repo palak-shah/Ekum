@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { OrderItemView } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type OrderItemView } from '@ekum/domain-types';
 import { HowManyGroupedLines } from '@/features/orders/HowManyGroupedLines';
 import {
   HowManyLineHeading,
@@ -27,6 +27,7 @@ import {
 } from '@/features/orders/QtyStepper';
 import { TransporterField } from '@/features/orders/TransporterField';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { NoteAttachField } from '@/features/voice/NoteAttachField';
 import type { NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { Button, InlineNotice, Sheet } from '@/ui/kit';
@@ -144,9 +145,10 @@ export function AmendOrderSheet({
             fullWidth
             data-testid="order-amend-save"
             onClick={onSave}
-            disabled={Boolean(saving) || !canSave}
+            loading={Boolean(saving)}
+            disabled={!canSave}
           >
-            {saving ? 'Saving…' : 'Save changes'}
+            Save changes
           </Button>
         </div>
       }
@@ -217,7 +219,7 @@ export function AmendOrderSheet({
                         aria-label={`View photo for ${item.name}`}
                         onClick={() => onOpenPhoto(item)}
                       >
-                        <img src={thumb} alt="" className="h-full w-full object-cover" />
+                        <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                       </button>
                     ) : (
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
@@ -230,6 +232,7 @@ export function AmendOrderSheet({
                       name={item.name}
                       unit={item.unit}
                       dispatchUnit={item.dispatchUnit}
+                      catalogRateUnit={item.catalogRateUnit}
                       piecesPerPack={item.piecesPerPack}
                       rate={item.rate}
                       showPackSize={packSizesDiffer}

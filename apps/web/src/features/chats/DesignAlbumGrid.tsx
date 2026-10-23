@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { cx } from '@/ui/kit';
 
 export type DesignAlbumItem = {
@@ -83,9 +85,10 @@ export function DesignAlbumGrid({
               data-testid="design-album-tile"
             >
               {src ? (
-                <img
+                <ManagedImage
                   src={src}
                   alt=""
+                  variant={MEDIA_VARIANT.Thumbnail1}
                   className={cx(
                     'aspect-[3/4] w-full object-cover',
                     locked ? 'blur-[3px] scale-110' : null,

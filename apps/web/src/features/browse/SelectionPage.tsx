@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  CollectionPreviewView,
-  CurateCheckView,
-  RelistAccessView,
-  RelistRequestView,
-  SavedItemView,
+import {
+  MEDIA_VARIANT,
+  type CollectionPreviewView,
+  type CurateCheckView,
+  type RelistAccessView,
+  type RelistRequestView,
+  type SavedItemView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTradePresence } from '@/lib/tradePresence';
@@ -60,6 +61,7 @@ import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { BookmarkIcon, PaperPlaneIcon, RepostIcon } from '@/ui/icons';
 import { Button, EmptyState, LoadingBlock, cx } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 type DesignRow = BrowseShortlistEntry & { availability?: SelectionAvailability };
 type AlbumRow = BrowseAlbumEntry & { availability?: SelectionAvailability };
@@ -826,7 +828,7 @@ function SelectionRow({
 }) {
   const faded = Boolean(unavailable || packLocked);
   const thumb = thumbUrl ? (
-    <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
+    <ManagedImage src={thumbUrl} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
   ) : (
     <span className="flex h-full w-full items-center justify-center bg-foam text-sm font-body text-muted">
       {name.slice(0, 1).toUpperCase()}

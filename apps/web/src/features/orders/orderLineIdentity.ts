@@ -10,9 +10,10 @@ export function orderLineSoldAsCue(
   unit?: string | null,
   piecesPerPack?: number | null,
   dispatchUnit?: string | null,
+  catalogRateUnit?: string | null,
 ): string | null {
   if (isPackOrderUnit(unit)) {
-    return howManySoldAs(unit, piecesPerPack, dispatchUnit);
+    return howManySoldAs(unit, piecesPerPack, dispatchUnit, catalogRateUnit);
   }
   const label = formatUnit(unit ?? null);
   return label ? `per ${label}` : null;
@@ -29,6 +30,12 @@ export function orderLineIdentitySecondary(item: {
   unit?: string | null;
   piecesPerPack?: number | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
 }): string | null {
-  return orderLineSoldAsCue(item.unit, item.piecesPerPack, item.dispatchUnit);
+  return orderLineSoldAsCue(
+    item.unit,
+    item.piecesPerPack,
+    item.dispatchUnit,
+    item.catalogRateUnit,
+  );
 }

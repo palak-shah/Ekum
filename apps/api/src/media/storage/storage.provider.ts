@@ -1,6 +1,7 @@
 import { Logger, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../core/config/config.schema';
+import { resolveLocalMediaRoot } from '../local-media-root';
 import { AzureBlobDriver } from './azure-blob.driver';
 import { LocalStorageDriver } from './local-storage.driver';
 import { resolvePublicMediaBaseUrl } from './public-media-base';
@@ -30,6 +31,6 @@ export const storageProvider: Provider = {
       );
     }
     new Logger('Storage').warn('Azure storage not configured; using local dev media driver.');
-    return new LocalStorageDriver(baseUrl);
+    return new LocalStorageDriver(baseUrl, resolveLocalMediaRoot());
   },
 };

@@ -13,6 +13,9 @@ describe('AzureBlobDriver', () => {
     expect(driver.publicUrl('c1/abc.jpg')).toBe(
       'https://ekumdev.blob.core.windows.net/media/c1/abc.jpg',
     );
+    expect(driver.publicUrl('c1/original/abc.jpg')).toBe(
+      'https://ekumdev.blob.core.windows.net/media/c1/original/abc.jpg',
+    );
   });
 
   it('mints a write SAS upload target with the required query params', () => {

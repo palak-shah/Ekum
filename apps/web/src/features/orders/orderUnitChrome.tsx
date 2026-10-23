@@ -21,6 +21,7 @@ export function OrderRate(input: {
   rateMax?: number | null;
   unit?: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   className?: string;
   testId?: string;
 }) {

@@ -77,6 +77,7 @@ export type OrderQtyFamilyLine = {
   unit?: string | null;
   piecesPerPack?: number | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
 };
 
 /** Unit-family totals for trail / ticket (`60 mtrs`, `2 sets = 24 pcs`). */
@@ -92,7 +93,11 @@ export function orderQtyFamilyRows(lines: OrderQtyFamilyLine[]): string[] {
       const orderUnit = line.unit?.trim() || 'set';
       const pack = packSizeForUnit(line.unit, line.piecesPerPack);
       const contents =
-        catalogRateUnit({ unit: line.unit, dispatchUnit: line.dispatchUnit }) ??
+        catalogRateUnit({
+          unit: line.unit,
+          dispatchUnit: line.dispatchUnit,
+          catalogRateUnit: line.catalogRateUnit,
+        }) ??
         line.dispatchUnit?.trim() ??
         'pc';
       const key = pack == null ? `${orderUnit}|unknown` : `${orderUnit}|${contents}`;

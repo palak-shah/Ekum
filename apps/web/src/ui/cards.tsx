@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import type {
-  CollectionCard,
-  CompanyCard,
-  DiscoveryProductCard,
-  ExploreBuyerOpportunity,
-  ExploreDesignOpportunity,
-  ExploreOpportunity,
-  ExplorePost,
-  ExploreProductCard,
-  ExploreSupplierCard,
-  ProductView,
-  PublicCompanySummary,
+import {
+  MEDIA_VARIANT,
+  type CollectionCard,
+  type CompanyCard,
+  type DiscoveryProductCard,
+  type ExploreBuyerOpportunity,
+  type ExploreDesignOpportunity,
+  type ExploreOpportunity,
+  type ExplorePost,
+  type ExploreProductCard,
+  type ExploreSupplierCard,
+  type MediaVariant,
+  type ProductView,
+  type PublicCompanySummary,
 } from '@ekum/domain-types';
 import { formatCatalogRate } from '@/lib/catalogRate';
 import { timeAgo } from '@/lib/format';
@@ -33,6 +35,7 @@ import { useMyCompany } from '@/lib/queries';
 import { albumMediaAspectClass, albumOverflowLabel } from './albumMosaic';
 import { SelectableMediaFrame } from './selectMediaChrome';
 import { DesignPhotoCarousel } from './DesignPhotoCarousel';
+import { ManagedImage } from './ManagedImage';
 import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress } from './useLongPress';
 
 /** CoverImage IO prefetch — ahead of tall Explore cards. */
@@ -577,6 +580,7 @@ export function OpportunityDesignCard({
           selected={selected}
           onActivate={() => onMediaActivate()}
           onLongSelect={onLongSelect}
+          priority={priority}
           testId={`explore-design-photos-${product.id}`}
         />
       </div>
@@ -596,6 +600,7 @@ export function OpportunityDesignCard({
             rateMax: product.rateMax,
             unit: product.unit,
             dispatchUnit: product.dispatchUnit,
+            catalogRateUnit: product.catalogRateUnit,
           })}
           categoryLine={exploreFeedCategoryLine(product.categories)}
         />
@@ -667,11 +672,14 @@ export function CoverImage({
   alt,
   className,
   priority = false,
+  variant = MEDIA_VARIANT.Thumbnail2,
 }: {
   src: string | null;
   alt: string;
   className?: string;
   priority?: boolean;
+  /** Default thumbnail2 for feed cards. Pass thumbnail1 for 48–64px rows. */
+  variant?: MediaVariant;
 }) {
   const shellRef = useRef<HTMLDivElement>(null);
   const [activeSrc, setActiveSrc] = useState<string | null>(priority ? src : null);
@@ -711,9 +719,10 @@ export function CoverImage({
   return (
     <div ref={shellRef} className={cx('h-full w-full', className)}>
       {activeSrc ? (
-        <img
+        <ManagedImage
           src={activeSrc}
           alt={alt}
+          variant={variant}
           className="h-full w-full object-cover object-center"
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"
@@ -774,7 +783,7 @@ export function CollectionListItem({
       className="flex items-center gap-3 overflow-hidden rounded-2xl bg-surface p-2.5 shadow-[var(--shadow-soft)]"
     >
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl">
-        <CoverImage src={cover} alt={collection.name} />
+        <CoverImage src={cover} alt={collection.name} variant={MEDIA_VARIANT.Thumbnail1} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-emphasis text-ink">
@@ -1101,6 +1110,7 @@ export function ProductPost({ product }: { product: ExploreProductCard }) {
             rateMax: product.rateMax,
             unit: product.unit,
             dispatchUnit: product.dispatchUnit,
+            catalogRateUnit: product.catalogRateUnit,
           })}
           categoryLine={exploreFeedCategoryLine(product.categories)}
         />
@@ -1150,6 +1160,10 @@ export function ProductTile({
             dispatchUnit:
               'dispatchUnit' in product
                 ? (product as { dispatchUnit?: string | null }).dispatchUnit
+                : undefined,
+            catalogRateUnit:
+              'catalogRateUnit' in product
+                ? (product as { catalogRateUnit?: string | null }).catalogRateUnit
                 : undefined,
           })}
         </p>

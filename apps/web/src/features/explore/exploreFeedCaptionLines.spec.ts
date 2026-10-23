@@ -26,6 +26,14 @@ describe('exploreFeedRateLine', () => {
   it('Explore pack card uses collection Rate per (mtr), not leftover /pc', () => {
     expect(exploreFeedRateLine({ rate: 91, unit: 'mtr' })).toBe('₹91/mtr');
     expect(exploreFeedRateLine({ rate: 91, unit: 'pc' })).toBe('₹91/pc');
+    expect(
+      exploreFeedRateLine({
+        rate: 91,
+        unit: 'set',
+        dispatchUnit: 'set',
+        catalogRateUnit: 'mtr',
+      }),
+    ).toBe('₹91/mtr');
   });
 });
 

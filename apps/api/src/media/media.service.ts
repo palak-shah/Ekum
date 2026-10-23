@@ -52,7 +52,11 @@ export class MediaService {
   ): Promise<UploadTicket> {
     const ttlMs = parseDurationMs(this.config.get('MEDIA_UPLOAD_TTL', { infer: true }));
     const extension = EXTENSION[dto.contentType] ?? 'bin';
-    const blobPath = `${companyId}/${randomToken(12)}.${extension}`;
+    const fileName = `${randomToken(12)}.${extension}`;
+    const blobPath =
+      dto.kind === MediaKind.Image
+        ? `${companyId}/original/${fileName}`
+        : `${companyId}/${fileName}`;
     const target = this.storage.createUploadTarget({
       blobPath,
       contentType: dto.contentType,

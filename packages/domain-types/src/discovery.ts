@@ -127,8 +127,9 @@ export interface CollectionCard {
    */
   orderPathPreference: string | null;
   /**
-   * Rate band for Explore when pack `rateVisibility` is visible.
-   * Null when on request, mixed units, or no priced members.
+   * Rate band for Explore / shop / album. Owner always sees it.
+   * Other shops only when pack `rateVisibility` is visible.
+   * Null when on request (non-owner), mixed units with no pack rate, or no priced members.
    */
   rateMin: number | null;
   rateMax: number | null;
@@ -171,8 +172,10 @@ export interface ExploreProductCard {
   rateMax: number | null;
   /** Order taken in (set / pc / mtr…). */
   unit: string | null;
-  /** Rate / dispatch unit when pack order unit (usually pc). */
+  /** What they send. Independent of Rate per. */
   dispatchUnit?: string | null;
+  /** Rate per (billing). Independent of dispatch. */
+  catalogRateUnit?: string | null;
   /** Design tags when present. */
   categories: string[];
   postedAt: string;

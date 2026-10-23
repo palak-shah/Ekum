@@ -80,6 +80,8 @@ export class CatalogSerializer {
         : product.rateMax.toNumber(),
       unit: product.unit,
       dispatchUnit: (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+      catalogRateUnit:
+        (product as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
       piecesPerPack: product.piecesPerPack ?? null,
       categories: product.categories,
       masterCategoryId:
@@ -133,6 +135,11 @@ export class CatalogSerializer {
         (collection as { rateMax?: { toNumber: () => number } | null }).rateMax === undefined
           ? null
           : (collection as { rateMax: { toNumber: () => number } }).rateMax.toNumber(),
+      unit: (collection as { unit?: string | null }).unit ?? null,
+      dispatchUnit: (collection as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+      catalogRateUnit:
+        (collection as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
+      piecesPerPack: (collection as { piecesPerPack?: number | null }).piecesPerPack ?? null,
       categories: collection.categories ?? [],
       masterCategoryId:
         (collection as { masterCategoryId?: string | null }).masterCategoryId ?? null,

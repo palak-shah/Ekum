@@ -19,9 +19,19 @@ export function unitCountNoun(unit: string | null | undefined, count: number): s
 }
 
 /** Unit “1 set contains” / preview conversion uses (rate unit — usually pc). */
-export function orderContentsUnit(orderUnit: string, dispatchUnit: string): string {
+export function orderContentsUnit(
+  orderUnit: string,
+  dispatchUnit: string,
+  offeredRateUnits?: readonly string[],
+  catalogRateUnitStored?: string | null,
+): string {
   return (
-    catalogRateUnit({ unit: orderUnit, dispatchUnit }) ??
+    catalogRateUnit({
+      unit: orderUnit,
+      dispatchUnit,
+      catalogRateUnit: catalogRateUnitStored,
+      offeredRateUnits,
+    }) ??
     (dispatchUnit.trim() || DEFAULT_RATE_UNIT)
   );
 }
@@ -34,6 +44,14 @@ export function parsePiecesPerPack(
   const n = typeof raw === 'string' ? (raw.trim() ? Number(raw.trim()) : NaN) : raw;
   if (!Number.isFinite(n) || n <= 0) return null;
   return Math.floor(n);
+}
+
+/** Editor field: 0 / blank → empty (not given). */
+export function piecesPerPackFieldValue(
+  raw: string | number | null | undefined,
+): string {
+  const n = parsePiecesPerPack(raw);
+  return n == null ? '' : String(n);
 }
 
 /** Live suffix beside the contains number: empty → `pc`; `1` → `pc`; `4` → `pcs`. */
@@ -52,29 +70,33 @@ export function orderDispatchPreview(
   piecesPerPack: string | number | null | undefined,
   dispatchUnit: string,
   sampleQty = 10,
+  contentsUnitStored?: string,
 ): string {
   const pack = parsePiecesPerPack(piecesPerPack);
   const orderNoun = unitCountNoun(orderUnit, sampleQty);
   if (pack == null) {
     return `${sampleQty} ${orderNoun}`;
   }
-  const contentsUnit = orderContentsUnit(orderUnit, dispatchUnit);
+  const contentsUnit =
+    contentsUnitStored?.trim() || orderContentsUnit(orderUnit, dispatchUnit);
   const dispatchQty = sampleQty * pack;
   return `${sampleQty} ${orderNoun} (= ${dispatchQty} ${unitCountNoun(contentsUnit, dispatchQty)})`;
 }
 
-/** Collapsed accordion summary — order · contains in rate unit · dispatch (if different) · MOQ. */
+/** Collapsed accordion summary — order · contains in Rate per · dispatch (if different) · MOQ. */
 export function orderDispatchSectionSummary(input: {
   orderUnit: string;
   piecesPerPack: string;
   dispatchUnit: string;
   moq: string;
+  contentsUnit?: string;
 }): string {
   const unit = input.orderUnit.trim() || 'set';
   const parts = [unit];
   const n = parsePiecesPerPack(input.piecesPerPack);
   const dispatch = input.dispatchUnit.trim() || unit;
-  const contents = orderContentsUnit(unit, dispatch);
+  const contents =
+    input.contentsUnit?.trim() || orderContentsUnit(unit, dispatch);
   if (n != null) {
     parts.push(`${n} ${unitCountNoun(contents, n)}`);
   }

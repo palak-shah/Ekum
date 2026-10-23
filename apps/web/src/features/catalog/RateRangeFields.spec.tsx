@@ -128,5 +128,26 @@ describe('RateRangeFields', () => {
     );
     expect(screen.getByTestId('collection-rate-unit')).toHaveValue('mtr');
   });
+
+  it('keeps an invalid Rate per selectable then coerces to a unit the category offers', async () => {
+    const onRateUnit = vi.fn();
+    render(
+      <RateRangeFields
+        from="91"
+        to=""
+        onFrom={() => undefined}
+        onTo={() => undefined}
+        rateUnit="pc"
+        onRateUnit={onRateUnit}
+        permittedUnits={['mtr', 'kg']}
+      />,
+    );
+    const select = screen.getByTestId('collection-rate-unit');
+    expect(select).toHaveValue('pc');
+    expect(select).toHaveTextContent('pc');
+    expect(onRateUnit).toHaveBeenCalledWith('mtr');
+    await userEvent.setup().selectOptions(select, 'mtr');
+    expect(onRateUnit).toHaveBeenCalledWith('mtr');
+  });
 });
 

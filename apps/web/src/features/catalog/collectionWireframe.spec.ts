@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { orderDispatchPreview, orderDispatchSectionSummary } from './orderDispatchPreview';
+import {
+  orderDispatchPreview,
+  orderDispatchSectionSummary,
+  piecesPerPackFieldValue,
+} from './orderDispatchPreview';
 import { collectionGalleryInputProps } from './collectionGalleryInput';
 import { parseRateParts, rateRangeCaption } from './rateRange';
 import { collectRateConflicts } from './collectionSameForAll';
@@ -33,7 +37,7 @@ describe('orderDispatchSectionSummary', () => {
     ).toBe('pc · 1 pc');
   });
 
-  it('uses dispatch noun for pack contents (mtr not pcs)', () => {
+  it('uses dispatch noun for pack contents when Rate per is not stored (legacy)', () => {
     expect(
       orderDispatchSectionSummary({
         orderUnit: 'set',
@@ -42,6 +46,27 @@ describe('orderDispatchSectionSummary', () => {
         moq: '',
       }),
     ).toBe('set · 5 mtrs · dispatch mtr');
+  });
+
+  it('keeps Rate per mtrs when dispatch is set', () => {
+    expect(
+      orderDispatchSectionSummary({
+        orderUnit: 'set',
+        piecesPerPack: '47',
+        dispatchUnit: 'set',
+        moq: '',
+        contentsUnit: 'mtr',
+      }),
+    ).toBe('set · 47 mtrs');
+    expect(orderDispatchPreview('set', 47, 'set', 10, 'mtr')).toBe(
+      '10 sets (= 470 mtrs)',
+    );
+  });
+
+  it('treats 0 as not given in the editor field', () => {
+    expect(piecesPerPackFieldValue('0')).toBe('');
+    expect(piecesPerPackFieldValue(0)).toBe('');
+    expect(piecesPerPackFieldValue(4)).toBe('4');
   });
 
   it('treats 0 or blank pack as unset', () => {

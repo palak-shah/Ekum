@@ -28,6 +28,7 @@ import {
   type ComplaintAgainstTarget,
 } from '@/features/orders/complaintAgainstTargets';
 import {
+  MEDIA_VARIANT,
   CHAT_REACTION_EMOJIS,
   outgoingSeenLabel,
   activeMentionQuery,
@@ -57,6 +58,7 @@ import {
   uploadImage,
 } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { statusLabel } from '@/lib/status';
 import { PageHeader } from '@/ui/PageHeader';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -2534,11 +2536,12 @@ export function ThreadPage() {
           {replyTo ? (
             <div className="flex items-start gap-2 rounded-xl bg-foam px-3 py-2">
               {quotedComposerThumbUrl(replyTo, replyPhotoIndex, replyProductId) ? (
-                <img
+                <ManagedImage
                   src={toAbsoluteMediaUrl(
                     quotedComposerThumbUrl(replyTo, replyPhotoIndex, replyProductId)!,
                   )}
                   alt=""
+                  variant={MEDIA_VARIANT.Thumbnail1}
                   className="h-10 w-10 shrink-0 rounded-lg object-cover"
                   data-testid="reply-quote-thumb"
                 />
@@ -2908,9 +2911,10 @@ export function ThreadPage() {
                   )}
                 >
                   {product.images[0] ? (
-                    <img
+                    <ManagedImage
                       src={product.images[0]}
                       alt=""
+                      variant={MEDIA_VARIANT.Thumbnail1}
                       className="h-12 w-12 shrink-0 rounded-lg object-cover"
                     />
                   ) : (
@@ -2964,9 +2968,10 @@ export function ThreadPage() {
                   )}
                 >
                   {collection.coverImage ? (
-                    <img
+                    <ManagedImage
                       src={collection.coverImage}
                       alt=""
+                      variant={MEDIA_VARIANT.Thumbnail1}
                       className="h-12 w-12 shrink-0 rounded-lg object-cover"
                     />
                   ) : (
@@ -3326,7 +3331,7 @@ function ReplyQuote({
   const body = (
     <span className="flex items-center gap-2">
       {thumb ? (
-        <img src={thumb} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
+        <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-9 w-9 shrink-0 rounded-md object-cover" />
       ) : null}
       <span className="min-w-0 flex-1">
         <p className="font-emphasis text-accent">Reply</p>
@@ -3993,7 +3998,7 @@ function TimelineItem({
             >
               {isImageDoc ? (
                 <span className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-foam">
-                  <img src={openUrl} alt="" className="h-full w-full object-cover" />
+                  <ManagedImage src={openUrl} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                 </span>
               ) : (
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-foam text-muted">

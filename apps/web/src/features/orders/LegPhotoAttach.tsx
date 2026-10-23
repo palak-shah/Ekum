@@ -4,7 +4,9 @@ import { ApiError } from '@/lib/apiClient';
 import { CameraIcon, ImageIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { MAX_LEG_PHOTOS } from '@/features/orders/dispatchSheet';
+import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 /** Quiet photo attach under an LR · Bill row — thumbs always show when attached. */
 export function LegPhotoAttach({
@@ -136,7 +138,7 @@ export function LegPhotoAttach({
                 key={url}
                 className="relative h-14 w-14 overflow-hidden rounded-lg bg-foam"
               >
-                <img src={src} alt="" className="h-full w-full object-cover" />
+                <ManagedImage src={src} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
                 <button
                   type="button"
                   aria-label="Remove LR photo"
@@ -173,7 +175,7 @@ export function LegPhotoThumbs({
             key={url}
             className="h-12 w-12 overflow-hidden rounded-lg bg-foam"
           >
-            <img src={src} alt="" className="h-full w-full object-cover" />
+            <ManagedImage src={src} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
           </div>
         );
       })}

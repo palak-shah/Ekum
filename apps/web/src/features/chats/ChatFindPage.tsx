@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
+  MEDIA_VARIANT,
   crossChatFindKindValues,
   documentFromMessage,
   documentTypeCue,
@@ -14,6 +15,7 @@ import { api } from '@/lib/apiClient';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PageHeader } from '@/ui/PageHeader';
 import { PhotoViewer } from '@/ui/PhotoViewer';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { Chip, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { timeAgo } from '@/lib/format';
 import { highlightSearchText } from '@/ui/highlightMatch';
@@ -254,9 +256,10 @@ export function ChatFindPage() {
                       aria-label={`Photo in ${cell.chatLabel}`}
                       onClick={() => setViewerIndex(globalIndex)}
                     >
-                      <img
+                      <ManagedImage
                         src={cell.url}
                         alt=""
+                        variant={MEDIA_VARIANT.Thumbnail1}
                         className="h-full w-full object-cover"
                         loading="lazy"
                       />
@@ -292,7 +295,7 @@ export function ChatFindPage() {
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linen text-[11px] font-body text-muted">
                     {thumb ? (
-                      <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" loading="lazy" />
                     ) : (
                       cue ?? KIND_LABEL[kind].slice(0, 3)
                     )}

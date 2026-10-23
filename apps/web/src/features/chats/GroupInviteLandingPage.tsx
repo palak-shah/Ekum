@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { AccessRequestView, GroupInviteLandingView, ThreadDetail } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type AccessRequestView, type GroupInviteLandingView, type ThreadDetail } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useAuth } from '@/lib/auth';
 import { DEFAULT_ACCESS_REQUEST_NOTE } from '@/lib/accessRequestNote';
@@ -10,6 +10,7 @@ import { clearInviteReturn, stashInviteReturn } from '@/lib/inviteReturn';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, ErrorState, LoadingBlock } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 function InviteShell({ children }: { children: ReactNode }) {
   return (
@@ -90,7 +91,7 @@ export function GroupInviteLandingPage() {
       <div className="flex flex-col items-center gap-2 pt-2">
         {photo ? (
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-line bg-foam">
-            <img src={photo} alt="" className="h-full w-full object-cover" />
+            <ManagedImage src={photo} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
           </div>
         ) : (
           <Avatar name={view.title} size={80} />

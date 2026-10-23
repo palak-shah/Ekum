@@ -22,6 +22,7 @@ export function OrderDispatchFields({
   onDispatchUnit,
   onMoq,
   hideHeading = false,
+  contentsUnit: contentsUnitProp,
 }: {
   orderUnit: string;
   piecesPerPack: string;
@@ -33,12 +34,14 @@ export function OrderDispatchFields({
   onMoq: (next: string) => void;
   /** When wrapped in CollectionExpandableSection (collection create/edit). */
   hideHeading?: boolean;
+  /** Rate per unit — “1 set contains” suffix must match collection details. */
+  contentsUnit?: string;
 }) {
   const order = orderUnit || DEFAULT_SELL_AS_UNIT;
   // Dispatch = delivery journey unit (platform usual set) — not the rate unit (pc).
   const dispatch = dispatchUnit.trim() || DEFAULT_DISPATCH_UNIT;
-  const contentsUnit = orderContentsUnit(order, dispatch);
-  const preview = orderDispatchPreview(order, piecesPerPack, dispatch);
+  const contentsUnit = contentsUnitProp?.trim() || orderContentsUnit(order, dispatch);
+  const preview = orderDispatchPreview(order, piecesPerPack, dispatch, 10, contentsUnit);
   const containsLabel =
     orderUnit === Unit.Dozen
       ? '1 dozen contains'
@@ -90,9 +93,16 @@ export function OrderDispatchFields({
         >
           <TextInput
             data-testid="collection-set-contains"
-            className="min-h-0 w-[4ch] border-0 bg-transparent px-0 text-right text-sm tabular-nums focus:border-transparent"
+            className="min-h-0 w-12 min-w-12 max-w-12 shrink-0 border-0 bg-transparent px-1 text-center text-base tabular-nums text-ink focus:border-transparent"
             value={piecesPerPack}
-            onChange={(e) => onPiecesPerPack(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next.trim() === '0' || next.trim() === '00') {
+                onPiecesPerPack('');
+                return;
+              }
+              onPiecesPerPack(next);
+            }}
             inputMode="numeric"
             placeholder={containsPlaceholder}
             aria-label={containsLabel}

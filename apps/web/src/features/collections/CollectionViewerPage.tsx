@@ -1,5 +1,4 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -27,6 +26,7 @@ import {
 import { useMyCompany } from '@/lib/queries';
 import {
   BOTTOM_DOCK_CLEARANCE_CLASS,
+  BottomTradeDock,
   SELECTION_DOCK_CLEARANCE_CLASS,
 } from '@/features/browse/BottomTradeDock';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
@@ -136,6 +136,7 @@ import {
   packTagPatchesForOwnDesigns,
   packTagsForMember,
   productFieldsFromMember,
+  storedCatalogRateUnit,
 } from '@/features/catalog/collectionSameForAll';
 import { LibraryPickTile } from '@/features/catalog/LibraryPickTile';
 import {
@@ -707,6 +708,12 @@ export function CollectionViewerPage() {
               : '',
           unit: seed?.unit || Unit.Set,
           dispatchUnit: seed?.dispatchUnit || Unit.Piece,
+          catalogRateUnit: storedCatalogRateUnit({
+            unit: seed?.unit ?? collection.data?.unit,
+            dispatchUnit: seed?.dispatchUnit ?? collection.data?.dispatchUnit,
+            catalogRateUnit:
+              collection.data?.catalogRateUnit ?? seed?.catalogRateUnit,
+          }),
           piecesPerPack: seed?.piecesPerPack != null ? String(seed.piecesPerPack) : '',
           moq: seed?.moq != null ? String(seed.moq) : '',
           notes: '',
@@ -722,6 +729,7 @@ export function CollectionViewerPage() {
           rateMax: parsed.rateMax ?? undefined,
           unit: parsed.unit as CreateProductDto['unit'],
           dispatchUnit: parsed.dispatchUnit as CreateProductDto['dispatchUnit'],
+          catalogRateUnit: parsed.catalogRateUnit as CreateProductDto['catalogRateUnit'],
           piecesPerPack: parsed.piecesPerPack,
           moq: parsed.moq ?? undefined,
         };
@@ -935,7 +943,7 @@ export function CollectionViewerPage() {
 
   const data = collection.data;
   const floaterClearance = selectMode || showResumeContinue;
-  // API: pack rate or design min–max; null for non-owners when on request.
+  // API: collection details rate when set, else design min–max; null for non-owners when on request.
   const rateBand = albumFactsRateBand({
     rateMin: data?.rateMin,
     rateMax: data?.rateMax,
@@ -970,7 +978,7 @@ export function CollectionViewerPage() {
         // Nav is hidden whenever a dock/floater owns the band — do not add a phantom nav pad.
         floaterClearance &&
           (showResumeContinue
-            ? 'pb-[calc(10rem+env(safe-area-inset-bottom))]'
+            ? BOTTOM_DOCK_CLEARANCE_CLASS
             : SELECTION_DOCK_CLEARANCE_CLASS),
         ownerManageDock && BOTTOM_DOCK_CLEARANCE_CLASS,
       )}
@@ -1177,21 +1185,13 @@ export function CollectionViewerPage() {
         />
       )}
 
-      {showResumeContinue && resumeAfterPick && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              className="fixed inset-x-0 bottom-[4.75rem] z-30 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur-md"
-              data-testid="album-pick-continue"
-            >
-              <div className="mx-auto max-w-md">
+      {showResumeContinue && resumeAfterPick ? (
+            <BottomTradeDock testId="album-pick-continue" aboveAppNav={false}>
                 <Button fullWidth onClick={onContinueAfterAlbumPick}>
                   {continueAfterAlbumPickLabel(resumeAfterPick, albumPick.count)}
                 </Button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </BottomTradeDock>
+          ) : null}
 
       {data.products ? (
         <div data-testid="collection-lot-tools">
@@ -1443,10 +1443,10 @@ export function CollectionViewerPage() {
                   setLibraryOpen(false);
                   setReplaceDraft(null);
                   abandonReplaceIfPending();
-                  navigate('/catalog/products/new');
+                  openOwnerPhotos();
                 }}
               >
-                Add a design
+                Add photos
               </Button>
             </div>
           ) : pickerDesigns.length === 0 ? (

@@ -144,13 +144,14 @@ export function BulkProductPublishSheet({ open, onClose, productIds, onDone }: P
 
           <Button
             fullWidth
-            disabled={!canSubmit || publish.isPending}
+            loading={publish.isPending}
+            disabled={!canSubmit}
             onClick={() => {
               setError(null);
               publish.mutate();
             }}
           >
-            {publish.isPending ? 'Publishing…' : `Publish ${productIds.length}`}
+            {`Publish ${productIds.length}`}
           </Button>
         </div>
       </Sheet>

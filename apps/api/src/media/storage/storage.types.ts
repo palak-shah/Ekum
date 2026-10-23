@@ -14,6 +14,15 @@ export interface StorageDriver {
   createUploadTarget(input: { blobPath: string; contentType: string; ttlMs: number }): UploadTarget;
   /** The stable, readable URL for a stored object. */
   publicUrl(blobPath: string): string;
+  /** Read object bytes. Missing key → null. */
+  getObject(blobPath: string): Promise<Buffer | null>;
+  putObject(input: {
+    blobPath: string;
+    body: Buffer;
+    contentType: string;
+    cacheControl?: string;
+  }): Promise<void>;
+  exists(blobPath: string): Promise<boolean>;
 }
 
 /** DI token for the selected storage driver (Azure in prod, local in dev/test). */

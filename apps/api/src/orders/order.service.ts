@@ -4719,26 +4719,31 @@ export class OrderService {
       }
       return withPrismaField(
         'OrderItem',
-        'piecesPerPack',
+        'catalogRateUnit',
         withPrismaField(
           'OrderItem',
-          'dispatchUnit',
-          {
-            productId: product.id,
-            name: product.name,
-            sku: product.sku,
-            rate: product.rate,
-            unit: product.unit ?? item.unit ?? null,
-            image: product.images[0] ?? null,
-            images: product.images,
-            quantity: item.quantity,
-            requestedQuantity: item.quantity,
-            lineStatus: OrderLineStatus.Open,
-            note: item.note ?? null,
-          },
-          (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+          'piecesPerPack',
+          withPrismaField(
+            'OrderItem',
+            'dispatchUnit',
+            {
+              productId: product.id,
+              name: product.name,
+              sku: product.sku,
+              rate: product.rate,
+              unit: product.unit ?? item.unit ?? null,
+              image: product.images[0] ?? null,
+              images: product.images,
+              quantity: item.quantity,
+              requestedQuantity: item.quantity,
+              lineStatus: OrderLineStatus.Open,
+              note: item.note ?? null,
+            },
+            (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+          ),
+          (product as { piecesPerPack?: number | null }).piecesPerPack ?? null,
         ),
-        (product as { piecesPerPack?: number | null }).piecesPerPack ?? null,
+        (product as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
       );
     });
   }

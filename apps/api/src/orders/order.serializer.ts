@@ -335,6 +335,8 @@ export class OrderSerializer {
       rate: decimal(item.rate),
       unit: item.unit,
       dispatchUnit: (item as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+      catalogRateUnit:
+        (item as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
       piecesPerPack: (item as { piecesPerPack?: number | null }).piecesPerPack ?? null,
       image: item.image,
       images: item.images,

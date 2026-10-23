@@ -7,7 +7,10 @@ import type {
   ExploreProductCard,
 } from '@ekum/domain-types';
 import { CompanySerializer } from '../access/company.serializer';
-import { collectionCardRateFields } from './collection-card-rate';
+import {
+  collectionCardRateFields,
+  collectionCardRateVisibility,
+} from './collection-card-rate';
 import { collectionPreviewFromRow } from './collection-preview';
 import { collectionMemberFind } from '../catalog/collection-member-find';
 
@@ -25,6 +28,8 @@ type CollectionCardRow = Collection & {
       rate?: { toNumber(): number } | number | null;
       rateMax?: { toNumber(): number } | number | null;
       unit?: string | null;
+      dispatchUnit?: string | null;
+      catalogRateUnit?: string | null;
       company?: { name: string } | null;
     };
   }>;
@@ -68,13 +73,18 @@ export class DiscoverySerializer {
 
   toCollectionCard(
     collection: CollectionCardRow,
-    opts?: { viewerReposted?: boolean },
+    opts?: { viewerReposted?: boolean; viewerCompanyId?: string },
   ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
     const rate = collectionCardRateFields({
-      rateVisibility: collection.rateVisibility,
+      rateVisibility: collectionCardRateVisibility({
+        rateVisibility: collection.rateVisibility,
+        packCompanyId: collection.companyId,
+        viewerCompanyId: opts?.viewerCompanyId,
+      }),
       rate: collection.rate,
       rateMax: collection.rateMax,
+      catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
       products: collection.products,
     });
     return {
@@ -131,6 +141,8 @@ export class DiscoverySerializer {
       rateMax: product.rateMax === null ? null : product.rateMax.toNumber(),
       unit: product.unit,
       dispatchUnit: (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+      catalogRateUnit:
+        (product as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
       categories: product.categories ?? [],
       postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
       allowForward: product.allowForward,

@@ -3,9 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { Avatar } from '@/ui/kit';
 import { initials } from '@/lib/format';
 
-vi.mock('@/lib/mediaUrl', () => ({
-  toAbsoluteMediaUrl: (url: string) => url,
-}));
+vi.mock('@/lib/mediaUrl', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/mediaUrl')>();
+  return { ...actual, toAbsoluteMediaUrl: (url: string) => url };
+});
 
 const TRADE_LIST_AVATAR_SIZE = 48;
 

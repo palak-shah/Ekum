@@ -8,10 +8,11 @@ import type {
   OrderView,
   PublicCompanyProfile,
 } from '@ekum/domain-types';
-import { OrderKind } from '@ekum/domain-types';
+import { MEDIA_VARIANT, OrderKind } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { isPhoneLike, uploadImage } from '@/lib/mediaUpload';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { DiscardChangesSheet } from '@/ui/DiscardChangesSheet';
@@ -74,6 +75,7 @@ interface StandardLine {
   categories: string[];
   piecesPerPack: number | null;
   dispatchUnit: string | null;
+  catalogRateUnit: string | null;
   quantity: string;
   note: string;
 }
@@ -168,6 +170,7 @@ export function OrderBuilderPage() {
           categories: product.categories ?? [],
           piecesPerPack: product.piecesPerPack ?? null,
           dispatchUnit: product.dispatchUnit ?? null,
+          catalogRateUnit: product.catalogRateUnit ?? null,
           quantity: seedQty,
           note: '',
         })),
@@ -515,9 +518,10 @@ export function OrderBuilderPage() {
                     trailingBelow
                     photo={
                       line.image ? (
-                        <img
+                        <ManagedImage
                           src={line.image}
                           alt=""
+                          variant={MEDIA_VARIANT.Thumbnail1}
                           className="h-12 w-12 shrink-0 rounded-lg object-cover"
                         />
                       ) : (
@@ -531,6 +535,7 @@ export function OrderBuilderPage() {
                         name={line.name}
                         unit={line.unit}
                         dispatchUnit={line.dispatchUnit}
+                        catalogRateUnit={line.catalogRateUnit}
                         piecesPerPack={line.piecesPerPack}
                         rate={line.rate}
                         rateMax={line.rateMax}
@@ -638,9 +643,10 @@ export function OrderBuilderPage() {
                       className="absolute inset-0 disabled:opacity-60"
                       aria-label={`Photo · ${photo.quantity} pieces`}
                     >
-                      <img
+                      <ManagedImage
                         src={photo.previewUrl || photo.imageUrl}
                         alt=""
+                        variant={MEDIA_VARIANT.Thumbnail1}
                         className="absolute inset-0 h-full w-full object-cover"
                       />
                     </button>
@@ -801,9 +807,10 @@ export function OrderBuilderPage() {
         {editPhoto ? (
           <div className="flex flex-col gap-3">
             <div className="aspect-square max-w-[8rem] overflow-hidden rounded-xl border border-line bg-foam">
-              <img
+              <ManagedImage
                 src={editPhoto.previewUrl || editPhoto.imageUrl}
                 alt=""
+                variant={MEDIA_VARIANT.Thumbnail1}
                 className="h-full w-full object-cover"
               />
             </div>

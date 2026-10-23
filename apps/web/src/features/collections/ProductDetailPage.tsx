@@ -1,12 +1,13 @@
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ProductRelistGrantView, ProductView } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type ProductRelistGrantView, type ProductView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Card, ErrorState, LoadingBlock, StatusPill, Tag } from '@/ui/kit';
+import { ManagedImage } from '@/ui/ManagedImage';
 
 export function ProductDetailPage() {
   const { id = '' } = useParams();
@@ -69,7 +70,7 @@ export function ProductDetailPage() {
       {data.images.length > 0 ? (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1">
           {data.images.map((image) => (
-            <img key={image} src={image} alt={data.name} className="h-56 w-44 shrink-0 rounded-2xl object-cover" />
+            <ManagedImage key={image} src={image} alt={data.name} variant={MEDIA_VARIANT.Thumbnail2} className="h-56 w-44 shrink-0 rounded-2xl object-cover" />
           ))}
         </div>
       ) : (

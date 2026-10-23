@@ -1,3 +1,5 @@
+import { MEDIA_VARIANT } from '@ekum/domain-types';
+import { ManagedImage } from '@/ui/ManagedImage';
 import { SelectableMediaFrame } from '@/ui/selectMediaChrome';
 
 /**
@@ -29,9 +31,10 @@ export function LibraryPickTile({
         checkClassName="right-2 top-2"
       >
         {imageUrl ? (
-          <img
+          <ManagedImage
             src={imageUrl}
             alt=""
+            variant={MEDIA_VARIANT.Thumbnail1}
             className="aspect-square w-full object-cover"
           />
         ) : (

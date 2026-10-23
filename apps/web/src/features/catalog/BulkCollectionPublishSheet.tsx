@@ -146,13 +146,14 @@ export function BulkCollectionPublishSheet({ open, onClose, collectionIds, onDon
 
           <Button
             fullWidth
-            disabled={!canSubmit || publish.isPending}
+            loading={publish.isPending}
+            disabled={!canSubmit}
             onClick={() => {
               setError(null);
               publish.mutate();
             }}
           >
-            {publish.isPending ? 'Publishing…' : `Publish ${collectionIds.length}`}
+            {`Publish ${collectionIds.length}`}
           </Button>
         </div>
       </Sheet>
