@@ -174,7 +174,7 @@ export class MasterDataService implements OnModuleInit {
 
     const unitRows = await this.prisma.categoryUnit.findMany({
       where: { categoryId: category.id },
-      orderBy: { unit: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { unit: 'asc' }],
     });
 
     return {

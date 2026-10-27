@@ -407,9 +407,9 @@ export class CollectionService {
           ? await this.assertNameAvailable(companyId, dto.name, { excludeId: id })
           : existing.name;
       const description =
-        dto.description !== undefined
-          ? dto.description.trim() || null
-          : existing.description;
+        dto.description === undefined
+          ? existing.description
+          : dto.description?.trim() || null;
       const collection = await this.prisma.collection.update({
         where: { id },
         data: { name, description, updatedByUserId: userId },

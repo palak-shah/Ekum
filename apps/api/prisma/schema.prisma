@@ -479,6 +479,8 @@ model CategoryUnit {
   id         String @id @default(cuid())
   categoryId String
   unit       String
+  /// Sheet `units[]` index: 0 is Rate per primary.
+  sortOrder  Int    @default(0)
 
   category MasterCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 

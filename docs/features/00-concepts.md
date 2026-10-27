@@ -157,7 +157,7 @@ Everyday kit is **WhatsApp-tight**, not 48px everywhere:
 | List square (search trailing / sheet Close) | 40×40 |
 | Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px**. How many / Edit / Confirm / quote numbers: **14px emphasis tabular-nums** (`designLineChrome`) |
 | Quiet info (`InfoHint`) | Circle **i** next to a title or label. Tap shows instructional copy. One icon — change `InfoIcon` / `InfoHint` and every screen follows. Live status stays `Field.hint` under the field. |
-| Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order + dispatch journey in sets**, **price / “1 set contains” / billing per pc**. Rate per prefers **pc** when offered (else a offered unit e.g. **mtr**). Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
+| Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order + dispatch journey in sets**, **price / “1 set contains” / billing per Rate per**. Rate per on create is the Category **primary** (first sheet unit) — Readyset **pc**, Fabric/Jobwork **mtr** even when pc is also offered. Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
 | Nav ＋ / camera shutter | Stay 48px |
 
 ### Typography weights

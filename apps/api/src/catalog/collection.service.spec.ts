@@ -1268,6 +1268,49 @@ describe('CollectionService.update', () => {
     );
   });
 
+  it('clears General Collection description when the client sends null', async () => {
+    const existing = {
+      id: 'gc-1',
+      companyId: 'company-1',
+      name: 'General Collection',
+      description: 'Dangling designs.',
+      kind: CollectionKind.General,
+      status: CollectionStatus.Published,
+    };
+    const update = vi.fn(async () => ({
+      ...existing,
+      description: null,
+      products: [],
+      _count: { products: 0 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async (args?: { where?: { id?: unknown } }) =>
+          typeof args?.where?.id === 'string' ? existing : null,
+        update,
+      },
+      product: { count: async () => 2 },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.update('company-1', 'u1', 'gc-1', {
+      description: null,
+    } as { description: null });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          name: 'General Collection',
+          description: null,
+          updatedByUserId: 'u1',
+        },
+      }),
+    );
+  });
+
   it('rejects tags and rate on General Collection', async () => {
     const prisma = {
       collection: {

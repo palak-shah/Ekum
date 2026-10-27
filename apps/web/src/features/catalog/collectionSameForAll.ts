@@ -1,4 +1,8 @@
-import { Unit, catalogRateUnit as inferCatalogRateUnit } from '@ekum/domain-types';
+import {
+  Unit,
+  catalogRateUnit as inferCatalogRateUnit,
+  isPackOrderUnit,
+} from '@ekum/domain-types';
 import type { SameForAllDetails } from './rateInput';
 import {
   formatRateInput,
@@ -23,7 +27,7 @@ export { sameForAllIsEmpty, sameForAllSummary, parseRateInput };
 
 /**
  * Platform usual shell: order + dispatch journey in **sets** (or the passed pack unit).
- * Rate per stays **pc** until they choose (independent of dispatch).
+ * Rate per starts **pc** until create snaps to the Category primary.
  * Pass `unit: ''` only for Diff “nothing shared” fixtures.
  */
 export const emptySameForAll = (unit = DEFAULT_SELL_AS_UNIT): SameForAllDetails => ({
@@ -48,6 +52,18 @@ export const blankSameForAll = (): SameForAllDetails => ({
   moq: '',
   notes: '',
 });
+
+/** Rate per change: pack path keeps order unit; native path Rate per is the order unit. */
+export function applyCollectionRateUnit(
+  details: SameForAllDetails,
+  nextRateUnit: string,
+): SameForAllDetails {
+  const orderUnit = details.unit.trim() || Unit.Set;
+  if (isPackOrderUnit(orderUnit)) {
+    return { ...details, catalogRateUnit: nextRateUnit };
+  }
+  return { ...details, unit: nextRateUnit, catalogRateUnit: nextRateUnit };
+}
 
 /** Prefer set for empty order/dispatch when the category offers it. */
 export function preferredPackUnit(permitted: readonly string[]): string {

@@ -17,6 +17,7 @@ import {
   PublishAudience,
   Unit,
   categoriesToTagSlots,
+  createCatalogRateUnit,
   tagSlotsToCategories,
   unitValues,
 } from '@ekum/domain-types';
@@ -87,6 +88,8 @@ export function ProductEditorPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   /** Successful save/navigate must not trip the discard sheet. */
   const leaveBypassRef = useRef(false);
+  /** Create: Rate per stays on the trader’s pick until Category changes. */
+  const ratePerTouchedRef = useRef(false);
   const phone = isPhoneLike();
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -188,6 +191,22 @@ export function ProductEditorPage() {
     staleTime: 60_000,
   });
   const permittedUnits = masterTaxonomy.data?.units ?? [];
+
+  useEffect(() => {
+    if (editing) return;
+    const next = createCatalogRateUnit({
+      isCreate: true,
+      permitted: permittedUnits,
+      current: form.catalogRateUnit,
+      userTouched: ratePerTouchedRef.current,
+    });
+    if (!next) return;
+    setForm((prev) => ({
+      ...prev,
+      ...applyDesignRateUnit(prev.unit, next, prev.dispatchUnit),
+    }));
+  }, [editing, permittedUnits, form.catalogRateUnit]);
+
   const rateUnit =
     form.catalogRateUnit.trim() ||
     (catalogRateDisplayUnit({
@@ -694,12 +713,13 @@ export function ProductEditorPage() {
         to=""
         rateUnit={rateUnit}
         permittedUnits={permittedUnits}
-        onRateUnit={(next) =>
+        onRateUnit={(next) => {
+          ratePerTouchedRef.current = true;
           setForm((prev) => ({
             ...prev,
             ...applyDesignRateUnit(prev.unit, next, prev.dispatchUnit),
-          }))
-        }
+          }));
+        }}
         onFrom={(next) => setForm({ ...form, rate: next })}
         onTo={() => undefined}
       />
@@ -709,7 +729,10 @@ export function ProductEditorPage() {
           <MasterCategoryField
             locked={categoryLocked}
             value={resolvedMasterCategoryId}
-            onChange={(next) => setForm({ ...form, masterCategoryId: next || null })}
+            onChange={(next) => {
+              if (!editing) ratePerTouchedRef.current = false;
+              setForm({ ...form, masterCategoryId: next || null });
+            }}
             options={catalogMasterOptions}
           />
           <CascadeTagsFields

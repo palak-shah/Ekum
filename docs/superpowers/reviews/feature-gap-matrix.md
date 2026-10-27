@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-27 (Order form PDF, line qty, pack cue, drop Send quote, Bill/bale)  
+**Updated:** 2026-10-27 (Category Rate per primary; Order form PDF, line qty, pack cue, drop Send quote, Bill/bale)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -26,7 +26,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Platform | Master light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-10-theme-system; kit accent-muted / input / badge |
 | Chat | Theme wallpaper + chat-out/in bubbles; trade cards header→images→note→actions | Works | Unit | Required | Completeness 2026-10-10-chat-theme-cards; no wallpaper picker |
 | Collections | Edit collection = pack details only (no member grid; membership on album) | Works | Unit | Required | Completeness 2026-10-10-edit-collection-details-only |
-| Collections | Create/edit Rate per + unit select (default pc; independent of Dispatch) | Works | Unit | Required | Completeness 2026-10-10-rate-per-unit-select; 2026-10-22-rate-per-independent-dispatch |
+| Collections | Create/edit Rate per + unit select (default category primary; independent of Dispatch) | Works | Unit | Required | Completeness 2026-10-10-rate-per-unit-select; 2026-10-22-rate-per-independent-dispatch; 2026-10-27-category-rate-per-primary |
+| Catalog | Rate per default = Category **primary** (Jobwork **mtr**; kg/pc secondary); options = primary + secondary | Works | Unit | Required | Completeness 2026-10-27-category-rate-per-primary; `defaultRateUnit` first offered; Order/dispatch stay set |
 | Collections / Explore | Pack Rate per stamps follower unit/dispatch so Explore shows ₹91/mtr; empty or 0 in 1 set contains clears pack (`null`) | Works | Unit | Required | Completeness 2026-10-21-pack-rate-unit-clear; How many Total withholds `=` / ₹ |
 | Collections | Empty **Save in Draft** stays on editor; own draft You tile opens editor; name hydrate not wiped; Category error on Category | Works | Unit + Functional | Required | Completeness 2026-10-22-collection-empty-draft-stay-editor |
 | Collections / Explore | Apply to all never overwrites a filled design rate; tags append; Explore/album pack ₹ is collection details when set, else design min–max (owner always; buyers follow Show rates) | Works | Unit | Required | Completeness 2026-10-22-pack-apply-all-honest-rates; 2026-10-22-pack-card-collection-details-rate; 2026-10-22-explore-pack-rate-album-parity |

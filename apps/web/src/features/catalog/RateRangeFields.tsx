@@ -105,8 +105,7 @@ export function RateRangeFields({
   const unitOptions = ratePerSelectOptions(permittedUnits, selectedUnit);
   const onRateUnitRef = useRef(onRateUnit);
   onRateUnitRef.current = onRateUnit;
-  // Category change can drop pc from the list — keep the select valid and
-  // write the new Rate per so Update actually persists mtr/kg.
+  // Category change can drop the current unit — coerce to the new primary.
   useEffect(() => {
     const emit = onRateUnitRef.current;
     if (!emit || !permittedUnits || permittedUnits.length === 0) return;

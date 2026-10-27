@@ -149,5 +149,41 @@ describe('RateRangeFields', () => {
     await userEvent.setup().selectOptions(select, 'mtr');
     expect(onRateUnit).toHaveBeenCalledWith('mtr');
   });
+
+  it('does not snap Jobwork mtr to pc when pc is only secondary', () => {
+    const onRateUnit = vi.fn();
+    render(
+      <RateRangeFields
+        from="91"
+        to=""
+        onFrom={() => undefined}
+        onTo={() => undefined}
+        rateUnit="mtr"
+        onRateUnit={onRateUnit}
+        permittedUnits={['mtr', 'kg', 'pc']}
+      />,
+    );
+    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('mtr');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveTextContent('kg');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveTextContent('pc');
+    expect(onRateUnit).not.toHaveBeenCalled();
+  });
+
+  it('keeps a stored Jobwork pc on edit when the category still offers it', () => {
+    const onRateUnit = vi.fn();
+    render(
+      <RateRangeFields
+        from="91"
+        to=""
+        onFrom={() => undefined}
+        onTo={() => undefined}
+        rateUnit="pc"
+        onRateUnit={onRateUnit}
+        permittedUnits={['mtr', 'kg', 'pc']}
+      />,
+    );
+    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('pc');
+    expect(onRateUnit).not.toHaveBeenCalled();
+  });
 });
 

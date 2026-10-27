@@ -9,6 +9,8 @@ const LIST_MAX_H = 160;
 const TOP_CLEAR = 56;
 /** Bottom nav + Update/Create dock. */
 const BOTTOM_CLEAR = 136;
+/** Finger travel that means scroll, not a tap. */
+export const TAG_SUGGEST_SCROLL_PX = 8;
 
 /** List overflow scroll must not re-anchor the portal (that jumps the list). */
 export function isTagSuggestListScroll(
@@ -16,6 +18,10 @@ export function isTagSuggestListScroll(
   list: HTMLElement | null,
 ): boolean {
   return Boolean(list && target instanceof Node && (target === list || list.contains(target)));
+}
+
+export function tagSuggestGestureIsScroll(startY: number, currentY: number): boolean {
+  return Math.abs(currentY - startY) >= TAG_SUGGEST_SCROLL_PX;
 }
 
 function addUnique(current: string[], next: string, multiple: boolean): string[] {
@@ -58,6 +64,8 @@ export function TagSuggestInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const keepOpenForListRef = useRef(false);
+  const pointerStartYRef = useRef<number | null>(null);
+  const ignoreClickRef = useRef(false);
   const [query, setQuery] = useState(multiple ? '' : (values[0] ?? ''));
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{
@@ -113,6 +121,9 @@ export function TagSuggestInput({
   }, [showMenu, options.length]);
 
   const closeAndExit = () => {
+    keepOpenForListRef.current = false;
+    ignoreClickRef.current = false;
+    pointerStartYRef.current = null;
     setOpen(false);
     inputRef.current?.blur();
   };
@@ -121,6 +132,7 @@ export function TagSuggestInput({
     const onDoc = (event: PointerEvent) => {
       const target = event.target as Node;
       if (wrapRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      keepOpenForListRef.current = false;
       setOpen(false);
       inputRef.current?.blur();
     };
@@ -176,13 +188,28 @@ export function TagSuggestInput({
                 width: anchor.width,
                 top: flipUp ? undefined : anchor.bottom + 4,
                 bottom: flipUp ? window.innerHeight - anchor.top + 4 : undefined,
-                maxHeight: Math.max(
-                  96,
-                  flipUp ? spaceAbove - 4 : spaceBelow - 4,
+                maxHeight: Math.min(
+                  LIST_MAX_H,
+                  Math.max(
+                    96,
+                    flipUp ? spaceAbove - 4 : spaceBelow - 4,
+                  ),
                 ),
               }}
-              onPointerDown={() => {
+              onPointerDownCapture={(event) => {
                 keepOpenForListRef.current = true;
+                pointerStartYRef.current = event.clientY;
+                ignoreClickRef.current = false;
+              }}
+              onPointerMove={(event) => {
+                const startY = pointerStartYRef.current;
+                if (startY == null) return;
+                if (tagSuggestGestureIsScroll(startY, event.clientY)) {
+                  ignoreClickRef.current = true;
+                }
+              }}
+              onScroll={() => {
+                ignoreClickRef.current = true;
               }}
               onPointerUp={() => {
                 requestAnimationFrame(() => {
@@ -191,6 +218,7 @@ export function TagSuggestInput({
               }}
               onPointerCancel={() => {
                 keepOpenForListRef.current = false;
+                pointerStartYRef.current = null;
               }}
             >
               {options.map((option) => (
@@ -199,11 +227,19 @@ export function TagSuggestInput({
                     type="button"
                     role="option"
                     className={cx(
-                      'flex w-full items-center px-3 py-1 text-left text-sm leading-snug',
+                      'flex w-full touch-pan-y items-center px-3 py-1 text-left text-sm leading-snug',
                       option === query ? 'bg-accent/5 font-emphasis text-ink' : 'text-ink',
                     )}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => commit(option)}
+                    onPointerDown={(event) => {
+                      if (event.pointerType === 'mouse') event.preventDefault();
+                    }}
+                    onClick={() => {
+                      if (ignoreClickRef.current) {
+                        ignoreClickRef.current = false;
+                        return;
+                      }
+                      commit(option);
+                    }}
                   >
                     {option}
                   </button>
@@ -261,7 +297,14 @@ export function TagSuggestInput({
           aria-autocomplete="list"
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
-          onBlur={() => {
+          onBlur={(event) => {
+            const next = event.relatedTarget;
+            if (
+              next instanceof Node &&
+              (listRef.current?.contains(next) || wrapRef.current?.contains(next))
+            ) {
+              return;
+            }
             if (keepOpenForListRef.current) return;
             closeAndExit();
           }}

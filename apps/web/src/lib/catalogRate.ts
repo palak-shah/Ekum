@@ -1,12 +1,13 @@
 import {
   catalogRateUnit,
+  createCatalogRateUnit,
   defaultRateUnit,
   isPackOrderUnit,
   unitValues,
 } from '@ekum/domain-types';
 import { formatRate } from '@/lib/format';
 
-export { isPackOrderUnit, defaultRateUnit };
+export { isPackOrderUnit, defaultRateUnit, createCatalogRateUnit };
 
 /** Unit the rupee attaches to for display / create labels. */
 export function catalogRateDisplayUnit(input: {

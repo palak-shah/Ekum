@@ -83,13 +83,28 @@ export function orderBillTotal(
 }
 
 /**
- * Default Rate per / dispatch unit among offered options.
- * Prefer pc when offered; otherwise first offered (e.g. mtr for fabric).
+ * Default Rate per among offered category units: first offered (sheet primary).
+ * Empty list → pc. Do not prefer pc when it is only secondary (Jobwork).
  */
 export function defaultRateUnit(offered: readonly string[]): string {
   const clean = offered.map((u) => u.trim()).filter(Boolean);
-  if (clean.includes('pc')) return 'pc';
   return clean[0] || 'pc';
+}
+
+/**
+ * Create Rate per: category primary until they pick another.
+ * Edit never snaps here (RateRangeFields coerces only when the unit is dropped).
+ * Returns null when there is nothing to write.
+ */
+export function createCatalogRateUnit(input: {
+  isCreate: boolean;
+  permitted: readonly string[];
+  current: string;
+  userTouched: boolean;
+}): string | null {
+  if (!input.isCreate || input.userTouched || input.permitted.length === 0) return null;
+  const primary = defaultRateUnit(input.permitted);
+  return primary === input.current.trim() ? null : primary;
 }
 
 /**

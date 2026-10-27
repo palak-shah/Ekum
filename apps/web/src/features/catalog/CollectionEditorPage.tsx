@@ -24,6 +24,7 @@ import {
   RateVisibility,
   Unit,
   categoriesToTagSlots,
+  createCatalogRateUnit,
   emptyTagSlots,
   pruneOfficialTagsOnCategoryChange,
   tagSlotsToCategories,
@@ -131,6 +132,7 @@ import {
   uniqueDraftSku,
 } from './designBatchHelpers';
 import {
+  applyCollectionRateUnit,
   collectSameForAllDiffIds,
   emptySameForAll,
   preferredPackUnit,
@@ -155,7 +157,7 @@ import {
 } from './collectionSameForAll';
 import { formatRateInput, parseRateInput } from './rateInput';
 import { combineRateInput, splitRateInput } from './rateRange';
-import { catalogRateDisplayUnit, isPackOrderUnit } from '@/lib/catalogRate';
+import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { applyDesignRateUnit } from './designEditorDefaults';
 import { piecesPerPackFieldValue } from './orderDispatchPreview';
 import { GrowingDescriptionField } from './GrowingDescriptionField';
@@ -368,6 +370,8 @@ export function CollectionEditorPage() {
   const [rateFrom, setRateFrom] = useState('');
   const [rateTo, setRateTo] = useState('');
   const rateFieldsHydrated = useRef(false);
+  /** Create: Rate per stays on the trader’s pick until Category changes. */
+  const ratePerTouchedRef = useRef(false);
   const [rateConflicts, setRateConflicts] = useState<RateConflict[] | null>(null);
   const [rateConflictKeepIds, setRateConflictKeepIds] = useState<Set<string>>(new Set());
   const [pendingPublish, setPendingPublish] = useState(false);
@@ -386,6 +390,7 @@ export function CollectionEditorPage() {
   useEffect(() => {
     identityHydratedId.current = null;
     rateFieldsHydrated.current = false;
+    ratePerTouchedRef.current = false;
   }, [id]);
   /** Create mode: photos and/or library designs; Publish/Share after create. */
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
@@ -453,6 +458,19 @@ export function CollectionEditorPage() {
     staleTime: 60_000,
   });
   const permittedUnits = masterTaxonomy.data?.units ?? [];
+
+  useEffect(() => {
+    if (!isCreate) return;
+    const next = createCatalogRateUnit({
+      isCreate: true,
+      permitted: permittedUnits,
+      current: sameForAll.catalogRateUnit,
+      userTouched: ratePerTouchedRef.current,
+    });
+    if (!next) return;
+    setSameForAll((prev) => applyCollectionRateUnit(prev, next));
+  }, [isCreate, permittedUnits, sameForAll.catalogRateUnit]);
+
   const packRateUnit =
     sameForAll.catalogRateUnit.trim() ||
     (catalogRateDisplayUnit({
@@ -731,7 +749,6 @@ export function CollectionEditorPage() {
       ...prev,
       unit: sell.unit || prev.unit || Unit.Set,
       dispatchUnit: sell.dispatchUnit || prev.dispatchUnit || Unit.Set,
-      catalogRateUnit: sell.catalogRateUnit || prev.catalogRateUnit,
       piecesPerPack: prev.piecesPerPack || sell.piecesPerPack,
       moq: prev.moq || sell.moq,
     }));
@@ -2101,6 +2118,7 @@ export function CollectionEditorPage() {
   const onMasterCategoryChange = (nextId: string) => {
     if (isCollectionCategoryError(error)) setError(null);
     if (nextId === form.masterCategoryId) return;
+    if (isCreate) ratePerTouchedRef.current = false;
     const oldId = form.masterCategoryId;
     const hasTags =
       tagSlots.items.length > 0 ||
@@ -2268,13 +2286,8 @@ export function CollectionEditorPage() {
           rateUnit={packRateUnit}
           permittedUnits={permittedUnits}
           onRateUnit={(next) => {
-            setSameForAll((prev) => {
-              const orderUnit = prev.unit || Unit.Set;
-              if (isPackOrderUnit(orderUnit)) {
-                return { ...prev, catalogRateUnit: next };
-              }
-              return { ...prev, unit: next, catalogRateUnit: next };
-            });
+            ratePerTouchedRef.current = true;
+            setSameForAll((prev) => applyCollectionRateUnit(prev, next));
           }}
           onFrom={(next) => {
             setRateFrom(next);

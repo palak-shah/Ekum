@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   MasterOptionKind,
-  sheetUnitToUnit,
+  orderedCategoryUnitsFromSheet,
   type MasterOptionKind as OptionKind,
 } from '@ekum/domain-types';
 import type { PrismaClient } from '@prisma/client';
@@ -127,9 +127,7 @@ export async function seedMasterDataFromSheet(prisma: PrismaClient): Promise<num
     await pushKind(MasterOptionKind.Quality, cat.qualities);
     await pushKind(MasterOptionKind.Size, cat.sizes);
 
-    for (const rawUnit of cat.units) {
-      const unit = sheetUnitToUnit(rawUnit);
-      if (!unit) continue;
+    for (const { unit, sortOrder } of orderedCategoryUnitsFromSheet(cat.units)) {
       await prisma.categoryUnit.upsert({
         where: {
           categoryId_unit: { categoryId: row.id, unit },
@@ -138,8 +136,9 @@ export async function seedMasterDataFromSheet(prisma: PrismaClient): Promise<num
           id: stableId('unt', row.id, unit),
           categoryId: row.id,
           unit,
+          sortOrder,
         },
-        update: {},
+        update: { sortOrder },
       });
     }
   }

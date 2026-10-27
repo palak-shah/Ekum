@@ -120,6 +120,21 @@ export function sheetUnitToUnit(token: string): Unit | null {
   return null;
 }
 
+/** Sheet `units[]` order: index 0 is Rate per primary; skip duplicate mapped tokens. */
+export function orderedCategoryUnitsFromSheet(
+  rawUnits: readonly string[],
+): { unit: Unit; sortOrder: number }[] {
+  const seen = new Set<string>();
+  const out: { unit: Unit; sortOrder: number }[] = [];
+  for (const raw of rawUnits) {
+    const unit = sheetUnitToUnit(raw);
+    if (!unit || seen.has(unit)) continue;
+    seen.add(unit);
+    out.push({ unit, sortOrder: out.length });
+  }
+  return out;
+}
+
 export interface MasterCategoryView {
   id: string;
   slug: string;

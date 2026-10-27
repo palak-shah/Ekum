@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyCollectionRateUnit,
   applySameForAllToForm,
   blankSameForAll,
   clampSameForAllUnits,
@@ -32,6 +33,23 @@ describe('unitAsksPiecesPerSet', () => {
     expect(unitAsksPiecesPerSet('dozen')).toBe(true);
     expect(unitAsksPiecesPerSet('pc')).toBe(false);
     expect(unitAsksPiecesPerSet('box')).toBe(true);
+  });
+});
+
+describe('applyCollectionRateUnit', () => {
+  it('writes Rate per only on pack path; native path also moves the order unit', () => {
+    expect(applyCollectionRateUnit(emptySameForAll('set'), 'mtr')).toMatchObject({
+      unit: 'set',
+      dispatchUnit: 'set',
+      catalogRateUnit: 'mtr',
+    });
+    expect(
+      applyCollectionRateUnit({ ...emptySameForAll('pc'), unit: 'pc', dispatchUnit: 'pc' }, 'mtr'),
+    ).toMatchObject({
+      unit: 'mtr',
+      dispatchUnit: 'pc',
+      catalogRateUnit: 'mtr',
+    });
   });
 });
 

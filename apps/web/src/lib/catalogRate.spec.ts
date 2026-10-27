@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   catalogRateDisplayUnit,
   catalogRateFieldLabel,
+  createCatalogRateUnit,
+  defaultRateUnit,
   formatCatalogRate,
   isPackOrderUnit,
 } from './catalogRate';
@@ -47,5 +49,54 @@ describe('catalogRate', () => {
     expect(catalogRateFieldLabel('set', 'mtr')).toBe('Rate per mtr');
     expect(catalogRateFieldLabel('set', 'set', undefined, 'mtr')).toBe('Rate per mtr');
     expect(catalogRateFieldLabel('pc')).toBe('Rate');
+  });
+
+  it('defaults Rate per to the first offered unit (category primary), not prefer-pc', () => {
+    expect(defaultRateUnit(['pc', 'dozen', 'set'])).toBe('pc');
+    expect(defaultRateUnit(['mtr', 'kg'])).toBe('mtr');
+    expect(defaultRateUnit(['mtr', 'kg', 'pc'])).toBe('mtr');
+    expect(defaultRateUnit([])).toBe('pc');
+    expect(
+      catalogRateDisplayUnit({
+        unit: 'set',
+        dispatchUnit: 'set',
+        offeredRateUnits: ['mtr', 'kg', 'pc'],
+      }),
+    ).toBe('mtr');
+  });
+
+  it('snaps create Rate per to primary until they pick another', () => {
+    expect(
+      createCatalogRateUnit({
+        isCreate: true,
+        permitted: ['mtr', 'kg', 'pc'],
+        current: 'pc',
+        userTouched: false,
+      }),
+    ).toBe('mtr');
+    expect(
+      createCatalogRateUnit({
+        isCreate: true,
+        permitted: ['pc', 'dozen', 'set'],
+        current: 'pc',
+        userTouched: false,
+      }),
+    ).toBeNull();
+    expect(
+      createCatalogRateUnit({
+        isCreate: true,
+        permitted: ['mtr', 'kg', 'pc'],
+        current: 'kg',
+        userTouched: true,
+      }),
+    ).toBeNull();
+    expect(
+      createCatalogRateUnit({
+        isCreate: false,
+        permitted: ['mtr', 'kg', 'pc'],
+        current: 'pc',
+        userTouched: false,
+      }),
+    ).toBeNull();
   });
 });
