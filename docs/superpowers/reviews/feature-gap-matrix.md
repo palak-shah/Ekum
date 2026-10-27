@@ -187,6 +187,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Size tags multi-select + set-contains live **n unit** (`4` → 4 pcs) / dozen autofill 12 | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi; 2026-10-20-design-tags-category-contains |
 | Catalog | Design tags = collection typeaheads; solo Category dropdown; pack Category locked; 1 set contains n unit | Works | Unit | Required | Completeness 2026-10-20-design-tags-category-contains |
 | Catalog | Tag list stays after pick; Escape/outside exits; design Category dropdown when pack has none | Works | Unit | Required | Completeness 2026-10-20-tag-exit-design-category |
+| Catalog | Tag suggestions: scroll does not pick; tap/click adds (collection/catalog/design) | Works | Unit | Required | Completeness 2026-10-27-tag-suggest-scroll-not-pick; BM: pointerdown ≠ commit |
 | Catalog | No **Use same as all designs** on Update this design (pack Apply + batch shared card stay) | Works | Unit + Functional | Required | Completeness 2026-10-20-drop-use-same-as-all |
 | Collections | Album pack details Size tags (multi join) | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi; supersedes singular Size in 2026-10-09-collection-details-read-more |
 | Collections | Create polish (9-cap grid, publish-first, tags, no Everyone, tile→design sheet) | Works | Unit | Required | Completeness 2026-09-17-collection-create-polish |

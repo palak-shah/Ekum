@@ -10,6 +10,14 @@ const TOP_CLEAR = 56;
 /** Bottom nav + Update/Create dock. */
 const BOTTOM_CLEAR = 136;
 
+/** List overflow scroll must not re-anchor the portal (that jumps the list). */
+export function isTagSuggestListScroll(
+  target: EventTarget | null,
+  list: HTMLElement | null,
+): boolean {
+  return Boolean(list && target instanceof Node && (target === list || list.contains(target)));
+}
+
 function addUnique(current: string[], next: string, multiple: boolean): string[] {
   const label = next.trim();
   if (!label) return current;
@@ -49,6 +57,7 @@ export function TagSuggestInput({
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const keepOpenForListRef = useRef(false);
   const [query, setQuery] = useState(multiple ? '' : (values[0] ?? ''));
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{
@@ -92,10 +101,14 @@ export function TagSuggestInput({
     };
     sync();
     window.addEventListener('resize', sync);
-    document.addEventListener('scroll', sync, true);
+    const onScroll = (event: Event) => {
+      if (isTagSuggestListScroll(event.target, listRef.current)) return;
+      sync();
+    };
+    document.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', sync);
-      document.removeEventListener('scroll', sync, true);
+      document.removeEventListener('scroll', onScroll, true);
     };
   }, [showMenu, options.length]);
 
@@ -157,7 +170,7 @@ export function TagSuggestInput({
               id={listId}
               role="listbox"
               data-testid={testId ? `${testId}-list` : undefined}
-              className="fixed z-[80] max-h-40 overflow-auto rounded-xl border border-line bg-surface py-0.5 shadow-[var(--shadow-soft)]"
+              className="fixed z-[80] max-h-40 touch-pan-y overflow-auto overscroll-contain rounded-xl border border-line bg-surface py-0.5 shadow-[var(--shadow-soft)]"
               style={{
                 left: anchor.left,
                 width: anchor.width,
@@ -167,6 +180,17 @@ export function TagSuggestInput({
                   96,
                   flipUp ? spaceAbove - 4 : spaceBelow - 4,
                 ),
+              }}
+              onPointerDown={() => {
+                keepOpenForListRef.current = true;
+              }}
+              onPointerUp={() => {
+                requestAnimationFrame(() => {
+                  keepOpenForListRef.current = false;
+                });
+              }}
+              onPointerCancel={() => {
+                keepOpenForListRef.current = false;
               }}
             >
               {options.map((option) => (
@@ -178,11 +202,8 @@ export function TagSuggestInput({
                       'flex w-full items-center px-3 py-1 text-left text-sm leading-snug',
                       option === query ? 'bg-accent/5 font-emphasis text-ink' : 'text-ink',
                     )}
-                    onPointerDown={(event) => {
-                      // iPhone: a tap inside a label focuses the input and drops the click.
-                      event.preventDefault();
-                      commit(option);
-                    }}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => commit(option)}
                   >
                     {option}
                   </button>
@@ -240,7 +261,10 @@ export function TagSuggestInput({
           aria-autocomplete="list"
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
+          onBlur={() => {
+            if (keepOpenForListRef.current) return;
+            closeAndExit();
+          }}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
