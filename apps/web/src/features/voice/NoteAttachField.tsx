@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { ApiError } from '@/lib/apiClient';
 import { MEDIA_VARIANT } from '@ekum/domain-types';
-import { Button, TextArea, cx } from '@/ui/kit';
+import { Button, TextArea, TextInput, cx } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
 import { CameraIcon, ImageIcon, MicIcon, PlusIcon } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
@@ -34,6 +34,13 @@ type Props = {
    */
   collapseEmpty?: boolean;
   className?: string;
+  /** Default textarea. `text` = single-line kit TextInput (Manual order no.). */
+  control?: 'textarea' | 'text';
+  placeholder?: string;
+  addLabel?: string;
+  inputTestId?: string;
+  hint?: string;
+  testId?: string;
 };
 
 function revokeIfBlob(url: string | null | undefined) {
@@ -55,6 +62,12 @@ export function NoteAttachField({
   allowVoice = true,
   collapseEmpty = false,
   className,
+  control = 'textarea',
+  placeholder,
+  addLabel = 'Add note',
+  inputTestId,
+  hint,
+  testId,
 }: Props) {
   const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
@@ -196,7 +209,7 @@ export function NoteAttachField({
         type="button"
         disabled={uploading || recorder.recording}
         data-testid="note-attach-plus"
-        aria-label="Add voice or photo"
+        aria-label={allowVoice ? 'Add voice or photo' : 'Add photo'}
         className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-muted hover:text-ink disabled:opacity-40"
         onClick={() => setMenuOpen((open) => !open)}
       >
@@ -253,7 +266,7 @@ export function NoteAttachField({
   );
 
   return (
-    <div className="flex flex-col gap-2" ref={wrapRef}>
+    <div className="flex flex-col gap-2" ref={wrapRef} data-testid={testId}>
       {showComposer ? (
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-emphasis text-ink">
@@ -270,7 +283,7 @@ export function NoteAttachField({
             className="min-w-0 flex-1 rounded-xl border border-transparent px-0 py-1.5 text-left text-sm font-body text-muted hover:text-ink"
             onClick={() => setExpanded(true)}
           >
-            Add note
+            {addLabel}
           </button>
           {plusMenu}
         </div>
@@ -310,12 +323,25 @@ export function NoteAttachField({
           </Button>
         </div>
       ) : null}
-      {showComposer ? (
+      {showComposer && hint ? (
+        <p className="text-sm text-muted">{hint}</p>
+      ) : null}
+      {showComposer && control === 'text' ? (
+        <TextInput
+          value={note}
+          onChange={(event) => onNoteChange(event.target.value)}
+          placeholder={placeholder}
+          data-testid={inputTestId}
+          className={className}
+        />
+      ) : null}
+      {showComposer && control === 'textarea' ? (
         <TextArea
           ref={noteRef}
           value={note}
           onChange={(event) => onNoteChange(event.target.value)}
           rows={rows}
+          placeholder={placeholder}
           className={cx(
             'ekum-no-scrollbar resize-none overflow-y-auto',
             rows <= 2 && '!h-[4.25rem] !min-h-[4.25rem] !max-h-[4.25rem]',

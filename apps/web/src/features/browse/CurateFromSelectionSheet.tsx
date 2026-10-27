@@ -41,6 +41,7 @@ import {
 import { useToast } from '@/ui/Toast';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { BookmarkIcon, CollectionIcon, PlusIcon } from '@/ui/icons';
+import { CurateWhyHint } from '@/features/browse/CurateWhyHint';
 import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
 
@@ -427,9 +428,16 @@ export function CurateFromSelectionSheet({
     blocked.length > 0 ? (
       <div className="flex flex-col gap-2">
         {skipLine ? (
-          <p className="text-sm text-muted" data-testid="curate-skip-summary">
-            {skipLine}
-          </p>
+          <div className="flex items-center gap-1">
+            <p className="min-w-0 flex-1 text-sm text-muted" data-testid="curate-skip-summary">
+              {skipLine}
+            </p>
+            <CurateWhyHint
+              codes={blocked.map((row) => row.code)}
+              extra={sheetError}
+              testId="curate-skip-info"
+            />
+          </div>
         ) : null}
         {blockedList(blocked)}
         {relistAskable.length > 1 ? (
@@ -574,7 +582,16 @@ export function CurateFromSelectionSheet({
             {allowed.length} design{allowed.length === 1 ? '' : 's'} · pick a published collection
           </p>
           {skipChrome}
-          {sheetError ? <InlineNotice message={sheetError} tone="muted" /> : null}
+          {sheetError ? (
+            <div className="flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <InlineNotice message={sheetError} tone="muted" />
+              </div>
+              {blocked.length < 1 ? (
+                <CurateWhyHint codes={[]} extra={sheetError} testId="curate-skip-info" />
+              ) : null}
+            </div>
+          ) : null}
           {publishedTargets.length > 0 ? (
             <TextInput
               value={query}
@@ -667,7 +684,14 @@ export function CurateFromSelectionSheet({
             <InlineNotice message={CURATE_NAME_TAKEN} tone="muted" />
           ) : null}
           {sheetError && !nameClash ? (
-            <InlineNotice message={sheetError} tone="muted" />
+            <div className="flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <InlineNotice message={sheetError} tone="muted" />
+              </div>
+              {blocked.length < 1 ? (
+                <CurateWhyHint codes={[]} extra={sheetError} testId="curate-skip-info" />
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

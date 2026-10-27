@@ -1,26 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { youLibraryShowsDesignAdd, youLibraryShowsDesignSelectMore } from './youLibraryAdd';
+import {
+  youLibraryCreateRowDisabled,
+  youLibraryShowsDesignAdd,
+  youLibraryShowsDesignSelectMore,
+} from './youLibraryAdd';
 
 describe('youLibraryShowsDesignAdd', () => {
-  it('shows the trailing + on idle Designs', () => {
-    expect(
-      youLibraryShowsDesignAdd({ tab: 'products', youSaved: false, selecting: false }),
-    ).toBe(true);
+  it('shows New design on idle Designs', () => {
+    expect(youLibraryShowsDesignAdd({ tab: 'products', youSaved: false })).toBe(true);
   });
 
-  it('hides on Collections, Catalogs, Bookmark, and Select', () => {
-    expect(
-      youLibraryShowsDesignAdd({ tab: 'collections', youSaved: false, selecting: false }),
-    ).toBe(false);
-    expect(
-      youLibraryShowsDesignAdd({ tab: 'catalogs', youSaved: false, selecting: false }),
-    ).toBe(false);
-    expect(
-      youLibraryShowsDesignAdd({ tab: 'products', youSaved: true, selecting: false }),
-    ).toBe(false);
-    expect(
-      youLibraryShowsDesignAdd({ tab: 'products', youSaved: false, selecting: true }),
-    ).toBe(false);
+  it('still shows New design while Selecting', () => {
+    expect(youLibraryShowsDesignAdd({ tab: 'products', youSaved: false })).toBe(true);
+    expect(youLibraryCreateRowDisabled(true)).toBe(true);
+    expect(youLibraryCreateRowDisabled(false)).toBe(false);
+  });
+
+  it('hides on Collections, Catalogs, and Bookmark', () => {
+    expect(youLibraryShowsDesignAdd({ tab: 'collections', youSaved: false })).toBe(false);
+    expect(youLibraryShowsDesignAdd({ tab: 'catalogs', youSaved: false })).toBe(false);
+    expect(youLibraryShowsDesignAdd({ tab: 'products', youSaved: true })).toBe(false);
   });
 });
 

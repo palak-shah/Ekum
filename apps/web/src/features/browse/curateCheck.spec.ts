@@ -9,6 +9,7 @@ import {
   curateBlockedIdSet,
   curateSaveDraftLabel,
   curateSkipSummary,
+  curateWhyHintLines,
   groupRelistAskBatches,
   isCurateCeilingError,
   mayAskToPutInPack,
@@ -56,6 +57,36 @@ describe('curateSkipSummary', () => {
     expect(curateSkipSummary(18, 2)).toBe('2 left out — save the rest.');
     expect(curateSkipSummary(0, 2)).toBe('These designs can’t go in a collection yet.');
     expect(curateSkipSummary(5, 0)).toBeNull();
+  });
+});
+
+describe('curateWhyHintLines', () => {
+  it('names skip why in trader words — pack category does not unlock', () => {
+    expect(curateWhyHintLines(['NOT_DISCOVERABLE'])).toEqual([
+      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+    ]);
+    expect(curateWhyHintLines(['RELIST_NOT_ALLOWED'])).toEqual([
+      'They don’t allow putting these designs in a collection.',
+    ]);
+    expect(curateWhyHintLines(['FOLLOW_LOOK_ONLY'])).toEqual([
+      'They’ve only allowed looking — not putting designs in a collection.',
+    ]);
+    expect(curateWhyHintLines(['CURATED_AUDIENCE_TOO_WIDE'])).toEqual([
+      'Your Who is wider than a sourced design allows.',
+    ]);
+  });
+
+  it('adds a publish exception without duplicating skip copy', () => {
+    expect(
+      curateWhyHintLines(['NOT_DISCOVERABLE'], 'Pick which category this collection is for.'),
+    ).toEqual([
+      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+      'Pick which category this collection is for.',
+    ]);
+    expect(curateWhyHintLines([], 'Pick which category this collection is for.')).toEqual([
+      'Pick which category this collection is for.',
+    ]);
+    expect(curateWhyHintLines([])).toEqual([]);
   });
 });
 

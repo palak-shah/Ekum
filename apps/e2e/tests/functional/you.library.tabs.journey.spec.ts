@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginAsRavi } from '../../helpers/persona';
 
 test.describe('You library tabs @functional @collections', () => {
-  test('Collections · Catalogs · Designs; Designs + opens Add designs; Deleted not Restore', async ({
+  test('Collections · Catalogs · Designs; New design row opens Add designs; Deleted not Restore', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -12,16 +12,28 @@ test.describe('You library tabs @functional @collections', () => {
     await expect(page.getByTestId('you-tab-catalogs')).toBeVisible();
     await expect(page.getByTestId('you-tab-designs')).toBeVisible();
     await expect(page.getByTestId('you-library-add-designs')).toHaveCount(0);
+    await expect(page.getByTestId('you-new-design')).toHaveCount(0);
     await page.getByTestId('you-tab-designs').click();
-    await expect(page.getByTestId('you-library-add-designs')).toBeVisible();
-    await page.getByTestId('you-library-add-designs').click();
+    await expect(page.getByTestId('you-new-design')).toBeVisible();
+    await expect(page.getByTestId('you-library-add-designs')).toHaveCount(0);
+    await page.getByTestId('you-library-select').click();
+    await expect(page.getByTestId('you-new-design')).toBeVisible();
+    await expect(page.getByTestId('you-new-design')).toBeDisabled();
+    await page.getByTestId('select-all-float-clear').click();
+    await expect(page.getByTestId('you-new-design')).toBeEnabled();
+    await page.getByTestId('you-new-design').click();
     await expect(page.getByRole('heading', { name: 'Add designs' })).toBeVisible();
     await page.goBack();
     await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('you-tab-collections').click();
-    await expect(page.getByTestId('you-library-add-designs')).toHaveCount(0);
+    await expect(page.getByTestId('you-new-design')).toHaveCount(0);
     await expect(page.getByTestId('you-collection-general-badge').first()).toBeVisible();
     await expect(page.getByTestId('you-new-collection')).toBeVisible();
+    await expect(page.getByTestId('you-new-collection')).toBeEnabled();
+    await page.getByTestId('you-library-select').click();
+    await expect(page.getByTestId('you-new-collection')).toBeVisible();
+    await expect(page.getByTestId('you-new-collection')).toBeDisabled();
+    await page.getByTestId('select-all-float-clear').click();
     await page.getByTestId('you-new-collection').click();
     await expect(page.getByRole('heading', { name: 'New collection' })).toBeVisible({
       timeout: 15_000,

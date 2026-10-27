@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import type { CollectionCard } from '@ekum/domain-types';
 import { ToastProvider } from '@/ui/Toast';
+import { api } from '@/lib/apiClient';
 import { ExploreFeedActions } from './ExploreFeedActions';
 
 const navigate = vi.fn();
@@ -98,6 +99,10 @@ function wrap(ui: React.ReactNode) {
 describe('ExploreFeedActions', () => {
   beforeEach(() => {
     navigate.mockClear();
+    vi.mocked(api.post).mockImplementation(async () => ({
+      allowedProductIds: ['p1'],
+      blocked: [],
+    }));
   });
 
   it('always shows Repost · Message · Share · Bookmark', () => {
@@ -176,5 +181,20 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByTestId('explore-feed-message')).toBeEnabled();
     expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
     expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
+  });
+
+  it('puts skip why in the quiet i — pack category does not unlock Curate', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockImplementation(async () => ({
+      allowedProductIds: [],
+      blocked: [{ productId: 'p1', code: 'NOT_DISCOVERABLE' }],
+    }));
+    wrap(<ExploreFeedActions collection={collection} />);
+    await user.click(screen.getByTestId('explore-feed-repost'));
+    expect(await screen.findByTestId('repost-skip-summary')).toHaveTextContent('skipped');
+    await user.click(screen.getByTestId('repost-skip-info'));
+    expect(screen.getByTestId('repost-skip-info-body')).toHaveTextContent(
+      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+    );
   });
 });

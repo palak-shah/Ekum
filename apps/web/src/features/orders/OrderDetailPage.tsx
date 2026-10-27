@@ -69,6 +69,7 @@ import {
   timelineVisibleSlice,
 } from '@/features/orders/orderTimelineDisplay';
 import {
+  decideLinesConfirmExtras,
   decideLinesConfirmReady,
   decideLinesPayload,
   decideLinesTally,
@@ -654,6 +655,11 @@ export function OrderDetailPage() {
   const [linesNote, setLinesNote] = useState('');
   const [linesNoteVoice, setLinesNoteVoice] = useState<NoteVoiceValue>(null);
   const [linesNoteImages, setLinesNoteImages] = useState<string[]>([]);
+  const [linesManualOrderNo, setLinesManualOrderNo] = useState('');
+  const [linesManualImages, setLinesManualImages] = useState<string[]>([]);
+  const [linesPersonalNote, setLinesPersonalNote] = useState('');
+  const [linesPersonalNoteVoice, setLinesPersonalNoteVoice] = useState<NoteVoiceValue>(null);
+  const [linesPersonalNoteImages, setLinesPersonalNoteImages] = useState<string[]>([]);
   const [actionNoteOpen, setActionNoteOpen] = useState<'cancel' | 'decline' | null>(null);
   const [millDeclineDesk, setMillDeclineDesk] = useState<
     { all: true } | { all?: false; upstreamOrderId: string; sellerName: string } | null
@@ -1307,6 +1313,14 @@ export function OrderDetailPage() {
           quoteRateNumber,
         ),
         ...noteAttachPayload(linesNote, linesNoteVoice, linesNoteImages),
+        ...decideLinesConfirmExtras(verb, {
+          manualOrderNo: linesManualOrderNo,
+          manualImages: linesManualImages,
+          personalNote: linesPersonalNote,
+          personalVoiceMediaId: linesPersonalNoteVoice?.mediaId,
+          personalVoiceDurationMs: linesPersonalNoteVoice?.durationMs,
+          personalImages: linesPersonalNoteImages,
+        }),
       };
       return api.post<OrderView>(`/orders/${id}/lines/decide`, dto);
     },
@@ -1314,6 +1328,12 @@ export function OrderDetailPage() {
       setLinesOpen(false);
       setLinesNote('');
       setLinesNoteVoice(null);
+      setLinesNoteImages([]);
+      setLinesManualOrderNo('');
+      setLinesManualImages([]);
+      setLinesPersonalNote('');
+      setLinesPersonalNoteVoice(null);
+      setLinesPersonalNoteImages([]);
       setLineConfirmQty({});
       setLineConfirmRates({});
       setSharedConfirmQty(null);
@@ -1344,6 +1364,24 @@ export function OrderDetailPage() {
     setLinesSameQtyDraft('');
     setLinesSameRateDraft('');
     setSheetError(null);
+    const ref = order.data?.manualRef;
+    setLinesManualOrderNo(ref?.manualOrderNo ?? '');
+    setLinesManualImages(ref?.images ?? []);
+    const personal = order.data?.personalNote;
+    setLinesPersonalNote(personal?.note ?? '');
+    setLinesPersonalNoteVoice(
+      personal?.noteVoiceUrl && personal.noteVoiceMediaId && personal.noteVoiceDurationMs
+        ? {
+            mediaId: personal.noteVoiceMediaId,
+            url: toAbsoluteMediaUrl(personal.noteVoiceUrl),
+            durationMs: personal.noteVoiceDurationMs,
+          }
+        : null,
+    );
+    setLinesPersonalNoteImages(personal?.images ?? []);
+    setLinesNote('');
+    setLinesNoteVoice(null);
+    setLinesNoteImages([]);
     setLinesOpen(true);
   };
 
@@ -2806,13 +2844,41 @@ export function OrderDetailPage() {
             );
           })()}
           <NoteAttachField
-            label="Note"
+            label="Manual order no."
+            note={linesManualOrderNo}
+            onNoteChange={setLinesManualOrderNo}
+            voice={null}
+            onVoiceChange={() => undefined}
+            images={linesManualImages}
+            onImagesChange={setLinesManualImages}
+            allowVoice={false}
+            control="text"
+            placeholder="Your book / PO number"
+            inputTestId="order-lines-manual-ref-number"
+            testId="order-lines-manual-ref"
+          />
+          <NoteAttachField
+            label="Personal note"
+            note={linesPersonalNote}
+            onNoteChange={setLinesPersonalNote}
+            voice={linesPersonalNoteVoice}
+            onVoiceChange={setLinesPersonalNoteVoice}
+            images={linesPersonalNoteImages}
+            onImagesChange={setLinesPersonalNoteImages}
+            collapseEmpty
+            addLabel="Add personal note"
+            hint="Only your company sees this — not the other party."
+            testId="order-lines-personal-note"
+          />
+          <NoteAttachField
+            label="Note to buyer"
             note={linesNote}
             onNoteChange={setLinesNote}
             voice={linesNoteVoice}
             onVoiceChange={setLinesNoteVoice}
             images={linesNoteImages}
             onImagesChange={setLinesNoteImages}
+            testId="order-lines-buyer-note"
           />
         </div>
       </Sheet>

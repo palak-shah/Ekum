@@ -46,7 +46,6 @@ import {
   MoreHorizontalIcon,
   OrdersIcon,
   PaperPlaneIcon,
-  PlusIcon,
   ProductIcon,
   RepostIcon,
   ReturnIcon,
@@ -119,9 +118,11 @@ import {
   type YouLibraryTab,
 } from '@/features/saved/youSavedHref';
 import {
+  youLibraryCreateRowDisabled,
   youLibraryShowsDesignAdd,
   youLibraryShowsDesignSelectMore,
 } from '@/features/catalog/youLibraryAdd';
+import { YouLibraryCreateRow } from '@/features/catalog/YouLibraryCreateRow';
 import { youLibraryFindStaysOpen, youLibraryPageViewSummary } from '@/features/catalog/youLibraryFind';
 
 function toCatalogShortlistEntry(
@@ -828,37 +829,29 @@ export function MyCatalogPage({
             })}
           </div>
         ) : null}
-        {youLibraryShowsDesignAdd({ tab, youSaved, selecting }) ? (
-          <ListSquareButton
-            data-testid="you-library-add-designs"
-            aria-label="Add designs"
-            active
-            className="relative z-0 ml-auto"
-            onClick={onAddDesigns}
-          >
-            <PlusIcon width={20} height={20} />
-          </ListSquareButton>
-        ) : null}
       </div>
 
-      {catalogTabs && isPackTab(tab) && !selecting && !youSaved && !archivedCollections ? (
-        <button
-          type="button"
-          data-testid={tab === 'catalogs' ? 'you-new-catalog' : 'you-new-collection'}
+      {catalogTabs && isPackTab(tab) && !youSaved && !archivedCollections ? (
+        <YouLibraryCreateRow
+          testId={tab === 'catalogs' ? 'you-new-catalog' : 'you-new-collection'}
+          label={tab === 'catalogs' ? 'New catalog' : 'New collection'}
+          disabled={youLibraryCreateRowDisabled(selecting)}
           onClick={() =>
             navigate(
               tab === 'catalogs' ? '/catalog/collections/new?kind=catalog' : '/catalog/collections/new',
             )
           }
-          className="flex w-full items-center gap-3 border-b border-line px-1 py-2 text-left hover:bg-foam/40"
-        >
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-line text-accent">
-            <PlusIcon width={22} height={22} />
-          </span>
-          <span className="text-[15px] font-emphasis tracking-tight text-accent">
-            {tab === 'catalogs' ? 'New catalog' : 'New collection'}
-          </span>
-        </button>
+        />
+      ) : null}
+      {catalogTabs &&
+      youLibraryShowsDesignAdd({ tab, youSaved }) &&
+      !archivedCollections ? (
+        <YouLibraryCreateRow
+          testId="you-new-design"
+          label="New design"
+          disabled={youLibraryCreateRowDisabled(selecting)}
+          onClick={onAddDesigns}
+        />
       ) : null}
 
       {catalogTabs || youSaved || tabHasItems ? (

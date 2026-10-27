@@ -97,3 +97,33 @@ export function decideLinesPayload(
     };
   });
 }
+
+/** Manual + personal extras go on Confirm only — Decline all omits them. */
+export function decideLinesConfirmExtras(
+  verb: DecideLineAction,
+  drafts: {
+    manualOrderNo: string;
+    manualImages: string[];
+    personalNote: string;
+    personalVoiceMediaId?: string;
+    personalVoiceDurationMs?: number;
+    personalImages: string[];
+  },
+): {
+  manualOrderNo?: string | null;
+  manualNoteImageUrls?: string[];
+  personalNote?: string | null;
+  personalNoteVoiceMediaId?: string | null;
+  personalNoteVoiceDurationMs?: number | null;
+  personalNoteImageUrls?: string[];
+} {
+  if (verb !== 'confirm') return {};
+  return {
+    manualOrderNo: drafts.manualOrderNo.trim() || null,
+    manualNoteImageUrls: drafts.manualImages,
+    personalNote: drafts.personalNote.trim() || null,
+    personalNoteVoiceMediaId: drafts.personalVoiceMediaId ?? null,
+    personalNoteVoiceDurationMs: drafts.personalVoiceDurationMs ?? null,
+    personalNoteImageUrls: drafts.personalImages,
+  };
+}

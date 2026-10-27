@@ -19,6 +19,7 @@ import {
   catalogShareInviteText,
 } from '@/features/browse/catalogShareLinkUnits';
 import { isCurateCeilingError } from '@/features/browse/curateCheck';
+import { CurateWhyHint } from '@/features/browse/CurateWhyHint';
 import { maxPublishAudienceForCuratedPack } from '@/features/catalog/curationAudienceCeiling';
 import { readCompanyPublishDefaults } from '@/features/catalog/publishDefaults';
 import {
@@ -368,12 +369,18 @@ export function RepostSheet({
           ) : null}
 
           {!packLocked && productIds.length > 0 && !curateCheck.isLoading ? (
-            <p className="text-sm text-muted" data-testid="repost-skip-summary">
-              {allowedIds.length} design{allowedIds.length === 1 ? '' : 's'}
-              {blockedCount > 0
-                ? ` · ${blockedCount} skipped (can’t put in a collection)`
-                : ''}
-            </p>
+            <div className="flex items-center gap-1">
+              <p className="min-w-0 flex-1 text-sm text-muted" data-testid="repost-skip-summary">
+                {allowedIds.length} design{allowedIds.length === 1 ? '' : 's'}
+                {blockedCount > 0
+                  ? ` · ${blockedCount} skipped (can’t put in a collection)`
+                  : ''}
+              </p>
+              <CurateWhyHint
+                codes={(curateCheck.data?.blocked ?? []).map((row) => row.code)}
+                extra={sheetError}
+              />
+            </div>
           ) : null}
 
           <Field label="Name">
@@ -408,7 +415,14 @@ export function RepostSheet({
             onCreateGroup={() => setCreateGroupOpen(true)}
           />
 
-          {sheetError ? <InlineNotice message={sheetError} /> : null}
+          {sheetError ? (
+            <div className="flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <InlineNotice message={sheetError} />
+              </div>
+              {blockedCount < 1 ? <CurateWhyHint codes={[]} extra={sheetError} /> : null}
+            </div>
+          ) : null}
           {readyInvite ? (
             <Field label="48-hour link" hint="Select the text and copy.">
               <TextArea

@@ -49,6 +49,31 @@ export function curateSkipSummary(allowedCount: number, blockedCount: number): s
   return `${blockedCount} left out — save the rest.`;
 }
 
+/** Quiet i copy — codes, not jargon. Pack Category does not unlock Curate. */
+export function curateWhyHintLines(codes: string[], extra?: string | null): string[] {
+  const set = new Set(codes);
+  const lines: string[] = [];
+  if (set.has('RELIST_NOT_ALLOWED')) {
+    lines.push('They don’t allow putting these designs in a collection.');
+  }
+  if (set.has('FOLLOW_LOOK_ONLY')) {
+    lines.push('They’ve only allowed looking — not putting designs in a collection.');
+  }
+  if (set.has('NOT_DISCOVERABLE') || set.has('INVALID_PRODUCTS')) {
+    lines.push(
+      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+    );
+  }
+  if (set.has('CURATED_AUDIENCE_TOO_WIDE')) {
+    lines.push('Your Who is wider than a sourced design allows.');
+  }
+  const extraTrim = extra?.trim();
+  if (extraTrim && !lines.includes(extraTrim)) {
+    lines.push(extraTrim);
+  }
+  return lines;
+}
+
 export function curateSaveDraftLabel(allowedCount: number, blockedCount: number): string {
   if (blockedCount < 1 || allowedCount < 1) return 'Save draft';
   return `Save ${allowedCount} in this collection`;

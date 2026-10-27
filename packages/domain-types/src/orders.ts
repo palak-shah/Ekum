@@ -500,6 +500,14 @@ export const decideOrderLinesSchema = z.object({
     .min(1)
     .max(200),
   ...orderNoteVoiceFields,
+  /** Shared book / PO number — Confirm only; omit ⋯ note text. */
+  manualOrderNo: z.string().trim().max(80).optional().nullable(),
+  manualNoteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
+  /** Company-private scratch — Confirm only; never trail/chat. */
+  personalNote: z.string().trim().max(2000).optional().nullable(),
+  personalNoteVoiceMediaId: z.string().min(1).optional().nullable(),
+  personalNoteVoiceDurationMs: z.number().int().positive().max(120_000).optional().nullable(),
+  personalNoteImageUrls: z.array(z.string().trim().min(1).max(2000)).max(9).optional(),
 });
 export type DecideOrderLinesDto = z.infer<typeof decideOrderLinesSchema>;
 

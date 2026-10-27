@@ -42,11 +42,13 @@ const threads = {
 interface Captured {
   createData: { items: { create: Record<string, unknown>[] } } | null;
   updateData: Record<string, unknown> | null;
+  orderUpdates: Record<string, unknown>[];
   messageCreate: Record<string, unknown> | null;
   messageUpdate: Record<string, unknown> | null;
   itemUpdates: Record<string, unknown>[];
   shipmentCreate: Record<string, unknown> | null;
   trailAppends: Record<string, unknown>[];
+  companyNoteUpsert: Record<string, unknown> | null;
 }
 
 interface Options {
@@ -73,6 +75,9 @@ interface Options {
     transporter?: string | null;
     lrNumber?: string | null;
     parcelCount?: number | null;
+    manualOrderNo?: string | null;
+    manualOrderNote?: string | null;
+    manualOrderImages?: string[];
     items?: {
       id: string;
       quantity: { toNumber: () => number };
@@ -91,11 +96,13 @@ function makeService(options: Options) {
   const captured: Captured = {
     createData: null,
     updateData: null,
+    orderUpdates: [],
     messageCreate: null,
     messageUpdate: null,
     itemUpdates: [],
     shipmentCreate: null,
     trailAppends: [],
+    companyNoteUpsert: null,
   };
   const trail = {
     append: async (input: Record<string, unknown>) => {
@@ -113,6 +120,7 @@ function makeService(options: Options) {
         shipments: options.order.shipments ?? [],
       }
     : null;
+  let companyNote: Record<string, unknown> | null = null;
   let livingMessage: {
     id: string;
     type: string;
@@ -162,6 +170,7 @@ function makeService(options: Options) {
       findMany: async () => [],
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         captured.updateData = args.data;
+        captured.orderUpdates.push(args.data);
         if (orderState) {
           orderState = {
             ...orderState,
@@ -247,7 +256,33 @@ function makeService(options: Options) {
       },
     },
     orderCompanyNote: {
-      findUnique: async () => null,
+      findUnique: async (args?: {
+        where?: { orderId_companyId?: { orderId: string; companyId: string } };
+      }) => {
+        const companyId = args?.where?.orderId_companyId?.companyId;
+        if (!companyNote) return null;
+        if (companyId && companyNote.companyId !== companyId) return null;
+        return companyNote;
+      },
+      upsert: async (args: {
+        where: { orderId_companyId: { orderId: string; companyId: string } };
+        create: Record<string, unknown>;
+        update: Record<string, unknown>;
+      }) => {
+        captured.companyNoteUpsert = args;
+        companyNote = {
+          id: 'cn1',
+          orderId: args.where.orderId_companyId.orderId,
+          companyId: args.where.orderId_companyId.companyId,
+          ...args.create,
+          ...args.update,
+        };
+        return companyNote;
+      },
+      delete: async () => {
+        companyNote = null;
+        return {};
+      },
     },
     orderTrailEvent: {
       count: async () => 0,
@@ -995,6 +1030,73 @@ describe('OrderService decideLines', () => {
     });
     expect(captured.updateData?.status).toBe(OrderStatus.Confirmed);
     expect(captured.itemUpdates.some((u) => u.quantity === 5 && u.rate == null)).toBe(true);
+  });
+
+  it('persists manual order no. and photos on Confirm without touching a ⋯ note', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        manualOrderNote: 'from dots',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    await service.decideLines('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', action: 'confirm', quantity: 5 }],
+      manualOrderNo: 'PO-19',
+      manualNoteImageUrls: ['https://host/po.jpg'],
+    });
+    const manualWrite = captured.orderUpdates.find((row) => 'manualOrderNo' in row);
+    expect(manualWrite).toMatchObject({
+      manualOrderNo: 'PO-19',
+      manualOrderImages: ['https://host/po.jpg'],
+    });
+    expect(manualWrite).not.toHaveProperty('manualOrderNote');
+  });
+
+  it('persists a company-only personal note on Confirm', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    const sellerView = await service.decideLines('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', action: 'confirm', quantity: 5 }],
+      personalNote: 'pack later',
+      personalNoteImageUrls: [],
+    });
+    expect(captured.companyNoteUpsert).toMatchObject({
+      where: { orderId_companyId: { orderId: 'o1', companyId: 'seller' } },
+      create: expect.objectContaining({ note: 'pack later', companyId: 'seller' }),
+    });
+    expect(sellerView.personalNote?.note).toBe('pack later');
+    const buyerView = await service.get('buyer', 'o1');
+    expect(buyerView.personalNote).toBeNull();
+  });
+
+  it('does not persist manual or personal extras on Decline all', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    await service.decideLines('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', action: 'decline' }],
+      manualOrderNo: 'PO-19',
+      personalNote: 'should not save',
+    });
+    expect(captured.orderUpdates.some((row) => 'manualOrderNo' in row)).toBe(false);
+    expect(captured.companyNoteUpsert).toBeNull();
   });
 });
 

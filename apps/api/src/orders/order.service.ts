@@ -1549,6 +1549,10 @@ export class OrderService {
       });
     }
 
+    if (confirmed > 0) {
+      await this.persistDecideLinesExtras(actorCompanyId, userId, id, dto);
+    }
+
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
     const notice = dto.note ?? linesDecidedNotice(actorLabel, confirmed, declined);
@@ -3354,6 +3358,42 @@ export class OrderService {
       noteVoiceDurationMs: resolved.noteVoiceDurationMs,
       noteImageUrls: normalizeNoteImageUrls(dto.noteImageUrls),
     };
+  }
+
+  private async persistDecideLinesExtras(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: DecideOrderLinesDto,
+  ): Promise<void> {
+    const hasManual =
+      dto.manualOrderNo !== undefined || dto.manualNoteImageUrls !== undefined;
+    const hasPersonal =
+      dto.personalNote !== undefined ||
+      dto.personalNoteVoiceMediaId !== undefined ||
+      dto.personalNoteImageUrls !== undefined;
+    if (hasManual) {
+      await this.updateManualRef(actorCompanyId, userId, id, {
+        ...(dto.manualOrderNo !== undefined ? { manualOrderNo: dto.manualOrderNo } : {}),
+        ...(dto.manualNoteImageUrls !== undefined
+          ? { noteImageUrls: dto.manualNoteImageUrls }
+          : {}),
+      });
+    }
+    if (hasPersonal) {
+      await this.updatePersonalNote(actorCompanyId, id, {
+        ...(dto.personalNote !== undefined ? { note: dto.personalNote } : {}),
+        ...(dto.personalNoteVoiceMediaId !== undefined
+          ? {
+              noteVoiceMediaId: dto.personalNoteVoiceMediaId,
+              noteVoiceDurationMs: dto.personalNoteVoiceDurationMs,
+            }
+          : {}),
+        ...(dto.personalNoteImageUrls !== undefined
+          ? { noteImageUrls: dto.personalNoteImageUrls }
+          : {}),
+      });
+    }
   }
 
   async updateManualRef(

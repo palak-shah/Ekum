@@ -307,4 +307,48 @@ test.describe('orders chrome @functional @release @orders', () => {
     expect(navBox).toBeTruthy();
     expect(lastBox!.y + lastBox!.height).toBeLessThanOrEqual(navBox!.y + 4);
   });
+
+  test('Confirm sheet saves Manual order no. and Personal note', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      items: [{ productId: 'seed-prod-1', quantity: 12 }],
+    });
+    const bookNo = `PO-${Date.now()}`;
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${order.id}`);
+    await page.getByTestId('order-dock-confirm').click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-manual-ref')).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-manual-ref-number')).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-personal-note').getByTestId('note-attach-add')).toHaveText(
+      'Add personal note',
+    );
+    await expect(sheet.getByText('Note to buyer')).toBeVisible();
+    await expect(sheet.getByText('Note to buyer')).toContainText('(optional)');
+
+    await sheet.getByTestId('order-lines-manual-ref-number').fill(bookNo);
+    await sheet.getByTestId('order-lines-personal-note').getByTestId('note-attach-add').click();
+    await expect(
+      sheet.getByText('Only your company sees this — not the other party.'),
+    ).toBeVisible();
+    await sheet.getByTestId('order-lines-personal-note').locator('textarea').fill('Pack in brown');
+    await sheet.getByTestId('order-lines-confirm').click();
+    await expect(sheet).toBeHidden({ timeout: 15_000 });
+
+    await expect(page.getByTestId('order-manual-ref-line')).toContainText(bookNo);
+    await expect(page.getByTestId('order-personal-note-preview')).toContainText('Pack in brown');
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${order.id}`);
+    await expect(page.getByTestId('order-manual-ref-line')).toContainText(bookNo, {
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('order-personal-note-preview')).toHaveCount(0);
+  });
 });

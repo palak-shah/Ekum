@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decideLinesConfirmExtras,
   decideLinesConfirmReady,
   decideLinesPayload,
   decideLinesTally,
@@ -87,6 +88,37 @@ describe('decideLinesSheet', () => {
     expect(
       decideLinesConfirmReady(['a'], { a: 'confirm' }, { a: '0' }, { a: 12 }),
     ).toBe(false);
+  });
+
+  it('Confirm extras include manual number, photos, and personal note', () => {
+    expect(
+      decideLinesConfirmExtras('confirm', {
+        manualOrderNo: ' PO-19 ',
+        manualImages: ['https://host/po.jpg'],
+        personalNote: 'pack later',
+        personalVoiceMediaId: 'media-1',
+        personalVoiceDurationMs: 1200,
+        personalImages: [],
+      }),
+    ).toEqual({
+      manualOrderNo: 'PO-19',
+      manualNoteImageUrls: ['https://host/po.jpg'],
+      personalNote: 'pack later',
+      personalNoteVoiceMediaId: 'media-1',
+      personalNoteVoiceDurationMs: 1200,
+      personalNoteImageUrls: [],
+    });
+  });
+
+  it('omits Confirm extras on Decline all', () => {
+    expect(
+      decideLinesConfirmExtras('decline', {
+        manualOrderNo: 'PO-19',
+        manualImages: [],
+        personalNote: 'no',
+        personalImages: [],
+      }),
+    ).toEqual({});
   });
 
   it('qtysWithSharedValue fills or restores defaults', () => {

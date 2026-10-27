@@ -37,7 +37,9 @@ import {
   generalMemberJoinRows,
   generalMemberProductWhere,
   isGeneralKind,
+  publicCollectionKindWhere,
 } from '../catalog/general-collection';
+import { pinOwnRows, prependUniqueById } from './explore-own-pin';
 import { DiscoverySerializer } from './discovery.serializer';
 import {
   canDiscoverCollection,
@@ -184,6 +186,7 @@ export class ExploreService {
     const [
       networkPage,
       forYouPage,
+      ownCollections,
       networkDesigns,
       forYouDesignsRaw,
       suggestedPage,
@@ -194,6 +197,7 @@ export class ExploreService {
     ] = await Promise.all([
       this.collections(viewerCompanyId, { ...base, following: true }),
       this.collections(viewerCompanyId, base),
+      this.ownLiveCollections(viewerCompanyId, { ...base, limit: sectionLimit }),
       this.designs(viewerCompanyId, { ...base, following: true, limit: 8 }),
       this.designs(viewerCompanyId, { ...base, limit: 12 }),
       wantSuggested
@@ -226,10 +230,15 @@ export class ExploreService {
     const followedIds = new Set(followedRows.map((row) => row.followedCompanyId));
     const networkIds = new Set(networkPage.results.map((row) => row.id));
     const networkDesignIds = new Set(networkDesigns.results.map((row) => row.id));
-    const opportunityCollections = [
-      ...networkPage.results,
-      ...forYouPage.results.filter((collection) => !networkIds.has(collection.id)),
-    ];
+    const ownIds = new Set(ownCollections.map((collection) => collection.id));
+    const opportunityCollections = prependUniqueById(
+      ownCollections,
+      [
+        ...networkPage.results,
+        ...forYouPage.results.filter((collection) => !networkIds.has(collection.id)),
+      ],
+      (collection) => collection.id,
+    );
     const opportunityDesignsUnfiltered = [
       ...networkDesigns.results,
       ...forYouDesignsRaw.results.filter((product) => !networkDesignIds.has(product.id)),
@@ -263,8 +272,8 @@ export class ExploreService {
     const fromNetwork = networkPage.results.map((collection) =>
       this.toOpportunity(collection, interest, connectedIds, followedIds, tradeById.get(collection.company.id)),
     );
-    const forYou = forYouPage.results
-      .filter((collection) => !networkIds.has(collection.id))
+    const rankedForYou = forYouPage.results
+      .filter((collection) => !networkIds.has(collection.id) && !ownIds.has(collection.id))
       .map((collection) =>
         this.toOpportunity(
           collection,
@@ -274,6 +283,19 @@ export class ExploreService {
           tradeById.get(collection.company.id),
         ),
       );
+    const forYou = prependUniqueById(
+      ownCollections.map((collection) =>
+        this.toOpportunity(
+          collection,
+          interest,
+          connectedIds,
+          followedIds,
+          tradeById.get(collection.company.id),
+        ),
+      ),
+      rankedForYou,
+      (row) => row.collection.id,
+    );
 
     const designsFromNetwork = networkDesigns.results
       .filter((product) => !coveredByHomePacks.has(product.id))
@@ -653,12 +675,13 @@ export class ExploreService {
 
     const { interest, city } = await this.resolveViewerRankContext(viewerCompanyId, query);
     const softRank = interest.tags.length > 0 && narrowLists(query).categories.length === 0;
-    const merged = softRank
+    const ranked = softRank
       ? this.mergeFollowThenInterest(followedRows, otherRows, interest, city)
       : [
           ...followedRows,
           ...[...otherRows].sort((a, b) => compareByMarketRelevance(a, b, interest, city)),
         ];
+    const merged = pinOwnRows(ranked, (row) => row.company.id === viewerCompanyId);
 
     const page = pageMerged(await this.hideDesignsCoveredByPacks(merged), query, (row) => row.feedId);
     const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
@@ -668,6 +691,31 @@ export class ExploreService {
       (row) => this.toExplorePost(row, stamps, viewerCompanyId),
       (row) => row.feedId,
     );
+  }
+
+  /**
+   * Viewer’s own live packs — not subject to the followed-first 12-post window.
+   * General Collection stays library-only.
+   */
+  private async ownLiveCollections(
+    viewerCompanyId: string,
+    query: ExploreQuery,
+  ): Promise<CollectionCard[]> {
+    const rows = await this.prisma.collection.findMany({
+      where: {
+        companyId: viewerCompanyId,
+        status: CollectionStatus.Published,
+        ...publicCollectionKindWhere(),
+        company: this.companyFilter(viewerCompanyId, query),
+        AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
+      },
+      include: collectionCardInclude,
+      orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      take: query.limit,
+    });
+    const live = withLiveDesigns(rows);
+    const page = await this.toCollectionCardPage(viewerCompanyId, live, live.length);
+    return page.results;
   }
 
   /** Collections-only browse (same ranking rules as feed, without product posts). */
