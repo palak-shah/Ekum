@@ -17,6 +17,7 @@ import { selectionRowHref } from '@/features/browse/selectionRowHref';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
+import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   clearBrowseCart,
   readCartAlbums,
@@ -96,6 +97,8 @@ export function SelectionPage() {
   const [curateDefaultName, setCurateDefaultName] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
+  const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
+  const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [savingPick, setSavingPick] = useState(false);
@@ -322,11 +325,37 @@ export function SelectionPage() {
     if (availableTotal < 1) return;
     toastSkippedUnavailable();
     orderFlow.setError(null);
-    if (availableAlbumCount > 0) {
-      setOrderResolveOpen(true);
-      return;
-    }
-    orderFlow.setQtyOpen(true);
+    const albums = resolving ? albumPick.entries : availableAlbums;
+    const designs = resolving ? shortlist.entries : availableDesigns;
+    void (async () => {
+      const prepared = await prepareCatalogOrder({ albums, shortlist: designs });
+      if (prepared.kind === 'error') return;
+      const unavailableAlbums = albumPick.entries.filter(
+        (entry) => availability.data?.albums.get(entry.collectionId)?.available === false,
+      );
+      const unavailableDesigns = shortlist.entries.filter(
+        (entry) => availability.data?.designs.get(entry.productId)?.available === false,
+      );
+      if (prepared.kind === 'resolve') {
+        writeCartDesigns([...unavailableDesigns, ...prepared.shortlist]);
+        setLockedProductIds(prepared.lockedProductIds);
+        setOrderResolveOpen(true);
+        return;
+      }
+      writeCartDesigns([...unavailableDesigns, ...prepared.shortlist]);
+      writeCartAlbums([...unavailableAlbums, ...prepared.remainingAlbums]);
+      setLockedProductIds(prepared.lockedProductIds);
+      if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+        writeResumeAfterAlbumPick('cart-order');
+        navigate(`/collections/${prepared.navigateToCollectionId}`, {
+          state: { enterSelect: true },
+        });
+        return;
+      }
+      clearResumeAfterAlbumPick();
+      setQtyEntries(prepared.shortlist);
+      orderFlow.setQtyOpen(true);
+    })();
   };
 
   const openCurateWithDesigns = (
@@ -379,8 +408,32 @@ export function SelectionPage() {
     }
     if (state.openOrder) {
       orderFlow.setError(null);
-      if (cartAlbums.length > 0) setOrderResolveOpen(true);
-      else if (cartDesigns.length > 0) orderFlow.setQtyOpen(true);
+      void (async () => {
+        const prepared = await prepareCatalogOrder({
+          albums: cartAlbums,
+          shortlist: cartDesigns,
+        });
+        if (prepared.kind === 'error') return;
+        if (prepared.kind === 'resolve') {
+          writeCartDesigns(prepared.shortlist);
+          setLockedProductIds(prepared.lockedProductIds);
+          setOrderResolveOpen(true);
+          return;
+        }
+        writeCartDesigns(prepared.shortlist);
+        writeCartAlbums(prepared.remainingAlbums);
+        setLockedProductIds(prepared.lockedProductIds);
+        if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+          writeResumeAfterAlbumPick('cart-order');
+          navigate(`/collections/${prepared.navigateToCollectionId}`, {
+            state: { enterSelect: true },
+          });
+          return;
+        }
+        if (prepared.shortlist.length < 1) return;
+        setQtyEntries(prepared.shortlist);
+        orderFlow.setQtyOpen(true);
+      })();
     }
     // Intentionally once per nav state — not when shortlist/album counts change.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume handoff
@@ -672,7 +725,7 @@ export function SelectionPage() {
         albums={resolving ? albumPick.entries : availableAlbums}
         designCount={availableDesignCount}
         existingShortlist={resolving ? shortlist.entries : availableDesigns}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
+        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
           const unavailableAlbums = albumPick.entries.filter(
             (entry) => availability.data?.albums.get(entry.collectionId)?.available === false,
           );
@@ -682,6 +735,7 @@ export function SelectionPage() {
           writeCartDesigns([...unavailableDesigns, ...nextShortlist]);
           writeCartAlbums([...unavailableAlbums, ...remainingAlbums]);
           setOrderResolveOpen(false);
+          setLockedProductIds(locked ?? []);
           if (navigateToCollectionId) {
             writeResumeAfterAlbumPick('cart-order');
             navigate(`/collections/${navigateToCollectionId}`, {
@@ -752,6 +806,7 @@ export function SelectionPage() {
         onClose={() => {
           orderFlow.setQtyOpen(false);
           setQtyEntries(null);
+          setLockedProductIds([]);
         }}
         sellerId={
           availableDesigns.length === 0
@@ -765,6 +820,7 @@ export function SelectionPage() {
         products={entriesAsProducts(
           qtyEntries ?? (resolving ? shortlist.entries : availableDesigns),
         )}
+        lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}

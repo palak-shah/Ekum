@@ -178,7 +178,7 @@ describe('SelectionWorkspaceBar', () => {
     await user.click(screen.getByTestId('selection-workspace-order'));
     expect(addStagingToCart).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalledWith('/selection', expect.anything());
-    expect(setQtyOpen).toHaveBeenCalledWith(true);
+    await waitFor(() => expect(setQtyOpen).toHaveBeenCalledWith(true));
   });
 
   it('Message opens compose; Send posts one card with note and does not open Chats', async () => {

@@ -15,6 +15,8 @@ export type BrowseShortlistEntry = {
   rate?: number | null;
   rateMax?: number | null;
   status?: string;
+  /** Own catalog this design is exclusive to. */
+  catalogCollectionId?: string | null;
   /** Curated pack these lines were picked from (I handle → from-pack). */
   sourceCollectionId?: string;
   /** Desk publish allow-to-relist on that pack (Slice B desk chain). */

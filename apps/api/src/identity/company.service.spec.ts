@@ -51,6 +51,8 @@ describe('CompanyService.listPublishedCollections', () => {
         {
           id: 'c1',
           name: 'Wedding Edit',
+          kind: 'catalog',
+          orderMode: 'whole',
           coverImage: 'https://img/cover',
           status: 'published',
           updatedAt: new Date('2026-08-01T00:00:00.000Z'),
@@ -66,6 +68,8 @@ describe('CompanyService.listPublishedCollections', () => {
     const page = await service.listPublishedCollections('buyer', 'seller', { limit: 20 });
     expect(page.results).toHaveLength(1);
     expect(page.results[0]?.name).toBe('Wedding Edit');
+    expect(page.results[0]?.kind).toBe('catalog');
+    expect(page.results[0]?.orderMode).toBe('whole');
     expect(page.results[0]?.productCount).toBe(4);
     expect(page.results[0]?.previewImages).toEqual(['https://img/a', 'https://img/b']);
     expect(page.results[0]?.imageCount).toBe(2);

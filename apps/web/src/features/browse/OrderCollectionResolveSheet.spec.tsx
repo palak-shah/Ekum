@@ -105,10 +105,65 @@ describe('OrderCollectionResolveSheet Continue', () => {
     );
   });
 
+  it('hides Choose designs on a whole catalog', () => {
+    vi.mocked(api.get).mockResolvedValue({
+      kind: 'catalog',
+      orderMode: 'whole',
+      products: [
+        {
+          id: 'p1',
+          name: 'Silk',
+          images: [],
+          companyId: 'c1',
+          companyName: 'Shop',
+        },
+      ],
+    });
+    render(
+      <OrderCollectionResolveSheet
+        open
+        onClose={() => undefined}
+        albums={[
+          {
+            ...album('cat-1', 'Season'),
+            kind: 'catalog',
+            orderMode: 'whole',
+          },
+        ]}
+        designCount={0}
+        existingShortlist={[]}
+        onResolved={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('resolve-pick-designs')).toBeNull();
+    expect(screen.getByText('This catalog is ordered as a whole.')).toBeInTheDocument();
+  });
+
+  it('still offers Choose designs on a pick catalog', () => {
+    render(
+      <OrderCollectionResolveSheet
+        open
+        onClose={() => undefined}
+        albums={[
+          {
+            ...album('cat-1', 'Season'),
+            kind: 'catalog',
+            orderMode: 'pick',
+          },
+        ]}
+        designCount={0}
+        existingShortlist={[]}
+        onResolved={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('resolve-pick-designs')).toBeInTheDocument();
+  });
+
   it('opens a locked pack instead of saying designs are not listed yet', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.get)
-      .mockResolvedValueOnce({
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (String(path).includes('col2')) return { products: null };
+      return {
         products: [
           {
             id: 'p1',
@@ -119,8 +174,8 @@ describe('OrderCollectionResolveSheet Continue', () => {
             allowForward: true,
           },
         ],
-      })
-      .mockResolvedValueOnce({ products: null });
+      };
+    });
     const onResolved = vi.fn();
     render(
       <OrderCollectionResolveSheet

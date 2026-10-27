@@ -43,6 +43,7 @@ import {
   partitionRelistableAlbums,
 } from '@/features/browse/curateAlbumResolve';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
+import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   collectionIdForPackOrder,
   packHandlerName,
@@ -238,6 +239,9 @@ function toShortlistEntry(
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
     status: product.status,
+    ...(product.catalogCollectionId
+      ? { catalogCollectionId: product.catalogCollectionId }
+      : {}),
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
@@ -272,6 +276,8 @@ export function CollectionViewerPage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageSelecting, setPageSelecting] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
+  const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
+  const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
   const [curateOpen, setCurateOpen] = useState(false);
   const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
@@ -364,16 +370,37 @@ export function CollectionViewerPage() {
       return;
     }
     orderFlow.setError(null);
-    if (albumPick.count > 0) setOrderResolveOpen(true);
-    else if (shortlist.count > 0) {
-      const tradeable = tradeableShortlistEntries(shortlist.entries);
-      const skipped = shortlist.entries.length - tradeable.length;
-      const notice = selectionSkipToast(skipped, tradeable.length);
-      if (notice) showToast(notice);
-      if (tradeable.length < 1) return;
-      setQtyEntries(tradeable);
+    const tradeable = tradeableShortlistEntries(shortlist.entries);
+    const skipped = shortlist.entries.length - tradeable.length;
+    const notice = selectionSkipToast(skipped, tradeable.length);
+    if (notice) showToast(notice);
+    void (async () => {
+      const prepared = await prepareCatalogOrder({
+        albums: albumPick.entries,
+        shortlist: tradeable,
+      });
+      if (prepared.kind === 'error') return;
+      if (prepared.kind === 'resolve') {
+        writeBrowseShortlist(prepared.shortlist);
+        setLockedProductIds(prepared.lockedProductIds);
+        setOrderResolveOpen(true);
+        return;
+      }
+      writeBrowseShortlist(prepared.shortlist);
+      writeBrowseAlbumPick(prepared.remainingAlbums);
+      setLockedProductIds(prepared.lockedProductIds);
+      if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+        writeResumeAfterAlbumPick('order');
+        navigate(`/collections/${prepared.navigateToCollectionId}`, {
+          state: { enterSelect: true },
+        });
+        return;
+      }
+      if (prepared.shortlist.length < 1) return;
+      clearResumeAfterAlbumPick();
+      setQtyEntries(prepared.shortlist);
       orderFlow.setQtyOpen(true);
-    }
+    })();
   };
 
   const collection = useQuery({
@@ -1836,10 +1863,11 @@ export function CollectionViewerPage() {
         albums={albumPick.entries}
         designCount={shortlist.count}
         existingShortlist={shortlist.entries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
+        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
           writeBrowseShortlist(nextShortlist);
           writeBrowseAlbumPick(remainingAlbums);
           setOrderResolveOpen(false);
+          setLockedProductIds(locked ?? []);
           if (navigateToCollectionId) {
             writeResumeAfterAlbumPick('order');
             navigate(`/collections/${navigateToCollectionId}`, {
@@ -1884,6 +1912,7 @@ export function CollectionViewerPage() {
         onClose={() => {
           orderFlow.setQtyOpen(false);
           setQtyEntries(null);
+          setLockedProductIds([]);
         }}
         sellerId={sellerIdForEntries(
           tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
@@ -1891,6 +1920,7 @@ export function CollectionViewerPage() {
         products={entriesAsProducts(
           tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
         )}
+        lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}

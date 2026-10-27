@@ -27,6 +27,8 @@ test.describe('explore long-press select @functional @explore', () => {
     await expect(open).toBeVisible();
     await open.click();
     await expect(page).toHaveURL(/\/(collections|explore\/products)\//, { timeout: 10_000 });
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+    await expect(page.getByTestId('explore-select-back')).toHaveCount(0);
   });
 
   test('Select starts pick without a long-press', async ({ page }) => {
@@ -55,5 +57,33 @@ test.describe('explore long-press select @functional @explore', () => {
     await expect(page.getByTestId('explore-select-back')).toBeVisible();
     await page.getByTestId('explore-select-back').click();
     await expect(page).toHaveURL(/\/(?:\?|$)/);
+  });
+
+  test('leaving Explore and last uncheck exit Selecting', async ({ page }) => {
+    await loginAsRavi(page);
+    await page.goto('/explore');
+    await expect(page.getByTestId('explore-select')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('explore-select').click();
+
+    const media = page.locator('.ekum-long-press-surface').first();
+    await expect(media).toBeVisible();
+    await media.click();
+    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId('explore-select-back').click();
+    await expect(page).toHaveURL(/\/(?:\?|$)/);
+    await page.getByRole('link', { name: 'Chats' }).click();
+    await expect(page).toHaveURL(/\/chats/);
+    await page.getByRole('link', { name: 'Explore' }).click();
+    await expect(page.getByTestId('explore-select')).toHaveText('Select', { timeout: 15_000 });
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+    await expect(page.getByTestId('explore-select-back')).toHaveCount(0);
+
+    await page.getByTestId('explore-select').click();
+    await media.click();
+    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
+    await media.click();
+    await expect(page.getByTestId('explore-select')).toHaveText('Select');
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
   });
 });

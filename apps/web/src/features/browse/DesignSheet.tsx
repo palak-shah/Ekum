@@ -17,6 +17,8 @@ import { BulkProductPublishSheet } from '@/features/catalog/BulkProductPublishSh
 import { invalidateAfterPackMembership } from '@/features/catalog/packMembershipInvalidate';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { designSheetShortlistEntry } from '@/features/browse/designSheetEntry';
+import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
+import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import { designSheetMoreIds } from '@/features/browse/designSheetMoreIds';
 import {
   addToPackActionLabel,
@@ -138,6 +140,9 @@ export function DesignSheet({
   const [shareOpen, setShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
+  const [orderEntries, setOrderEntries] = useState<BrowseShortlistEntry[] | null>(null);
+  const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
+  const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [publishOpen, setPublishOpen] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
@@ -157,6 +162,8 @@ export function DesignSheet({
     setQtyOpen(false);
     setPublishOpen(false);
     setOrderError(null);
+    setOrderEntries(null);
+    setLockedProductIds([]);
   }, [product.id]);
 
   const urls = product.images;
@@ -258,7 +265,16 @@ export function DesignSheet({
       return;
     }
     setOrderError(null);
-    setQtyOpen(true);
+    void (async () => {
+      const prepared = await prepareCatalogOrder({
+        albums: [],
+        shortlist: [entry],
+      });
+      if (prepared.kind === 'error') return;
+      setLockedProductIds(prepared.lockedProductIds);
+      setOrderEntries(prepared.shortlist);
+      setQtyOpen(true);
+    })();
   };
 
   const moreItems: MoreActionItem[] = moreIds.flatMap((id): MoreActionItem[] => {
@@ -511,9 +527,12 @@ export function DesignSheet({
         onClose={() => {
           setQtyOpen(false);
           setOrderError(null);
+          setOrderEntries(null);
+          setLockedProductIds([]);
         }}
         sellerId={product.companyId}
-        products={entriesAsProducts([entry])}
+        products={entriesAsProducts(orderEntries ?? [entry])}
+        lockedProductIds={lockedProductIds}
         submitting={placeOrder.isPending}
         error={orderError}
         orderGoesToName={

@@ -99,4 +99,13 @@ describe('toCollectionCard', () => {
     expect(card.rateUnit).toBeNull();
     expect(card.categories).toEqual([]);
   });
+
+  it('passes catalog orderMode through to the card', () => {
+    const card = serializer.toCollectionCard(
+      pack({ kind: 'catalog', orderMode: 'whole' }),
+      { viewerCompanyId: 'buyer' },
+    );
+    expect(card.kind).toBe('catalog');
+    expect(card.orderMode).toBe('whole');
+  });
 });

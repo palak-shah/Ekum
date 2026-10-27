@@ -19,6 +19,7 @@ export function designSheetShortlistEntry(
     | 'rate'
     | 'rateMax'
     | 'status'
+    | 'catalogCollectionId'
   >,
   companyNameFallback = '',
   pack?: {
@@ -44,6 +45,9 @@ export function designSheetShortlistEntry(
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
     ...(product.status ? { status: product.status } : {}),
+    ...(product.catalogCollectionId
+      ? { catalogCollectionId: product.catalogCollectionId }
+      : {}),
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,

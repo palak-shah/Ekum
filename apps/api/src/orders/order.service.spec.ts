@@ -122,6 +122,9 @@ function makeService(options: Options) {
     : null;
 
   const prisma = {
+    collection: {
+      findMany: async () => [],
+    },
     product: {
       findMany: async (args?: { where?: { id?: { in?: string[] }; companyId?: string } }) => {
         const all = options.products ?? [];

@@ -9,6 +9,10 @@ export type BrowseAlbumEntry = {
   productCount?: number;
   allowForward?: boolean;
   orderPathPreference?: string | null;
+  /** general | regular | catalog when known. */
+  kind?: string | null;
+  /** whole | pick when kind=catalog; otherwise omitted. */
+  orderMode?: string | null;
 };
 
 type Listener = () => void;

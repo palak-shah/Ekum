@@ -46,6 +46,7 @@ import {
   useShortlistOrderFlow,
 } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   SELECTION_NEEDS_PUBLISHED_TOAST,
   selectionSkipToast,
@@ -100,6 +101,8 @@ export function SelectionWorkspaceBar() {
   const [messageOpen, setMessageOpen] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
+  const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
+  const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const shopId = companyIdFromPath(location.pathname);
   const ownShop = Boolean(shopId && me.data?.id && shopId === me.data.id);
   const shopDockUp = shouldShowShopTradeDock({
@@ -165,18 +168,38 @@ export function SelectionWorkspaceBar() {
   };
 
   const startOrder = () => {
-    orderFlow.setError(null);
-    if (albumPick.count > 0) {
-      setOrderResolveOpen(true);
-      return;
-    }
-    const tradeable = tradeableShortlistEntries(shortlist.entries);
-    const skipped = shortlist.entries.length - tradeable.length;
-    const notice = selectionSkipToast(skipped, tradeable.length);
-    if (notice) showToast(notice);
-    if (tradeable.length < 1) return;
-    setQtyEntries(tradeable);
-    orderFlow.setQtyOpen(true);
+    void (async () => {
+      orderFlow.setError(null);
+      const tradeable = tradeableShortlistEntries(shortlist.entries);
+      const skipped = shortlist.entries.length - tradeable.length;
+      const notice = selectionSkipToast(skipped, tradeable.length);
+      if (notice) showToast(notice);
+      const prepared = await prepareCatalogOrder({
+        albums: albumPick.entries,
+        shortlist: tradeable,
+      });
+      if (prepared.kind === 'error') return;
+      if (prepared.kind === 'resolve') {
+        writeBrowseShortlist(prepared.shortlist);
+        setLockedProductIds(prepared.lockedProductIds);
+        setOrderResolveOpen(true);
+        return;
+      }
+      writeBrowseShortlist(prepared.shortlist);
+      writeBrowseAlbumPick(prepared.remainingAlbums);
+      setLockedProductIds(prepared.lockedProductIds);
+      if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+        writeResumeAfterAlbumPick('order');
+        navigate(`/collections/${prepared.navigateToCollectionId}`, {
+          state: { enterSelect: true },
+        });
+        return;
+      }
+      if (prepared.shortlist.length < 1) return;
+      clearResumeAfterAlbumPick();
+      setQtyEntries(prepared.shortlist);
+      orderFlow.setQtyOpen(true);
+    })();
   };
 
   const openShare = () => {
@@ -290,10 +313,11 @@ export function SelectionWorkspaceBar() {
         albums={albumPick.entries}
         designCount={shortlist.count}
         existingShortlist={shortlist.entries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
+        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
           writeBrowseShortlist(nextShortlist);
           writeBrowseAlbumPick(remainingAlbums);
           setOrderResolveOpen(false);
+          setLockedProductIds(locked ?? []);
           if (navigateToCollectionId) {
             writeResumeAfterAlbumPick('order');
             navigate(`/collections/${navigateToCollectionId}`, {
@@ -311,9 +335,11 @@ export function SelectionWorkspaceBar() {
         onClose={() => {
           orderFlow.setQtyOpen(false);
           setQtyEntries(null);
+          setLockedProductIds([]);
         }}
         sellerId={sellerIdForEntries(qtySource)}
         products={entriesAsProducts(qtySource)}
+        lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}

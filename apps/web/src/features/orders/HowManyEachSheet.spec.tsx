@@ -122,6 +122,29 @@ describe('HowManyEachSheet line chrome', () => {
     );
   });
 
+  it('hides line × on whole-catalog members', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="c1"
+            products={[
+              product,
+              { ...product, id: 'p2', name: 'Ivory' },
+            ]}
+            lockedProductIds={['p1', 'p2']}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByTestId('how-many-remove')).toBeNull();
+  });
+
   it('groups mixed units, restacks pack first, and hides Same for all', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(

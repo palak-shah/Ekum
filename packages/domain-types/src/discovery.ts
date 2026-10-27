@@ -107,6 +107,8 @@ export interface CollectionCard {
   name: string;
   /** general | regular | catalog. Explore shelves never list general. */
   kind?: string;
+  /** whole | pick when kind=catalog; otherwise null. */
+  orderMode?: string | null;
   /** Pack notes when present — Explore feed description (album-style clamp). */
   description: string | null;
   /** Pack tags when present. */

@@ -29,6 +29,7 @@ import {
   subscribePageOwnsBottomBand,
   subscribePageSelecting,
 } from '@/features/browse/selectionBottomBand';
+import { noteExplorePathChange } from '@/features/explore/exploreStagingSession';
 import { noteOrdersPathChange } from '@/features/orders/ordersDirectionSession';
 import { CreateCollectionFabSheet } from './CreateCollectionFabSheet';
 import { createFabHref, createFabIntent, CREATE_FAB_EXPLAIN } from './createFabIntent';
@@ -131,9 +132,13 @@ export function AppShell() {
   );
   const hideAppNav = !isMainMenuPath(location.pathname) || selectionUp;
   const wasOrdersPath = useRef(false);
+  const prevPathnameRef = useRef(location.pathname);
 
   useEffect(() => {
     wasOrdersPath.current = noteOrdersPathChange(location.pathname, wasOrdersPath.current);
+    const from = prevPathnameRef.current;
+    prevPathnameRef.current = location.pathname;
+    noteExplorePathChange(from, location.pathname);
   }, [location.pathname]);
 
   const onCreate = () => {

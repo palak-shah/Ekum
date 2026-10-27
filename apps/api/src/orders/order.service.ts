@@ -74,6 +74,10 @@ import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
 import { isHeldFromSupplier } from './orderHold';
 import {
+  assertExclusiveWholeCatalogComplete,
+  missingWholeCatalogMembers,
+} from './catalog-whole-order';
+import {
   primaryLrFromLegs,
   resolveParcelCount,
   resolveShipmentLegs,
@@ -202,6 +206,10 @@ export class OrderService {
           .filter((id): id is string => Boolean(id)),
       });
     }
+    await assertExclusiveWholeCatalogComplete(
+      this.prisma,
+      dto.items.map((item) => item.productId).filter((id): id is string => Boolean(id)),
+    );
     const items = await this.snapshotItems(dto, {
       allowForeignProducts: options.allowForeignProducts === true,
     });
@@ -443,9 +451,12 @@ export class OrderService {
       select: {
         id: true,
         companyId: true,
+        name: true,
+        kind: true,
+        orderMode: true,
         orderPathPreference: true,
         company: { select: { settings: { select: { tradeDefaults: true } } } },
-        products: { select: { productId: true } },
+        products: { select: { productId: true, product: { select: { status: true } } } },
       },
     });
     if (!collection) {
@@ -461,6 +472,21 @@ export class OrderService {
           message: 'One or more designs are not in this collection.',
         });
       }
+    }
+    const wholeMissing = missingWholeCatalogMembers({
+      kind: (collection as { kind?: string | null }).kind,
+      orderMode: (collection as { orderMode?: string | null }).orderMode,
+      name: collection.name,
+      publishedMemberIds: collection.products
+        .filter(
+          (row) =>
+            !row.product?.status || row.product.status === ProductStatus.Published,
+        )
+        .map((row) => row.productId),
+      orderedIds: productIds,
+    });
+    if (wholeMissing) {
+      throw new BadRequestException(wholeMissing);
     }
 
     const products = await this.prisma.product.findMany({

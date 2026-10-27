@@ -95,6 +95,7 @@ export class DiscoverySerializer {
       id: collection.id,
       name: collection.name,
       kind: (collection as { kind?: string }).kind ?? 'regular',
+      orderMode: (collection as { orderMode?: string | null }).orderMode ?? null,
       description: collection.description?.trim() || null,
       categories: general ? [] : collection.categories ?? [],
       memberFind: collectionMemberFind(collection.products),

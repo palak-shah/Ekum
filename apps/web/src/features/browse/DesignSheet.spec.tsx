@@ -64,6 +64,7 @@ const product = {
   moq: null,
   rate: 128,
   rateMax: null,
+  status: ProductStatus.Published,
 };
 
 function renderSheet(props: Partial<ComponentProps<typeof DesignSheet>> = {}) {

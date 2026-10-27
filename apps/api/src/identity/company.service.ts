@@ -363,6 +363,8 @@ export class CompanyService {
       return {
         id: row.id,
         name: row.name,
+        kind: (row as { kind?: string }).kind ?? 'regular',
+        orderMode: (row as { orderMode?: string | null }).orderMode ?? null,
         description: row.description?.trim() || null,
         categories: row.categories ?? [],
         memberFind: collectionMemberFind(row.products),

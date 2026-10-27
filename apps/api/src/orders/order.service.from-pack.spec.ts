@@ -172,4 +172,48 @@ describe('OrderService.createFromPack', () => {
     expect(create).toHaveBeenCalled();
     expect(result.downstream.id).toBe('down-1');
   });
+
+  it('rejects cherry-pick of a whole catalog', async () => {
+    const prisma = {
+      collection: {
+        findUnique: vi.fn(async () => ({
+          id: 'cat-whole',
+          companyId: 'trader',
+          name: 'Season',
+          kind: 'catalog',
+          orderMode: 'whole',
+          company: { settings: { tradeDefaults: { tradingEnabled: true } } },
+          products: [
+            { productId: 'p1', product: { status: 'published' } },
+            { productId: 'p2', product: { status: 'published' } },
+          ],
+        })),
+      },
+    } as unknown as PrismaService;
+
+    const service = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      { assertCanTrade: async () => undefined } as unknown as TradeAccess,
+      {} as DomainEvents,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      {} as ThreadService,
+      stubTrail,
+    );
+
+    try {
+      await service.createFromPack('buyer', 'user-1', {
+        collectionId: 'cat-whole',
+        items: [{ productId: 'p1', quantity: 1, images: [] }],
+      });
+      expect.fail('expected BadRequestException');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'CATALOG_WHOLE_REQUIRED',
+        message: 'Season is ordered as a whole.',
+      });
+    }
+  });
 });

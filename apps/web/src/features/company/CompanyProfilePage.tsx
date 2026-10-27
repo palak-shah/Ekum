@@ -47,6 +47,7 @@ import {
 } from '@/features/browse/BottomTradeDock';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
+import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   clearResumeAfterAlbumPick,
   writeResumeAfterAlbumPick,
@@ -118,6 +119,8 @@ function toShopAlbumEntry(collection: CollectionCard, shopCompanyId: string): Br
     productCount: collection.productCount,
     allowForward: collection.allowForward,
     orderPathPreference: collection.orderPathPreference,
+    kind: collection.kind,
+    orderMode: collection.orderMode,
   };
 }
 
@@ -137,6 +140,8 @@ export function CompanyProfilePage() {
   const [qtyOpen, setQtyOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
+  const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
+  const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [orderError, setOrderError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
@@ -735,8 +740,35 @@ export function CompanyProfilePage() {
               primary
               onClick={() => {
                 setOrderError(null);
-                if (shopAlbums.length > 0) setOrderResolveOpen(true);
-                else setQtyOpen(true);
+                void (async () => {
+                  const prepared = await prepareCatalogOrder({
+                    albums: shopAlbums,
+                    shortlist: shopEntries,
+                  });
+                  if (prepared.kind === 'error') return;
+                  if (prepared.kind === 'resolve') {
+                    const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
+                    writeBrowseShortlist([...otherDesigns, ...prepared.shortlist]);
+                    setLockedProductIds(prepared.lockedProductIds);
+                    setOrderResolveOpen(true);
+                    return;
+                  }
+                  const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
+                  const otherAlbums = albumPick.entries.filter((entry) => entry.companyId !== id);
+                  writeBrowseShortlist([...otherDesigns, ...prepared.shortlist]);
+                  writeBrowseAlbumPick([...otherAlbums, ...prepared.remainingAlbums]);
+                  setLockedProductIds(prepared.lockedProductIds);
+                  if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+                    writeResumeAfterAlbumPick('order');
+                    navigate(`/collections/${prepared.navigateToCollectionId}`, {
+                      state: { enterSelect: true },
+                    });
+                    return;
+                  }
+                  if (prepared.shortlist.length < 1) return;
+                  setQtyEntries(prepared.shortlist);
+                  setQtyOpen(true);
+                })();
               }}
             >
               <OrdersIcon width={22} height={22} />
@@ -752,12 +784,13 @@ export function CompanyProfilePage() {
         albums={shopAlbums}
         designCount={shopEntries.length}
         existingShortlist={shopEntries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId }) => {
+        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
           const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
           const otherAlbums = albumPick.entries.filter((entry) => entry.companyId !== id);
           writeBrowseShortlist([...otherDesigns, ...nextShortlist]);
           writeBrowseAlbumPick([...otherAlbums, ...remainingAlbums]);
           setOrderResolveOpen(false);
+          setLockedProductIds(locked ?? []);
           if (navigateToCollectionId) {
             writeResumeAfterAlbumPick('order');
             navigate(`/collections/${navigateToCollectionId}`, {
@@ -776,9 +809,11 @@ export function CompanyProfilePage() {
         onClose={() => {
           setQtyOpen(false);
           setQtyEntries(null);
+          setLockedProductIds([]);
         }}
         sellerId={sellerIdForEntries(qtyEntries ?? shopEntries)}
         products={entriesAsProducts(qtyEntries ?? shopEntries)}
+        lockedProductIds={lockedProductIds}
         submitting={placeShopOrder.isPending}
         error={orderError}
         orderGoesToName={packHandlerName(qtyEntries ?? shopEntries) ?? company.name}

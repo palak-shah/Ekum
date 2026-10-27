@@ -76,6 +76,7 @@ export function HowManyEachSheet({
   onAskRates,
   orderGoesToName,
   onRemoveProduct,
+  lockedProductIds,
   sheetJob = 'order',
 }: {
   open: boolean;
@@ -90,6 +91,8 @@ export function HowManyEachSheet({
   orderGoesToName?: string | null;
   /** × also updates traveling Selection (sr 42). */
   onRemoveProduct?: (productId: string) => void;
+  /** Whole-catalog members cannot be dropped from How many. */
+  lockedProductIds?: string[];
   /**
    * `order` — Place Order (+ Order for buyer switch). No Share / Ask.
    * `ask` — Ask rates only (shop / design Ask dock).
@@ -252,7 +255,7 @@ export function HowManyEachSheet({
       : orderGoesToName?.trim() || null;
   const multiShop = Boolean(splitBanner);
   const sheetTitle = orderSheetTitle(activeProducts.length);
-  const canRemove = activeProducts.length > 1;
+  const lockedSet = useMemo(() => new Set(lockedProductIds ?? []), [lockedProductIds]);
   const photoGallery = useMemo(() => howManyGalleryUrls(activeProducts), [activeProducts]);
   const photoCaptions = useMemo(() => howManyGalleryCaptions(activeProducts), [activeProducts]);
   const photoDetails = useMemo(() => howManyGalleryDetails(activeProducts), [activeProducts]);
@@ -471,7 +474,7 @@ export function HowManyEachSheet({
                       />
                     }
                     nameEnd={
-                      canRemove ? (
+                      activeProducts.length > 1 && !lockedSet.has(product.id) ? (
                         <HowManyRemoveButton
                           name={product.name}
                           disabled={busy}

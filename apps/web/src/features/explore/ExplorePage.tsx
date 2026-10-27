@@ -20,6 +20,7 @@ import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { exploreShowSelectChrome } from './exploreSelectChrome';
+import { exitExploreSelectIfEmpty } from './exploreStagingSession';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -122,9 +123,9 @@ function CollectionSection({
             priority={index < 2}
             selectMode={selecting}
             selected={albumPick.collectionIds.has(opportunity.collection.id)}
-            onLongSelect={() => toggleExploreAlbum(albumPick, opportunity)}
+            onLongSelect={() => toggleExploreAlbum(shortlist, albumPick, opportunity)}
             onToggleSelect={
-              selecting ? () => toggleExploreAlbum(albumPick, opportunity) : undefined
+              selecting ? () => toggleExploreAlbum(shortlist, albumPick, opportunity) : undefined
             }
             headerTrailing={exploreFeedFollowTrailing(
               opportunity.collection.company.id,
@@ -141,10 +142,11 @@ function CollectionSection({
 
 function toggleExploreDesign(
   shortlist: ReturnType<typeof useBrowseShortlist>,
+  albumPick: ReturnType<typeof useBrowseAlbumPick>,
   opportunity: ExploreDesignOpportunity,
 ) {
   const { product } = opportunity;
-  shortlist.toggle({
+  const next = shortlist.toggle({
     productId: product.id,
     name: product.name,
     thumbUrl: product.images[0] ?? null,
@@ -155,14 +157,16 @@ function toggleExploreDesign(
     dispatchUnit: product.dispatchUnit ?? null,
     rate: product.rate ?? null,
   });
+  exitExploreSelectIfEmpty(next.length + albumPick.count, shortlist, albumPick);
 }
 
 function toggleExploreAlbum(
+  shortlist: ReturnType<typeof useBrowseShortlist>,
   albumPick: ReturnType<typeof useBrowseAlbumPick>,
   opportunity: ExploreOpportunity,
 ) {
   const { collection } = opportunity;
-  albumPick.toggle({
+  const next = albumPick.toggle({
     collectionId: collection.id,
     name: collection.name,
     coverImage: collection.coverImage,
@@ -171,7 +175,10 @@ function toggleExploreAlbum(
     productCount: collection.productCount,
     allowForward: collection.allowForward,
     orderPathPreference: collection.orderPathPreference,
+    kind: collection.kind,
+    orderMode: collection.orderMode,
   });
+  exitExploreSelectIfEmpty(shortlist.count + next.length, shortlist, albumPick);
 }
 
 function DesignSection({
@@ -200,9 +207,9 @@ function DesignSection({
             priority={index < 2}
             selectMode={selecting}
             selected={shortlist.productIds.has(opportunity.product.id)}
-            onLongSelect={() => toggleExploreDesign(shortlist, opportunity)}
+            onLongSelect={() => toggleExploreDesign(shortlist, albumPick, opportunity)}
             onToggleSelect={
-              selecting ? () => toggleExploreDesign(shortlist, opportunity) : undefined
+              selecting ? () => toggleExploreDesign(shortlist, albumPick, opportunity) : undefined
             }
             headerTrailing={exploreFeedFollowTrailing(
               opportunity.product.company.id,
@@ -244,9 +251,9 @@ function MixedSection({
               priority={index < 2}
               selectMode={selecting}
               selected={albumPick.collectionIds.has(item.opportunity.collection.id)}
-              onLongSelect={() => toggleExploreAlbum(albumPick, item.opportunity)}
+              onLongSelect={() => toggleExploreAlbum(shortlist, albumPick, item.opportunity)}
               onToggleSelect={
-                selecting ? () => toggleExploreAlbum(albumPick, item.opportunity) : undefined
+                selecting ? () => toggleExploreAlbum(shortlist, albumPick, item.opportunity) : undefined
               }
               headerTrailing={exploreFeedFollowTrailing(
                 item.opportunity.collection.company.id,
@@ -260,9 +267,10 @@ function MixedSection({
               opportunity={item.opportunity}
               priority={index < 2}
               selectMode={selecting}
-              selected={shortlist.productIds.has(item.opportunity.product.id)}              onLongSelect={() => toggleExploreDesign(shortlist, item.opportunity)}
+              selected={shortlist.productIds.has(item.opportunity.product.id)}
+              onLongSelect={() => toggleExploreDesign(shortlist, albumPick, item.opportunity)}
               onToggleSelect={
-                selecting ? () => toggleExploreDesign(shortlist, item.opportunity) : undefined
+                selecting ? () => toggleExploreDesign(shortlist, albumPick, item.opportunity) : undefined
               }
               headerTrailing={exploreFeedFollowTrailing(
                 item.opportunity.product.company.id,
