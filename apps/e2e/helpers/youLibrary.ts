@@ -26,6 +26,7 @@ export async function pickYouLibraryFilter(
       await page
         .getByTestId(which === 'Archived' ? 'you-library-page-archived' : 'you-library-page-drafts')
         .click();
+      await expect(page.getByTestId('you-library-view-summary')).toBeVisible();
     }
     return;
   }

@@ -3,6 +3,8 @@ import { CollectionKind, CollectionStatus } from '@ekum/domain-types';
 import {
   addToPackActionLabel,
   addToPackCanOffer,
+  addToPackConfirmLabel,
+  addToPackIsMove,
   libraryDesignMembershipLine,
   addToPackAddedToast,
   addToPackAllCollectionsSelected,
@@ -47,9 +49,15 @@ const packs = [
 ];
 
 describe('addToPackEligibleTargets', () => {
-  it('hides every pack when a design is catalog exclusive', () => {
-    expect(addToPackEligibleTargets(packs, [inCatalog])).toEqual([]);
-    expect(addToPackEmptyCopy([inCatalog])).toMatch(/catalog first/);
+  it('offers live packs when moving an exclusive catalog design', () => {
+    expect(addToPackEligibleTargets(packs, [inCatalog]).map((row) => row.id)).toEqual([
+      'col',
+      'cat',
+      'draft',
+    ]);
+    expect(addToPackEmptyCopy([inCatalog])).toMatch(/Create a collection/);
+    expect(addToPackEligibleTargets(packs, [gc, inCatalog])).toEqual([]);
+    expect(addToPackEmptyCopy([gc, inCatalog])).toMatch(/not both/);
   });
 
   it('hides catalogs when a design already sits in a regular pack, and keeps drafts', () => {
@@ -157,14 +165,19 @@ describe('addToPackMatchesQuery', () => {
 });
 
 describe('addToPackActionLabel', () => {
-  it('is library vs album, and omits Add when exclusive', () => {
+  it('is library vs album, and Move when exclusive', () => {
     expect(addToPackCanOffer([gc])).toBe(true);
     expect(addToPackCanOffer([inPack])).toBe(true);
-    expect(addToPackCanOffer([inCatalog])).toBe(false);
+    expect(addToPackCanOffer([inCatalog])).toBe(true);
+    expect(addToPackIsMove([inCatalog])).toBe(true);
     expect(addToPackCanOffer([gc, inCatalog])).toBe(false);
     expect(addToPackActionLabel([gc], 'library')).toBe('Add to collection / catalog');
     expect(addToPackActionLabel([inPack], 'library')).toBe('Add to collection / catalog');
     expect(addToPackActionLabel([inPack], 'album')).toBe('Add to other collections');
+    expect(addToPackActionLabel([inCatalog], 'library')).toBe('Move to catalog / collection');
+    expect(addToPackActionLabel([inCatalog], 'album')).toBe('Move to catalog / collection');
+    expect(addToPackConfirmLabel([inCatalog])).toBe('Move');
+    expect(addToPackConfirmLabel([gc])).toBe('Add');
     expect(addToPackActionLabel([gc])).toBe('Add to other collections');
   });
 });
@@ -186,6 +199,12 @@ describe('addToPackAddedToast', () => {
     );
     expect(addToPackAddedToast({ collectionIds: ['a', 'b'], catalogId: null })).toBe(
       'Added to 2 collections',
+    );
+    expect(addToPackAddedToast({ collectionIds: [], catalogId: 'cat' }, true)).toBe(
+      'Moved to catalog',
+    );
+    expect(addToPackAddedToast({ collectionIds: ['col'], catalogId: null }, true)).toBe(
+      'Moved to collection',
     );
   });
 });

@@ -102,6 +102,7 @@ export function BrowseLotChrome({
             placeholder={findPlaceholder ?? findLabel ?? 'Find'}
             value={findValue ?? ''}
             onChange={(event) => onFindChange?.(event.target.value)}
+            autoFocus
           />
         )
       ) : null}

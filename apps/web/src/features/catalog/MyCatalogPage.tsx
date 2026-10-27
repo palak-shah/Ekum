@@ -121,6 +121,7 @@ import {
   youLibraryShowsDesignAdd,
   youLibraryShowsDesignSelectMore,
 } from '@/features/catalog/youLibraryAdd';
+import { youLibraryFindStaysOpen, youLibraryPageViewSummary } from '@/features/catalog/youLibraryFind';
 
 function toCatalogShortlistEntry(
   product: ProductView,
@@ -300,9 +301,11 @@ export function MyCatalogPage({
   const [deleteTarget, setDeleteTarget] = useState<CollectionView | null>(null);
   const [alsoDeleteDesigns, setAlsoDeleteDesigns] = useState(false);
   const [listSearch, setListSearch] = useState('');
+  const archivedCollections = !youSaved && searchParams.get('view') === 'archived';
+  const draftCollections = !youSaved && searchParams.get('view') === 'draft';
   const [searchOpen, setSearchOpen] = useState(
     () =>
-      youSaved ||
+      youLibraryFindStaysOpen({ saved: youSaved, view: searchParams.get('view') }) ||
       initialProductFilter !== 'published' ||
       initialCollectionFilter !== 'published',
   );
@@ -341,11 +344,17 @@ export function MyCatalogPage({
     setListSearch('');
     setProductFilter('published');
     setCollectionFilter('published');
-    if (youSaved) writeLibraryParams(tab, false);
+    if (youSaved || draftCollections || archivedCollections) {
+      setSearchParams(
+        youLibraryWriteSearch({
+          tab,
+          select: searchParams.get('select') === '1',
+        }),
+        { replace: true },
+      );
+    }
   };
 
-  const archivedCollections = !youSaved && searchParams.get('view') === 'archived';
-  const draftCollections = !youSaved && searchParams.get('view') === 'draft';
   const findScope: YouLibraryFindScope = youSaved
     ? 'saved'
     : tab === 'products'
@@ -354,13 +363,9 @@ export function MyCatalogPage({
   const findFilterApplied = tab === 'products' && !youSaved && findScope !== 'published';
   const findFilterSummary =
     findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Deleted' : null;
-  const viewSummary = youSaved
-    ? 'Bookmark'
-    : archivedCollections
-      ? 'Deleted'
-      : draftCollections
-        ? 'Drafts'
-        : findFilterSummary;
+  const viewSummary =
+    youLibraryPageViewSummary({ saved: youSaved, view: searchParams.get('view') }) ??
+    findFilterSummary;
 
   const applyFindScope = (scope: YouLibraryFindScope) => {
     if (scope === 'saved') {
@@ -373,8 +378,8 @@ export function MyCatalogPage({
   };
 
   useEffect(() => {
-    if (youSaved) setSearchOpen(true);
-  }, [youSaved]);
+    if (youSaved || draftCollections || archivedCollections) setSearchOpen(true);
+  }, [youSaved, draftCollections, archivedCollections]);
 
   useEffect(() => {
     if (tab !== 'products' || youSaved) return;
@@ -847,6 +852,7 @@ export function MyCatalogPage({
                     }
                     value={listSearch}
                     onChange={(event) => setListSearch(event.target.value)}
+                    autoFocus
                   />
                 }
                 action={
@@ -893,9 +899,11 @@ export function MyCatalogPage({
                         return;
                       }
                       if (archivedCollections || draftCollections) {
+                        setProductFilter('published');
+                        setCollectionFilter('published');
                         setSearchParams(
                           youLibraryWriteSearch({
-                            tab: isPackTab(tab) ? tab : 'collections',
+                            tab,
                             select: searchParams.get('select') === '1',
                           }),
                           { replace: true },

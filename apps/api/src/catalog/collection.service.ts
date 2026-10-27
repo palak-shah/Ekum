@@ -876,6 +876,7 @@ export class CollectionService {
     userId: string,
     id: string,
     productIds: string[],
+    opts?: { relocateExclusive?: boolean },
   ): Promise<CollectionDetailView> {
     const existing = await this.owned(companyId, id);
     assertNotGeneralMutation(
@@ -952,11 +953,18 @@ export class CollectionService {
     const newlyAddedOwn = products.filter(
       (product) => product.companyId === companyId && newlyAddedIds.includes(product.id),
     );
+    const relocatingOwn = opts?.relocateExclusive
+      ? newlyAddedOwn.filter(
+          (product) => product.catalogCollectionId && product.catalogCollectionId !== id,
+        )
+      : [];
+    const relocatingIds = new Set(relocatingOwn.map((product) => product.id));
     if (catalogKind) {
       const blocked = newlyAddedOwn.find(
         (product) =>
-          otherQualifyingIds.has(product.id) ||
-          (product.catalogCollectionId && product.catalogCollectionId !== id),
+          !relocatingIds.has(product.id) &&
+          (otherQualifyingIds.has(product.id) ||
+            (Boolean(product.catalogCollectionId) && product.catalogCollectionId !== id)),
       );
       if (blocked) {
         throw new ConflictException({
@@ -966,7 +974,10 @@ export class CollectionService {
       }
     } else {
       const blocked = newlyAddedOwn.find(
-        (product) => product.catalogCollectionId && product.catalogCollectionId !== id,
+        (product) =>
+          Boolean(product.catalogCollectionId) &&
+          product.catalogCollectionId !== id &&
+          !relocatingIds.has(product.id),
       );
       if (blocked) {
         throw new ConflictException({
@@ -997,6 +1008,20 @@ export class CollectionService {
 
     if (catalogKind) {
       await this.prisma.$transaction(async (tx) => {
+        if (relocatingOwn.length > 0) {
+          const relocatingIdsList = relocatingOwn.map((product) => product.id);
+          await tx.collectionProduct.deleteMany({
+            where: {
+              productId: { in: relocatingIdsList },
+              collectionId: { not: id },
+              collection: qualifyingCollectionWhere(companyId),
+            },
+          });
+          await tx.product.updateMany({
+            where: { id: { in: relocatingIdsList }, companyId },
+            data: { catalogCollectionId: null },
+          });
+        }
         if (stampOwnIds.length > 0) {
           await tx.$executeRawUnsafe(
             `SELECT id FROM "Product" WHERE id = ANY($1::text[]) FOR UPDATE`,
@@ -1059,6 +1084,39 @@ export class CollectionService {
             },
           });
         }
+      });
+    } else if (relocatingOwn.length > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        const relocatingIdsList = relocatingOwn.map((product) => product.id);
+        await tx.collectionProduct.deleteMany({
+          where: {
+            productId: { in: relocatingIdsList },
+            collection: { companyId, kind: CollectionKind.Catalog },
+          },
+        });
+        await tx.product.updateMany({
+          where: { id: { in: relocatingIdsList }, companyId },
+          data: { catalogCollectionId: null },
+        });
+        await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
+        if (uniqueIds.length > 0) {
+          await tx.collectionProduct.createMany({
+            data: uniqueIds.map((productId, position) => ({
+              collectionId: id,
+              productId,
+              position,
+            })),
+          });
+        }
+        await tx.collection.update({
+          where: { id },
+          data: {
+            updatedByUserId: userId,
+            ...(shouldBumpExplore
+              ? { exploreActivityAt: new Date(), exploreNewDesignCount }
+              : {}),
+          },
+        });
       });
     } else {
       await this.prisma.$transaction([

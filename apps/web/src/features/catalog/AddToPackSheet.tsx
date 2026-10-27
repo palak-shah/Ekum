@@ -18,10 +18,12 @@ import {
   addToPackAllCollectionsSelected,
   addToPackAlreadyInIds,
   addToPackCanConfirm,
+  addToPackConfirmLabel,
   addToPackEligibleTargets,
   addToPackEmptyCopy,
   addToPackGrouped,
   addToPackIsDraft,
+  addToPackIsMove,
   addToPackMatchesQuery,
   addToPackMergeMembership,
   addToPackSelectAll,
@@ -114,18 +116,23 @@ export function AddToPackSheet({
   const pickable = visibleDestinations;
   const selectedIds = useMemo(() => new Set(addToPackSelectedIds(pick)), [pick]);
 
+  const moving = addToPackIsMove(pickedDesigns);
+
   const add = useMutation({
     mutationFn: async () => {
       const ids = addToPackSelectedIds(pick);
       for (const collectionId of ids) {
         const detail = await api.get<CollectionDetailView>(`/collections/${collectionId}`);
         const next = [...new Set([...detail.products.map((row) => row.id), ...productIds])];
-        await api.put(`/collections/${collectionId}/products`, { productIds: next });
+        await api.put(`/collections/${collectionId}/products`, {
+          productIds: next,
+          ...(moving ? { relocateExclusive: true } : {}),
+        });
       }
     },
     onSuccess: () => {
       invalidateAfterPackMembership(queryClient);
-      showToast(addToPackAddedToast(pick));
+      showToast(addToPackAddedToast(pick, moving));
       onClose();
     },
     onError: (error) => {
@@ -135,7 +142,9 @@ export function AddToPackSheet({
           ? error.message
           : code === 'CATALOG_EXCLUSIVE'
             ? 'That design is already in a catalog.'
-            : 'Could not add to collection.',
+            : moving
+              ? 'Could not move.'
+              : 'Could not add to collection.',
         'danger',
       );
     },
@@ -161,7 +170,7 @@ export function AddToPackSheet({
           data-testid="add-to-pack-confirm"
           onClick={() => add.mutate()}
         >
-          Add
+          {addToPackConfirmLabel(pickedDesigns)}
         </Button>
       }
     >

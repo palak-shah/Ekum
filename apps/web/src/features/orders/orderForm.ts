@@ -91,19 +91,32 @@ export function orderFormRows(input: OrderFormInput): OrderFormRow[] {
   });
 }
 
-/** Ticket mill-bill Total lines (qty + ₹ of billable remaining). */
-export function orderFormTotalLines(input: OrderFormInput): string[] {
+export type OrderFormTotalRow = {
+  /** “Total” on the first family row only — later rows leave this blank. */
+  label: string;
+  qty: string;
+  money: string;
+};
+
+/** Ticket mill-bill: Total once, then qty+₹ per family, then All, then +cue. */
+export function orderFormTotalRows(input: OrderFormInput): OrderFormTotalRow[] {
   const summary = ticketTotalSummary(input.items);
   if (!summary) return [];
-  const lines: string[] = [];
-  summary.units.forEach((row, index) => {
-    const prefix = index === 0 ? 'Total ' : '';
-    const money = row.money ? `  ${row.money}` : '';
-    lines.push(`${prefix}${row.qty}${money}`.trim());
-  });
-  if (summary.grand) lines.push(`All ${summary.grand}`);
-  if (summary.missingCue) lines.push(`+${summary.missingCue}`);
-  return lines;
+  const rows: OrderFormTotalRow[] = summary.units.map((row, index) => ({
+    label: index === 0 ? 'Total' : '',
+    qty: row.qty,
+    money: row.money ?? '',
+  }));
+  if (summary.grand) rows.push({ label: '', qty: 'All', money: summary.grand });
+  if (summary.missingCue) rows.push({ label: '', qty: '', money: `+${summary.missingCue}` });
+  return rows;
+}
+
+/** Plain-text mill-bill for tests / fallback. */
+export function orderFormTotalLines(input: OrderFormInput): string[] {
+  return orderFormTotalRows(input).map((row) =>
+    `${padRight(row.label, 8)}${padRight(row.qty, 22)}${padLeft(row.money, 14)}`.trimEnd(),
+  );
 }
 
 /** Plain text lines for tests / fallback — both shops always print. */
@@ -214,9 +227,11 @@ export async function orderFormPdfBytes(input: OrderFormInput): Promise<Uint8Arr
   y -= 4;
   cmds.push(...rule(margin, y, margin + contentW));
   y -= 18;
-  for (const total of orderFormTotalLines(input)) {
+  for (const total of orderFormTotalRows(input)) {
     if (y < margin + 40) break;
-    cmds.push(...textAt(margin, y, 11, 'F2', total.slice(0, 78)));
+    if (total.label) cmds.push(...textAt(colQty, y, 11, 'F2', total.label));
+    if (total.qty) cmds.push(...textAt(colName, y, 11, 'F2', total.qty.slice(0, 28)));
+    if (total.money) cmds.push(...textAt(colBill, y, 11, 'F2', total.money.slice(0, 22)));
     y -= 16;
   }
 

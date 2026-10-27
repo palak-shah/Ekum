@@ -95,6 +95,7 @@ import {
 import {
   addToPackActionLabel,
   addToPackCanOffer,
+  addToPackIsMove,
 } from '@/features/catalog/libraryPickerSource';
 import {
   savedProductIdSet,
@@ -1280,6 +1281,8 @@ export function CollectionViewerPage() {
               ];
             }
             if (action === 'addToPack') {
+              if (!addToPackCanOffer(selectedProducts)) return [];
+              if (isCatalogAlbum && !addToPackIsMove(selectedProducts)) return [];
               return [
                 {
                   id: 'add-to-pack',

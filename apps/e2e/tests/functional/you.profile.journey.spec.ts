@@ -35,7 +35,11 @@ test.describe('You profile @functional @settings', () => {
     await expect(page.getByTestId('you-library-page-drafts')).toBeVisible();
     await expect(page.getByTestId('you-library-page-archived')).toBeVisible();
     await expect(page.getByTestId('you-library-page-bookmarks')).toBeVisible();
-    await page.keyboard.press('Escape');
+    await page.getByTestId('you-library-page-drafts').click();
+    await expect(page.getByTestId('you-library-view-summary')).toContainText('Drafts');
+    await expect(page.getByRole('button', { name: 'Clear' })).toBeVisible();
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await expect(page.getByTestId('you-library-view-summary')).toHaveCount(0);
     await page.getByTestId('you-tab-designs').click();
     await page.getByTestId('you-library-filter').click();
     await expect(page.getByTestId('you-library-filter-draft')).toBeVisible();

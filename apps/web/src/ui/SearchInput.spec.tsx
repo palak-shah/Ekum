@@ -26,4 +26,9 @@ describe('SearchInput', () => {
     expect(icon?.getAttribute('class') ?? '').toMatch(/left-3(?:\s|$)/);
     expect(field.className).toMatch(/(?:^|\s)pl-9(?:\s|$)/);
   });
+
+  it('focuses when opened so typing goes into the field', () => {
+    render(<SearchInput aria-label="Find" placeholder="Find" autoFocus />);
+    expect(screen.getByLabelText('Find')).toHaveFocus();
+  });
 });

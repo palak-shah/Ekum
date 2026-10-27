@@ -5,7 +5,7 @@ import {
   orderFormLines,
   orderFormPdfBytes,
   orderFormRows,
-  orderFormTotalLines,
+  orderFormTotalRows,
 } from './orderForm';
 
 function item(partial: Partial<OrderItemView> & Pick<OrderItemView, 'id' | 'name'>): OrderItemView {
@@ -46,7 +46,7 @@ describe('orderForm', () => {
     expect(text).toMatch(/Order #/);
     expect(text).toMatch(/20 mtrs/);
     expect(text).toMatch(/Rs128\/mtr/);
-    expect(text).toMatch(/₹2,560/);
+    expect(text).toMatch(/Rs2,560/);
   });
 
   it('titles inquiry tickets INQUIRY', () => {
@@ -104,7 +104,7 @@ describe('orderForm', () => {
 
   it('Total follows ticket mill-bill — all-blank pack has no ₹ and no pack cue', () => {
     expect(
-      orderFormTotalLines({
+      orderFormTotalRows({
         ...base,
         items: [
           item({
@@ -118,24 +118,27 @@ describe('orderForm', () => {
           }),
         ],
       }),
-    ).toEqual(['Total 10 sets']);
+    ).toEqual([{ label: 'Total', qty: '10 sets', money: '' }]);
   });
 
   it('Total with no billed ₹ has no +Missing rates', () => {
     expect(
-      orderFormTotalLines({
+      orderFormTotalRows({
         ...base,
         items: [
           item({ id: 'i1', name: 'Grey', unit: 'mtr', dispatchUnit: 'mtr', quantity: 10, rate: null }),
           item({ id: 'i2', name: 'Swatch', unit: 'pc', dispatchUnit: 'pc', quantity: 5, rate: null }),
         ],
       }),
-    ).toEqual(['Total 10 mtrs', '5 pcs']);
+    ).toEqual([
+      { label: 'Total', qty: '10 mtrs', money: '' },
+      { label: '', qty: '5 pcs', money: '' },
+    ]);
   });
 
   it('mixed pack with billed ₹ keeps unconverted qty and +No pcs in a set', () => {
     expect(
-      orderFormTotalLines({
+      orderFormTotalRows({
         ...base,
         items: [
           item({
@@ -158,7 +161,54 @@ describe('orderForm', () => {
           }),
         ],
       }),
-    ).toEqual(['Total 15 sets  ₹4,000', '+No pcs in a set']);
+    ).toEqual([
+      { label: 'Total', qty: '15 sets', money: '₹4,000' },
+      { label: '', qty: '', money: '+No pcs in a set' },
+    ]);
+  });
+
+  it('stacks 40 sets · 100 pcs · All and names a missing set ₹', () => {
+    expect(
+      orderFormTotalRows({
+        ...base,
+        items: [
+          item({
+            id: 'i1',
+            name: 'Cotton',
+            unit: 'set',
+            dispatchUnit: 'pc',
+            catalogRateUnit: 'pc',
+            piecesPerPack: null,
+            quantity: 20,
+            rate: 640,
+          }),
+          item({
+            id: 'i2',
+            name: 'Salwar',
+            unit: 'set',
+            dispatchUnit: 'pc',
+            catalogRateUnit: 'pc',
+            piecesPerPack: null,
+            quantity: 20,
+            rate: 750,
+          }),
+          item({
+            id: 'i3',
+            name: 'Swatch',
+            unit: 'pc',
+            dispatchUnit: 'pc',
+            catalogRateUnit: 'pc',
+            quantity: 100,
+            rate: 100,
+          }),
+        ],
+      }),
+    ).toEqual([
+      { label: 'Total', qty: '40 sets', money: '' },
+      { label: '', qty: '100 pcs', money: '₹10,000' },
+      { label: '', qty: 'All', money: '₹10,000' },
+      { label: '', qty: '', money: '+No pcs in a set' },
+    ]);
   });
 
   it('builds a printable PDF with both shops and rates', async () => {
@@ -172,7 +222,44 @@ describe('orderForm', () => {
     expect(text).toContain('20 mtrs');
     expect(text).toContain('Rs128/mtr');
     expect(text).toContain('Rs2,560');
+    expect(text).toContain('Total');
     expect(orderFormFileName(base)).toMatch(/Order#.*-form\.pdf$/);
+  });
+
+  it('prints Total once, family ₹, All, and missing-pack cue', async () => {
+    const bytes = await orderFormPdfBytes({
+      ...base,
+      options: { showPhotos: false },
+      items: [
+        item({
+          id: 'i1',
+          name: 'Cotton',
+          unit: 'set',
+          dispatchUnit: 'pc',
+          catalogRateUnit: 'pc',
+          piecesPerPack: null,
+          quantity: 40,
+          rate: 640,
+        }),
+        item({
+          id: 'i2',
+          name: 'Swatch',
+          unit: 'pc',
+          dispatchUnit: 'pc',
+          catalogRateUnit: 'pc',
+          quantity: 100,
+          rate: 100,
+        }),
+      ],
+    });
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain('Total');
+    expect(text).toContain('40 sets');
+    expect(text).toContain('100 pcs');
+    expect(text).toContain('All');
+    expect(text).toContain('Rs10,000');
+    expect(text).toContain('+No pcs in a set');
+    expect(text).not.toContain('Total 40 sets');
   });
 
   it('prints INQUIRY in the PDF and skips Show-buyer option (always both shops)', async () => {

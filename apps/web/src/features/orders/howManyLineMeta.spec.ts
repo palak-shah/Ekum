@@ -369,5 +369,19 @@ describe('howManyLineMeta', () => {
       grand: null,
       missingCue: 'No pcs in a set',
     });
+    expect(
+      ticketTotalSummary([
+        { quantity: 20, unit: 'set', rate: 640 },
+        { quantity: 20, unit: 'set', rate: 750 },
+        { quantity: 100, unit: 'pc', rate: 100 },
+      ]),
+    ).toEqual({
+      units: [
+        { unit: 'set', qty: '40 sets', money: null },
+        { unit: 'pc', qty: '100 pcs', money: '₹10,000' },
+      ],
+      grand: '₹10,000',
+      missingCue: 'No pcs in a set',
+    });
   });
 });

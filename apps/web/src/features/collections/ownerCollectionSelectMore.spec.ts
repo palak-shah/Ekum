@@ -8,7 +8,7 @@ import {
 } from './ownerCollectionSelectMore';
 
 describe('ownerCollectionSelectMoreIds', () => {
-  it('Bookmark · Draft · Publish · Add · Remove · Delete last; GC keeps Add', () => {
+  it('Bookmark · Draft · Publish · Add/Move · Remove · Delete last; GC keeps Add; catalog keeps Move', () => {
     expect(ownerCollectionSelectMoreIds()).toEqual([
       'bookmark',
       'draft',
@@ -27,6 +27,7 @@ describe('ownerCollectionSelectMoreIds', () => {
       'bookmark',
       'draft',
       'publish',
+      'addToPack',
       'remove',
       'delete',
     ]);

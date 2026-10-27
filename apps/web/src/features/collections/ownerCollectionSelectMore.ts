@@ -1,12 +1,12 @@
 import { ProductStatus } from '@ekum/domain-types';
 
-/** Own album ⋯ while designs are selected — Bookmark · Draft · Publish · Add · Remove · Delete last. Catalog album has no Add. GC has no Remove/Delete. */
+/** Own album ⋯ while designs are selected — Bookmark · Draft · Publish · Add/Move · Remove · Delete last. Catalog album offers Move for exclusive picks. GC has no Remove/Delete. */
 export function ownerCollectionSelectMoreIds(
   isGeneral = false,
   isCatalog = false,
 ): Array<'bookmark' | 'draft' | 'publish' | 'addToPack' | 'remove' | 'delete'> {
   if (isGeneral) return ['bookmark', 'draft', 'publish', 'addToPack'];
-  if (isCatalog) return ['bookmark', 'draft', 'publish', 'remove', 'delete'];
+  if (isCatalog) return ['bookmark', 'draft', 'publish', 'addToPack', 'remove', 'delete'];
   return ['bookmark', 'draft', 'publish', 'addToPack', 'remove', 'delete'];
 }
 

@@ -31,7 +31,7 @@ export type AddToPackPick = {
 
 const emptyPick: AddToPackPick = { collectionIds: [], catalogId: null };
 
-/** Add to pack: published + draft. Exclusive catalog members cannot join; pack members cannot join a catalog. */
+/** Add to pack: published + draft. Exclusive Move can join any live pack; leftover Add can join catalogs; pack members cannot join a catalog. */
 export function addToPackEligibleTargets<
   P extends { kind?: string | null; status?: string | null },
 >(
@@ -44,7 +44,8 @@ export function addToPackEligibleTargets<
   const live = packs.filter(
     (pack) => pack.status !== CollectionStatus.Archived && Boolean(pack.status),
   );
-  if (designs.some((design) => design.catalogCollectionId)) return [];
+  if (addToPackIsMixedExclusive(designs)) return [];
+  if (addToPackIsMove(designs)) return [...live];
   if (designs.some((design) => (design.collectionNames?.length ?? 0) > 0)) {
     return live.filter((pack) => !isCatalogCollection(pack.kind));
   }
@@ -157,27 +158,51 @@ export function addToPackCanConfirm(pick: AddToPackPick): boolean {
 
 export type AddToPackLabelSurface = 'library' | 'album';
 
-/** Exclusive catalog members cannot join another pack — omit Add entirely. */
+export function addToPackIsMove(
+  designs: readonly { catalogCollectionId?: string | null }[],
+): boolean {
+  return (
+    designs.length > 0 && designs.every((design) => Boolean(design.catalogCollectionId))
+  );
+}
+
+export function addToPackIsMixedExclusive(
+  designs: readonly { catalogCollectionId?: string | null }[],
+): boolean {
+  if (designs.length === 0) return false;
+  const exclusive = designs.filter((design) => Boolean(design.catalogCollectionId)).length;
+  return exclusive > 0 && exclusive < designs.length;
+}
+
+/** Leftover or pack Add, or exclusive Move. Mixed leftover + exclusive omits the door. */
 export function addToPackCanOffer(
   designs: readonly { catalogCollectionId?: string | null }[],
 ): boolean {
-  return designs.length > 0 && !designs.some((design) => Boolean(design.catalogCollectionId));
+  return designs.length > 0 && !addToPackIsMixedExclusive(designs);
 }
 
 /**
+ * Exclusive: Move to catalog / collection.
  * Library (You Designs / General Collection): Add to collection / catalog.
- * Regular album: Add to other collections. Callers omit Add when exclusive.
+ * Regular album: Add to other collections.
  */
 export function addToPackActionLabel(
-  _designs: readonly {
+  designs: readonly {
     catalogCollectionId?: string | null;
     collectionNames?: string[] | null;
     collectionIds?: string[] | null;
   }[],
   surface: AddToPackLabelSurface = 'album',
 ): string {
+  if (addToPackIsMove(designs)) return 'Move to catalog / collection';
   if (surface === 'library') return 'Add to collection / catalog';
   return 'Add to other collections';
+}
+
+export function addToPackConfirmLabel(
+  designs: readonly { catalogCollectionId?: string | null }[],
+): string {
+  return addToPackIsMove(designs) ? 'Move' : 'Add';
 }
 
 /** You Designs listing — quiet pack names under the design name. Leftover = none. */
@@ -218,13 +243,18 @@ export function addToPackEmptyCopy(designs: readonly {
   catalogCollectionId?: string | null;
   collectionNames?: string[];
 }[]): string {
-  if (designs.some((design) => design.catalogCollectionId)) {
-    return 'Remove this design from its catalog first.';
+  if (addToPackIsMixedExclusive(designs)) {
+    return 'Pick leftover designs, or only catalog designs, not both.';
   }
   return 'Create a collection or catalog first.';
 }
 
-export function addToPackAddedToast(pick: AddToPackPick): string {
+export function addToPackAddedToast(pick: AddToPackPick, move = false): string {
+  if (move) {
+    if (pick.catalogId) return 'Moved to catalog';
+    const n = pick.collectionIds.length;
+    return n === 1 ? 'Moved to collection' : `Moved to ${n} collections`;
+  }
   if (pick.catalogId) return 'Added to catalog';
   const n = pick.collectionIds.length;
   return n === 1 ? 'Added to collection' : `Added to ${n} collections`;

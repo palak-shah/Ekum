@@ -105,7 +105,9 @@ export class CollectionController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(setCollectionProductsSchema)) dto: SetCollectionProductsDto,
   ) {
-    return this.collections.setProducts(companyId, user.userId, id, dto.productIds);
+    return this.collections.setProducts(companyId, user.userId, id, dto.productIds, {
+      relocateExclusive: dto.relocateExclusive,
+    });
   }
 
   @Post(':id/publish-members')

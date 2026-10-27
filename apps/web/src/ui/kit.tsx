@@ -1,6 +1,8 @@
 import {
   forwardRef,
   useEffect,
+  useLayoutEffect,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
@@ -245,7 +247,13 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
 export const SearchInput = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement> & { compact?: boolean }
->(function SearchInput({ className, compact: _compact, ...props }, ref) {
+>(function SearchInput({ className, compact: _compact, autoFocus, ...props }, ref) {
+    const innerRef = useRef<HTMLInputElement>(null);
+    // Native autoFocus is ignored after a tap that mounts the field (iPhone/Android).
+    useLayoutEffect(() => {
+      if (!autoFocus) return;
+      innerRef.current?.focus();
+    }, [autoFocus]);
     return (
       <div className={cx('relative min-w-0 w-full', className)}>
         <SearchIcon
@@ -255,7 +263,11 @@ export const SearchInput = forwardRef<
           className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-muted"
         />
         <TextInput
-          ref={ref}
+          ref={(node) => {
+            innerRef.current = node;
+            if (typeof ref === 'function') ref(node);
+            else if (ref) ref.current = node;
+          }}
           autoComplete="off"
           {...props}
           type="search"

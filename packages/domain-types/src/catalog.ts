@@ -178,6 +178,8 @@ export type CatalogTaxonomyView = import('./category-taxonomy').TaxonomyMain[];
 /** Replaces the ordered set of products in a collection. */
 export const setCollectionProductsSchema = z.object({
   productIds: z.array(z.string().min(1)).max(1000),
+  /** Leave the design's current catalog so it can join this pack. */
+  relocateExclusive: z.boolean().optional(),
 });
 export type SetCollectionProductsDto = z.infer<typeof setCollectionProductsSchema>;
 

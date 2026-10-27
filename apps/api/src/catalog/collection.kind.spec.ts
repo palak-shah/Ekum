@@ -7,6 +7,7 @@ import {
   ProductStatus,
 } from '@ekum/domain-types';
 import { CollectionService } from './collection.service';
+import { qualifyingCollectionWhere } from './general-collection';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
@@ -278,6 +279,209 @@ describe('CollectionService general + catalog', () => {
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
     await expect(service.setProducts('company-1', 'u1', 'col-1', ['p1'])).rejects.toBeInstanceOf(
       BadRequestException,
+    );
+  });
+
+  it('rejects adding an exclusive catalog design without relocateExclusive', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          kind: CollectionKind.Regular,
+          status: CollectionStatus.Draft,
+        }),
+      },
+      product: {
+        findMany: async () => [
+          {
+            id: 'p1',
+            companyId: 'company-1',
+            audience: 'followers',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Published,
+            postedToMarketAt: null,
+            catalogCollectionId: 'cat-old',
+          },
+        ],
+      },
+      collectionProduct: { findMany: async () => [] },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(service.setProducts('company-1', 'u1', 'col-1', ['p1'])).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('relocates an exclusive design into another catalog', async () => {
+    const productUpdateMany = vi.fn(async (args: { data?: { catalogCollectionId?: null } }) => {
+      if (args.data && 'catalogCollectionId' in args.data && args.data.catalogCollectionId === null) {
+        return { count: 1 };
+      }
+      return { count: 1 };
+    });
+    const collectionProductDeleteMany = vi.fn(async () => ({}));
+    const tx = {
+      $executeRawUnsafe: vi.fn(async () => undefined),
+      product: { updateMany: productUpdateMany },
+      collectionProduct: {
+        deleteMany: collectionProductDeleteMany,
+        createMany: vi.fn(async () => ({})),
+      },
+      collection: { update: vi.fn(async () => ({})) },
+    };
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'cat-new',
+          companyId: 'company-1',
+          kind: CollectionKind.Catalog,
+          status: CollectionStatus.Draft,
+          rate: 91,
+        }),
+      },
+      product: {
+        findMany: async () => [
+          {
+            id: 'p1',
+            companyId: 'company-1',
+            audience: 'followers',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+            catalogCollectionId: 'cat-old',
+          },
+        ],
+        count: async () => 0,
+      },
+      collectionProduct: {
+        findMany: async (args: { where?: { productId?: { in: string[] } } }) =>
+          args.where?.productId ? [{ productId: 'p1' }] : [],
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
+      $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx),
+    } as unknown as PrismaService;
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'cat-new' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'cat-new' } as never);
+    await expect(
+      service.setProducts('company-1', 'u1', 'cat-new', ['p1'], { relocateExclusive: true }),
+    ).resolves.toEqual({ id: 'cat-new' });
+    expect(collectionProductDeleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          productId: { in: ['p1'] },
+          collectionId: { not: 'cat-new' },
+          collection: qualifyingCollectionWhere('company-1'),
+        }),
+      }),
+    );
+  });
+
+  it('rejects adding an exclusive design to another catalog without relocate', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'cat-new',
+          companyId: 'company-1',
+          kind: CollectionKind.Catalog,
+          status: CollectionStatus.Draft,
+          rate: 91,
+        }),
+      },
+      product: {
+        findMany: async () => [
+          {
+            id: 'p1',
+            companyId: 'company-1',
+            audience: 'followers',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Draft,
+            postedToMarketAt: null,
+            catalogCollectionId: 'cat-old',
+          },
+        ],
+        count: async () => 0,
+      },
+      collectionProduct: {
+        findMany: async (args: { where?: { productId?: { in: string[] } } }) =>
+          args.where?.productId ? [{ productId: 'p1' }] : [],
+      },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(service.setProducts('company-1', 'u1', 'cat-new', ['p1'])).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('relocates an exclusive design into a regular collection', async () => {
+    const collectionProductDeleteMany = vi.fn(async () => ({}));
+    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const tx = {
+      product: { updateMany: productUpdateMany },
+      collectionProduct: {
+        deleteMany: collectionProductDeleteMany,
+        createMany: vi.fn(async () => ({})),
+      },
+      collection: { update: vi.fn(async () => ({})) },
+    };
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          kind: CollectionKind.Regular,
+          status: CollectionStatus.Draft,
+        }),
+      },
+      product: {
+        findMany: async () => [
+          {
+            id: 'p1',
+            companyId: 'company-1',
+            audience: 'followers',
+            audienceCompanyIds: [],
+            allowForward: true,
+            status: ProductStatus.Published,
+            postedToMarketAt: null,
+            catalogCollectionId: 'cat-old',
+          },
+        ],
+        count: async () => 0,
+      },
+      collectionProduct: { findMany: async () => [] },
+      connection: { findMany: async () => [] },
+      follow: { findMany: async () => [] },
+      productRelistGrant: { findMany: async () => [] },
+      $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx),
+    } as unknown as PrismaService;
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+    await expect(
+      service.setProducts('company-1', 'u1', 'col-1', ['p1'], { relocateExclusive: true }),
+    ).resolves.toEqual({ id: 'col-1' });
+    expect(productUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { catalogCollectionId: null },
+      }),
     );
   });
 

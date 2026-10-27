@@ -526,21 +526,16 @@ export function ticketTotalMissingCue(lines: HowManyQtyLine[]): string | null {
   let rate = false;
   let packSkip = false;
   let billed = false;
-  let packKnown = false;
-  let packUnknown = false;
   for (const line of lines) {
     if (line.quantity == null || line.quantity <= 0) continue;
     if (howManyLineBillAmount(line) != null) billed = true;
-    if (isPackOrderUnit(line.unit)) {
-      if (howManyPcsPerUnit(line.unit, line.piecesPerPack) == null) packUnknown = true;
-      else packKnown = true;
-    }
     const reason = ticketLineSkipReason(line);
     if (reason === 'rate') rate = true;
     if (reason === 'pack') packSkip = true;
   }
   if (!billed) return null;
-  const packCue = packSkip && packKnown && packUnknown;
+  /** Uncounted pack lines under a billed Total — including all-blank pack next to billed pcs. */
+  const packCue = packSkip;
   if (rate && packCue) return 'Missing rates · no pcs in a set';
   if (rate) return 'Missing rates';
   if (packCue) return 'No pcs in a set';
