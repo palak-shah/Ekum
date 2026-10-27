@@ -62,17 +62,7 @@ interface OrderNeedDraft {
 function orderNeedDraft(order: OrderView): OrderNeedDraft | null {
   const name = order.counterpart.name;
   const sortAt = order.updatedAt || order.createdAt;
-  if (sellerNeedsRate(order)) {
-    return {
-      kind: 'send_rate',
-      counterpartId: order.counterpart.id,
-      counterpartName: name,
-      orderId: order.id,
-      subtitle: `${formatOrderQty(order)} · awaiting your rate`,
-      sortAt,
-    };
-  }
-  if (sellerCanConfirm(order)) {
+  if (sellerNeedsRate(order) || sellerCanConfirm(order)) {
     return {
       kind: 'confirm_order',
       counterpartId: order.counterpart.id,

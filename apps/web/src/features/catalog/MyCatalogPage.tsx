@@ -7,6 +7,23 @@ import {
   type CollectionView,
   type ProductView,
 } from '@ekum/domain-types';
+import {
+  YOU_LIBRARY_TABS,
+  collectionsForYouTab,
+  isGeneralCollection,
+  isPackTab,
+  pinGeneralCollectionFirst,
+  treatReadyAsDraft,
+} from '@/features/catalog/youLibraryKind';
+import { publishThisPackBeforeShare } from '@/features/catalog/packKindCopy';
+import { AddToPackSheet } from '@/features/catalog/AddToPackSheet';
+import {
+  addToPackActionLabel,
+  addToPackCanOffer,
+  libraryDesignMembershipLine,
+} from '@/features/catalog/libraryPickerSource';
+import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
+import { alsoDeleteDesignsDefault, packDeleteCopy } from '@/features/catalog/ownerPackLifecycle';
 import { api, ApiError } from '@/lib/apiClient';
 import {
   designBrowsePhotoClass,
@@ -15,7 +32,9 @@ import {
   type DesignBrowseLayout,
 } from '@/lib/designBrowseLayout';
 import { useMyCompany } from '@/lib/queries';
+import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
+import { CREATE_FAB_EXPLAIN } from '@/app/createFabIntent';
 import { Button, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
@@ -36,6 +55,7 @@ import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { BottomTradeDock, DockIconButton } from '@/features/browse/BottomTradeDock';
 import { youLibraryPublishedSelectChrome } from '@/features/catalog/youLibrarySelectDock';
 import { CatalogFeedPost } from '@/ui/cards';
+import { DraftChip } from '@/ui/DraftChip';
 import { highlightSearchText } from '@/ui/highlightMatch';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
@@ -95,7 +115,12 @@ import {
   isYouSavedSearch,
   youLibraryTabFromSearch,
   youLibraryWriteSearch,
+  type YouLibraryTab,
 } from '@/features/saved/youSavedHref';
+import {
+  youLibraryShowsDesignAdd,
+  youLibraryShowsDesignSelectMore,
+} from '@/features/catalog/youLibraryAdd';
 
 function toCatalogShortlistEntry(
   product: ProductView,
@@ -141,26 +166,33 @@ function addAlbumMany(entries: BrowseAlbumEntry[]) {
   writeBrowseAlbumPick([...byId.values()]);
 }
 
-type Tab = 'products' | 'collections';
+type Tab = YouLibraryTab;
 type CollectionFilter = 'draft' | 'published' | 'archived';
 type ProductFilter = 'draft' | 'published' | 'archived';
 
-function emptyCollectionCopy(filter: CollectionFilter): { title: string; message: string } {
+function emptyCollectionCopy(
+  filter: CollectionFilter,
+  catalogs = false,
+): { title: string; message: string } {
+  const noun = catalogs ? 'catalogs' : 'collections';
+  const one = catalogs ? 'catalog' : 'collection';
   switch (filter) {
     case 'published':
       return {
-        title: 'No collections',
-        message: 'Publish a collection so buyers can see it on Explore.',
+        title: `No ${noun}`,
+        message: `Publish a ${one} so buyers can see it on Explore.`,
       };
     case 'archived':
       return {
-        title: 'No archived collections',
-        message: 'Archived collections stay here — restore anytime to draft.',
+        title: `No deleted ${noun}`,
+        message: `Deleted ${noun} stay here. They cannot be restored.`,
       };
     case 'draft':
       return {
-        title: 'No draft collections',
-        message: 'Start a new album from photos or designs.',
+        title: `No draft ${noun}`,
+        message: catalogs
+          ? 'Start a catalog from New catalog.'
+          : 'Start a new album from photos or designs.',
       };
   }
 }
@@ -170,26 +202,24 @@ function emptyProductCopy(filter: ProductFilter): { title: string; message: stri
     case 'published':
       return {
         title: 'No designs',
-        message:
-          'Create a collection and add photos — those designs show here (not as separate Explore tiles).',
+        message: 'Add photos — they become designs here.',
       };
     case 'archived':
       return {
-        title: 'No archived designs',
-        message: 'Archived designs stay here — restore anytime to draft.',
+        title: 'No deleted designs',
+        message: 'Deleted designs stay here. They cannot be restored.',
       };
     case 'draft':
       return {
         title: 'No draft designs',
-        message: 'Create a collection — photos become designs here.',
+        message: 'Add photos — they become designs here.',
       };
   }
 }
 
 function isCollectionPublishable(collection: CollectionView): boolean {
   return (
-    (collection.status === CollectionStatus.Draft ||
-      collection.status === CollectionStatus.Ready) &&
+    treatReadyAsDraft(collection.status) &&
     collection.productCount >= 1
   );
 }
@@ -216,6 +246,7 @@ export function MyCatalogPage({
   const me = useMyCompany();
   const companyId = me.data?.id;
   const { selling, trading } = useTradePresence();
+  const { can } = useTeamCaps();
   const canCurateOwn = selling || trading;
   const youSaved = embedded && (!catalogTabs || isYouSavedSearch(searchParams));
   const tab = tabFromSearch(searchParams);
@@ -265,6 +296,9 @@ export function MyCatalogPage({
   const [rowShare, setRowShare] = useState<
     { collectionId: string; name: string; image: string | null }[] | null
   >(null);
+  const [addToPackIds, setAddToPackIds] = useState<string[] | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CollectionView | null>(null);
+  const [alsoDeleteDesigns, setAlsoDeleteDesigns] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(
     () =>
@@ -294,8 +328,8 @@ export function MyCatalogPage({
         tab: nextTab,
         saved,
         select: searchParams.get('select') === '1',
-        archived: nextTab === 'collections' && searchParams.get('view') === 'archived' && !saved,
-        drafts: nextTab === 'collections' && searchParams.get('view') === 'draft' && !saved,
+        archived: searchParams.get('view') === 'archived' && !saved,
+        drafts: searchParams.get('view') === 'draft' && !saved,
       }),
       { replace: true },
     );
@@ -319,11 +353,11 @@ export function MyCatalogPage({
       : 'published';
   const findFilterApplied = tab === 'products' && !youSaved && findScope !== 'published';
   const findFilterSummary =
-    findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Archived' : null;
+    findScope === 'draft' ? 'Draft' : findScope === 'archived' ? 'Deleted' : null;
   const viewSummary = youSaved
     ? 'Bookmark'
     : archivedCollections
-      ? 'Archived'
+      ? 'Deleted'
       : draftCollections
         ? 'Drafts'
         : findFilterSummary;
@@ -334,7 +368,7 @@ export function MyCatalogPage({
       return;
     }
     if (youSaved) writeLibraryParams(tab, false);
-    if (tab === 'collections') setCollectionFilter(scope);
+    if (isPackTab(tab)) setCollectionFilter(scope);
     else setProductFilter(scope);
   };
 
@@ -342,10 +376,24 @@ export function MyCatalogPage({
     if (youSaved) setSearchOpen(true);
   }, [youSaved]);
 
+  useEffect(() => {
+    if (tab !== 'products' || youSaved) return;
+    if (archivedCollections) setProductFilter('archived');
+    else if (draftCollections) setProductFilter('draft');
+    else setProductFilter('published');
+  }, [tab, youSaved, archivedCollections, draftCollections]);
+
   const setTab = (next: Tab) => {
     writeLibraryParams(next, youSaved && catalogTabs);
   };
 
+  const onAddDesigns = () => {
+    if (!can('uploads')) {
+      showToast(CREATE_FAB_EXPLAIN, 'danger');
+      return;
+    }
+    navigate('/catalog/products/new');
+  };
 
   useEffect(() => {
     if (!navProductFilter && !navCollectionFilter) return;
@@ -359,24 +407,23 @@ export function MyCatalogPage({
   const collections = useQuery({
     queryKey: ['my-collections'],
     queryFn: () => api.get<CollectionView[]>('/collections'),
-    enabled: tab === 'collections',
   });
   const myCompany = me.data
     ? { id: me.data.id, name: me.data.name }
     : null;
 
   const statusCollections = useMemo(() => {
-    const rows = collections.data ?? [];
+    const kindTab = tab === 'catalogs' ? 'catalogs' : 'collections';
+    const kindRows = collectionsForYouTab(collections.data ?? [], kindTab);
+    const rows = kindTab === 'collections' ? pinGeneralCollectionFirst(kindRows) : kindRows;
     if (archivedCollections) {
       return rows.filter((row) => row.status === CollectionStatus.Archived);
     }
     if (draftCollections) {
-      return rows.filter(
-        (row) => row.status === CollectionStatus.Draft || row.status === CollectionStatus.Ready,
-      );
+      return rows.filter((row) => treatReadyAsDraft(row.status));
     }
     return rows.filter((row) => row.status !== CollectionStatus.Archived);
-  }, [collections.data, archivedCollections, draftCollections]);
+  }, [collections.data, archivedCollections, draftCollections, tab]);
 
   const statusProducts = useMemo(() => {
     const rows = products.data ?? [];
@@ -418,10 +465,9 @@ export function MyCatalogPage({
   const publishedElsewhereHint =
     productFilter === 'draft' ? publishedDesignsElsewhereHint(publishedDesignCount) : null;
 
-  const visibleIds =
-    tab === 'collections'
-      ? filteredCollections.map((c) => c.id)
-      : filteredProducts.map((p) => p.id);
+  const visibleIds = isPackTab(tab)
+    ? filteredCollections.filter((c) => !isGeneralCollection(c.kind)).map((c) => c.id)
+    : filteredProducts.map((p) => p.id);
 
   const selectedCollections = useMemo(
     () => filteredCollections.filter((c) => selectedIds.has(c.id)),
@@ -432,24 +478,21 @@ export function MyCatalogPage({
     [filteredProducts, selectedIds],
   );
 
-  const publishableIds =
-    tab === 'collections'
-      ? selectedCollections.filter(isCollectionPublishable).map((c) => c.id)
-      : selectedProducts.filter(isProductPublishable).map((p) => p.id);
-  const archivableIds =
-    tab === 'collections'
-      ? selectedCollections
-          .filter((c) => c.status !== CollectionStatus.Archived)
-          .map((c) => c.id)
-      : selectedProducts.filter((p) => p.status !== ProductStatus.Archived).map((p) => p.id);
-  const hideableIds =
-    tab === 'collections'
-      ? selectedCollections
-          .filter((c) => c.status === CollectionStatus.Published)
-          .map((c) => c.id)
-      : selectedProducts.filter((p) => p.status === ProductStatus.Published).map((p) => p.id);
+  const publishableIds = isPackTab(tab)
+    ? selectedCollections.filter(isCollectionPublishable).map((c) => c.id)
+    : selectedProducts.filter(isProductPublishable).map((p) => p.id);
+  const archivableIds = isPackTab(tab)
+    ? selectedCollections
+        .filter((c) => c.status !== CollectionStatus.Archived && !isGeneralCollection(c.kind))
+        .map((c) => c.id)
+    : selectedProducts.filter((p) => p.status !== ProductStatus.Archived).map((p) => p.id);
+  const hideableIds = isPackTab(tab)
+    ? selectedCollections
+        .filter((c) => c.status === CollectionStatus.Published && !isGeneralCollection(c.kind))
+        .map((c) => c.id)
+    : selectedProducts.filter((p) => p.status === ProductStatus.Published).map((p) => p.id);
   const shareCollections =
-    tab === 'collections'
+    isPackTab(tab)
       ? selectedCollections
           .filter((c) => c.status === CollectionStatus.Published)
           .map((c) => ({
@@ -468,19 +511,14 @@ export function MyCatalogPage({
             image: p.images[0] ?? null,
           }))
       : [];
-  const restorableIds =
-    tab === 'collections'
-      ? selectedCollections
-          .filter((c) => c.status === CollectionStatus.Archived)
-          .map((c) => c.id)
-      : selectedProducts.filter((p) => p.status === ProductStatus.Archived).map((p) => p.id);
   const publishedSelectChrome = youLibraryPublishedSelectChrome({
     hideableCount: hideableIds.length,
   });
   const showPublishedTradeDock = publishedSelectChrome.dock.length > 0;
-  const showLifecycleMore =
-    tab === 'products' &&
-    (hideableIds.length > 0 || (publishableIds.length > 0 && archivableIds.length > 0));
+  const showLifecycleMore = youLibraryShowsDesignSelectMore({
+    tab,
+    selectedCount: selectedIds.size,
+  });
 
   useEffect(() => {
     setSelecting(false);
@@ -601,8 +639,9 @@ export function MyCatalogPage({
   };
 
   const shareCollection = (collection: CollectionView) => {
+    if (isGeneralCollection(collection.kind)) return;
     if (collection.status !== CollectionStatus.Published) {
-      showToast('Publish this collection before you share.');
+      showToast(publishThisPackBeforeShare(collection.kind));
       return;
     }
     setRowShare([
@@ -615,21 +654,23 @@ export function MyCatalogPage({
     setShareOpen(true);
   };
 
-  const archivePath =
-    tab === 'collections' ? (id: string) => `/collections/${id}/archive` : (id: string) => `/products/${id}/archive`;
-  const hidePath =
-    tab === 'collections'
-      ? (id: string) => `/collections/${id}/unpublish`
-      : (id: string) => `/products/${id}/unpublish`;
-  const restorePath =
-    tab === 'collections'
-      ? (id: string) => `/collections/${id}/unarchive`
-      : (id: string) => `/products/${id}/unarchive`;
-  const listKey = tab === 'collections' ? 'my-collections' : 'my-products';
+  const archivePath = isPackTab(tab)
+    ? (id: string) => `/collections/${id}/archive`
+    : (id: string) => `/products/${id}/archive`;
+  const hidePath = isPackTab(tab)
+    ? (id: string) => `/collections/${id}/unpublish`
+    : (id: string) => `/products/${id}/unpublish`;
+  const listKey = isPackTab(tab) ? 'my-collections' : 'my-products';
 
   const bulkArchive = useMutation({
     mutationFn: async (ids: string[]) => {
-      const results = await Promise.allSettled(ids.map((id) => api.post(archivePath(id), {})));
+        const results = await Promise.allSettled(
+          ids.map((id) =>
+            api.post(archivePath(id), {
+              alsoArchiveDesigns: tab === 'catalogs',
+            }),
+          ),
+        );
       return {
         ok: results.filter((r) => r.status === 'fulfilled').length,
         failed: results.filter((r) => r.status === 'rejected').length,
@@ -638,13 +679,13 @@ export function MyCatalogPage({
     onSuccess: ({ ok, failed }) => {
       void queryClient.invalidateQueries({ queryKey: [listKey] });
       showToast(
-        failed === 0 ? `Archived ${ok}` : `Archived ${ok}, ${failed} failed`,
+        failed === 0 ? `Deleted ${ok}` : `Deleted ${ok}, ${failed} failed`,
         failed === 0 ? undefined : 'danger',
       );
       exitSelect();
     },
     onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not archive.', 'danger');
+      showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
     },
   });
 
@@ -659,43 +700,22 @@ export function MyCatalogPage({
     onSuccess: ({ ok, failed }) => {
       void queryClient.invalidateQueries({ queryKey: [listKey] });
       showToast(
-        failed === 0 ? `Hidden ${ok}` : `Hidden ${ok}, ${failed} failed`,
+        failed === 0 ? `Draft ${ok}` : `Draft ${ok}, ${failed} failed`,
         failed === 0 ? undefined : 'danger',
       );
       exitSelect();
     },
     onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not hide.', 'danger');
+      showToast(err instanceof ApiError ? err.message : 'Could not draft.', 'danger');
     },
   });
 
-  const bulkRestore = useMutation({
-    mutationFn: async (ids: string[]) => {
-      const results = await Promise.allSettled(ids.map((id) => api.post(restorePath(id), {})));
-      return {
-        ok: results.filter((r) => r.status === 'fulfilled').length,
-        failed: results.filter((r) => r.status === 'rejected').length,
-      };
-    },
-    onSuccess: ({ ok, failed }) => {
-      void queryClient.invalidateQueries({ queryKey: [listKey] });
-      showToast(
-        failed === 0 ? `Restored ${ok}` : `Restored ${ok}, ${failed} failed`,
-        failed === 0 ? undefined : 'danger',
-      );
-      exitSelect();
-    },
-    onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not restore.', 'danger');
-    },
-  });
-
-  const busy = bulkArchive.isPending || bulkHide.isPending || bulkRestore.isPending;
+  const busy = bulkArchive.isPending || bulkHide.isPending;
   const tabHasItems =
     tab === 'products' ? statusProducts.length > 0 : statusCollections.length > 0;
 
   useYouLibrarySelectMenu({
-    selecting: selecting && !youSaved && tab === 'collections' && selectedIds.size > 0,
+    selecting: selecting && !youSaved && isPackTab(tab) && selectedIds.size > 0,
     canDraft: hideableIds.length > 0,
     canPublish: publishableIds.length > 0,
     canArchive: archivableIds.length > 0,
@@ -730,50 +750,73 @@ export function MyCatalogPage({
             aria-label="Library"
             data-testid="you-library-kind-tabs"
           >
-            {(['collections', 'products'] as const).map((value) => {
-              const TabIcon = value === 'products' ? ProductIcon : CollectionIcon;
+            {YOU_LIBRARY_TABS.map((item) => {
+              const TabIcon = item.id === 'products' ? ProductIcon : CollectionIcon;
               return (
               <button
-                key={value}
+                key={item.id}
                 type="button"
                 role="tab"
-                aria-selected={tab === value}
-                data-testid={value === 'products' ? 'you-tab-designs' : 'you-tab-collections'}
-                onClick={() => setTab(value)}
+                aria-selected={tab === item.id}
+                data-testid={item.testId}
+                onClick={() => setTab(item.id)}
                 className={cx(
                   'relative isolate inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-[15px] tracking-tight touch-manipulation',
-                  tab === value
+                  tab === item.id
                     ? 'border-accent font-emphasis text-ink'
                     : 'border-transparent font-body text-muted',
                 )}
               >
                 <TabIcon width={16} height={16} className="shrink-0" aria-hidden />
-                {value === 'products' ? 'Designs' : 'Collections'}
+                {item.label}
               </button>
               );
             })}
           </div>
         ) : null}
+        {youLibraryShowsDesignAdd({ tab, youSaved, selecting }) ? (
+          <ListSquareButton
+            data-testid="you-library-add-designs"
+            aria-label="Add designs"
+            active
+            className="relative z-0 ml-auto"
+            onClick={onAddDesigns}
+          >
+            <PlusIcon width={20} height={20} />
+          </ListSquareButton>
+        ) : null}
       </div>
 
-      {catalogTabs && tab === 'collections' && !selecting && !youSaved && !archivedCollections ? (
+      {catalogTabs && isPackTab(tab) && !selecting && !youSaved && !archivedCollections ? (
         <button
           type="button"
-          data-testid="you-new-collection"
-          onClick={() => navigate('/catalog/collections/new')}
+          data-testid={tab === 'catalogs' ? 'you-new-catalog' : 'you-new-collection'}
+          onClick={() =>
+            navigate(
+              tab === 'catalogs' ? '/catalog/collections/new?kind=catalog' : '/catalog/collections/new',
+            )
+          }
           className="flex w-full items-center gap-3 border-b border-line px-1 py-2 text-left hover:bg-foam/40"
         >
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-line text-accent">
             <PlusIcon width={22} height={22} />
           </span>
-          <span className="text-[15px] font-emphasis tracking-tight text-accent">New collection</span>
+          <span className="text-[15px] font-emphasis tracking-tight text-accent">
+            {tab === 'catalogs' ? 'New catalog' : 'New collection'}
+          </span>
         </button>
       ) : null}
 
       {catalogTabs || youSaved || tabHasItems ? (
         <BrowseLotChrome
           findOpen={searchOpen}
-          findLabel={tab === 'collections' ? 'Find collections' : 'Find designs'}
+          findLabel={
+            tab === 'catalogs'
+              ? 'Find catalogs'
+              : tab === 'collections'
+                ? 'Find collections'
+                : 'Find designs'
+          }
           findTestId="you-library-search-toggle"
           onFindToggle={() => {
             if (searchOpen) {
@@ -788,8 +831,20 @@ export function MyCatalogPage({
                 search={
                   <SearchInput
                     data-testid="you-library-search"
-                    aria-label={tab === 'collections' ? 'Find collections' : 'Find designs'}
-                    placeholder={tab === 'collections' ? 'Find collections' : 'Find designs'}
+                    aria-label={
+                      tab === 'catalogs'
+                        ? 'Find catalogs'
+                        : tab === 'collections'
+                          ? 'Find collections'
+                          : 'Find designs'
+                    }
+                    placeholder={
+                      tab === 'catalogs'
+                        ? 'Find catalogs'
+                        : tab === 'collections'
+                          ? 'Find collections'
+                          : 'Find designs'
+                    }
                     value={listSearch}
                     onChange={(event) => setListSearch(event.target.value)}
                   />
@@ -840,7 +895,7 @@ export function MyCatalogPage({
                       if (archivedCollections || draftCollections) {
                         setSearchParams(
                           youLibraryWriteSearch({
-                            tab: 'collections',
+                            tab: isPackTab(tab) ? tab : 'collections',
                             select: searchParams.get('select') === '1',
                           }),
                           { replace: true },
@@ -881,7 +936,7 @@ export function MyCatalogPage({
         <SavedPage
           embedded
           hideKindTabs
-          kind={tab === 'collections' ? 'collections' : 'designs'}
+          kind={tab === 'products' ? 'designs' : 'collections'}
           layout={layout}
           onToggleLayout={toggleLayout}
           searchQuery={deferredListSearch}
@@ -939,11 +994,9 @@ export function MyCatalogPage({
                   ? undefined
                   : publishedElsewhereHint ? (
                       <Button onClick={closeLibraryFind}>Show live</Button>
-                    ) : productFilter === 'draft' ? (
-                      <Button onClick={() => navigate('/catalog/collections/new')}>
-                        New collection
-                      </Button>
-                    ) : undefined
+                    ) : productFilter === 'archived' ? undefined : (
+                      <Button onClick={onAddDesigns}>Add designs</Button>
+                    )
               }
             />
           )}
@@ -978,8 +1031,14 @@ export function MyCatalogPage({
                     onSwipeClose={() =>
                       setOpenSwipeId((id) => (id === collection.id ? null : id))
                     }
-                    onToggle={() => toggleSelected(collection.id)}
-                    onLongSelect={() => startSelect(collection.id)}
+                    onToggle={() => {
+                      if (isGeneralCollection(collection.kind)) return;
+                      toggleSelected(collection.id);
+                    }}
+                    onLongSelect={() => {
+                      if (isGeneralCollection(collection.kind)) return;
+                      startSelect(collection.id);
+                    }}
                     onMore={() => setRowMenu(collection)}
                     onShare={() => shareCollection(collection)}
                   />
@@ -988,9 +1047,12 @@ export function MyCatalogPage({
                 <EmptyState
                   title={
                     listSearchActive
-                      ? 'No collections match'
+                      ? tab === 'catalogs'
+                        ? 'No catalogs match'
+                        : 'No collections match'
                       : emptyCollectionCopy(
                           draftCollections ? 'draft' : archivedCollections ? 'archived' : 'published',
+                          tab === 'catalogs',
                         ).title
                   }
                   message={
@@ -998,6 +1060,7 @@ export function MyCatalogPage({
                       ? 'Try another name or shop.'
                       : emptyCollectionCopy(
                           draftCollections ? 'draft' : archivedCollections ? 'archived' : 'published',
+                          tab === 'catalogs',
                         ).message
                   }
                 />
@@ -1039,15 +1102,6 @@ export function MyCatalogPage({
               >
                 Publish {publishableIds.length}
               </Button>
-            ) : restorableIds.length > 0 ? (
-              <Button
-                className="min-w-0 flex-1"
-                disabled={busy}
-                data-testid="catalog-restore"
-                onClick={() => bulkRestore.mutate(restorableIds)}
-              >
-                {bulkRestore.isPending ? 'Restoring…' : `Restore ${restorableIds.length}`}
-              </Button>
             ) : (
               <span className="min-w-0 flex-1" />
             )}
@@ -1070,9 +1124,39 @@ export function MyCatalogPage({
       <MoreActionsSheet
         open={lifecycleMoreOpen}
         onClose={() => setLifecycleMoreOpen(false)}
-        title={tab === 'collections' ? 'Collections' : 'Designs'}
+        title={tab === 'catalogs' ? 'Catalogs' : tab === 'collections' ? 'Collections' : 'Designs'}
         testId="you-library-lifecycle-more"
         items={[
+          ...(tab === 'products' && addToPackCanOffer(selectedProducts)
+            ? [
+                {
+                  id: 'add-to-pack',
+                  label: addToPackActionLabel(selectedProducts, 'library'),
+                  icon: <CollectionIcon width={20} height={20} />,
+                  disabled: busy,
+                  onClick: () => {
+                    setLifecycleMoreOpen(false);
+                    setAddToPackIds([...selectedIds]);
+                  },
+                  testId: 'catalog-add-to-pack',
+                },
+              ]
+            : []),
+          ...(tab === 'products' && canCurateOwn && hideableIds.length > 0
+            ? [
+                {
+                  id: 'repost',
+                  label: 'Repost',
+                  icon: <RepostIcon width={20} height={20} />,
+                  disabled: busy,
+                  onClick: () => {
+                    setLifecycleMoreOpen(false);
+                    sendToSelection('curate');
+                  },
+                  testId: 'catalog-curate',
+                },
+              ]
+            : []),
           ...(hideableIds.length > 0
             ? [
                 {
@@ -1092,7 +1176,7 @@ export function MyCatalogPage({
             ? [
                 {
                   id: 'archive',
-                  label: 'Archive',
+                  label: 'Delete',
                   icon: <ReturnIcon width={20} height={20} />,
                   disabled: busy,
                   onClick: () => {
@@ -1100,21 +1184,6 @@ export function MyCatalogPage({
                     bulkArchive.mutate(archivableIds);
                   },
                   testId: 'catalog-archive',
-                },
-              ]
-            : []),
-          ...(tab === 'products' && canCurateOwn && hideableIds.length > 0
-            ? [
-                {
-                  id: 'repost',
-                  label: 'Repost',
-                  icon: <RepostIcon width={20} height={20} />,
-                  disabled: busy,
-                  onClick: () => {
-                    setLifecycleMoreOpen(false);
-                    sendToSelection('curate');
-                  },
-                  testId: 'catalog-curate',
                 },
               ]
             : []),
@@ -1158,13 +1227,13 @@ export function MyCatalogPage({
                 if (action === 'archive') {
                   return {
                     id: 'archive',
-                    label: 'Archive',
+                    label: 'Delete',
                     icon: <ReturnIcon width={20} height={20} />,
                     testId: 'you-collection-archive',
                     onClick: () => {
-                      const id = rowMenu.id;
+                      setAlsoDeleteDesigns(alsoDeleteDesignsDefault(rowMenu.kind));
+                      setDeleteTarget(rowMenu);
                       setRowMenu(null);
-                      bulkArchive.mutate([id]);
                     },
                   };
                 }
@@ -1207,11 +1276,11 @@ export function MyCatalogPage({
               return;
             }
             void api
-              .del(`/products/${sheetProduct.id}`)
+              .post(`/products/${sheetProduct.id}/archive`, {})
               .then(() => {
                 setSheetProduct(null);
-                void queryClient.invalidateQueries({ queryKey: ['catalog'] });
-                showToast('Design deleted', 'success');
+                void queryClient.invalidateQueries({ queryKey: ['my-products'] });
+                showToast('Design deleted');
               })
               .catch((error) =>
                 showToast(
@@ -1219,6 +1288,12 @@ export function MyCatalogPage({
                   'danger',
                 ),
               );
+          }}
+          canAddToPack={addToPackCanOffer([sheetProduct])}
+          addToPackSurface="library"
+          onAddToPack={() => {
+            setAddToPackIds([sheetProduct.id]);
+            setSheetProduct(null);
           }}
           testIdPrefix="you-design-sheet"
         />
@@ -1322,7 +1397,7 @@ export function MyCatalogPage({
         defaultName={curateDefaultName}
       />
 
-      {tab === 'collections' ? (
+      {isPackTab(tab) ? (
         <BulkCollectionPublishSheet
           open={bulkPublishOpen}
           onClose={() => {
@@ -1340,6 +1415,38 @@ export function MyCatalogPage({
           onDone={exitSelect}
         />
       )}
+
+      <AddToPackSheet
+        open={addToPackIds != null}
+        productIds={addToPackIds ?? []}
+        onClose={() => setAddToPackIds(null)}
+        surface="library"
+      />
+      <OwnerPackLifecycleSheet
+        open={deleteTarget != null}
+        onClose={() => setDeleteTarget(null)}
+        busy={bulkArchive.isPending}
+        title={packDeleteCopy(deleteTarget?.kind).title}
+        body={packDeleteCopy(deleteTarget?.kind).body}
+        alsoLabel={packDeleteCopy(deleteTarget?.kind).alsoDeleteLabel}
+        alsoOn={alsoDeleteDesigns}
+        onAlso={setAlsoDeleteDesigns}
+        confirmLabel={packDeleteCopy(deleteTarget?.kind).confirmLabel}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          const id = deleteTarget.id;
+          setDeleteTarget(null);
+          void api
+            .post(`/collections/${id}/archive`, { alsoArchiveDesigns: alsoDeleteDesigns })
+            .then(() => {
+              void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
+              showToast('Deleted');
+            })
+            .catch((error) =>
+              showToast(error instanceof ApiError ? error.message : 'Could not delete.', 'danger'),
+            );
+        }}
+      />
 
     </div>
   );
@@ -1367,6 +1474,7 @@ function SellerProductTile({
   const navigate = useNavigate();
   const longPress = useLongPress(selecting ? undefined : onLongSelect);
   const feed = variant === 'feed';
+  const membership = libraryDesignMembershipLine(product.collectionNames);
   const open = () => {
     if (selecting) {
       onToggle();
@@ -1383,6 +1491,7 @@ function SellerProductTile({
     return (
       <CatalogFeedPost
         name={product.name}
+        meta={membership ?? undefined}
         highlightQuery={highlightQuery}
         href={live ? undefined : `/catalog/products/${product.id}`}
         onOpen={live ? () => open() : undefined}
@@ -1393,6 +1502,7 @@ function SellerProductTile({
         onMediaClick={() => open()}
         onLongSelect={selecting ? undefined : onLongSelect}
         mediaTestId="catalog-product-tile"
+        draft={product.status === ProductStatus.Draft}
       />
     );
   }
@@ -1423,9 +1533,17 @@ function SellerProductTile({
         )}
         {...longPress}
       >
-        <p className="truncate text-sm font-emphasis text-ink">
-          {highlightSearchText(product.name, highlightQuery)}
+        <p className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-emphasis text-ink">
+            {highlightSearchText(product.name, highlightQuery)}
+          </span>
+          {product.status === ProductStatus.Draft ? (
+            <DraftChip testId="catalog-product-draft-chip" />
+          ) : null}
         </p>
+        {membership ? (
+          <p className="truncate text-xs font-body text-muted">{membership}</p>
+        ) : null}
       </button>
     </div>
   );

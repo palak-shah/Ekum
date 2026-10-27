@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { createPortal } from 'react-dom';
 import { CheckIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
-import { readFilterMenuPosition } from '@/ui/filterMenuPosition';
+import { readFilterMenuPosition, watchFilterMenuPlace } from '@/ui/filterMenuPosition';
 import { CATALOG_FIND_STATUS_FILTERS } from './catalogListFilter';
 
 export type YouLibraryFindScope = 'published' | 'draft' | 'archived' | 'saved';
@@ -41,8 +41,7 @@ export function YouLibraryFilterMenu({
       setPos(readFilterMenuPosition(anchor, panelRef.current, window.innerWidth));
     };
     place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    return watchFilterMenuPlace(place, panelRef.current);
   }, [open, anchorRef]);
 
   useEffect(() => {

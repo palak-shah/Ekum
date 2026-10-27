@@ -114,8 +114,7 @@ function themBuyDetail(order: OrderView): string {
 
 function youSellDetail(order: OrderView): string {
   if (order.status === 'declined') return 'You declined';
-  if (sellerNeedsRate(order)) return 'Send quote';
-  if (sellerCanConfirm(order)) return 'Confirm';
+  if (sellerNeedsRate(order) || sellerCanConfirm(order)) return 'Confirm';
   if (order.status === 'requested' && order.hasSellerQuote) return 'Quoted';
   if (sellerNeedsDispatch(order)) return 'Dispatch pending';
   if (order.status === 'confirmed') return 'Confirmed';

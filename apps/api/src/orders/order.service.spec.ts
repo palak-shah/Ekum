@@ -5,6 +5,7 @@ import {
   OrderLineStatus,
   OrderStatus,
   OrderTradeMode,
+  ProductStatus,
   type CreateOrderDto,
 } from '@ekum/domain-types';
 import { OrderService } from './order.service';
@@ -49,7 +50,15 @@ interface Captured {
 }
 
 interface Options {
-  products?: { id: string; name: string; sku: string | null; rate: unknown; unit: string | null; images: string[] }[];
+  products?: {
+    id: string;
+    name: string;
+    sku: string | null;
+    rate: unknown;
+    unit: string | null;
+    images: string[];
+    status?: string;
+  }[];
   /** When true, mock finds a seller Rate message for the order (quote sent). */
   sellerQuoted?: boolean;
   order?: {
@@ -406,6 +415,33 @@ describe('OrderService.create snapshots', () => {
       requestedQuantity: 5,
       lineStatus: OrderLineStatus.Open,
     });
+    expect(captured.createData?.items.create[0].rate).toEqual({ toNumber: expect.any(Function) });
+    expect(
+      (captured.createData?.items.create[0].rate as { toNumber: () => number }).toNumber(),
+    ).toBe(100);
+  });
+
+  it('rejects deleted designs on a new order', async () => {
+    const { service } = makeService({
+      products: [
+        {
+          id: 'p1',
+          name: 'Silk Saree',
+          sku: 'S1',
+          rate: { toNumber: () => 100 },
+          unit: 'mtr',
+          images: ['img1'],
+          status: ProductStatus.Archived,
+        },
+      ],
+    });
+    await expect(
+      service.create('buyer', 'user-1', {
+        sellerCompanyId: 'seller',
+        kind: OrderKind.Standard,
+        items: [{ productId: 'p1', quantity: 1, images: [] }],
+      } as CreateOrderDto),
+    ).rejects.toMatchObject({ response: { code: 'INVALID_ITEM' } });
   });
 
   it('puts create-order mic note on the living chat card metadata', async () => {

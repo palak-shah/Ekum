@@ -31,37 +31,31 @@ import { COMPACT_QTY_INPUT_CLASS } from '@/ui/mobileOverflow';
 type Props = {
   item: OrderItemView;
   canEdit: boolean;
-  /** Qty of this design on the newest LR (edit = same as Dispatch sheet Edit for that LR). */
-  lastLrQty: number;
-  hasLastLr: boolean;
   expanded: boolean;
   busy?: boolean;
   photo: ReactNode;
   onToggle: () => void;
   onCantSupply: (cantSupply: boolean) => void;
-  /** Before lock — open Send quote to untick Can’t supply. */
+  /** Before lock — open Confirm to untick Can’t supply. */
   onOpenQuote?: () => void;
-  onSaveLastLr: (qty: number) => void;
+  onSaveQty: (qty: number) => void;
 };
 
 /**
  * Uniform stack: thumb · name · fact strip (Balance-tinted card).
- * Unit lives in Qty / ticket summary — not a second sold-as under the name.
- * Expand opens from the quiet pencil only (not the whole row). Edit-only —
- * Can’t supply / Last LR. New LRs go through the dock Dispatch sheet.
+ * Expand opens from the quiet pencil only. Edit-only — Can’t supply / Ordered qty.
+ * This LR stays on the dock Dispatch sheet.
  */
 export function OrderLineFulfillExpand({
   item,
   canEdit,
-  lastLrQty,
-  hasLastLr,
   expanded,
   busy,
   photo,
   onToggle,
   onCantSupply,
   onOpenQuote,
-  onSaveLastLr,
+  onSaveQty,
 }: Props) {
   const cantSupply = item.lineStatus === 'declined';
   const extra = orderLineOverShipped(item);
@@ -72,19 +66,22 @@ export function OrderLineFulfillExpand({
   const balance = orderLineBalance(item);
   const isComplete = !cantSupply && balance?.tone === 'done';
   const unbilledOn = useTicketUnbilledHighlight();
-  /** Collapsed grayed rows: cue only — toggle lives in expand / Send quote. */
   const showCollapsedSupplyCue = cantSupply && !expanded;
   const quoteFromCue = Boolean(!canEdit && cantSupply && onOpenQuote && showCollapsedSupplyCue);
+  const shipped = Math.max(0, Math.floor(item.shippedQuantity ?? 0));
+  const agreed = Math.floor(item.quantity);
 
-  const [lastLrDraft, setLastLrDraft] = useState(String(lastLrQty));
+  const [qtyDraft, setQtyDraft] = useState(String(agreed));
 
   useEffect(() => {
     if (!expanded) return;
-    setLastLrDraft(String(lastLrQty));
+    setQtyDraft(String(agreed));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open / switch line only
   }, [expanded, item.id]);
 
-  const lastLrDirty = parseQtyDraft(lastLrDraft, lastLrQty) !== lastLrQty;
+  const parsed = parseQtyDraft(qtyDraft, agreed);
+  const belowShipped = parsed < shipped;
+  const qtyDirty = parsed !== agreed && parsed >= 1 && !belowShipped;
 
   const editControl =
     canEdit ? (
@@ -166,38 +163,36 @@ export function OrderLineFulfillExpand({
 
           <OrderLineFacts item={item} />
 
-          {!cantSupply && hasLastLr ? (
+          {!cantSupply ? (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-sm text-muted" htmlFor={`last-lr-${item.id}`}>
-                  Last LR
+                <label className="text-sm text-muted" htmlFor={`ordered-${item.id}`}>
+                  Ordered
                 </label>
                 <TextInput
-                  id={`last-lr-${item.id}`}
+                  id={`ordered-${item.id}`}
                   type="number"
-                  min={0}
+                  min={Math.max(shipped, 1)}
                   inputMode="numeric"
-                  data-testid="order-line-last-lr-qty"
+                  data-testid="order-line-ordered-qty"
                   className={COMPACT_QTY_INPUT_CLASS}
-                  value={lastLrDraft}
-                  onChange={(event) => setLastLrDraft(event.target.value)}
+                  value={qtyDraft}
+                  onChange={(event) => setQtyDraft(event.target.value)}
                 />
               </div>
-              {lastLrDirty ? (
+              {belowShipped ? (
+                <p className="text-[11px] text-muted">Can’t go below shipped.</p>
+              ) : qtyDirty ? (
                 <Button
                   variant="secondary"
                   fullWidth
-                  data-testid="order-line-last-lr-save"
+                  data-testid="order-line-qty-save"
                   disabled={busy}
-                  onClick={() => onSaveLastLr(parseQtyDraft(lastLrDraft, lastLrQty))}
+                  onClick={() => onSaveQty(parsed)}
                 >
-                  Save last LR
+                  Save qty
                 </Button>
-              ) : (
-                <p className="text-[11px] text-muted">
-                  Same as Edit on that dispatch. Older LRs stay as they are.
-                </p>
-              )}
+              ) : null}
             </div>
           ) : null}
         </div>

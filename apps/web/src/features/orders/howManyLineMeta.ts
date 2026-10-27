@@ -161,11 +161,13 @@ export function howManyPcsPerUnit(
   return packSizeForUnit(unit, piecesPerPack);
 }
 
-/** Quiet line when pack unit has no contents. */
+/** Quiet line when pack unit has no contents — only if the sheet is mixed. */
 export function howManySetContentsMissing(
   unit: string | null | undefined,
   piecesPerPack?: number | null,
+  sheetMixedPack?: boolean,
 ): string | null {
+  if (!sheetMixedPack) return null;
   if (!isPackOrderUnit(unit)) return null;
   if (howManyPcsPerUnit(unit, piecesPerPack) != null) return null;
   return 'Set contents not mentioned';
@@ -412,12 +414,22 @@ export function howManyOrderFooterSummary(
   const packGroups = new Map<string, HowManyQtyLine[]>();
   const nativeGroups = new Map<string, HowManyQtyLine[]>();
 
+  const packUnitUnknown = new Set<string>();
+  for (const line of withQty) {
+    if (!isPackOrderUnit(line.unit)) continue;
+    if (howManyPcsPerUnit(line.unit, line.piecesPerPack) == null) {
+      packUnitUnknown.add(line.unit?.trim() || 'set');
+    }
+  }
+
   for (const line of withQty) {
     if (isPackOrderUnit(line.unit)) {
       const orderUnit = line.unit?.trim() || 'set';
       const pack = howManyPcsPerUnit(line.unit, line.piecesPerPack);
       const key =
-        pack == null ? `${orderUnit}|unknown` : `${orderUnit}|${packContentsUnit(line)}`;
+        pack == null || packUnitUnknown.has(orderUnit)
+          ? `${orderUnit}|unknown`
+          : `${orderUnit}|${packContentsUnit(line)}`;
       const group = packGroups.get(key) ?? [];
       group.push(line);
       packGroups.set(key, group);
@@ -509,18 +521,29 @@ export function ticketLineSkipReason(line: HowManyQtyLine): 'rate' | 'pack' | nu
   return 'rate';
 }
 
-/** One cue: Missing rates and/or No pcs in a set. */
+/** One cue: Missing rates and/or No pcs in a set — only under a billed ₹. */
 export function ticketTotalMissingCue(lines: HowManyQtyLine[]): string | null {
   let rate = false;
-  let pack = false;
+  let packSkip = false;
+  let billed = false;
+  let packKnown = false;
+  let packUnknown = false;
   for (const line of lines) {
+    if (line.quantity == null || line.quantity <= 0) continue;
+    if (howManyLineBillAmount(line) != null) billed = true;
+    if (isPackOrderUnit(line.unit)) {
+      if (howManyPcsPerUnit(line.unit, line.piecesPerPack) == null) packUnknown = true;
+      else packKnown = true;
+    }
     const reason = ticketLineSkipReason(line);
     if (reason === 'rate') rate = true;
-    if (reason === 'pack') pack = true;
+    if (reason === 'pack') packSkip = true;
   }
-  if (rate && pack) return 'Missing rates · no pcs in a set';
+  if (!billed) return null;
+  const packCue = packSkip && packKnown && packUnknown;
+  if (rate && packCue) return 'Missing rates · no pcs in a set';
   if (rate) return 'Missing rates';
-  if (pack) return 'No pcs in a set';
+  if (packCue) return 'No pcs in a set';
   return null;
 }
 
@@ -542,7 +565,8 @@ function familyQtyLabel(lines: HowManyQtyLine[]): string {
 
 /**
  * Ticket mill-bill: qty of remaining lines, ₹ of billable lines.
- * Conversion when group unit’s rate differs. Unknown pack → no ₹ on that family.
+ * Conversion when every pack line in the family has size. Mixed pack keeps `N sets`
+ * and bills only the lines that can (same as missing rates).
  */
 export function ticketTotalSummary(lines: HowManyQtyLine[]): TicketTotalSummary | null {
   const withQty = lines.filter(
@@ -552,18 +576,15 @@ export function ticketTotalSummary(lines: HowManyQtyLine[]): TicketTotalSummary 
 
   const grouped = groupHowManyByOrderUnit(withQty, (line) => line.unit);
   const units = grouped.map((group) => {
-    const packUnknown = familyPackUnknown(group.items);
     return {
       unit: group.unit,
       qty: familyQtyLabel(group.items),
-      money: packUnknown ? null : formatTicketMoney(sumBillable(group.items)),
+      money: formatTicketMoney(sumBillable(group.items)),
     };
   });
   if (units.length === 0) return null;
 
-  const anyPackUnknown = grouped.some((group) => familyPackUnknown(group.items));
   const billed = sumBillable(withQty);
-  const grand =
-    units.length > 1 && !anyPackUnknown ? formatTicketMoney(billed) : null;
+  const grand = units.length > 1 ? formatTicketMoney(billed) : null;
   return { units, grand, missingCue: ticketTotalMissingCue(withQty) };
 }

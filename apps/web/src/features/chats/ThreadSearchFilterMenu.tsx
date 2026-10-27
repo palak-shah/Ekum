@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { createPortal } from 'react-dom';
 import { CheckIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
-import { readFilterMenuPosition } from '@/ui/filterMenuPosition';
+import { readFilterMenuPosition, watchFilterMenuPlace } from '@/ui/filterMenuPosition';
 import {
   THREAD_SEARCH_SCOPE_OPTIONS,
   type ThreadMessageViewScope,
@@ -34,8 +34,7 @@ export function ThreadSearchFilterMenu({
       setPos(readFilterMenuPosition(anchor, panelRef.current, window.innerWidth));
     };
     place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    return watchFilterMenuPlace(place, panelRef.current);
   }, [open, anchorRef]);
 
   useEffect(() => {

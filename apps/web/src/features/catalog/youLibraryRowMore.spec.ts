@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { youCollectionRowMore } from './youLibraryRowMore';
 
 describe('youCollectionRowMore', () => {
-  it('published: Hide Draft, Archive, Order', () => {
+  it('published: Hide Draft, Delete, Order', () => {
     expect(youCollectionRowMore({ status: CollectionStatus.Published })).toEqual([
       'hide',
       'archive',
@@ -19,7 +19,13 @@ describe('youCollectionRowMore', () => {
     ]);
   });
 
-  it('archived: Order only', () => {
+  it('deleted: Order only — no Restore', () => {
     expect(youCollectionRowMore({ status: CollectionStatus.Archived })).toEqual(['order']);
+  });
+
+  it('General Collection has no row more', () => {
+    expect(youCollectionRowMore({ status: CollectionStatus.Published, kind: 'general' })).toEqual(
+      [],
+    );
   });
 });

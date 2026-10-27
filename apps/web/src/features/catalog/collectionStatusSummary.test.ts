@@ -22,9 +22,9 @@ describe('collectionStatusSummary', () => {
     );
   });
 
-  it('labels archived', () => {
+  it('labels deleted', () => {
     expect(collectionStatusSummary({ status: CollectionStatus.Archived }, [], now).line).toBe(
-      'Archived',
+      'Deleted',
     );
   });
 

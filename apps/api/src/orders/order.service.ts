@@ -14,6 +14,7 @@ import {
   JobType,
   MediaKind,
   MessageType,
+  ProductStatus,
   OrderChatEvent,
   OrderIntent,
   OrderKind,
@@ -50,6 +51,7 @@ import {
   type SendUpOrderDto,
   type SettleOrderDto,
   type SetLineSupplyDto,
+  type SetLineQuantityDto,
   TradeLaneTicket,
 } from '@ekum/domain-types';
 import { matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
@@ -1665,7 +1667,7 @@ export class OrderService {
     ) {
       throw new ConflictException({
         code: 'INVALID_TRANSITION',
-        message: 'Use Send quote or Confirm for designs before the order is locked.',
+        message: 'Use Confirm for designs before the order is locked.',
       });
     }
 
@@ -1782,6 +1784,148 @@ export class OrderService {
           ].join(' · ');
     const detail =
       changed.length === 1 ? changed[0]!.name : changed.map((row) => row.name).join(' · ');
+    await this.trail.append({
+      orderId: id,
+      type: OrderTrailType.Updated,
+      at: now,
+      actorCompanyId,
+      actorUserId: userId,
+      summary,
+      detail,
+    });
+    await this.postOrderCard(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      actorCompanyId,
+      summary,
+      id,
+      {
+        status: nextStatus,
+        event: OrderChatEvent.OrderUpdated,
+        orderLabel,
+        actorLabel,
+        actorRole: 'seller',
+        itemCount: changed.length,
+      },
+    );
+    return this.emitAndGet(actorCompanyId, id, nextStatus);
+  }
+
+  /**
+   * Seller changes agreed Ordered qty after lock. Floor at shipped.
+   * Raise that leaves remaining reopens part_shipped + Dispatch.
+   */
+  async setLineQuantity(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: SetLineQuantityDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    if (order.sellerCompanyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the seller can do this.',
+      });
+    }
+    if (order.status === OrderStatus.Settled) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Cannot change quantity after settle.',
+      });
+    }
+    if (
+      order.status !== OrderStatus.Confirmed &&
+      order.status !== OrderStatus.PartShipped &&
+      order.status !== OrderStatus.Dispatched
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: 'Use Confirm for designs before the order is locked.',
+      });
+    }
+
+    const byId = new Map(order.items.map((item) => [item.id, item]));
+    const shippedByItem = this.shippedTotals(order);
+    const changed: Array<{ name: string; quantity: number }> = [];
+
+    for (const line of dto.items) {
+      const item = byId.get(line.orderItemId);
+      if (!item) {
+        throw new NotFoundException({
+          code: 'INVALID_ITEM',
+          message: 'A line does not match this order.',
+        });
+      }
+      if (
+        item.lineStatus !== OrderLineStatus.Confirmed &&
+        item.lineStatus !== OrderLineStatus.Dispatched
+      ) {
+        throw new ConflictException({
+          code: 'LINE_NOT_EDITABLE',
+          message: 'Restore Can’t supply before changing quantity.',
+        });
+      }
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      const nextQty = Math.floor(line.quantity);
+      if (nextQty < shipped) {
+        throw new ConflictException({
+          code: 'BELOW_SHIPPED',
+          message: 'Can’t go below shipped.',
+        });
+      }
+      if (nextQty === item.quantity.toNumber()) continue;
+      const nextLineStatus =
+        shipped + 1e-9 >= nextQty ? OrderLineStatus.Dispatched : OrderLineStatus.Confirmed;
+      await this.prisma.orderItem.update({
+        where: { id: item.id },
+        data: { quantity: nextQty, lineStatus: nextLineStatus },
+      });
+      changed.push({ name: item.name, quantity: nextQty });
+    }
+
+    if (changed.length < 1) {
+      return this.get(actorCompanyId, id);
+    }
+
+    const final = await this.loadForParty(id, actorCompanyId);
+    const shippable = final.items.filter((item) => item.lineStatus !== OrderLineStatus.Declined);
+    const totals = this.shippedTotals(final);
+    const allOut =
+      shippable.length > 0 &&
+      shippable.every((item) => {
+        if (item.lineStatus === OrderLineStatus.Open) return false;
+        const shipped = totals.get(item.id) ?? 0;
+        return (
+          item.lineStatus === OrderLineStatus.Dispatched ||
+          item.lineStatus === OrderLineStatus.Delivered ||
+          shipped + 1e-9 >= item.quantity.toNumber()
+        );
+      });
+    const anyShipped = shippable.some((item) => (totals.get(item.id) ?? 0) > 0);
+    const nextStatus = allOut
+      ? OrderStatus.Dispatched
+      : anyShipped
+        ? OrderStatus.PartShipped
+        : OrderStatus.Confirmed;
+
+    const now = new Date();
+    await this.prisma.order.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        dispatchedAt: nextStatus === OrderStatus.Dispatched ? final.dispatchedAt ?? now : null,
+        closedAt:
+          nextStatus === OrderStatus.Dispatched ? final.closedAt ?? now : null,
+        ...this.withActor(userId),
+      },
+    });
+
+    const actorLabel = order.seller.name;
+    const orderLabel = shortOrderLabel(id);
+    const summary =
+      changed.length === 1 ? 'Updated qty' : `Updated qty · ${changed.length} designs`;
+    const detail = changed.map((row) => row.name).join(' · ');
     await this.trail.append({
       orderId: id,
       type: OrderTrailType.Updated,
@@ -4709,7 +4853,7 @@ export class OrderService {
 
     return dto.items.map((item) => {
       const product = item.productId ? byId.get(item.productId) : undefined;
-      if (!product) {
+      if (!product || (product as { status?: string }).status === ProductStatus.Archived) {
         throw new NotFoundException({
           code: 'INVALID_ITEM',
           message: opts.allowForeignProducts

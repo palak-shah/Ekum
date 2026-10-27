@@ -486,6 +486,7 @@ export function HowManyEachSheet({
                       <HowManyQtyRow
                         unit={product.unit}
                         piecesPerPack={product.piecesPerPack}
+                        sheetMixedPack={packSizesDiffer}
                         stepper={
                           <QtyStepper
                             value={quantity}

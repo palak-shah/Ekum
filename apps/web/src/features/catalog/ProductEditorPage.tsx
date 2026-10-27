@@ -32,6 +32,8 @@ import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { Button, Field, LoadingBlock, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 import { CameraIcon, CollectionIcon, LockIcon, MoreHorizontalIcon, PlusIcon } from '@/ui/icons';
+import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
+import { sharedDesignDraftCopy } from '@/features/catalog/ownerPackLifecycle';
 import { useToast } from '@/ui/Toast';
 import {
   BOTTOM_DOCK_CLEARANCE_CLASS,
@@ -49,6 +51,7 @@ import { invalidateAfterProductEdit } from './productEditorInvalidate';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
+import { ScrollWhenOpened } from '@/ui/scrollWhenOpened';
 import { parsePiecesPerPack, piecesPerPackFieldValue } from './orderDispatchPreview';
 import {
   defaultProfileMasterCategoryId,
@@ -90,6 +93,7 @@ export function ProductEditorPage() {
   const [marketOpen, setMarketOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [draftConfirmOpen, setDraftConfirmOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [orderDispatchOpen, setOrderDispatchOpen] = useState(false);
   const [captureMode, setCaptureMode] = useState<boolean | 'gallery'>(false);
@@ -201,6 +205,7 @@ export function ProductEditorPage() {
   const isDraft = existing.data?.status === ProductStatus.Draft;
   const isPublished = existing.data?.status === ProductStatus.Published;
   const isArchived = existing.data?.status === ProductStatus.Archived;
+  const catalogMember = Boolean(existing.data?.catalogCollectionId);
   const statusLine = existing.data
     ? productStatusLine(existing.data, broadcastLists.data ?? [])
     : null;
@@ -422,24 +427,12 @@ export function ProductEditorPage() {
     onSuccess: () => {
       setMoreOpen(false);
       invalidate();
-      showToast('Archived');
+      showToast('Deleted');
       leaveBypassRef.current = true;
-      navigate('/catalog?tab=products');
+      navigate('/catalog?tab=products&view=archived');
     },
     onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not archive.', 'danger');
-    },
-  });
-
-  const restore = useMutation({
-    mutationFn: () => api.post<ProductView>(`/products/${id}/unarchive`, {}),
-    onSuccess: () => {
-      setMoreOpen(false);
-      invalidate();
-      showToast('Restored to draft');
-    },
-    onError: (err) => {
-      showToast(err instanceof ApiError ? err.message : 'Could not restore.', 'danger');
+      showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
     },
   });
 
@@ -515,31 +508,33 @@ export function ProductEditorPage() {
     return <LoadingBlock label="Loading design…" />;
   }
 
+  const requestDraft = () => {
+    const names = existing.data?.collectionNames ?? [];
+    if (names.length > 1) {
+      setMoreOpen(false);
+      setDraftConfirmOpen(true);
+      return;
+    }
+    unpublish.mutate();
+  };
+
   const lifecycleMoreItems: MoreActionItem[] = isArchived
-    ? [
-        {
-          id: 'restore',
-          label: 'Restore to draft',
-          icon: <CollectionIcon width={20} height={20} />,
-          disabled: restore.isPending,
-          onClick: () => restore.mutate(),
-        },
-      ]
+    ? []
     : [
         ...(isPublished
           ? [
               {
                 id: 'hide',
-                label: 'Hide · back to draft',
+                label: 'Draft',
                 icon: <LockIcon width={20} height={20} />,
                 disabled: unpublish.isPending,
-                onClick: () => unpublish.mutate(),
+                onClick: () => requestDraft(),
               } satisfies MoreActionItem,
             ]
           : []),
         {
           id: 'archive',
-          label: 'Archive',
+          label: 'Delete',
           icon: <CollectionIcon width={20} height={20} />,
           disabled: archive.isPending,
           danger: true,
@@ -564,6 +559,18 @@ export function ProductEditorPage() {
           onLeave={discard.confirmLeave}
         />
       )}
+      <OwnerPackLifecycleSheet
+        open={draftConfirmOpen}
+        onClose={() => setDraftConfirmOpen(false)}
+        busy={unpublish.isPending}
+        title={sharedDesignDraftCopy().title}
+        body={sharedDesignDraftCopy().body}
+        confirmLabel={sharedDesignDraftCopy().confirmLabel}
+        onConfirm={() => {
+          setDraftConfirmOpen(false);
+          unpublish.mutate();
+        }}
+      />
       <PageHeader
         title={editing ? 'Edit design' : 'Upload a design'}
         onBack={() => discard.tryLeave(() => navigate(-1))}
@@ -680,6 +687,7 @@ export function ProductEditorPage() {
           placeholder={form.sku.trim() || existing.data?.sku || 'Blue georgette saree'}
         />
       </Field>
+      {catalogMember ? null : (
       <RateRangeFields
         fixedOnly
         from={form.rate}
@@ -695,50 +703,68 @@ export function ProductEditorPage() {
         onFrom={(next) => setForm({ ...form, rate: next })}
         onTo={() => undefined}
       />
-      <MasterCategoryField
-        locked={categoryLocked}
-        value={resolvedMasterCategoryId}
-        onChange={(next) => setForm({ ...form, masterCategoryId: next || null })}
-        options={catalogMasterOptions}
-      />
-      <CascadeTagsFields
-        items={tagSlots.items}
-        qualities={tagSlots.qualities}
-        sizes={tagSlots.sizes}
-        masterCategoryId={resolvedMasterCategoryId}
-        onItems={(items) =>
-          setForm({
-            ...form,
-            categories: tagSlotsToCategories({ ...tagSlots, items }).join(', '),
-          })
-        }
-        onQualities={(qualities) =>
-          setForm({
-            ...form,
-            categories: tagSlotsToCategories({ ...tagSlots, qualities }).join(', '),
-          })
-        }
-        onSizes={(sizes) =>
-          setForm({
-            ...form,
-            categories: tagSlotsToCategories({ ...tagSlots, sizes }).join(', '),
-          })
-        }
-      />
-      <OrderDispatchAccordion
-        orderUnit={form.unit}
-        piecesPerPack={form.piecesPerPack}
-        dispatchUnit={form.dispatchUnit}
-        moq={form.moq}
-        contentsUnit={rateUnit}
-        onOrderUnit={(unit) => setForm({ ...form, unit })}
-        onPiecesPerPack={(piecesPerPack) => setForm({ ...form, piecesPerPack })}
-        onDispatchUnit={(dispatchUnit) => setForm({ ...form, dispatchUnit })}
-        onMoq={(moq) => setForm({ ...form, moq })}
-        open={orderDispatchOpen}
-        onToggle={() => setOrderDispatchOpen((open) => !open)}
-      />
+      )}
+      {catalogMember ? null : (
+        <>
+          <MasterCategoryField
+            locked={categoryLocked}
+            value={resolvedMasterCategoryId}
+            onChange={(next) => setForm({ ...form, masterCategoryId: next || null })}
+            options={catalogMasterOptions}
+          />
+          <CascadeTagsFields
+            items={tagSlots.items}
+            qualities={tagSlots.qualities}
+            sizes={tagSlots.sizes}
+            masterCategoryId={resolvedMasterCategoryId}
+            onItems={(items) =>
+              setForm({
+                ...form,
+                categories: tagSlotsToCategories({ ...tagSlots, items }).join(', '),
+              })
+            }
+            onQualities={(qualities) =>
+              setForm({
+                ...form,
+                categories: tagSlotsToCategories({ ...tagSlots, qualities }).join(', '),
+              })
+            }
+            onSizes={(sizes) =>
+              setForm({
+                ...form,
+                categories: tagSlotsToCategories({ ...tagSlots, sizes }).join(', '),
+              })
+            }
+          />
+          <OrderDispatchAccordion
+            orderUnit={form.unit}
+            piecesPerPack={form.piecesPerPack}
+            dispatchUnit={form.dispatchUnit}
+            moq={form.moq}
+            contentsUnit={rateUnit}
+            onOrderUnit={(unit) => setForm({ ...form, unit })}
+            onPiecesPerPack={(piecesPerPack) => setForm({ ...form, piecesPerPack })}
+            onDispatchUnit={(dispatchUnit) => setForm({ ...form, dispatchUnit })}
+            onMoq={(moq) => setForm({ ...form, moq })}
+            open={orderDispatchOpen}
+            onToggle={() => setOrderDispatchOpen((open) => !open)}
+          />
+        </>
+      )}
 
+      {catalogMember ? (
+        <Field
+          label="Notes"
+          hint="Fabric, size, width — anything buyers should know."
+          error={error}
+        >
+          <TextArea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="e.g. 44 inch, cotton, queen size"
+          />
+        </Field>
+      ) : (
       <div className="flex flex-col gap-3">
         <button
           type="button"
@@ -748,7 +774,7 @@ export function ProductEditorPage() {
           {detailsOpen ? 'Hide details' : 'Show details'}
         </button>
         {detailsOpen ? (
-          <>
+          <ScrollWhenOpened open={detailsOpen} className="flex flex-col gap-3">
             <Field
               label="Reference / SKU"
               hint={
@@ -775,9 +801,10 @@ export function ProductEditorPage() {
                 placeholder="e.g. 44 inch, cotton, queen size"
               />
             </Field>
-          </>
+          </ScrollWhenOpened>
         ) : null}
       </div>
+      )}
 
       {editing && existing.data
         ? (
@@ -790,15 +817,8 @@ export function ProductEditorPage() {
                 >
                   Update
                 </Button>
-                {isArchived ? (
-                  <Button
-                    variant="secondary"
-                    className="min-w-0 flex-1"
-                    loading={restore.isPending}
-                    onClick={() => restore.mutate()}
-                  >
-                    Restore
-                  </Button>
+                {catalogMember ? null : isArchived ? (
+                  <span className="min-w-0 flex-1" />
                 ) : isDraft ? (
                   <Button
                     variant="secondary"

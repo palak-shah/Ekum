@@ -4,13 +4,13 @@ export type CatalogStatusFilter = 'draft' | 'published' | 'archived';
 export const CATALOG_STATUS_FILTERS: { id: CatalogStatusFilter; label: string }[] = [
   { id: 'published', label: 'Published' },
   { id: 'draft', label: 'Draft' },
-  { id: 'archived', label: 'Archived' },
+  { id: 'archived', label: 'Deleted' },
 ];
 
-/** Find-only chips on You (Draft / Archived). Bookmark (saved) is a separate Find row. */
+/** Find-only chips on You (Draft / Deleted). Bookmark (saved) is a separate Find row. */
 export const CATALOG_FIND_STATUS_FILTERS: { id: CatalogStatusFilter; label: string }[] = [
   { id: 'draft', label: 'Draft' },
-  { id: 'archived', label: 'Archived' },
+  { id: 'archived', label: 'Deleted' },
 ];
 
 export const DEFAULT_CATALOG_LIST_FILTER: CatalogStatusFilter = 'published';

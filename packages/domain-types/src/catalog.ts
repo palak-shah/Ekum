@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  catalogOrderModeValues,
+  collectionKindValues,
   orderPathPreferenceValues,
   publishAudienceValues,
   rateVisibilityValues,
@@ -11,8 +13,9 @@ import {
  * create (blank → server uses the resolved SKU); rate nullable ("on request").
  * SKU is optional on input — if omitted the API assigns a stable company-unique
  * code that never changes for that product's life. Products and Collections are
- * separate (many-to-many). Client "catalogue" means an order-as-whole pack
- * (future); shop publish is "Publish design", not catalogue.
+ * separate (many-to-many). Collection.kind is general | regular | catalog.
+ * Catalog = order-as-whole or pick-and-choose. Shop publish is still
+ * "Publish design" for a solo Explore tile.
  */
 
 /** Staff who/when on catalog + orders rows (full AuditLog UI later). */
@@ -28,6 +31,8 @@ export const listCatalogQuerySchema = z.object({
   createdFrom: z.string().min(1).max(40).optional(),
   /** Inclusive end (ISO or YYYY-MM-DD). */
   createdTo: z.string().min(1).max(40).optional(),
+  /** Filter You lists. Omit = all kinds the caller may see. */
+  kind: z.enum(collectionKindValues).optional(),
 });
 export type ListCatalogQuery = z.infer<typeof listCatalogQuerySchema>;
 
@@ -122,6 +127,10 @@ const createCollectionObjectSchema = z.object({
   repostSourceCollectionId: z.string().min(1).optional(),
   /** Explore Repost: source peer design posted to market. */
   repostSourceProductId: z.string().min(1).optional(),
+  /** regular (default) or catalog. Clients cannot create general. */
+  kind: z.enum(['regular', 'catalog']).optional(),
+  /** Required when kind=catalog: order as whole or pick and choose. */
+  orderMode: z.enum(catalogOrderModeValues).nullable().optional(),
 });
 export const createCollectionSchema = createCollectionObjectSchema
   .superRefine(refineRateRange)
@@ -131,6 +140,13 @@ export const createCollectionSchema = createCollectionObjectSchema
         code: z.ZodIssueCode.custom,
         message: 'Pick one source post to repost.',
         path: ['repostSourceCollectionId'],
+      });
+    }
+    if (value.kind === 'catalog' && value.orderMode !== 'whole' && value.orderMode !== 'pick') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose Order as whole or Pick and choose.',
+        path: ['orderMode'],
       });
     }
   });
@@ -186,6 +202,35 @@ export const otherPackCountsSchema = z.object({
   productIds: z.array(z.string().min(1)).max(1000),
 });
 export type OtherPackCountsDto = z.infer<typeof otherPackCountsSchema>;
+
+/** Mark own draft members Published in this pack (no Explore tile / Who). */
+export const publishCollectionMembersSchema = z.object({
+  productIds: z.array(z.string().min(1)).max(1000),
+});
+export type PublishCollectionMembersDto = z.infer<typeof publishCollectionMembersSchema>;
+
+export interface PublishCollectionMembersView {
+  published: number;
+}
+
+/** Soft-delete a pack. alsoArchiveDesigns defaults differ by kind in the UI. */
+export const archiveCollectionSchema = z
+  .object({
+    alsoArchiveDesigns: z.boolean().optional(),
+    alsoDraftDesigns: z.boolean().optional(),
+  })
+  .optional()
+  .default({});
+export type ArchiveCollectionDto = z.infer<typeof archiveCollectionSchema>;
+
+/** Hide a pack to Draft; optional draft of own member designs. */
+export const draftCollectionSchema = z
+  .object({
+    alsoDraftDesigns: z.boolean().optional(),
+  })
+  .optional()
+  .default({});
+export type DraftCollectionDto = z.infer<typeof draftCollectionSchema>;
 
 export interface OtherPackCountItem {
   productId: string;
@@ -273,6 +318,8 @@ export interface ProductView {
   masterCategoryId?: string | null;
   images: string[];
   status: string;
+  /** Own catalog this design is exclusive to; null when not in an own catalog. */
+  catalogCollectionId?: string | null;
   audience: string;
   rateVisibility: string;
   audienceCompanyIds: string[];
@@ -285,6 +332,11 @@ export interface ProductView {
    * memberships were not loaded.
    */
   collectionNames: string[];
+  /**
+   * Other non-archived pack ids this design is in (owner library). Empty when
+   * memberships were not loaded.
+   */
+  collectionIds?: string[];
   /**
    * Those packs' tags and master category, for Edit design defaults.
    * Omitted when memberships were not loaded.
@@ -307,6 +359,10 @@ export interface CollectionView {
    */
   memberShops: { id: string; name: string }[];
   name: string;
+  /** general | regular | catalog. General identity is this flag, never the name. */
+  kind: string;
+  /** whole | pick when kind=catalog; otherwise null. */
+  orderMode: string | null;
   description: string | null;
   coverImage: string | null;
   /** Pack rate for the album editor / identity; null when unset. */

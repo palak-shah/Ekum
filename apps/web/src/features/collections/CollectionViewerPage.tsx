@@ -5,6 +5,7 @@ import {
   CollectionStatus,
   ProductStatus,
   Unit,
+  type CollectionDetailView,
   type CollectionPreviewView,
   type CollectionViewGrantView,
   type CollectionViewRequestView,
@@ -64,6 +65,7 @@ import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import {
   isPublishedForSelection,
   selectionSkipToast,
+  tradeableShortlistEntries,
   travelingSelectionToggleGate,
 } from '@/features/browse/selectionEligibility';
 import {
@@ -79,7 +81,21 @@ import {
 } from '@/features/saved/useSaveToggle';
 import { youSavedHref } from '@/features/saved/youSavedHref';
 import { PageHeader } from '@/ui/PageHeader';
-import { ownerCollectionSelectMoreIds } from '@/features/collections/ownerCollectionSelectMore';
+import {
+  ownerAlbumDraftableProductIds,
+  ownerAlbumPublishableProductIds,
+  ownerCollectionSelectMoreIds,
+  stampOwnerAddToPackDesigns,
+} from '@/features/collections/ownerCollectionSelectMore';
+import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
+import {
+  packDraftCopy,
+  sharedDesignDraftCopy,
+} from '@/features/catalog/ownerPackLifecycle';
+import {
+  addToPackActionLabel,
+  addToPackCanOffer,
+} from '@/features/catalog/libraryPickerSource';
 import {
   savedProductIdSet,
   selectDesignBookmarkLabel,
@@ -126,6 +142,29 @@ import {
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
 import {
+  libraryDesignsEligibleForPack,
+  libraryPickerEmptyCopy,
+  libraryPickerHint,
+} from '@/features/catalog/libraryPickerSource';
+import {
+  isCatalogCollection,
+  collectionShowsPackOrderChrome,
+  deletedFromThisPackToast,
+  removeFromThisPackLabel,
+  removedFromPackToast,
+} from '@/features/catalog/youLibraryKind';
+import {
+  allowedForThisPackOnly,
+  askedToOpenThisPack,
+  askToSeeThisPack,
+  askToSeeThisPackBody,
+  bookmarkThisPackLabel,
+  findInThisPack,
+  noDesignsInThisPack,
+  removedAccessToThisPack,
+  shareThisPackLabel,
+} from '@/features/catalog/packKindCopy';
+import {
   COLLECTION_QUICK_PHOTO_CAP,
   collectionCameraMaxShots,
   displayCollectionName,
@@ -139,6 +178,8 @@ import {
   storedCatalogRateUnit,
 } from '@/features/catalog/collectionSameForAll';
 import { LibraryPickTile } from '@/features/catalog/LibraryPickTile';
+import { AddToPackSheet } from '@/features/catalog/AddToPackSheet';
+import { invalidateAfterPackMembership } from '@/features/catalog/packMembershipInvalidate';
 import {
   Button,
   Card,
@@ -150,12 +191,15 @@ import {
   cx,
 } from '@/ui/kit';
 import { highlightSearchText } from '@/ui/highlightMatch';
+import { DraftChip } from '@/ui/DraftChip';
 import { ContinuousCamera, continuousCameraConstraints } from '@/ui/ContinuousCamera';
 import { CappedMediaGrid } from '@/ui/CappedMediaGrid';
 import {
   BookmarkIcon,
   ChatIcon,
+  CollectionIcon,
   LockIcon,
+  MegaphoneIcon,
   MoreHorizontalIcon,
   PaperPlaneIcon,
   TrashIcon,
@@ -191,6 +235,7 @@ function toShortlistEntry(
     moq: product.moq ?? null,
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
+    status: product.status,
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
@@ -215,6 +260,7 @@ export function CollectionViewerPage() {
   const orderFlow = useShortlistOrderFlow();
   const [layout, setLayout] = useState<Layout>(() => readDesignBrowseLayout(myCompanyId));
   const [viewerProduct, setViewerProduct] = useState<ProductView | null>(null);
+  const [addToPackDesigns, setAddToPackDesigns] = useState<ProductView[] | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successNote, setSuccessNote] = useState<string | null>(null);
@@ -243,6 +289,10 @@ export function CollectionViewerPage() {
   const [quickUploading, setQuickUploading] = useState(false);
   const designFileRef = useRef<HTMLInputElement>(null);
   const deleteTargetRef = useRef<string[] | null>(null);
+  const draftTargetRef = useRef<string[] | null>(null);
+  const [packDraftOpen, setPackDraftOpen] = useState(false);
+  const [alsoDraftDesigns, setAlsoDraftDesigns] = useState(false);
+  const [designDraftConfirmOpen, setDesignDraftConfirmOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
   const deferredListSearch = useDeferredValue(listSearch);
@@ -314,7 +364,12 @@ export function CollectionViewerPage() {
     orderFlow.setError(null);
     if (albumPick.count > 0) setOrderResolveOpen(true);
     else if (shortlist.count > 0) {
-      setQtyEntries(shortlist.entries);
+      const tradeable = tradeableShortlistEntries(shortlist.entries);
+      const skipped = shortlist.entries.length - tradeable.length;
+      const notice = selectionSkipToast(skipped, tradeable.length);
+      if (notice) showToast(notice);
+      if (tradeable.length < 1) return;
+      setQtyEntries(tradeable);
       orderFlow.setQtyOpen(true);
     }
   };
@@ -351,7 +406,12 @@ export function CollectionViewerPage() {
       api.get<CollectionViewRequestView[]>('/collection-view-requests/outgoing'),
   });
 
-  const products = collectionViewerListedProducts(collection.data?.products ?? []);
+  const companyId = collection.data?.company.id ?? '';
+  const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+  const products = collectionViewerListedProducts(collection.data?.products ?? [], {
+    kind: collection.data?.kind,
+    isOwner,
+  });
   const visibleProducts = useMemo(
     () => products.filter((product) => designMatchesFind(deferredListSearch, product)),
     [products, deferredListSearch],
@@ -360,8 +420,6 @@ export function CollectionViewerPage() {
   const selectMode = collectionPageIsSelecting({ enterSelect, pageSelecting });
   const resumeAfterPick = readResumeAfterAlbumPick();
   const showResumeContinue = Boolean(resumeAfterPick && selectMode);
-  const companyId = collection.data?.company.id ?? '';
-  const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
   const thisPackSelectedIds = useMemo(
     () =>
       collectionThisPackSelectedIds(
@@ -394,6 +452,7 @@ export function CollectionViewerPage() {
     packManage,
     selecting: selectMode,
     thisPackSelectedCount,
+    isGeneral: collection.data?.kind === 'general',
   });
   usePageOwnsBottomBand(ownerManageDock);
   usePageSelecting(selectMode || thisPackSelectedCount > 0);
@@ -472,14 +531,16 @@ export function CollectionViewerPage() {
   const floatSelectedCount = thisAlbumCount;
 
   const onSelectAllVisible = () => {
-    const published = visibleProducts.filter((product) => isPublishedForSelection(product.status));
-    const skipped = visibleProducts.length - published.length;
-    const notice = selectionSkipToast(skipped, published.length);
+    const eligible = isOwner
+      ? visibleProducts.filter((product) => product.status !== ProductStatus.Archived)
+      : visibleProducts.filter((product) => isPublishedForSelection(product.status));
+    const skipped = visibleProducts.length - eligible.length;
+    const notice = isOwner ? null : selectionSkipToast(skipped, eligible.length);
     if (notice) showToast(notice);
-    if (published.length < 1) return;
+    if (eligible.length < 1) return;
     setPageSelecting(true);
     shortlist.addMany(
-      published.map((product) =>
+      eligible.map((product) =>
         toShortlistEntry(product, product.companyName ?? companyName, packStamp),
       ),
     );
@@ -495,30 +556,31 @@ export function CollectionViewerPage() {
     shortlist.setSelectMode(true);
   };
 
-  const invalidateOwnerPack = () => {
-    void queryClient.invalidateQueries({ queryKey: ['collection-preview', id] });
-    void queryClient.invalidateQueries({ queryKey: ['collection', id] });
-    void queryClient.invalidateQueries({ queryKey: ['my-products'] });
-    void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
-    void queryClient.invalidateQueries({ queryKey: ['explore'] });
-  };
-
   const persistOwnerMembers = async (productIds: string[]) => {
     await api.put(`/collections/${id}/products`, { productIds });
-    const byId = new Map<string, ProductView>();
-    for (const product of collection.data?.products ?? []) byId.set(product.id, product);
-    for (const product of myProducts.data ?? []) byId.set(product.id, product);
-    const listed = productIds
-      .map((productId) => byId.get(productId))
-      .filter((product): product is ProductView => Boolean(product));
-    for (const row of packTagPatchesForOwnDesigns(
-      listed,
-      collection.data?.categories ?? [],
-      myCompanyId,
-    )) {
-      await api.patch(`/products/${row.id}`, { categories: row.categories });
+    try {
+      const byId = new Map<string, ProductView>();
+      for (const product of collection.data?.products ?? []) byId.set(product.id, product);
+      for (const product of myProducts.data ?? []) byId.set(product.id, product);
+      const listed = productIds
+        .map((productId) => byId.get(productId))
+        .filter((product): product is ProductView => Boolean(product));
+      for (const row of packTagPatchesForOwnDesigns(
+        listed,
+        collection.data?.categories ?? [],
+        myCompanyId,
+      )) {
+        await api.patch(`/products/${row.id}`, { categories: row.categories });
+      }
+    } finally {
+      await invalidateAfterPackMembership(queryClient);
     }
-    invalidateOwnerPack();
+  };
+
+  const ownerMemberIds = async () => {
+    if (!id) return products.map((product) => product.id);
+    const detail = await api.get<CollectionDetailView>(`/collections/${id}`);
+    return detail.products.map((product) => product.id);
   };
 
   const clearOwnerManageSelect = () => {
@@ -545,9 +607,15 @@ export function CollectionViewerPage() {
     [myProducts.data],
   );
   const libraryPickerMode = replaceDraft !== null ? 'replace' : 'add';
+  const packKind = isCatalogCollection(collection.data?.kind) ? 'catalog' : 'regular';
   const pickerDesigns = useMemo(
-    () => libraryDesignsForPicker(selectableDesigns, memberIdSet, libraryPickerMode),
-    [selectableDesigns, memberIdSet, libraryPickerMode],
+    () =>
+      libraryDesignsForPicker(
+        libraryDesignsEligibleForPack(selectableDesigns, packKind),
+        memberIdSet,
+        libraryPickerMode,
+      ),
+    [selectableDesigns, memberIdSet, libraryPickerMode, packKind],
   );
   const designQuery = designSearch.trim().toLowerCase();
   const filteredDesigns = designQuery
@@ -751,14 +819,11 @@ export function CollectionViewerPage() {
     if (productIds.length < 1 || !id) return;
     setManageBusy(true);
     try {
-      const next = membershipAfterRemove(
-        products.map((product) => product.id),
-        productIds,
-      );
+      const next = membershipAfterRemove(await ownerMemberIds(), productIds);
       await persistOwnerMembers(next);
       clearOwnerManageSelect();
       setViewerProduct(null);
-      showToast('Removed from collection');
+      showToast(removedFromPackToast(collection.data?.kind));
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger');
     } finally {
@@ -784,10 +849,7 @@ export function CollectionViewerPage() {
       if (mode === 'everywhere' && owned.length > 0) {
         await deleteOwnedProducts(owned);
       }
-      const next = membershipAfterRemove(
-        products.map((product) => product.id),
-        ids,
-      );
+      const next = membershipAfterRemove(await ownerMemberIds(), ids);
       await persistOwnerMembers(next);
       setDeleteSheetOpen(false);
       deleteTargetRef.current = null;
@@ -797,8 +859,8 @@ export function CollectionViewerPage() {
         mode === 'everywhere' && owned.length > 0
           ? 'Deleted'
           : mode === 'everywhere'
-            ? 'Deleted from this collection'
-            : 'Removed from collection',
+            ? deletedFromThisPackToast(collection.data?.kind)
+            : removedFromPackToast(collection.data?.kind),
       );
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
@@ -834,6 +896,101 @@ export function CollectionViewerPage() {
     await finishOwnerDelete('everywhere', productIds);
   };
 
+  const finishOwnerDraftDesigns = async (productIds: string[]) => {
+    setManageBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        productIds.map((productId) => api.post(`/products/${productId}/unpublish`)),
+      );
+      const ok = results.filter((row) => row.status === 'fulfilled').length;
+      const failed = results.filter((row) => row.status === 'rejected').length;
+      await invalidateAfterPackMembership(queryClient);
+      showToast(
+        failed === 0 ? `Draft ${ok}` : `Draft ${ok}, ${failed} failed`,
+        failed === 0 ? undefined : 'danger',
+      );
+      clearOwnerManageSelect();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not draft.', 'danger');
+    } finally {
+      setManageBusy(false);
+      setDesignDraftConfirmOpen(false);
+      draftTargetRef.current = null;
+    }
+  };
+
+  const onOwnerPublishDesigns = async () => {
+    const ids = ownerAlbumPublishableProductIds(
+      products,
+      thisPackSelectedIds,
+      me.data?.id ?? '',
+    );
+    if (ids.length < 1) {
+      showToast('Pick a draft design of yours.');
+      return;
+    }
+    setManageBusy(true);
+    try {
+      const result = await api.post<{ published: number }>(
+        `/collections/${id}/publish-members`,
+        { productIds: ids },
+      );
+      await invalidateAfterPackMembership(queryClient);
+      showToast(`Published ${result.published}`);
+      clearOwnerManageSelect();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not publish.', 'danger');
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
+  const onOwnerDraftDesigns = async () => {
+    const ids = ownerAlbumDraftableProductIds(
+      products,
+      thisPackSelectedIds,
+      me.data?.id ?? '',
+    );
+    if (ids.length < 1) {
+      showToast('Pick a published design of yours.');
+      return;
+    }
+    draftTargetRef.current = ids;
+    if (!id) {
+      await finishOwnerDraftDesigns(ids);
+      return;
+    }
+    setManageBusy(true);
+    try {
+      const result = await api.post<OtherPackCountsView>(`/collections/${id}/other-pack-counts`, {
+        productIds: ids,
+      });
+      if (deleteNeedsMultiPackConfirm(ids, result.counts, new Set(ids))) {
+        setDesignDraftConfirmOpen(true);
+        setManageBusy(false);
+        return;
+      }
+    } catch {
+      /* sole-pack still drafts */
+    }
+    setManageBusy(false);
+    await finishOwnerDraftDesigns(ids);
+  };
+
+  const draftPack = useMutation({
+    mutationFn: (alsoDraft: boolean) =>
+      api.post(`/collections/${id}/unpublish`, { alsoDraftDesigns: alsoDraft }),
+    onSuccess: async () => {
+      setPackDraftOpen(false);
+      setAlsoDraftDesigns(false);
+      await invalidateAfterPackMembership(queryClient);
+      showToast('Draft');
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not draft.', 'danger');
+    },
+  });
+
   const accessPending =
     Boolean(id) &&
     (outgoingAsks.data?.some(
@@ -862,7 +1019,7 @@ export function CollectionViewerPage() {
       api.del(`/collections/${id}/view-grants/${granteeId}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collection-view-grants', id] });
-      showToast('Removed access to this collection.');
+      showToast(removedAccessToThisPack(collection.data?.kind));
     },
     onError: (error) =>
       showToast(error instanceof ApiError ? error.message : 'Could not remove.', 'danger'),
@@ -879,6 +1036,7 @@ export function CollectionViewerPage() {
     const gate = travelingSelectionToggleGate({
       status: product.status,
       alreadySelected: shortlist.productIds.has(product.id),
+      ownerAlbum: isOwner,
     });
     if (!gate.allow) {
       if (gate.toast) showToast(gate.toast);
@@ -942,6 +1100,13 @@ export function CollectionViewerPage() {
   };
 
   const data = collection.data;
+  const isGeneralAlbum = data.kind === 'general';
+  const isCatalogAlbum = isCatalogCollection(data.kind);
+  const addToPackSurface = isGeneralAlbum ? 'library' : 'album';
+  const selectedProducts = products.filter((product) => thisPackSelectedIds.includes(product.id));
+  const openAddToPack = (designs: ProductView[]) => {
+    setAddToPackDesigns(stampOwnerAddToPackDesigns(designs, id, isGeneralAlbum));
+  };
   const floaterClearance = selectMode || showResumeContinue;
   // API: collection details rate when set, else design min–max; null for non-owners when on request.
   const rateBand = albumFactsRateBand({
@@ -950,18 +1115,21 @@ export function CollectionViewerPage() {
     rateUnit: data?.rateUnit,
   });
   const packFacts = collectionFactsLine(data?.categories, rateBand);
-  const journeyLine = howManySetsBanner(
-    products.map((product) => ({
-      unit: product.unit,
-      dispatchUnit: product.dispatchUnit,
-    })),
-  );
+  const journeyLine = collectionShowsPackOrderChrome(data.kind)
+    ? howManySetsBanner(
+        products.map((product) => ({
+          unit: product.unit,
+          dispatchUnit: product.dispatchUnit,
+        })),
+      )
+    : null;
   const showPackDetails = Boolean(packFacts || journeyLine || data?.description?.trim());
   const moreMenuNote = collectionMoreMenuNote({
     visitor: !isOwner,
     // Grant / follow look-through without Connect — not gated Ask (no products).
     lookOnly: Boolean(data?.products && !data.connected),
     allowForward: data?.allowForward !== false,
+    kind: data.kind,
   });
   const headerSubtitle = data
     ? isOwner
@@ -1049,7 +1217,7 @@ export function CollectionViewerPage() {
           onClose={() => setMoreOpen(false)}
           title={data.name}
           testId="owner-collection-select-more-sheet"
-          items={ownerCollectionSelectMoreIds().flatMap((action): MoreActionItem[] => {
+          items={ownerCollectionSelectMoreIds(isGeneralAlbum, isCatalogAlbum).flatMap((action): MoreActionItem[] => {
             if (action === 'bookmark') {
               return [
                 {
@@ -1065,11 +1233,68 @@ export function CollectionViewerPage() {
                 },
               ];
             }
+            if (action === 'draft') {
+              const draftable = ownerAlbumDraftableProductIds(
+                products,
+                thisPackSelectedIds,
+                me.data?.id ?? '',
+              );
+              return [
+                {
+                  id: 'draft',
+                  label: 'Draft',
+                  icon: <LockIcon width={20} height={20} />,
+                  disabled: manageBusy || draftable.length < 1,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    void onOwnerDraftDesigns();
+                  },
+                  testId: 'collection-select-draft',
+                },
+              ];
+            }
+            if (action === 'publish') {
+              const publishable = ownerAlbumPublishableProductIds(
+                products,
+                thisPackSelectedIds,
+                me.data?.id ?? '',
+              );
+              return [
+                {
+                  id: 'publish',
+                  label: 'Publish',
+                  icon: <MegaphoneIcon width={20} height={20} />,
+                  disabled: manageBusy || publishable.length < 1,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    void onOwnerPublishDesigns();
+                  },
+                  testId: 'collection-select-publish',
+                },
+              ];
+            }
+            if (action === 'addToPack') {
+              return [
+                {
+                  id: 'add-to-pack',
+                  label: addToPackActionLabel(
+                    stampOwnerAddToPackDesigns(selectedProducts, id, isGeneralAlbum),
+                    addToPackSurface,
+                  ),
+                  icon: <CollectionIcon width={20} height={20} />,
+                  onClick: () => {
+                    setMoreOpen(false);
+                    openAddToPack(selectedProducts);
+                  },
+                  testId: 'collection-select-add-to-pack',
+                },
+              ];
+            }
             if (action === 'remove') {
               return [
                 {
                   id: 'remove',
-                  label: 'Remove from this collection',
+                  label: removeFromThisPackLabel(data.kind),
                   icon: <TrashIcon width={20} height={20} />,
                   disabled: manageBusy || !ownerCanRemove,
                   onClick: () => {
@@ -1110,6 +1335,14 @@ export function CollectionViewerPage() {
           onAddPhotos={onOwnerAddPhotos}
           onReplace={() => setReplaceSheetOpen(true)}
           onEditDetails={openOwnerEditDetails}
+          onDraft={() => {
+            setAlsoDraftDesigns(false);
+            setPackDraftOpen(true);
+          }}
+          draftLabel={packDraftCopy(data.kind).menuLabel}
+          canDraft={data.status === CollectionStatus.Published}
+          isGeneral={data.kind === 'general'}
+          kind={data.kind}
         />
       ) : (
         <MoreActionsSheet
@@ -1141,7 +1374,7 @@ export function CollectionViewerPage() {
               return [
                 {
                   id: 'share',
-                  label: 'Share this collection',
+                  label: shareThisPackLabel(data.kind),
                   icon: <PaperPlaneIcon width={20} height={20} />,
                   disabled: !id,
                   onClick: () => {
@@ -1171,7 +1404,7 @@ export function CollectionViewerPage() {
                 id: 'bookmark',
                 label: saveCollection.isSaved
                   ? 'Remove bookmark'
-                  : 'Bookmark this collection',
+                  : bookmarkThisPackLabel(data.kind),
                 icon: <BookmarkIcon width={20} height={20} />,
                 testId: 'collection-menu-bookmark',
                 disabled: !id || saveCollection.isPending,
@@ -1197,10 +1430,10 @@ export function CollectionViewerPage() {
         <div data-testid="collection-lot-tools">
         <BrowseLotChrome
           findOpen={searchOpen}
-          findLabel="Find in this collection"
+          findLabel={findInThisPack(data.kind)}
           findTestId="collection-find-toggle"
           findInputTestId="collection-find"
-          findPlaceholder="Find in this collection"
+          findPlaceholder={findInThisPack(data.kind)}
           findValue={listSearch}
           onFindToggle={() => {
             if (searchOpen) {
@@ -1232,7 +1465,9 @@ export function CollectionViewerPage() {
         {visibleProducts.length === 0 && listSearchActive ? (
           <p className="px-0.5 text-sm text-muted">No designs match.</p>
         ) : visibleProducts.length === 0 ? (
-          <p className="px-0.5 text-sm text-muted">No live designs in this collection.</p>
+          <p className="px-0.5 text-sm text-muted">
+            {isOwner ? noDesignsInThisPack(data.kind) : noDesignsInThisPack(data.kind, true)}
+          </p>
         ) : layout === 'feed' ? (
           <div className="flex flex-col gap-4">
             {visibleProducts.map((product) => (
@@ -1241,6 +1476,7 @@ export function CollectionViewerPage() {
                   variant="feed"
                   product={product}
                   highlightQuery={deferredListSearch}
+                  draft={isOwner && product.status === ProductStatus.Draft}
                   selected={designIsSelected(product.id)}
                   selectMode={selectMode}
                   shopLine={albumTileShopLine({
@@ -1263,6 +1499,7 @@ export function CollectionViewerPage() {
                   variant="grid"
                   product={product}
                   highlightQuery={deferredListSearch}
+                  draft={isOwner && product.status === ProductStatus.Draft}
                   selected={designIsSelected(product.id)}
                   selectMode={selectMode}
                   shopLine={albumTileShopLine({
@@ -1284,6 +1521,7 @@ export function CollectionViewerPage() {
         <AccessPendingCard
           companyId={data.company.id}
           companyName={data.company.name}
+          kind={data.kind}
           onOpenChat={() => startChat.mutate()}
           opening={startChat.isPending}
         />
@@ -1293,14 +1531,13 @@ export function CollectionViewerPage() {
             <LockIcon />
           </span>
           <div>
-            <p className="text-sm font-emphasis text-ink">Ask to see this collection</p>
+            <p className="text-sm font-emphasis text-ink">{askToSeeThisPack(data.kind)}</p>
             <p className="text-xs text-muted">
-              Ask {data.company.name} to open this collection so you can look through it. Not
-              connect, and not putting designs in your collection.
+              {askToSeeThisPackBody(data.company.name, data.kind)}
             </p>
           </div>
           <Button onClick={() => askToSee.mutate()} disabled={askToSee.isPending}>
-            {askToSee.isPending ? 'Asking…' : 'Ask to see this collection'}
+            {askToSee.isPending ? 'Asking…' : askToSeeThisPack(data.kind)}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-emphasis text-accent">
             Request access on their shop
@@ -1328,7 +1565,7 @@ export function CollectionViewerPage() {
         <Card className="flex flex-col gap-2">
           <p className="text-sm font-emphasis text-ink">Granted on request</p>
           <p className="text-xs text-muted">
-            Businesses you Allowed for this collection only — not Connections.
+            {allowedForThisPackOnly(data.kind)}
           </p>
           <ul className="flex flex-col gap-2">
             {viewGrants.data!.map((grant) => (
@@ -1359,6 +1596,7 @@ export function CollectionViewerPage() {
           busy={manageBusy || quickUploading}
           canDelete={false}
           canRemove={false}
+          kind={data.kind}
           onAddDesigns={onOwnerAddDesigns}
           onAddPhotos={onOwnerAddPhotos}
           onReplace={() => setReplaceSheetOpen(true)}
@@ -1379,8 +1617,33 @@ export function CollectionViewerPage() {
         open={deleteSheetOpen}
         onClose={() => setDeleteSheetOpen(false)}
         busy={manageBusy}
+        kind={data.kind}
         onDeleteEverywhere={() => void finishOwnerDelete('everywhere')}
         onOnlyThisCollection={() => void finishOwnerDelete('only-here')}
+      />
+      <OwnerPackLifecycleSheet
+        open={packDraftOpen}
+        onClose={() => setPackDraftOpen(false)}
+        busy={draftPack.isPending}
+        title={packDraftCopy(data.kind).title}
+        body={packDraftCopy(data.kind).body}
+        alsoLabel={packDraftCopy(data.kind).alsoDraftLabel}
+        alsoOn={alsoDraftDesigns}
+        onAlso={setAlsoDraftDesigns}
+        confirmLabel={packDraftCopy(data.kind).confirmLabel}
+        onConfirm={() => draftPack.mutate(alsoDraftDesigns)}
+      />
+      <OwnerPackLifecycleSheet
+        open={designDraftConfirmOpen}
+        onClose={() => {
+          setDesignDraftConfirmOpen(false);
+          draftTargetRef.current = null;
+        }}
+        busy={manageBusy}
+        title={sharedDesignDraftCopy().title}
+        body={sharedDesignDraftCopy().body}
+        confirmLabel={sharedDesignDraftCopy().confirmLabel}
+        onConfirm={() => void finishOwnerDraftDesigns(draftTargetRef.current ?? [])}
       />
 
       <input
@@ -1427,11 +1690,6 @@ export function CollectionViewerPage() {
         }
       >
         <div className="flex flex-col gap-3" data-testid="owner-album-library-sheet">
-          <p className="text-sm text-muted">
-            {replaceDraft !== null || replacePending
-              ? 'Tap to pick the new set. Done with nothing selected keeps the collection as it is.'
-              : 'Tap to add. Added designs show in your album — Done when finished.'}
-          </p>
           {myProducts.isLoading ? (
             <LoadingBlock label="Loading designs…" />
           ) : selectableDesigns.length === 0 ? (
@@ -1451,10 +1709,13 @@ export function CollectionViewerPage() {
             </div>
           ) : pickerDesigns.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted">
-              All your designs are already in this collection.
+              {libraryPickerEmptyCopy(packKind)}
             </p>
           ) : (
             <>
+              <p className="text-sm text-muted">
+                {libraryPickerHint(packKind, replaceDraft !== null || replacePending)}
+              </p>
               <TextInput
                 value={designSearch}
                 onChange={(e) => setDesignSearch(e.target.value)}
@@ -1522,11 +1783,17 @@ export function CollectionViewerPage() {
             productCompanyId: viewerProduct.companyId,
           })}
           canRemove={isOwner}
+          canAddToPack={isOwner && addToPackCanOffer([viewerProduct])}
+          addToPackSurface={addToPackSurface}
           canDelete={collectionOwnerCanEditDesign({
             isOwner,
             myCompanyId: me.data?.id,
             productCompanyId: viewerProduct.companyId,
           })}
+          onAddToPack={() => {
+            openAddToPack([viewerProduct]);
+            setViewerProduct(null);
+          }}
           onEdit={() => {
             const designId = viewerProduct.id;
             setViewerProduct(null);
@@ -1538,11 +1805,20 @@ export function CollectionViewerPage() {
           onDelete={() => {
             void onOwnerDelete([viewerProduct.id]);
           }}
+          removeLabel={removeFromThisPackLabel(data.kind)}
           removeBusy={manageBusy}
           packStamp={packStamp}
           testIdPrefix="collection-design-sheet"
         />
       ) : null}
+
+      <AddToPackSheet
+        open={addToPackDesigns != null}
+        productIds={addToPackDesigns?.map((design) => design.id) ?? []}
+        knownDesigns={addToPackDesigns ?? []}
+        onClose={() => setAddToPackDesigns(null)}
+        surface={addToPackSurface}
+      />
 
       <OrderCollectionResolveSheet
         intent="order"
@@ -1600,15 +1876,23 @@ export function CollectionViewerPage() {
           orderFlow.setQtyOpen(false);
           setQtyEntries(null);
         }}
-        sellerId={sellerIdForEntries(qtyEntries ?? shortlist.entries)}
-        products={entriesAsProducts(qtyEntries ?? shortlist.entries)}
+        sellerId={sellerIdForEntries(
+          tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
+        )}
+        products={entriesAsProducts(
+          tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
+        )}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={packHandlerName(qtyEntries ?? shortlist.entries)}
+        orderGoesToName={packHandlerName(
+          tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
+        )}
         sheetJob="order"
         onSendOrder={(lines, place) => {
-          const linesForPath = qtyEntries ?? shortlist.entries;
+          const linesForPath = tradeableShortlistEntries(
+            qtyEntries ?? shortlist.entries,
+          );
           orderFlow.sendOrder(lines, {
             ...place,
             collectionId: collectionIdForPackOrder(linesForPath),
@@ -1633,11 +1917,13 @@ export function CollectionViewerPage() {
 function AccessPendingCard({
   companyId,
   companyName,
+  kind,
   onOpenChat,
   opening,
 }: {
   companyId: string;
   companyName: string;
+  kind?: string | null;
   onOpenChat: () => void;
   opening: boolean;
 }) {
@@ -1652,8 +1938,7 @@ function AccessPendingCard({
           <StatusPill status="pending" />
         </div>
         <p className="text-xs text-muted">
-          Asked {companyName} to open this collection. Designs unlock after they Allow in
-          chat.
+          {askedToOpenThisPack(companyName, kind)}
         </p>
       </div>
       <Button onClick={onOpenChat} disabled={opening}>
@@ -1669,6 +1954,7 @@ function AccessPendingCard({
 function DesignTile({
   product,
   highlightQuery = '',
+  draft = false,
   selected,
   selectMode,
   variant,
@@ -1680,6 +1966,7 @@ function DesignTile({
 }: {
   product: ProductView;
   highlightQuery?: string;
+  draft?: boolean;
   selected: boolean;
   selectMode: boolean;
   variant: 'feed' | 'grid';
@@ -1742,8 +2029,11 @@ function DesignTile({
           variant === 'feed' ? 'p-3' : 'p-2.5',
         )}
       >
-        <p className="truncate text-sm font-emphasis text-ink">
-          {highlightSearchText(product.name, highlightQuery)}
+        <p className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-emphasis text-ink">
+            {highlightSearchText(product.name, highlightQuery)}
+          </span>
+          {draft ? <DraftChip testId="collection-design-draft-chip" /> : null}
         </p>
         {shopLine ? (
           <p

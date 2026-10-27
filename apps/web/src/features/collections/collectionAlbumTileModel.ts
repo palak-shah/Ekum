@@ -9,7 +9,11 @@ export function collectionAlbumOpenTarget(input: {
   id: string;
   status?: string;
   packManage?: boolean;
+  kind?: string;
 }): { href: string; state?: { packManage: true } } {
+  if (input.kind === 'general') {
+    return { href: `/collections/${input.id}` };
+  }
   const unpublished =
     input.status === CollectionStatus.Draft ||
     input.status === CollectionStatus.Ready ||

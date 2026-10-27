@@ -28,10 +28,15 @@ describe('CompanyService.create onboarding', () => {
     }));
     const membershipCreate = vi.fn(async () => ({}));
     const userUpdate = vi.fn(async () => ({}));
+    const collectionCreate = vi.fn(async () => ({ id: 'gc_co-1' }));
     const tx = {
       companyMembership: { findFirst: async () => null, create: membershipCreate },
       company: { create: companyCreate },
       user: { update: userUpdate },
+      collection: {
+        findFirst: async () => null,
+        create: collectionCreate,
+      },
     };
     const issue = vi.fn(async () => ({
       accessToken: 'a',
@@ -81,6 +86,14 @@ describe('CompanyService.create onboarding', () => {
     expect(userUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { name: 'Kiran' },
+      }),
+    );
+    expect(collectionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: 'general',
+          status: 'published',
+        }),
       }),
     );
     expect(issue).toHaveBeenCalledWith(
@@ -140,6 +153,10 @@ describe('CompanyService.create onboarding', () => {
       companyMembership: { findFirst, create: membershipCreate },
       company: { create: companyCreate },
       user: { update: vi.fn(async () => ({})) },
+      collection: {
+        findFirst: async () => null,
+        create: vi.fn(async () => ({ id: 'gc_co-2' })),
+      },
     };
     const prisma = {
       $transaction: async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx),

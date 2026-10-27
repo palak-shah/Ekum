@@ -30,6 +30,15 @@ export const rateFieldInputProps = {
   spellCheck: false as const,
 };
 
+/** Add/edit design — one amount, no range. */
+export const designRateFieldInputProps = {
+  placeholder: '1200',
+  inputMode: 'decimal' as const,
+  autoCapitalize: 'off' as const,
+  autoCorrect: 'off' as const,
+  spellCheck: false as const,
+};
+
 function parseOneNumber(raw: string): number | null {
   const cleaned = raw.replace(/,/g, '').trim();
   if (!cleaned) return null;

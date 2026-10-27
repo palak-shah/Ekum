@@ -3,8 +3,12 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { ProductStatus } from '@ekum/domain-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SELECTION_NEEDS_PUBLISHED_TOAST } from './selectionEligibility';
 import { DesignSheet } from './DesignSheet';
+
+const { showToast } = vi.hoisted(() => ({ showToast: vi.fn() }));
 
 vi.mock('@/lib/apiClient', () => ({
   api: { get: vi.fn().mockResolvedValue([]), post: vi.fn(), del: vi.fn() },
@@ -16,7 +20,17 @@ vi.mock('@/lib/queries', () => ({
 }));
 
 vi.mock('@/ui/Toast', () => ({
-  useToast: () => ({ showToast: vi.fn() }),
+  useToast: () => ({ showToast }),
+}));
+
+vi.mock('@/features/catalog/BulkProductPublishSheet', () => ({
+  BulkProductPublishSheet: ({
+    open,
+    productIds,
+  }: {
+    open: boolean;
+    productIds: string[];
+  }) => (open ? <div data-testid="bulk-product-publish-sheet">{productIds.join(',')}</div> : null),
 }));
 
 vi.mock('@/features/saved/useSaveToggle', () => ({
@@ -71,7 +85,10 @@ function renderSheet(props: Partial<ComponentProps<typeof DesignSheet>> = {}) {
   );
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  showToast.mockClear();
+  cleanup();
+});
 
 describe('DesignSheet', () => {
   it('puts item tags left of the rate, and the description under that row', () => {
@@ -130,6 +147,20 @@ describe('DesignSheet', () => {
     expect(screen.getByTestId('design-sheet-delete')).toHaveTextContent('Delete design');
   });
 
+  it('catalog album Remove says catalog', async () => {
+    const user = userEvent.setup();
+    renderSheet({
+      canRemove: true,
+      collectionId: 'cat1',
+      removeLabel: 'Remove from this catalog',
+      onRemove: () => undefined,
+    });
+    await user.click(screen.getByTestId('design-sheet-more'));
+    expect(screen.getByTestId('design-sheet-remove')).toHaveTextContent(
+      'Remove from this catalog',
+    );
+  });
+
   it('hides Remove when there is no collection context', async () => {
     const user = userEvent.setup();
     renderSheet({
@@ -162,5 +193,35 @@ describe('DesignSheet', () => {
     renderSheet();
     await user.click(screen.getByTestId('design-sheet-cart'));
     expect(addCartDesignsMany).toHaveBeenCalled();
+  });
+
+  it('draft Order and cart toast Publish first; album ⋯ Publish is one tap', async () => {
+    const { addCartDesignsMany } = await import('@/features/browse/browseCart');
+    const { api } = await import('@/lib/apiClient');
+    vi.mocked(addCartDesignsMany).mockClear();
+    vi.mocked(api.post).mockResolvedValue({ published: 1 });
+    const user = userEvent.setup();
+    renderSheet({
+      canEdit: true,
+      onEdit: () => undefined,
+      collectionId: 'col1',
+      product: {
+        ...product,
+        companyId: 'me-shop',
+        status: ProductStatus.Draft,
+      },
+    });
+    await user.click(screen.getByTestId('design-sheet-order'));
+    expect(screen.queryByTestId('design-sheet-how-many')).toBeNull();
+    expect(showToast).toHaveBeenCalledWith(SELECTION_NEEDS_PUBLISHED_TOAST);
+    await user.click(screen.getByTestId('design-sheet-cart'));
+    expect(addCartDesignsMany).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId('design-sheet-more'));
+    expect(screen.getByTestId('design-sheet-publish')).toHaveTextContent('Publish');
+    await user.click(screen.getByTestId('design-sheet-publish'));
+    expect(screen.queryByTestId('bulk-product-publish-sheet')).toBeNull();
+    expect(api.post).toHaveBeenCalledWith('/collections/col1/publish-members', {
+      productIds: ['d1'],
+    });
   });
 });

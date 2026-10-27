@@ -1,7 +1,7 @@
 import { TextInput } from '@/ui/kit';
 
 export const DISPATCH_LR_NUMBER_PLACEHOLDER = 'LR number';
-export const DISPATCH_BILL_NUMBER_PLACEHOLDER = 'Bill Number/Bale Number';
+export const DISPATCH_BILL_NUMBER_PLACEHOLDER = 'Bill/bale number';
 
 /** Empty LR / Bill fields name themselves — no shared header that scrolls away. */
 export function DispatchLrBillInputs({
@@ -18,7 +18,7 @@ export function DispatchLrBillInputs({
   onBillNumber: (next: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.75fr)] gap-2">
+    <div className="grid grid-cols-2 gap-2">
       <TextInput
         value={lrNumber}
         placeholder={DISPATCH_LR_NUMBER_PLACEHOLDER}

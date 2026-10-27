@@ -3,6 +3,26 @@ import {
   formatDualQty,
   formatPackingSlipTotal,
 } from '@/features/orders/orderLineBilling';
+import {
+  PDF_A4,
+  PDF_THUMB_PX,
+  assembleHelveticaA4,
+  jpegThumb,
+  padLeft,
+  padRight,
+  pdfDate,
+  rule,
+  textAt,
+  wrapPdfWords,
+  type PdfDrawCmd,
+  type PdfJpegThumb,
+} from '@/features/orders/tradePdf';
+
+export {
+  jpegThumb as packingSlipJpegThumb,
+  openTradePdf as openPackingSlipPdf,
+  shareOrDownloadPdf,
+} from '@/features/orders/tradePdf';
 
 export type PackingSlipOptions = {
   /** Include “To: {buyer}”. Default true. */
@@ -19,43 +39,6 @@ export type PackingSlipInput = {
   orderItems?: OrderItemView[];
   options?: PackingSlipOptions;
 };
-
-/** Helvetica WinAnsi — keep printable ASCII; map common trade glyphs. */
-function winAnsi(text: string): string {
-  return text
-    .replace(/[\u2018\u2019\u201A]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014\u2212]/g, '-')
-    .replace(/[\u00B7\u2022\u2024]/g, '-')
-    .replace(/\u20B9/g, 'Rs')
-    .replace(/[^\x20-\x7E]/g, '?');
-}
-
-function pdfEscape(text: string): string {
-  return winAnsi(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-}
-
-function slipDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
-  return d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function padRight(text: string, width: number): string {
-  const t = winAnsi(text);
-  if (t.length >= width) return t.slice(0, width);
-  return `${t}${' '.repeat(width - t.length)}`;
-}
-
-function padLeft(text: string, width: number): string {
-  const t = winAnsi(text);
-  if (t.length >= width) return t.slice(0, width);
-  return `${' '.repeat(width - t.length)}${t}`;
-}
 
 function resolveOptions(options?: PackingSlipOptions): Required<PackingSlipOptions> {
   return {
@@ -140,7 +123,7 @@ export function packingSlipLegLines(
 export function packingSlipLines(input: PackingSlipInput): string[] {
   const opts = resolveOptions(input.options);
   const order = shortOrderLabel(input.orderId);
-  const when = slipDate(input.shipment.dispatchedAt);
+  const when = pdfDate(input.shipment.dispatchedAt);
   const lines = ['PACKING LIST', '', order];
   if (opts.showBuyer) lines.push(`To: ${input.counterpartName}`);
   lines.push(`Date: ${when}`);
@@ -169,105 +152,27 @@ export function packingSlipLines(input: PackingSlipInput): string[] {
   return lines;
 }
 
-type DrawCmd = string;
-
-function textAt(x: number, y: number, size: number, font: 'F1' | 'F2', text: string): DrawCmd[] {
-  return [
-    'BT',
-    `/${font} ${size} Tf`,
-    `${x} ${y} Td`,
-    `(${pdfEscape(text)}) Tj`,
-    'ET',
-  ];
-}
-
-function rule(x1: number, y: number, x2: number): DrawCmd[] {
-  return [`${x1} ${y} m`, `${x2} ${y} l`, 'S'];
-}
-
-type JpegThumb = {
-  name: string;
-  bytes: Uint8Array;
-  width: number;
-  height: number;
-};
-
-const THUMB = 36;
-
-/**
- * Fetch design image and re-encode as a square JPEG thumb (works for PNG/WebP too).
- * CORS / missing → null (row still prints without a photo).
- */
-export async function packingSlipJpegThumb(url: string): Promise<JpegThumb | null> {
-  if (typeof document === 'undefined') return null;
-  try {
-    const res = await fetch(url, { mode: 'cors' });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement('canvas');
-    canvas.width = THUMB;
-    canvas.height = THUMB;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      bitmap.close();
-      return null;
-    }
-    const scale = Math.max(THUMB / bitmap.width, THUMB / bitmap.height);
-    const dw = bitmap.width * scale;
-    const dh = bitmap.height * scale;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, THUMB, THUMB);
-    ctx.drawImage(bitmap, (THUMB - dw) / 2, (THUMB - dh) / 2, dw, dh);
-    bitmap.close();
-    const jpeg = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.82),
-    );
-    if (!jpeg) return null;
-    const buf = new Uint8Array(await jpeg.arrayBuffer());
-    return { name: 'Im', bytes: buf, width: THUMB, height: THUMB };
-  } catch {
-    return null;
-  }
-}
-
-function concatPdfParts(parts: Array<string | Uint8Array>): Uint8Array {
-  const encoded = parts.map((part) =>
-    typeof part === 'string' ? new TextEncoder().encode(part) : part,
-  );
-  const total = encoded.reduce((n, part) => n + part.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const part of encoded) {
-    out.set(part, offset);
-    offset += part.length;
-  }
-  return out;
-}
-
 /**
  * Printable packing list (A4). Optional buyer line + design thumbs.
  * Qty is shipment qty in the order unit.
  */
 export async function packingSlipPdfBytes(input: PackingSlipInput): Promise<Uint8Array> {
   const opts = resolveOptions(input.options);
-  const pageW = 595;
-  const pageH = 842;
-  const margin = 48;
+  const { pageW, pageH, margin } = PDF_A4;
   const contentW = pageW - margin * 2;
   const order = shortOrderLabel(input.orderId);
-  const when = slipDate(input.shipment.dispatchedAt);
+  const when = pdfDate(input.shipment.dispatchedAt);
   const legLines = packingSlipLegLines(input.shipment);
   const transporter = input.shipment.transporter?.trim() || '';
   const parcels =
     input.shipment.parcelCount != null ? String(input.shipment.parcelCount) : '';
   const rows = packingSlipRows(input).slice(0, 22);
 
-  const thumbs: Array<JpegThumb | null> = opts.showPhotos
-    ? await Promise.all(rows.map((row) => (row.imageUrl ? packingSlipJpegThumb(row.imageUrl) : null)))
+  const thumbs: Array<PdfJpegThumb | null> = opts.showPhotos
+    ? await Promise.all(rows.map((row) => (row.imageUrl ? jpegThumb(row.imageUrl) : null)))
     : rows.map(() => null);
 
-  const cmds: DrawCmd[] = [];
+  const cmds: PdfDrawCmd[] = [];
   let y = pageH - margin;
 
   cmds.push(...textAt(margin, y, 18, 'F2', 'PACKING LIST'));
@@ -322,9 +227,9 @@ export async function packingSlipPdfBytes(input: PackingSlipInput): Promise<Uint
     if (y < margin + 80) break;
     const textY = thumb ? y - 14 : y;
     if (thumb) {
-      const imgY = y - THUMB;
+      const imgY = y - PDF_THUMB_PX;
       cmds.push('q');
-      cmds.push(`${THUMB} 0 0 ${THUMB} ${colPhoto} ${imgY} cm`);
+      cmds.push(`${PDF_THUMB_PX} 0 0 ${PDF_THUMB_PX} ${colPhoto} ${imgY} cm`);
       cmds.push(`/Im${i} Do`);
       cmds.push('Q');
     }
@@ -347,146 +252,20 @@ export async function packingSlipPdfBytes(input: PackingSlipInput): Promise<Uint
   if (note && y > margin + 40) {
     cmds.push(...textAt(margin, y, 10, 'F2', 'Note'));
     y -= 14;
-    const words = winAnsi(note).split(/\s+/);
-    let line = '';
-    for (const word of words) {
-      const next = line ? `${line} ${word}` : word;
-      if (next.length > 78) {
-        cmds.push(...textAt(margin, y, 10, 'F1', line));
-        y -= 13;
-        line = word;
-        if (y < margin + 24) break;
-      } else {
-        line = next;
-      }
-    }
-    if (line && y >= margin + 24) {
+    for (const line of wrapPdfWords(note, 78)) {
+      if (y < margin + 24) break;
       cmds.push(...textAt(margin, y, 10, 'F1', line));
-      y -= 16;
+      y -= 13;
     }
+    y -= 3;
   }
 
   cmds.push(...textAt(margin, Math.max(margin, y - 8), 9, 'F1', 'Ekum'));
-
-  const stream = cmds.join('\n');
-  const streamBytes = new TextEncoder().encode(stream);
-
-  // Object ids: 1 catalog, 2 pages, 3 page, 4 contents, 5 F1, 6 F2, 7+ images
-  const imageObjs: Array<{ id: number; bytes: Uint8Array; w: number; h: number }> = [];
-  let nextId = 7;
-  for (let i = 0; i < thumbs.length; i += 1) {
-    const thumb = thumbs[i];
-    if (!thumb) continue;
-    imageObjs.push({ id: nextId, bytes: thumb.bytes, w: thumb.width, h: thumb.height });
-    // rewrite /Im{i} to actual object — content already uses /Im{i}
-    nextId += 1;
-  }
-
-  // Map content image names Im0.. to object ids — rebuild xobject dict
-  const imNameToId = new Map<string, number>();
-  let imgIdx = 0;
-  for (let i = 0; i < thumbs.length; i += 1) {
-    if (!thumbs[i]) continue;
-    imNameToId.set(`Im${i}`, imageObjs[imgIdx]!.id);
-    imgIdx += 1;
-  }
-
-  let xobjects = '';
-  for (const [name, id] of imNameToId) {
-    xobjects += `/${name} ${id} 0 R `;
-  }
-
-  const pageResources = xobjects
-    ? `/Font << /F1 5 0 R /F2 6 0 R >> /XObject << ${xobjects}>>`
-    : `/Font << /F1 5 0 R /F2 6 0 R >>`;
-
-  const enc = (s: string) => new TextEncoder().encode(s);
-  const objectBins: Uint8Array[] = [
-    enc('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n'),
-    enc('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n'),
-    enc(
-      `3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Contents 4 0 R /Resources << ${pageResources} >> >> endobj\n`,
-    ),
-    concatPdfParts([
-      enc(`4 0 obj << /Length ${streamBytes.length} >> stream\n`),
-      streamBytes,
-      enc('\nendstream endobj\n'),
-    ]),
-    enc('5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n'),
-    enc('6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj\n'),
-  ];
-  for (const img of imageObjs) {
-    objectBins.push(
-      concatPdfParts([
-        enc(
-          `${img.id} 0 obj << /Type /XObject /Subtype /Image /Width ${img.w} /Height ${img.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >> stream\n`,
-        ),
-        img.bytes,
-        enc('\nendstream endobj\n'),
-      ]),
-    );
-  }
-
-  const built: Array<string | Uint8Array> = ['%PDF-1.4\n'];
-  const objOffsets: number[] = [0];
-  let cursor = enc('%PDF-1.4\n').length;
-  for (const bin of objectBins) {
-    objOffsets.push(cursor);
-    built.push(bin);
-    cursor += bin.length;
-  }
-  const xrefStart = cursor;
-  let xref = `xref\n0 ${objectBins.length + 1}\n0000000000 65535 f \n`;
-  for (let o = 1; o <= objectBins.length; o += 1) {
-    xref += `${String(objOffsets[o]).padStart(10, '0')} 00000 n \n`;
-  }
-  built.push(xref);
-  built.push(
-    `trailer << /Size ${objectBins.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`,
-  );
-  return concatPdfParts(built);
+  return assembleHelveticaA4(cmds, thumbs);
 }
 
 export function packingSlipFileName(input: PackingSlipInput): string {
   const order = shortOrderLabel(input.orderId).replace(/\s+/g, '');
   const lr = input.shipment.lrNumber?.trim().replace(/[^\w-]+/g, '') || 'dispatch';
   return `${order}-${lr}.pdf`;
-}
-
-export async function shareOrDownloadPdf(file: File): Promise<'shared' | 'downloaded'> {
-  const nav = navigator as Navigator & {
-    canShare?: (data: { files: File[] }) => boolean;
-    share?: (data: { files: File[]; title?: string }) => Promise<void>;
-  };
-  if (typeof nav.canShare === 'function' && nav.canShare({ files: [file] }) && nav.share) {
-    await nav.share({ files: [file], title: file.name });
-    return 'shared';
-  }
-  const url = URL.createObjectURL(file);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = file.name;
-  link.click();
-  URL.revokeObjectURL(url);
-  return 'downloaded';
-}
-
-/**
- * Open packing slip in the phone / browser PDF viewer.
- * Falls back to download when a new tab is blocked.
- */
-export function openPackingSlipPdf(file: File): 'opened' | 'downloaded' {
-  const url = URL.createObjectURL(file);
-  const opened = window.open(url, '_blank', 'noopener,noreferrer');
-  if (opened) {
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return 'opened';
-  }
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = file.name;
-  link.rel = 'noopener';
-  link.click();
-  URL.revokeObjectURL(url);
-  return 'downloaded';
 }

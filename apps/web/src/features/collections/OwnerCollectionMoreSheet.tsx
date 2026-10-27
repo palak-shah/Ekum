@@ -8,10 +8,16 @@ import {
   PencilIcon,
   RepostIcon,
 } from '@/ui/icons';
+import {
+  bookmarkThisPackLabel,
+  editPackDetailsLabel,
+  replaceEntirePackLabel,
+  shareThisPackLabel,
+} from '@/features/catalog/packKindCopy';
 
 /**
  * Owner album idle ⋯ — Share · Bookmark · Who · Add designs · Add photos ·
- * Replace · Edit (everyday first; manage trio always listed).
+ * Replace · Edit · Draft pack (everyday first; manage trio always listed).
  */
 export function OwnerCollectionMoreSheet({
   open,
@@ -26,6 +32,11 @@ export function OwnerCollectionMoreSheet({
   onAddPhotos,
   onReplace,
   onEditDetails,
+  onDraft,
+  draftLabel = 'Draft this collection',
+  canDraft = false,
+  isGeneral = false,
+  kind,
 }: {
   open: boolean;
   title: string;
@@ -39,6 +50,11 @@ export function OwnerCollectionMoreSheet({
   onAddPhotos: () => void;
   onReplace: () => void;
   onEditDetails: () => void;
+  onDraft?: () => void;
+  draftLabel?: string;
+  canDraft?: boolean;
+  isGeneral?: boolean;
+  kind?: string | null;
 }) {
   return (
     <MoreActionsSheet
@@ -47,9 +63,24 @@ export function OwnerCollectionMoreSheet({
       title={title}
       testId="owner-collection-more-sheet"
       items={[
+        ...(isGeneral
+          ? [
+              {
+                id: 'bookmark',
+                label: bookmarkSaved ? 'Remove bookmark' : bookmarkThisPackLabel(kind),
+                icon: <BookmarkIcon width={20} height={20} />,
+                disabled: bookmarkBusy,
+                onClick: () => {
+                  onClose();
+                  onBookmark();
+                },
+                testId: 'collection-menu-bookmark',
+              },
+            ]
+          : [
         {
           id: 'share',
-          label: 'Share this collection',
+          label: shareThisPackLabel(kind),
           icon: <PaperPlaneIcon width={20} height={20} />,
           onClick: () => {
             onClose();
@@ -59,7 +90,7 @@ export function OwnerCollectionMoreSheet({
         },
         {
           id: 'bookmark',
-          label: bookmarkSaved ? 'Remove bookmark' : 'Bookmark this collection',
+          label: bookmarkSaved ? 'Remove bookmark' : bookmarkThisPackLabel(kind),
           icon: <BookmarkIcon width={20} height={20} />,
           disabled: bookmarkBusy,
           onClick: () => {
@@ -100,7 +131,7 @@ export function OwnerCollectionMoreSheet({
         },
         {
           id: 'replace',
-          label: 'Replace entire collection',
+          label: replaceEntirePackLabel(kind),
           icon: <RepostIcon width={20} height={20} />,
           onClick: () => {
             onClose();
@@ -108,9 +139,10 @@ export function OwnerCollectionMoreSheet({
           },
           testId: 'collection-menu-replace',
         },
+          ]),
         {
           id: 'edit',
-          label: 'Edit collection details',
+          label: editPackDetailsLabel(kind),
           icon: <PencilIcon width={20} height={20} />,
           onClick: () => {
             onClose();
@@ -118,6 +150,20 @@ export function OwnerCollectionMoreSheet({
           },
           testId: 'collection-menu-edit',
         },
+        ...(canDraft && onDraft && !isGeneral
+          ? [
+              {
+                id: 'draft',
+                label: draftLabel,
+                icon: <LockIcon width={20} height={20} />,
+                onClick: () => {
+                  onClose();
+                  onDraft();
+                },
+                testId: 'collection-menu-draft',
+              },
+            ]
+          : []),
       ]}
     />
   );

@@ -90,7 +90,7 @@ describe('tradeListPreview', () => {
     } as TradeListItem;
     const { preview, accent } = tradeListPreview(item, 'seller-co');
     expect(accent).toBe(true);
-    expect(preview).toBe('Send quote');
+    expect(preview).toBe('Confirm');
     expect(tradeListFacts(item)).toMatch(/^Order #\S+ 1 design 10 pcs$/);
   });
 

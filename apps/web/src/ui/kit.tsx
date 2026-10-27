@@ -20,6 +20,7 @@ import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { ManagedImage } from '@/ui/ManagedImage';
 import { textInputChromeClass } from '@/ui/mobileOverflow';
+import { chipCountBadge } from '@/ui/chipBadge';
 
 export { cx } from '@/lib/cx';
 export { InfoHint } from '@/ui/InfoHint';
@@ -114,6 +115,28 @@ export function Chip({
     <button type={type} onClick={onClick} className={classes} data-testid={dataTestId}>
       {children}
     </button>
+  );
+}
+
+/** Teal count on a Chip — Chats Unread, Orders Need you. Hidden at 0. */
+export function ChipCountBadge({
+  count,
+  inverted = false,
+}: {
+  count: number;
+  inverted?: boolean;
+}) {
+  const label = chipCountBadge(count);
+  if (!label) return null;
+  return (
+    <span
+      className={cx(
+        'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
+        inverted ? 'bg-white/25 text-white' : 'bg-badge text-white',
+      )}
+    >
+      {label}
+    </span>
   );
 }
 

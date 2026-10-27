@@ -15,7 +15,7 @@ import type {
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { Avatar, EmptyState, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { Avatar, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
@@ -426,7 +426,7 @@ export function OrdersPage() {
             </button>
           ))}
         </div>
-        <div className={filterChrome.summaryGridClass} role="group" aria-label="Open or finished">
+        <FilterRail className="gap-1.5">
           {(
             [
               ['pending', 'Pending', pendingCount],
@@ -435,11 +435,11 @@ export function OrdersPage() {
           ).map(([value, label, count]) => {
             const on = !findOverridesAttention && statusFilter === value;
             return (
-              <button
+              <Chip
                 key={value}
-                type="button"
+                compact
+                active={on}
                 data-testid={`orders-summary-${value}`}
-                aria-pressed={on}
                 onClick={() => {
                   if (statusFilter === value && !findOverridesAttention) return;
                   setStatusFilter(value);
@@ -475,21 +475,15 @@ export function OrdersPage() {
                     { replace: true },
                   );
                 }}
-                className={cx(
-                  filterChrome.summaryClass,
-                  on
-                    ? 'border-accent bg-foam text-accent'
-                    : 'border-line bg-surface text-muted',
-                )}
               >
-                <span className="block text-[20px] font-emphasis tabular-nums leading-tight text-ink">
-                  {count}
+                <span className="inline-flex items-center gap-1">
+                  {label}
+                  <span className="tabular-nums">{count}</span>
                 </span>
-                {label}
-              </button>
+              </Chip>
             );
           })}
-        </div>
+        </FilterRail>
       </div>
 
       {loading ? (

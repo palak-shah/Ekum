@@ -28,20 +28,18 @@ const base = {
   photo: <span>thumb</span>,
   onToggle: vi.fn(),
   onCantSupply: vi.fn(),
-  onSaveLastLr: vi.fn(),
+  onSaveQty: vi.fn(),
 };
 
 describe('OrderLineFulfillExpand', () => {
-  it('shows edit icon · fact strip · Last LR — no inline Ship now / Dispatch', () => {
-    const onSaveLastLr = vi.fn();
+  it('shows edit icon · fact strip · Ordered qty — no Last LR / Ship now / Dispatch', () => {
+    const onSaveQty = vi.fn();
     render(
       <OrderLineFulfillExpand
         {...base}
         item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
-        hasLastLr
-        lastLrQty={8}
         expanded
-        onSaveLastLr={onSaveLastLr}
+        onSaveQty={onSaveQty}
       />,
     );
     expect(screen.getByTestId('order-line-facts')).toBeTruthy();
@@ -49,15 +47,27 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('15');
     expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('-5');
     expect(screen.queryByTestId('order-line-fact-pending')).toBeNull();
-    expect(screen.queryByText('Asked')).toBeNull();
-    expect(screen.queryByText('Already shipped')).toBeNull();
+    expect(screen.queryByText('Last LR')).toBeNull();
+    expect(screen.queryByTestId('order-line-last-lr-qty')).toBeNull();
     expect(screen.queryByTestId('order-line-ship-now')).toBeNull();
     expect(screen.queryByTestId('order-line-dispatch')).toBeNull();
-    expect(screen.getByText('Last LR')).toBeTruthy();
-    expect((screen.getByTestId('order-line-last-lr-qty') as HTMLInputElement).value).toBe('8');
-    fireEvent.change(screen.getByTestId('order-line-last-lr-qty'), { target: { value: '6' } });
-    fireEvent.click(screen.getByTestId('order-line-last-lr-save'));
-    expect(onSaveLastLr).toHaveBeenCalledWith(6);
+    expect((screen.getByTestId('order-line-ordered-qty') as HTMLInputElement).value).toBe('20');
+    fireEvent.change(screen.getByTestId('order-line-ordered-qty'), { target: { value: '16' } });
+    fireEvent.click(screen.getByTestId('order-line-qty-save'));
+    expect(onSaveQty).toHaveBeenCalledWith(16);
+  });
+
+  it('blocks Ordered below shipped', () => {
+    render(
+      <OrderLineFulfillExpand
+        {...base}
+        item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
+        expanded
+      />,
+    );
+    fireEvent.change(screen.getByTestId('order-line-ordered-qty'), { target: { value: '10' } });
+    expect(screen.getByText('Can’t go below shipped.')).toBeTruthy();
+    expect(screen.queryByTestId('order-line-qty-save')).toBeNull();
   });
 
   it('opens expand from the pencil only — not the row body', () => {
@@ -67,8 +77,6 @@ describe('OrderLineFulfillExpand', () => {
         {...base}
         onToggle={onToggle}
         item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
-        hasLastLr
-        lastLrQty={8}
         expanded={false}
       />,
     );
@@ -87,8 +95,6 @@ describe('OrderLineFulfillExpand', () => {
         {...base}
         onToggle={onToggle}
         item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
-        hasLastLr
-        lastLrQty={8}
         expanded
       />,
     );
@@ -97,40 +103,34 @@ describe('OrderLineFulfillExpand', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps Last LR draft when parent re-renders', () => {
+  it('keeps Ordered draft when parent re-renders', () => {
     const { rerender } = render(
       <OrderLineFulfillExpand
         {...base}
         item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
-        hasLastLr
-        lastLrQty={8}
         expanded
       />,
     );
-    fireEvent.change(screen.getByTestId('order-line-last-lr-qty'), { target: { value: '3' } });
+    fireEvent.change(screen.getByTestId('order-line-ordered-qty'), { target: { value: '18' } });
     rerender(
       <OrderLineFulfillExpand
         {...base}
         item={item({ shippedQuantity: 15, remainingQuantity: 5 })}
-        hasLastLr
-        lastLrQty={8}
         expanded
       />,
     );
-    expect((screen.getByTestId('order-line-last-lr-qty') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByTestId('order-line-ordered-qty') as HTMLInputElement).value).toBe('18');
   });
 
-  it('allows Last LR edit after complete', () => {
+  it('still allows Ordered raise after the line is complete', () => {
     render(
       <OrderLineFulfillExpand
         {...base}
         item={item({ shippedQuantity: 20, remainingQuantity: 0 })}
-        hasLastLr
-        lastLrQty={20}
         expanded
       />,
     );
-    expect(screen.getByTestId('order-line-last-lr-qty')).toBeTruthy();
+    expect(screen.getByTestId('order-line-ordered-qty')).toBeTruthy();
     expect(screen.queryByTestId('order-line-ship-now')).toBeNull();
     expect(screen.queryByTestId('order-line-dispatch')).toBeNull();
   });
@@ -140,8 +140,6 @@ describe('OrderLineFulfillExpand', () => {
       <OrderLineFulfillExpand
         {...base}
         item={item({ note: 'iska Chota than' })}
-        hasLastLr={false}
-        lastLrQty={0}
         expanded={false}
       />,
     );
@@ -156,8 +154,6 @@ describe('OrderLineFulfillExpand', () => {
       <OrderLineFulfillExpand
         {...base}
         item={item({ lineStatus: 'declined', remainingQuantity: 0, shippedQuantity: 20 })}
-        hasLastLr={false}
-        lastLrQty={0}
         expanded={false}
       />,
     );
@@ -172,12 +168,11 @@ describe('OrderLineFulfillExpand', () => {
       <OrderLineFulfillExpand
         {...base}
         item={item({ lineStatus: 'declined', remainingQuantity: 0 })}
-        hasLastLr={false}
-        lastLrQty={0}
         expanded
       />,
     );
     expect(screen.getByTestId('order-line-cant-supply-toggle')).toBeTruthy();
+    expect(screen.queryByTestId('order-line-ordered-qty')).toBeNull();
   });
 
   it('does not repeat per mtr under the name — unit lives on Total', () => {
@@ -194,8 +189,6 @@ describe('OrderLineFulfillExpand', () => {
           rate: 128,
           lineStatus: 'requested',
         })}
-        hasLastLr={false}
-        lastLrQty={0}
         expanded={false}
       />,
     );
@@ -206,15 +199,13 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.getByText('Chiffon Roll')).toBeTruthy();
   });
 
-  it('opens Send quote from Can’t supply cue before lock', () => {
+  it('opens Confirm from Can’t supply cue before lock', () => {
     const onOpenQuote = vi.fn();
     render(
       <OrderLineFulfillExpand
         {...base}
         canEdit={false}
         item={item({ lineStatus: 'declined', remainingQuantity: 0 })}
-        hasLastLr={false}
-        lastLrQty={0}
         expanded={false}
         onOpenQuote={onOpenQuote}
       />,

@@ -263,7 +263,8 @@ export function applySameForAllToForm(
 
 /**
  * Force shared units / MOQ / notes onto member (pack Apply).
- * Rate never overwrites — pack rate and design rate stay separate; only empty design rates fill.
+ * Empty design rates fill from the pack; a filled rate stays unless Apply-to-all
+ * overwrites via stampCreatePhotoMemberForm / packMemberProductPatch.
  */
 export function forceSameForAllToForm(
   form: MemberDesignForm,
@@ -290,17 +291,21 @@ export function forceSameForAllToForm(
 }
 
 /**
- * New create-mode photos: pack Rate fills empty only (design’s own rate wins).
- * Apply-to-all forces units / MOQ / notes — never a filled design rate.
+ * New create-mode photos: pack Rate fills empty rates.
+ * Apply-to-all overwrites a filled photo rate too (same as library members).
  */
 export function stampCreatePhotoMemberForm(
   form: MemberDesignForm,
   shared: SameForAllDetails,
   applyToAll: boolean,
 ): MemberDesignForm {
-  return applyToAll
+  const next = applyToAll
     ? forceSameForAllToForm(form, shared)
     : applySameForAllToForm(form, shared);
+  if (applyToAll && shared.rate.trim()) {
+    return { ...next, rate: shared.rate };
+  }
+  return next;
 }
 
 /** True when the design already has a priced rate. */
@@ -471,9 +476,9 @@ export function packStampShared(
  * Own-design PATCH from collection details.
  * Rate per + 1 set contains persist on every own member (the editor hydrates
  * from members — skipping this made Update look like a no-op).
- * Pack rupee still only overwrites designs that follow the pack rate.
- * Apply to all adds MOQ; it still never overwrites a filled design rate.
- * Empty or 0 pack → piecesPerPack null (clear).
+ * Pack rupee overwrites designs that follow the pack rate.
+ * Apply to all overwrites every own member’s rate (even if it already had one).
+ * After stamp, orders use the design rate. Empty or 0 pack → piecesPerPack null.
  */
 export function packMemberProductPatch(opts: {
   parsed: PackMemberFields;
@@ -489,7 +494,7 @@ export function packMemberProductPatch(opts: {
   if (parsed.piecesPerPack !== undefined) {
     patch.piecesPerPack = parsed.piecesPerPack;
   }
-  if (packRate.trim() && followsPackRate) {
+  if (packRate.trim() && (followsPackRate || applyToAll)) {
     patch.rate = parsed.rate;
     patch.rateMax = parsed.rateMax;
   }

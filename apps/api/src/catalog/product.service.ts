@@ -168,16 +168,12 @@ export class ProductService {
     return this.serializer.toProductView(product);
   }
 
-  /** Restore an archived design to draft. */
-  async unarchive(companyId: string, userId: string, id: string): Promise<ProductView> {
-    const existing = await this.owned(companyId, id);
-    if (existing.status !== ProductStatus.Archived) {
-      throw new BadRequestException({
-        code: 'INVALID_STATUS',
-        message: 'Only archived designs can be restored.',
-      });
-    }
-    return this.setStatus(companyId, userId, id, ProductStatus.Draft);
+  /** Deleted designs cannot be restored. */
+  async unarchive(_companyId: string, _userId: string, _id: string): Promise<ProductView> {
+    throw new BadRequestException({
+      code: 'NOT_ALLOWED',
+      message: 'Deleted designs cannot be restored.',
+    });
   }
 
   /**
@@ -259,9 +255,7 @@ export class ProductService {
   }
 
   async remove(companyId: string, id: string): Promise<void> {
-    await this.owned(companyId, id);
-    await draftPacksLeftWithoutPublishedDesign(this.prisma, id);
-    await this.prisma.product.delete({ where: { id } });
+    await this.setStatus(companyId, '', id, ProductStatus.Archived);
   }
 
   /** Loads a product only if it belongs to the acting company, else 404. */

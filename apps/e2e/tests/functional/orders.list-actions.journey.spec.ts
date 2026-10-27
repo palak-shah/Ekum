@@ -58,7 +58,7 @@ test.describe('orders list actions @functional @orders', () => {
     await expect(page.getByTestId('trade-list-thumbs')).toHaveCount(0);
   });
 
-  test('Pending and Completed counts follow the tab; empty copy matches the tab', async ({
+  test('Pending and Completed chips follow the tab; empty copy matches the tab', async ({
     page,
   }) => {
     await loginAsMeena(page);

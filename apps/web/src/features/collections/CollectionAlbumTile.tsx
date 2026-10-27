@@ -37,6 +37,7 @@ export type CollectionAlbumTileProps = {
   onLongSelect?: () => void;
   /** Shelf: own shop → manage dock on open. */
   packManage?: boolean;
+  kind?: string;
   /** Library-only extras. */
   status?: string;
   productCount?: number;
@@ -71,6 +72,7 @@ export function CollectionAlbumTile({
   onToggle,
   onLongSelect,
   packManage = false,
+  kind,
   status,
   productCount,
   companyId,
@@ -103,6 +105,7 @@ export function CollectionAlbumTile({
     id,
     status,
     packManage,
+    kind,
   });
 
   const summary: CollectionSummaryInput & { productCount: number } = {

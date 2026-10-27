@@ -82,6 +82,12 @@ describe('collectionNameClash', () => {
         details: { collectionId: 'col-1', name: 'Wedding Edit' },
       }),
     ).toEqual({ collectionId: 'col-1', name: 'Wedding Edit' });
+    expect(
+      collectionNameClash({
+        code: 'COLLECTION_NAME_TAKEN',
+        details: { collectionId: 'cat-1', name: 'Season', kind: 'catalog' },
+      }),
+    ).toEqual({ collectionId: 'cat-1', name: 'Season', kind: 'catalog' });
   });
 
   it('ignores other errors', () => {

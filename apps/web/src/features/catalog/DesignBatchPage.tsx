@@ -57,7 +57,7 @@ import {
   resolvePhotoBatchTarget,
   type DraftOverrides,
 } from './designBatchHelpers';
-import { parseRateInput, rateFieldInputProps } from './rateInput';
+import { parseRateInput, designRateFieldInputProps } from './rateInput';
 
 /** One-line by default; grows while typing / when focused. */
 function ExpandableNotes({
@@ -680,7 +680,7 @@ export function DesignBatchPage() {
               name: identity.name,
               sku: identity.sku,
               rate: parsed.rate,
-              rateMax: parsed.rateMax,
+              rateMax: null,
               moq: e.moq.trim() ? Number(e.moq) : null,
               description: e.notes.trim() || undefined,
               unit: (e.unit || undefined) as CreateProductDto['unit'],
@@ -981,7 +981,7 @@ export function DesignBatchPage() {
                 <TextInput
                   value={sharedRate}
                   onChange={(e) => setSharedRate(e.target.value)}
-                  {...rateFieldInputProps}
+                  {...designRateFieldInputProps}
                 />
               </Field>
               <OrderDispatchAccordion
@@ -1221,7 +1221,7 @@ export function DesignBatchPage() {
                 <TextInput
                   value={sheetRate}
                   onChange={(e) => setSheetRate(e.target.value)}
-                  {...rateFieldInputProps}
+                  {...designRateFieldInputProps}
                 />
               </Field>
               <OrderDispatchAccordion

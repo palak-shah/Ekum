@@ -20,6 +20,7 @@ export function shopPublishedDesignWhere(
   ];
   const visiblePack: Prisma.CollectionWhereInput = {
     companyId: shopCompanyId,
+    kind: { not: 'general' },
     status: CollectionStatus.Published,
     AND: [
       ...(isOwner ? [] : liveWindowClauses(now)),

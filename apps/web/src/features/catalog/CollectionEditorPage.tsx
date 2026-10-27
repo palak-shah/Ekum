@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BroadcastListView,
@@ -15,6 +15,8 @@ import type {
   PublishCollectionDto,
 } from '@ekum/domain-types';
 import {
+  CatalogOrderMode,
+  CollectionKind,
   CollectionStatus,
   MEDIA_VARIANT,
   ProductStatus,
@@ -54,7 +56,13 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
+import {
+  CATALOG_EXCLUSIVE_NOTE,
+  CATALOG_EXCLUSIVE_NOTE_CLASS,
+  CATALOG_EXCLUSIVE_NOTE_TEXT_CLASS,
+} from '@/features/catalog/catalogExclusiveCopy';
 import { CollectionExpandableSection } from './CollectionExpandableSection';
+import { ScrollWhenOpened } from '@/ui/scrollWhenOpened';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { OwnerPackManageDock } from '@/features/collections/OwnerPackManageDock';
 import {
@@ -72,6 +80,44 @@ import {
   membershipWithNewFirst,
   ownedSelectedIds,
 } from '@/features/collections/ownerPackManage';
+import {
+  libraryDesignsEligibleForPack,
+  libraryPickerEmptyCopy,
+  libraryPickerHint,
+} from '@/features/catalog/libraryPickerSource';
+import {
+  isCatalogCollection,
+  isGeneralCollection,
+  youLibraryHrefAfterPackPublish,
+  deletedFromThisPackToast,
+  removeFromThisPackLabel,
+  removedFromPackToast,
+} from '@/features/catalog/youLibraryKind';
+import {
+  chooseWhoCanSeeThisPack,
+  couldNotLoadThisPack,
+  createKindFromFlag,
+  editPackTitle,
+  enterPackNameError,
+  missingPackError,
+  newPackTitle,
+  packNameLabel,
+  packNameTakenBody,
+  packNameTakenTitle,
+  pickWhoCanSeeThisPack,
+  publishPackSheetTitle,
+  publishThisPackConsent,
+  publishingThisPackExplore,
+  ratesOnRequestWhenForeign,
+  untitledPackFallback,
+} from '@/features/catalog/packKindCopy';
+import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
+import { invalidateAfterPackMembership } from '@/features/catalog/packMembershipInvalidate';
+import {
+  alsoDeleteDesignsDefault,
+  packDeleteCopy,
+  packDraftCopy,
+} from '@/features/catalog/ownerPackLifecycle';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import {
   COLLECTION_QUICK_PHOTO_CAP,
@@ -134,7 +180,6 @@ import {
   MegaphoneIcon,
   MoreHorizontalIcon,
   PaperPlaneIcon,
-  UnlockIcon,
 } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
@@ -216,6 +261,7 @@ function collectionEditorSnapshot(input: {
   catalogRateUnit: string;
   piecesPerPack: string;
   moq: string;
+  orderMode: string;
 }): string {
   return JSON.stringify(input);
 }
@@ -228,6 +274,7 @@ export function CollectionEditorPage() {
   const editing = !isCreate;
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const company = useMyCompany();
   const { showToast } = useToast();
@@ -247,6 +294,7 @@ export function CollectionEditorPage() {
   const [nameClash, setNameClash] = useState<{
     collectionId: string;
     name: string;
+    kind?: string;
     publish: boolean;
   } | null>(null);
   const [designSearch, setDesignSearch] = useState('');
@@ -308,6 +356,11 @@ export function CollectionEditorPage() {
     emptySameForAll(Unit.Set),
   );
   const [applyToAll, setApplyToAll] = useState(false);
+  const [orderMode, setOrderMode] = useState<string>(CatalogOrderMode.Whole);
+  const [packDeleteOpen, setPackDeleteOpen] = useState(false);
+  const [packDraftOpen, setPackDraftOpen] = useState(false);
+  const [alsoArchiveDesigns, setAlsoArchiveDesigns] = useState(false);
+  const [alsoDraftDesigns, setAlsoDraftDesigns] = useState(false);
   const applyToAllHydrated = useRef(false);
   const [rateFrom, setRateFrom] = useState('');
   const [rateTo, setRateTo] = useState('');
@@ -439,11 +492,17 @@ export function CollectionEditorPage() {
     (product) => product.status !== ProductStatus.Archived,
   );
   const libraryPickerMode = replaceDraft !== null ? 'replace' : 'add';
+  const isCatalog =
+    (isCreate && searchParams.get('kind') === 'catalog') ||
+    isCatalogCollection(existing.data?.kind);
+  const packKind = isCatalog ? 'catalog' : 'regular';
+  const copyKind = existing.data?.kind ?? createKindFromFlag(isCatalog);
   const pickerDesigns = libraryDesignsForPicker(
-    selectableDesigns,
+    libraryDesignsEligibleForPack(selectableDesigns, packKind),
     libraryExcludeIds,
     libraryPickerMode,
   );
+  const isGeneral = isGeneralCollection(existing.data?.kind);
   const designQuery = designSearch.trim().toLowerCase();
   const filteredDesigns = designQuery
     ? pickerDesigns.filter((p) => p.name.toLowerCase().includes(designQuery))
@@ -622,6 +681,12 @@ export function CollectionEditorPage() {
       setStartsAt(toDateInput(existing.data.startsAt));
       setEndsAt(toDateInput(existing.data.endsAt));
       setEvergreen(!existing.data.endsAt);
+      if (
+        existing.data.orderMode === CatalogOrderMode.Pick ||
+        existing.data.orderMode === CatalogOrderMode.Whole
+      ) {
+        setOrderMode(existing.data.orderMode);
+      }
       savedSnapshotRef.current = collectionEditorSnapshot({
         name: existing.data.name,
         description: existing.data.description ?? '',
@@ -636,6 +701,7 @@ export function CollectionEditorPage() {
         catalogRateUnit: sellAs.catalogRateUnit,
         piecesPerPack: sellAs.piecesPerPack,
         moq: first?.moq != null ? String(first.moq) : '',
+        orderMode: existing.data.orderMode ?? CatalogOrderMode.Whole,
       });
     }
   }, [existing.data]);
@@ -682,7 +748,7 @@ export function CollectionEditorPage() {
       allowForward: usual.allowForward,
       allowDownload: usual.allowDownload,
       policyHint: hasForeignMembers
-        ? 'Rates stay on request when this collection includes others’ designs.'
+        ? ratesOnRequestWhenForeign(copyKind)
         : null,
     }));
   }, [publishOpen, settings.data, existing.data?.status, hasForeignMembers]);
@@ -748,13 +814,9 @@ export function CollectionEditorPage() {
     navigate(back.pathname, { replace: true, state: back.state });
   };
 
-  const invalidate = (collectionId?: string) => {
-    void queryClient.invalidateQueries({ queryKey: ['collection', collectionId ?? id] });
-    void queryClient.invalidateQueries({ queryKey: ['collection-preview'] });
-    void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
-    void queryClient.invalidateQueries({ queryKey: ['my-products'] });
+  const invalidate = (_collectionId?: string) => {
+    invalidateAfterPackMembership(queryClient);
     void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
-    void queryClient.invalidateQueries({ queryKey: ['explore'] });
   };
 
   const persistDesigns = async (
@@ -762,25 +824,32 @@ export function CollectionEditorPage() {
     collectionId = id,
     opts?: { skipInvalidate?: boolean },
   ) => {
+    if (isGeneral) return true;
     if (!collectionId) return false;
     setSavingDesigns(true);
     try {
       await api.put(`/collections/${collectionId}/products`, { productIds });
-      const byId = new Map<string, ProductView>();
-      for (const product of selectableDesigns) byId.set(product.id, product);
-      for (const product of existing.data?.products ?? []) byId.set(product.id, product);
-      for (const product of selectedProducts) byId.set(product.id, product);
-      const listed = productIds
-        .map((productId) => byId.get(productId))
-        .filter((product): product is ProductView => Boolean(product));
-      for (const row of packTagPatchesForOwnDesigns(
-        listed,
-        form.categories,
-        company.data?.id,
-      )) {
-        await api.patch(`/products/${row.id}`, { categories: row.categories });
+      try {
+        const byId = new Map<string, ProductView>();
+        for (const product of selectableDesigns) byId.set(product.id, product);
+        for (const product of existing.data?.products ?? []) byId.set(product.id, product);
+        for (const product of selectedProducts) byId.set(product.id, product);
+        const listed = productIds
+          .map((productId) => byId.get(productId))
+          .filter((product): product is ProductView => Boolean(product));
+        for (const row of packTagPatchesForOwnDesigns(
+          listed,
+          form.categories,
+          company.data?.id,
+        )) {
+          await api.patch(`/products/${row.id}`, { categories: row.categories });
+        }
+      } finally {
+        if (!opts?.skipInvalidate) {
+          await invalidateAfterPackMembership(queryClient);
+          void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
+        }
       }
-      if (!opts?.skipInvalidate) invalidate(collectionId);
       return true;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not update designs.';
@@ -817,6 +886,12 @@ export function CollectionEditorPage() {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
       }
+      if (isGeneral) {
+        await api.patch<CollectionDetailView>(`/collections/${id}`, {
+          name: form.name.trim(),
+        });
+        return { unpublishedOwn: 0, designsFailed: false as const };
+      }
       const packRate = combineRateInput(rateFrom, rateTo).trim();
       const packParsed = parseRateInput(packRate);
       const packSharedForDto = packStampShared(sameForAll, packRate);
@@ -843,6 +918,7 @@ export function CollectionEditorPage() {
         dispatchUnit: sellAs.dispatchUnit ?? null,
         catalogRateUnit: sellAs.catalogRateUnit ?? null,
         piecesPerPack: sellAs.piecesPerPack ?? null,
+        ...(isCatalog ? { orderMode: orderMode as 'whole' | 'pick' } : {}),
       };
       await api.patch<CollectionDetailView>(`/collections/${id}`, dto);
       const ownerCompanyId = existing.data?.companyId ?? company.data?.id;
@@ -904,6 +980,7 @@ export function CollectionEditorPage() {
         catalogRateUnit: sameForAll.catalogRateUnit,
         piecesPerPack: sameForAll.piecesPerPack,
         moq: sameForAll.moq,
+        orderMode,
       });
       invalidate();
       showToast(unpublishedOwn > 0 ? 'Published' : 'Updated');
@@ -917,7 +994,7 @@ export function CollectionEditorPage() {
 
   const publish = useMutation({
     mutationFn: () => {
-      if (!id) throw new Error('Missing collection');
+      if (!id) throw new Error(missingPackError(copyKind));
       const dto: PublishCollectionDto = {
         audience: publishAudience.audience as PublishCollectionDto['audience'],
         rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
@@ -945,7 +1022,7 @@ export function CollectionEditorPage() {
           !publishAudience.allowForward ? 'Buyers can’t forward this.' : 'Published',
         );
         if (afterDest === 'collections') {
-          navigate('/catalog?tab=collections', {
+          navigate(youLibraryHrefAfterPackPublish(isCatalog ? 'catalog' : 'regular'), {
             replace: true,
             state: { collectionFilter: 'published', productFilter: 'published' },
           });
@@ -980,17 +1057,21 @@ export function CollectionEditorPage() {
   });
 
   const lifecycle = useMutation({
-    mutationFn: (action: 'unpublish' | 'archive' | 'unarchive') =>
-      api.post(`/collections/${id}/${action}`, {}),
-    onSuccess: (_data, action) => {
+    mutationFn: (input: {
+      action: 'unpublish' | 'archive';
+      alsoArchiveDesigns?: boolean;
+      alsoDraftDesigns?: boolean;
+    }) =>
+      api.post(`/collections/${id}/${input.action}`, {
+        alsoArchiveDesigns: input.alsoArchiveDesigns,
+        alsoDraftDesigns: input.alsoDraftDesigns,
+      }),
+    onSuccess: (_data, input) => {
       setMoreOpen(false);
+      setPackDeleteOpen(false);
+      setPackDraftOpen(false);
       invalidate();
-      const messages: Record<string, string> = {
-        archive: 'Archived',
-        unarchive: 'Restored to draft',
-        unpublish: 'Hidden',
-      };
-      showToast(messages[action] ?? 'Updated');
+      showToast(input.action === 'archive' ? 'Deleted' : 'Draft');
       closePublishSheet();
     },
     onError: (err) => {
@@ -1391,7 +1472,7 @@ export function CollectionEditorPage() {
         return;
       }
       if (!form.name.trim()) {
-        setError('Enter a collection name.');
+        setError(enterPackNameError(copyKind));
         return;
       }
       if (!form.masterCategoryId && catalogMasterOptions.length > 0) {
@@ -1401,7 +1482,7 @@ export function CollectionEditorPage() {
       const canPublishCreate =
         (canPublishAlready || consent) && publishAudienceCanSubmit(publishAudience);
       if (!canPublishCreate) {
-        setSheetError('Choose who can see this collection.');
+        setSheetError(chooseWhoCanSeeThisPack(copyKind));
         setCreating(false);
         return;
       }
@@ -1479,6 +1560,9 @@ export function CollectionEditorPage() {
             categories: [],
           }).piecesPerPack,
           ...(cover ? { coverImage: cover } : {}),
+          ...(isCatalog
+            ? { kind: CollectionKind.Catalog, orderMode: orderMode as 'whole' | 'pick' }
+            : {}),
         } satisfies CreateCollectionDto);
         collectionId = created.id;
       }
@@ -1596,7 +1680,9 @@ export function CollectionEditorPage() {
       );
       const stayOnEditor = appended || !opts.publish;
       navigate(
-        stayOnEditor ? `/catalog/collections/${collectionId}` : '/catalog?tab=collections',
+        stayOnEditor
+          ? `/catalog/collections/${collectionId}`
+          : youLibraryHrefAfterPackPublish(isCatalog ? 'catalog' : 'regular'),
         stayOnEditor
           ? { replace: true }
           : {
@@ -1682,7 +1768,7 @@ export function CollectionEditorPage() {
       setSelected(new Set(next));
       await persistDesigns(next);
       clearManageSelect();
-      showToast('Removed from collection');
+      showToast(removedFromPackToast(existing.data?.kind));
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not remove.', 'danger');
     } finally {
@@ -1709,8 +1795,8 @@ export function CollectionEditorPage() {
         mode === 'everywhere' && owned.length > 0
           ? 'Deleted'
           : mode === 'everywhere'
-            ? 'Deleted from this collection'
-            : 'Removed from collection',
+            ? deletedFromThisPackToast(existing.data?.kind)
+            : removedFromPackToast(existing.data?.kind),
       );
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not delete.', 'danger');
@@ -1792,8 +1878,9 @@ export function CollectionEditorPage() {
         catalogRateUnit: sameForAll.catalogRateUnit,
         piecesPerPack: sameForAll.piecesPerPack,
         moq: sameForAll.moq,
+        orderMode,
       }),
-    [form, selected, rateFrom, rateTo, sameForAll],
+    [form, selected, rateFrom, rateTo, sameForAll, orderMode],
   );
   const collectionDirty = useMemo(() => {
     if (quickUploading || savingDesigns || creating) return true;
@@ -2101,13 +2188,43 @@ export function CollectionEditorPage() {
 
   const identityFields = (
     <div className="flex flex-col gap-3">
+      {isCatalog ? (
+        <>
+          <div data-testid="catalog-exclusive-note" className={CATALOG_EXCLUSIVE_NOTE_CLASS}>
+            <p className={CATALOG_EXCLUSIVE_NOTE_TEXT_CLASS}>{CATALOG_EXCLUSIVE_NOTE}</p>
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Catalog order"
+            data-testid="collection-order-mode"
+            className="grid grid-cols-2 rounded-full bg-foam p-0.5"
+          >
+            {([CatalogOrderMode.Whole, CatalogOrderMode.Pick] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={orderMode === mode}
+                data-testid={`collection-order-mode-${mode}`}
+                className={cx(
+                  'min-h-8 rounded-full px-3 text-sm font-emphasis tracking-tight',
+                  orderMode === mode ? 'bg-accent text-white' : 'bg-transparent text-muted',
+                )}
+                onClick={() => setOrderMode(mode)}
+              >
+                {mode === CatalogOrderMode.Whole ? 'Order as whole' : 'Pick and choose'}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
       <Field
-        label="Collection name"
+        label={packNameLabel(copyKind)}
         required
         error={isCollectionCategoryError(error) ? null : error}
       >
         <TextInput
-          aria-label="Collection name"
+          aria-label={packNameLabel(copyKind)}
           value={form.name}
           onChange={(e) => {
             setError(null);
@@ -2122,6 +2239,7 @@ export function CollectionEditorPage() {
           onChange={(description) => setForm({ ...form, description })}
         />
       </Field>
+      {!isGeneral ? (
       <div className="flex flex-col gap-2" data-testid="collection-product-details">
         <p className="text-xs font-body uppercase tracking-wide text-muted">Product details</p>
         <MasterCategoryField
@@ -2164,7 +2282,10 @@ export function CollectionEditorPage() {
           }}
         />
       </div>
-      {isCreate ? whoExpandable : null}
+      ) : null}
+      {isCreate && !isGeneral ? whoExpandable : null}
+      {!isGeneral ? (
+      <>
       <div className="flex flex-col gap-1">
         <div
           className={cx(
@@ -2198,9 +2319,8 @@ export function CollectionEditorPage() {
             label="About applying to all designs"
             testId="collection-apply-all-info"
           >
-            Fills empty rates. Won’t replace a design that already has a rate.
-            Tags add on. Rate per and 1 set contains save with Update.
-            MOQ stamps when this is on.
+            Overwrites member rates. Tags add on. Rate per and 1 set contains
+            save with Update. MOQ stamps when this is on.
           </InfoHint>
         </div>
       </div>
@@ -2224,6 +2344,8 @@ export function CollectionEditorPage() {
         open={orderDispatchExpanded}
         onToggle={() => setOrderDispatchExpanded((v) => !v)}
       />
+      </>
+      ) : null}
     </div>
   );
 
@@ -2245,16 +2367,16 @@ export function CollectionEditorPage() {
 
   // No early returns above — loading/error are branches so hook order never changes.
   if (editing && existing.isLoading) {
-    return <LoadingBlock label="Loading collection…" />;
+    return <LoadingBlock label="Loading…" />;
   }
   if (editing && (existing.isError || !existing.data)) {
     return (
       <>
-        <PageHeader title="Edit collection" />
+        <PageHeader title={editPackTitle(copyKind)} />
         <p className="text-center text-sm text-danger">
           {existing.error instanceof ApiError
             ? existing.error.message
-            : 'Could not load this collection.'}
+            : couldNotLoadThisPack(copyKind)}
         </p>
       </>
     );
@@ -2273,18 +2395,7 @@ export function CollectionEditorPage() {
       },
     });
   }
-  if (isArchived) {
-    lifecycleMoreItems.push({
-      id: 'restore',
-      label: 'Restore to draft',
-      icon: <UnlockIcon width={20} height={20} />,
-      disabled: lifecycle.isPending,
-      onClick: () => {
-        setMoreOpen(false);
-        lifecycle.mutate('unarchive');
-      },
-    });
-  } else if (isPublished) {
+  if (!isGeneral && isPublished) {
     lifecycleMoreItems.push(
       {
         id: 'visibility',
@@ -2306,27 +2417,29 @@ export function CollectionEditorPage() {
       },
       {
         id: 'hide',
-        label: 'Hide from Explore',
+        label: 'Draft',
         icon: <LockIcon width={20} height={20} />,
         disabled: lifecycle.isPending,
         onClick: () => {
           setMoreOpen(false);
-          lifecycle.mutate('unpublish');
+          setAlsoDraftDesigns(false);
+          setPackDraftOpen(true);
         },
       },
       {
         id: 'archive',
-        label: 'Archive',
+        label: 'Delete',
         icon: <CollectionIcon width={20} height={20} />,
         disabled: lifecycle.isPending,
         danger: true,
         onClick: () => {
           setMoreOpen(false);
-          lifecycle.mutate('archive');
+          setAlsoArchiveDesigns(alsoDeleteDesignsDefault(existing.data?.kind));
+          setPackDeleteOpen(true);
         },
       },
     );
-  } else {
+  } else if (!isGeneral && !isArchived) {
     lifecycleMoreItems.push(
       {
         id: 'publish',
@@ -2340,13 +2453,14 @@ export function CollectionEditorPage() {
       },
       {
         id: 'archive',
-        label: 'Archive',
+        label: 'Delete',
         icon: <CollectionIcon width={20} height={20} />,
         disabled: lifecycle.isPending,
         danger: true,
         onClick: () => {
           setMoreOpen(false);
-          lifecycle.mutate('archive');
+          setAlsoArchiveDesigns(alsoDeleteDesignsDefault(existing.data?.kind));
+          setPackDeleteOpen(true);
         },
       },
     );
@@ -2359,8 +2473,36 @@ export function CollectionEditorPage() {
         onCancel={discard.cancelLeave}
         onLeave={discard.confirmLeave}
       />
+      <OwnerPackLifecycleSheet
+        open={packDeleteOpen}
+        onClose={() => setPackDeleteOpen(false)}
+        busy={lifecycle.isPending}
+        title={packDeleteCopy(existing.data?.kind).title}
+        body={packDeleteCopy(existing.data?.kind).body}
+        alsoLabel={packDeleteCopy(existing.data?.kind).alsoDeleteLabel}
+        alsoOn={alsoArchiveDesigns}
+        onAlso={setAlsoArchiveDesigns}
+        confirmLabel={packDeleteCopy(existing.data?.kind).confirmLabel}
+        onConfirm={() =>
+          lifecycle.mutate({ action: 'archive', alsoArchiveDesigns })
+        }
+      />
+      <OwnerPackLifecycleSheet
+        open={packDraftOpen}
+        onClose={() => setPackDraftOpen(false)}
+        busy={lifecycle.isPending}
+        title={packDraftCopy(existing.data?.kind).title}
+        body={packDraftCopy(existing.data?.kind).body}
+        alsoLabel={packDraftCopy(existing.data?.kind).alsoDraftLabel}
+        alsoOn={alsoDraftDesigns}
+        onAlso={setAlsoDraftDesigns}
+        confirmLabel={packDraftCopy(existing.data?.kind).confirmLabel}
+        onConfirm={() =>
+          lifecycle.mutate({ action: 'unpublish', alsoDraftDesigns })
+        }
+      />
       <PageHeader
-        title={editing ? 'Edit collection' : 'New collection'}
+        title={editing ? editPackTitle(copyKind) : newPackTitle(copyKind)}
         onBack={() => discard.tryLeave(() => navigate(-1))}
         action={
           editing && existing.data && showLifecycleMenu ? (
@@ -2381,14 +2523,17 @@ export function CollectionEditorPage() {
         }
       />
 
-      {editing && existing.data && (ownerSourceLine || (isPublished && existing.data.rateVisibility === RateVisibility.OnRequest)) ? (
+      {editing &&
+      existing.data &&
+      (ownerSourceLine ||
+        (!isGeneral && isPublished && existing.data.rateVisibility === RateVisibility.OnRequest)) ? (
         <div className="-mt-2 flex flex-col gap-1">
           {ownerSourceLine ? (
             <p className="text-sm font-emphasis tracking-tight text-ink" data-testid="collection-editor-source">
               {ownerSourceLine}
             </p>
           ) : null}
-          {isPublished && existing.data.rateVisibility === RateVisibility.OnRequest ? (
+          {!isGeneral && isPublished && existing.data.rateVisibility === RateVisibility.OnRequest ? (
             <p className="text-xs text-muted">Buyers may need to ask for rates</p>
           ) : null}
         </div>
@@ -2424,7 +2569,7 @@ export function CollectionEditorPage() {
                   })}
                 />
                 {createMembersExpanded ? (
-                  <>
+                  <ScrollWhenOpened open={createMembersExpanded} className="flex flex-col gap-3">
                     <CappedMediaGrid
                       items={createAlbumTiles}
                       getKey={(tile) => tile.id}
@@ -2547,7 +2692,7 @@ export function CollectionEditorPage() {
                     <p className="text-xs text-muted" data-testid="collection-create-design-tip">
                       {albumTip}
                     </p>
-                  </>
+                  </ScrollWhenOpened>
                 ) : null}
               </>
             )}
@@ -2570,7 +2715,7 @@ export function CollectionEditorPage() {
       <MoreActionsSheet
         open={moreOpen && showLifecycleMenu}
         onClose={() => setMoreOpen(false)}
-        title={form.name.trim() || 'Collection'}
+        title={form.name.trim() || untitledPackFallback(copyKind)}
         testId="collection-editor-more-sheet"
         items={lifecycleMoreItems}
       />
@@ -2582,6 +2727,8 @@ export function CollectionEditorPage() {
             busy={manageBusy || savingDesigns || quickUploading}
             canDelete={ownerCanDelete}
             canRemove={ownerCanRemove}
+            removeLabel={removeFromThisPackLabel(existing.data?.kind)}
+            kind={existing.data?.kind}
             onDelete={() => void onEditorDelete()}
             onRemove={() => void onEditorRemove()}
             onUpdate={() => save.mutate()}
@@ -2600,6 +2747,7 @@ export function CollectionEditorPage() {
             open={deleteSheetOpen}
             onClose={() => setDeleteSheetOpen(false)}
             busy={manageBusy}
+            kind={existing.data?.kind}
             onDeleteEverywhere={() => void finishEditorDelete('everywhere')}
             onOnlyThisCollection={() => void finishEditorDelete('only-here')}
           />
@@ -2618,12 +2766,12 @@ export function CollectionEditorPage() {
                       setError(
                         !canPublishAlready && !consent
                           ? 'Confirm you can sell on Ekum under Who can see this.'
-                          : 'Pick who can see this collection.',
+                          : pickWhoCanSeeThisPack(copyKind),
                       );
                       showToast(
                         !canPublishAlready && !consent
                           ? 'Confirm you can sell on Ekum'
-                          : 'Pick who can see this collection',
+                          : pickWhoCanSeeThisPack(copyKind, false),
                         'danger',
                       );
                       return;
@@ -2741,11 +2889,6 @@ export function CollectionEditorPage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted">
-            {replaceDraft !== null
-              ? 'Tap to pick the new set. Done with nothing selected keeps the collection as it is.'
-              : 'Tap to add. Added designs show in your album — Done when finished.'}
-          </p>
           {myProducts.isLoading ? (
             <LoadingBlock label="Loading designs…" />
           ) : selectableDesigns.length === 0 ? (
@@ -2765,10 +2908,13 @@ export function CollectionEditorPage() {
             </div>
           ) : pickerDesigns.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted">
-              All your designs are already in this collection.
+              {libraryPickerEmptyCopy(packKind)}
             </p>
           ) : (
             <>
+              <p className="text-sm text-muted">
+                {libraryPickerHint(packKind, replaceDraft !== null)}
+              </p>
               <TextInput
                 value={designSearch}
                 onChange={(e) => setDesignSearch(e.target.value)}
@@ -2810,7 +2956,7 @@ export function CollectionEditorPage() {
             ? 'Create & Publish'
             : isPublished
               ? 'Visibility & rates'
-              : 'Publish collection'
+              : publishPackSheetTitle(copyKind)
         }
         footer={
           <Button
@@ -2842,7 +2988,7 @@ export function CollectionEditorPage() {
             <p className="text-sm text-muted">
               {hasForeignMembers
                 ? 'You’re sharing others’ designs under their rules.'
-                : 'Publishing this collection puts it on Explore — not each design separately. Buyers can still order or share designs from inside the collection.'}
+                : publishingThisPackExplore(copyKind)}
             </p>
           ) : null}
 
@@ -2862,11 +3008,7 @@ export function CollectionEditorPage() {
             showConsent={!canPublishAlready}
             consent={consent}
             onConsent={setConsent}
-            consentLabel={
-              hasForeignMembers
-                ? "You're sharing others' designs under their rules — publish this collection?"
-                : 'Start selling — publish this collection?'
-            }
+            consentLabel={publishThisPackConsent(copyKind, hasForeignMembers)}
             onCreateGroup={() => setCreateGroupOpen(true)}
           />
 
@@ -2958,7 +3100,7 @@ export function CollectionEditorPage() {
               }
             />
           </Field>
-          {memberSheet?.kind === 'product'
+          {!isCatalog && memberSheet?.kind === 'product'
             ? (() => {
                 const product =
                   selectedProducts.find((p) => p.id === memberSheet.productId) ??
@@ -2974,6 +3116,8 @@ export function CollectionEditorPage() {
                 ) : null;
               })()
             : null}
+          {!isCatalog ? (
+            <>
           <MasterCategoryField
             locked={Boolean(form.masterCategoryId)}
             value={form.masterCategoryId}
@@ -3077,6 +3221,8 @@ export function CollectionEditorPage() {
             open={memberOrderDispatchOpen}
             onToggle={() => setMemberOrderDispatchOpen((open) => !open)}
           />
+            </>
+          ) : null}
           <Field label="Notes">
             <TextArea
               value={memberForm.notes}
@@ -3090,7 +3236,7 @@ export function CollectionEditorPage() {
       <Sheet
         open={Boolean(nameClash)}
         onClose={() => setNameClash(null)}
-        title="This collection already exists"
+        title={packNameTakenTitle(copyKind)}
         footer={
           nameClash ? (
             <div className="flex flex-col gap-2" data-testid="collection-name-clash">
@@ -3138,8 +3284,7 @@ export function CollectionEditorPage() {
         }
       >
         <p className="text-sm text-muted">
-          You already have “{nameClash?.name || form.name.trim()}”. Add these designs to that collection,
-          or type a new name.
+          {packNameTakenBody(nameClash?.name || form.name.trim(), nameClash?.kind ?? copyKind)}
         </p>
       </Sheet>
 

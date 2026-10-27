@@ -15,6 +15,8 @@ Indirectly every user who attaches an image. There is no standalone “Media” 
 3. Feature stores the resulting **original** URL on the product, message, cover, etc.
 4. Background job `media.thumbnail` writes `{companyId}/thumbnail1/{stem}.webp` and `{companyId}/thumbnail2/{stem}.webp`. Lists and feed request the matching variant; **PhotoViewer** (pinch / zoom) always loads the stored original.
 
+**Duplicate detection (hook only, not built):** after `MediaService.complete` enqueues `media.thumbnail`, a later `JobType.MediaDedupe` can take the same `mediaId`. Compare within `companyId` only. High-confidence matches should **prompt** “This looks like {name} — use existing?” — never auto-merge. Uncertain stays two commercial identities. No hash/palette columns or matcher in this slice.
+
 ## Storage layout
 
 ```text

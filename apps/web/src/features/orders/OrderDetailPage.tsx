@@ -14,7 +14,6 @@ import {
   type CursorPage,
   type OrderItemView,
   type OrderView,
-  type QuoteOrderDto,
   type SendUpOrderDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
@@ -63,11 +62,7 @@ import {
   settlePayloadLines,
   settleSheetItems,
 } from '@/features/orders/settleSheet';
-import {
-  latestShipmentForLine,
-  lineShippedOnShipment,
-  sellerCanFulfillEdit,
-} from '@/features/orders/lineFulfillCard';
+import { sellerCanFulfillEdit } from '@/features/orders/lineFulfillCard';
 import { OrderLineFulfillExpand } from '@/features/orders/OrderLineFulfillExpand';
 import {
   newestFirstTrail,
@@ -88,6 +83,10 @@ import {
   shareOrDownloadPdf,
   type PackingSlipOptions,
 } from '@/features/orders/packingSlip';
+import {
+  orderFormFileName,
+  orderFormPdfBytes,
+} from '@/features/orders/orderForm';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { tradeListStatusLabel } from '@/features/orders/tradeListProtocol';
 import {
@@ -157,11 +156,10 @@ import {
   orderActionDock,
   orderTicketMillLabel,
   orderTicketMillNames,
-  quotePrefillFromMills,
   requestedDockPrimary,
   showMillSendAll,
   showOrderParentItemsList,
-  showSendQuoteOnDeskFace,
+  showSellerConfirmOnDesk,
 } from '@/features/orders/iHandleDesk';
 import { TicketPathPick } from '@/features/orders/ticketPathPick';
 import {
@@ -176,11 +174,8 @@ import {
 import {
   orderLineCantSupplyCue,
   orderLineLeftoverCue,
-  quoteCantSupplyMutedClass,
   quoteCantSupplyRowClass,
   quoteSheetItems,
-  quoteSheetReferenceCue,
-  quoteUnavailableOnOpen,
 } from '@/features/orders/quoteSheetItems';
 import {
   Button,
@@ -212,7 +207,7 @@ import {
 } from '@/features/browse/BottomTradeDock';
 import { ORDER_QTY_SCOPE_ATTR, orderQtyInputProps } from '@/features/orders/orderQtyFocus';
 
-/** Page Send quote — shorter than the sheet footer, still full width. */
+/** Compact full-width dock / mill send. */
 const COMPACT_SEND_CLASS = 'min-h-10 w-full px-3 text-sm';
 /** Mill card Send / Decline — chip-sized, not a full-bleed bar. */
 const MILL_CARD_ACTION_CLASS = '!min-h-8 h-8 w-auto px-3 text-[13px]';
@@ -613,7 +608,6 @@ export function OrderDetailPage() {
   const { showToast } = useToast();
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
-  const [quoteOpen, setQuoteOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
   const [amendOpen, setAmendOpen] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
@@ -647,6 +641,9 @@ export function OrderDetailPage() {
     showPhotos: true,
   });
   const [packingSlipBusy, setPackingSlipBusy] = useState(false);
+  const [orderFormOpen, setOrderFormOpen] = useState(false);
+  const [orderFormShowPhotos, setOrderFormShowPhotos] = useState(true);
+  const [orderFormBusy, setOrderFormBusy] = useState(false);
   const [dispatchNote, setDispatchNote] = useState('');
   const [dispatchNoteVoice, setDispatchNoteVoice] = useState<NoteVoiceValue>(null);
   const [dispatchNoteImages, setDispatchNoteImages] = useState<string[]>([]);
@@ -664,10 +661,6 @@ export function OrderDetailPage() {
   const [actionNote, setActionNote] = useState('');
   const [actionNoteVoice, setActionNoteVoice] = useState<NoteVoiceValue>(null);
   const [actionNoteImages, setActionNoteImages] = useState<string[]>([]);
-  const [quoteNote, setQuoteNote] = useState('');
-  const [quoteNoteVoice, setQuoteNoteVoice] = useState<NoteVoiceValue>(null);
-  const [quoteNoteImages, setQuoteNoteImages] = useState<string[]>([]);
-  const [quoteVoiceBusy, setQuoteVoiceBusy] = useState(false);
   const [settleNote, setSettleNote] = useState('');
   const [settleNoteVoice, setSettleNoteVoice] = useState<NoteVoiceValue>(null);
   const [settleNoteImages, setSettleNoteImages] = useState<string[]>([]);
@@ -680,19 +673,9 @@ export function OrderDetailPage() {
   const [personalNote, setPersonalNote] = useState('');
   const [personalNoteVoice, setPersonalNoteVoice] = useState<NoteVoiceValue>(null);
   const [personalNoteImages, setPersonalNoteImages] = useState<string[]>([]);
-  const [rates, setRates] = useState<Record<string, string>>({});
-  const [offerQty, setOfferQty] = useState<Record<string, string>>({});
-  const [unavailable, setUnavailable] = useState<Record<string, boolean>>({});
-  const [sharedQuoteQty, setSharedQuoteQty] = useState<number | null>(null);
-  const [sharedQuoteRate, setSharedQuoteRate] = useState('');
-  const [quoteSameOpen, setQuoteSameOpen] = useState(false);
-  const [quoteSameQtyDraft, setQuoteSameQtyDraft] = useState('');
-  const [quoteSameDraft, setQuoteSameDraft] = useState('');
   const [sharedMillRate, setSharedMillRate] = useState('');
   const [millSameOpen, setMillSameOpen] = useState(false);
   const [millSameDraft, setMillSameDraft] = useState('');
-  const [quoteRateDefaults, setQuoteRateDefaults] = useState<Record<string, string>>({});
-  const [quoteQtyDefaults, setQuoteQtyDefaults] = useState<Record<string, string>>({});
   const [millRateDefaults, setMillRateDefaults] = useState<Record<string, string>>({});
   const [lineActions, setLineActions] = useState<Record<string, 'confirm' | 'decline'>>({});
   const [lineConfirmQty, setLineConfirmQty] = useState<Record<string, string>>({});
@@ -1078,45 +1061,18 @@ export function OrderDetailPage() {
       setLineFulfillError(actionErrorMessage(err, 'Could not update Can’t supply.')),
   });
 
-  const saveLastLrQty = useMutation({
-    mutationFn: async (payload: { orderItemId: string; quantity: number }) => {
-      if (!order.data) {
-        throw new ApiError({
-          statusCode: 400,
-          code: 'INVALID',
-          message: 'Order missing.',
-        });
-      }
-      const shipment = latestShipmentForLine(order.data.shipments, payload.orderItemId);
-      if (!shipment) {
-        throw new ApiError({
-          statusCode: 400,
-          code: 'NO_SHIPMENT',
-          message: 'No earlier dispatch to edit for this design.',
-        });
-      }
-      const items = shipment.items.map((row) => ({
-        orderItemId: row.orderItemId,
-        quantity: row.orderItemId === payload.orderItemId ? payload.quantity : row.quantity,
-      }));
-      return api.patch<OrderView>(`/orders/${id}/shipments/${shipment.id}`, {
-        items,
-        lrNumber: shipment.lrNumber,
-        transporter: shipment.transporter,
-        parcelCount: shipment.parcelCount,
-        legs: (shipment.legs ?? []).map((leg) => ({
-          lrNumber: leg.lrNumber,
-          billNumber: leg.billNumber,
-        })),
-      });
-    },
+  const saveLineQty = useMutation({
+    mutationFn: (payload: { orderItemId: string; quantity: number }) =>
+      api.post<OrderView>(`/orders/${id}/lines/quantity`, {
+        items: [payload],
+      }),
     onSuccess: () => {
       setLineFulfillError(null);
       refresh();
-      showToast('Dispatch updated.');
+      showToast('Updated.');
     },
     onError: (err) =>
-      setLineFulfillError(actionErrorMessage(err, 'Could not update last LR.')),
+      setLineFulfillError(actionErrorMessage(err, 'Could not update quantity.')),
   });
 
   const submitDispatch = () => {
@@ -1210,6 +1166,46 @@ export function OrderDetailPage() {
     }
   };
 
+  const openOrderFormSheet = () => {
+    setOrderMenuOpen(false);
+    setOrderFormShowPhotos(true);
+    setOrderFormOpen(true);
+  };
+
+  const buildOrderFormFile = async () => {
+    if (!order.data) return null;
+    const input = {
+      orderId: order.data.id,
+      intent: order.data.intent,
+      createdAt: order.data.createdAt,
+      sellerName: order.data.sellerName,
+      buyerName: order.data.buyerName,
+      manualOrderNo: order.data.manualRef?.manualOrderNo ?? null,
+      note: order.data.note,
+      items: order.data.items,
+      options: { showPhotos: orderFormShowPhotos },
+    };
+    const bytes = await orderFormPdfBytes(input);
+    return new File([Uint8Array.from(bytes)], orderFormFileName(input), {
+      type: 'application/pdf',
+    });
+  };
+
+  const runOrderForm = async (mode: 'open' | 'share') => {
+    setOrderFormBusy(true);
+    try {
+      const file = await buildOrderFormFile();
+      if (!file) return;
+      if (mode === 'open') openPackingSlipPdf(file);
+      else await shareOrDownloadPdf(file);
+      setOrderFormOpen(false);
+    } catch {
+      showToast(mode === 'open' ? 'Could not open PDF.' : 'Could not share PDF.', 'danger');
+    } finally {
+      setOrderFormBusy(false);
+    }
+  };
+
   const settleOrder = useMutation({
     mutationFn: () => {
       const lines = settleSheetItems(order.data?.items ?? []);
@@ -1294,40 +1290,6 @@ export function OrderDetailPage() {
     setPersonalNoteOpen(true);
   };
 
-  const sendQuote = useMutation({
-    mutationFn: () => {
-      const dto: QuoteOrderDto = {
-        ...noteAttachPayload(quoteNote, quoteNoteVoice, quoteNoteImages),
-        items: quoteSheetItems(order.data?.items ?? [])
-          .filter((item) => item.lineStatus === 'open' || !unavailable[item.id])
-          .map((item) =>
-            unavailable[item.id]
-              ? { orderItemId: item.id, unavailable: true as const }
-              : {
-                  orderItemId: item.id,
-                  rate: quoteRateNumber(rates[item.id]) ?? Number(item.rate || 0),
-                  quantity: Number(offerQty[item.id] || item.quantity),
-                },
-          ),
-      };
-      return api.post<OrderView>(`/orders/${id}/quote`, dto);
-    },
-    onSuccess: (updated) => {
-      setQuoteOpen(false);
-      setQuoteNote('');
-      setQuoteNoteVoice(null);
-      setQuoteNoteImages([]);
-      setQuoteVoiceBusy(false);
-      setSheetError(null);
-      refresh();
-      if (updated.threadId) {
-        void queryClient.invalidateQueries({ queryKey: ['thread', updated.threadId, 'messages'] });
-        navigate(`/chats/${updated.threadId}`);
-      }
-    },
-    onError: (err) => setSheetError(actionErrorMessage(err, 'Could not send quote.')),
-  });
-
   const decideLines = useMutation({
     mutationFn: (verb: 'confirm' | 'decline') => {
       const open = (order.data?.items ?? []).filter((item) => item.lineStatus === 'open');
@@ -1363,32 +1325,6 @@ export function OrderDetailPage() {
     onError: (err) => setSheetError(actionErrorMessage(err, 'Could not update lines.')),
   });
 
-  const openQuoteSheet = () => {
-    const data = order.data;
-    if (!data) return;
-    const prefill = quotePrefillFromMills(data.items, data.millDesks);
-    const quoteable = quoteSheetItems(data.items);
-    const openIds = quoteable.filter((item) => item.lineStatus === 'open').map((item) => item.id);
-    const prefills = openIds.map((id) => prefill.rates[id] ?? '').filter((v) => v !== '');
-    const allSame =
-      prefills.length > 0 && prefills.length === openIds.length && prefills.every((v) => v === prefills[0]);
-    const shared = allSame && prefills[0] && prefills[0] !== '0' ? prefills[0] : '';
-    setRates(prefill.rates);
-    setQuoteRateDefaults(prefill.rates);
-    setOfferQty(prefill.qty);
-    setQuoteQtyDefaults(prefill.qty);
-    setUnavailable((prev) => quoteUnavailableOnOpen(data.items, prev));
-    setSharedQuoteQty(null);
-    setSharedQuoteRate(shared);
-    setQuoteSameOpen(false);
-    setQuoteSameQtyDraft('');
-    setQuoteSameDraft(shared);
-    setQuoteNote('');
-    setQuoteNoteVoice(null);
-    setQuoteVoiceBusy(false);
-    setSheetError(null);
-    setQuoteOpen(true);
-  };
 
   const openLinesSheet = () => {
     const open = (order.data?.items ?? []).filter((item) => item.lineStatus === 'open');
@@ -1477,10 +1413,9 @@ export function OrderDetailPage() {
   };
 
   const closeSheet = (
-    which: 'quote' | 'lines' | 'dispatch' | 'settle' | 'amend',
+    which: 'lines' | 'dispatch' | 'settle' | 'amend',
   ) => {
     setSheetError(null);
-    if (which === 'quote') setQuoteOpen(false);
     if (which === 'lines') setLinesOpen(false);
     if (which === 'dispatch') {
       setDispatchError(null);
@@ -1526,30 +1461,6 @@ export function OrderDetailPage() {
     return next;
   }, [openItems]);
 
-  const quoteReady = useMemo(() => {
-    const supplyable = quoteItems.filter((item) => !unavailable[item.id]);
-    return (
-      supplyable.length > 0 &&
-      supplyable.every((item) => {
-        const rateOk = quoteRateNumber(rates[item.id]) != null;
-        const qty = Number(offerQty[item.id] || item.quantity || 0);
-        return rateOk && qty > 0;
-      })
-    );
-  }, [quoteItems, rates, offerQty, unavailable]);
-
-  const quoteSummary = useMemo(() => {
-    const supplyable = quoteItems.filter((item) => !unavailable[item.id]);
-    const total = orderBillTotal(
-      supplyable.map((item) => ({
-        quantity: Number(offerQty[item.id] || item.quantity),
-        rate: quoteRateNumber(rates[item.id]),
-        unit: item.unit,
-        piecesPerPack: item.piecesPerPack,
-      })),
-    );
-    return { count: supplyable.length, total, of: quoteItems.length };
-  }, [quoteItems, unavailable, rates, offerQty]);
 
   const actionDockKind = useMemo(() => {
     const data = order.data;
@@ -1561,12 +1472,11 @@ export function OrderDetailPage() {
     );
     const openForDispatch =
       data.status === 'confirmed' || data.status === 'part_shipped';
-    const quoteOnFace = showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
     return orderActionDock({
       isSeller,
       status: data.status,
       millDesks: data.millDesks,
-      sendQuote: quoteOnFace && data.status === 'requested',
+      sendQuote: false,
       hasSellerQuote: data.hasSellerQuote === true,
       canAmend: data.canAmend === true,
       canAcceptQuote: data.canAcceptQuote === true,
@@ -1630,12 +1540,12 @@ export function OrderDetailPage() {
   );
   const openForDispatch =
     data.status === 'confirmed' || data.status === 'part_shipped';
-  const quoteOnFace = showSendQuoteOnDeskFace(data.millDesks, data.laneTicket);
+  const confirmOnFace = showSellerConfirmOnDesk(data.millDesks);
   const actionDock = orderActionDock({
     isSeller,
     status: data.status,
     millDesks: data.millDesks,
-    sendQuote: quoteOnFace && data.status === 'requested',
+    sendQuote: false,
     hasSellerQuote: data.hasSellerQuote === true,
     canAmend: data.canAmend === true,
     canAcceptQuote: data.canAcceptQuote === true,
@@ -1692,6 +1602,13 @@ export function OrderDetailPage() {
               title={idLabel}
               testId="order-more-sheet"
               items={[
+                {
+                  id: 'order-form',
+                  label: 'Order form PDF',
+                  icon: <PdfIcon width={20} height={20} />,
+                  testId: 'order-form-pdf',
+                  onClick: openOrderFormSheet,
+                },
                 {
                   id: 'manual-ref',
                   label: 'Manual order no.',
@@ -2283,16 +2200,12 @@ export function OrderDetailPage() {
           {(item) => {
           const canEdit = sellerCanFulfillEdit(data);
           const expanded = expandedLineId === item.id;
-          const lastLr = latestShipmentForLine(data.shipments, item.id);
-          const lastLrQty = lastLr ? lineShippedOnShipment(lastLr, item.id) : 0;
           return (
             <OrderLineFulfillExpand
               item={item}
               canEdit={canEdit}
-              hasLastLr={Boolean(lastLr)}
-              lastLrQty={lastLrQty}
               expanded={expanded}
-              busy={setLineSupply.isPending || saveLastLrQty.isPending}
+              busy={setLineSupply.isPending || saveLineQty.isPending}
               photo={
                 <OrderLinePhoto
                   item={item}
@@ -2308,13 +2221,13 @@ export function OrderDetailPage() {
                 setLineSupply.mutate({ orderItemId: item.id, cantSupply });
               }}
               onOpenQuote={
-                isSeller && data.status === 'requested' && quoteOnFace
-                  ? openQuoteSheet
+                isSeller && data.status === 'requested' && confirmOnFace
+                  ? openLinesSheet
                   : undefined
               }
-              onSaveLastLr={(quantity) => {
+              onSaveQty={(quantity) => {
                 setLineFulfillError(null);
-                saveLastLrQty.mutate({ orderItemId: item.id, quantity });
+                saveLineQty.mutate({ orderItemId: item.id, quantity });
               }}
             />
           );
@@ -2583,16 +2496,6 @@ export function OrderDetailPage() {
               >
                 Decline
               </Button>
-              {actionDock.sendQuote ? (
-                <Button
-                  data-testid="order-send-quote"
-                  variant="secondary"
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
-                  onClick={openQuoteSheet}
-                >
-                  Send quote
-                </Button>
-              ) : null}
               {actionDock.confirm ? (
                 <Button
                   variant={
@@ -2658,257 +2561,11 @@ export function OrderDetailPage() {
         </BottomTradeDock>
       ) : null}
 
-      <Sheet open={quoteOpen} onClose={() => closeSheet('quote')} title="Send quote">
-        <div className="flex flex-col gap-3" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          <p className="text-sm text-muted">
-            Quoting {quoteSummary.count} of {quoteSummary.of}
-            {quoteSummary.total != null
-              ? ` · ₹${quoteSummary.total.toLocaleString('en-IN')}`
-              : ''}
-          </p>
-          {quoteItems.filter((item) => !unavailable[item.id]).length > 1 &&
-          !howManyOrderUnitsMixed(quoteItems.filter((item) => !unavailable[item.id])) ? (
-            <SameQtyRateForAll
-              show
-              open={quoteSameOpen}
-              qtyDraft={quoteSameQtyDraft}
-              rateDraft={quoteSameDraft}
-              appliedQty={sharedQuoteQty}
-              appliedRate={sharedQuoteRate}
-              onOpen={() => {
-                setQuoteSameQtyDraft(
-                  sharedQuoteQty != null ? String(sharedQuoteQty) : '',
-                );
-                setQuoteSameDraft(sharedQuoteRate);
-                setQuoteSameOpen(true);
-              }}
-              onQtyDraftChange={setQuoteSameQtyDraft}
-              onRateDraftChange={setQuoteSameDraft}
-              onApply={() => {
-                const qtyN = parseSharedQtyDraft(quoteSameQtyDraft);
-                const parsed = parseQuoteRateDraft(quoteSameDraft);
-                if (qtyN == null && !parsed) return;
-                const ids = quoteItems
-                  .filter((item) => !unavailable[item.id])
-                  .map((item) => item.id);
-                if (qtyN != null) {
-                  setOfferQty((prev) => ({
-                    ...prev,
-                    ...qtysWithSharedValue(ids, String(qtyN), quoteQtyDefaults),
-                  }));
-                  setSharedQuoteQty(qtyN);
-                }
-                if (parsed) {
-                  setRates((prev) => ({
-                    ...prev,
-                    ...ratesWithSharedValue(ids, parsed, quoteRateDefaults),
-                  }));
-                  setSharedQuoteRate(parsed);
-                }
-                setQuoteSameOpen(false);
-              }}
-              onCancel={() => setQuoteSameOpen(false)}
-            />
-          ) : null}
-          {(() => {
-            const showFrom = (data.millDesks ?? []).some((desk) => desk.millQuoted && !desk.held);
-            const lastOfferQtyId = lastGroupedItem(
-              quoteItems.filter((item) => !unavailable[item.id]),
-              (item) => item.unit,
-            )?.id;
-            return (
-              <OrderUnitGroupedList
-                items={quoteItems}
-                unitOf={(row) => row.unit}
-                getKey={(row) => row.id}
-                headingTestId="order-sheet-unit-heading"
-                testId="order-quote-unit-groups"
-              >
-                {(item) => {
-                  const millLine = (data.millDesks ?? [])
-                    .filter((desk) => desk.millQuoted && !desk.held)
-                    .map((desk) => ({ desk, line: millLineForParent(desk, item.id) }))
-                    .find((row) => row.line && !row.line.millDeclined && row.line.millRate != null);
-                  const fromRate = millLine?.line?.millRate ?? null;
-                  const fromUnit =
-                    fromRate != null
-                      ? rateUnitSuffix(item.unit, item.dispatchUnit)
-                      : '';
-                  const cantSupply = Boolean(unavailable[item.id]);
-                  const offerN = Number(offerQty[item.id]);
-                  const rateN = Number(rates[item.id]);
-                  const factsItem = {
-                    ...item,
-                    quantity:
-                      Number.isFinite(offerN) && offerN >= 1 ? offerN : item.quantity,
-                    rate: Number.isFinite(rateN) && rateN >= 0 ? rateN : item.rate,
-                  };
-                  return (
-                    <div
-                      key={item.id}
-                      className={cx(
-                        'rounded-xl px-2 py-2',
-                        cantSupply
-                          ? quoteCantSupplyRowClass(true)
-                          : orderLineBalance(factsItem)
-                            ? orderLineBalanceRowClass(factsItem)
-                            : 'bg-accent/5',
-                      )}
-                      data-testid={
-                        cantSupply ? `quote-row-declined-${item.id}` : `quote-row-${item.id}`
-                      }
-                    >
-                      <OrderLineStack
-                        muted={cantSupply}
-                        photo={
-                          <OrderLinePhoto
-                            item={item}
-                            items={data.items}
-                            onOpen={openPhotoViewer}
-                            size="lg"
-                          />
-                        }
-                        title={<OrderDesignTitle name={item.name} muted={cantSupply} />}
-                        cues={
-                          <>
-                            {orderLineLeftoverCue(item) ? (
-                              <p className="truncate text-[11px] font-emphasis text-ink">
-                                {orderLineLeftoverCue(item)}
-                              </p>
-                            ) : null}
-                            {cantSupply ? (
-                              <p
-                                className={cx(
-                                  'text-[11px] font-body text-muted',
-                                  quoteCantSupplyMutedClass(true),
-                                )}
-                              >
-                                Declined
-                              </p>
-                            ) : null}
-                            {!cantSupply ? (
-                              <p
-                                className="truncate text-[11px] font-body text-muted"
-                                data-testid={`quote-ref-${item.id}`}
-                              >
-                                {quoteSheetReferenceCue({
-                                  asked: item.requestedQuantity,
-                                  hasSellerQuote: data.hasSellerQuote === true,
-                                  quotedQty: item.quantity,
-                                  quotedRate: item.rate,
-                                  formatAmount: formatOrderLinePriceAmount,
-                                })}
-                              </p>
-                            ) : null}
-                            {showFrom && !cantSupply && fromRate != null ? (
-                              <p className="truncate text-[11px] font-body text-muted">
-                                From {rateAmount(fromRate)}
-                                {fromUnit ? ` ${fromUnit}` : ''}
-                              </p>
-                            ) : null}
-                          </>
-                        }
-                        facts={
-                          !cantSupply ? (
-                            <div
-                              className="flex divide-x divide-line/80"
-                              data-testid={`quote-qty-rate-${item.id}`}
-                            >
-                              <div className="min-w-0 flex-1 pr-2">
-                                <label
-                                  htmlFor={`quote-qty-${item.id}`}
-                                  className={compactQtyFieldLabelClass}
-                                >
-                                  Qty
-                                </label>
-                                <TextInput
-                                  id={`quote-qty-${item.id}`}
-                                  inputMode="numeric"
-                                  pattern="[0-9]*"
-                                  autoComplete="off"
-                                  className={COMPACT_SHEET_NUM_INPUT_CLASS}
-                                  data-testid={`quote-qty-${item.id}`}
-                                  value={offerQty[item.id] ?? ''}
-                                  onChange={(event) =>
-                                    setOfferQty((prev) => ({
-                                      ...prev,
-                                      [item.id]: event.target.value,
-                                    }))
-                                  }
-                                  aria-label={`Quantity for ${item.name}`}
-                                  {...orderQtyInputProps(item.id === lastOfferQtyId)}
-                                />
-                              </div>
-                              <div className="min-w-0 flex-[1.4] pl-2">
-                                <label
-                                  htmlFor={`quote-rate-${item.id}`}
-                                  className={compactQtyFieldLabelClass}
-                                >
-                                  Rate
-                                </label>
-                                <TextInput
-                                  id={`quote-rate-${item.id}`}
-                                  inputMode="decimal"
-                                  className={COMPACT_SHEET_RATE_INPUT_CLASS}
-                                  data-testid={`quote-rate-${item.id}`}
-                                  value={rates[item.id] ?? ''}
-                                  onChange={(event) =>
-                                    setRates((prev) => ({
-                                      ...prev,
-                                      [item.id]: sanitizeQuoteRateInput(event.target.value),
-                                    }))
-                                  }
-                                  aria-label={`Rate for ${item.name}`}
-                                />
-                              </div>
-                            </div>
-                          ) : null
-                        }
-                      />
-                      <div className="mt-2">
-                        <CantSupplySwitch
-                          checked={cantSupply}
-                          testId={`quote-cant-supply-${item.id}`}
-                          onChange={(next) =>
-                            setUnavailable((prev) => ({
-                              ...prev,
-                              [item.id]: next,
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  );
-                }}
-              </OrderUnitGroupedList>
-            );
-          })()}
-          <NoteAttachField
-            label="Note"
-            note={quoteNote}
-            onNoteChange={setQuoteNote}
-            voice={quoteNoteVoice}
-            onVoiceChange={setQuoteNoteVoice}
-            images={quoteNoteImages}
-            onImagesChange={setQuoteNoteImages}
-            onBusyChange={setQuoteVoiceBusy}
-          />
-          {sheetError && quoteOpen ? <InlineNotice message={sheetError} /> : null}
-          <Button
-            fullWidth
-            disabled={!quoteReady || sendQuote.isPending || quoteVoiceBusy}
-            onClick={() => sendQuote.mutate()}
-          >
-            {sendQuote.isPending ? 'Sending…' : 'Send quote in chat'}
-          </Button>
-        </div>
-      </Sheet>
-
       <Sheet
         open={linesOpen}
         onClose={() => closeSheet('lines')}
         title="Confirm / decline lines"
-        titleInfo="Tick what you can supply; set qty — rate if you have it. Confirm locks the ticket. Send quote is optional for a soft offer. Decline all drops every design."
+        titleInfo="Tick what you can supply; set qty — rate if you have it. Confirm locks the ticket. Decline all drops every design."
         titleInfoTestId="order-lines-why"
         footer={
           <div className="flex flex-col gap-2">
@@ -3225,6 +2882,55 @@ export function OrderDetailPage() {
               </button>
             );
           })}
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={orderFormOpen}
+        onClose={() => {
+          if (orderFormBusy) return;
+          setOrderFormOpen(false);
+        }}
+        title="Order form"
+        footer={
+          <div className="flex flex-col gap-2">
+            <Button
+              fullWidth
+              data-testid="order-form-open"
+              disabled={orderFormBusy}
+              onClick={() => void runOrderForm('open')}
+            >
+              {orderFormBusy ? 'Preparing…' : 'Open PDF'}
+            </Button>
+            <button
+              type="button"
+              data-testid="order-form-share"
+              className="py-1 text-center text-sm font-emphasis text-accent disabled:opacity-45"
+              disabled={orderFormBusy}
+              onClick={() => void runOrderForm('share')}
+            >
+              Share
+            </button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted">Qty uses the order unit. Photos help match the design.</p>
+          <button
+            type="button"
+            data-testid="order-form-show-photos"
+            aria-pressed={orderFormShowPhotos}
+            className={cx(
+              'flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left',
+              orderFormShowPhotos ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+            )}
+            onClick={() => setOrderFormShowPhotos((on) => !on)}
+          >
+            <span className="text-sm font-emphasis text-ink">Show design photos</span>
+            <span className="text-[12px] font-body text-muted">
+              {orderFormShowPhotos ? 'On' : 'Off'}
+            </span>
+          </button>
         </div>
       </Sheet>
 

@@ -4,13 +4,24 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
   OrderKind,
+  ProductStatus,
   type CreateOrdersBatchResult,
   type ProductView,
 } from '@ekum/domain-types';
 import { addCartDesignsMany } from '@/features/browse/browseCart';
+import {
+  SELECTION_NEEDS_PUBLISHED_TOAST,
+  isTradeableShortlistStatus,
+} from '@/features/browse/selectionEligibility';
+import { BulkProductPublishSheet } from '@/features/catalog/BulkProductPublishSheet';
+import { invalidateAfterPackMembership } from '@/features/catalog/packMembershipInvalidate';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { designSheetShortlistEntry } from '@/features/browse/designSheetEntry';
 import { designSheetMoreIds } from '@/features/browse/designSheetMoreIds';
+import {
+  addToPackActionLabel,
+  type AddToPackLabelSurface,
+} from '@/features/catalog/libraryPickerSource';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { selectionOwnShopVerbs } from '@/features/browse/selectionOwnShopVerbs';
@@ -38,6 +49,8 @@ import {
   ChatIcon,
   MoreHorizontalIcon,
   PaperPlaneIcon,
+  CollectionIcon,
+  MegaphoneIcon,
   PencilIcon,
   TrashIcon,
 } from '@/ui/icons';
@@ -58,13 +71,16 @@ export type DesignSheetProduct = Pick<
   | 'moq'
   | 'rate'
   | 'rateMax'
+  | 'status'
 > & {
   piecesPerPack?: number | null;
+  catalogCollectionId?: string | null;
+  collectionNames?: string[] | null;
 };
 
 /**
  * Shared design open sheet — photos + pack details + trade footer.
- * Bookmark / Edit / Remove / Delete live in ⋯ (not the footer).
+ * Bookmark / Edit / Publish / Remove / Delete live in ⋯ (not the footer).
  */
 export function DesignSheet({
   product,
@@ -75,10 +91,14 @@ export function DesignSheet({
   canEdit = false,
   canRemove = false,
   canDelete = false,
+  canAddToPack = false,
+  addToPackSurface = 'album',
   onEdit,
   onRemove,
   onDelete,
+  onAddToPack,
   removeBusy = false,
+  removeLabel = 'Remove from this collection',
   collectionId,
   packStamp,
   testIdPrefix = 'design-sheet',
@@ -91,10 +111,14 @@ export function DesignSheet({
   canEdit?: boolean;
   canRemove?: boolean;
   canDelete?: boolean;
+  canAddToPack?: boolean;
+  addToPackSurface?: AddToPackLabelSurface;
   onEdit?: () => void;
   onRemove?: () => void;
   onDelete?: () => void;
+  onAddToPack?: () => void;
   removeBusy?: boolean;
+  removeLabel?: string;
   /** When set, Remove from this collection may appear in ⋯. */
   collectionId?: string | null;
   packStamp?: {
@@ -114,6 +138,7 @@ export function DesignSheet({
   const [shareOpen, setShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
   const save = useSaveToggle(
@@ -130,6 +155,7 @@ export function DesignSheet({
     setShareOpen(false);
     setMessageOpen(false);
     setQtyOpen(false);
+    setPublishOpen(false);
     setOrderError(null);
   }, [product.id]);
 
@@ -153,10 +179,28 @@ export function DesignSheet({
     singleShopId: product.companyId,
     myCompanyId: me.data?.id,
   });
+  const canPublish = Boolean(canEdit && product.status === ProductStatus.Draft);
   const moreIds = designSheetMoreIds({
     canEdit: Boolean(canEdit && onEdit),
+    canPublish,
     canRemove: Boolean(canRemove && onRemove && collectionId),
     canDelete: Boolean(canDelete && onDelete),
+    canAddToPack: Boolean(canAddToPack && onAddToPack),
+  });
+
+  const publishInPack = useMutation({
+    mutationFn: () =>
+      api.post<{ published: number }>(`/collections/${collectionId}/publish-members`, {
+        productIds: [product.id],
+      }),
+    onSuccess: () => {
+      void invalidateAfterPackMembership(queryClient);
+      showToast('Published');
+      onClose();
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not publish.', 'danger');
+    },
   });
 
   const placeOrder = useMutation({
@@ -200,11 +244,19 @@ export function DesignSheet({
   });
 
   const addToCart = () => {
+    if (!isTradeableShortlistStatus(product.status)) {
+      showToast(SELECTION_NEEDS_PUBLISHED_TOAST);
+      return;
+    }
     addCartDesignsMany([entry]);
     showToast('Added to cart', 'success');
   };
 
   const startOrder = () => {
+    if (!isTradeableShortlistStatus(product.status)) {
+      showToast(SELECTION_NEEDS_PUBLISHED_TOAST);
+      return;
+    }
     setOrderError(null);
     setQtyOpen(true);
   };
@@ -243,11 +295,44 @@ export function DesignSheet({
         },
       ];
     }
+    if (id === 'publish') {
+      return [
+        {
+          id: 'publish',
+          label: 'Publish',
+          icon: <MegaphoneIcon width={20} height={20} />,
+          disabled: publishInPack.isPending,
+          onClick: () => {
+            setMoreOpen(false);
+            if (collectionId) {
+              publishInPack.mutate();
+              return;
+            }
+            setPublishOpen(true);
+          },
+          testId: `${testIdPrefix}-publish`,
+        },
+      ];
+    }
+    if (id === 'addToPack' && onAddToPack) {
+      return [
+        {
+          id: 'add-to-pack',
+          label: addToPackActionLabel([product], addToPackSurface),
+          icon: <CollectionIcon width={20} height={20} />,
+          onClick: () => {
+            setMoreOpen(false);
+            onAddToPack();
+          },
+          testId: `${testIdPrefix}-add-to-pack`,
+        },
+      ];
+    }
     if (id === 'remove' && onRemove) {
       return [
         {
           id: 'remove',
-          label: 'Remove from this collection',
+          label: removeLabel,
           icon: <TrashIcon width={20} height={20} />,
           disabled: removeBusy,
           onClick: () => {
@@ -320,7 +405,13 @@ export function DesignSheet({
               <DockIconButton
                 testId={`${testIdPrefix}-share`}
                 label="Share"
-                onClick={() => setShareOpen(true)}
+                onClick={() => {
+                  if (!isTradeableShortlistStatus(product.status)) {
+                    showToast(SELECTION_NEEDS_PUBLISHED_TOAST);
+                    return;
+                  }
+                  setShareOpen(true);
+                }}
               >
                 <PaperPlaneIcon width={22} height={22} />
               </DockIconButton>
@@ -434,6 +525,14 @@ export function DesignSheet({
           placeOrder.mutate({ lines, ...place });
         }}
         onAskRates={() => undefined}
+      />
+      <BulkProductPublishSheet
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        productIds={canPublish ? [product.id] : []}
+        onDone={() => {
+          void invalidateAfterPackMembership(queryClient);
+        }}
       />
     </>
   );

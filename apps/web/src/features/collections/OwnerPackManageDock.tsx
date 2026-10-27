@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Sheet } from '@/ui/kit';
 import { BottomTradeDock } from '@/features/browse/BottomTradeDock';
 import { CartIcon, PaperPlaneIcon, TrashIcon } from '@/ui/icons';
+import { replaceEntirePackLabel, updatePackLabel } from '@/features/catalog/packKindCopy';
 
 const iconBtnClass =
   'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface disabled:opacity-40';
@@ -28,6 +29,8 @@ export function OwnerPackManageDock({
   onUpdate,
   updatePending = false,
   updateDisabled = false,
+  removeLabel = 'Remove from this collection',
+  kind,
 }: {
   selecting: boolean;
   busy?: boolean;
@@ -45,6 +48,8 @@ export function OwnerPackManageDock({
   onUpdate?: () => void;
   updatePending?: boolean;
   updateDisabled?: boolean;
+  removeLabel?: string;
+  kind?: string | null;
 }) {
   const [updateOpen, setUpdateOpen] = useState(false);
   const closeUpdate = () => setUpdateOpen(false);
@@ -94,7 +99,7 @@ export function OwnerPackManageDock({
             data-testid="owner-pack-remove"
             onClick={onRemove}
           >
-            Remove from this collection
+            {removeLabel}
           </Button>
         </>
       ) : onUpdate ? (
@@ -105,7 +110,7 @@ export function OwnerPackManageDock({
           data-testid="collection-editor-update"
           onClick={onUpdate}
         >
-          Update collection
+          {updatePackLabel(kind)}
         </Button>
       ) : (
         <>
@@ -115,12 +120,12 @@ export function OwnerPackManageDock({
             data-testid="owner-pack-update"
             onClick={() => setUpdateOpen(true)}
           >
-            Update collection
+            {updatePackLabel(kind)}
           </Button>
           <Sheet
             open={updateOpen}
             onClose={closeUpdate}
-            title="Update collection"
+            title={updatePackLabel(kind)}
           >
             <div className="flex flex-col gap-2" data-testid="owner-pack-update-sheet">
               <Button
@@ -155,7 +160,7 @@ export function OwnerPackManageDock({
                   onReplace?.();
                 }}
               >
-                Replace entire collection
+                {replaceEntirePackLabel(kind)}
               </Button>
             </div>
           </Sheet>

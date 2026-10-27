@@ -52,7 +52,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light **New collections** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** gates Curate + TradeLane (not a Profile switch). Product default off (QA may treat unset as on). Linking/split in Slice B |
-| Orders | First middle-hop pair: **I handle**, no group. Lane = **Buyer talks to** (You / mill) × **Share a group**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when group Off; group when On. Mill **Send** on the card; **Send quote** / Decline on the desk; **Handle myself** when flipping Direct to your desk |
+| Orders | First middle-hop pair: **I handle**, no group. Lane = **Buyer talks to** (You / mill) × **Share a group**. Tweak on **You** / order page / Your paths — not on everyday Place. Soft-hide when group Off; group when On. Mill **Send** on the card; mill **Confirm** (qty + optional rate) / Decline on the mill ticket — no **Send quote** button; **Handle myself** when flipping Direct to your desk |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
 
@@ -139,6 +139,8 @@ When publishing (or updating visibility), the sheet sets:
 | Standalone | Yes — sell or Explore alone | Always made of designs |
 | Many-to-many | A design can sit in many collections | — |
 | **Kind color** | Clay (`kind-design`) | Steel (`kind-collection`) |
+
+**You** has three sections: **Collections · Catalogs · Designs**. Every company has one **General Collection** (`Collection.kind = general` — identity is this flag, never the name). Unassigned own designs (Draft or Published, not Deleted) belong there. It is leftover storage, not a pack they order (no apply-all, no pack Order and dispatch). **New collection** is always `kind=regular`. **New catalog** (`?kind=catalog`) is always `kind=catalog` + `orderMode` (whole \| pick) — no “Treat as catalog?” checkbox. Own designs in a catalog are exclusive to that catalog (picker = General Collection leftovers). Mill→trader **Curate** may still reuse mill product IDs; orders on that catalog follow its whole / pick. Lifecycle is **Draft · Published · Deleted** (soft `archived`). No Ready. No Restore. Delete does not erase rows. See [Catalog](./catalog.md) and [Collections](./collections.md).
 
 **Platform kind colors** (object type, not status): **Order** teal (brand accent) · **Collection** steel · **Design** clay. Shared via `kindTone` / CSS `--color-kind-*`. Status colors (success / danger / tangerine) stay separate.
 

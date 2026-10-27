@@ -156,6 +156,7 @@ export class SearchService {
     const rows = await this.prisma.collection.findMany({
       where: {
         status: CollectionStatus.Published,
+        kind: { not: 'general' },
         companyId: { not: viewerCompanyId },
         OR: or,
         company: { ...companyNotBlockedWith(viewerCompanyId) },

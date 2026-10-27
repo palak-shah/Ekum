@@ -73,7 +73,7 @@ function asItem(o: OrderView): TradeListItem {
 }
 
 describe('tradeListProtocol', () => {
-  it('prints Needs you Send quote when rates are missing', () => {
+  it('prints Needs you Confirm when rates are missing', () => {
     expect(
       tradeListProtocol(
         asItem(
@@ -99,7 +99,7 @@ describe('tradeListProtocol', () => {
           }),
         ),
       ),
-    ).toBe('Needs you Send quote');
+    ).toBe('Needs you Confirm');
   });
 
   it('prints Needs you Confirm when the seller can lock as asked', () => {

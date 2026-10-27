@@ -105,6 +105,8 @@ export interface CompanyCard {
 export interface CollectionCard {
   id: string;
   name: string;
+  /** general | regular | catalog. Explore shelves never list general. */
+  kind?: string;
   /** Pack notes when present — Explore feed description (album-style clamp). */
   description: string | null;
   /** Pack tags when present. */

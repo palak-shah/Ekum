@@ -262,6 +262,7 @@ export function AmendOrderSheet({
                       <HowManyQtyRow
                         unit={item.unit}
                         piecesPerPack={item.piecesPerPack}
+                        sheetMixedPack={packSizesDiffer}
                         stepper={
                           <QtyStepper
                             value={parseQtyDraft(qty[pid] ?? String(item.quantity))}

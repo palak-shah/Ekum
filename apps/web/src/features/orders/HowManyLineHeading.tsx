@@ -77,12 +77,15 @@ export function HowManyQtyRow({
   unit,
   piecesPerPack,
   stepper,
+  sheetMixedPack = false,
 }: {
   unit?: string | null;
   piecesPerPack?: number | null;
   stepper: ReactNode;
+  /** Only nag “Set contents not mentioned” when some lines have size and some do not. */
+  sheetMixedPack?: boolean;
 }) {
-  const missing = howManySetContentsMissing(unit, piecesPerPack);
+  const missing = howManySetContentsMissing(unit, piecesPerPack, sheetMixedPack);
   return (
     <div
       className={cx('flex min-w-0 items-center gap-2', !missing && 'justify-end')}

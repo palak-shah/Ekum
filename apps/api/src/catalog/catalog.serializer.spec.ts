@@ -72,6 +72,7 @@ describe('CatalogSerializer', () => {
       collections: [
         {
           collection: {
+            id: 'col-saree',
             name: 'Saree Daily',
             status: 'published',
             categories: ['Sarees'],
@@ -81,6 +82,7 @@ describe('CatalogSerializer', () => {
       ],
     } as unknown as Product);
     expect(view.collectionNames).toEqual(['Saree Daily']);
+    expect(view.collectionIds).toEqual(['col-saree']);
     expect(view.collectionPacks).toEqual([
       { categories: ['Sarees'], masterCategoryId: 'cat-saree' },
     ]);

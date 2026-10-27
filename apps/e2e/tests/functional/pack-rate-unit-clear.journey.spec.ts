@@ -117,7 +117,7 @@ test.describe('pack Rate per + clear set size @functional @release @collections 
     await expect(page.getByTestId('how-many-billing-total')).toHaveCount(0);
     await expect(page.getByText('₹10,647')).toHaveCount(0);
     await expect(page.getByText('₹3,549')).toHaveCount(0);
-    await expect(page.getByText('No pcs in a set').first()).toBeVisible();
+    await expect(page.getByText('No pcs in a set')).toHaveCount(0);
     await expect(page.getByText('₹91/mtr').first()).toBeVisible();
   });
 });

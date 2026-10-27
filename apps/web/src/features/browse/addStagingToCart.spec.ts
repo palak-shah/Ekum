@@ -1,3 +1,4 @@
+import { ProductStatus } from '@ekum/domain-types';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { addStagingToCart } from './addStagingToCart';
 import { clearBrowseAlbumPick, readBrowseAlbumPick, writeBrowseAlbumPick } from './browseAlbumPick';
@@ -30,7 +31,7 @@ describe('addStagingToCart', () => {
         companyName: 'Mill',
       },
     ]);
-    expect(addStagingToCart()).toEqual({ added: 2 });
+    expect(addStagingToCart()).toEqual({ added: 2, skipped: 0 });
     expect(readBrowseShortlist()).toEqual([]);
     expect(readBrowseAlbumPick()).toEqual([]);
     expect(readCartDesigns()).toHaveLength(1);
@@ -60,5 +61,30 @@ describe('addStagingToCart', () => {
     addStagingToCart();
     expect(readCartDesigns()).toHaveLength(1);
     expect(readCartDesigns()[0]?.name).toBe('Silk v2');
+  });
+
+  it('skips draft designs and still clears selection', () => {
+    writeBrowseShortlist([
+      {
+        productId: 'live',
+        name: 'Silk',
+        thumbUrl: null,
+        companyId: 'c1',
+        companyName: 'Mill',
+        status: ProductStatus.Published,
+      },
+      {
+        productId: 'quiet',
+        name: 'Draft silk',
+        thumbUrl: null,
+        companyId: 'c1',
+        companyName: 'Mill',
+        status: ProductStatus.Draft,
+      },
+    ]);
+    expect(addStagingToCart()).toEqual({ added: 1, skipped: 1 });
+    expect(readCartDesigns()).toHaveLength(1);
+    expect(readCartDesigns()[0]?.productId).toBe('live');
+    expect(readBrowseShortlist()).toEqual([]);
   });
 });

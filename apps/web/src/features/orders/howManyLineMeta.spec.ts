@@ -147,10 +147,12 @@ describe('howManyLineMeta', () => {
     ).toBe(false);
   });
 
-  it('flags missing set contents', () => {
-    expect(howManySetContentsMissing('set', null)).toBe('Set contents not mentioned');
-    expect(howManySetContentsMissing('set', 6)).toBeNull();
-    expect(howManySetContentsMissing('pc', null)).toBeNull();
+  it('flags missing set contents only when the sheet is mixed', () => {
+    expect(howManySetContentsMissing('set', null)).toBeNull();
+    expect(howManySetContentsMissing('set', null, false)).toBeNull();
+    expect(howManySetContentsMissing('set', null, true)).toBe('Set contents not mentioned');
+    expect(howManySetContentsMissing('set', 6, true)).toBeNull();
+    expect(howManySetContentsMissing('pc', null, true)).toBeNull();
   });
 
   it('banner and footer for sets vs native', () => {
@@ -315,15 +317,32 @@ describe('howManyLineMeta', () => {
       missingCue: null,
     });
     expect(ticketLineSkipReason({ quantity: 10, unit: 'set', rate: 100 })).toBe('pack');
-    expect(ticketTotalMissingCue([{ quantity: 10, unit: 'set', rate: 100 }])).toBe(
-      'No pcs in a set',
-    );
+    expect(ticketTotalMissingCue([{ quantity: 10, unit: 'set', rate: 100 }])).toBeNull();
+    expect(
+      ticketTotalMissingCue([
+        { quantity: 10, unit: 'mtr' },
+        { quantity: 5, unit: 'mtr' },
+      ]),
+    ).toBeNull();
+    expect(
+      ticketTotalSummary([
+        { quantity: 10, unit: 'mtr' },
+        { quantity: 5, unit: 'pc' },
+      ]),
+    ).toEqual({
+      units: [
+        { unit: 'mtr', qty: '10 mtrs', money: null },
+        { unit: 'pc', qty: '5 pcs', money: null },
+      ],
+      grand: null,
+      missingCue: null,
+    });
     expect(
       ticketTotalSummary([{ quantity: 10, unit: 'set', rate: 100 }]),
     ).toEqual({
       units: [{ unit: 'set', qty: '10 sets', money: null }],
       grand: null,
-      missingCue: 'No pcs in a set',
+      missingCue: null,
     });
     expect(
       ticketTotalSummary([
@@ -337,6 +356,16 @@ describe('howManyLineMeta', () => {
       ]),
     ).toEqual({
       units: [{ unit: 'set', qty: '3 sets', money: null }],
+      grand: null,
+      missingCue: null,
+    });
+    expect(
+      ticketTotalSummary([
+        { quantity: 10, unit: 'set', piecesPerPack: 4, dispatchUnit: 'pc', rate: 100 },
+        { quantity: 5, unit: 'set', rate: 100 },
+      ]),
+    ).toEqual({
+      units: [{ unit: 'set', qty: '15 sets', money: '₹4,000' }],
       grand: null,
       missingCue: 'No pcs in a set',
     });

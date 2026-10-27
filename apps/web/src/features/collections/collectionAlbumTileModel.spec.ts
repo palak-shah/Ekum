@@ -6,6 +6,17 @@ import {
 } from './collectionAlbumTileModel';
 
 describe('collectionAlbumOpenTarget', () => {
+  it('General Collection opens the viewer without manage dock', () => {
+    expect(
+      collectionAlbumOpenTarget({
+        surface: 'library',
+        id: 'g1',
+        status: CollectionStatus.Published,
+        kind: 'general',
+      }),
+    ).toEqual({ href: '/collections/g1' });
+  });
+
   it('library live opens viewer with packManage', () => {
     expect(
       collectionAlbumOpenTarget({

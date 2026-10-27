@@ -3,7 +3,9 @@ import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import {
   SELECTION_NEEDS_PUBLISHED_TOAST,
   isPublishedForSelection,
+  isTradeableShortlistStatus,
   selectionSkipToast,
+  tradeableShortlistEntries,
   travelingSelectionToggleGate,
 } from './selectionEligibility';
 
@@ -36,5 +38,34 @@ describe('selectionEligibility', () => {
         alreadySelected: false,
       }),
     ).toEqual({ allow: true, toast: null });
+  });
+
+  it('owner album Select may check drafts, not archived', () => {
+    expect(
+      travelingSelectionToggleGate({
+        status: ProductStatus.Draft,
+        alreadySelected: false,
+        ownerAlbum: true,
+      }),
+    ).toEqual({ allow: true, toast: null });
+    expect(
+      travelingSelectionToggleGate({
+        status: ProductStatus.Archived,
+        alreadySelected: false,
+        ownerAlbum: true,
+      }),
+    ).toEqual({ allow: false, toast: SELECTION_NEEDS_PUBLISHED_TOAST });
+  });
+
+  it('trade skips explicit drafts; legacy rows without status stay live', () => {
+    expect(isTradeableShortlistStatus(undefined)).toBe(true);
+    expect(isTradeableShortlistStatus(ProductStatus.Draft)).toBe(false);
+    expect(
+      tradeableShortlistEntries([
+        { productId: 'live' },
+        { productId: 'quiet', status: ProductStatus.Draft },
+        { productId: 'out', status: ProductStatus.Published },
+      ]),
+    ).toEqual([{ productId: 'live' }, { productId: 'out', status: ProductStatus.Published }]);
   });
 });

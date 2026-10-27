@@ -4,7 +4,9 @@ import {
   isYouSavedSearch,
   youLibraryTabFromSearch,
   youLibraryWriteSearch,
+  type YouLibraryTab,
 } from '@/features/saved/youSavedHref';
+import { youLibraryDeletedMenuLabel } from '@/features/catalog/youLibraryKind';
 import {
   getYouLibrarySelectMenu,
   subscribeYouLibrarySelectMenu,
@@ -12,7 +14,7 @@ import {
 import { BookmarkIcon, CheckIcon, LockIcon, MoreHorizontalIcon, ReturnIcon } from '@/ui/icons';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 
-/** Page ⋯ on My collections. Idle: Drafts · Archived · Bookmarks. Selecting: Draft / Publish · Archive. */
+/** Page ⋯ on My collections. Idle: Drafts · Deleted · Bookmarks. Selecting: Draft / Publish · Delete. */
 export function YouLibraryHeaderMore() {
   const [open, setOpen] = useState(false);
   const [params, setParams] = useSearchParams();
@@ -31,7 +33,7 @@ export function YouLibraryHeaderMore() {
     saved: boolean;
     archived: boolean;
     drafts: boolean;
-    tab: 'products' | 'collections';
+    tab: YouLibraryTab;
   }) => {
     const query = youLibraryWriteSearch({
       tab: next.tab,
@@ -73,7 +75,7 @@ export function YouLibraryHeaderMore() {
     if (selectMenu.canArchive) {
       selectItems.push({
         id: 'archive',
-        label: 'Archive',
+        label: 'Delete',
         icon: <ReturnIcon width={20} height={20} />,
         testId: 'you-library-select-archive',
         onClick: () => {
@@ -94,7 +96,7 @@ export function YouLibraryHeaderMore() {
       onClick: () => {
         setOpen(false);
         write({
-          tab: 'collections',
+          tab,
           saved: false,
           archived: false,
           drafts: !drafts,
@@ -103,14 +105,14 @@ export function YouLibraryHeaderMore() {
     },
     {
       id: 'archived',
-      label: 'Archived collections',
+      label: youLibraryDeletedMenuLabel(tab),
       icon: <ReturnIcon width={20} height={20} />,
       active: archived,
       testId: 'you-library-page-archived',
       onClick: () => {
         setOpen(false);
         write({
-          tab: 'collections',
+          tab,
           saved: false,
           archived: !archived,
           drafts: false,

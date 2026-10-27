@@ -29,8 +29,8 @@ function order(partial: Partial<OrderView>): OrderView {
 }
 
 describe('orderNeedsYouLabel', () => {
-  it('names send quote when seller still needs rates', () => {
-    expect(orderNeedsYouLabel(order({}))).toBe('Needs you Send quote');
+  it('names Confirm when the seller still needs to lock (rate optional)', () => {
+    expect(orderNeedsYouLabel(order({}))).toBe('Needs you Confirm');
   });
 
   it('returns null when nothing to do', () => {

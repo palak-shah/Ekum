@@ -24,13 +24,45 @@ import {
 } from './collectionViewerChrome';
 
 describe('collectionViewerListedProducts', () => {
-  it('drops unpublished tiles', () => {
+  it('visitor album drops unpublished tiles', () => {
     expect(
       collectionViewerListedProducts([
         { id: 'a', status: ProductStatus.Published },
         { id: 'b', status: ProductStatus.Draft },
       ]),
     ).toEqual([{ id: 'a', status: ProductStatus.Published }]);
+  });
+
+  it('owner album lists draft + published and drops archived', () => {
+    expect(
+      collectionViewerListedProducts(
+        [
+          { id: 'a', status: ProductStatus.Published },
+          { id: 'b', status: ProductStatus.Draft },
+          { id: 'c', status: ProductStatus.Archived },
+        ],
+        { kind: 'regular', isOwner: true },
+      ),
+    ).toEqual([
+      { id: 'a', status: ProductStatus.Published },
+      { id: 'b', status: ProductStatus.Draft },
+    ]);
+  });
+
+  it('General Collection owner lists draft + published', () => {
+    expect(
+      collectionViewerListedProducts(
+        [
+          { id: 'a', status: ProductStatus.Published },
+          { id: 'b', status: ProductStatus.Draft },
+          { id: 'c', status: ProductStatus.Archived },
+        ],
+        { kind: 'general', isOwner: true },
+      ),
+    ).toEqual([
+      { id: 'a', status: ProductStatus.Published },
+      { id: 'b', status: ProductStatus.Draft },
+    ]);
   });
 });
 
@@ -241,6 +273,14 @@ describe('collectionMoreMenuNote', () => {
     expect(
       collectionMoreMenuNote({ visitor: true, lookOnly: true, allowForward: true }),
     ).toBe('You can view this collection.');
+    expect(
+      collectionMoreMenuNote({
+        visitor: true,
+        lookOnly: true,
+        allowForward: true,
+        kind: 'catalog',
+      }),
+    ).toBe('You can view this catalog.');
     expect(
       collectionMoreMenuNote({ visitor: true, allowForward: false }),
     ).toBe('You can look through — Curate into your collection is off.');

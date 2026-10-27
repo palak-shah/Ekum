@@ -1,4 +1,6 @@
-/** Saved on You is the chip beside Archived, under Designs / Collections. */
+export type YouLibraryTab = 'products' | 'collections' | 'catalogs';
+
+/** Saved on You is the chip beside Deleted, under Collections / Catalogs / Designs. */
 export function youSavedHref(input?: { collections?: boolean; select?: boolean }): string {
   const query = new URLSearchParams();
   if (input?.collections) query.set('tab', 'collections');
@@ -11,18 +13,22 @@ export function isYouSavedSearch(params: URLSearchParams): boolean {
   return params.get('tab') === 'saved' || params.get('saved') === '1';
 }
 
-export function youLibraryTabFromSearch(
-  params: URLSearchParams,
-): 'products' | 'collections' {
+export function youLibraryTabFromSearch(params: URLSearchParams): YouLibraryTab {
   if (params.get('tab') === 'saved') {
-    return params.get('kind') === 'products' ? 'products' : 'collections';
+    const kind = params.get('kind');
+    if (kind === 'products') return 'products';
+    if (kind === 'catalogs') return 'catalogs';
+    return 'collections';
   }
-  return params.get('tab') === 'products' ? 'products' : 'collections';
+  const tab = params.get('tab');
+  if (tab === 'products') return 'products';
+  if (tab === 'catalogs') return 'catalogs';
+  return 'collections';
 }
 
 /** You library query. Designs must set `tab=products` — default URL is Collections. */
 export function youLibraryWriteSearch(input: {
-  tab: 'products' | 'collections';
+  tab: YouLibraryTab;
   saved?: boolean;
   select?: boolean;
   archived?: boolean;

@@ -84,7 +84,4 @@ export function chatsInboxChipCount(
   return 0;
 }
 
-export function chatsInboxChipBadge(count: number): string | null {
-  if (count <= 0) return null;
-  return count > 99 ? '99+' : String(count);
-}
+export { chipCountBadge as chatsInboxChipBadge } from '@/ui/chipBadge';

@@ -4,11 +4,13 @@ import { CollectionStatus, MEDIA_VARIANT, type CollectionView } from '@ekum/doma
 import { collectionAlbumOpenTarget } from '@/features/collections/collectionAlbumTileModel';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
 import { displayCollectionName } from '@/features/catalog/collectionCreateHelpers';
+import { isGeneralCollection } from '@/features/catalog/youLibraryKind';
 import {
   inboxSwipeAxis,
   inboxSwipeReveal,
 } from '@/features/chats/inboxRowSwipe';
 import { CoverImage } from '@/ui/cards';
+import { DraftChip } from '@/ui/DraftChip';
 import { highlightSearchText } from '@/ui/highlightMatch';
 import { MoreHorizontalIcon, PaperPlaneIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
@@ -60,11 +62,14 @@ export function YouCollectionListRow({
     surface: 'library',
     id: collection.id,
     status: collection.status,
+    kind: collection.kind,
   });
   const source = collectionOwnerSourceLine(collection.companyId, collection.memberShops ?? []);
   const draft = isDraft(collection.status);
   const archived = collection.status === CollectionStatus.Archived;
-  const meta = [source, archived ? 'Archived' : null].filter(Boolean).join(' · ');
+  const general = isGeneralCollection(collection.kind);
+  const generalBadge = general ? 'General Collection' : null;
+  const meta = [source, archived ? 'Deleted' : null].filter(Boolean).join(' · ');
   const thumb = collection.libraryThumb ?? collection.coverImage ?? null;
   const rowRef = useRef<HTMLAnchorElement>(null);
   const startX = useRef<number | null>(null);
@@ -89,7 +94,7 @@ export function YouCollectionListRow({
   const reveal = selecting ? 0 : Math.min(OPEN_PX, inboxSwipeReveal(dragX));
   const actionsVisible = reveal > 4;
 
-  const shareButton = (
+  const shareButton = general ? null : (
     <button
       type="button"
       data-testid="you-collection-share"
@@ -115,16 +120,19 @@ export function YouCollectionListRow({
         <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">
           {highlightSearchText(displayCollectionName(collection.name), highlightQuery)}
         </p>
-        {meta || draft ? (
+        {meta || draft || generalBadge ? (
           <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
             {meta ? <span className="truncate">{meta}</span> : null}
-            {draft ? (
+            {generalBadge ? (
               <span
-                data-testid="you-collection-draft-chip"
+                data-testid="you-collection-general-badge"
                 className="shrink-0 rounded-full bg-foam px-1.5 py-0.5 text-[10px] font-emphasis tracking-tight text-ink"
               >
-                Draft
+                {generalBadge}
               </span>
+            ) : null}
+            {draft && !generalBadge ? (
+              <DraftChip testId="you-collection-draft-chip" />
             ) : null}
           </p>
         ) : null}
@@ -141,7 +149,7 @@ export function YouCollectionListRow({
       : 'border border-transparent bg-canvas',
   );
 
-  const longPress = useLongPress(() => onLongSelect());
+  const longPress = useLongPress(general ? undefined : () => onLongSelect());
 
   if (selecting) {
     return (
@@ -154,6 +162,19 @@ export function YouCollectionListRow({
       >
         {body}
       </button>
+    );
+  }
+
+  if (general) {
+    return (
+      <Link
+        to={target.href}
+        state={target.state}
+        data-testid={`you-collection-row-${collection.id}`}
+        className={rowClass}
+      >
+        {body}
+      </Link>
     );
   }
 

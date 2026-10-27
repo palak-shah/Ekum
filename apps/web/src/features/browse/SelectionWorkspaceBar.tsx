@@ -46,6 +46,11 @@ import {
   useShortlistOrderFlow,
 } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
+import {
+  SELECTION_NEEDS_PUBLISHED_TOAST,
+  selectionSkipToast,
+  tradeableShortlistEntries,
+} from '@/features/browse/selectionEligibility';
 import { useToast } from '@/ui/Toast';
 import { CartIcon, ChatIcon, PaperPlaneIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
@@ -150,9 +155,11 @@ export function SelectionWorkspaceBar() {
   };
 
   const addToCart = () => {
-    const { added } = addStagingToCart();
+    const { added, skipped = 0 } = addStagingToCart();
     exitSelecting();
-    if (added > 0) {
+    const skipNotice = selectionSkipToast(skipped, added);
+    if (skipNotice) showToast(skipNotice);
+    else if (added > 0) {
       showToast(added === 1 ? 'Added to cart' : `${added} added to cart`, 'success');
     }
   };
@@ -163,10 +170,26 @@ export function SelectionWorkspaceBar() {
       setOrderResolveOpen(true);
       return;
     }
-    if (shortlist.count > 0) orderFlow.setQtyOpen(true);
+    const tradeable = tradeableShortlistEntries(shortlist.entries);
+    const skipped = shortlist.entries.length - tradeable.length;
+    const notice = selectionSkipToast(skipped, tradeable.length);
+    if (notice) showToast(notice);
+    if (tradeable.length < 1) return;
+    setQtyEntries(tradeable);
+    orderFlow.setQtyOpen(true);
   };
 
-  const qtySource = qtyEntries ?? shortlist.entries;
+  const openShare = () => {
+    const tradeable = tradeableShortlistEntries(shortlist.entries);
+    if (tradeable.length < 1 && albumPick.count < 1) {
+      showToast(SELECTION_NEEDS_PUBLISHED_TOAST);
+      return;
+    }
+    setShareOpen(true);
+  };
+
+  const qtySource = tradeableShortlistEntries(qtyEntries ?? shortlist.entries);
+  const shareProducts = tradeableShortlistEntries(shortlist.entries);
 
   return (
     <>
@@ -202,7 +225,7 @@ export function SelectionWorkspaceBar() {
                       testId="selection-workspace-share"
                       label="Share"
                       disabled={nothingSelected}
-                      onClick={() => setShareOpen(true)}
+                      onClick={openShare}
                     >
                       <PaperPlaneIcon width={22} height={22} />
                     </DockIconButton>
@@ -238,7 +261,7 @@ export function SelectionWorkspaceBar() {
             name: entry.name,
             image: entry.coverImage,
           }))}
-          products={shortlist.entries.map((entry) => ({
+          products={shareProducts.map((entry) => ({
             productId: entry.productId,
             name: entry.name,
             image: entry.thumbUrl,
@@ -253,7 +276,7 @@ export function SelectionWorkspaceBar() {
           name: entry.name,
           image: entry.coverImage,
         }))}
-        products={shortlist.entries.map((entry) => ({
+        products={shareProducts.map((entry) => ({
           productId: entry.productId,
           name: entry.name,
           image: entry.thumbUrl,

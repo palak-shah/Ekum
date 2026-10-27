@@ -8,7 +8,7 @@ import {
 } from './catalogListFilter';
 
 describe('catalog status chips', () => {
-  it('defaults to published; Find only offers Draft and Archived', () => {
+  it('defaults to published; Find only offers Draft and Deleted', () => {
     expect(DEFAULT_CATALOG_LIST_FILTER).toBe('published');
     expect(CATALOG_STATUS_FILTERS.map((row) => row.id)).toEqual([
       'published',
@@ -16,6 +16,7 @@ describe('catalog status chips', () => {
       'archived',
     ]);
     expect(CATALOG_FIND_STATUS_FILTERS.map((row) => row.id)).toEqual(['draft', 'archived']);
+    expect(CATALOG_FIND_STATUS_FILTERS.map((row) => row.label)).toEqual(['Draft', 'Deleted']);
   });
 });
 

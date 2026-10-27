@@ -7,7 +7,7 @@ import {
 } from './DispatchLrBillInputs';
 
 describe('DispatchLrBillInputs', () => {
-  it('names empty fields LR number and Bill Number/Bale Number', () => {
+  it('names empty fields LR number and Bill/bale number', () => {
     render(
       <DispatchLrBillInputs
         lrNumber=""
@@ -29,7 +29,7 @@ describe('DispatchLrBillInputs', () => {
       'Optional',
     );
     expect(screen.getByLabelText('LR number 1').parentElement).toHaveClass(
-      'grid-cols-[minmax(0,1fr)_minmax(0,1.75fr)]',
+      'grid-cols-2',
     );
   });
 

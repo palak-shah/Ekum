@@ -18,6 +18,7 @@ export function designSheetShortlistEntry(
     | 'moq'
     | 'rate'
     | 'rateMax'
+    | 'status'
   >,
   companyNameFallback = '',
   pack?: {
@@ -42,6 +43,7 @@ export function designSheetShortlistEntry(
     moq: product.moq ?? null,
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
+    ...(product.status ? { status: product.status } : {}),
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,

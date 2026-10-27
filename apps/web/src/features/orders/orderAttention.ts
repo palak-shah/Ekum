@@ -30,14 +30,13 @@ export function sellerNeedsRate(order: OrderView): boolean {
   );
 }
 
-/** Seller has rates on a request and can confirm the order. */
+/** Seller can lock a requested order (rate optional on Confirm). */
 export function sellerCanConfirm(order: OrderView): boolean {
   if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
     order.status === 'requested' &&
-    order.items.length > 0 &&
-    order.items.every((item) => item.rate != null)
+    order.items.length > 0
   );
 }
 

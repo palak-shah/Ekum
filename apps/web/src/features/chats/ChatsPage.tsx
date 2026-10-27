@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CursorPage, type FollowAskView, type MuteFor, type ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Button, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
+import { Button, Chip, ChipCountBadge, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
 import { ListSearchRow } from '@/ui/ListSearchRow';
 import { ChevronRightIcon } from '@/ui/icons';
 import { subscribeChatsNewChat } from './chatsNewChat';
@@ -17,7 +17,6 @@ import { useToast } from '@/ui/Toast';
 import { FollowAskDecideRow, FollowAskHeader } from '@/features/chats/FollowAskDecideRow';
 import {
   type ChatsInboxChip,
-  chatsInboxChipBadge,
   chatsInboxChipCount,
   chatsInboxEmptyCopy,
   chatsInboxFromSearch,
@@ -255,43 +254,32 @@ export function ChatsPage() {
       ) : (
         <>
           <FilterRail className="gap-1.5">
-            {(['all', 'unread', 'groups', 'requests'] as const).map((value) => {
-              const badge = chatsInboxChipBadge(
-                chatsInboxChipCount(value, {
-                  active: activeInbox.data?.results ?? [],
-                  pendingCount: requestInbox.data?.results.length ?? 0,
-                  askCount: asks.data?.length ?? 0,
-                }),
-              );
-              return (
-                <Chip
-                  key={value}
-                  compact
-                  active={chip === value}
-                  onClick={() => {
-                    setChip(value);
-                    const next = new URLSearchParams(searchParams);
-                    if (value === 'all') next.delete('inbox');
-                    else next.set('inbox', value);
-                    setSearchParams(next, { replace: true });
-                  }}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    {CHIP_LABEL[value]}
-                    {badge ? (
-                      <span
-                        className={cx(
-                          'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
-                          chip === value ? 'bg-white/25 text-white' : 'bg-badge text-white',
-                        )}
-                      >
-                        {badge}
-                      </span>
-                    ) : null}
-                  </span>
-                </Chip>
-              );
-            })}
+            {(['all', 'unread', 'groups', 'requests'] as const).map((value) => (
+              <Chip
+                key={value}
+                compact
+                active={chip === value}
+                onClick={() => {
+                  setChip(value);
+                  const next = new URLSearchParams(searchParams);
+                  if (value === 'all') next.delete('inbox');
+                  else next.set('inbox', value);
+                  setSearchParams(next, { replace: true });
+                }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  {CHIP_LABEL[value]}
+                  <ChipCountBadge
+                    count={chatsInboxChipCount(value, {
+                      active: activeInbox.data?.results ?? [],
+                      pendingCount: requestInbox.data?.results.length ?? 0,
+                      askCount: asks.data?.length ?? 0,
+                    })}
+                    inverted={chip === value}
+                  />
+                </span>
+              </Chip>
+            ))}
           </FilterRail>
 
           {threads.isLoading && !threads.data ? (

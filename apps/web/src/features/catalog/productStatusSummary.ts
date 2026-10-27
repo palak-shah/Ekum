@@ -8,14 +8,14 @@ export function productStatusLine(
   _groups: BuyerGroupName[] = [],
 ): string {
   if (product.status === ProductStatus.Archived) {
-    return 'Archived';
+    return 'Deleted';
   }
   if (product.status === ProductStatus.Draft) {
     return 'Draft';
   }
-  /** Pack publish marks designs Published without a solo Explore tile. */
+  /** Pack / catalog publish marks designs Published without a solo Explore tile. */
   if (!product.postedToMarketAt) {
-    return 'In your collections';
+    return product.catalogCollectionId ? 'In your catalog' : 'In your collections';
   }
   return '';
 }

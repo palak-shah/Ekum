@@ -90,6 +90,7 @@ export class DiscoverySerializer {
     return {
       id: collection.id,
       name: collection.name,
+      kind: (collection as { kind?: string }).kind ?? 'regular',
       description: collection.description?.trim() || null,
       categories: collection.categories ?? [],
       memberFind: collectionMemberFind(collection.products),

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ChevronRightIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
+import { SCROLL_OPENED_MARGIN_CLASS, useScrollWhenOpened } from '@/ui/scrollWhenOpened';
 
 type Props = {
   title: string;
@@ -20,9 +21,14 @@ export function CollectionExpandableSection({
   children,
   testId,
 }: Props) {
+  const scrollRef = useScrollWhenOpened(open);
   return (
     <div
-      className="overflow-hidden rounded-xl border border-line bg-surface"
+      ref={scrollRef}
+      className={cx(
+        'overflow-hidden rounded-xl border border-line bg-surface',
+        SCROLL_OPENED_MARGIN_CLASS,
+      )}
       data-testid={testId}
     >
       <button

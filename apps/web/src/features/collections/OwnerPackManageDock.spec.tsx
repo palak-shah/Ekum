@@ -101,6 +101,38 @@ describe('OwnerPackManageDock', () => {
     expect(deleteBtn.compareDocumentPosition(removeBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('catalog Update says catalog, not collection', () => {
+    render(
+      <OwnerPackManageDock
+        selecting={false}
+        canDelete={false}
+        canRemove={false}
+        kind="catalog"
+        onDelete={vi.fn()}
+        onRemove={vi.fn()}
+        onUpdate={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('collection-editor-update')).toHaveTextContent('Update catalog');
+    expect(screen.getByTestId('collection-editor-update')).not.toHaveTextContent('collection');
+  });
+
+  it('catalog select Remove says catalog', () => {
+    render(
+      <OwnerPackManageDock
+        selecting
+        canDelete
+        canRemove
+        removeLabel="Remove from this catalog"
+        onDelete={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('owner-pack-remove')).toHaveTextContent(
+      'Remove from this catalog',
+    );
+  });
+
   it('shows Delete for mill designs curated into this pack', () => {
     render(
       <OwnerPackManageDock

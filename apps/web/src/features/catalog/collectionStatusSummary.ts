@@ -130,7 +130,7 @@ export function collectionStatusSummary(
   }
   if (collection.status === CollectionStatus.Archived) {
     return {
-      line: 'Archived',
+      line: 'Deleted',
       whoLabel: null,
       scheduleLabel: null,
       phase: 'archived',

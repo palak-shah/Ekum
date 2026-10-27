@@ -28,8 +28,9 @@ export function tradeNeedsYouLabel(item: TradeListItem): string | null {
 export function orderNeedsYouLabel(order: OrderView): string | null {
   if (isIHandleSellingParent(order)) return traderIHandleNeedsYouLabel(order);
   if (!matchesNeeds(order)) return null;
-  if (sellerNeedsRate(order) || order.needsQuotePass) return 'Needs you Send quote';
-  if (sellerCanConfirm(order)) return 'Needs you Confirm';
+  if (sellerCanConfirm(order) || sellerNeedsRate(order) || order.needsQuotePass) {
+    return 'Needs you Confirm';
+  }
   if (buyerCanAcceptQuote(order)) return 'Needs you Accept quote';
   if (order.canSettle) return 'Needs you Settle';
   if (sellerNeedsDispatch(order)) return 'Needs you Dispatch';

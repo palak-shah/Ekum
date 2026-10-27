@@ -367,10 +367,10 @@ describe('stampCreatePhotoMemberForm', () => {
     ).toBe('900');
   });
 
-  it('keeps a design’s own rate when Apply is on', () => {
+  it('Apply to all overwrites a filled photo rate', () => {
     expect(
       stampCreatePhotoMemberForm({ ...emptyPhoto, rate: '900' }, pack, true).rate,
-    ).toBe('900');
+    ).toBe('1200-1400');
     expect(
       stampCreatePhotoMemberForm({ ...emptyPhoto, rate: '900' }, pack, true).piecesPerPack,
     ).toBe('4');
@@ -662,7 +662,7 @@ describe('packMemberProductPatch', () => {
     });
   });
 
-  it('Apply to all still does not overwrite a filled design rate', () => {
+  it('Apply to all overwrites a filled design rate', () => {
     expect(
       packMemberProductPatch({
         parsed: mtrParsed,
@@ -670,7 +670,7 @@ describe('packMemberProductPatch', () => {
         packRate: '91',
         applyToAll: true,
       }).rate,
-    ).toBeUndefined();
+    ).toBe(91);
   });
 
   it('Apply to all sends null when 1 set contains is empty or 0', () => {

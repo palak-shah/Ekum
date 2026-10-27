@@ -312,6 +312,8 @@ model Product {
   /** When false, buyers must not download / export design photos. */
   allowDownload       Boolean   @default(false)
   postedToMarketAt    DateTime?
+  /** Own-company catalog this design is exclusive to. Null = not in an own catalog. */
+  catalogCollectionId String?
   createdByUserId     String?
   updatedByUserId     String?
   createdAt DateTime @default(now())
@@ -321,6 +323,7 @@ model Product {
   createdByUser   User?               @relation("ProductCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedByUser   User?               @relation("ProductUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   masterCategory  MasterCategory?     @relation(fields: [masterCategoryId], references: [id], onDelete: SetNull)
+  catalogCollection Collection?       @relation("CatalogExclusiveMembers", fields: [catalogCollectionId], references: [id], onDelete: SetNull)
   collections     CollectionProduct[]
   savedItems      SavedItem[]
   relistGrants    ProductRelistGrant[]
@@ -330,6 +333,7 @@ model Product {
   @@index([createdByUserId])
   @@index([updatedByUserId])
   @@index([masterCategoryId])
+  @@index([catalogCollectionId])
 }
 
 /// A curated set of products. Separate from Product and joined many-to-many, so
@@ -356,6 +360,10 @@ model Collection {
   categories     String[] @default([])
   /** Master Category for this pack (filters item/quality/size/units). */
   masterCategoryId String?
+  /** general | regular | catalog. General Collection identity — never inferred from name. */
+  kind           String   @default("regular")
+  /** whole | pick when kind=catalog; otherwise null. Not orderPathPreference. */
+  orderMode      String?
   status         String   @default("draft") // CollectionStatus
   // Decided at publish time (PublishAudience / RateVisibility).
   audience            String   @default("followers")
@@ -404,11 +412,13 @@ model Collection {
   createdByUser  User?               @relation("CollectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedByUser  User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   products       CollectionProduct[]
+  catalogExclusiveMembers Product[] @relation("CatalogExclusiveMembers")
   savedItems     SavedItem[]
   viewGrants     CollectionViewGrant[]
   viewRequests   CollectionViewRequest[]
 
   @@index([companyId, status])
+  @@index([companyId, kind])
   @@index([masterCategoryId])
   @@index([exploreActivityAt])
   @@index([status, endsAt])

@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-22 (functional gap audit; production docker-up release gate; Empty Save in Draft; honest pack Explore ₹)  
+**Updated:** 2026-10-27 (Order form PDF, line qty, pack cue, drop Send quote, Bill/bale)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -15,7 +15,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Platform | Quiet info (circle i): instructional copy on tap; one `InfoHint` / `InfoIcon` | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; Confirm title + collection Apply-all; Field `info` |
 | Orders | Confirm Qty \| Rate type matches How many / Edit (14px emphasis) | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; `compactSheetNumInputClass` |
 | Catalog | You Collections list (published+draft, page ⋯, swipe More/Share); Designs grid | Works | Unit | Required | Completeness 2026-10-17-you-collections-list; `libraryCollectionThumb` |
-| Catalog | Designs via collection only (no You Designs **＋** / Single design); kit Button `loading`; camera hard-stop on leave; Rate per valid after Category change | Works | Unit | Required | Completeness 2026-10-22-designs-via-collection-only; pack Rate per stamps followers even without rupee |
+| Collections | Owner album lists draft members with Draft chip; select includes drafts; ⋯ Draft · Publish (one tap, no Who); idle ⋯ Draft this collection/catalog; DesignSheet Order/cart blocked on drafts; buyers published-only | Works | Unit + Functional | Required | Completeness 2026-10-26-owner-album-draft-members + owner-album-draft-publish + album-member-publish-no-who; pack vs design status independent |
+| Catalog | Designs via collection only (no You Designs **＋** / Single design); kit Button `loading`; camera hard-stop on leave; Rate per valid after Category change | Redesigned | Unit | Required | Completeness 2026-10-22-designs-via-collection-only; **Redesign** 2026-10-24-you-designs-add-plus-restore (Designs **＋** back; GC is unassigned home). Camera hard-stop + Rate per still hold |
 | Platform | Bottom nav only on Home, Chats, Explore, Orders; Explore Select still hides it | Works | Unit | Required | Completeness 2026-10-17-main-menu-bottom-nav; `isMainMenuPath` |
 | Platform | Page CTA docks share `BottomTradeDock` + clearance; nav-hidden editors sit at bottom-0 (Edit design Size tags not under Update) | Works | Unit | Required | Completeness 2026-10-22-shared-sticky-cta-dock; BM-07 |
 | Platform | Master Categories (sheet) replace SuperCategory; Admin Console Tag Management (scope-gated list, unified search/add, paginated Load more, bulk paste) + category-aware collection tags/units; CompanyCustomTag | Partial | Unit | Required | Completeness 2026-10-14-master-data-admin; UX refine 2026-10-15; web units AdminTagsPage; no e2e platform-admin seed yet |
@@ -43,14 +44,14 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Album design sheet → Edit design (own designs) | Works | Unit | Required | Completeness 2026-10-09-album-owner-tap-edit-design |
 | Browse | Shared SelectModeControls + BrowseLotChrome; half-size checks; Clear exits; You library second-row lot chrome | Works | Unit | Required | Completeness 2026-10-09-shared-select-mode-controls; Explore showSelectAll false; You tabs+＋ then Find·Select·layout |
 | Orders | Dispatch LR leg photos with visible thumbs | Works | Unit | Required | Completeness 2026-10-08-dispatch-lr-leg-photos; `LegPhotoAttach` |
-| Orders | Confirm primary dock CTA; Send quote secondary (soft offer kept) | Works | Unit + Functional | Required | Completeness 2026-10-08-confirm-primary-quote-secondary; `requestedDockPrimary` |
+| Orders | Confirm primary dock CTA; no Send quote button (leftover Accept quote only) | Works | Unit + Functional | Required | Completeness 2026-10-27-order-form-qty-pack (supersedes 2026-10-08 quote-secondary button) |
 | Orders | I-handle parent: no Send quote / no Confirm; Send · Send all; settle Final qty; no Trading-with; Bill not clipped | Works | Unit + Functional | Required | Completeness 2026-10-14-orders-trader-dock-settle-qty; supersedes parent Send-quote-on-face |
 | Orders | Send quote rows match Dispatch card chrome (not qty/rate table) | Works | Unit | Required | Completeness 2026-10-08-send-quote-dispatch-chrome |
 | Orders | Confirm / decline lines: Qty + Rate editable; Same for all | Works | Unit | Required | Completeness 2026-10-08-confirm-lines-qty; `decideLinesPayload` qty+rate |
-| Orders | Confirm without a rate: lock qty even when Rate is blank | Works | Unit | Required | Completeness 2026-10-21-confirm-without-rate; Send quote still requires rate |
+| Orders | Confirm without a rate: lock qty even when Rate is blank | Works | Unit | Required | Completeness 2026-10-21-confirm-without-rate; Send quote button removed 2026-10-27 |
 | Orders | Ticket/Dispatch wash: remaining neutral; fully shipped pale-green; extra unwashed + amber +N (no number chip); remaining-0 lines on Dispatch start off | Works | Unit | Required | Completeness 2026-10-21-order-dispatch-ui-refinement; fully-shipped-wash 2026-10-21 |
 | Orders | After confirm: Price/Bill under name (How many type); Ordered · Shipped · Balance; Confirm/Dispatch − n +; pencil at right | Works | Unit | Required | Completeness 2026-10-21-order-line-stepper-money |
-| Orders | Dispatch: Ship in this LR one-line wider editor; LR number / Bill Number/Bale Number placeholders; transport in scroll; sticky Confirm + This LR total | Works | Unit | Required | Completeness 2026-10-21-dispatch-lr-scroll-editor; BM-07 3 LRs + photos |
+| Orders | Dispatch: Ship in this LR one-line wider editor; LR number / Bill/bale number equal columns; transport in scroll; sticky Confirm + This LR total | Works | Unit | Required | Completeness 2026-10-21-dispatch-lr-scroll-editor + 2026-10-27-order-form-qty-pack |
 | Orders | Dispatch: signed leftover/extra at name right (live with This LR); strip Ordered · Shipped · This LR; no Balance column; no stepper ring | Works | Unit | Required | Completeness 2026-10-21-dispatch-remainder-name; inset + hide 0: 2026-10-21-dispatch-remainder-inset |
 | Orders | Settle sheet: same row chrome as Dispatch (Ordered · Shipped · Final + −N/+N); own dock button; leftover in footer | Works | Unit | Required | Completeness 2026-10-21-settle-sheet-dispatch-chrome; not folded into Dispatch |
 | Orders | Buyer transporter at place (type + MRU history); OrderView; Dispatch prefill | Works | Unit | Required | Completeness 2026-10-08-buyer-transporter; `transporterMemory` + `TransporterField` |
@@ -67,7 +68,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | Ticket heading is Order # / Inquiry # only (shop on parties card) | Works | Unit | Required | Completeness 2026-10-21-order-ticket-heading-id |
 | Orders | Trader: Sales-party buyer chat + mill card 1:1 after Send; fact strip full width (no PRI…) | Works | Unit | Required | Completeness 2026-10-14-order-party-mill-chat-facts |
 | Orders | Timeline newest-first + More; complaint from order + escalate-as-trader; editable dispatches; list by updatedAt + Explore when | Works | Unit + Functional | Required | Completeness 2026-10-05-orders-timeline-complaint-dispatch-edit |
-| Orders | Per-line fulfill edit + Can’t supply on Dispatch sheet + packing PDF (phone viewer + quiet Share) | Works | Unit | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf |
+| Orders | Per-line fulfill edit: Can’t supply + Ordered qty (no Last LR); packing PDF; ticket ⋯ Order form PDF | Works | Unit + Functional | Required | Completeness 2026-10-05-order-line-edit-dispatch-pdf + 2026-10-27-order-form-qty-pack |
 | Orders | Packing slip options (buyer / photos) + order-unit qty + design thumbs | Works | Unit | Required | Completeness 2026-10-08-packing-slip-options-photos |
 | Explore / Selection | Selected media: little shrink over page surface + filled teal check (no teal frame); unselected full color | Works | Unit | Required | Completeness 2026-10-05-selection-media-photos-look; shrink-no-teal 2026-10-06 |
 | Explore | First-paint feed + end footer; virtual overscan; shop prefetch | Works | Unit | Required | Progressive `/explore/feed` + `sections=feed`; You've reached the end |
@@ -84,6 +85,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Shop header: GST tick, city · cats, Request access, date under post | Works | Unit | Required | Completeness 2026-09-29-explore-shop-header-chrome; rename 2026-10-06-shop-profile-client-chrome; idle copy 2026-10-22-request-access-copy; CSV sr 8 T4 · 9/10 T1+T3 · 16 T4 |
 | Explore | Pack header rate band; design card / popup shop name | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 16 T3 · 17 T3 |
 | Catalog | Nav ＋ has no Add designs (You Add only) | Works | Unit-only | Required | Completeness 2026-09-25-nav-plus-no-add-designs |
+| Catalog | You → Designs trailing ＋ opens Add designs; Collections unchanged | Works | Unit + Functional | Required | Completeness 2026-10-23-you-designs-add-plus; restored 2026-10-24 after my-collections removed it |
 | Chat | WhatsApp parity: group photo inbox, public leave, no ＋ multi-group, swipe-reply, menus, Unarchive swipe, no Pin message / Select chats, starred Unstar, Android borders | Works | Unit | Required | Completeness 2026-10-02-chat-whatsapp-parity |
 | Chat | Thread down-arrow to latest (WhatsApp) | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-jump-latest |
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
@@ -135,13 +137,13 @@ Verification: Functional · Regression · Unit-only · Untested
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
 | Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
 | Orders | Orders More menu portal (Samples/Returns) | Works | Functional | Recommended | `orders.chrome.journey.spec.ts` |
-| Orders | List: Selling / Buying / Others; Pending / Completed counts; text-first cards (avatar, protocol, no pill, no thumbs); no list Confirm / Accept / Decline | Works | Unit + Functional | Required | Completeness 2026-10-19-orders-list-tabs + 2026-10-21-orders-list-protocol; avatar 2026-10-15; textile-card 2026-10-09 |
+| Orders | List: Selling / Buying / Others; Pending / Completed chips with plain counts (0 shown); text-first cards (avatar, protocol, no pill, no thumbs); no list Confirm / Accept / Decline | Works | Unit + Functional | Required | Completeness 2026-10-19-orders-list-tabs + 2026-10-21-orders-list-protocol; chips 2026-10-23-orders-pending-chat-chips; avatar 2026-10-15; textile-card 2026-10-09 |
 | Orders | List protocol is Needs you Confirm / Dispatch / Accept quote / Accept & forward; no middot; compact under the name | Works | Unit + Functional | Required | Completeness 2026-10-21-orders-list-protocol + 2026-10-21-orders-list-compact |
 | Orders | List facts: `Order #VONR 2 designs 12 sets` (sum); mixed units designs only | Works | Unit | Required | Completeness 2026-10-21-orders-list-facts-designs-qty |
 | Orders | List for/to hop cue (`for {buyer} {parent #}`) | Deferred | — | — | Completeness 2026-10-21-orders-list-hop-cue Redesign: mill hops stay off trader list; mill never sees parent buyer/# |
 | Orders | Ticket Total: qty left, ₹ right-aligned to the row (no Ship/Balance total) | Works | Unit | Required | Completeness 2026-10-21-ticket-total-mill-bill + 2026-10-21-orders-list-compact |
 | Orders | Mixed ticket Total: per-unit qty+₹ then All grand ₹ | Works | Unit | Required | Completeness 2026-10-21-ticket-unit-bill-totals |
-| Orders | Ticket Total sums billed lines; Missing rates / no pcs-in-set toggle highlights those rows | Works | Unit | Required | Completeness 2026-10-21-ticket-total-missing-rates; + under ₹: 2026-10-21-ticket-missing-rates-plus |
+| Orders | Ticket Total sums billed lines; +No pcs in a set and +Missing rates only under billed ₹ (pack cue also needs mixed pack) | Works | Unit | Required | Completeness 2026-10-21-ticket-total-missing-rates + 2026-10-27-order-form-qty-pack |
 | Orders | Ticket Total: qty under Qty nowrap; ₹ right under Bill; no Ship/Balance total | Works | Unit | Required | Completeness 2026-10-21-ticket-total-mill-bill |
 | Orders | Filter Select Status = six only, scoped to Pending / Completed | Works | Unit + Functional | Required | Completeness 2026-09-30-orders-few-statuses; no Received/Approved/Resolved/Declined |
 | Orders | Returns removed from product | Works | Unit + Functional | Required | Completeness 2026-09-30-remove-returns; no Raise a return / Return type / Home Returns |
@@ -220,7 +222,19 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog | Edit design dirty leave: Save or Discard | Works | Unit | Required | Completeness 2026-10-04-edit-design-save-or-discard; chat/orders keep Leave sheet |
 | Orders | How many Share removed from Order sheet (Share = selection dock) | Works | Unit | Required | Superseded by 2026-10-09-how-many-order-only-footer; prior 2026-09-29-how-many-share |
 | Trader curation | Curate **Add to existing pack** (merge; draft→editor / published toast) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing; saved.md |
-| Collections | Ready status + seller badges/filters | Works | Unit | Required | 2026-08-13 Completeness |
+| Collections | Ready status + seller badges/filters | Redesign | Unit | Required | Removed 2026-10-23-my-collections-general-catalog; leftover `ready` reads as Draft |
+| Collections | General Collection (`kind=general`), computed membership, company seed; leftover bouquet — no apply-all / pack Order and dispatch / album journey | Works | Unit + Functional | Required | Completeness 2026-10-23-my-collections-general-catalog; no pack trade chrome 2026-10-27-gc-no-pack-order-chrome |
+| Collections | Catalog kind + owner-scoped exclusivity + stamp rate on add | Works | Unit | Required | Completeness 2026-10-23-my-collections-general-catalog |
+| Collections | Catalog chrome says catalog (labels, toasts, errors, placeholders); collection chrome says collection | Works | Unit + Functional | Required | Completeness 2026-10-27-pack-kind-copy |
+| Catalog | You tabs Collections · Catalogs · Designs; Designs ＋ Add designs; Add to pack | Works | Unit | Required | Completeness 2026-10-23-my-collections-general-catalog; Designs ＋ restored 2026-10-24-you-designs-add-plus-restore |
+| Catalog | Kind from New collection vs New catalog; exclusive GC picker; catalog-member design slim; orderMode PATCH | Works | Unit + Functional | Required | Completeness 2026-10-24-catalog-kind-entry |
+| Catalog | Add to pack: published + draft (Deleted hidden); Find + Select; already-in; You + album select ⋯; exclusivity-aware label; multi collections; catalog only GC leftover; You thumbs | Works | Unit | Required | Completeness 2026-10-24-add-to-pack-published; album/already/drafts 2026-10-24-add-to-pack-album-already; select ⋯ 2026-10-24-add-to-pack-select-more |
+| Catalog | Create & Publish catalog lands on You Catalogs; exclusive designs omit Add; Designs membership line; library vs album Add verbs; In your catalog | Works | Unit + Functional | Required | Completeness 2026-10-24-catalog-land-exclusive-add |
+| Catalog | Remove from catalog returns own design to General Collection (stamp clear + GC refetch) | Works | Unit | Required | Bugfix 2026-10-24; membership computed leftovers |
+| Catalog | Album Remove copy is **Remove from this catalog**; sole collection remove also returns to GC | Works | Unit | Required | Completeness 2026-10-24-catalog-remove-copy |
+| Catalog | Opened accordion / album-change / Show details scrolls into view above the dock | Works | Unit | Required | Completeness 2026-10-24-expand-scroll-into-view |
+| Collections | Delete = soft archived; Deleted filter; no Restore; also-delete/also-draft designs | Works | Unit | Required | Completeness 2026-10-23-my-collections-general-catalog |
+| Collections | Apply-to-all overwrites member rates; orders snapshot design rate | Works | Unit | Required | Completeness 2026-10-23-my-collections-general-catalog (Redesign of 2026-10-22-pack-apply-all-honest-rates) |
 | Collections | Live window startsAt/endsAt + expire | Works | Unit | Required | 2026-08-13 Completeness |
 | Collections | Seller informed catalog (collage + viewer) | Works | Unit | Required | 2026-08-13 Completeness |
 | Explore | Browse seeded + open detail | Works | Functional | Required | Green 2026-08-11 |

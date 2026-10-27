@@ -42,6 +42,7 @@ describe('OwnerCollectionMoreSheet', () => {
       'Replace entire collection',
     );
     expect(screen.getByTestId('collection-menu-edit')).toHaveTextContent('Edit collection details');
+    expect(screen.queryByTestId('collection-menu-draft')).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId('collection-menu-add-designs'));
     expect(onClose).toHaveBeenCalled();
@@ -51,5 +52,92 @@ describe('OwnerCollectionMoreSheet', () => {
     await user.click(screen.getByTestId('collection-menu-replace'));
     expect(onClose).toHaveBeenCalled();
     expect(onReplace).toHaveBeenCalled();
+  });
+
+  it('General Collection ⋯ is Bookmark · Edit only', () => {
+    render(
+      <OwnerCollectionMoreSheet
+        open
+        title="Shop leftover"
+        isGeneral
+        onClose={() => undefined}
+        onShare={() => undefined}
+        onBookmark={() => undefined}
+        onWhoHasAccess={() => undefined}
+        onAddDesigns={() => undefined}
+        onAddPhotos={() => undefined}
+        onReplace={() => undefined}
+        onEditDetails={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId('collection-menu-bookmark')).toBeInTheDocument();
+    expect(screen.getByTestId('collection-menu-edit')).toBeInTheDocument();
+    expect(screen.queryByTestId('collection-menu-share')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('collection-menu-add-designs')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('collection-menu-add-photos')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('collection-menu-replace')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('collection-menu-who')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('collection-menu-draft')).not.toBeInTheDocument();
+  });
+
+  it('published pack ⋯ ends with Draft this collection', async () => {
+    const user = userEvent.setup();
+    const onDraft = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <OwnerCollectionMoreSheet
+        open
+        title="Monsoon Cottons"
+        canDraft
+        onClose={onClose}
+        onShare={() => undefined}
+        onBookmark={() => undefined}
+        onWhoHasAccess={() => undefined}
+        onAddDesigns={() => undefined}
+        onAddPhotos={() => undefined}
+        onReplace={() => undefined}
+        onEditDetails={() => undefined}
+        onDraft={onDraft}
+      />,
+    );
+    expect(screen.getByTestId('collection-menu-draft')).toHaveTextContent(
+      'Draft this collection',
+    );
+    await user.click(screen.getByTestId('collection-menu-draft'));
+    expect(onClose).toHaveBeenCalled();
+    expect(onDraft).toHaveBeenCalled();
+  });
+
+  it('catalog pack ⋯ uses catalog, never collection', () => {
+    render(
+      <OwnerCollectionMoreSheet
+        open
+        title="Diwali drop"
+        kind="catalog"
+        canDraft
+        draftLabel="Draft this catalog"
+        onClose={() => undefined}
+        onShare={() => undefined}
+        onBookmark={() => undefined}
+        onWhoHasAccess={() => undefined}
+        onAddDesigns={() => undefined}
+        onAddPhotos={() => undefined}
+        onReplace={() => undefined}
+        onEditDetails={() => undefined}
+        onDraft={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId('collection-menu-share')).toHaveTextContent('Share this catalog');
+    expect(screen.getByTestId('collection-menu-bookmark')).toHaveTextContent(
+      'Bookmark this catalog',
+    );
+    expect(screen.getByTestId('collection-menu-replace')).toHaveTextContent(
+      'Replace entire catalog',
+    );
+    expect(screen.getByTestId('collection-menu-edit')).toHaveTextContent('Edit catalog details');
+    expect(screen.getByTestId('collection-menu-draft')).toHaveTextContent('Draft this catalog');
+    expect(screen.getByTestId('owner-collection-more-sheet').textContent).not.toMatch(
+      /\bcollection\b/i,
+    );
   });
 });

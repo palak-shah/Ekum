@@ -31,6 +31,7 @@ import { collectionSourceShopNames } from '../discovery/discovery.serializer';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { shopPublishedDesignWhere } from './shop-design-list';
+import { ensureGeneralCollection } from '../catalog/general-collection';
 import type { AuthPrincipal } from '../auth/auth.types';
 
 @Injectable()
@@ -96,6 +97,7 @@ export class CompanyService {
             where: { id: principal.userId },
             data: { name: dto.contactPerson },
           });
+          await ensureGeneralCollection(tx, created.id, principal.userId);
           return created;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -318,6 +320,7 @@ export class CompanyService {
     const rows = await this.prisma.collection.findMany({
       where: {
         companyId: targetId,
+        kind: { not: 'general' },
         status: CollectionStatus.Published,
         OR: [
           ...audienceVisibilityOr(viewerCompanyId),

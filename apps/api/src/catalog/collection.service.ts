@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CatalogOrderMode,
+  CollectionKind,
   CollectionStatus,
   ConnectionStatus,
   FollowAccessKind,
@@ -17,6 +19,7 @@ import {
   type ListCatalogQuery,
   type OtherPackCountsView,
   type PublishCollectionDto,
+  type PublishCollectionMembersView,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
 import { createdAtOrderBy, createdAtRangeFilter } from '../common/audit';
@@ -44,6 +47,16 @@ import { rememberPublishDefaults } from './publish-policy';
 import { shouldBumpExploreOnPublish } from './explore-activity-bump';
 import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
 import { MasterDataService } from './master-data/master-data.service';
+import {
+  assertNotGeneralMutation,
+  ensureGeneralCollection,
+  generalMemberJoinRows,
+  generalMemberProductWhere,
+  isCatalogKind,
+  isGeneralKind,
+  packNoun,
+  qualifyingCollectionWhere,
+} from './general-collection';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
@@ -98,15 +111,20 @@ export class CollectionService {
         status: { not: CollectionStatus.Archived },
         ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, kind: true },
     });
     if (clash) {
+      const noun = packNoun((clash as { kind?: string }).kind);
       throw new ConflictException({
         code: 'COLLECTION_NAME_TAKEN',
         message: opts.restoring
-          ? `Restore blocked — a live collection already uses “${clash.name}”.`
-          : `You already have a collection named “${clash.name}”.`,
-        details: { collectionId: clash.id, name: clash.name },
+          ? `Restore blocked — a live ${noun} already uses “${clash.name}”.`
+          : `You already have a ${noun} named “${clash.name}”.`,
+        details: {
+          collectionId: clash.id,
+          name: clash.name,
+          kind: (clash as { kind?: string }).kind ?? null,
+        },
       });
     }
     return name;
@@ -168,6 +186,22 @@ export class CollectionService {
               endsAt: endsAt === undefined ? null : endsAt,
               createdByUserId: userId,
               updatedByUserId: userId,
+              ...(prismaModelHasField('Collection', 'kind')
+                ? {
+                    kind:
+                      dto.kind === CollectionKind.Catalog
+                        ? CollectionKind.Catalog
+                        : CollectionKind.Regular,
+                  }
+                : {}),
+              ...(prismaModelHasField('Collection', 'orderMode')
+                ? {
+                    orderMode:
+                      dto.kind === CollectionKind.Catalog
+                        ? (dto.orderMode ?? CatalogOrderMode.Pick)
+                        : null,
+                  }
+                : {}),
               ...repostSource,
             },
             dto.rate ?? null,
@@ -280,16 +314,40 @@ export class CollectionService {
     companyId: string,
     query: ListCatalogQuery = { sort: 'newest' },
   ): Promise<CollectionView[]> {
+    await ensureGeneralCollection(this.prisma, companyId);
     const createdAt = createdAtRangeFilter(query);
     const collections = await this.prisma.collection.findMany({
       where: {
         companyId,
         ...(createdAt ? { createdAt } : {}),
+        ...(query.kind ? { kind: query.kind } : {}),
       },
       orderBy: [...createdAtOrderBy(query.sort)],
       include: listInclude,
     });
-    return collections.map((collection) => this.serializer.toCollectionView(collection));
+    collections.sort((a, b) => {
+      const ag = isGeneralKind((a as { kind?: string }).kind) ? 0 : 1;
+      const bg = isGeneralKind((b as { kind?: string }).kind) ? 0 : 1;
+      return ag - bg;
+    });
+    const general = collections.find((row) => isGeneralKind((row as { kind?: string }).kind));
+    const generalMembers = general
+      ? await this.prisma.product.findMany({
+          where: generalMemberProductWhere(companyId),
+          include: { company: { select: { id: true, name: true } } },
+          orderBy: { updatedAt: 'desc' },
+        })
+      : [];
+    return collections.map((collection) => {
+      if (!isGeneralKind((collection as { kind?: string }).kind)) {
+        return this.serializer.toCollectionView(collection);
+      }
+      const products = generalMemberJoinRows(collection.id, generalMembers);
+      return this.serializer.toCollectionView(
+        { ...collection, products, _count: { products: products.length } },
+        products.length,
+      );
+    });
   }
 
   async get(companyId: string, id: string): Promise<CollectionDetailView> {
@@ -311,6 +369,20 @@ export class CollectionService {
         },
       },
     });
+    if (isGeneralKind((collection as { kind?: string }).kind)) {
+      const members = await this.prisma.product.findMany({
+        where: generalMemberProductWhere(companyId),
+        include: {
+          ...productActorInclude,
+          company: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return this.serializer.toCollectionDetail({
+        ...collection,
+        products: generalMemberJoinRows(collection.id, members),
+      });
+    }
     return this.serializer.toCollectionDetail(collection);
   }
 
@@ -321,6 +393,29 @@ export class CollectionService {
     dto: UpdateCollectionDto,
   ): Promise<CollectionView> {
     const existing = await this.owned(companyId, id);
+    if (isGeneralKind((existing as { kind?: string }).kind)) {
+      if (
+        dto.categories?.length ||
+        dto.masterCategoryId ||
+        dto.rate !== undefined ||
+        dto.kind === CollectionKind.Catalog
+      ) {
+        assertNotGeneralMutation('general', 'has no tags, category, or rate');
+      }
+      const name =
+        dto.name !== undefined && dto.name.trim() !== existing.name
+          ? await this.assertNameAvailable(companyId, dto.name, { excludeId: id })
+          : existing.name;
+      const collection = await this.prisma.collection.update({
+        where: { id },
+        data: { name, updatedByUserId: userId },
+        include: listInclude,
+      });
+      const generalCount = await this.prisma.product.count({
+        where: generalMemberProductWhere(companyId),
+      });
+      return this.serializer.toCollectionView(collection, generalCount);
+    }
     const startsAt = parseScheduleInstant(dto.startsAt, 'start');
     const endsAt = parseScheduleInstant(dto.endsAt, 'end');
     const nextStarts = startsAt === undefined ? existing.startsAt : startsAt;
@@ -367,6 +462,12 @@ export class CollectionService {
               ),
             }
           : {}),
+        ...(dto.orderMode !== undefined &&
+        isCatalogKind((existing as { kind?: string }).kind) &&
+        prismaModelHasField('Collection', 'orderMode') &&
+        (dto.orderMode === CatalogOrderMode.Whole || dto.orderMode === CatalogOrderMode.Pick)
+          ? { orderMode: dto.orderMode }
+          : {}),
         updatedByUserId: userId,
         ...(startsAt !== undefined ? { startsAt } : {}),
         ...(endsAt !== undefined ? { endsAt } : {}),
@@ -388,10 +489,11 @@ export class CollectionService {
     dto: PublishCollectionDto,
   ): Promise<CollectionView> {
     const existing = await this.owned(companyId, id);
+    assertNotGeneralMutation((existing as { kind?: string }).kind, 'is not published to Explore');
     if (typeof existing.name === 'string' && !existing.name.trim()) {
       throw new BadRequestException({
         code: 'INVALID_NAME',
-        message: 'Give this collection a name.',
+        message: `Give this ${packNoun((existing as { kind?: string }).kind)} a name.`,
       });
     }
     if (this.masterData && prismaModelHasField('Collection', 'masterCategoryId')) {
@@ -437,7 +539,7 @@ export class CollectionService {
     if (members.length < 1) {
       throw new BadRequestException({
         code: 'COLLECTION_EMPTY',
-        message: 'Add at least one design before publishing this collection.',
+        message: `Add at least one design before publishing this ${packNoun((existing as { kind?: string }).kind)}.`,
       });
     }
 
@@ -540,60 +642,25 @@ export class CollectionService {
   }
 
   async markReady(companyId: string, userId: string, id: string): Promise<CollectionView> {
-    const existing = await this.owned(companyId, id);
-    if (
-      existing.status !== CollectionStatus.Draft &&
-      existing.status !== CollectionStatus.Ready
-    ) {
-      throw new BadRequestException({
-        code: 'INVALID_STATUS',
-        message: 'Only draft collections can be marked ready.',
-      });
-    }
-    const members = await this.prisma.collectionProduct.count({ where: { collectionId: id } });
-    if (members < 1) {
-      throw new BadRequestException({
-        code: 'COLLECTION_EMPTY',
-        message: 'Add at least one design before marking ready.',
-      });
-    }
-    const collection = await this.prisma.collection.update({
-      where: { id },
-      data: {
-        status: CollectionStatus.Ready,
-        exploreActivityAt: null,
-        updatedByUserId: userId,
-      },
-      include: listInclude,
+    void companyId;
+    void userId;
+    void id;
+    throw new BadRequestException({
+      code: 'NOT_ALLOWED',
+      message: 'Collections are Draft or Published — there is no Ready step.',
     });
-    return this.serializer.toCollectionView(collection);
   }
 
   async unready(companyId: string, userId: string, id: string): Promise<CollectionView> {
-    const existing = await this.owned(companyId, id);
-    if (existing.status !== CollectionStatus.Ready) {
-      throw new BadRequestException({
-        code: 'INVALID_STATUS',
-        message: 'Only ready collections can be moved back to draft.',
-      });
-    }
     return this.setStatus(companyId, userId, id, CollectionStatus.Draft);
   }
 
-  /** Restore an archived pack to draft so it can be edited and published again. */
-  async unarchive(companyId: string, userId: string, id: string): Promise<CollectionView> {
-    const existing = await this.owned(companyId, id);
-    if (existing.status !== CollectionStatus.Archived) {
-      throw new BadRequestException({
-        code: 'INVALID_STATUS',
-        message: 'Only archived collections can be restored.',
-      });
-    }
-    await this.assertNameAvailable(companyId, existing.name, {
-      excludeId: id,
-      restoring: true,
+  /** Deleted packs cannot be restored. */
+  async unarchive(_companyId: string, _userId: string, _id: string): Promise<CollectionView> {
+    throw new BadRequestException({
+      code: 'NOT_ALLOWED',
+      message: 'Deleted collections cannot be restored.',
     });
-    return this.setStatus(companyId, userId, id, CollectionStatus.Draft);
   }
 
   async setStatus(
@@ -601,10 +668,24 @@ export class CollectionService {
     userId: string,
     id: string,
     status: (typeof CollectionStatus)[keyof typeof CollectionStatus],
+    opts: { alsoArchiveDesigns?: boolean; alsoDraftDesigns?: boolean } = {},
   ): Promise<CollectionView> {
-    await this.owned(companyId, id);
+    const existing = await this.owned(companyId, id);
+    assertNotGeneralMutation((existing as { kind?: string }).kind, 'cannot change status');
+    if (status === CollectionStatus.Ready) {
+      throw new BadRequestException({
+        code: 'NOT_ALLOWED',
+        message: 'Collections are Draft or Published — there is no Ready step.',
+      });
+    }
     if (status === CollectionStatus.Published) {
       await assertCanPublish(this.prisma, companyId);
+    }
+    if (status === CollectionStatus.Draft && opts.alsoDraftDesigns) {
+      await this.draftOwnMembers(companyId, userId, id);
+    }
+    if (status === CollectionStatus.Archived && opts.alsoArchiveDesigns) {
+      await this.deleteOwnUnsharedMembers(companyId, userId, id);
     }
     const hideFromMarket =
       status === CollectionStatus.Draft || status === CollectionStatus.Archived;
@@ -709,6 +790,79 @@ export class CollectionService {
   }
 
   /**
+   * Own draft members go live in this pack (Order / Share). No Explore tile —
+   * postedToMarketAt stays null. Audience follows the pack, not a second Who.
+   */
+  async publishMembers(
+    companyId: string,
+    userId: string,
+    id: string,
+    productIds: string[],
+  ): Promise<PublishCollectionMembersView> {
+    const existing = await this.owned(companyId, id);
+    await assertCanPublish(this.prisma, companyId);
+    const uniqueIds = [...new Set(productIds)];
+    if (uniqueIds.length === 0) {
+      throw new BadRequestException({
+        code: 'INVALID_PRODUCTS',
+        message: 'Pick a draft design of yours.',
+      });
+    }
+
+    let memberIds: string[];
+    if (isGeneralKind((existing as { kind?: string }).kind)) {
+      const leftovers = await this.prisma.product.findMany({
+        where: {
+          ...generalMemberProductWhere(companyId),
+          id: { in: uniqueIds },
+          status: ProductStatus.Draft,
+        },
+        select: { id: true },
+      });
+      memberIds = leftovers.map((row) => row.id);
+    } else {
+      const rows = await this.prisma.collectionProduct.findMany({
+        where: {
+          collectionId: id,
+          productId: { in: uniqueIds },
+          product: { companyId, status: ProductStatus.Draft },
+        },
+        select: { productId: true },
+      });
+      memberIds = rows.map((row) => row.productId);
+    }
+    if (memberIds.length === 0) {
+      throw new BadRequestException({
+        code: 'INVALID_PRODUCTS',
+        message: 'Pick a draft design of yours.',
+      });
+    }
+
+    const pack = existing as {
+      audience: string;
+      rateVisibility: string;
+      audienceCompanyIds: string[];
+      audienceGroupIds: string[];
+      allowForward: boolean;
+      allowDownload: boolean;
+    };
+    const result = await this.prisma.product.updateMany({
+      where: { id: { in: memberIds }, companyId, status: ProductStatus.Draft },
+      data: {
+        status: ProductStatus.Published,
+        audience: pack.audience,
+        rateVisibility: pack.rateVisibility,
+        audienceCompanyIds: pack.audienceCompanyIds,
+        audienceGroupIds: pack.audienceGroupIds,
+        allowForward: pack.allowForward !== false,
+        allowDownload: pack.allowDownload === true,
+        updatedByUserId: userId,
+      },
+    });
+    return { published: result.count };
+  }
+
+  /**
    * Replaces the collection's ordered product set. Own-company products are
    * always allowed; foreign products must pass the curation ceiling
    * (discoverable + allowForward).
@@ -720,6 +874,10 @@ export class CollectionService {
     productIds: string[],
   ): Promise<CollectionDetailView> {
     const existing = await this.owned(companyId, id);
+    assertNotGeneralMutation(
+      (existing as { kind?: string }).kind,
+      'membership is automatic — designs cannot be added or removed by hand',
+    );
 
     const uniqueIds = [...new Set(productIds)];
     const products =
@@ -735,6 +893,7 @@ export class CollectionService {
               allowForward: true,
               status: true,
               postedToMarketAt: true,
+              catalogCollectionId: true,
             },
           });
     if (uniqueIds.length > 0) {
@@ -742,6 +901,12 @@ export class CollectionService {
         throw new BadRequestException({
           code: 'INVALID_PRODUCTS',
           message: 'One or more products could not be found.',
+        });
+      }
+      if (products.some((product) => product.status === ProductStatus.Archived)) {
+        throw new BadRequestException({
+          code: 'INVALID_PRODUCTS',
+          message: 'Deleted designs cannot be added to a collection.',
         });
       }
     }
@@ -766,17 +931,47 @@ export class CollectionService {
       });
     }
 
-    const ownDraftIds = products
-      .filter(
-        (product) => product.companyId === companyId && product.status === ProductStatus.Draft,
-      )
-      .map((product) => product.id);
-
-    // Own drafts in a pack are Published for trade inside the pack (no Explore tiles).
-    const canPromoteOwnDrafts = existing.status !== CollectionStatus.Archived;
-    const newlyAddedOwnDraftIds = ownDraftIds.filter((productId) =>
-      newlyAddedIds.includes(productId),
+    const ownIds = products.filter((product) => product.companyId === companyId).map((p) => p.id);
+    const otherQualifying =
+      ownIds.length === 0
+        ? []
+        : await this.prisma.collectionProduct.findMany({
+            where: {
+              productId: { in: ownIds },
+              collectionId: { not: id },
+              collection: qualifyingCollectionWhere(companyId),
+            },
+            select: { productId: true },
+          });
+    const otherQualifyingIds = new Set(otherQualifying.map((row) => row.productId));
+    const catalogKind = isCatalogKind((existing as { kind?: string }).kind);
+    const newlyAddedOwn = products.filter(
+      (product) => product.companyId === companyId && newlyAddedIds.includes(product.id),
     );
+    if (catalogKind) {
+      const blocked = newlyAddedOwn.find(
+        (product) =>
+          otherQualifyingIds.has(product.id) ||
+          (product.catalogCollectionId && product.catalogCollectionId !== id),
+      );
+      if (blocked) {
+        throw new ConflictException({
+          code: 'CATALOG_EXCLUSIVE',
+          message: 'A catalog design cannot also sit in another of your collections or catalogs.',
+        });
+      }
+    } else {
+      const blocked = newlyAddedOwn.find(
+        (product) => product.catalogCollectionId && product.catalogCollectionId !== id,
+      );
+      if (blocked) {
+        throw new ConflictException({
+          code: 'CATALOG_EXCLUSIVE',
+          message: 'That design is already in a catalog. Remove it from the catalog first.',
+        });
+      }
+    }
+
     let shouldBumpExplore = false;
     let exploreNewDesignCount = 0;
     if (existing.status === CollectionStatus.Published && newlyAddedIds.length > 0) {
@@ -786,67 +981,155 @@ export class CollectionService {
           status: ProductStatus.Published,
         },
       });
-      // Published adds + own drafts that will promote count as “new designs”.
-      const newCount =
-        publishedNew +
-        (canPromoteOwnDrafts ? newlyAddedOwnDraftIds.length : 0);
-      if (newCount > 0) {
+      if (publishedNew > 0) {
         shouldBumpExplore = true;
-        exploreNewDesignCount = newCount;
+        exploreNewDesignCount = publishedNew;
       }
     }
 
-    await this.prisma.$transaction([
-      this.prisma.collectionProduct.deleteMany({ where: { collectionId: id } }),
-      ...(uniqueIds.length > 0
-        ? [
-            this.prisma.collectionProduct.createMany({
-              data: uniqueIds.map((productId, position) => ({
-                collectionId: id,
-                productId,
-                position,
-              })),
-            }),
-          ]
-        : []),
-      this.prisma.collection.update({
-        where: { id },
-        data: {
-          updatedByUserId: userId,
-          ...(shouldBumpExplore
-            ? { exploreActivityAt: new Date(), exploreNewDesignCount }
-            : {}),
-        },
-      }),
-      ...(canPromoteOwnDrafts && ownDraftIds.length > 0
-        ? [
-            this.prisma.product.updateMany({
-              where: {
-                id: { in: ownDraftIds },
-                companyId,
-                status: ProductStatus.Draft,
-              },
-              data: {
-                status: ProductStatus.Published,
-                audience: existing.audience,
-                rateVisibility: existing.rateVisibility,
-                audienceCompanyIds: existing.audienceCompanyIds,
-                audienceGroupIds: existing.audienceGroupIds,
-                allowForward: existing.allowForward,
-                allowDownload: existing.allowDownload,
-                updatedByUserId: userId,
-              },
-            }),
-          ]
-        : []),
-    ]);
+    const stampOwnIds = catalogKind
+      ? newlyAddedOwn.map((product) => product.id)
+      : [];
+
+    if (catalogKind) {
+      await this.prisma.$transaction(async (tx) => {
+        if (stampOwnIds.length > 0) {
+          await tx.$executeRawUnsafe(
+            `SELECT id FROM "Product" WHERE id = ANY($1::text[]) FOR UPDATE`,
+            stampOwnIds,
+          );
+          const claimed = await tx.product.updateMany({
+            where: {
+              id: { in: stampOwnIds },
+              companyId,
+              OR: [{ catalogCollectionId: null }, { catalogCollectionId: id }],
+            },
+            data: { catalogCollectionId: id },
+          });
+          if (claimed.count !== stampOwnIds.length) {
+            throw new ConflictException({
+              code: 'CATALOG_EXCLUSIVE',
+              message:
+                'A catalog design cannot also sit in another of your collections or catalogs.',
+            });
+          }
+        }
+        await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
+        if (uniqueIds.length > 0) {
+          await tx.collectionProduct.createMany({
+            data: uniqueIds.map((productId, position) => ({
+              collectionId: id,
+              productId,
+              position,
+            })),
+          });
+        }
+        await tx.collection.update({
+          where: { id },
+          data: {
+            updatedByUserId: userId,
+            ...(shouldBumpExplore
+              ? { exploreActivityAt: new Date(), exploreNewDesignCount }
+              : {}),
+          },
+        });
+        const keepOwn = new Set(ownIds);
+        await tx.product.updateMany({
+          where: {
+            catalogCollectionId: id,
+            ...(keepOwn.size > 0 ? { id: { notIn: [...keepOwn] } } : {}),
+          },
+          data: { catalogCollectionId: null },
+        });
+        if (stampOwnIds.length > 0) {
+          await tx.product.updateMany({
+            where: { id: { in: stampOwnIds }, companyId },
+            data: {
+              rate: existing.rate ?? null,
+              rateMax: existing.rateMax ?? null,
+              unit: existing.unit ?? null,
+              dispatchUnit: existing.dispatchUnit ?? null,
+              catalogRateUnit: existing.catalogRateUnit ?? null,
+              piecesPerPack: existing.piecesPerPack ?? null,
+              updatedByUserId: userId,
+            },
+          });
+        }
+      });
+    } else {
+      await this.prisma.$transaction([
+        this.prisma.collectionProduct.deleteMany({ where: { collectionId: id } }),
+        ...(uniqueIds.length > 0
+          ? [
+              this.prisma.collectionProduct.createMany({
+                data: uniqueIds.map((productId, position) => ({
+                  collectionId: id,
+                  productId,
+                  position,
+                })),
+              }),
+            ]
+          : []),
+        this.prisma.collection.update({
+          where: { id },
+          data: {
+            updatedByUserId: userId,
+            ...(shouldBumpExplore
+              ? { exploreActivityAt: new Date(), exploreNewDesignCount }
+              : {}),
+          },
+        }),
+      ]);
+    }
 
     return this.get(companyId, id);
   }
 
   async remove(companyId: string, id: string): Promise<void> {
-    await this.owned(companyId, id);
-    await this.prisma.collection.delete({ where: { id } });
+    await this.setStatus(companyId, '', id, CollectionStatus.Archived);
+  }
+
+  private async draftOwnMembers(companyId: string, userId: string, collectionId: string) {
+    const rows = await this.prisma.collectionProduct.findMany({
+      where: { collectionId, product: { companyId } },
+      select: { productId: true },
+    });
+    const ids = rows.map((row) => row.productId);
+    if (ids.length === 0) return;
+    await this.prisma.product.updateMany({
+      where: { id: { in: ids }, companyId, status: { not: ProductStatus.Archived } },
+      data: { status: ProductStatus.Draft, postedToMarketAt: null, updatedByUserId: userId },
+    });
+  }
+
+  private async deleteOwnUnsharedMembers(
+    companyId: string,
+    userId: string,
+    collectionId: string,
+  ) {
+    const rows = await this.prisma.collectionProduct.findMany({
+      where: { collectionId, product: { companyId } },
+      select: { productId: true },
+    });
+    for (const row of rows) {
+      const others = await this.prisma.collectionProduct.count({
+        where: {
+          productId: row.productId,
+          collectionId: { not: collectionId },
+          collection: qualifyingCollectionWhere(companyId),
+        },
+      });
+      if (others > 0) continue;
+      await this.prisma.product.updateMany({
+        where: { id: row.productId, companyId },
+        data: {
+          status: ProductStatus.Archived,
+          postedToMarketAt: null,
+          catalogCollectionId: null,
+          updatedByUserId: userId,
+        },
+      });
+    }
   }
 
   /**

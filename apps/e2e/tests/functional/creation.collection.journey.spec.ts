@@ -144,6 +144,27 @@ test.describe('collection creation @functional @release @media @creation @collec
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
   });
 
+  test('Create & Publish catalog lands on Catalogs', async ({ page }) => {
+    test.setTimeout(180_000);
+    const name = `Live catalog ${Date.now()}`;
+    await loginAsRavi(page);
+    await page.goto('/catalog/collections/new?kind=catalog');
+    await expect(page.getByRole('heading', { name: 'New catalog' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.locator('input[type="file"]').setInputFiles(SAMPLE_JPG);
+    await expect(page.locator('img[src^="blob:"], img[src*="/media"]').first()).toBeVisible({
+      timeout: 45_000,
+    });
+    await page.getByLabel('Catalog name').fill(name);
+    await page.getByTestId('collection-master-category').selectOption({ index: 1 });
+    await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
+    await expect(page.getByText('Published').first()).toBeVisible({ timeout: 45_000 });
+    await expect(page).toHaveURL(/\/more\?tab=catalogs/, { timeout: 15_000 });
+    await expect(page).not.toHaveURL(/\/catalog\/collections\//);
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
+  });
+
   test('empty Save in Draft stays in the editor', async ({ page }) => {
     test.setTimeout(60_000);
     await loginAsRavi(page);

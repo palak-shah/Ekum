@@ -195,6 +195,75 @@ test.describe('order fulfillment @functional @release @orders', () => {
     });
   });
 
+  test('line expand edits Ordered qty and Can’t supply — no Last LR', async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+    const { id: orderId } = await setupConfirmedOrder(page.request, meenaToken, raviToken);
+    const detailed = await getOrder(page.request, raviToken, orderId);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected order items');
+    const nextQty = Math.max(1, first.quantity - 5);
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-line-edit-icon').first()).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-line-edit-icon').first().click();
+    await expect(page.getByTestId('order-line-expand')).toBeVisible();
+    await expect(page.getByText('Last LR')).toHaveCount(0);
+    await expect(page.getByTestId('order-line-last-lr-qty')).toHaveCount(0);
+    await expect(page.getByTestId('order-line-cant-supply-toggle')).toBeVisible();
+    const qtyBox = page.getByTestId('order-line-ordered-qty');
+    await qtyBox.click();
+    await qtyBox.fill('');
+    await qtyBox.pressSequentially(String(nextQty));
+    await page.getByTestId('order-line-qty-save').click();
+    await expect(page.getByText('Updated.').first()).toBeVisible({ timeout: 15_000 });
+
+    await expect
+      .poll(async () => {
+        const afterQty = await getOrder(page.request, raviToken, orderId);
+        return afterQty.items.some((row) => row.quantity === nextQty);
+      })
+      .toBe(true);
+
+    await expect(page.getByTestId('order-line-expand')).toBeVisible();
+    await page.getByTestId('order-line-cant-supply-toggle').click();
+    await expect(page.getByTestId('order-line-cant-supply').first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test('ticket ⋯ Order form PDF — both parties, Open/Share, no Show buyer', async ({ page }) => {
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+    const { id: orderId } = await setupConfirmedOrder(page.request, meenaToken, raviToken);
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-more-menu')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-more-menu').click();
+    await expect(page.getByTestId('order-form-pdf')).toBeVisible();
+    await page.getByTestId('order-form-pdf').click();
+    await expect(page.getByRole('heading', { name: 'Order form' })).toBeVisible();
+    await expect(page.getByTestId('order-form-show-photos')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('order-form-open')).toBeVisible();
+    await expect(page.getByTestId('order-form-share')).toBeVisible();
+    await expect(page.getByTestId('packing-slip-show-buyer')).toHaveCount(0);
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-more-menu')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-more-menu').click();
+    await page.getByTestId('order-form-pdf').click();
+    await expect(page.getByRole('heading', { name: 'Order form' })).toBeVisible();
+    await expect(page.getByTestId('order-form-open')).toBeVisible();
+  });
+
   test('order ⋯ Complaint opens against pick or chat sheet', async ({ page }) => {
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);

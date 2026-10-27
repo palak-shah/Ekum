@@ -48,6 +48,15 @@ describe('productStatusLine', () => {
         }),
       ),
     ).toBe('In your collections');
+    expect(
+      productStatusLine(
+        product({
+          status: ProductStatus.Published,
+          postedToMarketAt: null,
+          catalogCollectionId: 'cat-1',
+        }),
+      ),
+    ).toBe('In your catalog');
   });
 
   it('does not say On Explore or who can see on a live design', () => {

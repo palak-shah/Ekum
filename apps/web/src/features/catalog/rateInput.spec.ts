@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  designRateFieldInputProps,
   formatRateInput,
   parseRateInput,
   rateFieldInputProps,
@@ -42,6 +43,13 @@ describe('rateFieldInputProps', () => {
   it('uses text inputMode so phones can type a range dash', () => {
     expect(rateFieldInputProps.inputMode).toBe('text');
     expect(rateFieldInputProps.placeholder).toMatch(/1200-1400/);
+  });
+});
+
+describe('designRateFieldInputProps', () => {
+  it('is one decimal amount with no range placeholder', () => {
+    expect(designRateFieldInputProps.inputMode).toBe('decimal');
+    expect(designRateFieldInputProps.placeholder).toBe('1200');
   });
 });
 

@@ -1,9 +1,14 @@
 import { categoriesToTagSlots, ProductStatus } from '@ekum/domain-types';
+import { youCanViewThisPack } from '@/features/catalog/packKindCopy';
 
-/** Album viewer never lists draft / archived members. */
+/** Owner album lists drafts; buyers (and non-owner GC) see published only. */
 export function collectionViewerListedProducts<T extends { status: string }>(
   products: T[],
+  input: { kind?: string | null; isOwner?: boolean } = {},
 ): T[] {
+  if (input.isOwner) {
+    return products.filter((product) => product.status !== ProductStatus.Archived);
+  }
   return products.filter((product) => product.status === ProductStatus.Published);
 }
 
@@ -48,7 +53,9 @@ export function collectionOwnerManageDock(input: {
   packManage: boolean;
   selecting?: boolean;
   thisPackSelectedCount?: number;
+  isGeneral?: boolean;
 }): boolean {
+  if (input.isGeneral) return false;
   if (!input.isOwner || !input.packManage) return false;
   if (input.selecting) return false;
   if ((input.thisPackSelectedCount ?? 0) > 0) return false;
@@ -220,9 +227,10 @@ export function collectionMoreMenuNote(input: {
   visitor: boolean;
   lookOnly?: boolean;
   allowForward: boolean;
+  kind?: string | null;
 }): string | null {
   if (!input.visitor) return null;
-  if (input.lookOnly) return 'You can view this collection.';
+  if (input.lookOnly) return youCanViewThisPack(input.kind);
   if (!input.allowForward) return 'You can look through — Curate into your collection is off.';
   return null;
 }

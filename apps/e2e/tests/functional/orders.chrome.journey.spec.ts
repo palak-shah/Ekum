@@ -198,7 +198,7 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(page).not.toHaveURL(/kind=return/);
   });
 
-  test('seller dock Confirm is primary; Send quote sits before it', async ({ page }) => {
+  test('seller dock is Decline · Confirm with no Send quote', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAsMeena(page);
     const buyerToken = await accessTokenFromPage(page);
@@ -218,16 +218,13 @@ test.describe('orders chrome @functional @release @orders', () => {
 
     const decline = dock.getByTestId('order-dock-decline');
     const confirm = dock.getByTestId('order-dock-confirm');
-    const quote = dock.getByTestId('order-send-quote');
     await expect(decline).toBeVisible();
     await expect(confirm).toBeVisible();
-    await expect(quote).toBeVisible();
+    await expect(dock.getByTestId('order-send-quote')).toHaveCount(0);
     const declineBox = await decline.boundingBox();
     const confirmBox = await confirm.boundingBox();
-    const quoteBox = await quote.boundingBox();
-    expect(declineBox && confirmBox && quoteBox).toBeTruthy();
-    expect(declineBox!.x).toBeLessThan(quoteBox!.x);
-    expect(quoteBox!.x).toBeLessThan(confirmBox!.x);
+    expect(declineBox && confirmBox).toBeTruthy();
+    expect(declineBox!.x).toBeLessThan(confirmBox!.x);
 
     await confirm.click();
     await expect(page.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
@@ -241,8 +238,8 @@ test.describe('orders chrome @functional @release @orders', () => {
     expect(sheetConfirmBox && sheetDeclineBox).toBeTruthy();
     expect(sheetDeclineBox!.x).toBeLessThan(sheetConfirmBox!.x);
     await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toHaveCount(0);
-    await expect(sheet.locator('[data-testid^="order-lines-qty-"]')).toBeVisible();
-    const rateInput = sheet.locator('[data-testid^="order-lines-rate-"]');
+    await expect(sheet.locator('input[data-testid^="order-lines-qty-"]')).toBeVisible();
+    const rateInput = sheet.locator('input[data-testid^="order-lines-rate-"]');
     await expect(rateInput).toBeVisible();
     await rateInput.fill('');
     await expect(sheetConfirm).toBeEnabled();

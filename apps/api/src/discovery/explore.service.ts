@@ -33,6 +33,11 @@ import {
 } from '../access/connection-pair';
 import { VisibilityService } from '../access/visibility.service';
 import { CatalogSerializer } from '../catalog/catalog.serializer';
+import {
+  generalMemberJoinRows,
+  generalMemberProductWhere,
+  isGeneralKind,
+} from '../catalog/general-collection';
 import { DiscoverySerializer } from './discovery.serializer';
 import {
   canDiscoverCollection,
@@ -450,6 +455,7 @@ export class ExploreService {
     const rows = await this.prisma.collection.findMany({
       where: {
         status: CollectionStatus.Published,
+        kind: { not: 'general' },
         companyId: { not: viewerCompanyId },
         company: this.companyFilter(viewerCompanyId, query),
         AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
@@ -971,6 +977,18 @@ export class ExploreService {
     }
 
     const isOwner = collection.companyId === viewerCompanyId;
+    if (isOwner && isGeneralKind((collection as { kind?: string }).kind)) {
+      const members = await this.prisma.product.findMany({
+        where: generalMemberProductWhere(viewerCompanyId),
+        orderBy: { createdAt: 'desc' },
+      });
+      const collectionId = collection.id;
+      collection = {
+        ...collection,
+        products: generalMemberJoinRows(collectionId, members),
+        _count: { ...collection._count, products: members.length },
+      };
+    }
     const connected =
       isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
     const following =
@@ -1049,7 +1067,11 @@ export class ExploreService {
       const packOwnerName = collection.company.name;
       const creditMills = collection.showSourceShops === true;
       products = collection.products
-        .filter((entry) => entry.product.status === ProductStatus.Published)
+        .filter((entry) =>
+          isOwner
+            ? entry.product.status !== ProductStatus.Archived
+            : entry.product.status === ProductStatus.Published,
+        )
         .map((entry) => {
         const millName = ownerName.get(entry.product.companyId) ?? null;
         const isForeign = entry.product.companyId !== collection.companyId;

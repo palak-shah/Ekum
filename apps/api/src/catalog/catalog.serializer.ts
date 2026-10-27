@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Collection, CollectionProduct, Product, User } from '@prisma/client';
-import { ProductStatus, type CollectionDetailView, type CollectionView, type ProductView } from '@ekum/domain-types';
+import { CollectionKind, ProductStatus, type CollectionDetailView, type CollectionView, type ProductView } from '@ekum/domain-types';
 import { toAuditActor } from '../common/audit';
 import { collectionPreviewFromRow } from '../discovery/collection-preview';
 import { libraryCollectionThumb } from './library-collection-thumb';
@@ -14,6 +14,7 @@ type ProductWithActors = Product & {
   company?: { id: string; name: string } | null;
   collections?: {
     collection: {
+      id: string;
       name: string;
       status: string;
       categories?: string[];
@@ -51,7 +52,7 @@ export const productActorInclude = {
     where: { collection: { status: { not: 'archived' } } },
     include: {
       collection: {
-        select: { name: true, status: true, categories: true, masterCategoryId: true },
+        select: { id: true, name: true, status: true, categories: true, masterCategoryId: true },
       },
     },
   },
@@ -88,6 +89,8 @@ export class CatalogSerializer {
         (product as { masterCategoryId?: string | null }).masterCategoryId ?? null,
       images: product.images,
       status: product.status,
+      catalogCollectionId:
+        (product as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
       audience: product.audience ?? 'connections',
       rateVisibility: product.rateVisibility ?? 'on_request',
       audienceCompanyIds: product.audienceCompanyIds ?? [],
@@ -96,6 +99,9 @@ export class CatalogSerializer {
       allowDownload: product.allowDownload === true,
       collectionNames: (product.collections ?? [])
         .map((row) => row.collection.name.trim())
+        .filter(Boolean),
+      collectionIds: (product.collections ?? [])
+        .map((row) => row.collection.id)
         .filter(Boolean),
       collectionPacks: (product.collections ?? []).map((row) => ({
         categories: row.collection.categories ?? [],
@@ -124,6 +130,8 @@ export class CatalogSerializer {
       companyId: collection.companyId,
       memberShops: [...shops.entries()].map(([id, name]) => ({ id, name })),
       name: collection.name,
+      kind: (collection as { kind?: string }).kind ?? CollectionKind.Regular,
+      orderMode: (collection as { orderMode?: string | null }).orderMode ?? null,
       description: collection.description,
       coverImage: collection.coverImage,
       rate:

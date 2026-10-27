@@ -10,7 +10,7 @@ describe('InfoHint', () => {
     render(
       <>
         <InfoHint label="About applying to all designs" testId="demo-info">
-          Fills empty rates. Won’t replace a design that already has a rate.
+          Overwrites member rates. Tags add on.
         </InfoHint>
         <Field label="Category" info="Pick what you sell.">
           <input aria-label="Category" />
@@ -28,14 +28,14 @@ describe('InfoHint', () => {
     );
 
     expect(
-      screen.queryByText(/Won’t replace a design that already has a rate/),
+      screen.queryByText(/Overwrites member rates/),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('Pick what you sell.')).not.toBeInTheDocument();
     expect(screen.queryByText('Tick what you can supply.')).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId('demo-info'));
     expect(screen.getByTestId('demo-info-body')).toHaveTextContent(
-      'Won’t replace a design that already has a rate',
+      'Overwrites member rates. Tags add on.',
     );
 
     await user.click(screen.getByRole('button', { name: 'About Category' }));

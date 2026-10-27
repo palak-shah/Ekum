@@ -12,18 +12,24 @@ import {
 } from '@nestjs/common';
 import {
   CollectionStatus,
+  archiveCollectionSchema,
   createCollectionSchema,
   curateCheckSchema,
+  draftCollectionSchema,
   listCatalogQuerySchema,
   otherPackCountsSchema,
+  publishCollectionMembersSchema,
   publishCollectionSchema,
   setCollectionProductsSchema,
   updateCollectionSchema,
+  type ArchiveCollectionDto,
   type CreateCollectionDto,
   type CurateCheckDto,
+  type DraftCollectionDto,
   type ListCatalogQuery,
   type OtherPackCountsDto,
   type PublishCollectionDto,
+  type PublishCollectionMembersDto,
   type SetCollectionProductsDto,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
@@ -102,6 +108,18 @@ export class CollectionController {
     return this.collections.setProducts(companyId, user.userId, id, dto.productIds);
   }
 
+  @Post(':id/publish-members')
+  @RequirePermission('uploads')
+  publishMembers(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(publishCollectionMembersSchema))
+    dto: PublishCollectionMembersDto,
+  ) {
+    return this.collections.publishMembers(companyId, user.userId, id, dto.productIds);
+  }
+
   @Post(':id/publish')
   @RequirePermission('uploads')
   publish(
@@ -139,12 +157,14 @@ export class CollectionController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
+    @Body(new ZodValidationPipe(archiveCollectionSchema)) dto: ArchiveCollectionDto,
   ) {
     return this.collections.setStatus(
       companyId,
       user.userId,
       id,
       CollectionStatus.Archived,
+      { alsoArchiveDesigns: dto.alsoArchiveDesigns },
     );
   }
 
@@ -164,8 +184,11 @@ export class CollectionController {
     @CurrentCompanyId() companyId: string,
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
+    @Body(new ZodValidationPipe(draftCollectionSchema)) dto: DraftCollectionDto,
   ) {
-    return this.collections.setStatus(companyId, user.userId, id, CollectionStatus.Draft);
+    return this.collections.setStatus(companyId, user.userId, id, CollectionStatus.Draft, {
+      alsoDraftDesigns: dto.alsoDraftDesigns,
+    });
   }
 
   @Delete(':id')

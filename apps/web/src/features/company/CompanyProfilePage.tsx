@@ -683,6 +683,7 @@ export function CompanyProfilePage() {
                     surface="shelf"
                     id={collection.id}
                     name={collection.name}
+                    kind={collection.kind}
                     previewImages={shopCollectionPreviewImages(collection)}
                     categories={collection.categories}
                     layout={layout}

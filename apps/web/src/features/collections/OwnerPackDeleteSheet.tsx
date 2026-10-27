@@ -1,4 +1,5 @@
 import { Button, Sheet } from '@/ui/kit';
+import { deleteOnlyThisPackBody, onlyThisPackLabel } from '@/features/catalog/packKindCopy';
 
 /**
  * When a selected design is also in other packs: delete everywhere or only here.
@@ -9,12 +10,14 @@ export function OwnerPackDeleteSheet({
   busy,
   onDeleteEverywhere,
   onOnlyThisCollection,
+  kind,
 }: {
   open: boolean;
   onClose: () => void;
   busy?: boolean;
   onDeleteEverywhere: () => void;
   onOnlyThisCollection: () => void;
+  kind?: string | null;
 }) {
   return (
     <Sheet
@@ -39,7 +42,7 @@ export function OwnerPackDeleteSheet({
             data-testid="owner-pack-delete-only-here"
             onClick={onOnlyThisCollection}
           >
-            Only this collection
+            {onlyThisPackLabel(kind)}
           </Button>
           <Button fullWidth variant="ghost" disabled={busy} onClick={onClose}>
             Cancel
@@ -48,8 +51,7 @@ export function OwnerPackDeleteSheet({
       }
     >
       <p className="text-sm text-muted">
-        Some of these designs are in other collections. Delete them everywhere, or only take them out of
-        this collection?
+        {deleteOnlyThisPackBody(kind)}
       </p>
     </Sheet>
   );

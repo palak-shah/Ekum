@@ -19,6 +19,7 @@ import {
   sendUpOrderSchema,
   settleOrderSchema,
   setLineSupplySchema,
+  setLineQuantitySchema,
   updateManualOrderRefSchema,
   updatePersonalOrderNoteSchema,
   type AmendOrderDto,
@@ -40,6 +41,7 @@ import {
   type SendUpOrderDto,
   type SettleOrderDto,
   type SetLineSupplyDto,
+  type SetLineQuantityDto,
   type UpdateManualOrderRefDto,
   type UpdatePersonalOrderNoteDto,
 } from '@ekum/domain-types';
@@ -204,6 +206,18 @@ export class OrderController {
     @Body(new ZodValidationPipe(setLineSupplySchema)) dto: SetLineSupplyDto,
   ) {
     return this.orders.setLineSupply(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/lines/quantity')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  setLineQuantity(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setLineQuantitySchema)) dto: SetLineQuantityDto,
+  ) {
+    return this.orders.setLineQuantity(companyId, user.userId, id, dto);
   }
 
   @Post(':id/accept')

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { cx } from '@/ui/kit';
-import { readFilterMenuPosition } from '@/ui/filterMenuPosition';
+import { readFilterMenuPosition, watchFilterMenuPlace } from '@/ui/filterMenuPosition';
 import { BackIcon, CheckIcon, ChevronRightIcon } from '@/ui/icons';
 import type { TradeKindFacet } from './tradeFind';
 import {
@@ -52,8 +52,7 @@ export function OrdersFilterMenu({
       setPos(readFilterMenuPosition(anchor, panelRef.current, window.innerWidth));
     };
     place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    return watchFilterMenuPlace(place, panelRef.current);
   }, [open, anchorRef, view]);
 
   useEffect(() => {

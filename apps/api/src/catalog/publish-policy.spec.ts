@@ -12,6 +12,7 @@ describe('resolvePublishPolicy', () => {
     expect(policy).toEqual({
       rateVisibility: RateVisibility.OnRequest,
       allowForward: true,
+      allowDownload: false,
     });
   });
 
@@ -33,6 +34,7 @@ describe('resolvePublishPolicy', () => {
     expect(policy).toEqual({
       rateVisibility: RateVisibility.Visible,
       allowForward: false,
+      allowDownload: false,
     });
   });
 
@@ -59,6 +61,7 @@ describe('resolvePublishPolicy', () => {
     expect(policy).toEqual({
       rateVisibility: RateVisibility.Visible,
       allowForward: true,
+      allowDownload: false,
     });
   });
 });

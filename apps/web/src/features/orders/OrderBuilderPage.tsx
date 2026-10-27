@@ -558,6 +558,7 @@ export function OrderBuilderPage() {
                       <HowManyQtyRow
                         unit={line.unit}
                         piecesPerPack={line.piecesPerPack}
+                        sheetMixedPack={packSizesDiffer}
                         stepper={
                           <QtyStepper
                             value={qty}

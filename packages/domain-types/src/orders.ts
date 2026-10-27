@@ -520,6 +520,23 @@ export const setLineSupplySchema = z.object({
 });
 export type SetLineSupplyDto = z.infer<typeof setLineSupplySchema>;
 
+/**
+ * Seller changes agreed Ordered qty after lock.
+ * Floor at already shipped; 0 is Can’t supply, not this endpoint.
+ */
+export const setLineQuantitySchema = z.object({
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        quantity: z.number().int().min(1).max(1_000_000),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type SetLineQuantityDto = z.infer<typeof setLineQuantitySchema>;
+
 export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   direction: z.enum(orderDirectionValues).optional(),
   status: z.enum(orderStatusValues).optional(),

@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductStatus } from '@ekum/domain-types';
 import { ProductService } from './product.service';
@@ -47,6 +48,24 @@ function setup(canPublish: boolean) {
     companyUpdate,
   };
 }
+
+describe('ProductService delete / restore', () => {
+  it('remove archives instead of hard-deleting', async () => {
+    const { service, productUpdate } = setup(true);
+    await service.remove('c1', 'p1');
+    expect(productUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: ProductStatus.Archived }),
+      }),
+    );
+  });
+
+  it('unarchive is not allowed', async () => {
+    const { service, productUpdate } = setup(true);
+    await expect(service.unarchive('c1', 'u1', 'p1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+});
 
 describe('ProductService.setStatus publish gate', () => {
   it('blocks publishing when the company cannot publish', async () => {

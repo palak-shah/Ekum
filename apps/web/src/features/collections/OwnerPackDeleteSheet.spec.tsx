@@ -22,4 +22,18 @@ describe('OwnerPackDeleteSheet', () => {
     await user.click(screen.getByTestId('owner-pack-delete-only-here'));
     expect(onlyHere).toHaveBeenCalled();
   });
+
+  it('catalog only-here says catalog', () => {
+    render(
+      <OwnerPackDeleteSheet
+        open
+        kind="catalog"
+        onClose={vi.fn()}
+        onDeleteEverywhere={vi.fn()}
+        onOnlyThisCollection={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('owner-pack-delete-only-here')).toHaveTextContent('Only this catalog');
+    expect(screen.getByText(/take them out of this catalog/)).toBeInTheDocument();
+  });
 });

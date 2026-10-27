@@ -71,6 +71,19 @@ describe('CollectionPackDetails', () => {
     expect(screen.queryByTestId('collection-about')).toBeNull();
   });
 
+  it('omits the pack journey when the album is leftover storage', () => {
+    render(
+      <CollectionPackDetails
+        categories={[]}
+        description={null}
+        rateBand="₹91 /pc"
+        journeyLine={null}
+      />,
+    );
+    expect(screen.getByTestId('collection-pack-facts')).toHaveTextContent('₹91 /pc');
+    expect(screen.queryByTestId('collection-pack-journey')).toBeNull();
+  });
+
   it('renders nothing when every section is empty', () => {
     const { container } = render(
       <CollectionPackDetails categories={[]} description="" rateBand={null} />,

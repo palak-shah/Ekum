@@ -107,6 +107,8 @@ export class MediaService {
       });
     }
     await this.jobs.enqueue(JobType.MediaThumbnail, { mediaId });
+    // Extension: enqueue JobType.MediaDedupe { mediaId } here later (company-scoped
+    // prompt, never auto-merge). Thumbnail job is the safe hook point.
     return this.get(companyId, mediaId);
   }
 

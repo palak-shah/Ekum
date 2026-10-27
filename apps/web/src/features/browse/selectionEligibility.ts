@@ -8,6 +8,18 @@ export function isPublishedForSelection(status: string | undefined): boolean {
   return status === ProductStatus.Published || status === CollectionStatus.Published;
 }
 
+/** Legacy shortlist rows have no status — treat them as live. */
+export function isTradeableShortlistStatus(status: string | undefined): boolean {
+  if (!status) return true;
+  return isPublishedForSelection(status);
+}
+
+export function tradeableShortlistEntries<T extends { status?: string }>(
+  entries: readonly T[],
+): T[] {
+  return entries.filter((entry) => isTradeableShortlistStatus(entry.status));
+}
+
 export function selectionSkipToast(skipped: number, added: number): string | null {
   if (skipped < 1) return null;
   if (added < 1) return SELECTION_NEEDS_PUBLISHED_TOAST;
@@ -19,12 +31,17 @@ export function selectionSkipToast(skipped: number, added: number): string | nul
 /**
  * Gate a single toggle into traveling Selection when status is known.
  * Removing an already-selected row is always allowed.
+ * Owner album Select is also lifecycle (Draft / Publish), so drafts may be checked.
  */
 export function travelingSelectionToggleGate(input: {
   status: string | undefined;
   alreadySelected: boolean;
+  ownerAlbum?: boolean;
 }): { allow: boolean; toast: string | null } {
   if (input.alreadySelected) return { allow: true, toast: null };
+  if (input.ownerAlbum && input.status !== ProductStatus.Archived) {
+    return { allow: true, toast: null };
+  }
   if (isPublishedForSelection(input.status)) return { allow: true, toast: null };
   return { allow: false, toast: SELECTION_NEEDS_PUBLISHED_TOAST };
 }

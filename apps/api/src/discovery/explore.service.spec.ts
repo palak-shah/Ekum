@@ -51,11 +51,13 @@ function makeService(
     toProductView: (product: {
       id: string;
       companyId?: string;
+      status?: string;
       rate?: number | null;
       rateVisibility?: string;
     }) => ({
       id: product.id,
       companyId: product.companyId ?? 'owner',
+      status: product.status ?? 'published',
       rate: product.rate ?? null,
       rateVisibility: product.rateVisibility ?? 'on_request',
     }),
@@ -429,6 +431,53 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.rateMin).toBeNull();
     expect(view.rateMax).toBeNull();
+  });
+
+  it('owner album includes draft members; visitor does not', async () => {
+    const mixed = {
+      ...publishedCollection,
+      audience: 'everyone',
+      products: [
+        {
+          product: {
+            id: 'live',
+            companyId: 'owner',
+            status: 'published',
+            rate: 100,
+            rateVisibility: 'on_request',
+          },
+        },
+        {
+          product: {
+            id: 'draft',
+            companyId: 'owner',
+            status: 'draft',
+            rate: 100,
+            rateVisibility: 'on_request',
+          },
+        },
+        {
+          product: {
+            id: 'gone',
+            companyId: 'owner',
+            status: 'archived',
+            rate: 100,
+            rateVisibility: 'on_request',
+          },
+        },
+      ],
+    };
+    const ownerView = await makeService(mixed, { blocked: false, connected: true }).collectionDetail(
+      'owner',
+      'col1',
+    );
+    expect(ownerView.products?.map((row) => row.id)).toEqual(['live', 'draft']);
+    const visitorView = await makeService(
+      mixed,
+      { blocked: false, connected: true },
+      { following: true },
+    ).collectionDetail('viewer', 'col1');
+    expect(visitorView.products?.map((row) => row.id)).toEqual(['live']);
   });
 
   it('pack rate beats member stamps on album detail', async () => {

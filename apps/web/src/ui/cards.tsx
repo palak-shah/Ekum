@@ -21,6 +21,7 @@ import { timeAgo } from '@/lib/format';
 import { warmCompanyFromExplore } from '@/features/company/warmCompanyQueries';
 import { Avatar, Chip, cx } from './kit';
 import { designNameClass } from './designLineChrome';
+import { DraftChip } from './DraftChip';
 import { highlightSearchText } from './highlightMatch';
 import { ChevronRightIcon } from './icons';
 import { GstTick, isGstVerified } from './GstTick';
@@ -910,6 +911,7 @@ export function CatalogFeedPost({
   mediaTestId,
   openTestId,
   highlightQuery,
+  draft = false,
 }: {
   name: string;
   meta?: string;
@@ -933,6 +935,7 @@ export function CatalogFeedPost({
   mediaTestId?: string;
   openTestId?: string;
   highlightQuery?: string;
+  draft?: boolean;
 }) {
   const longPress = useLongPress(onLongSelect);
   const shopTo = companyTo ?? (company ? `/company/${company.id}` : undefined);
@@ -940,8 +943,11 @@ export function CatalogFeedPost({
   const captionClass = cx('mt-1.5 block w-full text-left', EXPLORE_POST_MEDIA_INSET_CLASS);
   const captionBody = (
     <>
-      <p className="text-sm font-emphasis tracking-tight text-ink">
-        {highlightSearchText(name, highlightQuery)}
+      <p className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-sm font-emphasis tracking-tight text-ink">
+          {highlightSearchText(name, highlightQuery)}
+        </span>
+        {draft ? <DraftChip testId="catalog-product-draft-chip" /> : null}
       </p>
       {source ? (
         <p

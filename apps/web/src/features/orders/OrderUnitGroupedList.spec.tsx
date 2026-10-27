@@ -92,9 +92,35 @@ describe('OrderTicketQtySummary', () => {
     expect(screen.queryByTestId('order-ticket-grand-total')).toBeNull();
   });
 
-  it('flags +No pcs in a set under the Total ₹ column', () => {
+  it('hides +No pcs in a set when no pack size is given and nothing is billed', () => {
     render(
       <OrderTicketQtySummary items={[{ quantity: 10, unit: 'set', rate: 100 }]} />,
+    );
+    expect(screen.queryByTestId('order-ticket-missing-rates')).toBeNull();
+  });
+
+  it('hides +Missing rates when no line can bill', () => {
+    render(
+      <OrderTicketQtySummary
+        items={[
+          { quantity: 10, unit: 'mtr' },
+          { quantity: 5, unit: 'pc' },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('order-ticket-qty-total')).toHaveTextContent('10 mtrs');
+    expect(screen.getByTestId('order-ticket-bill-total').textContent?.trim()).toBe('');
+    expect(screen.queryByTestId('order-ticket-missing-rates')).toBeNull();
+  });
+
+  it('flags +No pcs in a set under billed ₹ when pack size is mixed', () => {
+    render(
+      <OrderTicketQtySummary
+        items={[
+          { quantity: 10, unit: 'set', piecesPerPack: 4, dispatchUnit: 'pc', rate: 100 },
+          { quantity: 5, unit: 'set', rate: 100 },
+        ]}
+      />,
     );
     expect(screen.getByTestId('order-ticket-missing-rates')).toHaveTextContent(
       '+No pcs in a set',

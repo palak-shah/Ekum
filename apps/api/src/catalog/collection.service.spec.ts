@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
+import { CollectionKind, CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import { CollectionService } from './collection.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
@@ -22,6 +22,16 @@ const foreignPublishedProduct = {
   status: ProductStatus.Published,
   postedToMarketAt: new Date('2026-08-01'),
 };
+
+/** Legacy everyone/connections map to followers — curator must follow the source shop. */
+function followSourceShop() {
+  return {
+    findMany: async (args?: { where?: { accessKind?: string } }) =>
+      args?.where?.accessKind === 'look'
+        ? []
+        : [{ followedCompanyId: 'other-co', accessKind: 'pack', status: 'allowed' }],
+  };
+}
 
 describe('CollectionService.setProducts', () => {
   it('rejects products that do not belong to the acting company', async () => {
@@ -181,7 +191,7 @@ describe('CollectionService.setProducts', () => {
     );
   });
 
-  it('promotes own drafts on a live pack and bumps exploreActivityAt', async () => {
+  it('does not promote own drafts on a live pack (status stays independent)', async () => {
     const collectionUpdate = vi.fn(async () => ({}));
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
     const transaction = vi.fn(async (ops: unknown[]) => ops);
@@ -233,25 +243,12 @@ describe('CollectionService.setProducts', () => {
     await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
 
     const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(4);
-    expect(productUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          id: { in: ['draft-1'] },
-          companyId: 'company-1',
-          status: ProductStatus.Draft,
-        }),
-        data: expect.objectContaining({
-          status: ProductStatus.Published,
-          audience: 'connections',
-        }),
-      }),
-    );
+    expect(ops.length).toBe(3);
+    expect(productUpdateMany).not.toHaveBeenCalled();
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           updatedByUserId: 'u1',
-          exploreActivityAt: expect.any(Date),
         }),
       }),
     );
@@ -308,7 +305,7 @@ describe('CollectionService.setProducts', () => {
 
     await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
 
-    expect(productUpdateMany).toHaveBeenCalled();
+    expect(productUpdateMany).not.toHaveBeenCalled();
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.not.objectContaining({ exploreActivityAt: expect.any(Date) }),
@@ -316,7 +313,7 @@ describe('CollectionService.setProducts', () => {
     );
   });
 
-  it('promotes own drafts on a draft pack too (published is the default)', async () => {
+  it('does not promote own drafts on a draft pack', async () => {
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
     const transaction = vi.fn(async (ops: unknown[]) => ops);
     const prisma = {
@@ -367,16 +364,8 @@ describe('CollectionService.setProducts', () => {
     await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
 
     const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(4);
-    expect(productUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          id: { in: ['draft-1'] },
-          status: ProductStatus.Draft,
-        }),
-        data: expect.objectContaining({ status: ProductStatus.Published }),
-      }),
-    );
+    expect(ops.length).toBe(3);
+    expect(productUpdateMany).not.toHaveBeenCalled();
   });
 
   it('does not reject a new own photo when an existing member is no longer discoverable', async () => {
@@ -455,12 +444,13 @@ describe('CollectionService.setProducts', () => {
         count: async () => 0,
       },
       connection: { findMany: async () => [] },
-      follow: { findMany: async () => [] },
+      follow: followSourceShop(),
       collectionProduct: {
         findMany: async () => [],
         deleteMany: vi.fn(async () => ({})),
         createMany: vi.fn(async () => ({})),
       },
+      productRelistGrant: { findMany: async () => [] },
       $transaction: transaction,
     } as unknown as PrismaService;
 
@@ -589,7 +579,7 @@ describe('CollectionService.setStatus hide', () => {
 });
 
 describe('CollectionService.unarchive', () => {
-  it('restores an archived collection to draft', async () => {
+  it('rejects restore — deleted collections cannot come back', async () => {
     const collectionUpdate = vi.fn(async () => ({
       id: 'col-1',
       status: CollectionStatus.Draft,
@@ -620,18 +610,13 @@ describe('CollectionService.unarchive', () => {
     } as unknown as CatalogSerializer;
     const service = new CollectionService(prisma, serializer, jobs);
 
-    await service.unarchive('company-1', 'u1', 'col-1');
-    expect(collectionUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: CollectionStatus.Draft,
-          exploreActivityAt: null,
-        }),
-      }),
-    );
+    await expect(service.unarchive('company-1', 'u1', 'col-1')).rejects.toMatchObject({
+      response: { code: 'NOT_ALLOWED' },
+    });
+    expect(collectionUpdate).not.toHaveBeenCalled();
   });
 
-  it('rejects unarchive when not archived', async () => {
+  it('rejects unarchive even when the pack is not deleted', async () => {
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -667,9 +652,9 @@ describe('CollectionService.unarchive', () => {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
     const service = new CollectionService(prisma, serializer, jobs);
-    await expect(service.unarchive('company-1', 'u1', 'col-archived')).rejects.toThrow(
-      /Restore blocked/i,
-    );
+    await expect(service.unarchive('company-1', 'u1', 'col-archived')).rejects.toMatchObject({
+      response: { code: 'NOT_ALLOWED' },
+    });
   });
 });
 
@@ -677,7 +662,11 @@ describe('CollectionService name uniqueness', () => {
   it('rejects create when a non-archived pack already uses the name', async () => {
     const prisma = {
       collection: {
-        findFirst: async () => ({ id: 'existing', name: 'Wedding Edit' }),
+        findFirst: async () => ({
+          id: 'existing',
+          name: 'Wedding Edit',
+          kind: CollectionKind.Regular,
+        }),
       },
     } as unknown as PrismaService;
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
@@ -688,14 +677,40 @@ describe('CollectionService name uniqueness', () => {
       expect(err).toBeInstanceOf(ConflictException);
       expect((err as ConflictException).getResponse()).toMatchObject({
         code: 'COLLECTION_NAME_TAKEN',
-        details: { collectionId: 'existing', name: 'Wedding Edit' },
+        details: {
+          collectionId: 'existing',
+          name: 'Wedding Edit',
+          kind: CollectionKind.Regular,
+        },
       });
+    }
+  });
+
+  it('name clash on a catalog says catalog, not collection', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'cat-1',
+          name: 'Season book',
+          kind: CollectionKind.Catalog,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    try {
+      await service.create('company-1', 'u1', { name: 'season book', categories: [] });
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      const body = (err as ConflictException).getResponse() as { message: string };
+      expect(body.message).toMatch(/catalog/);
+      expect(body.message).not.toMatch(/collection/);
     }
   });
 });
 
 describe('CollectionService.ready', () => {
-  it('marks a draft collection ready', async () => {
+  it('rejects Ready — collections are Draft or Published', async () => {
     const collectionUpdate = vi.fn(async () => ({
       id: 'col-1',
       status: CollectionStatus.Ready,
@@ -716,15 +731,10 @@ describe('CollectionService.ready', () => {
     } as unknown as CatalogSerializer;
     const service = new CollectionService(prisma, serializer, jobs);
 
-    await service.markReady('company-1', 'u1', 'col-1');
-    expect(collectionUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: CollectionStatus.Ready,
-          exploreActivityAt: null,
-        }),
-      }),
-    );
+    await expect(service.markReady('company-1', 'u1', 'col-1')).rejects.toMatchObject({
+      response: { code: 'NOT_ALLOWED' },
+    });
+    expect(collectionUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -960,7 +970,7 @@ describe('CollectionService.publish', () => {
           },
         ],
       },
-      follow: { findMany: async () => [] },
+      follow: followSourceShop(),
     } as unknown as PrismaService;
 
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
@@ -1020,7 +1030,7 @@ describe('CollectionService.publish', () => {
         updateMany: vi.fn(async () => ({ count: 0 })),
       },
       connection: { findMany: async () => [] },
-      follow: { findMany: async () => [] },
+      follow: followSourceShop(),
       companySettings: {
         findUnique: async () => null,
         upsert: vi.fn(async () => ({})),
@@ -1100,7 +1110,7 @@ describe('CollectionService.publish', () => {
         updateMany: vi.fn(async () => ({ count: 0 })),
       },
       connection: { findMany: async () => [] },
-      follow: { findMany: async () => [] },
+      follow: followSourceShop(),
       companySettings: {
         findUnique: async () => null,
         upsert: vi.fn(async () => ({})),
@@ -1365,5 +1375,59 @@ describe('CollectionService.otherPackCounts', () => {
       { productId: 'p2', otherPackCount: 1 },
       { productId: 'p3', otherPackCount: 0 },
     ]);
+  });
+});
+
+describe('CollectionService.publishMembers', () => {
+  it('publishes own draft members without postedToMarketAt and stamps pack Who', async () => {
+    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          kind: 'regular',
+          audience: 'followers',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
+        }),
+      },
+      company: { findUnique: async () => ({ canPublish: true }) },
+      collectionProduct: {
+        findMany: async () => [{ productId: 'p1' }],
+      },
+      product: { updateMany: productUpdateMany },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(service.publishMembers('company-1', 'u1', 'col-1', ['p1'])).resolves.toEqual({
+      published: 1,
+    });
+    expect(productUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: ProductStatus.Published,
+          audience: 'followers',
+          rateVisibility: 'on_request',
+        }),
+      }),
+    );
+    expect(productUpdateMany.mock.calls[0]?.[0]?.data).not.toHaveProperty('postedToMarketAt');
+  });
+
+  it('blocks when the company cannot publish', async () => {
+    const productUpdateMany = vi.fn();
+    const prisma = {
+      collection: {
+        findFirst: async () => ({ id: 'col-1', companyId: 'company-1', kind: 'regular' }),
+      },
+      company: { findUnique: async () => ({ canPublish: false }) },
+      product: { updateMany: productUpdateMany },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(service.publishMembers('company-1', 'u1', 'col-1', ['p1'])).rejects.toThrow();
+    expect(productUpdateMany).not.toHaveBeenCalled();
   });
 });

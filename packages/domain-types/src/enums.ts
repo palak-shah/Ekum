@@ -65,15 +65,37 @@ export const VerificationStatus = {
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 export const verificationStatusValues = values(VerificationStatus);
 
-/** Catalog. Publish is a state; sharing is a separate event. Ready = company review queue. */
+/**
+ * Catalog lifecycle. Draft = offline (trader word; not Unpublish).
+ * Archived = Deleted (soft). Ready is legacy leftover — migrate to draft; do not write.
+ */
 export const CollectionStatus = {
   Draft: 'draft',
+  /** @deprecated Company review queue. Treat as Draft; do not write. */
   Ready: 'ready',
   Published: 'published',
+  /** Soft-deleted. User-facing copy is Delete. Not restorable. */
   Archived: 'archived',
 } as const;
 export type CollectionStatus = (typeof CollectionStatus)[keyof typeof CollectionStatus];
 export const collectionStatusValues = values(CollectionStatus);
+
+/** Collection kind. Identity for General Collection is this flag, never the name. */
+export const CollectionKind = {
+  General: 'general',
+  Regular: 'regular',
+  Catalog: 'catalog',
+} as const;
+export type CollectionKind = (typeof CollectionKind)[keyof typeof CollectionKind];
+export const collectionKindValues = values(CollectionKind);
+
+/** Catalog order mode. Required when kind=catalog. Do not reuse orderPathPreference. */
+export const CatalogOrderMode = {
+  Whole: 'whole',
+  Pick: 'pick',
+} as const;
+export type CatalogOrderMode = (typeof CatalogOrderMode)[keyof typeof CatalogOrderMode];
+export const catalogOrderModeValues = values(CatalogOrderMode);
 
 /** A product carries the same lifecycle: a private draft, published, or archived. */
 export const ProductStatus = {
