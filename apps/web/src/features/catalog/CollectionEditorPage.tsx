@@ -163,7 +163,10 @@ import { RateRangeFields } from './RateRangeFields';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
-import { collectionEditShowsMemberGrid } from './collectionEditDetailsOnly';
+import {
+  collectionEditShowsMemberGrid,
+  collectionEditUpdateDisabled,
+} from './collectionEditDetailsOnly';
 import { collectionGalleryInputProps } from './collectionGalleryInput';
 import { AddDesignsControl } from './AddDesignsControl';
 import { CreateAlbumChangeStrip } from './CreateAlbumChangeStrip';
@@ -889,6 +892,7 @@ export function CollectionEditorPage() {
       if (isGeneral) {
         await api.patch<CollectionDetailView>(`/collections/${id}`, {
           name: form.name.trim(),
+          description: form.description.trim(),
         });
         return { unpublishedOwn: 0, designsFailed: false as const };
       }
@@ -2733,7 +2737,11 @@ export function CollectionEditorPage() {
             onRemove={() => void onEditorRemove()}
             onUpdate={() => save.mutate()}
             updatePending={save.isPending || savingDesigns}
-            updateDisabled={!form.name.trim() || selected.size < 1}
+            updateDisabled={collectionEditUpdateDisabled({
+              isGeneral,
+              name: form.name,
+              memberCount: selected.size,
+            })}
           />
           <OwnerPackReplaceSheet
             open={replaceSheetOpen}

@@ -113,6 +113,7 @@ import {
   collectionMoreMenuNote,
   collectionOwnerManageDock,
   collectionOwnerCanEditDesign,
+  collectionAlbumIdentityInput,
   collectionFactsLine,
   collectionShowHandleCopy,
   collectionThisPackSelectedIds,
@@ -1109,12 +1110,17 @@ export function CollectionViewerPage() {
   };
   const floaterClearance = selectMode || showResumeContinue;
   // API: collection details rate when set, else design min–max; null for non-owners when on request.
-  const rateBand = albumFactsRateBand({
-    rateMin: data?.rateMin,
-    rateMax: data?.rateMax,
-    rateUnit: data?.rateUnit,
+  const packIdentity = collectionAlbumIdentityInput({
+    kind: data.kind,
+    categories: data?.categories,
+    description: data?.description,
+    rateBand: albumFactsRateBand({
+      rateMin: data?.rateMin,
+      rateMax: data?.rateMax,
+      rateUnit: data?.rateUnit,
+    }),
   });
-  const packFacts = collectionFactsLine(data?.categories, rateBand);
+  const packFacts = collectionFactsLine(packIdentity.categories, packIdentity.rateBand);
   const journeyLine = collectionShowsPackOrderChrome(data.kind)
     ? howManySetsBanner(
         products.map((product) => ({
@@ -1123,7 +1129,7 @@ export function CollectionViewerPage() {
         })),
       )
     : null;
-  const showPackDetails = Boolean(packFacts || journeyLine || data?.description?.trim());
+  const showPackDetails = Boolean(packFacts || journeyLine || packIdentity.description);
   const moreMenuNote = collectionMoreMenuNote({
     visitor: !isOwner,
     // Grant / follow look-through without Connect — not gated Ask (no products).
@@ -1186,9 +1192,9 @@ export function CollectionViewerPage() {
           <div className="flex flex-col gap-1">
             {showPackDetails ? (
               <CollectionPackDetails
-                categories={data.categories}
-                description={data.description}
-                rateBand={rateBand}
+                categories={packIdentity.categories}
+                description={packIdentity.description}
+                rateBand={packIdentity.rateBand}
                 journeyLine={journeyLine}
               />
             ) : null}

@@ -13,6 +13,7 @@ import {
 } from './collection-card-rate';
 import { collectionPreviewFromRow } from './collection-preview';
 import { collectionMemberFind } from '../catalog/collection-member-find';
+import { isGeneralKind } from '../catalog/general-collection';
 
 type CollectionCardRow = Collection & {
   company: Company;
@@ -76,23 +77,26 @@ export class DiscoverySerializer {
     opts?: { viewerReposted?: boolean; viewerCompanyId?: string },
   ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
-    const rate = collectionCardRateFields({
-      rateVisibility: collectionCardRateVisibility({
-        rateVisibility: collection.rateVisibility,
-        packCompanyId: collection.companyId,
-        viewerCompanyId: opts?.viewerCompanyId,
-      }),
-      rate: collection.rate,
-      rateMax: collection.rateMax,
-      catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
-      products: collection.products,
-    });
+    const general = isGeneralKind((collection as { kind?: string }).kind);
+    const rate = general
+      ? { rateMin: null, rateMax: null, rateUnit: null }
+      : collectionCardRateFields({
+          rateVisibility: collectionCardRateVisibility({
+            rateVisibility: collection.rateVisibility,
+            packCompanyId: collection.companyId,
+            viewerCompanyId: opts?.viewerCompanyId,
+          }),
+          rate: collection.rate,
+          rateMax: collection.rateMax,
+          catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
+          products: collection.products,
+        });
     return {
       id: collection.id,
       name: collection.name,
       kind: (collection as { kind?: string }).kind ?? 'regular',
       description: collection.description?.trim() || null,
-      categories: collection.categories ?? [],
+      categories: general ? [] : collection.categories ?? [],
       memberFind: collectionMemberFind(collection.products),
       coverImage: collection.coverImage,
       previewImages: preview.previewImages,

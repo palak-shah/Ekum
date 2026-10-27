@@ -1,5 +1,6 @@
 import { categoriesToTagSlots, ProductStatus } from '@ekum/domain-types';
 import { youCanViewThisPack } from '@/features/catalog/packKindCopy';
+import { collectionShowsPackIdentityFacts } from '@/features/catalog/youLibraryKind';
 
 /** Owner album lists drafts; buyers (and non-owner GC) see published only. */
 export function collectionViewerListedProducts<T extends { status: string }>(
@@ -98,6 +99,24 @@ export function collectionFactsLine(
     Boolean,
   ) as string[];
   return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+/** Album identity under the title. General Collection is the leftover note only. */
+export function collectionAlbumIdentityInput(input: {
+  kind?: string | null;
+  categories?: string[] | null;
+  description?: string | null;
+  rateBand?: string | null;
+}): { categories: string[]; description: string | null; rateBand: string | null } {
+  const description = input.description?.trim() || null;
+  if (!collectionShowsPackIdentityFacts(input.kind)) {
+    return { categories: [], description, rateBand: null };
+  }
+  return {
+    categories: input.categories ?? [],
+    description,
+    rateBand: input.rateBand?.trim() || null,
+  };
 }
 
 export type CollectionPackDetailKey =

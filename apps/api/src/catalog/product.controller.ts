@@ -125,7 +125,11 @@ export class ProductController {
   @Delete(':id')
   @HttpCode(204)
   @RequirePermission('uploads')
-  remove(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
-    return this.products.remove(companyId, id);
+  remove(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.products.remove(companyId, user.userId, id);
   }
 }

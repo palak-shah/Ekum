@@ -84,6 +84,21 @@ describe('CollectionPackDetails', () => {
     expect(screen.queryByTestId('collection-pack-journey')).toBeNull();
   });
 
+  it('shows a leftover note in full when there is no pack Rate or tags', () => {
+    render(
+      <CollectionPackDetails
+        categories={[]}
+        description="Shop leftovers."
+        rateBand={null}
+      />,
+    );
+    expect(screen.queryByTestId('collection-pack-facts')).toBeNull();
+    expect(screen.queryByTestId('collection-about')).toBeNull();
+    expect(screen.getByTestId('collection-pack-details-description')).toHaveTextContent(
+      'Shop leftovers.',
+    );
+  });
+
   it('renders nothing when every section is empty', () => {
     const { container } = render(
       <CollectionPackDetails categories={[]} description="" rateBand={null} />,

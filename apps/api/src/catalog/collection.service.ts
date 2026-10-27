@@ -406,9 +406,13 @@ export class CollectionService {
         dto.name !== undefined && dto.name.trim() !== existing.name
           ? await this.assertNameAvailable(companyId, dto.name, { excludeId: id })
           : existing.name;
+      const description =
+        dto.description !== undefined
+          ? dto.description.trim() || null
+          : existing.description;
       const collection = await this.prisma.collection.update({
         where: { id },
-        data: { name, updatedByUserId: userId },
+        data: { name, description, updatedByUserId: userId },
         include: listInclude,
       });
       const generalCount = await this.prisma.product.count({
@@ -1085,8 +1089,8 @@ export class CollectionService {
     return this.get(companyId, id);
   }
 
-  async remove(companyId: string, id: string): Promise<void> {
-    await this.setStatus(companyId, '', id, CollectionStatus.Archived);
+  async remove(companyId: string, userId: string, id: string): Promise<void> {
+    await this.setStatus(companyId, userId, id, CollectionStatus.Archived);
   }
 
   private async draftOwnMembers(companyId: string, userId: string, collectionId: string) {

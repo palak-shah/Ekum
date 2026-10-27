@@ -82,4 +82,21 @@ describe('toCollectionCard', () => {
     expect(card.rateMin).toBeNull();
     expect(card.rateMax).toBeNull();
   });
+
+  it('omits pack Rate and tags on General Collection leftover storage', () => {
+    const card = serializer.toCollectionCard(
+      pack({
+        kind: 'general',
+        name: 'General Collection',
+        categories: ['Kurti'],
+        rateVisibility: 'visible',
+        rate: 91,
+      }),
+      { viewerCompanyId: 'me' },
+    );
+    expect(card.rateMin).toBeNull();
+    expect(card.rateMax).toBeNull();
+    expect(card.rateUnit).toBeNull();
+    expect(card.categories).toEqual([]);
+  });
 });

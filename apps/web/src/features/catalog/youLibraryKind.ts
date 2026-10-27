@@ -16,6 +16,11 @@ export function collectionShowsPackOrderChrome(kind?: string | null): boolean {
   return !isGeneralCollection(kind);
 }
 
+/** Pack Rate · tags on the album identity line — not General Collection. */
+export function collectionShowsPackIdentityFacts(kind?: string | null): boolean {
+  return collectionShowsPackOrderChrome(kind);
+}
+
 export function isCatalogCollection(kind?: string | null): boolean {
   return kind === CollectionKind.Catalog;
 }

@@ -37,6 +37,7 @@ function makeService(
         (where.id.in ?? []).map((id) => ({ id, name: id })),
     },
     tradeLane: { findMany: async () => [] },
+    product: { findMany: async () => [] },
   } as unknown as PrismaService;
   const visibilityService = {
     isBlocked: async () => visibility.blocked ?? false,
@@ -333,6 +334,35 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.rateMin).toBe(500);
     expect(view.rateMax).toBe(700);
     expect(view.rateUnit).toBe('pc');
+  });
+
+  it('omits pack Rate on General Collection leftover storage', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'owner',
+        kind: 'general',
+        rateVisibility: 'visible',
+        rate: 91,
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'owner',
+              status: 'published',
+              rate: 91,
+              unit: 'pc',
+              rateVisibility: 'visible',
+            },
+          },
+        ],
+      },
+      { blocked: false, connected: true },
+    );
+    const view = await service.collectionDetail('owner', 'col1');
+    expect(view.rateMin).toBeNull();
+    expect(view.rateMax).toBeNull();
+    expect(view.rateUnit).toBeNull();
   });
 
   it('owner album uses design min–max when pack rate is unset', async () => {

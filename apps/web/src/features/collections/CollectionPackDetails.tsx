@@ -26,15 +26,11 @@ export function CollectionPackDetails({
 
   return (
     <div className="flex flex-col gap-1 px-0.5" data-testid="collection-pack-details">
-      {facts || about ? (
+      {facts ? (
         <div className="flex items-baseline justify-between gap-3">
-          {facts ? (
-            <p className="min-w-0 text-sm leading-5 text-ink" data-testid="collection-pack-facts">
-              {facts}
-            </p>
-          ) : (
-            <span />
-          )}
+          <p className="min-w-0 text-sm leading-5 text-ink" data-testid="collection-pack-facts">
+            {facts}
+          </p>
           {about ? (
             <button
               type="button"
@@ -53,7 +49,7 @@ export function CollectionPackDetails({
           {journey}
         </p>
       ) : null}
-      {about && open ? (
+      {about && (open || !facts) ? (
         <p
           className="whitespace-pre-wrap text-sm leading-5 text-ink"
           data-testid="collection-pack-details-description"

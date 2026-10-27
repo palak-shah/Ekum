@@ -52,10 +52,13 @@ function setup(canPublish: boolean) {
 describe('ProductService delete / restore', () => {
   it('remove archives instead of hard-deleting', async () => {
     const { service, productUpdate } = setup(true);
-    await service.remove('c1', 'p1');
+    await service.remove('c1', 'u1', 'p1');
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: ProductStatus.Archived }),
+        data: expect.objectContaining({
+          status: ProductStatus.Archived,
+          updatedByUserId: 'u1',
+        }),
       }),
     );
   });

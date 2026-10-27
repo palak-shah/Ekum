@@ -78,7 +78,7 @@ Closed by this slice.
 ## Explicitly deferred / rejected
 
 - Hiding Select / Order on leftover **designs** (those are design trade, not pack trade).
-- Hiding design Rate per on GC album facts (design money, not pack Order and dispatch).
+- Hiding design Rate per on GC album facts (design money, not pack Order and dispatch). **Withdrawn 2026-10-27** — album identity now omits pack Rate/tags; see `2026-10-27-gc-details-no-pack-facts-completeness.md`.
 
 ## Sign-off
 

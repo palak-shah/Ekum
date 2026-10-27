@@ -254,8 +254,8 @@ export class ProductService {
     return this.setStatus(companyId, userId, id, ProductStatus.Draft);
   }
 
-  async remove(companyId: string, id: string): Promise<void> {
-    await this.setStatus(companyId, '', id, ProductStatus.Archived);
+  async remove(companyId: string, userId: string, id: string): Promise<void> {
+    await this.setStatus(companyId, userId, id, ProductStatus.Archived);
   }
 
   /** Loads a product only if it belongs to the acting company, else 404. */

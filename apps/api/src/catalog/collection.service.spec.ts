@@ -543,6 +543,42 @@ describe('CollectionService.checkCurateProducts', () => {
   });
 });
 
+describe('CollectionService.remove', () => {
+  it('archives and stamps the acting user', async () => {
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Archived,
+      _count: { products: 2 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+        }),
+        update: collectionUpdate,
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.remove('company-1', 'u1', 'col-1');
+
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: CollectionStatus.Archived,
+          updatedByUserId: 'u1',
+          exploreActivityAt: null,
+        }),
+      }),
+    );
+  });
+});
+
 describe('CollectionService.setStatus hide', () => {
   it('returns a published collection to draft and clears explore activity', async () => {
     const collectionUpdate = vi.fn(async () => ({
@@ -1184,6 +1220,70 @@ describe('CollectionService.update', () => {
       data: { status: CollectionStatus.Draft, exploreActivityAt: null },
     });
     expect(view).toMatchObject({ status: CollectionStatus.Draft, exploreActivityAt: null });
+  });
+
+  it('persists General Collection name and description only', async () => {
+    const existing = {
+      id: 'gc-1',
+      companyId: 'company-1',
+      name: 'General Collection',
+      description: null,
+      kind: CollectionKind.General,
+      status: CollectionStatus.Published,
+    };
+    const update = vi.fn(async () => ({
+      id: 'gc-1',
+      name: 'Shop leftovers',
+      description: 'Dangling designs.',
+      kind: CollectionKind.General,
+      products: [],
+      _count: { products: 0 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async (args?: { where?: { id?: unknown } }) =>
+          typeof args?.where?.id === 'string' ? existing : null,
+        update,
+      },
+      product: { count: async () => 2 },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.update('company-1', 'u1', 'gc-1', {
+      name: 'Shop leftovers',
+      description: 'Dangling designs.',
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          name: 'Shop leftovers',
+          description: 'Dangling designs.',
+          updatedByUserId: 'u1',
+        },
+      }),
+    );
+  });
+
+  it('rejects tags and rate on General Collection', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'gc-1',
+          companyId: 'company-1',
+          name: 'General Collection',
+          kind: CollectionKind.General,
+          status: CollectionStatus.Published,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.update('company-1', 'u1', 'gc-1', { rate: 91 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 

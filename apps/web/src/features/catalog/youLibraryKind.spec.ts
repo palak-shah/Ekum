@@ -6,6 +6,7 @@ import {
   generalCollectionBadge,
   isGeneralCollection,
   collectionShowsPackOrderChrome,
+  collectionShowsPackIdentityFacts,
   pinGeneralCollectionFirst,
   treatReadyAsDraft,
   youLibraryDeletedMenuLabel,
@@ -41,6 +42,8 @@ describe('you library tabs', () => {
     expect(collectionShowsPackOrderChrome(CollectionKind.General)).toBe(false);
     expect(collectionShowsPackOrderChrome(CollectionKind.Regular)).toBe(true);
     expect(collectionShowsPackOrderChrome(CollectionKind.Catalog)).toBe(true);
+    expect(collectionShowsPackIdentityFacts(CollectionKind.General)).toBe(false);
+    expect(collectionShowsPackIdentityFacts(CollectionKind.Regular)).toBe(true);
   });
 
   it('treats leftover Ready as Draft', () => {

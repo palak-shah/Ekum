@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProductStatus } from '@ekum/domain-types';
 import {
+  collectionAlbumIdentityInput,
   collectionFactsCategoryLine,
   collectionFactsLine,
   collectionMoreMenuNote,
@@ -158,6 +159,33 @@ describe('collectionShowPackNote / facts / selection scope', () => {
     expect(collectionFactsLine(['Fabric'], '₹85–₹160 /mtr')).toBe('Fabric · ₹85–₹160 /mtr');
     expect(collectionFactsLine([], '₹85–₹160 /mtr')).toBe('₹85–₹160 /mtr');
     expect(collectionFactsLine(['Fabric'], null)).toBe('Fabric');
+  });
+
+  it('keeps General Collection identity to the leftover note — no pack Rate or tags', () => {
+    expect(
+      collectionAlbumIdentityInput({
+        kind: 'general',
+        categories: ['Kurti', 'S'],
+        description: 'Shop leftovers.',
+        rateBand: '₹91 /pc',
+      }),
+    ).toEqual({
+      categories: [],
+      description: 'Shop leftovers.',
+      rateBand: null,
+    });
+    expect(
+      collectionAlbumIdentityInput({
+        kind: 'regular',
+        categories: ['Kurti'],
+        description: 'Wedding edit.',
+        rateBand: '₹1,200 /pc',
+      }),
+    ).toEqual({
+      categories: ['Kurti'],
+      description: 'Wedding edit.',
+      rateBand: '₹1,200 /pc',
+    });
   });
 
   it('builds pack details in Rate · Size tags · Description · Item · Quality order', () => {

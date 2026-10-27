@@ -1132,19 +1132,23 @@ export class ExploreService {
     }
 
     const card = this.discovery.toCollectionCard(collection, { viewerCompanyId });
+    const generalAlbum = isGeneralKind((collection as { kind?: string }).kind);
     // Album facts: pack rate first; else min–max priced designs. Owner always
     // sees the band; on_request hides it from other users only.
-    const albumRate = collectionCardRateFields({
-      rateVisibility: collectionCardRateVisibility({
-        rateVisibility: collection.rateVisibility,
-        packCompanyId: collection.companyId,
-        viewerCompanyId,
-      }),
-      rate: collection.rate,
-      rateMax: collection.rateMax,
-      catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
-      products: collection.products,
-    });
+    // General Collection is leftover storage — not a pack ₹ band.
+    const albumRate = generalAlbum
+      ? { rateMin: null, rateMax: null, rateUnit: null }
+      : collectionCardRateFields({
+          rateVisibility: collectionCardRateVisibility({
+            rateVisibility: collection.rateVisibility,
+            packCompanyId: collection.companyId,
+            viewerCompanyId,
+          }),
+          rate: collection.rate,
+          rateMax: collection.rateMax,
+          catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
+          products: collection.products,
+        });
     const description = collection.description?.trim() || null;
     // Locked pack: name + shop for Ask — no cover/design thumbs (or chat open is pointless).
     if (!showProducts) {

@@ -10,3 +10,14 @@ export function collectionEditShowsMemberGrid(opts: {
   if (!opts.editing) return true;
   return Boolean(opts.unpublished);
 }
+
+/** Update needs a name. Packs also need a design; General Collection does not. */
+export function collectionEditUpdateDisabled(opts: {
+  isGeneral?: boolean;
+  name: string;
+  memberCount: number;
+}): boolean {
+  if (!opts.name.trim()) return true;
+  if (opts.isGeneral) return false;
+  return opts.memberCount < 1;
+}

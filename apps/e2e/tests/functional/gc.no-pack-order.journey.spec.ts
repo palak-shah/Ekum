@@ -54,6 +54,7 @@ test.describe('General Collection is leftover bouquet @functional @collections',
     await page.goto(`/collections/${general!.id}`);
     await expect(page.getByText(designName).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('collection-pack-journey')).toHaveCount(0);
+    await expect(page.getByTestId('collection-pack-facts')).toHaveCount(0);
 
     await page.getByTestId('collection-more').click();
     await page.getByTestId('collection-menu-edit').click();
@@ -61,5 +62,16 @@ test.describe('General Collection is leftover bouquet @functional @collections',
     await expect(page.getByTestId('collection-apply-all')).toHaveCount(0);
     await expect(page.getByTestId('collection-order-dispatch')).toHaveCount(0);
     await expect(page.getByTestId('collection-product-details')).toHaveCount(0);
+
+    const note = `Leftover note ${Date.now()}`;
+    await page.getByLabel('Description').fill(note);
+    await page.getByTestId('collection-editor-update').click();
+    await expect(page.getByText('Updated').first()).toBeVisible({ timeout: 15_000 });
+    await page.goto(`/collections/${general!.id}`);
+    await expect(page.getByTestId('collection-pack-details-description')).toHaveTextContent(note, {
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('collection-pack-facts')).toHaveCount(0);
+    await expect(page.getByTestId('collection-about')).toHaveCount(0);
   });
 });
