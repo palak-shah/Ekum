@@ -51,6 +51,7 @@ import { generateDraftSku, nameForNewDesign } from './designBatchHelpers';
 import { invalidateAfterProductEdit } from './productEditorInvalidate';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
+import { ProductDetailsSlots } from './ProductDetailsSlots';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
 import { ScrollWhenOpened } from '@/ui/scrollWhenOpened';
 import { parsePiecesPerPack, piecesPerPackFieldValue } from './orderDispatchPreview';
@@ -707,56 +708,62 @@ export function ProductEditorPage() {
         />
       </Field>
       {catalogMember ? null : (
-      <RateRangeFields
-        fixedOnly
-        from={form.rate}
-        to=""
-        rateUnit={rateUnit}
-        permittedUnits={permittedUnits}
-        onRateUnit={(next) => {
-          ratePerTouchedRef.current = true;
-          setForm((prev) => ({
-            ...prev,
-            ...applyDesignRateUnit(prev.unit, next, prev.dispatchUnit),
-          }));
-        }}
-        onFrom={(next) => setForm({ ...form, rate: next })}
-        onTo={() => undefined}
-      />
-      )}
-      {catalogMember ? null : (
         <>
-          <MasterCategoryField
-            locked={categoryLocked}
-            value={resolvedMasterCategoryId}
-            onChange={(next) => {
-              if (!editing) ratePerTouchedRef.current = false;
-              setForm({ ...form, masterCategoryId: next || null });
-            }}
-            options={catalogMasterOptions}
-          />
-          <CascadeTagsFields
-            items={tagSlots.items}
-            qualities={tagSlots.qualities}
-            sizes={tagSlots.sizes}
-            masterCategoryId={resolvedMasterCategoryId}
-            onItems={(items) =>
-              setForm({
-                ...form,
-                categories: tagSlotsToCategories({ ...tagSlots, items }).join(', '),
-              })
+          <ProductDetailsSlots
+            category={
+              <MasterCategoryField
+                locked={categoryLocked}
+                value={resolvedMasterCategoryId}
+                onChange={(next) => {
+                  if (!editing) ratePerTouchedRef.current = false;
+                  setForm({ ...form, masterCategoryId: next || null });
+                }}
+                options={catalogMasterOptions}
+              />
             }
-            onQualities={(qualities) =>
-              setForm({
-                ...form,
-                categories: tagSlotsToCategories({ ...tagSlots, qualities }).join(', '),
-              })
+            rate={
+              <RateRangeFields
+                fixedOnly
+                from={form.rate}
+                to=""
+                rateUnit={rateUnit}
+                permittedUnits={permittedUnits}
+                onRateUnit={(next) => {
+                  ratePerTouchedRef.current = true;
+                  setForm((prev) => ({
+                    ...prev,
+                    ...applyDesignRateUnit(prev.unit, next, prev.dispatchUnit),
+                  }));
+                }}
+                onFrom={(next) => setForm({ ...form, rate: next })}
+                onTo={() => undefined}
+              />
             }
-            onSizes={(sizes) =>
-              setForm({
-                ...form,
-                categories: tagSlotsToCategories({ ...tagSlots, sizes }).join(', '),
-              })
+            tags={
+              <CascadeTagsFields
+                items={tagSlots.items}
+                qualities={tagSlots.qualities}
+                sizes={tagSlots.sizes}
+                masterCategoryId={resolvedMasterCategoryId}
+                onItems={(items) =>
+                  setForm({
+                    ...form,
+                    categories: tagSlotsToCategories({ ...tagSlots, items }).join(', '),
+                  })
+                }
+                onQualities={(qualities) =>
+                  setForm({
+                    ...form,
+                    categories: tagSlotsToCategories({ ...tagSlots, qualities }).join(', '),
+                  })
+                }
+                onSizes={(sizes) =>
+                  setForm({
+                    ...form,
+                    categories: tagSlotsToCategories({ ...tagSlots, sizes }).join(', '),
+                  })
+                }
+              />
             }
           />
           <OrderDispatchAccordion

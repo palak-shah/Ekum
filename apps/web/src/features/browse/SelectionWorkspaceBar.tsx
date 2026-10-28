@@ -277,6 +277,7 @@ export function SelectionWorkspaceBar() {
         <SelectionMessageSheet
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
+          onSent={() => clearSelection()}
           shopId={singleShopId}
           shopName={singleShopName}
           collections={albumPick.entries.map((entry) => ({

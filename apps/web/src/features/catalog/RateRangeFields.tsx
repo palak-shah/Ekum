@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Unit, defaultRateUnit, unitValues } from '@ekum/domain-types';
 import { cx } from '@/lib/cx';
 import { Field, TextInput } from '@/ui/kit';
-import {
-  FIELD_FOCUS_WITHIN_FILL_CLASS,
-  FIELD_IDLE_FILL_CLASS,
-  SELECT_FIELD_CLASS,
-} from '@/ui/fieldFill';
+import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
 import { rateRangeCaption } from './rateRange';
 
 function RateAmountInput({
@@ -23,15 +19,17 @@ function RateAmountInput({
   placeholder?: string;
 }) {
   return (
-    <div
-      className={`flex min-h-10 items-center gap-2 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3.5 text-sm ${FIELD_FOCUS_WITHIN_FILL_CLASS}`}
-    >
-      <span className="shrink-0 font-body text-muted" data-testid="collection-rate-prefix" aria-hidden>
+    <div className="relative min-w-0 w-full">
+      <span
+        className="pointer-events-none absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 font-body text-muted"
+        data-testid="collection-rate-prefix"
+        aria-hidden
+      >
         ₹
       </span>
       <TextInput
         data-testid={testId}
-        className="min-h-0 flex-1 border-0 bg-transparent px-0 text-sm tabular-nums focus:border-transparent"
+        className="w-full pl-9 pr-3.5 tabular-nums"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode="decimal"

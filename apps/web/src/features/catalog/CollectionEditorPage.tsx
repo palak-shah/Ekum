@@ -164,6 +164,7 @@ import { GrowingDescriptionField } from './GrowingDescriptionField';
 import { RateRangeFields } from './RateRangeFields';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
+import { ProductDetailsSlots } from './ProductDetailsSlots';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
 import {
   collectionEditShowsMemberGrid,
@@ -2264,39 +2265,47 @@ export function CollectionEditorPage() {
       {!isGeneral ? (
       <div className="flex flex-col gap-2" data-testid="collection-product-details">
         <p className="text-xs font-body uppercase tracking-wide text-muted">Product details</p>
-        <MasterCategoryField
-          required
-          value={form.masterCategoryId}
-          onChange={onMasterCategoryChange}
-          options={catalogMasterOptions}
-          error={isCollectionCategoryError(error) ? error : null}
-        />
-        <CascadeTagsFields
-          items={tagSlots.items}
-          qualities={tagSlots.qualities}
-          sizes={tagSlots.sizes}
-          masterCategoryId={form.masterCategoryId}
-          onItems={(items) => setTagSlots({ ...tagSlots, items })}
-          onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
-          onSizes={(sizes) => setTagSlots({ ...tagSlots, sizes })}
-        />
-        <RateRangeFields
-          from={rateFrom}
-          to={rateTo}
-          rateUnit={packRateUnit}
-          permittedUnits={permittedUnits}
-          onRateUnit={(next) => {
-            ratePerTouchedRef.current = true;
-            setSameForAll((prev) => applyCollectionRateUnit(prev, next));
-          }}
-          onFrom={(next) => {
-            setRateFrom(next);
-            setSameForAll((prev) => ({ ...prev, rate: combineRateInput(next, rateTo) }));
-          }}
-          onTo={(next) => {
-            setRateTo(next);
-            setSameForAll((prev) => ({ ...prev, rate: combineRateInput(rateFrom, next) }));
-          }}
+        <ProductDetailsSlots
+          category={
+            <MasterCategoryField
+              required
+              value={form.masterCategoryId}
+              onChange={onMasterCategoryChange}
+              options={catalogMasterOptions}
+              error={isCollectionCategoryError(error) ? error : null}
+            />
+          }
+          rate={
+            <RateRangeFields
+              from={rateFrom}
+              to={rateTo}
+              rateUnit={packRateUnit}
+              permittedUnits={permittedUnits}
+              onRateUnit={(next) => {
+                ratePerTouchedRef.current = true;
+                setSameForAll((prev) => applyCollectionRateUnit(prev, next));
+              }}
+              onFrom={(next) => {
+                setRateFrom(next);
+                setSameForAll((prev) => ({ ...prev, rate: combineRateInput(next, rateTo) }));
+              }}
+              onTo={(next) => {
+                setRateTo(next);
+                setSameForAll((prev) => ({ ...prev, rate: combineRateInput(rateFrom, next) }));
+              }}
+            />
+          }
+          tags={
+            <CascadeTagsFields
+              items={tagSlots.items}
+              qualities={tagSlots.qualities}
+              sizes={tagSlots.sizes}
+              masterCategoryId={form.masterCategoryId}
+              onItems={(items) => setTagSlots({ ...tagSlots, items })}
+              onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
+              onSizes={(sizes) => setTagSlots({ ...tagSlots, sizes })}
+            />
+          }
         />
       </div>
       ) : null}
@@ -3139,81 +3148,89 @@ export function CollectionEditorPage() {
             : null}
           {!isCatalog ? (
             <>
-          <MasterCategoryField
-            locked={Boolean(form.masterCategoryId)}
-            value={form.masterCategoryId}
-            onChange={onMasterCategoryChange}
-            options={catalogMasterOptions}
-            testId="design-master-category"
-          />
-          <CascadeTagsFields
-            items={memberTagSlots.items}
-            qualities={memberTagSlots.qualities}
-            sizes={memberTagSlots.sizes}
-            masterCategoryId={form.masterCategoryId}
-            onItems={(items) => {
-              const next = { ...memberTagSlots, items };
-              if (tagSlotsToCategories(next).length > 20) return;
-              setMemberTagSlots(next);
-              setMemberForm({
-                ...memberForm,
-                categories: tagSlotsToCategories(next),
-              });
-            }}
-            onQualities={(qualities) => {
-              const next = { ...memberTagSlots, qualities };
-              if (tagSlotsToCategories(next).length > 20) return;
-              setMemberTagSlots(next);
-              setMemberForm({
-                ...memberForm,
-                categories: tagSlotsToCategories(next),
-              });
-            }}
-            onSizes={(sizes) => {
-              const next = { ...memberTagSlots, sizes };
-              if (tagSlotsToCategories(next).length > 20) return;
-              setMemberTagSlots(next);
-              setMemberForm({
-                ...memberForm,
-                categories: tagSlotsToCategories(next),
-              });
-            }}
-          />
-          <RateRangeFields
-            from={splitRateInput(memberForm.rate).from}
-            to={splitRateInput(memberForm.rate).to}
-            rateUnit={
-              memberForm.catalogRateUnit.trim() ||
-              (catalogRateDisplayUnit({
-                unit: memberForm.unit || Unit.Set,
-                dispatchUnit: memberForm.dispatchUnit || Unit.Set,
-                catalogRateUnit: memberForm.catalogRateUnit,
-                offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
-              }) ??
-                Unit.Piece)
+          <ProductDetailsSlots
+            category={
+              <MasterCategoryField
+                locked={Boolean(form.masterCategoryId)}
+                value={form.masterCategoryId}
+                onChange={onMasterCategoryChange}
+                options={catalogMasterOptions}
+                testId="design-master-category"
+              />
             }
-            permittedUnits={permittedUnits}
-            onRateUnit={(next) =>
-              setMemberForm({
-                ...memberForm,
-                ...applyDesignRateUnit(
-                  memberForm.unit || Unit.Set,
-                  next,
-                  memberForm.dispatchUnit,
-                ),
-              })
+            rate={
+              <RateRangeFields
+                from={splitRateInput(memberForm.rate).from}
+                to={splitRateInput(memberForm.rate).to}
+                rateUnit={
+                  memberForm.catalogRateUnit.trim() ||
+                  (catalogRateDisplayUnit({
+                    unit: memberForm.unit || Unit.Set,
+                    dispatchUnit: memberForm.dispatchUnit || Unit.Set,
+                    catalogRateUnit: memberForm.catalogRateUnit,
+                    offeredRateUnits: permittedUnits.length > 0 ? permittedUnits : undefined,
+                  }) ??
+                    Unit.Piece)
+                }
+                permittedUnits={permittedUnits}
+                onRateUnit={(next) =>
+                  setMemberForm({
+                    ...memberForm,
+                    ...applyDesignRateUnit(
+                      memberForm.unit || Unit.Set,
+                      next,
+                      memberForm.dispatchUnit,
+                    ),
+                  })
+                }
+                onFrom={(next) =>
+                  setMemberForm({
+                    ...memberForm,
+                    rate: combineRateInput(next, splitRateInput(memberForm.rate).to),
+                  })
+                }
+                onTo={(next) =>
+                  setMemberForm({
+                    ...memberForm,
+                    rate: combineRateInput(splitRateInput(memberForm.rate).from, next),
+                  })
+                }
+              />
             }
-            onFrom={(next) =>
-              setMemberForm({
-                ...memberForm,
-                rate: combineRateInput(next, splitRateInput(memberForm.rate).to),
-              })
-            }
-            onTo={(next) =>
-              setMemberForm({
-                ...memberForm,
-                rate: combineRateInput(splitRateInput(memberForm.rate).from, next),
-              })
+            tags={
+              <CascadeTagsFields
+                items={memberTagSlots.items}
+                qualities={memberTagSlots.qualities}
+                sizes={memberTagSlots.sizes}
+                masterCategoryId={form.masterCategoryId}
+                onItems={(items) => {
+                  const next = { ...memberTagSlots, items };
+                  if (tagSlotsToCategories(next).length > 20) return;
+                  setMemberTagSlots(next);
+                  setMemberForm({
+                    ...memberForm,
+                    categories: tagSlotsToCategories(next),
+                  });
+                }}
+                onQualities={(qualities) => {
+                  const next = { ...memberTagSlots, qualities };
+                  if (tagSlotsToCategories(next).length > 20) return;
+                  setMemberTagSlots(next);
+                  setMemberForm({
+                    ...memberForm,
+                    categories: tagSlotsToCategories(next),
+                  });
+                }}
+                onSizes={(sizes) => {
+                  const next = { ...memberTagSlots, sizes };
+                  if (tagSlotsToCategories(next).length > 20) return;
+                  setMemberTagSlots(next);
+                  setMemberForm({
+                    ...memberForm,
+                    categories: tagSlotsToCategories(next),
+                  });
+                }}
+              />
             }
           />
           <OrderDispatchAccordion

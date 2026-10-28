@@ -48,6 +48,7 @@ function attachmentPreviews(
 export function SelectionMessageSheet({
   open,
   onClose,
+  onSent,
   shopId,
   shopName,
   collections,
@@ -56,6 +57,8 @@ export function SelectionMessageSheet({
 }: {
   open: boolean;
   onClose: () => void;
+  /** After a successful send — dock Message uses this to exit Selecting. Close without send does not fire. */
+  onSent?: () => void;
   shopId: string;
   shopName: string;
   collections: CatalogCardCollection[];
@@ -95,6 +98,7 @@ export function SelectionMessageSheet({
       });
       showToast(`Sent to ${toName}`);
       onClose();
+      onSent?.();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not send message.', 'danger');
     } finally {

@@ -62,6 +62,14 @@ type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
 };
 
+/** Peer Repost has no Category picker — supplier already categorized (or old pack had none). */
+export function peerRepostOmitsCategoryPick(row: {
+  repostSourceCollectionId?: string | null;
+  repostSourceProductId?: string | null;
+}): boolean {
+  return Boolean(row.repostSourceCollectionId || row.repostSourceProductId);
+}
+
 function curateExceptionCode(err: unknown): string {
   if (err instanceof BadRequestException) {
     const body = err.getResponse();
@@ -144,12 +152,30 @@ export class CollectionService {
     const repostSource = await this.resolveRepostSource(companyId, dto);
     const masterCategoryId =
       prismaModelHasField('Collection', 'masterCategoryId') && this.masterData
-        ? await this.masterData.resolveCategoryIdForCompany(companyId, dto.masterCategoryId, {
-            // Draft create does not require a category. Publish checks it.
-            // Peer Repost still has no picker — supplier already categorized.
-            required: false,
-          })
+        ? await this.masterData.resolveCategoryIdForCompany(
+            companyId,
+            dto.masterCategoryId ?? repostSource.sourceMasterCategoryId,
+            {
+              // Draft create does not require a category. Peer Repost has no picker.
+              required: false,
+            },
+          )
         : null;
+    if (repostSource.reuseCollectionId) {
+      const reused = await this.prisma.collection.update({
+        where: { id: repostSource.reuseCollectionId },
+        data: {
+          name,
+          ...(dto.coverImage !== undefined ? { coverImage: dto.coverImage } : {}),
+          ...(masterCategoryId !== null && prismaModelHasField('Collection', 'masterCategoryId')
+            ? { masterCategoryId }
+            : {}),
+          updatedByUserId: userId,
+        },
+        include: listInclude,
+      });
+      return this.serializer.toCollectionView(reused, reused._count.products);
+    }
     try {
       const collection = await this.prisma.collection.create({
         data: withPrismaField(
@@ -202,7 +228,12 @@ export class CollectionService {
                         : null,
                   }
                 : {}),
-              ...repostSource,
+              ...(repostSource.repostSourceCollectionId || repostSource.repostSourceProductId
+                ? {
+                    repostSourceCollectionId: repostSource.repostSourceCollectionId ?? null,
+                    repostSourceProductId: repostSource.repostSourceProductId ?? null,
+                  }
+                : {}),
             },
             dto.rate ?? null,
           ),
@@ -235,6 +266,8 @@ export class CollectionService {
   ): Promise<{
     repostSourceCollectionId?: string | null;
     repostSourceProductId?: string | null;
+    sourceMasterCategoryId?: string | null;
+    reuseCollectionId?: string;
   }> {
     if (!dto.repostSourceCollectionId && !dto.repostSourceProductId) {
       return {};
@@ -248,7 +281,7 @@ export class CollectionService {
     if (dto.repostSourceCollectionId) {
       const source = await this.prisma.collection.findUnique({
         where: { id: dto.repostSourceCollectionId },
-        select: { id: true, companyId: true, status: true },
+        select: { id: true, companyId: true, status: true, masterCategoryId: true },
       });
       if (!source || source.status !== CollectionStatus.Published) {
         throw new NotFoundException({
@@ -266,21 +299,40 @@ export class CollectionService {
         where: {
           companyId,
           repostSourceCollectionId: source.id,
+          status: { not: CollectionStatus.Archived },
         },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       if (existing) {
+        if (existing.status === CollectionStatus.Draft) {
+          return {
+            repostSourceCollectionId: source.id,
+            repostSourceProductId: null,
+            sourceMasterCategoryId: source.masterCategoryId,
+            reuseCollectionId: existing.id,
+          };
+        }
         throw new ConflictException({
           code: 'ALREADY_REPOSTED',
           message: 'You already reposted this.',
         });
       }
-      return { repostSourceCollectionId: source.id, repostSourceProductId: null };
+      return {
+        repostSourceCollectionId: source.id,
+        repostSourceProductId: null,
+        sourceMasterCategoryId: source.masterCategoryId,
+      };
     }
     const productId = dto.repostSourceProductId!;
     const source = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, companyId: true, status: true, postedToMarketAt: true },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        postedToMarketAt: true,
+        masterCategoryId: true,
+      },
     });
     if (!source || source.status !== ProductStatus.Published || !source.postedToMarketAt) {
       throw new NotFoundException({
@@ -298,16 +350,29 @@ export class CollectionService {
       where: {
         companyId,
         repostSourceProductId: source.id,
+        status: { not: CollectionStatus.Archived },
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (existing) {
+      if (existing.status === CollectionStatus.Draft) {
+        return {
+          repostSourceCollectionId: null,
+          repostSourceProductId: source.id,
+          sourceMasterCategoryId: source.masterCategoryId,
+          reuseCollectionId: existing.id,
+        };
+      }
       throw new ConflictException({
         code: 'ALREADY_REPOSTED',
         message: 'You already reposted this.',
       });
     }
-    return { repostSourceCollectionId: null, repostSourceProductId: source.id };
+    return {
+      repostSourceCollectionId: null,
+      repostSourceProductId: source.id,
+      sourceMasterCategoryId: source.masterCategoryId,
+    };
   }
 
   async list(
@@ -502,7 +567,7 @@ export class CollectionService {
     }
     if (this.masterData && prismaModelHasField('Collection', 'masterCategoryId')) {
       await this.masterData.resolveCategoryIdForCompany(companyId, existing.masterCategoryId, {
-        required: true,
+        required: !peerRepostOmitsCategoryPick(existing),
       });
     }
     const company = await this.prisma.company.findUniqueOrThrow({

@@ -27,6 +27,23 @@ test.describe('seller collection publish @functional @release @collections', () 
     await expect(page.getByText('Product details')).toBeVisible();
     await expect(page.getByTestId('collection-master-category')).toBeVisible();
     await expect(page.getByTestId('collection-master-category')).not.toContainText('Pick category');
+    const productDetailsOrder = await page.evaluate(() => {
+      const root = document.querySelector('[data-testid="collection-product-details"]');
+      if (!root) return null;
+      const category = root.querySelector('[data-testid="collection-master-category"]');
+      const rate = root.querySelector('[data-testid="collection-rate-unit"]');
+      const tags = root.querySelector('[data-testid="collection-product-tags"]');
+      if (!category || !rate || !tags) return null;
+      return {
+        rateAfterCategory: Boolean(
+          category.compareDocumentPosition(rate) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+        tagsAfterRate: Boolean(
+          rate.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      };
+    });
+    expect(productDetailsOrder).toEqual({ rateAfterCategory: true, tagsAfterRate: true });
     await expect(page.getByTestId('collection-rate-mode-single')).toBeVisible();
     await expect(page.getByTestId('collection-rate-mode-range')).toBeVisible();
     await expect(page.getByTestId('collection-rate-caption')).toHaveCount(0);

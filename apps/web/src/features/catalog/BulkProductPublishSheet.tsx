@@ -13,6 +13,7 @@ import { Button, Sheet } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { readCompanyPublishDefaults } from './publishDefaults';
+import { bulkPublishSettled, publishMandatoryFieldsMessage } from './publishMandatoryFieldsMessage';
 import {
   emptyPublishAudienceState,
   publishAudienceCanSubmit,
@@ -89,11 +90,9 @@ export function BulkProductPublishSheet({ open, onClose, productIds, onDone }: P
       const results = await Promise.allSettled(
         productIds.map((id) => api.post(`/products/${id}/post-to-market`, dto)),
       );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      const ok = results.length - failed;
-      return { ok, failed };
+      return bulkPublishSettled(results);
     },
-    onSuccess: ({ ok, failed }) => {
+    onSuccess: ({ ok, failed, reasons }) => {
       void queryClient.invalidateQueries({ queryKey: ['my-products'] });
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
@@ -103,11 +102,13 @@ export function BulkProductPublishSheet({ open, onClose, productIds, onDone }: P
             ? `Published ${ok} · Buyers can’t forward these.`
             : `Published ${ok} design${ok === 1 ? '' : 's'}`,
         );
-      } else {
-        showToast(`Published ${ok}, ${failed} failed`, 'danger');
+        onDone();
+        onClose();
+        return;
       }
-      onDone();
-      onClose();
+      const message = publishMandatoryFieldsMessage(reasons);
+      setError(message);
+      showToast(message, 'danger');
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : 'Could not publish.';

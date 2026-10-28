@@ -60,6 +60,7 @@ describe('SelectionMessageSheet', () => {
 
   it('sends one design card with enquireNote — not a Reply text bubble', async () => {
     const onClose = vi.fn();
+    const onSent = vi.fn();
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -67,6 +68,7 @@ describe('SelectionMessageSheet', () => {
           <SelectionMessageSheet
             open
             onClose={onClose}
+            onSent={onSent}
             shopId="c1"
             shopName="Mill"
             collections={[]}
@@ -95,6 +97,7 @@ describe('SelectionMessageSheet', () => {
           metadata: { enquireNote: 'Rate for 50?' },
         });
         expect(onClose).toHaveBeenCalled();
+        expect(onSent).toHaveBeenCalled();
       },
       { timeout: 10_000 },
     );

@@ -3,7 +3,7 @@ import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
 /**
  * Explore selection dock: Add to cart · Message · Share + Order (right).
- * Message compose sends pile + note; stays on browse.
+ * Message compose sends pile + note; stays on Explore and exits Selecting.
  */
 test.describe('explore select dock @functional @explore', () => {
   test('selection dock shows Add to cart · Message · Share · Order; header opens Cart', async ({
@@ -49,7 +49,7 @@ test.describe('explore select dock @functional @explore', () => {
     await expect(page.getByTestId('selection-share')).toBeVisible();
   });
 
-  test('Message compose sends designs with a note and stays on Explore', async ({ page }) => {
+  test('Message compose sends designs with a note, stays on Explore, and exits Selecting', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -82,12 +82,13 @@ test.describe('explore select dock @functional @explore', () => {
     await expect(page.getByTestId('selection-workspace-bar')).toBeVisible({ timeout: 10_000 });
     await page.getByTestId('selection-workspace-message').click();
     await expect(page.getByTestId('selection-message-sheet')).toBeVisible();
-    await expect(page.getByPlaceholderText('What do you think of this?')).toBeVisible();
+    await expect(page.getByPlaceholder('What do you think of this?')).toBeVisible();
     await page.getByTestId('selection-message-text').fill('Rate for 50?');
     await page.getByTestId('selection-message-send').click();
     await expect(page.getByText(/Sent to/i)).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(/\/explore/);
-    await expect(page.getByTestId('selection-workspace-bar')).toBeVisible();
-    await expect(page.getByTestId('selection-workspace-cart')).toBeVisible();
+    await expect(page.getByTestId('selection-workspace-bar')).toHaveCount(0);
+    await expect(page.getByTestId('explore-select')).toBeVisible();
+    await expect(page.getByTestId('explore-select')).toHaveText('Select');
   });
 });

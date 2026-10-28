@@ -40,6 +40,7 @@ import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
 import { catalogRateDisplayUnit, catalogRateFieldLabel } from '@/lib/catalogRate';
 import { CascadeTagsFields } from './CascadeTagsFields';
 import { MasterCategoryField } from './MasterCategoryField';
+import { ProductDetailsSlots } from './ProductDetailsSlots';
 import { OrderDispatchAccordion } from './OrderDispatchAccordion';
 import { parsePiecesPerPack } from './orderDispatchPreview';
 import { defaultProfileMasterCategoryId } from './companyMasterOptions';
@@ -955,35 +956,43 @@ export function DesignBatchPage() {
           <section className="rounded-2xl border border-line bg-surface p-4">
             {sectionTitle(detailsCardTitle(drafts.length))}
             <div className="flex flex-col gap-3">
-              <MasterCategoryField
-                value={sharedMasterCategoryId}
-                onChange={(next) => setSharedMasterCategoryId(next || null)}
-                options={catalogMasterOptions}
+              <ProductDetailsSlots
+                category={
+                  <MasterCategoryField
+                    value={sharedMasterCategoryId}
+                    onChange={(next) => setSharedMasterCategoryId(next || null)}
+                    options={catalogMasterOptions}
+                  />
+                }
+                rate={
+                  <Field label={catalogRateFieldLabel(sharedUnit, sharedDispatchUnit)}>
+                    <TextInput
+                      value={sharedRate}
+                      onChange={(e) => setSharedRate(e.target.value)}
+                      {...designRateFieldInputProps}
+                    />
+                  </Field>
+                }
+                tags={
+                  <CascadeTagsFields
+                    items={sharedSlots.items}
+                    qualities={sharedSlots.qualities}
+                    sizes={sharedSlots.sizes}
+                    masterCategoryId={sharedMasterCategoryId}
+                    onItems={(items) =>
+                      setSharedCategory(tagSlotsToCategories({ ...sharedSlots, items }).join(', '))
+                    }
+                    onQualities={(qualities) =>
+                      setSharedCategory(
+                        tagSlotsToCategories({ ...sharedSlots, qualities }).join(', '),
+                      )
+                    }
+                    onSizes={(sizes) =>
+                      setSharedCategory(tagSlotsToCategories({ ...sharedSlots, sizes }).join(', '))
+                    }
+                  />
+                }
               />
-              <CascadeTagsFields
-                items={sharedSlots.items}
-                qualities={sharedSlots.qualities}
-                sizes={sharedSlots.sizes}
-                masterCategoryId={sharedMasterCategoryId}
-                onItems={(items) =>
-                  setSharedCategory(tagSlotsToCategories({ ...sharedSlots, items }).join(', '))
-                }
-                onQualities={(qualities) =>
-                  setSharedCategory(
-                    tagSlotsToCategories({ ...sharedSlots, qualities }).join(', '),
-                  )
-                }
-                onSizes={(sizes) =>
-                  setSharedCategory(tagSlotsToCategories({ ...sharedSlots, sizes }).join(', '))
-                }
-              />
-              <Field label={catalogRateFieldLabel(sharedUnit, sharedDispatchUnit)}>
-                <TextInput
-                  value={sharedRate}
-                  onChange={(e) => setSharedRate(e.target.value)}
-                  {...designRateFieldInputProps}
-                />
-              </Field>
               <OrderDispatchAccordion
                 orderUnit={sharedUnit}
                 piecesPerPack={sharedPiecesPerPack}
@@ -1195,35 +1204,43 @@ export function DesignBatchPage() {
             </div>
 
             <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
-              <MasterCategoryField
-                value={sheetMasterCategoryId}
-                onChange={(next) => setSheetMasterCategoryId(next || null)}
-                options={catalogMasterOptions}
+              <ProductDetailsSlots
+                category={
+                  <MasterCategoryField
+                    value={sheetMasterCategoryId}
+                    onChange={(next) => setSheetMasterCategoryId(next || null)}
+                    options={catalogMasterOptions}
+                  />
+                }
+                rate={
+                  <Field label={catalogRateFieldLabel(sheetUnit, sheetDispatchUnit)}>
+                    <TextInput
+                      value={sheetRate}
+                      onChange={(e) => setSheetRate(e.target.value)}
+                      {...designRateFieldInputProps}
+                    />
+                  </Field>
+                }
+                tags={
+                  <CascadeTagsFields
+                    items={sheetSlots.items}
+                    qualities={sheetSlots.qualities}
+                    sizes={sheetSlots.sizes}
+                    masterCategoryId={sheetMasterCategoryId}
+                    onItems={(items) =>
+                      setSheetCategory(tagSlotsToCategories({ ...sheetSlots, items }).join(', '))
+                    }
+                    onQualities={(qualities) =>
+                      setSheetCategory(
+                        tagSlotsToCategories({ ...sheetSlots, qualities }).join(', '),
+                      )
+                    }
+                    onSizes={(sizes) =>
+                      setSheetCategory(tagSlotsToCategories({ ...sheetSlots, sizes }).join(', '))
+                    }
+                  />
+                }
               />
-              <CascadeTagsFields
-                items={sheetSlots.items}
-                qualities={sheetSlots.qualities}
-                sizes={sheetSlots.sizes}
-                masterCategoryId={sheetMasterCategoryId}
-                onItems={(items) =>
-                  setSheetCategory(tagSlotsToCategories({ ...sheetSlots, items }).join(', '))
-                }
-                onQualities={(qualities) =>
-                  setSheetCategory(
-                    tagSlotsToCategories({ ...sheetSlots, qualities }).join(', '),
-                  )
-                }
-                onSizes={(sizes) =>
-                  setSheetCategory(tagSlotsToCategories({ ...sheetSlots, sizes }).join(', '))
-                }
-              />
-              <Field label={catalogRateFieldLabel(sheetUnit, sheetDispatchUnit)}>
-                <TextInput
-                  value={sheetRate}
-                  onChange={(e) => setSheetRate(e.target.value)}
-                  {...designRateFieldInputProps}
-                />
-              </Field>
               <OrderDispatchAccordion
                 orderUnit={sheetUnit}
                 piecesPerPack={sheetPiecesPerPack}

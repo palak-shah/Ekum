@@ -1,7 +1,7 @@
 # Feature Completeness Review — Collection form chrome
 
 **Date:** 2026-10-20  
-**Module / ask:** New/Edit collection identity chrome: kit spacing (not a looser scale); **Product details** groups Category → tags → Rate; short auto-grow Description; ₹ + **Rate**; existing tokens only.  
+**Module / ask:** New/Edit collection identity chrome: kit spacing (not a looser scale); **Product details** groups Category → Rate → tags (slot order tightened 2026-10-27); short auto-grow Description; ₹ + **Rate**; existing tokens only.  
 **Anchors:** `docs/features/00-concepts.md`, `docs/features/collections.md`, `ui-quality-bar`  
 **Disposition:** Proceed
 
@@ -34,7 +34,7 @@
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Functionality | OK | Category → tags → Rate; Description grows; ₹ Rate |
+| Functionality | OK | Category → Rate → tags (2026-10-27); Description grows; ₹ Rate |
 | Business rules | OK | Category still required when shop has more than one; Rate per options still from selected category; blank rate still allowed |
 | Workflows | OK | Create + edit identity; member sheet shares rate control |
 | Edge cases | OK | One-category shop hides Category; Rate stays in the Product details slot |
@@ -58,7 +58,8 @@ None Required.
 
 ## Approved scope for this slice
 
-- Identity order: **Collection name** → **Description** (short, grows) → **Product details** (**Category** → Item / Quality / Size tags → **Rate** ₹ **Rate**) → Who / Apply all / Order and dispatch.  
+- Identity order: **Collection name** → **Description** (short, grows) → **Product details** (**Category** → **Rate** ₹ **Rate** → Item / Quality / Size tags) → Who / Apply all / Order and dispatch.  
+  Slot order **Category → Rate → tags** supersedes “below tags is fine” — see Completeness 2026-10-27-create-rate-after-category.  
 - Kit gaps: majors `gap-3`; Product details inner `gap-2`; Field default `gap-1.5`; controls `min-h-10`.  
 - `RateRangeFields`: ₹ prefix + placeholder **Rate**; unit/category selects `bg-input`.  
 - Add tiles stay dashed `bg-foam` (hover does not gray them out).  

@@ -8,6 +8,21 @@ test.describe('edit design photos @functional @catalog', () => {
     await expect(page.getByRole('heading', { name: 'Edit design' })).toBeVisible({
       timeout: 15_000,
     });
+    const designDetailsOrder = await page.evaluate(() => {
+      const category = document.querySelector('[data-testid="collection-master-category"]');
+      const rate = document.querySelector('[data-testid="collection-rate-unit"]');
+      const tags = document.querySelector('[data-testid="collection-product-tags"]');
+      if (!category || !rate || !tags) return null;
+      return {
+        rateAfterCategory: Boolean(
+          category.compareDocumentPosition(rate) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+        tagsAfterRate: Boolean(
+          rate.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      };
+    });
+    expect(designDetailsOrder).toEqual({ rateAfterCategory: true, tagsAfterRate: true });
     await expect(page.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
       'aria-expanded',
       'false',

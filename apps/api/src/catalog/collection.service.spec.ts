@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CollectionKind, CollectionStatus, ProductStatus } from '@ekum/domain-types';
-import { CollectionService } from './collection.service';
+import { CollectionService, peerRepostOmitsCategoryPick } from './collection.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
@@ -1490,6 +1490,64 @@ describe('CollectionService.create repost source', () => {
         repostSourceCollectionId: 'src-col',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('peerRepostOmitsCategoryPick', () => {
+  it('skips the Category pick only for peer Repost packs', () => {
+    expect(peerRepostOmitsCategoryPick({ repostSourceCollectionId: 'src' })).toBe(true);
+    expect(peerRepostOmitsCategoryPick({ repostSourceProductId: 'p1' })).toBe(true);
+    expect(peerRepostOmitsCategoryPick({})).toBe(false);
+  });
+});
+
+describe('CollectionService.create peer Repost', () => {
+  it('reuses a leftover draft instead of already-reposted', async () => {
+    const update = vi.fn(async (args: { where: { id: string } }) => ({
+      id: args.where.id,
+      name: 'Retry',
+      _count: { products: 0 },
+      products: [],
+    }));
+    const prisma = {
+      collection: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ id: 'draft-1', status: CollectionStatus.Draft }),
+        findUnique: async () => ({
+          id: 'src-col',
+          companyId: 'peer',
+          status: CollectionStatus.Published,
+          masterCategoryId: 'cat-mill',
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (row: { id: string }) => ({ id: row.id }),
+    } as unknown as CatalogSerializer;
+    const masterData = {
+      resolveCategoryIdForCompany: vi.fn(async () => 'cat-mill'),
+    };
+    const service = new CollectionService(
+      prisma,
+      serializer,
+      jobs,
+      masterData as never,
+    );
+    const view = await service.create('me', 'u1', {
+      name: 'Retry',
+      categories: [],
+      repostSourceCollectionId: 'src-col',
+    });
+    expect(view).toMatchObject({ id: 'draft-1' });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'draft-1' },
+        data: expect.objectContaining({ masterCategoryId: 'cat-mill' }),
+      }),
+    );
   });
 });
 

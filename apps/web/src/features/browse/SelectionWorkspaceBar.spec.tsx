@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageType } from '@ekum/domain-types';
 import { ToastProvider } from '@/ui/Toast';
 import { api } from '@/lib/apiClient';
+import { clearSelection } from '@/features/browse/clearSelection';
 import { SELECTION_FLOATER_MIN_H, SelectionWorkspaceBar } from './SelectionWorkspaceBar';
 
 const navigate = vi.fn();
@@ -108,6 +109,7 @@ describe('SelectionWorkspaceBar', () => {
     setSelectModeShortlist.mockClear();
     setSelectModeAlbum.mockClear();
     vi.mocked(api.post).mockReset();
+    vi.mocked(clearSelection).mockClear();
     vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
       if (path === '/threads/direct') return { id: 'thread-c1' } as never;
       if (String(path).includes('/messages')) {
@@ -182,7 +184,6 @@ describe('SelectionWorkspaceBar', () => {
   });
 
   it('Message opens compose; Send posts one card with note and does not open Chats', async () => {
-    const { clearSelection } = await import('@/features/browse/clearSelection');
     const user = userEvent.setup();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -210,7 +211,7 @@ describe('SelectionWorkspaceBar', () => {
       });
     });
     expect(navigate).not.toHaveBeenCalledWith('/chats/thread-c1');
-    expect(clearSelection).not.toHaveBeenCalled();
+    expect(clearSelection).toHaveBeenCalled();
   });
 
   it('own-shop pile: Message disabled and Order label stays Order', () => {

@@ -5,6 +5,7 @@ import { timeAgo } from '@/lib/format';
 import { Avatar, cx } from '@/ui/kit';
 import { PinIcon } from '@/ui/icons';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
+import { useSelectSwipe } from '@/ui/useSelectSwipe';
 import { highlightSearchText } from '@/ui/highlightMatch';
 import { threadDisplayTitle } from './chatsListSearch';
 import { threadVisibilityLabel } from './threadVisibilityLabel';
@@ -130,6 +131,17 @@ export function InboxThreadRow({
         }
       : undefined,
   );
+  const selectSwipe = useSelectSwipe({
+    enabled: selecting,
+    selected,
+    onSelect: () => {
+      if (!selected) onToggle();
+    },
+    onDeselect: () => {
+      if (selected) onToggle();
+    },
+    onHorizontalLock: longPress.onPointerCancel,
+  });
 
   if (selecting) {
     return (
@@ -137,8 +149,13 @@ export function InboxThreadRow({
         type="button"
         data-testid={`chats-select-row-${thread.id}`}
         aria-pressed={selected}
-        className={rowClass}
+        className={cx(rowClass, 'touch-pan-y overscroll-x-contain')}
+        style={{
+          transform: `translateX(${selectSwipe.nudge}px)`,
+          transition: selectSwipe.dragging ? undefined : 'transform 160ms ease-out',
+        }}
         onClick={onToggle}
+        {...selectSwipe.bind}
       >
         {body}
       </button>

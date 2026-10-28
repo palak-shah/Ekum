@@ -8,12 +8,9 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { clearBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import { clearBrowseCart } from '@/features/browse/browseCart';
-import {
-  clearBrowseShortlist,
-  type BrowseShortlistEntry,
-} from '@/features/browse/browseShortlist';
+import { clearSelection } from '@/features/browse/clearSelection';
+import { type BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
@@ -154,9 +151,8 @@ export function useShortlistOrderFlow(options?: {
           ? millsOnPack
           : undefined;
       if (payload.orders.length > 0) {
-        // Staging Order clears checks only; cart page also empties the parked cart.
-        clearBrowseShortlist();
-        clearBrowseAlbumPick();
+        // Staging Order clears checks and exits Selecting; cart page also empties the parked cart.
+        clearSelection();
         if (clearCartOnSuccess) clearBrowseCart();
       } else if (removeIds.length > 0) {
         shortlist.removeIds(removeIds);

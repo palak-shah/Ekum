@@ -11,7 +11,7 @@ describe('youCollectionRowMore', () => {
     ]);
   });
 
-  it('draft: Unhide Draft, Archive, Order', () => {
+  it('draft: Publish (action id unhide), Archive, Order', () => {
     expect(youCollectionRowMore({ status: CollectionStatus.Draft })).toEqual([
       'unhide',
       'archive',

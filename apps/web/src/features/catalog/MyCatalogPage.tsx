@@ -1263,7 +1263,7 @@ export function MyCatalogPage({
                 if (action === 'unhide') {
                   return {
                     id: 'unhide',
-                    label: 'Unhide Draft',
+                    label: 'Publish',
                     icon: <LockIcon width={20} height={20} />,
                     testId: 'you-collection-unhide-draft',
                     disabled: !isCollectionPublishable(rowMenu),

@@ -18,6 +18,13 @@ describe('RateRangeFields', () => {
       /(?:^|\s)placeholder:italic(?:\s|$)/,
     );
     expect(screen.getAllByTestId('collection-rate-prefix')).toHaveLength(1);
+    expect(screen.getByTestId('collection-rate-from').className).toMatch(
+      /(?:^|\s)min-h-10(?:\s|$)/,
+    );
+    expect(screen.getByTestId('collection-rate-from').className).not.toMatch(
+      /(?:^|\s)min-h-0(?:\s|$)/,
+    );
+    expect(screen.getByTestId('collection-rate-from').className).toMatch(/(?:^|\s)pl-9(?:\s|$)/);
     expect(screen.queryByTestId('collection-rate-caption')).toBeNull();
     expect(screen.queryByText('On request')).toBeNull();
     expect(screen.queryByTestId('collection-rate-unit')).toBeNull();

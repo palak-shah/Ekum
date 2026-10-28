@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-27 (Confirm sheet Manual order no. + Personal note; Category Rate per primary; Order form PDF, line qty, pack cue, drop Send quote, Bill/bale)  
+**Updated:** 2026-10-27 (create Category → Rate → tags; PWA select-swipe; Confirm sheet Manual order no. + Personal note; Category Rate per primary; Order form PDF, line qty, pack cue, drop Send quote, Bill/bale)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -15,6 +15,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Platform | Quiet info (circle i): instructional copy on tap; one `InfoHint` / `InfoIcon` | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; Confirm title + collection Apply-all; Field `info` |
 | Orders | Confirm Qty \| Rate type matches How many / Edit (14px emphasis) | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; `compactSheetNumInputClass` |
 | Catalog | You Collections list (published+draft, page ⋯, swipe More/Share); Designs grid | Works | Unit | Required | Completeness 2026-10-17-you-collections-list; `libraryCollectionThumb` |
+| Catalog | You row More: Hide Draft / Publish (empty pack stays disabled; action id `unhide`) | Works | Unit | Required | Completeness 2026-10-27-select-exit-after-action |
+| Catalog | Bulk publish missing name/category/designs: “Add mandatory fields to publish.”; sheet stays | Works | Unit | Required | Completeness 2026-10-27-select-exit-after-action |
 | Collections | Owner album lists draft members with Draft chip; select includes drafts; ⋯ Draft · Publish (one tap, no Who); idle ⋯ Draft this collection/catalog; DesignSheet Order/cart blocked on drafts; buyers published-only | Works | Unit + Functional | Required | Completeness 2026-10-26-owner-album-draft-members + owner-album-draft-publish + album-member-publish-no-who; pack vs design status independent |
 | Catalog | Designs via collection only (no You Designs **＋** / Single design); kit Button `loading`; camera hard-stop on leave; Rate per valid after Category change | Redesigned | Unit | Required | Completeness 2026-10-22-designs-via-collection-only; **Redesign** 2026-10-24-you-designs-add-plus-restore (Designs **＋** back; GC is unassigned home). Camera hard-stop + Rate per still hold |
 | Platform | Bottom nav only on Home, Chats, Explore, Orders; Explore Select still hides it | Works | Unit | Required | Completeness 2026-10-17-main-menu-bottom-nav; `isMainMenuPath` |
@@ -101,6 +103,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
 | Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
 | Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Android left-swipe More/Archive; theme-color white |
+| Chat | PWA select-mode row swipe: right selects, left deselects (component; inbox select row) | Works | Unit | Required | Completeness 2026-10-27-pwa-select-swipe; no page-back; idle More/Archive unchanged |
 | Chat | 1:1 ＋ Complaint form + Resolve on open card; In chats / thread filter | Works | Unit | Required | Completeness 2026-09-29-chat-complaint-form; resolve UI 2026-10-09-complaint-resolve-ui; View order if attached; never View designs |
 | Chat | No-photo avatars use name colours (WhatsApp-like) | Works | Unit | Required | Completeness 2026-09-28-chat-avatar-colors; pastel wash + ink 2026-09-30-avatar-pastel-wash; kit Avatar |
 | Chat | Requests inbox (unconnected + connect invite) | Works | Functional + Unit | Required | Approve / Ignore; see-packs Allow; `/chats?inbox=requests`; Completeness 2026-09-28-chats-requests-fold-access |
@@ -181,7 +184,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Replace sheet chooses Designs or Photos (no dock hop after confirm) | Works | Unit | Required | Completeness 2026-10-10-replace-source-chooser |
 | Collections | New collection cascade tags, From/To rate, apply-all + rate confirm, dual order/dispatch units | Works | Unit + Functional | Required | Completeness 2026-10-06-new-collection-wireframe |
 | Collections | Collection name label; One rate / A range pill switch; no On request caption; kit placeholders 14px roman muted | Works | Unit + Functional | Required | Completeness 2026-10-09-collection-rate-mode-placeholders; 2026-10-20-kit-placeholder-type |
-| Collections | Create/edit Product details (Category → tags → Rate ₹ Rate); short auto-grow Description; kit gaps / foam tiles | Works | Unit + Functional | Required | Completeness 2026-10-20-collection-form-chrome; Rate per after category |
+| Collections | Create/edit Product details (Category → Rate ₹ Rate → tags); short auto-grow Description; kit gaps / foam tiles | Works | Unit + Functional | Required | Completeness 2026-10-20-collection-form-chrome; 2026-10-27-create-rate-after-category |
 | Collections | New collection dock always **Create & Publish** · **Save in Draft**; after members **N designs · tap to change** strip | Works | Unit + Functional | Required | Completeness 2026-10-20-drop-add-to-continue; strip kept |
 | Collections | Create Category = full catalog (deal-in is default only); add tiles share field fill; no Pick category… | Works | Unit + Functional | Required | Completeness 2026-10-20-collection-category-any |
 | Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
@@ -210,7 +213,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Design page Ask / Order dock visitors only | Works | Unit | Required | Owner never gets dock (even Selling/Trading); `exploreProductChrome` |
 | Explore | Instagram look + B2B: own feed, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look; new-designs meta retired 2026-10-10; own live packs pinned on Buying / Stories You (2026-10-27) |
 | Explore | Caption: album read more / Show less + newlines; no meta under title; time beside shop name | Works | Unit | Required | Completeness 2026-10-10-explore-caption-album-description |
-| Explore | Per-post Repost sheet (Who / groups / 48h / forward·download) — not Your selection | Works | Unit | Required | Completeness 2026-10-08-explore-repost-publish-sheet; skip why + publish exception in **i** (2026-10-27) |
+| Explore | Per-post Repost sheet (Who / groups / 48h / forward·download) — not Your selection | Works | Unit | Required | Completeness 2026-10-08-explore-repost-publish-sheet; skip why + publish exception in **i** (2026-10-27); peer Repost publish without Category pick (2026-10-27) |
 | Explore | Repost once per peer post; own gray; done icon (not gray) when viewerReposted | Works | Unit + API | Required | Completeness 2026-10-11-explore-repost-once |
 | Catalog | My designs select **Hide · draft** (published designs + packs) | Works | Unit | Required | Completeness 2026-09-03-hide-and-curate-existing |
 | Collections | Hide last live design drafts the pack; viewer lists Published only | Later | Unit | Optional | Superseded 2026-10-06-pack-members-stay-published: pack stays Published; Hide is explicit |
@@ -253,7 +256,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Cart: header opens cart; dock Cart adds + clears staging; Order right | Works | Unit | Required | Completeness 2026-10-09-explore-cart-dock |
 | Explore | Select / Order do not write cart; only Add to cart parks | Works | Unit | Required | Completeness 2026-10-13-select-does-not-cart |
 | Explore | Select staging is page-local: leave `/explore` or last uncheck exits Selecting (cart stays) | Works | Unit + Functional | Required | Completeness 2026-10-27-explore-select-exit-on-leave; album/shop/Saved still travel |
-| Explore / Selection | Dock **Message · Share · Order**; Message compose text+cards, stay on page | Works | Unit + Functional | Required | Completeness 2026-10-09-selection-message-compose; prior attach 2026-10-09 |
+| Explore / Selection | Successful dock Add to cart / Share / Order / Message exits Selecting (cancel leaves picks) | Works | Unit + Functional | Required | Completeness 2026-10-27-select-exit-after-action |
+| Explore / Selection | Dock **Message · Share · Order**; Message compose text+cards, stay on page; send exits Selecting | Works | Unit + Functional | Required | Completeness 2026-10-09-selection-message-compose; exit after send 2026-10-27-select-exit-after-action |
 | Explore | Feed **Message** quick enquire (pack/design); stay on feed | Works | Unit | Required | Completeness 2026-10-09-explore-feed-message-enquire |
 | Explore / Selection | Message sheet: attachment title · Message to shop · shop avatar | Works | Unit | Required | Completeness 2026-10-13-selection-message-context |
 | Orders | How many Order: Place + Order-for-buyer switch; no Share/Ask (Ask = own sheet job) | Works | Unit | Required | Completeness 2026-10-09-how-many-order-only-footer |

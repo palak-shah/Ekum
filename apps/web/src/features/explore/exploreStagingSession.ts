@@ -1,6 +1,4 @@
 import { clearSelection } from '@/features/browse/clearSelection';
-import { resetBrowseAlbumPickSelectMode } from '@/features/browse/useBrowseAlbumPick';
-import { resetBrowseShortlistSelectMode } from '@/features/browse/useBrowseShortlist';
 
 /** Pathname only — `?story=` / `?show=` on `/explore` is not leave. */
 export function explorePathLeft(from: string, to: string): boolean {
@@ -10,8 +8,6 @@ export function explorePathLeft(from: string, to: string): boolean {
 /** Drop Explore staging checks + Selecting. Does not touch the parked cart. */
 export function clearExploreStaging(): void {
   clearSelection();
-  resetBrowseShortlistSelectMode();
-  resetBrowseAlbumPickSelectMode();
 }
 
 export function noteExplorePathChange(from: string, to: string): void {
