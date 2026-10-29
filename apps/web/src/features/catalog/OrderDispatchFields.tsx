@@ -50,7 +50,6 @@ export function OrderDispatchFields({
         : orderUnit === Unit.Bundle
           ? '1 bundle contains'
           : '1 set contains';
-  const containsPlaceholder = '4';
   const containsUnitLabel = setContainsUnitLabel(piecesPerPack, contentsUnit);
 
   const handleOrderUnit = (next: string) => {
@@ -99,7 +98,6 @@ export function OrderDispatchFields({
               onPiecesPerPack(next);
             }}
             inputMode="numeric"
-            placeholder={containsPlaceholder}
             aria-label={containsLabel}
           />
           <span

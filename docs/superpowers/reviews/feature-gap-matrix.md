@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-29 (Mixed Place two How many sheets; mill credit on Collection and Catalog; I-handle Send never Direct)  
+**Updated:** 2026-10-29 (Blank 1 set contains — no ghost `4`; Mixed Place two How many sheets; mill credit on Collection and Catalog; I-handle Send never Direct)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -191,8 +191,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog / Collections | Editor Category / Rate per / Order taken in / Dispatch = 40px field → kit Sheet rows (not Android OS select); tags hidden until Category; tag list uses visualViewport; catalog apply-all always on and hidden | Redesign | Unit + Functional | Required | Completeness 2026-10-29-editor-sheet-pickers-tags; supersedes native `<select>` lock in 2026-10-20-collection-category-any for these fields |
 | Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
 | Collections | Tag typeahead: used shop tags on empty; type for official; close on pick; cap 8 | Works | Unit | Required | Completeness 2026-10-20-tag-suggest-quiet |
-| Collections | Size tags multi-select + set-contains live **n unit** (`4` → 4 pcs) / dozen autofill 12 | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi; 2026-10-20-design-tags-category-contains |
-| Catalog | Design tags = collection typeaheads after Category; solo Category sheet; pack Category locked; 1 set contains n unit | Works | Unit | Required | Completeness 2026-10-20-design-tags-category-contains; picker Redesign 2026-10-29-editor-sheet-pickers-tags |
+| Collections | Size tags multi-select + set-contains live **n unit** (typed `4` → 4 pcs; empty is blank + unit suffix, no ghost `4`) / dozen autofill 12 | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi; 2026-10-20-design-tags-category-contains; empty chrome Redesign 2026-10-29-set-contains-no-placeholder |
+| Catalog | Design tags = collection typeaheads after Category; solo Category sheet; pack Category locked; 1 set contains n unit (empty: blank + suffix, no ghost `4`) | Works | Unit | Required | Completeness 2026-10-20-design-tags-category-contains; picker Redesign 2026-10-29-editor-sheet-pickers-tags; empty chrome Redesign 2026-10-29-set-contains-no-placeholder |
 | Catalog | Tag list stays after pick; Escape/outside exits; design Category sheet when pack has none | Works | Unit | Required | Completeness 2026-10-20-tag-exit-design-category; picker Redesign 2026-10-29-editor-sheet-pickers-tags |
 | Catalog | Tag suggestions: scroll does not pick; tap/click adds (collection/catalog/design) | Works | Unit | Required | Completeness 2026-10-27-tag-suggest-scroll-not-pick; BM: pointerdown ≠ commit |
 | Catalog | No **Use same as all designs** on Update this design (pack Apply + batch shared card stay) | Works | Unit + Functional | Required | Completeness 2026-10-20-drop-use-same-as-all |

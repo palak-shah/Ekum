@@ -52,12 +52,10 @@ describe('OrderDispatchFields set-contains', () => {
     expect(screen.getByTestId('collection-dispatch-unit')).toHaveAttribute('data-value', Unit.Set);
   });
 
-  it('shows placeholder 4 with pc suffix when empty', () => {
+  it('empty field has no placeholder; unit suffix only', () => {
     render(<Harness />);
-    expect(screen.getByTestId('collection-set-contains')).toHaveAttribute(
-      'placeholder',
-      '4',
-    );
+    expect(screen.getByTestId('collection-set-contains')).not.toHaveAttribute('placeholder');
+    expect(screen.getByTestId('collection-set-contains')).toHaveValue('');
     expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('pc');
   });
 
@@ -79,15 +77,6 @@ describe('OrderDispatchFields set-contains', () => {
     await user.type(input, '0');
     expect(input).toHaveValue('');
     expect(screen.getByTestId('collection-set-contains-unit')).toHaveTextContent('mtr');
-  });
-
-  it('hides the 4 placeholder while the field is focused', async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-    const input = screen.getByTestId('collection-set-contains');
-    expect(input).toHaveAttribute('placeholder', '4');
-    await user.click(input);
-    expect(input).not.toHaveAttribute('placeholder');
   });
 
   it('keeps typed digits in the value (not a vanishing 4ch box)', async () => {

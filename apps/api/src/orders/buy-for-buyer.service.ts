@@ -107,10 +107,9 @@ export class BuyForBuyerService {
     }
     const directMills = millHops.filter((hop) => hop.path === 'direct');
     const handleMills = millHops.filter((hop) => hop.path === 'handle');
-    const foldOwnIntoHandle =
-      ownLines.length > 0 && handleMills.length > 0 && directMills.length === 0;
+    const foldHandleParent = handleMills.length > 0;
 
-    if (foldOwnIntoHandle) {
+    if (foldHandleParent) {
       const hopItems = [...ownLines, ...handleMills.flatMap((hop) => hop.millItems)].map(
         (item) => ({
           productId: item.productId,
@@ -226,55 +225,31 @@ export class BuyForBuyerService {
       inviteOrderId = order.id;
     }
 
-    const millTickets = foldOwnIntoHandle
-      ? directMills
-      : [...directMills, ...handleMills];
-    for (const hop of millTickets) {
+    for (const hop of directMills) {
       const hopItems = hop.millItems.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
         rate: item.rate,
       }));
-      const view =
-        hop.path === 'direct'
-          ? await this.orders.create(
-              actorCompanyId,
-              userId,
-              {
-                sellerCompanyId: hop.millId,
-                kind: OrderKind.Standard,
-                intent: OrderIntent.Order,
-                note: dto.note,
-                transporter: dto.transporter,
-                facilitatorCompanyId: actorCompanyId,
-                items: hopItems,
-              },
-              {
-                onBehalfBuyerCompanyId: buyer.companyId,
-                skipLanePlace: true,
-                tradeMode: OrderTradeMode.Direct,
-                facilitatorCompanyId: actorCompanyId,
-              },
-            )
-          : await this.orders.create(
-              actorCompanyId,
-              userId,
-              {
-                sellerCompanyId: actorCompanyId,
-                kind: OrderKind.Standard,
-                intent: OrderIntent.Order,
-                orderPathPreference: 'handle',
-                note: dto.note,
-                transporter: dto.transporter,
-                items: hopItems,
-              },
-              {
-                onBehalfBuyerCompanyId: buyer.companyId,
-                skipLanePlace: true,
-                allowForeignProducts: true,
-                tradeMode: OrderTradeMode.Manage,
-              },
-            );
+      const view = await this.orders.create(
+        actorCompanyId,
+        userId,
+        {
+          sellerCompanyId: hop.millId,
+          kind: OrderKind.Standard,
+          intent: OrderIntent.Order,
+          note: dto.note,
+          transporter: dto.transporter,
+          facilitatorCompanyId: actorCompanyId,
+          items: hopItems,
+        },
+        {
+          onBehalfBuyerCompanyId: buyer.companyId,
+          skipLanePlace: true,
+          tradeMode: OrderTradeMode.Direct,
+          facilitatorCompanyId: actorCompanyId,
+        },
+      );
       first ??= view;
     }
 

@@ -542,6 +542,155 @@ describe('BuyForBuyerService', () => {
     );
   });
 
+  it('folds two I-handle mills with no own lines into one parent', async () => {
+    const create = vi.fn(async () => ({ id: 'o-handle' }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Jaipur', name: 'House' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'mill-a',
+            name: 'Silk',
+            sku: 'S1',
+            rate: 100,
+            unit: 'pc',
+            images: [],
+            companyId: 'mill-a',
+          },
+          {
+            id: 'mill-b',
+            name: 'Cotton',
+            sku: 'C1',
+            rate: 80,
+            unit: 'pc',
+            images: [],
+            companyId: 'mill-b',
+          },
+        ]),
+      },
+      ...connectedPrisma(),
+    } as unknown as PrismaService;
+    const svc = makeSvc(prisma, {} as ThreadService, {} as DomainEvents, {
+      create,
+    } as unknown as OrderService);
+    await svc.create('trader', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [
+        { productId: 'mill-a', quantity: 3 },
+        { productId: 'mill-b', quantity: 5 },
+      ],
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'trader',
+        orderPathPreference: 'handle',
+        items: [
+          { productId: 'mill-a', quantity: 3, rate: undefined },
+          { productId: 'mill-b', quantity: 5, rate: undefined },
+        ],
+      }),
+      expect.objectContaining({
+        tradeMode: OrderTradeMode.Manage,
+      }),
+    );
+  });
+
+  it('folds own + I-handle mills into one parent when a Direct mill is in the same request', async () => {
+    const create = vi.fn(async () => ({ id: 'o-ticket' }));
+    const orderCreate = vi.fn(async () => ({ id: 'should-not' }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Jaipur', name: 'House' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'own-1',
+            name: 'Mine',
+            sku: 'M1',
+            rate: 90,
+            unit: 'pc',
+            images: [],
+            companyId: 'trader',
+          },
+          {
+            id: 'mill-handle',
+            name: 'Silk',
+            sku: 'S1',
+            rate: 100,
+            unit: 'pc',
+            images: [],
+            companyId: 'mill-handle',
+          },
+          {
+            id: 'mill-direct',
+            name: 'Cotton',
+            sku: 'C1',
+            rate: 80,
+            unit: 'pc',
+            images: [],
+            companyId: 'mill-direct',
+          },
+        ]),
+      },
+      connection: {
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+      },
+      tradeLane: {
+        findFirst: vi.fn(
+          async ({ where }: { where: { OR: Array<{ sellerCompanyId: string }> } }) =>
+            where.OR.some((row) => row.sellerCompanyId === 'mill-direct')
+              ? { ticket: 'mill' }
+              : null,
+        ),
+      },
+      order: { create: orderCreate },
+    } as unknown as PrismaService;
+    const svc = makeSvc(prisma, {} as ThreadService, {} as DomainEvents, {
+      create,
+    } as unknown as OrderService);
+    await svc.create('trader', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [
+        { productId: 'own-1', quantity: 4 },
+        { productId: 'mill-handle', quantity: 8 },
+        { productId: 'mill-direct', quantity: 6 },
+      ],
+    });
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenNthCalledWith(
+      1,
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'trader',
+        orderPathPreference: 'handle',
+        items: [
+          { productId: 'own-1', quantity: 4, rate: undefined },
+          { productId: 'mill-handle', quantity: 8, rate: undefined },
+        ],
+      }),
+      expect.objectContaining({
+        tradeMode: OrderTradeMode.Manage,
+      }),
+    );
+    expect(create).toHaveBeenNthCalledWith(
+      2,
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'mill-direct',
+        facilitatorCompanyId: 'trader',
+        items: [{ productId: 'mill-direct', quantity: 6, rate: undefined }],
+      }),
+      expect.objectContaining({
+        tradeMode: OrderTradeMode.Direct,
+      }),
+    );
+  });
+
   it('creates a thin company and invite for a new phone', async () => {
     const prisma = {
       company: {
