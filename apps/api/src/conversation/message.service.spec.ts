@@ -37,6 +37,24 @@ function actor(companyId: string, role = 'owner'): AuthPrincipal {
 }
 
 describe('MessageService.send', () => {
+  it('rejects new messages on a closed Direct Link group', async () => {
+    const service = new MessageService(
+      {} as PrismaService,
+      threadStub({
+        id: 'p',
+        state: 'active',
+        thread: { messagingClosedAt: new Date('2026-10-28') },
+      }),
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      events,
+      visibilityStub(),
+    );
+    await expect(
+      service.send(actor('c1'), 't', { type: MessageType.Text, body: 'hi' } as SendMessageDto),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('rejects when actor has no active company', async () => {
     const threads = {
       membershipOrThrow: async () => {

@@ -4,7 +4,7 @@ import { ExploreService } from './explore.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { VisibilityService } from '../access/visibility.service';
 import type { CatalogSerializer } from '../catalog/catalog.serializer';
-import type { DiscoverySerializer } from './discovery.serializer';
+import { collectionSourceShopNames, type DiscoverySerializer } from './discovery.serializer';
 
 interface VisibilityStub {
   blocked?: boolean;
@@ -16,7 +16,11 @@ interface VisibilityStub {
 function makeService(
   collectionRow: unknown,
   visibility: VisibilityStub,
-  opts?: { sharedInChat?: boolean; following?: boolean },
+  opts?: {
+    sharedInChat?: boolean;
+    following?: boolean;
+    lanes?: Array<{ sellerCompanyId: string; ticket: string; behaviors?: unknown }>;
+  },
 ) {
   const prisma = {
     collection: {
@@ -36,7 +40,7 @@ function makeService(
       findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
         (where.id.in ?? []).map((id) => ({ id, name: id })),
     },
-    tradeLane: { findMany: async () => [] },
+    tradeLane: { findMany: async () => opts?.lanes ?? [] },
     product: { findMany: async () => [] },
   } as unknown as PrismaService;
   const visibilityService = {
@@ -70,6 +74,10 @@ function makeService(
       _count: { products: number };
       company?: { id: string };
       coverImage?: string | null;
+      showSourceShops?: boolean;
+      products?: Array<{
+        product: { companyId?: string; company?: { name: string } | null };
+      }>;
     }) => ({
       id: row.id,
       name: 'Wedding Edit',
@@ -78,6 +86,12 @@ function makeService(
       previewImages: row.coverImage ? [row.coverImage] : [],
       imageCount: row.coverImage ? 1 : 0,
       productCount: row._count.products,
+      showSourceShops: row.showSourceShops === true,
+      sourceShopNames: collectionSourceShopNames(
+        row.companyId,
+        row.showSourceShops === true,
+        row.products,
+      ),
       updatedAt: new Date().toISOString(),
     }),
   } as unknown as DiscoverySerializer;
@@ -227,6 +241,81 @@ describe('ExploreService.collectionDetail trust rules', () => {
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.products).toHaveLength(2);
+  });
+
+  it('stamps mill From names on a Selected auto pack with Show supplier on', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'trader',
+        company: { id: 'trader' },
+        audience: 'selected',
+        audienceCompanyIds: ['viewer'],
+        showSourceShops: true,
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'mill',
+              company: { name: 'Ahmedabad Loom Co' },
+              status: 'published',
+              rate: 100,
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+        _count: { products: 1 },
+      },
+      { blocked: false, connected: false },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.showSourceShops).toBe(true);
+    expect(view.sourceShopNames).toEqual(['Ahmedabad Loom Co']);
+  });
+
+  it('exposes Direct mill ids for the placing buyer', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'trader',
+        company: { id: 'trader' },
+        audience: 'selected',
+        audienceCompanyIds: ['viewer'],
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'mill-direct',
+              company: { name: 'Ahmedabad Loom Co' },
+              status: 'published',
+              rate: 100,
+              rateVisibility: 'visible',
+            },
+          },
+          {
+            product: {
+              id: 'p2',
+              companyId: 'mill-handle',
+              company: { name: 'Surat Silk House' },
+              status: 'published',
+              rate: 90,
+              rateVisibility: 'visible',
+            },
+          },
+        ],
+        _count: { products: 2 },
+      },
+      { blocked: false, connected: true },
+      {
+        lanes: [
+          { sellerCompanyId: 'mill-direct', ticket: 'mill' },
+          { sellerCompanyId: 'mill-handle', ticket: 'me' },
+        ],
+      },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.directMillCompanyIds).toEqual(['mill-direct']);
+    expect(view.viewerTicket).toBe('me');
   });
 
   it('chat share opens a Followers pack shell without products so Ask can target the owner', async () => {
@@ -605,8 +694,13 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const page = await service.collections('me', { limit: 20, following: true });
     expect(stampWhere).toMatchObject({
       companyId: 'me',
+      status: 'published',
+      audience: { in: ['followers', 'connections', 'everyone'] },
       OR: [{ repostSourceCollectionId: { in: ['peer-col'] } }],
     });
+    expect(
+      (stampWhere as { audience: { in: string[] } }).audience.in,
+    ).not.toContain('selected');
     expect(page.results[0]?.viewerReposted).toBe(true);
   });
 });

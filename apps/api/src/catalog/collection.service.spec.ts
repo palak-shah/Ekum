@@ -1,6 +1,12 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { CollectionKind, CollectionStatus, ProductStatus } from '@ekum/domain-types';
+import {
+  CollectionKind,
+  CollectionStatus,
+  ProductStatus,
+  PublishAudience,
+  RepostOrigin,
+} from '@ekum/domain-types';
 import { CollectionService, peerRepostOmitsCategoryPick } from './collection.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
@@ -1170,6 +1176,152 @@ describe('CollectionService.publish', () => {
       }),
     );
   });
+
+  it('keeps delivered Direct Link buyers when automatic Selected widens to Followers', async () => {
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: null,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+          audience: PublishAudience.Selected,
+          audienceCompanyIds: ['buyer-1'],
+          repostOrigin: RepostOrigin.Automatic,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true }),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'draft-1',
+            product: {
+              id: 'draft-1',
+              companyId: 'company-1',
+              audience: 'selected',
+              audienceCompanyIds: ['buyer-1'],
+              allowForward: true,
+              status: ProductStatus.Draft,
+              postedToMarketAt: null,
+            },
+          },
+        ],
+      },
+      product: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.publish('company-1', 'u1', 'col-1', {
+      audience: 'followers',
+      rateVisibility: 'on_request',
+      allowForward: true,
+    });
+
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          audience: 'followers',
+          audienceCompanyIds: ['buyer-1'],
+        }),
+      }),
+    );
+  });
+
+  it('clears company ids on an ordinary Followers publish', async () => {
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: null,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          audience: PublishAudience.Followers,
+          audienceCompanyIds: ['stale'],
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true }),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'draft-1',
+            product: {
+              id: 'draft-1',
+              companyId: 'company-1',
+              audience: 'followers',
+              audienceCompanyIds: [],
+              allowForward: true,
+              status: ProductStatus.Draft,
+              postedToMarketAt: null,
+            },
+          },
+        ],
+      },
+      product: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.publish('company-1', 'u1', 'col-1', {
+      audience: 'followers',
+      rateVisibility: 'on_request',
+      allowForward: true,
+    });
+
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ audienceCompanyIds: [] }),
+      }),
+    );
+  });
 });
 
 describe('CollectionService.update', () => {
@@ -1422,6 +1574,7 @@ describe('CollectionService.create repost source', () => {
           status: CollectionStatus.Published,
         }),
         create,
+        update: vi.fn(async (args: { data: Record<string, unknown> }) => args.data),
       },
       companySettings: {
         findUnique: async () => null,
@@ -1450,10 +1603,12 @@ describe('CollectionService.create repost source', () => {
   it('rejects second repost of the same collection', async () => {
     const prisma = {
       collection: {
-        findFirst: vi
-          .fn()
-          .mockResolvedValueOnce(null) // name
-          .mockResolvedValueOnce({ id: 'already' }), // prior stamp
+        findFirst: vi.fn().mockResolvedValueOnce({
+          id: 'already',
+          status: CollectionStatus.Published,
+          audience: PublishAudience.Followers,
+          repostOrigin: RepostOrigin.Manual,
+        }),
         findUnique: async () => ({
           id: 'src-col',
           companyId: 'peer',
@@ -1462,13 +1617,61 @@ describe('CollectionService.create repost source', () => {
       },
     } as unknown as PrismaService;
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
-    await expect(
-      service.create('me', 'u1', {
+    try {
+      await service.create('me', 'u1', {
         name: 'Again',
         categories: [],
         repostSourceCollectionId: 'src-col',
-      }),
-    ).rejects.toBeInstanceOf(ConflictException);
+      });
+      throw new Error('expected ALREADY_REPOSTED');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toMatchObject({
+        code: 'ALREADY_REPOSTED',
+      });
+    }
+  });
+
+  it('reuses an automatic Selected pack instead of already-reposted', async () => {
+    const update = vi.fn(async (args: { where: { id: string } }) => ({
+      id: args.where.id,
+      name: 'Mill pack',
+      _count: { products: 0 },
+      products: [],
+    }));
+    const prisma = {
+      collection: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'auto-1',
+            status: CollectionStatus.Published,
+            audience: PublishAudience.Selected,
+            repostOrigin: RepostOrigin.Automatic,
+          })
+          .mockResolvedValueOnce(null),
+        findUnique: async () => ({
+          id: 'src-col',
+          companyId: 'peer',
+          status: CollectionStatus.Published,
+          masterCategoryId: 'cat-mill',
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (row: { id: string }) => ({ id: row.id }),
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+    const view = await service.create('me', 'u1', {
+      name: 'Mill pack',
+      categories: [],
+      repostSourceCollectionId: 'src-col',
+    });
+    expect(view).toMatchObject({ id: 'auto-1' });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'auto-1' } }),
+    );
   });
 
   it('rejects reposting own pack', async () => {
@@ -1513,8 +1716,8 @@ describe('CollectionService.create peer Repost', () => {
       collection: {
         findFirst: vi
           .fn()
-          .mockResolvedValueOnce(null)
-          .mockResolvedValueOnce({ id: 'draft-1', status: CollectionStatus.Draft }),
+          .mockResolvedValueOnce({ id: 'draft-1', status: CollectionStatus.Draft })
+          .mockResolvedValueOnce(null),
         findUnique: async () => ({
           id: 'src-col',
           companyId: 'peer',

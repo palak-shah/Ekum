@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { CompanySerializer } from './company.serializer';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { counterpartCompanyId } from './connection-pair';
+import { revokeAffectedDirectLinks } from '../orders/trade-lane-revoke';
 
 type ConnectionAction = 'pause' | 'resume' | 'block' | 'unblock';
 
@@ -94,11 +95,17 @@ export class ConnectionService {
     const nextStatus = ACTION_TO_STATUS[action];
     const statusSetByCompanyId =
       nextStatus === ConnectionStatus.Active ? null : companyId;
+    const otherId = counterpartCompanyId(companyId, connection);
 
-    const updated = await this.prisma.connection.update({
-      where: { id: connection.id },
-      data: { status: nextStatus, statusSetByCompanyId },
-      include: { companyLow: true, companyHigh: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (action === 'block') {
+        await revokeAffectedDirectLinks(tx, companyId, otherId);
+      }
+      return tx.connection.update({
+        where: { id: connection.id },
+        data: { status: nextStatus, statusSetByCompanyId },
+        include: { companyLow: true, companyHigh: true },
+      });
     });
 
     await this.audit.record({

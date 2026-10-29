@@ -20,12 +20,19 @@ function trail() {
   return { append: vi.fn(async () => undefined) } as unknown as OrderTrailService;
 }
 
+function events() {
+  return {
+    orderCreated: vi.fn(),
+    orderStatusChanged: vi.fn(),
+  } as unknown as DomainEvents;
+}
+
 function connectedPrisma(extra: Record<string, unknown> = {}) {
   return {
     connection: {
       findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
     },
-    tradeLane: { findUnique: vi.fn(async () => null) },
+    tradeLane: { findFirst: vi.fn(async () => null) },
     ...extra,
   };
 }
@@ -116,7 +123,7 @@ describe('BuyForBuyerService', () => {
       connection: {
         findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
       },
-      tradeLane: { findUnique: vi.fn(async () => ({ ticket: 'mill' })) },
+      tradeLane: { findFirst: vi.fn(async () => ({ ticket: 'mill' })) },
     } as unknown as PrismaService;
     const svc = makeSvc(prisma, {} as ThreadService, {} as DomainEvents, {
       create,
@@ -136,6 +143,120 @@ describe('BuyForBuyerService', () => {
       }),
       expect.objectContaining({
         onBehalfBuyerCompanyId: 'buyer',
+        tradeMode: OrderTradeMode.Direct,
+      }),
+    );
+  });
+
+  it('keeps mill own SKUs on a visitor pack as mill–buyer 1:1 even with a Direct Link', async () => {
+    const create = vi.fn(async () => ({ id: 'should-not' }));
+    const orderCreate = vi.fn(async () => ({
+      id: 'o-own-pack',
+      status: OrderStatus.Confirmed,
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'mill',
+      items: [{ id: 'i1' }],
+      buyer: { name: 'Shop' },
+      seller: { name: 'Loom' },
+    }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'mill', city: 'Ahmedabad', name: 'Loom' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'p1',
+            name: 'Linen',
+            sku: 'L1',
+            rate: 1100,
+            unit: 'set',
+            images: [],
+            companyId: 'mill',
+          },
+        ]),
+      },
+      collection: { findUnique: vi.fn(async () => ({ companyId: 'trader' })) },
+      connection: {
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+      },
+      tradeLane: {
+        findFirst: vi.fn(async () => ({
+          traderCompanyId: 'trader',
+          sellerCompanyId: 'mill',
+          ticket: 'mill',
+        })),
+      },
+      order: { create: orderCreate },
+      message: { create: vi.fn(async () => ({ id: 'm1' })) },
+      thread: { update: vi.fn(async () => ({})) },
+    } as unknown as PrismaService;
+    const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
+    const svc = makeSvc(prisma, threads, events(), {
+      create,
+    } as unknown as OrderService);
+    const result = await svc.create('mill', 'u1', {
+      buyerCompanyId: 'buyer',
+      collectionId: 'pack-je',
+      items: [{ productId: 'p1', quantity: 5 }],
+    });
+    expect(result.order.id).toBe('o-own-pack');
+    expect(create).not.toHaveBeenCalled();
+    expect(orderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OrderStatus.Confirmed,
+          tradeMode: OrderTradeMode.Bilateral,
+          sellerCompanyId: 'mill',
+          buyerCompanyId: 'buyer',
+        }),
+      }),
+    );
+    expect(threads.ensureTradeThread).toHaveBeenCalledWith('buyer', 'mill');
+  });
+
+  it('uses Direct when the mill lane is stored with trader and mill swapped', async () => {
+    const create = vi.fn(async () => ({ id: 'o-swapped' }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Jaipur', name: 'House' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'p1',
+            name: 'Linen',
+            sku: 'L1',
+            rate: 1100,
+            unit: 'set',
+            images: [],
+            companyId: 'mill',
+          },
+        ]),
+      },
+      connection: {
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+      },
+      tradeLane: {
+        findFirst: vi.fn(async () => ({
+          traderCompanyId: 'mill',
+          sellerCompanyId: 'trader',
+          ticket: 'mill',
+        })),
+      },
+    } as unknown as PrismaService;
+    const svc = makeSvc(prisma, {} as ThreadService, {} as DomainEvents, {
+      create,
+    } as unknown as OrderService);
+    await svc.create('trader', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [{ productId: 'p1', quantity: 5 }],
+    });
+    expect(prisma.tradeLane.findFirst).toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'mill',
+        facilitatorCompanyId: 'trader',
+      }),
+      expect.objectContaining({
         tradeMode: OrderTradeMode.Direct,
       }),
     );
@@ -170,6 +291,7 @@ describe('BuyForBuyerService', () => {
       connection: {
         findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
       },
+      tradeLane: { findFirst: vi.fn(async () => null) },
       order: { create: orderCreate },
       message: { create: vi.fn(async () => ({ id: 'm1' })) },
       thread: { update: vi.fn(async () => ({})) },
@@ -220,6 +342,206 @@ describe('BuyForBuyerService', () => {
     );
   });
 
+  it('keeps mill own-catalog Order for buyer on mill–buyer 1:1 even when a Direct Link exists', async () => {
+    const create = vi.fn(async () => ({ id: 'should-not' }));
+    const orderCreate = vi.fn(async () => ({
+      id: 'o-own',
+      status: OrderStatus.Confirmed,
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'mill',
+      items: [{ id: 'i1' }],
+      buyer: { name: 'Shop' },
+      seller: { name: 'Loom' },
+    }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'mill', city: 'Ahmedabad', name: 'Loom' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'p1',
+            name: 'Linen',
+            sku: 'L1',
+            rate: 1100,
+            unit: 'set',
+            images: [],
+            companyId: 'mill',
+          },
+        ]),
+      },
+      connection: {
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+      },
+      tradeLane: {
+        findFirst: vi.fn(async () => ({
+          traderCompanyId: 'trader',
+          sellerCompanyId: 'mill',
+          ticket: 'mill',
+        })),
+      },
+      order: { create: orderCreate },
+      message: { create: vi.fn(async () => ({ id: 'm1' })) },
+      thread: { update: vi.fn(async () => ({})) },
+    } as unknown as PrismaService;
+    const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
+    const svc = makeSvc(prisma, threads, events(), {
+      create,
+    } as unknown as OrderService);
+    const result = await svc.create('mill', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [{ productId: 'p1', quantity: 5 }],
+    });
+    expect(result.order.id).toBe('o-own');
+    expect(create).not.toHaveBeenCalled();
+    expect(orderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OrderStatus.Confirmed,
+          tradeMode: OrderTradeMode.Bilateral,
+        }),
+      }),
+    );
+  });
+
+  it('splits mixed own + Direct mill into 1:1 and a trio mill ticket', async () => {
+    const create = vi.fn(async () => ({ id: 'o-mill' }));
+    const orderCreate = vi.fn(async () => ({
+      id: 'o-own',
+      status: OrderStatus.Confirmed,
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'trader',
+      items: [{ id: 'i1' }],
+      buyer: { name: 'Shop' },
+      seller: { name: 'House' },
+    }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Jaipur', name: 'House' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'own-1',
+            name: 'Mine',
+            sku: 'M1',
+            rate: 90,
+            unit: 'pc',
+            images: [],
+            companyId: 'trader',
+          },
+          {
+            id: 'mill-1',
+            name: 'Silk',
+            sku: 'S1',
+            rate: 100,
+            unit: 'pc',
+            images: [],
+            companyId: 'mill',
+          },
+        ]),
+      },
+      connection: {
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+      },
+      tradeLane: { findFirst: vi.fn(async () => ({ ticket: 'mill' })) },
+      order: { create: orderCreate },
+      message: { create: vi.fn(async () => ({ id: 'm1' })) },
+      thread: { update: vi.fn(async () => ({})) },
+    } as unknown as PrismaService;
+    const threads = { ensureTradeThread: vi.fn(async () => 'th-1') } as unknown as ThreadService;
+    const svc = makeSvc(prisma, threads, events(), {
+      create,
+    } as unknown as OrderService);
+    await svc.create('trader', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [
+        { productId: 'own-1', quantity: 4 },
+        { productId: 'mill-1', quantity: 8 },
+      ],
+    });
+    expect(orderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OrderStatus.Confirmed,
+          tradeMode: OrderTradeMode.Bilateral,
+          sellerCompanyId: 'trader',
+        }),
+      }),
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'mill',
+        facilitatorCompanyId: 'trader',
+        items: [{ productId: 'mill-1', quantity: 8, rate: undefined }],
+      }),
+      expect.objectContaining({
+        tradeMode: OrderTradeMode.Direct,
+      }),
+    );
+  });
+
+  it('folds mixed own + mill with no Direct Link into one I-handle parent', async () => {
+    const create = vi.fn(async () => ({ id: 'o-handle' }));
+    const orderCreate = vi.fn(async () => ({ id: 'should-not' }));
+    const prisma = {
+      company: { findUnique: vi.fn(async () => ({ id: 'trader', city: 'Jaipur', name: 'House' })) },
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'own-1',
+            name: 'Mine',
+            sku: 'M1',
+            rate: 90,
+            unit: 'pc',
+            images: [],
+            companyId: 'trader',
+          },
+          {
+            id: 'mill-1',
+            name: 'Silk',
+            sku: 'S1',
+            rate: 100,
+            unit: 'pc',
+            images: [],
+            companyId: 'mill',
+          },
+        ]),
+      },
+      connection: {
+        findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
+      },
+      tradeLane: { findFirst: vi.fn(async () => null) },
+      order: { create: orderCreate },
+    } as unknown as PrismaService;
+    const svc = makeSvc(prisma, {} as ThreadService, {} as DomainEvents, {
+      create,
+    } as unknown as OrderService);
+    await svc.create('trader', 'u1', {
+      buyerCompanyId: 'buyer',
+      items: [
+        { productId: 'own-1', quantity: 4 },
+        { productId: 'mill-1', quantity: 8 },
+      ],
+    });
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(
+      'trader',
+      'u1',
+      expect.objectContaining({
+        sellerCompanyId: 'trader',
+        orderPathPreference: 'handle',
+        items: [
+          { productId: 'own-1', quantity: 4, rate: undefined },
+          { productId: 'mill-1', quantity: 8, rate: undefined },
+        ],
+      }),
+      expect.objectContaining({
+        tradeMode: OrderTradeMode.Manage,
+      }),
+    );
+  });
+
   it('creates a thin company and invite for a new phone', async () => {
     const prisma = {
       company: {
@@ -241,6 +563,7 @@ describe('BuyForBuyerService', () => {
       },
       collectionProduct: { findMany: vi.fn(async () => []) },
       user: { findMany: vi.fn(async () => []) },
+      tradeLane: { findFirst: vi.fn(async () => null) },
       order: {
         create: vi.fn(async () => ({
           id: 'o2',

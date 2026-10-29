@@ -31,6 +31,7 @@ function tradeLaneMocks() {
       buyerCompanyId: 'buyer',
     })),
     findMany: vi.fn(async () => []),
+    findUnique: vi.fn(async () => null),
     update: vi.fn(async () => ({})),
   };
 }
@@ -265,6 +266,7 @@ describe('OrderService.sendUp', () => {
       },
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
+      orderCompanyNote: { findUnique: vi.fn(async () => null) },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
@@ -339,6 +341,7 @@ describe('OrderService.sendUp', () => {
       },
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
+      orderCompanyNote: { findUnique: vi.fn(async () => null) },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
@@ -380,6 +383,7 @@ describe('OrderService.sendUp', () => {
       },
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
+      orderCompanyNote: { findUnique: vi.fn(async () => null) },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {

@@ -30,3 +30,58 @@ export function isReleasedMillSubset(order: {
 export function effectivePathFromLane(ticket: string | null | undefined): 'handle' | 'direct' {
   return ticket === 'mill' ? 'direct' : 'handle';
 }
+
+/** Mill Direct Link for this buyer with mill/trader in either order. */
+export function trioMillLaneWhere(
+  companyA: string,
+  companyB: string,
+  buyerCompanyId: string,
+): {
+  ticket: 'mill';
+  buyerCompanyId: string;
+  OR: Array<{ traderCompanyId: string; sellerCompanyId: string }>;
+} {
+  return {
+    ticket: 'mill',
+    buyerCompanyId,
+    OR: [
+      { traderCompanyId: companyA, sellerCompanyId: companyB },
+      { traderCompanyId: companyB, sellerCompanyId: companyA },
+    ],
+  };
+}
+
+export const DEFAULT_LANE_BEHAVIORS = {
+  directOrder: true,
+  /** Kept on the JSON model; auto-repost is not shipped. */
+  autoRepost: false,
+} as const;
+
+/** Flip when Stage 6 ships — until then stored `true` must not look live. */
+export const LANE_AUTOREPOST_AVAILABLE = false;
+
+export function laneBehaviorsFromJson(
+  raw: unknown,
+): { directOrder: boolean; autoRepost: boolean } {
+  const row =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  return {
+    directOrder: row.directOrder !== false,
+    autoRepost: LANE_AUTOREPOST_AVAILABLE && row.autoRepost === true,
+  };
+}
+
+/** Next Place: Direct mill ticket when ticket=mill and directOrder is on (default). */
+export function laneRoutesDirect(input: {
+  ticket?: string | null;
+  behaviors?: unknown;
+}): boolean {
+  if (effectivePathFromLane(input.ticket) !== 'direct') return false;
+  return laneBehaviorsFromJson(input.behaviors).directOrder;
+}
+
+export function qtyChangeSummary(before: number, after: number): string {
+  return `Updated qty · ${before} → ${after}`;
+}

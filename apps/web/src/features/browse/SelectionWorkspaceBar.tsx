@@ -37,12 +37,12 @@ import { addStagingToCart } from '@/features/browse/addStagingToCart';
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import {
   collectionIdForPackOrder,
-  packHandlerName,
 } from '@/features/browse/packOrderSource';
+import { packPlaceGoesToName } from '@/features/browse/packPlacePhases';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import {
   entriesAsProducts,
-  sellerIdForEntries,
+  orderGoesToSellerId,
   useShortlistOrderFlow,
 } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
@@ -338,13 +338,15 @@ export function SelectionWorkspaceBar() {
           setQtyEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={sellerIdForEntries(qtySource)}
-        products={entriesAsProducts(qtySource)}
+        sellerId={orderGoesToSellerId(orderFlow.waveEntries(qtySource))}
+        products={entriesAsProducts(orderFlow.waveEntries(qtySource))}
+        forBuyerProducts={entriesAsProducts(orderFlow.remainingEntries(qtySource))}
         lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={packHandlerName(qtySource)}
+        orderGoesToName={packPlaceGoesToName(orderFlow.waveEntries(qtySource))}
+        collectionId={collectionIdForPackOrder(qtySource)}
         sheetJob="order"
         onSendOrder={(lines, place) => {
           orderFlow.sendOrder(lines, {

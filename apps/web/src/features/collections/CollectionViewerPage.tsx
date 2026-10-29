@@ -46,7 +46,6 @@ import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionRe
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   collectionIdForPackOrder,
-  packHandlerName,
 } from '@/features/browse/packOrderSource';
 import {
   clearResumeAfterAlbumPick,
@@ -59,9 +58,13 @@ import { writeBrowseAlbumPick } from '@/features/browse/browseAlbumPick';
 import { writeBrowseShortlist } from '@/features/browse/browseShortlist';
 import {
   entriesAsProducts,
-  sellerIdForEntries,
+  orderGoesToSellerId,
   useShortlistOrderFlow,
 } from '@/features/browse/useShortlistOrderFlow';
+import {
+  packPlaceGoesToName,
+  stampPackMillRoute,
+} from '@/features/browse/packPlacePhases';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import {
   isPublishedForSelection,
@@ -109,7 +112,7 @@ import {
   albumFactsRateBand,
 } from './packHeaderSubtitle';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
-import { exploreFeedSourceLine } from '@/features/explore/exploreFeedCaptionLines';
+import { visitorPackSourceLine } from '@/features/explore/exploreFeedCaptionLines';
 import { usePageOwnsBottomBand, usePageSelecting } from '@/features/browse/selectionBottomBand';
 import {
   collectionMoreMenuNote,
@@ -219,8 +222,10 @@ function toShortlistEntry(
   pack?: {
     collectionId: string;
     handlerName: string;
+    handlerCompanyId?: string;
     path: string | null;
     allowForward: boolean;
+    sourceDirect?: boolean;
   },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
@@ -242,11 +247,14 @@ function toShortlistEntry(
     ...(product.catalogCollectionId
       ? { catalogCollectionId: product.catalogCollectionId }
       : {}),
+    ...(product.catalogOrderMode ? { catalogOrderMode: product.catalogOrderMode } : {}),
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
           sourceHandlerName: pack.handlerName,
+          ...(pack.handlerCompanyId ? { sourceHandlerCompanyId: pack.handlerCompanyId } : {}),
           sourcePath: path,
+          ...(pack.sourceDirect ? { sourceDirect: true } : {}),
           sourcePackAllowForward: pack.allowForward !== false,
         }
       : {}),
@@ -505,15 +513,33 @@ export function CollectionViewerPage() {
     viewerTicket,
   });
   const packPath = viewerTicket === 'mill' ? ('direct' as const) : handlePack ? ('handle' as const) : null;
-  const packStamp =
+  const directMillCompanyIds = collection.data?.directMillCompanyIds ?? [];
+  const packStampBase =
     id && collection.data
       ? {
           collectionId: id,
           handlerName: collection.data.company.name,
-          path: packPath,
+          handlerCompanyId: collection.data.company.id,
           allowForward: collection.data.allowForward !== false,
         }
       : undefined;
+  const packStampFor = (product: ProductView) => {
+    if (!packStampBase) return undefined;
+    const route = stampPackMillRoute({
+      millCompanyId: product.companyId,
+      packOwnerCompanyId: packStampBase.handlerCompanyId,
+      directMillCompanyIds,
+    });
+    return {
+      ...packStampBase,
+      path: handlePack ? route.sourcePath : packPath,
+      sourceDirect: route.sourceDirect,
+    };
+  };
+  const packStamp = packStampBase
+    ? { ...packStampBase, path: packPath }
+    : undefined;
+  const qtySource = tradeableShortlistEntries(qtyEntries ?? shortlist.entries);
 
   useEffect(() => {
     if (!id || !collection.data || !handlePack) return;
@@ -533,8 +559,12 @@ export function CollectionViewerPage() {
       }));
       return collectionOwnerSourceLine(collection.data.company.id, shops);
     }
-    if (!collection.data.showSourceShops) return null;
-    return exploreFeedSourceLine(collection.data.sourceShopNames);
+    return visitorPackSourceLine({
+      showSourceShops: collection.data.showSourceShops === true,
+      sourceShopNames: collection.data.sourceShopNames,
+      packCompanyId: collection.data.company.id,
+      products,
+    });
   }, [isOwner, collection.data, products]);
 
   const visibleDesignIds = visibleProducts.map((product) => product.id);
@@ -570,7 +600,7 @@ export function CollectionViewerPage() {
     setPageSelecting(true);
     shortlist.addMany(
       eligible.map((product) =>
-        toShortlistEntry(product, product.companyName ?? companyName, packStamp),
+        toShortlistEntry(product, product.companyName ?? companyName, packStampFor(product)),
       ),
     );
   };
@@ -1071,7 +1101,7 @@ export function CollectionViewerPage() {
       if (gate.toast) showToast(gate.toast);
       return;
     }
-    shortlist.toggle(toShortlistEntry(product, product.companyName ?? companyName, packStamp));
+    shortlist.toggle(toShortlistEntry(product, product.companyName ?? companyName, packStampFor(product)));
   };
 
   const designIsSelected = (productId: string) => shortlist.productIds.has(productId);
@@ -1843,7 +1873,7 @@ export function CollectionViewerPage() {
           }}
           removeLabel={removeFromThisPackLabel(data.kind)}
           removeBusy={manageBusy}
-          packStamp={packStamp}
+          packStamp={viewerProduct ? packStampFor(viewerProduct) : packStamp}
           testIdPrefix="collection-design-sheet"
         />
       ) : null}
@@ -1914,27 +1944,20 @@ export function CollectionViewerPage() {
           setQtyEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={sellerIdForEntries(
-          tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
-        )}
-        products={entriesAsProducts(
-          tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
-        )}
+        sellerId={orderGoesToSellerId(orderFlow.waveEntries(qtySource))}
+        products={entriesAsProducts(orderFlow.waveEntries(qtySource))}
+        forBuyerProducts={entriesAsProducts(orderFlow.remainingEntries(qtySource))}
         lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={packHandlerName(
-          tradeableShortlistEntries(qtyEntries ?? shortlist.entries),
-        )}
+        orderGoesToName={packPlaceGoesToName(orderFlow.waveEntries(qtySource))}
+        collectionId={collectionIdForPackOrder(qtySource) ?? id}
         sheetJob="order"
         onSendOrder={(lines, place) => {
-          const linesForPath = tradeableShortlistEntries(
-            qtyEntries ?? shortlist.entries,
-          );
           orderFlow.sendOrder(lines, {
             ...place,
-            collectionId: collectionIdForPackOrder(linesForPath),
+            collectionId: collectionIdForPackOrder(qtySource) ?? id,
           });
         }}
         onAskRates={() => undefined}

@@ -185,6 +185,9 @@ export interface ExploreProductCard {
   postedAt: string;
   /** Relist/curate lock snapshot. Forward is free. */
   allowForward: boolean;
+  /** Exclusive own catalog — Order as whole remaps from this design. */
+  catalogCollectionId?: string | null;
+  catalogOrderMode?: string | null;
   /**
    * Viewer already Reposted this design post (Explore once). False when unknown.
    */
@@ -308,6 +311,11 @@ export interface CollectionPreviewView extends CollectionCard {
    * `me` = order / chat with the pack owner. `mill` = Direct. Null if owner or not curated.
    */
   viewerTicket?: 'me' | 'mill' | null;
+  /**
+   * Mill company ids that Place as Direct for this viewer (same `laneRoutesDirect`
+   * as from-pack). Empty for the owner. How many partitions Direct then I-handle.
+   */
+  directMillCompanyIds?: string[];
 }
 
 /** Cross-company product post. `visible=false` means body is gated (connections). */

@@ -106,10 +106,14 @@ describe('FollowService.follow', () => {
 });
 
 describe('FollowService.unfollow', () => {
-  it('deletes the follow row', async () => {
+  it('deletes the follow row and affected Direct Links in one transaction', async () => {
     const deleteMany = vi.fn(async () => ({ count: 1 }));
+    const findMany = vi.fn(async () => []);
     const prisma = {
       follow: { deleteMany },
+      tradeLane: { findMany, deleteMany: vi.fn(async () => ({ count: 0 })) },
+      thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     } as unknown as PrismaService;
     const service = new FollowService(
       prisma,
@@ -123,6 +127,7 @@ describe('FollowService.unfollow', () => {
     expect(deleteMany).toHaveBeenCalledWith({
       where: { followerCompanyId: 'me', followedCompanyId: 'shop' },
     });
+    expect(findMany).toHaveBeenCalled();
   });
 });
 
@@ -187,6 +192,9 @@ describe('FollowService.decide', () => {
         delete: del,
         update,
       },
+      tradeLane: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
+      thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     } as unknown as PrismaService;
     const service = new FollowService(
       prisma,

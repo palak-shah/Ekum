@@ -41,6 +41,10 @@ test.describe('add designs batch @functional @catalog @creation', () => {
     await expect(page.getByRole('heading', { name: 'Update this design' })).toBeVisible();
     const sheet = page.getByRole('dialog');
     await expect(sheet.getByText('Category')).toBeVisible();
+    if ((await sheet.getByText('Item tags').count()) === 0) {
+      await sheet.getByTestId('collection-master-category').click();
+      await page.locator('[data-testid^="collection-master-category-option-"]').first().click();
+    }
     await expect(sheet.getByText('Item tags')).toBeVisible();
     await expect(sheet.getByTestId('collection-order-dispatch-toggle')).toHaveAttribute(
       'aria-expanded',

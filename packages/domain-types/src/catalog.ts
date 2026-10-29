@@ -322,6 +322,11 @@ export interface ProductView {
   status: string;
   /** Own catalog this design is exclusive to; null when not in an own catalog. */
   catalogCollectionId?: string | null;
+  /** Exclusive catalog’s orderMode (whole | pick) when known. */
+  catalogOrderMode?: string | null;
+  /** Whole-catalog How many / ticket: this line is a locked member. */
+  catalogWhole?: boolean | null;
+  catalogName?: string | null;
   audience: string;
   rateVisibility: string;
   audienceCompanyIds: string[];

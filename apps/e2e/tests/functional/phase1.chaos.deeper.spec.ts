@@ -117,11 +117,9 @@ test.describe('phase1 deeper chaos @functional @chaos', () => {
     await expect(page.getByTestId('you-tab-designs')).toBeVisible({ timeout: 15_000 });
     await assertNoNoise(page, 'catalog open');
 
-    await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('link', { name: /Your paths/i }).click();
-    await expect(page.getByTestId('your-paths-page')).toBeVisible({ timeout: 15_000 });
-    await assertNoNoise(page, 'your paths');
+    await page.goto('/network/direct-links');
+    await expect(page.getByTestId('direct-links-page')).toBeVisible({ timeout: 15_000 });
+    await assertNoNoise(page, 'direct links');
 
     await page.goto('/samples');
     await assertNoNoise(page, 'samples');

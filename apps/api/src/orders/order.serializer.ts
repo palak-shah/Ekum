@@ -342,6 +342,17 @@ export class OrderSerializer {
       images: item.images,
       quantity,
       requestedQuantity: item.requestedQuantity.toNumber(),
+      confirmedQuantity: decimal(
+        (item as { confirmedQuantity?: typeof item.quantity }).confirmedQuantity ?? null,
+      ),
+      confirmedRate: decimal(
+        (item as { confirmedRate?: typeof item.rate }).confirmedRate ?? null,
+      ),
+      sourceItemId: (item as { sourceItemId?: string | null }).sourceItemId ?? null,
+      catalogCollectionId:
+        (item as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
+      catalogName: (item as { catalogName?: string | null }).catalogName ?? null,
+      catalogWhole: (item as { catalogWhole?: boolean | null }).catalogWhole === true,
       lineStatus,
       shippedQuantity,
       remainingQuantity: remaining,

@@ -20,13 +20,16 @@ export function designSheetShortlistEntry(
     | 'rateMax'
     | 'status'
     | 'catalogCollectionId'
+    | 'catalogOrderMode'
   >,
   companyNameFallback = '',
   pack?: {
     collectionId: string;
     handlerName: string;
+    handlerCompanyId?: string;
     path: string | null;
     allowForward: boolean;
+    sourceDirect?: boolean;
   },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
@@ -48,11 +51,16 @@ export function designSheetShortlistEntry(
     ...(product.catalogCollectionId
       ? { catalogCollectionId: product.catalogCollectionId }
       : {}),
+    ...(product.catalogOrderMode
+      ? { catalogOrderMode: product.catalogOrderMode }
+      : {}),
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
           sourceHandlerName: pack.handlerName,
+          ...(pack.handlerCompanyId ? { sourceHandlerCompanyId: pack.handlerCompanyId } : {}),
           sourcePath: path,
+          ...(pack.sourceDirect ? { sourceDirect: true } : {}),
           sourcePackAllowForward: pack.allowForward !== false,
         }
       : {}),

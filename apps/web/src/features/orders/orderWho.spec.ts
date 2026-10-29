@@ -7,29 +7,49 @@ describe('orderWhoMode', () => {
       orderWhoMode({
         canLogForBuyer: false,
         actorCompanyId: 'me',
-        productCompanyIds: ['mill'],
+        sellerCompanyId: 'mill',
       }),
     ).toBe('hidden');
   });
 
-  it('defaults For me when any design is someone else’s', () => {
+  it('defaults For me when the order goes to another shop', () => {
     expect(
       orderWhoMode({
         canLogForBuyer: true,
         actorCompanyId: 'me',
-        productCompanyIds: ['mill', 'me'],
+        sellerCompanyId: 'jaipur',
       }),
     ).toBe('for-me-default');
   });
 
-  it('requires For a buyer when every design is yours', () => {
+  it('Place for me on a peer pack even when every member is my mill SKU', () => {
     expect(
       orderWhoMode({
         canLogForBuyer: true,
         actorCompanyId: 'me',
-        productCompanyIds: ['me', 'me'],
+        sellerCompanyId: 'jaipur',
+      }),
+    ).toBe('for-me-default');
+  });
+
+  it('requires For a buyer when the selling shop is mine', () => {
+    expect(
+      orderWhoMode({
+        canLogForBuyer: true,
+        actorCompanyId: 'me',
+        sellerCompanyId: 'me',
       }),
     ).toBe('buyer-only');
+  });
+
+  it('defaults For me on a mixed mill basket (no single pack owner)', () => {
+    expect(
+      orderWhoMode({
+        canLogForBuyer: true,
+        actorCompanyId: 'me',
+        sellerCompanyId: 'multi',
+      }),
+    ).toBe('for-me-default');
   });
 });
 

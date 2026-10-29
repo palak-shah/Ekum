@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   allReleasedSubsetsComplete,
   isTraderSubsetHop,
+  claimParentItemId,
   matchParentItemId,
   shouldPassThrough,
   traderListHidesSubset,
@@ -46,6 +47,47 @@ describe('i-handle desk', () => {
     expect(matchParentItemId([{ id: 'p-a', productId: 'sku-1' }], { productId: null })).toBe(
       null,
     );
+  });
+
+  it('prefers sourceItemId and refuses duplicate productId without it', () => {
+    expect(
+      matchParentItemId(
+        [
+          { id: 'p-a', productId: 'sku-1' },
+          { id: 'p-b', productId: 'sku-1' },
+        ],
+        { productId: 'sku-1', sourceItemId: 'p-b' },
+      ),
+    ).toBe('p-b');
+    expect(
+      matchParentItemId(
+        [
+          { id: 'p-a', productId: 'sku-1' },
+          { id: 'p-b', productId: 'sku-1' },
+        ],
+        { productId: 'sku-1' },
+      ),
+    ).toBeNull();
+    expect(
+      matchParentItemId([{ id: 'p-a', productId: null }], {
+        productId: null,
+        sourceItemId: 'p-a',
+      }),
+    ).toBe('p-a');
+  });
+
+  it('claims unused parent lines 1:1 including photo names', () => {
+    const unused = [
+      { id: 'p-a', productId: 'sku-1', name: 'A' },
+      { id: 'p-b', productId: 'sku-1', name: 'A copy' },
+      { id: 'p-photo', productId: null, name: 'Photo request' },
+    ];
+    expect(claimParentItemId(unused, { productId: 'sku-1' })).toBe('p-a');
+    expect(claimParentItemId(unused, { productId: 'sku-1' })).toBe('p-b');
+    expect(claimParentItemId(unused, { productId: null, name: 'Photo request' })).toBe(
+      'p-photo',
+    );
+    expect(unused).toHaveLength(0);
   });
 
   it('passes only after Send and not while held', () => {

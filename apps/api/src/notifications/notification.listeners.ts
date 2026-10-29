@@ -98,6 +98,23 @@ export class NotificationListeners {
         refId: event.orderId,
       }),
     );
+    const facilitatorId = event.facilitatorCompanyId;
+    if (
+      facilitatorId &&
+      facilitatorId !== event.sellerCompanyId &&
+      facilitatorId !== event.buyerCompanyId
+    ) {
+      await this.guard(() =>
+        this.notifications.create({
+          recipientCompanyId: facilitatorId,
+          type: NotificationType.Order,
+          title: buyerName ? `${buyerName} · ${orderLabel}` : orderLabel,
+          body: 'Shared order',
+          refType: 'order',
+          refId: event.orderId,
+        }),
+      );
+    }
   }
 
   @OnEvent(DomainEventName.OrderStatusChanged)
@@ -117,6 +134,23 @@ export class NotificationListeners {
         refId: event.orderId,
       }),
     );
+    const facilitatorId = event.facilitatorCompanyId;
+    if (
+      facilitatorId &&
+      facilitatorId !== event.actorCompanyId &&
+      facilitatorId !== recipientCompanyId
+    ) {
+      await this.guard(() =>
+        this.notifications.create({
+          recipientCompanyId: facilitatorId,
+          type: NotificationType.Order,
+          title: `${orderLabel} · ${statusLabel}`,
+          body: actorName ? `${actorName} marked it ${statusLabel}.` : `Marked ${statusLabel}.`,
+          refType: 'order',
+          refId: event.orderId,
+        }),
+      );
+    }
   }
 
   @OnEvent(DomainEventName.MessageSent)

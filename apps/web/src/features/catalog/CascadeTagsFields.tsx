@@ -61,6 +61,8 @@ export function CascadeTagsFields({
   const qualityPool = taxonomy.data?.qualities ?? [];
   const sizePool = taxonomy.data?.sizes ?? [];
 
+  if (!masterCategoryId) return null;
+
   const persistCustom = (kind: OptionKind, label: string) => {
     void api
       .post('/catalog/custom-tags', {

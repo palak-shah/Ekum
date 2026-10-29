@@ -381,9 +381,18 @@ export const JobType = {
   ReturnWindowExpire: 'return_window.expire',
   NotificationDigest: 'notification.digest',
   CollectionExpire: 'collection.expire',
+  CollectionPropagate: 'collection.propagate',
 } as const;
 export type JobType = (typeof JobType)[keyof typeof JobType];
 export const jobTypeValues = values(JobType);
+
+/** How a source-linked collection was created. Unset/manual = independent Repost. */
+export const RepostOrigin = {
+  Manual: 'manual',
+  Automatic: 'automatic',
+} as const;
+export type RepostOrigin = (typeof RepostOrigin)[keyof typeof RepostOrigin];
+export const repostOriginValues = values(RepostOrigin);
 
 export const JobStatus = {
   Pending: 'pending',

@@ -7,6 +7,7 @@ import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, EmptyState, LoadingBlock } from '@/ui/kit';
 import { invalidateFollowCatalog } from './invalidateFollowCatalog';
 import { I_SEE_THEIRS } from './networkSeeLabels';
+import { useDirectLinkRevoke } from './useDirectLinkRevoke';
 
 export function FollowingPage() {
   const queryClient = useQueryClient();
@@ -20,11 +21,13 @@ export function FollowingPage() {
     mutationFn: (companyId: string) => api.del<{ following: false }>(`/follows/${companyId}`),
     onSuccess: () => {
       invalidateFollowCatalog(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
       showToast('Stopped seeing');
     },
     onError: (err) =>
       showToast(err instanceof ApiError ? err.message : 'Could not stop seeing.', 'danger'),
   });
+  const revoke = useDirectLinkRevoke((companyId) => unfollow.mutate(companyId), unfollow.isPending);
 
   return (
     <div className="flex flex-col gap-4">
@@ -45,7 +48,7 @@ export function FollowingPage() {
               <Button
                 variant="secondary"
                 disabled={unfollow.isPending}
-                onClick={() => unfollow.mutate(company.id)}
+                onClick={() => void revoke.maybeConfirm(company.id)}
               >
                 Stop seeing
               </Button>
@@ -58,6 +61,7 @@ export function FollowingPage() {
           message="Request access on Explore or a shop to add businesses here."
         />
       )}
+      {revoke.sheet}
     </div>
   );
 }

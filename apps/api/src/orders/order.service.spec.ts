@@ -33,6 +33,7 @@ const jobs = { enqueue: async () => 'job-1' } as unknown as JobQueue;
 const threads = {
   ensureTradeThread: async () => 'thread-1',
   findDirectThreadId: async () => 'thread-1',
+  ensureTradeLaneGroup: async () => 'trio-1',
   notifyUserIdsForMessage: async () => ({
     companyIds: ['buyer'],
     userIds: ['buyer-user'],
@@ -71,7 +72,10 @@ interface Options {
     tradeMode?: string;
     buyerCompanyId: string;
     sellerCompanyId: string;
+    createdByCompanyId?: string;
     quotedAt?: Date | string | null;
+    tradeMode?: string;
+    facilitatorCompanyId?: string | null;
     transporter?: string | null;
     lrNumber?: string | null;
     parcelCount?: number | null;
@@ -365,8 +369,18 @@ function makeService(options: Options) {
                 },
               ]
             : [],
+      updateMany: async (args: { data: Record<string, unknown> }) => {
+        captured.messageUpdate = args.data;
+        return { count: 1 };
+      },
     },
     thread: {
+      update: async () => ({}),
+    },
+    tradeLane: {
+      findUnique: async () => null,
+      findFirst: async () => null,
+      findMany: async () => [],
       update: async () => ({}),
     },
     paymentRequest: {
@@ -1078,6 +1092,49 @@ describe('OrderService decideLines', () => {
     expect(sellerView.personalNote?.note).toBe('pack later');
     const buyerView = await service.get('buyer', 'o1');
     expect(buyerView.personalNote).toBeNull();
+  });
+
+  it('opens Direct mill tickets in the trio group, not mill–buyer 1:1', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Direct,
+        facilitatorCompanyId: 'trader',
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        createdByCompanyId: 'trader',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    const view = await service.get('buyer', 'o1');
+    expect(view.threadId).toBe('trio-1');
+  });
+
+  it('heals mill-logged Direct Requested onto mill–buyer 1:1 Confirmed', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'o-mill-log',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Direct,
+        facilitatorCompanyId: 'trader',
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        createdByCompanyId: 'seller',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    const view = await service.get('seller', 'o-mill-log');
+    expect(captured.orderUpdates.some((row) => row.tradeMode === OrderTradeMode.Bilateral)).toBe(
+      true,
+    );
+    expect(captured.orderUpdates.some((row) => row.status === OrderStatus.Confirmed)).toBe(true);
+    expect(captured.trailAppends).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'confirmed', detail: 'Logged for buyer' }),
+      ]),
+    );
+    expect(view.threadId).toBe('thread-1');
   });
 
   it('does not persist manual or personal extras on Decline all', async () => {

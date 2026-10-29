@@ -34,7 +34,7 @@ import {
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { packHandlerName } from '@/features/browse/packOrderSource';
-import { sellerIdForEntries, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { orderGoesToSellerId, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useTradePresence } from '@/lib/tradePresence';
 import { LockIcon } from '@/ui/icons';
@@ -316,7 +316,7 @@ export function DesignSetPage() {
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
         onClose={() => orderFlow.setQtyOpen(false)}
-        sellerId={sellerIdForEntries(setEntries)}
+        sellerId={orderGoesToSellerId(setEntries)}
         products={orderFlow.products.filter((product) => openIds.includes(product.id))}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}

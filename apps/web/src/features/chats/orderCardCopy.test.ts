@@ -139,6 +139,27 @@ describe('buildOrderCardCopy', () => {
     const copy = buildOrderCardCopy(msg, msg.reference);
     expect(copy.lines).toContain('7 quoted · 1 can’t supply');
   });
+
+  it('names a whole catalog instead of N designs', () => {
+    const msg = orderCardMessage({
+      id: 'c1',
+      metadata: {
+        event: OrderChatEvent.OrderRequested,
+        catalogCount: 1,
+        catalogName: 'Season',
+      },
+      reference: orderRef({
+        id: 'ord-1',
+        event: OrderChatEvent.OrderRequested,
+        itemCount: 1,
+        catalogCount: 1,
+        catalogName: 'Season',
+      }),
+    });
+    const copy = buildOrderCardCopy(msg, msg.reference);
+    expect(copy.lines).toContain('Season');
+    expect(copy.lines.join(' ')).not.toMatch(/design/);
+  });
 });
 
 describe('declineOrderMessageIds', () => {

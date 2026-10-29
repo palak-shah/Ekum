@@ -255,7 +255,19 @@ export function buildOrderCardCopy(
           : `${declined} can’t supply`,
       );
     } else {
-      lines.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
+      const catalogCount =
+        asCount(ref.catalogCount) ?? asCount(meta?.catalogCount);
+      const catalogName = (
+        (typeof ref.catalogName === 'string' && ref.catalogName) ||
+        (typeof meta?.catalogName === 'string' ? meta.catalogName : '')
+      ).trim();
+      if (catalogName && ref.itemCount === 1 && catalogCount === 1) {
+        lines.push(catalogName);
+      } else if (catalogCount != null && catalogCount === ref.itemCount && catalogCount > 0) {
+        lines.push(`${catalogCount} catalog${catalogCount === 1 ? '' : 's'}`);
+      } else {
+        lines.push(`${ref.itemCount} design${ref.itemCount === 1 ? '' : 's'}`);
+      }
     }
   }
   if (body) {

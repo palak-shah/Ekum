@@ -95,6 +95,7 @@ describe('OrderService.setLineQuantity', () => {
       postOrderCard: vi.fn(async () => undefined),
       emitAndGet: vi.fn(async () => ({ id: 'ord-1', status: OrderStatus.PartShipped })),
       shippedTotals: vi.fn(() => new Map([['oi1', 10]])),
+      passMillLinesToParent: vi.fn(async () => undefined),
       withActor: () => ({}),
     });
 
@@ -114,5 +115,13 @@ describe('OrderService.setLineQuantity', () => {
         closedAt: null,
       }),
     });
+    expect(service['trail'].append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: 'Updated qty · 10 → 14',
+        payload: {
+          items: [{ orderItemId: 'oi1', field: 'quantity', before: 10, after: 14 }],
+        },
+      }),
+    );
   });
 });

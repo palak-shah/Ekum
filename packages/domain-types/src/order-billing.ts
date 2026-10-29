@@ -58,6 +58,41 @@ export function lineBillAmount(input: {
  * Missing rate on a line → null (cannot total).
  * Pack line with blank (non-obvious) pack size → null.
  */
+/** Rate per set/box/bundle/dozen is the catalog bunch price — do not × pack size or members. */
+export function catalogRateIsBunchPrice(catalogRateUnit: string | null | undefined): boolean {
+  const key = catalogRateUnit?.trim();
+  return key === 'set' || key === 'dozen' || key === 'box' || key === 'bundle';
+}
+
+/**
+ * Whole-catalog How many / ticket Total.
+ * Rate per pc or mtr: qty × rate × designs, and × 1 set contains when order is pack.
+ * Rate per set/box/bundle: qty × rate.
+ * When Rate per is pc/mtr, equals the sum of member `lineBillAmount`s at equal qty.
+ */
+export function catalogBunchBill(input: {
+  quantity: number;
+  rate: number | null | undefined;
+  unit?: string | null;
+  catalogRateUnit?: string | null;
+  piecesPerPack?: number | null;
+  memberCount: number;
+}): number | null {
+  const { quantity, rate, unit, catalogRateUnit, piecesPerPack, memberCount } = input;
+  if (rate == null || !Number.isFinite(rate) || rate < 0) return null;
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  if (!Number.isFinite(memberCount) || memberCount < 1) return null;
+  const rateUnit =
+    catalogRateUnit?.trim() ||
+    (isPackOrderUnit(unit) ? 'pc' : unit?.trim() || 'pc');
+  if (catalogRateIsBunchPrice(rateUnit)) {
+    return Math.round(rate * quantity * 100) / 100;
+  }
+  const oneMember = lineBillAmount({ quantity, rate, unit, piecesPerPack });
+  if (oneMember == null) return null;
+  return Math.round(oneMember * memberCount * 100) / 100;
+}
+
 export function orderBillTotal(
   items: Array<{
     quantity: number;

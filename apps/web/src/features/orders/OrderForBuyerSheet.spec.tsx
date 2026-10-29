@@ -22,16 +22,25 @@ vi.mock('@/features/browse/useBrowseShortlist', () => ({
   useBrowseShortlist: () => ({ removeIds: vi.fn() }),
 }));
 
-function renderSheet() {
+vi.mock('@/lib/queries', () => ({
+  useMyCompany: () => ({ data: { id: 'meena' } }),
+}));
+
+function renderSheet(props?: {
+  collectionId?: string;
+  lines?: Array<{ productId: string; quantity: number; companyId?: string }>;
+}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const lines = props?.lines ?? [{ productId: 'p1', quantity: 10 }];
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <OrderForBuyerSheet
           open
           onClose={() => {}}
-          lines={[{ productId: 'p1', quantity: 10 }]}
-          productIds={['p1']}
+          lines={lines}
+          productIds={lines.map((line) => line.productId)}
+          collectionId={props?.collectionId}
           onInvite={() => {}}
           onDone={() => {}}
         />
@@ -42,10 +51,12 @@ function renderSheet() {
 
 describe('OrderForBuyerSheet', () => {
   beforeEach(() => {
+    vi.mocked(api.post).mockReset();
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [];
       if (path === '/access-requests/outgoing') return [];
       if (path === '/search') return { results: [], nextCursor: null };
+      if (path === '/trade-lanes') return [];
       throw new Error(`unexpected ${path}`);
     });
   });
@@ -63,5 +74,120 @@ describe('OrderForBuyerSheet', () => {
       expect(screen.getByTestId('order-for-buyer-off-app')).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: 'Not on Ekum yet' })).toBeInTheDocument();
+  });
+
+  it('posts collectionId when logging from a pack', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') {
+        return [
+          {
+            id: 'cn1',
+            status: 'active',
+            createdAt: '2026-01-01',
+            canPause: true,
+            canResume: false,
+            canBlock: true,
+            canUnblock: false,
+            company: {
+              id: 'buyer',
+              name: 'Surat Silk House',
+              city: 'Surat',
+              verification: 'none',
+              logoUrl: null,
+            },
+          },
+        ];
+      }
+      if (path === '/access-requests/outgoing') return [];
+      if (path === '/search') return { results: [], nextCursor: null };
+      if (path === '/trade-lanes') return [];
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.mocked(api.post).mockResolvedValue({
+      order: { status: 'requested' },
+      invitePath: null,
+    });
+
+    renderSheet({ collectionId: 'pack-je' });
+    await user.click(await screen.findByText('Surat Silk House'));
+    await user.click(screen.getByRole('button', { name: 'Log order' }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/orders/for-buyer',
+        expect.objectContaining({
+          collectionId: 'pack-je',
+          buyerCompanyId: 'buyer',
+        }),
+      );
+    });
+  });
+
+  it('posts Direct mill lines then I-handle remainder for that buyer', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/connections') {
+        return [
+          {
+            id: 'cn1',
+            status: 'active',
+            createdAt: '2026-01-01',
+            canPause: true,
+            canResume: false,
+            canBlock: true,
+            canUnblock: false,
+            company: {
+              id: 'buyer',
+              name: 'Surat Silk House',
+              city: 'Surat',
+              verification: 'none',
+              logoUrl: null,
+            },
+          },
+        ];
+      }
+      if (path === '/access-requests/outgoing') return [];
+      if (path === '/search') return { results: [], nextCursor: null };
+      if (path === '/trade-lanes') {
+        return [
+          {
+            sellerCompanyId: 'kavita',
+            buyerCompanyId: 'buyer',
+            ticket: 'mill',
+            behaviors: { directOrder: true },
+          },
+        ];
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.mocked(api.post).mockResolvedValue({
+      order: { status: 'requested' },
+      invitePath: null,
+    });
+
+    renderSheet({
+      collectionId: 'pack-je',
+      lines: [
+        { productId: 'p1', quantity: 12, companyId: 'kavita' },
+        { productId: 'p2', quantity: 12, companyId: 'ravi' },
+      ],
+    });
+    await user.click(await screen.findByText('Surat Silk House'));
+    await user.click(screen.getByRole('button', { name: 'Log order' }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledTimes(2);
+    });
+    expect(vi.mocked(api.post).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        items: [{ productId: 'p1', quantity: 12 }],
+      }),
+    );
+    expect(vi.mocked(api.post).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        items: [{ productId: 'p2', quantity: 12 }],
+      }),
+    );
   });
 });

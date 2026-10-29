@@ -40,16 +40,16 @@ afterEach(() => cleanup());
 describe('OrderDispatchFields set-contains', () => {
   it('defaults dispatch unit select to set (same as order)', () => {
     render(<Harness />);
-    expect(screen.getByTestId('collection-order-unit')).toHaveValue(Unit.Set);
-    expect(screen.getByTestId('collection-dispatch-unit')).toHaveValue(Unit.Set);
+    expect(screen.getByTestId('collection-order-unit')).toHaveAttribute('data-value', Unit.Set);
+    expect(screen.getByTestId('collection-dispatch-unit')).toHaveAttribute('data-value', Unit.Set);
     expect(screen.getByTestId('collection-order-unit').className).toContain('bg-input');
     expect(screen.getByTestId('collection-dispatch-unit').className).toContain('bg-input');
   });
 
   it('falls back empty dispatch to set even when order unit is mtr', () => {
     render(<Harness initialOrderUnit={Unit.Metre} initialDispatch="" />);
-    expect(screen.getByTestId('collection-order-unit')).toHaveValue(Unit.Metre);
-    expect(screen.getByTestId('collection-dispatch-unit')).toHaveValue(Unit.Set);
+    expect(screen.getByTestId('collection-order-unit')).toHaveAttribute('data-value', Unit.Metre);
+    expect(screen.getByTestId('collection-dispatch-unit')).toHaveAttribute('data-value', Unit.Set);
   });
 
   it('shows placeholder 4 with pc suffix when empty', () => {
@@ -149,7 +149,8 @@ describe('OrderDispatchFields set-contains', () => {
   it('autofills 12 when order unit becomes dozen and field is empty', async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    await user.selectOptions(screen.getByTestId('collection-order-unit'), Unit.Dozen);
+    await user.click(screen.getByTestId('collection-order-unit'));
+    await user.click(screen.getByTestId(`collection-order-unit-option-${Unit.Dozen}`));
     expect(screen.getByTestId('collection-set-contains')).toHaveValue('12');
     expect(screen.getByText('1 dozen contains')).toBeTruthy();
   });
@@ -157,14 +158,16 @@ describe('OrderDispatchFields set-contains', () => {
   it('does not overwrite a typed set-contains when switching to dozen', async () => {
     const user = userEvent.setup();
     render(<Harness initialPieces="4" />);
-    await user.selectOptions(screen.getByTestId('collection-order-unit'), Unit.Dozen);
+    await user.click(screen.getByTestId('collection-order-unit'));
+    await user.click(screen.getByTestId(`collection-order-unit-option-${Unit.Dozen}`));
     expect(screen.getByTestId('collection-set-contains')).toHaveValue('4');
   });
 
   it('keeps dozen autofill editable', async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    await user.selectOptions(screen.getByTestId('collection-order-unit'), Unit.Dozen);
+    await user.click(screen.getByTestId('collection-order-unit'));
+    await user.click(screen.getByTestId(`collection-order-unit-option-${Unit.Dozen}`));
     const input = screen.getByTestId('collection-set-contains');
     await user.clear(input);
     await user.type(input, '10');

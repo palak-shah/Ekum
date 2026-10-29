@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { NetworkPage } from './NetworkPage';
 
-const presence = { selling: false, canPublish: false };
+const presence = { selling: false, canPublish: false, trading: false };
 
 vi.mock('@/lib/tradePresence', () => ({
   useTradePresence: () => presence,
@@ -51,6 +51,7 @@ describe('NetworkPage', () => {
   it('puts Buyer groups after They see mine when you publish', () => {
     presence.selling = true;
     presence.canPublish = true;
+    presence.trading = false;
     renderPage();
     expect(linkHrefs()).toEqual([
       '/network/following',
@@ -59,5 +60,21 @@ describe('NetworkPage', () => {
       '/network/connections',
       '/referrals',
     ]);
+  });
+
+  it('puts Direct links on Network when trading', () => {
+    presence.selling = false;
+    presence.canPublish = false;
+    presence.trading = true;
+    renderPage();
+    expect(linkHrefs()).toEqual([
+      '/network/following',
+      '/network/followers',
+      '/network/direct-links',
+      '/network/connections',
+      '/referrals',
+    ]);
+    expect(screen.getByRole('link', { name: /Direct links/ })).toBeInTheDocument();
+    expect(screen.getByText('Supplier and buyer who order together')).toBeInTheDocument();
   });
 });

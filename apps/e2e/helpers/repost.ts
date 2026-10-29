@@ -1,4 +1,14 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+
+/** Publish Who chips are Followers / Selected — Everyone is not offered. */
+async function pickPublishAudience(publishSheet: Locator): Promise<void> {
+  const everyone = publishSheet.getByRole('button', { name: 'Everyone', exact: true });
+  if (await everyone.isVisible().catch(() => false)) {
+    await everyone.click();
+    return;
+  }
+  await publishSheet.getByRole('button', { name: 'My followers', exact: true }).click();
+}
 
 /** Add new → name → Save (bookmark). Returns created collection id. */
 export async function saveRepostDraft(page: Page, packName: string): Promise<string> {
@@ -40,7 +50,7 @@ export async function publishRepostNew(page: Page, packName: string): Promise<st
   await expect(publishSheet.getByRole('heading', { name: 'Publish collection' })).toBeVisible({
     timeout: 15_000,
   });
-  await publishSheet.getByRole('button', { name: 'Everyone', exact: true }).click();
+  await pickPublishAudience(publishSheet);
   const consent = publishSheet.getByText(/Start selling/i);
   if (await consent.isVisible()) {
     await publishSheet.locator('input[type="checkbox"]').last().check();
@@ -51,7 +61,7 @@ export async function publishRepostNew(page: Page, packName: string): Promise<st
   return body.id;
 }
 
-/** Open draft editor → ⋯ → Publish sheet → Everyone → Publish. */
+/** Open draft editor → ⋯ → Publish sheet → widest Who chip → Publish. */
 export async function publishDraftCollection(page: Page, collectionId: string): Promise<void> {
   await page.goto(`/catalog/collections/${collectionId}`);
   await expect(page.getByRole('button', { name: 'More' })).toBeVisible({ timeout: 15_000 });
@@ -64,7 +74,7 @@ export async function publishDraftCollection(page: Page, collectionId: string): 
   await expect(publishSheet.getByRole('heading', { name: 'Publish collection' })).toBeVisible({
     timeout: 15_000,
   });
-  await publishSheet.getByRole('button', { name: 'Everyone', exact: true }).click();
+  await pickPublishAudience(publishSheet);
   const consent = publishSheet.getByText(/Start selling/i);
   if (await consent.isVisible()) {
     await publishSheet.locator('input[type="checkbox"]').last().check();

@@ -77,6 +77,7 @@ export type DesignSheetProduct = Pick<
 > & {
   piecesPerPack?: number | null;
   catalogCollectionId?: string | null;
+  catalogOrderMode?: string | null;
   collectionNames?: string[] | null;
 };
 
@@ -126,8 +127,10 @@ export function DesignSheet({
   packStamp?: {
     collectionId: string;
     handlerName: string;
+    handlerCompanyId?: string;
     path: string | null;
     allowForward: boolean;
+    sourceDirect?: boolean;
   };
   testIdPrefix?: string;
 }) {
@@ -177,6 +180,7 @@ export function DesignSheet({
         ? {
             collectionId,
             handlerName: product.companyName ?? '',
+            handlerCompanyId: product.companyId,
             path: null,
             allowForward: product.allowForward !== false,
           }
@@ -269,6 +273,7 @@ export function DesignSheet({
       const prepared = await prepareCatalogOrder({
         albums: [],
         shortlist: [entry],
+        quiet: true,
       });
       if (prepared.kind === 'error') return;
       setLockedProductIds(prepared.lockedProductIds);
@@ -530,7 +535,7 @@ export function DesignSheet({
           setOrderEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={product.companyId}
+        sellerId={packStamp?.handlerCompanyId || product.companyId}
         products={entriesAsProducts(orderEntries ?? [entry])}
         lockedProductIds={lockedProductIds}
         submitting={placeOrder.isPending}
@@ -538,6 +543,7 @@ export function DesignSheet({
         orderGoesToName={
           packStamp?.handlerName?.trim() || product.companyName || undefined
         }
+        collectionId={packStamp?.collectionId ?? collectionId ?? undefined}
         sheetJob="order"
         onSendOrder={(lines, place) => {
           setOrderError(null);

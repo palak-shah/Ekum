@@ -20,15 +20,6 @@ export function settingsBusinessRoleLinks(
 ): SettingsDomainLink[] {
   return [
     { to: '/team', title: 'Team', hint: 'People on this shop' },
-    ...(trading
-      ? [
-          {
-            to: '/settings/paths',
-            title: 'Your paths',
-            hint: 'Who orders are with · see each other',
-          },
-        ]
-      : []),
     ...(selling || trading
       ? [
           {

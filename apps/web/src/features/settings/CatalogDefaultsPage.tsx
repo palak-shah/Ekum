@@ -10,7 +10,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button, InlineNotice, LoadingBlock, cx } from '@/ui/kit';
-import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
+import { OptionSheetField } from '@/ui/OptionSheetField';
 import { OrderDispatchFields } from '@/features/catalog/OrderDispatchFields';
 import {
   DEFAULT_DISPATCH_UNIT,
@@ -152,21 +152,15 @@ export function CatalogDefaultsPage() {
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-emphasis text-ink">Rate per</span>
-          <select
-            data-testid="catalog-defaults-rate-unit"
-            aria-label="Rate unit"
+          <OptionSheetField
+            className="min-w-[7rem]"
+            testId="catalog-defaults-rate-unit"
+            sheetTitle="Rate per"
+            ariaLabel="Rate unit"
             value={ratePer}
-            onChange={(e) => {
-              setCatalogRateUnit(e.target.value);
-            }}
-            className={`min-h-9 ${SELECT_FIELD_CLASS} px-2.5 text-sm font-emphasis text-ink`}
-          >
-            {unitValues.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
+            options={unitValues.map((u) => ({ value: u, label: u }))}
+            onChange={setCatalogRateUnit}
+          />
         </div>
         <p className="text-xs text-muted">
           Default billing unit for new collections (usually pc). Order and dispatch stay in sets.

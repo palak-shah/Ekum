@@ -83,11 +83,12 @@ describe('RateRangeFields', () => {
       />,
     );
     expect(screen.getByText('Rate per')).toBeTruthy();
-    const select = screen.getByTestId('collection-rate-unit');
-    expect(select).toHaveValue('pc');
-    expect(select.className).toContain('bg-input');
-    expect(select.className).toMatch(/(?:^|\s)text-sm(?:\s|$)/);
-    await user.selectOptions(select, 'set');
+    const trigger = screen.getByTestId('collection-rate-unit');
+    expect(trigger).toHaveAttribute('data-value', 'pc');
+    expect(trigger.className).toContain('bg-input');
+    expect(trigger.className).toMatch(/(?:^|\s)text-base(?:\s|$)/);
+    await user.click(trigger);
+    await user.click(screen.getByTestId('collection-rate-unit-option-set'));
     expect(onRateUnit).toHaveBeenCalledWith('set');
   });
 
@@ -109,13 +110,14 @@ describe('RateRangeFields', () => {
     expect(screen.queryByTestId('collection-rate-mode')).toBeNull();
     expect(screen.queryByTestId('collection-rate-to')).toBeNull();
     expect(screen.getByText('Rate per')).toBeTruthy();
-    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('set');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveAttribute('data-value', 'set');
     const amount = screen.getByTestId('collection-rate-from');
     expect(amount).toHaveValue('1200');
     expect(amount).toHaveAttribute('placeholder', 'Rate');
     expect(screen.getAllByTestId('collection-rate-prefix')).toHaveLength(1);
     expect(amount).toHaveAttribute('inputmode', 'decimal');
-    await user.selectOptions(screen.getByTestId('collection-rate-unit'), 'pc');
+    await user.click(screen.getByTestId('collection-rate-unit'));
+    await user.click(screen.getByTestId('collection-rate-unit-option-pc'));
     expect(onRateUnit).toHaveBeenCalledWith('pc');
     await user.clear(amount);
     await user.type(amount, '900');
@@ -133,7 +135,7 @@ describe('RateRangeFields', () => {
         onRateUnit={() => undefined}
       />,
     );
-    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('mtr');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveAttribute('data-value', 'mtr');
   });
 
   it('keeps an invalid Rate per selectable then coerces to a unit the category offers', async () => {
@@ -149,15 +151,16 @@ describe('RateRangeFields', () => {
         permittedUnits={['mtr', 'kg']}
       />,
     );
-    const select = screen.getByTestId('collection-rate-unit');
-    expect(select).toHaveValue('pc');
-    expect(select).toHaveTextContent('pc');
+    const trigger = screen.getByTestId('collection-rate-unit');
+    expect(trigger).toHaveAttribute('data-value', 'pc');
+    expect(trigger).toHaveTextContent('pc');
     expect(onRateUnit).toHaveBeenCalledWith('mtr');
-    await userEvent.setup().selectOptions(select, 'mtr');
+    await userEvent.setup().click(trigger);
+    await userEvent.setup().click(screen.getByTestId('collection-rate-unit-option-mtr'));
     expect(onRateUnit).toHaveBeenCalledWith('mtr');
   });
 
-  it('does not snap Jobwork mtr to pc when pc is only secondary', () => {
+  it('does not snap Jobwork mtr to pc when pc is only secondary', async () => {
     const onRateUnit = vi.fn();
     render(
       <RateRangeFields
@@ -170,9 +173,11 @@ describe('RateRangeFields', () => {
         permittedUnits={['mtr', 'kg', 'pc']}
       />,
     );
-    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('mtr');
-    expect(screen.getByTestId('collection-rate-unit')).toHaveTextContent('kg');
-    expect(screen.getByTestId('collection-rate-unit')).toHaveTextContent('pc');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveAttribute('data-value', 'mtr');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveTextContent('mtr');
+    await userEvent.setup().click(screen.getByTestId('collection-rate-unit'));
+    expect(screen.getByTestId('collection-rate-unit-option-kg')).toBeTruthy();
+    expect(screen.getByTestId('collection-rate-unit-option-pc')).toBeTruthy();
     expect(onRateUnit).not.toHaveBeenCalled();
   });
 
@@ -189,7 +194,7 @@ describe('RateRangeFields', () => {
         permittedUnits={['mtr', 'kg', 'pc']}
       />,
     );
-    expect(screen.getByTestId('collection-rate-unit')).toHaveValue('pc');
+    expect(screen.getByTestId('collection-rate-unit')).toHaveAttribute('data-value', 'pc');
     expect(onRateUnit).not.toHaveBeenCalled();
   });
 });

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
   OrderKind,
   type CreateOrdersBatchResult,
+  type OrderView,
   type ProductView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
@@ -13,6 +14,12 @@ import { clearSelection } from '@/features/browse/clearSelection';
 import { type BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
+import {
+  isDirectPackLine,
+  packPlaceGoesToSellerId,
+  packPlaceWaveEntries,
+  type PackPlaceLine,
+} from '@/features/browse/packPlacePhases';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
 import {
@@ -57,7 +64,8 @@ async function placeFromPackOrBatch(input: {
   }
   try {
     const payload = await api.post<{
-      downstream: CreateOrdersBatchResult['orders'][number];
+      downstream: CreateOrdersBatchResult['orders'][number] | null;
+      directs?: CreateOrdersBatchResult['orders'];
       failures: CreateOrdersBatchResult['failures'];
     }>('/orders/from-pack', {
       collectionId: input.collectionId,
@@ -68,7 +76,10 @@ async function placeFromPackOrBatch(input: {
       items: toBatchItems(input.lines),
     });
     return {
-      orders: payload.downstream ? [payload.downstream] : [],
+      orders: [
+        ...(payload.downstream ? [payload.downstream] : []),
+        ...(payload.directs ?? []),
+      ],
       failures: payload.failures ?? [],
     };
   } catch (err) {
@@ -95,6 +106,12 @@ export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[
         moq: entry.moq ?? null,
         rate: entry.rate ?? null,
         rateMax: entry.rateMax ?? null,
+        catalogCollectionId: entry.catalogCollectionId ?? null,
+        catalogOrderMode: entry.catalogOrderMode ?? null,
+        catalogRateUnit: entry.catalogRateUnit ?? null,
+        ...(entry.catalogWhole
+          ? { catalogWhole: true, catalogName: entry.catalogName ?? null }
+          : {}),
       }) as ProductView,
   );
 }
@@ -103,6 +120,13 @@ export function sellerIdForEntries(entries: readonly { companyId: string }[]): s
   if (entries.length === 0) return 'multi';
   const first = entries[0]!.companyId;
   return entries.every((entry) => entry.companyId === first) ? first : 'multi';
+}
+
+/** Who How many Place goes to: Direct mill on sheet 1, pack owner on I-handle. */
+export function orderGoesToSellerId(
+  entries: readonly PackPlaceLine[],
+): string {
+  return packPlaceGoesToSellerId([...entries]);
 }
 
 export function useShortlistOrderFlow(options?: {
@@ -114,14 +138,80 @@ export function useShortlistOrderFlow(options?: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [qtyOpen, setQtyOpen] = useState(false);
+  const [qtyOpen, setQtyOpenState] = useState(false);
   const [qtyJob, setQtyJob] = useState<'order' | 'ask'>('order');
   const [error, setError] = useState<string | null>(null);
+  const [placedProductIds, setPlacedProductIds] = useState<string[]>([]);
+  const placedIdsRef = useRef<string[]>([]);
+  const firstDirectRef = useRef<OrderView | null>(null);
+
+  const resetPlaceWaves = () => {
+    placedIdsRef.current = [];
+    firstDirectRef.current = null;
+    setPlacedProductIds([]);
+  };
+
+  const setQtyOpen = (open: boolean) => {
+    if (open && !qtyOpen) resetPlaceWaves();
+    if (!open) resetPlaceWaves();
+    setQtyOpenState(open);
+  };
+
+  const remainingEntries = <T extends PackPlaceLine>(entries: T[]): T[] => {
+    const placed = new Set(placedProductIds);
+    return entries.filter((entry) => !entry.productId || !placed.has(entry.productId));
+  };
+
+  const waveEntries = <T extends PackPlaceLine>(entries: T[]): T[] => {
+    return packPlaceWaveEntries(remainingEntries(entries));
+  };
 
   const openQty = (job: 'order' | 'ask' = 'order') => {
     setError(null);
     setQtyJob(job);
     setQtyOpen(true);
+  };
+
+  const finishPlace = (
+    payload: CreateOrdersBatchResult,
+    variables: { collectionId?: string; intent: string },
+  ) => {
+    const landDirect = firstDirectRef.current;
+    setQtyOpenState(false);
+    resetPlaceWaves();
+    setError(null);
+    const failedIds = new Set(payload.failures.flatMap((failure) => failure.productIds));
+    const successSellers = new Set(payload.orders.map((order) => order.sellerCompanyId));
+    const removeIds = shortlist.entries
+      .filter(
+        (entry) => successSellers.has(entry.companyId) && !failedIds.has(entry.productId),
+      )
+      .map((entry) => entry.productId);
+    const millsOnPack = new Set(
+      shortlist.entries
+        .filter((entry) => !failedIds.has(entry.productId))
+        .map((entry) => entry.companyId),
+    ).size;
+    const linkedMillCount =
+      variables.collectionId && payload.orders.length === 1 && millsOnPack > 1
+        ? millsOnPack
+        : undefined;
+    if (payload.orders.length > 0 || landDirect) {
+      clearSelection();
+      if (clearCartOnSuccess) clearBrowseCart();
+    } else if (removeIds.length > 0) {
+      shortlist.removeIds(removeIds);
+    }
+    void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    void queryClient.invalidateQueries({ queryKey: ['threads'] });
+
+    const title = batchConfirmTitle(payload, { linkedMillCount });
+    const tone = payload.orders.length === 0 && !landDirect ? 'danger' : 'success';
+    const leaveOrder = landDirect ?? batchSuccessLeave(payload)?.order ?? null;
+    showToast(title, tone);
+    if (leaveOrder) {
+      void navigateToOrderChat(navigate, queryClient, leaveOrder, { replace: true });
+    }
   };
 
   const batch = useMutation({
@@ -132,41 +222,40 @@ export function useShortlistOrderFlow(options?: {
       return placeFromPackOrBatch(input);
     },
     onSuccess: (payload, variables) => {
-      setQtyOpen(false);
-      setError(null);
       const failedIds = new Set(payload.failures.flatMap((failure) => failure.productIds));
-      const successSellers = new Set(payload.orders.map((order) => order.sellerCompanyId));
-      const removeIds = shortlist.entries
-        .filter(
-          (entry) => successSellers.has(entry.companyId) && !failedIds.has(entry.productId),
-        )
-        .map((entry) => entry.productId);
-      const millsOnPack = new Set(
-        shortlist.entries
-          .filter((entry) => !failedIds.has(entry.productId))
-          .map((entry) => entry.companyId),
-      ).size;
-      const linkedMillCount =
-        variables.collectionId && payload.orders.length === 1 && millsOnPack > 1
-          ? millsOnPack
-          : undefined;
-      if (payload.orders.length > 0) {
-        // Staging Order clears checks and exits Selecting; cart page also empties the parked cart.
-        clearSelection();
-        if (clearCartOnSuccess) clearBrowseCart();
-      } else if (removeIds.length > 0) {
-        shortlist.removeIds(removeIds);
-      }
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      const submittedIds = variables.lines.map((line) => line.productId);
+      const succeededIds = submittedIds.filter((id) => !failedIds.has(id));
+      const wasDirectWave =
+        variables.intent === OrderIntent.Order &&
+        succeededIds.length > 0 &&
+        succeededIds.every((id) => {
+          const entry = shortlist.entries.find((row) => row.productId === id);
+          return Boolean(entry && isDirectPackLine(entry));
+        });
+      const nextPlaced = [...placedIdsRef.current, ...succeededIds];
+      const remaining = shortlist.entries.filter(
+        (entry) => !nextPlaced.includes(entry.productId) && !failedIds.has(entry.productId),
+      );
+      const handleLeft = remaining.filter((entry) => !isDirectPackLine(entry));
+      const moreHandle =
+        wasDirectWave && handleLeft.length > 0 && payload.orders.length > 0;
 
-      const title = batchConfirmTitle(payload, { linkedMillCount });
-      const tone = payload.orders.length === 0 ? 'danger' : 'success';
-      const leave = batchSuccessLeave(payload);
-      showToast(title, tone);
-      if (leave?.kind === 'order') {
-        void navigateToOrderChat(navigate, queryClient, leave.order, { replace: true });
+      if (moreHandle) {
+        placedIdsRef.current = nextPlaced;
+        setPlacedProductIds(nextPlaced);
+        if (!firstDirectRef.current && payload.orders[0]) {
+          firstDirectRef.current = payload.orders[0];
+        }
+        shortlist.removeIds(succeededIds);
+        setError(null);
+        void queryClient.invalidateQueries({ queryKey: ['orders'] });
+        void queryClient.invalidateQueries({ queryKey: ['threads'] });
+        const title = batchConfirmTitle(payload);
+        showToast(title, payload.orders.length === 0 ? 'danger' : 'success');
+        return;
       }
+
+      finishPlace(payload, variables);
     },
     onError: (err, variables) => {
       const inquiry = variables?.intent === OrderIntent.Inquiry;
@@ -180,7 +269,7 @@ export function useShortlistOrderFlow(options?: {
     },
   });
 
-  const sellerIdForQty = sellerIdForEntries(shortlist.entries);
+  const sellerIdForQty = sellerIdForEntries(waveEntries(shortlist.entries));
 
   return {
     shortlist,
@@ -191,7 +280,10 @@ export function useShortlistOrderFlow(options?: {
     error,
     setError,
     sellerIdForQty,
-    products: entriesAsProducts(shortlist.entries),
+    placedProductIds,
+    remainingEntries,
+    waveEntries,
+    products: entriesAsProducts(waveEntries(shortlist.entries)),
     submitting: batch.isPending && batch.variables?.intent !== OrderIntent.Inquiry,
     asking: batch.isPending && batch.variables?.intent === OrderIntent.Inquiry,
     sendOrder: (

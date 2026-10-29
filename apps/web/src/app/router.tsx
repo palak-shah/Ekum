@@ -111,7 +111,10 @@ const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'Set
 const ProfilePage = page(() => import('@/features/settings/ProfilePage'), 'ProfilePage');
 const AdminLayout = page(() => import('@/features/admin/AdminLayout'), 'AdminLayout');
 const AdminTagsPage = page(() => import('@/features/admin/AdminTagsPage'), 'AdminTagsPage');
-const YourPathsPage = page(() => import('@/features/settings/YourPathsPage'), 'YourPathsPage');
+const DirectLinksPage = page(
+  () => import('@/features/network/DirectLinksPage'),
+  'DirectLinksPage',
+);
 const CatalogDefaultsPage = page(
   () => import('@/features/settings/CatalogDefaultsPage'),
   'CatalogDefaultsPage',
@@ -253,6 +256,7 @@ export const router = createBrowserRouter([
               { path: 'network', element: <NetworkPage /> },
               { path: 'network/following', element: <FollowingPage /> },
               { path: 'network/followers', element: <FollowersPage /> },
+              { path: 'network/direct-links', element: <DirectLinksPage /> },
               { path: 'network/connections', element: <ConnectionsPage /> },
               { path: 'network/requests', element: <Navigate to="/chats?inbox=requests" replace /> },
               { path: 'broadcast', element: <BroadcastPage /> },
@@ -262,7 +266,11 @@ export const router = createBrowserRouter([
               { path: 'notifications', element: <NotificationsPage /> },
               { path: 'settings', element: <SettingsPage /> },
               { path: 'settings/profile', element: <ProfilePage /> },
-              { path: 'settings/paths', element: <YourPathsPage /> },
+              { path: 'settings/paths', element: <Navigate to="/network/direct-links" replace /> },
+              {
+                path: 'settings/your-paths',
+                element: <Navigate to="/network/direct-links" replace />,
+              },
               { path: 'settings/catalog-defaults', element: <CatalogDefaultsPage /> },
               { path: 'settings/units', element: <UnitsSettingsPage /> },
               { path: 'settings/about', element: <AboutEkumPage /> },

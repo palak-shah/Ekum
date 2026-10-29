@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { catalogBunchBill, lineBillAmount } from '@ekum/domain-types';
 import {
   formatDualQty,
   formatOrderQty,
   formatPackingSlipTotal,
-  lineBillAmount,
   orderLineBillingCaptions,
 } from './orderLineBilling';
 
@@ -73,6 +73,44 @@ describe('orderLineBilling', () => {
     expect(
       lineBillAmount({ quantity: 2, rate: 100, unit: 'set', piecesPerPack: 2 }),
     ).toBe(400);
+  });
+
+  it('catalogBunchBill is per design for pc/mtr and equals member sum', () => {
+    expect(
+      catalogBunchBill({
+        quantity: 1,
+        rate: 450,
+        unit: 'pc',
+        catalogRateUnit: 'pc',
+        memberCount: 9,
+      }),
+    ).toBe(4050);
+    const one = lineBillAmount({ quantity: 1, rate: 450, unit: 'pc' });
+    expect(one).toBe(450);
+    expect(one! * 9).toBe(4050);
+    expect(
+      catalogBunchBill({
+        quantity: 1,
+        rate: 450,
+        unit: 'set',
+        catalogRateUnit: 'pc',
+        piecesPerPack: 4,
+        memberCount: 9,
+      }),
+    ).toBe(16200);
+  });
+
+  it('catalogBunchBill is qty × rate when Rate per is set/box/bundle', () => {
+    expect(
+      catalogBunchBill({
+        quantity: 2,
+        rate: 5000,
+        unit: 'set',
+        catalogRateUnit: 'set',
+        piecesPerPack: 4,
+        memberCount: 9,
+      }),
+    ).toBe(10000);
   });
 
   it('omits ₹ and pcs when pack size blank', () => {

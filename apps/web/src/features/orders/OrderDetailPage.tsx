@@ -141,6 +141,11 @@ import {
 import { orderBillTotal } from '@/features/orders/orderLineBilling';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { AmendOrderSheet } from '@/features/orders/AmendOrderSheet';
+import {
+  catalogPeerProductIds,
+  ticketBillItems,
+  ticketDisplayItems,
+} from '@/features/orders/orderCatalogDisplay';
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import { TransporterField } from '@/features/orders/TransporterField';
 import { rememberTransporter } from '@/features/orders/transporterMemory';
@@ -152,17 +157,13 @@ import {
   millDeskDropped,
   millFromToCells,
   millLineForParent,
-  millRevealLabel,
   actorSellsThisOrder,
   orderActionDock,
-  orderTicketMillLabel,
-  orderTicketMillNames,
   requestedDockPrimary,
   showMillSendAll,
   showOrderParentItemsList,
   showSellerConfirmOnDesk,
 } from '@/features/orders/iHandleDesk';
-import { TicketPathPick } from '@/features/orders/ticketPathPick';
 import {
   parseQuoteRateDraft,
   quoteRateNumber,
@@ -801,27 +802,6 @@ export function OrderDetailPage() {
     onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
   });
 
-  const millReveal = useMutation({
-    mutationFn: (body: { upstreamOrderId: string; reveal: boolean }) =>
-      api.post<OrderView>(`/orders/${id}/mill-reveal`, body),
-    onSuccess: refresh,
-    onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
-  });
-
-  const flipTicket = useMutation({
-    mutationFn: (body: { ticket: 'me' | 'mill'; upstreamOrderId?: string }) =>
-      api.post<OrderView>(`/orders/${id}/ticket`, body),
-    onSuccess: (view) => {
-      void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      if (view.id !== id) {
-        navigate(`/orders/${view.id}`, { replace: true });
-        return;
-      }
-      refresh();
-    },
-    onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
-  });
-
   const [millQty, setMillQty] = useState<Record<string, string>>({});
   const [millRate, setMillRate] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -918,12 +898,12 @@ export function OrderDetailPage() {
   });
 
   const dispatchLines = useMemo(
-    () => fulfillDispatchItems(order.data?.items ?? []),
+    () => ticketDisplayItems(fulfillDispatchItems(order.data?.items ?? [])),
     [order.data?.items],
   );
 
   const declinedDispatchItems = useMemo(
-    () => cantSupplyDispatchItems(order.data?.items ?? []),
+    () => ticketDisplayItems(cantSupplyDispatchItems(order.data?.items ?? [])),
     [order.data?.items],
   );
 
@@ -936,7 +916,7 @@ export function OrderDetailPage() {
     [dispatchLines, shipOn, shipQty],
   );
   const settleLines = useMemo(
-    () => settleSheetItems(order.data?.items ?? []),
+    () => ticketDisplayItems(settleSheetItems(order.data?.items ?? [])),
     [order.data?.items],
   );
   const settleLeftoverSummary = useMemo(
@@ -1298,7 +1278,9 @@ export function OrderDetailPage() {
 
   const decideLines = useMutation({
     mutationFn: (verb: 'confirm' | 'decline') => {
-      const open = (order.data?.items ?? []).filter((item) => item.lineStatus === 'open');
+      const open = ticketDisplayItems(
+        (order.data?.items ?? []).filter((item) => item.lineStatus === 'open'),
+      );
       const ids = open.map((item) => item.id);
       const lineQtyById: Record<string, number> = {};
       for (const item of open) lineQtyById[item.id] = item.quantity;
@@ -1347,7 +1329,9 @@ export function OrderDetailPage() {
 
 
   const openLinesSheet = () => {
-    const open = (order.data?.items ?? []).filter((item) => item.lineStatus === 'open');
+    const open = ticketDisplayItems(
+      (order.data?.items ?? []).filter((item) => item.lineStatus === 'open'),
+    );
     const ids = open.map((item) => item.id);
     const qty: Record<string, string> = {};
     const rateDefaults: Record<string, string> = {};
@@ -1465,7 +1449,7 @@ export function OrderDetailPage() {
   };
 
   const quoteItems = useMemo(
-    () => quoteSheetItems(order.data?.items ?? []),
+    () => ticketDisplayItems(quoteSheetItems(order.data?.items ?? [])),
     [order.data?.items],
   );
 
@@ -1540,6 +1524,7 @@ export function OrderDetailPage() {
   }
 
   const data = order.data;
+  const ticketItems = ticketDisplayItems(data.items);
   const lineGallery = orderItemGalleryUrls(data.items);
   const lineCaptions = orderItemGalleryCaptions(data.items);
   const lineDetails = orderItemGalleryDetails(data.items);
@@ -1726,26 +1711,6 @@ export function OrderDetailPage() {
         </button>
       ) : null}
 
-      {data.canFlipTicket ? (
-        <div data-testid="order-ticket-flip">
-        <Card className="flex flex-col gap-2">
-          <TicketPathPick
-            ticket={data.laneTicket ?? 'me'}
-            millLabel={orderTicketMillLabel(
-              data.millDesks,
-              data.tradeMode === 'direct' ? data.sellerName : 'These mills',
-            )}
-            millNames={orderTicketMillNames(data.millDesks)}
-            disabled={flipTicket.isPending}
-            onPick={(next) => flipTicket.mutate({ ticket: next })}
-            pickTestId="order-ticket-pick"
-            meTestId="order-ticket-me"
-            millTestId="order-ticket-mill"
-          />
-        </Card>
-        </div>
-      ) : null}
-
       <Card className="flex flex-col gap-1 text-sm">
         <div className="flex flex-col gap-1">
           {(() => {
@@ -1893,10 +1858,6 @@ export function OrderDetailPage() {
                 </Card>
               );
             }
-            const revealLabel = millRevealLabel(desk, {
-              companyId: data.buyerCompanyId,
-              name: data.buyerName,
-            });
             return (
               <Card
                 key={desk.upstreamOrderId}
@@ -1964,33 +1925,6 @@ export function OrderDetailPage() {
                     ) : null}
                   </div>
                 </div>
-                {revealLabel && !millDropped ? (
-                  <div
-                    className={`flex w-full items-center justify-between rounded-xl border px-3 py-1.5 text-sm ${
-                      desk.reveal
-                        ? 'border-accent bg-accent/5 text-ink'
-                        : 'border-line bg-surface text-ink'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-emphasis">{revealLabel}</span>
-                    </div>
-                    <button
-                      type="button"
-                      data-testid={`order-mill-reveal-${desk.upstreamOrderId}`}
-                      disabled={millReveal.isPending}
-                      className="shrink-0 text-xs font-emphasis uppercase tracking-wide text-accent"
-                      onClick={() =>
-                        millReveal.mutate({
-                          upstreamOrderId: desk.upstreamOrderId,
-                          reveal: !desk.reveal,
-                        })
-                      }
-                    >
-                      {desk.reveal ? 'On' : 'Off'}
-                    </button>
-                  </div>
-                ) : null}
                 {!desk.held && desk.millQuoted ? (
                   <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-end gap-2 border-t border-line pt-2">
                     <p className={compactQtyFieldLabelClass}>Design</p>
@@ -2229,9 +2163,9 @@ export function OrderDetailPage() {
       {showOrderParentItemsList(data.millDesks) ? (
       <Card className="flex flex-col gap-2" data-testid="order-parent-items">
         {lineFulfillError ? <InlineNotice message={lineFulfillError} /> : null}
-        <OrderTicketBillBlock items={data.items}>
+        <OrderTicketBillBlock items={ticketBillItems(data.items)}>
         <OrderUnitGroupedList
-          items={data.items}
+          items={ticketItems}
           unitOf={(item) => item.unit}
           getKey={(item) => item.id}
         >
@@ -3660,17 +3594,28 @@ export function OrderDetailPage() {
         open={amendOpen}
         onClose={() => closeSheet('amend')}
         title={isInquiry ? 'Edit inquiry' : 'Edit order'}
-        items={data.items ?? []}
+        items={ticketDisplayItems(data.items ?? [])}
         qty={amendQty}
         onQty={(productId, next) =>
-          setAmendQty((prev) => ({ ...prev, [productId]: next == null ? '' : String(next) }))
+          setAmendQty((prev) => {
+            const patch = next == null ? '' : String(next);
+            const nextQty = { ...prev };
+            for (const id of catalogPeerProductIds(data.items ?? [], productId)) {
+              nextQty[id] = patch;
+            }
+            return nextQty;
+          })
         }
         removed={amendRemoved}
         onToggleRemoved={(productId) =>
           setAmendRemoved((prev) => {
             const next = new Set(prev);
-            if (next.has(productId)) next.delete(productId);
-            else next.add(productId);
+            const peers = catalogPeerProductIds(data.items ?? [], productId);
+            const removing = !next.has(productId);
+            for (const id of peers) {
+              if (removing) next.add(id);
+              else next.delete(id);
+            }
             return next;
           })
         }

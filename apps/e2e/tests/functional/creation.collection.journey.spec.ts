@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { loginAsRavi } from '../../helpers/persona';
 import { pickYouLibraryFilter } from '../../helpers/youLibrary';
 import { SAMPLE_JPG, sampleJpgTimes } from '../../helpers/fixtures';
+import { pickFieldSheetOption } from '../../helpers/fieldSheet';
 
 async function stayOnEditorAfterDraftSave(
   page: import('@playwright/test').Page,
@@ -135,7 +136,7 @@ test.describe('collection creation @functional @release @media @creation @collec
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByLabel('Collection name').fill(name);
-    await page.getByTestId('collection-master-category').selectOption({ index: 1 });
+    await pickFieldSheetOption(page, 'collection-master-category', 0);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText('Published').first()).toBeVisible({ timeout: 45_000 });
@@ -157,7 +158,8 @@ test.describe('collection creation @functional @release @media @creation @collec
       timeout: 45_000,
     });
     await page.getByLabel('Catalog name').fill(name);
-    await page.getByTestId('collection-master-category').selectOption({ index: 1 });
+    await expect(page.getByTestId('collection-apply-all')).toHaveCount(0);
+    await pickFieldSheetOption(page, 'collection-master-category', 0);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
     await expect(page.getByText('Published').first()).toBeVisible({ timeout: 45_000 });
     await expect(page).toHaveURL(/\/more\?tab=catalogs/, { timeout: 15_000 });

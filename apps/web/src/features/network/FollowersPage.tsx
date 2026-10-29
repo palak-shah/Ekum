@@ -24,6 +24,7 @@ import {
 } from './followersInbox';
 import { invalidateFollowCatalog } from './invalidateFollowCatalog';
 import { THEY_SEE_MINE } from './networkSeeLabels';
+import { useDirectLinkRevoke } from './useDirectLinkRevoke';
 
 function grantsFromRow(row: ShopFollowerView): FollowAskGrants {
   if (row.stopped) return { see: false, share: false };
@@ -63,10 +64,21 @@ export function FollowersPage() {
   const decide = useMutation({
     mutationFn: (payload: { followerCompanyId: string; decision: 'look' | 'pack' | 'deny' }) =>
       api.post('/follows/decide', payload),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+    },
     onError: (err) =>
       showToast(err instanceof ApiError ? err.message : 'Could not update this ask.', 'danger'),
   });
+  const revoke = useDirectLinkRevoke(
+    (followerCompanyId) =>
+      decide.mutate(
+        { followerCompanyId, decision: 'deny' },
+        { onSuccess: () => showToast('Stopped them seeing.') },
+      ),
+    decide.isPending,
+  );
 
   const changeAccess = useMutation({
     mutationFn: (payload: { followerCompanyId: string; accessKind: 'look' | 'pack' }) =>
@@ -199,12 +211,7 @@ export function FollowersPage() {
                           aria-label="Stop them seeing"
                           className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-body text-muted disabled:opacity-45"
                           disabled={decide.isPending}
-                          onClick={() =>
-                            decide.mutate(
-                              { followerCompanyId: row.company.id, decision: 'deny' },
-                              { onSuccess: () => showToast('Stopped them seeing.') },
-                            )
-                          }
+                          onClick={() => void revoke.maybeConfirm(row.company.id)}
                         >
                           Stop
                         </button>
@@ -231,6 +238,7 @@ export function FollowersPage() {
           ) : null}
         </div>
       )}
+      {revoke.sheet}
     </div>
   );
 }

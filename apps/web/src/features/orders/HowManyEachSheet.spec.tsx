@@ -44,6 +44,8 @@ const product = {
 
 function renderSheet(props?: {
   sheetJob?: 'order' | 'ask';
+  sellerId?: string;
+  productCompanyId?: string;
   onSendOrder?: ReturnType<typeof vi.fn>;
 }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -54,8 +56,8 @@ function renderSheet(props?: {
         <HowManyEachSheet
           open
           onClose={vi.fn()}
-          sellerId="c1"
-          products={[product]}
+          sellerId={props?.sellerId ?? 'c1'}
+          products={[{ ...product, companyId: props?.productCompanyId ?? 'c1' }]}
           onSendOrder={onSendOrder}
           onAskRates={vi.fn()}
           sheetJob={props?.sheetJob ?? 'order'}
@@ -234,6 +236,18 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.queryByRole('button', { name: 'Ask rates' })).toBeNull();
   });
 
+  it('peer pack of my mill SKUs still shows Place Order', () => {
+    renderSheet({ sheetJob: 'order', sellerId: 'jaipur', productCompanyId: 'me' });
+    expect(screen.getByTestId('how-many-place-order')).toBeInTheDocument();
+    expect(screen.queryByTestId('how-many-choose-buyer')).toBeNull();
+  });
+
+  it('own shop hides Place Order and leaves Order for buyer on', () => {
+    renderSheet({ sheetJob: 'order', sellerId: 'me', productCompanyId: 'me' });
+    expect(screen.queryByTestId('how-many-place-order')).toBeNull();
+    expect(screen.getByTestId('how-many-order-for-buyer')).toBeInTheDocument();
+  });
+
   it('ask job: Ask rates only', () => {
     renderSheet({ sheetJob: 'ask' });
     expect(screen.getByTestId('how-many-ask-rates')).toHaveTextContent('Ask rates');
@@ -293,6 +307,70 @@ describe('HowManyEachSheet line chrome', () => {
       expect.arrayContaining([expect.objectContaining({ productId: 'p1' })]),
       expect.objectContaining({ note: 'Match sample' }),
     );
+  });
+
+  it('whole catalog: one qty, read-only members, equal Place payload', async () => {
+    const user = userEvent.setup();
+    const onSendOrder = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const members = [
+      {
+        ...product,
+        id: 'p1',
+        name: 'Silk',
+        unit: 'pc',
+        piecesPerPack: null,
+        rate: 450,
+        catalogRateUnit: 'pc',
+        catalogCollectionId: 'cat-1',
+        catalogWhole: true,
+        catalogName: 'Season',
+      },
+      {
+        ...product,
+        id: 'p2',
+        name: 'Cotton',
+        unit: 'pc',
+        piecesPerPack: null,
+        rate: 450,
+        catalogRateUnit: 'pc',
+        catalogCollectionId: 'cat-1',
+        catalogWhole: true,
+        catalogName: 'Season',
+      },
+    ] as ProductView[];
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="catalog-shop"
+            products={members}
+            onSendOrder={onSendOrder}
+            onAskRates={vi.fn()}
+            lockedProductIds={['p1', 'p2']}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'Season' })).toBeInTheDocument();
+    expect(screen.getByTestId('how-many-catalog')).toBeInTheDocument();
+    expect(screen.getAllByTestId('qty-stepper')).toHaveLength(1);
+    expect(screen.queryByTestId('same-for-all-chip')).toBeNull();
+    expect(screen.queryByTestId('how-many-remove')).toBeNull();
+    expect(screen.queryByTestId('how-many-add-note')).toBeNull();
+    const membersList = screen.getByTestId('how-many-catalog-members');
+    expect(within(membersList).getByText('Silk')).toBeInTheDocument();
+    expect(within(membersList).getByText('Cotton')).toBeInTheDocument();
+    expect(within(membersList).queryByRole('textbox')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Increase/i }));
+    await user.click(screen.getByTestId('how-many-place-order'));
+    const payload = onSendOrder.mock.calls[0]?.[0] as Array<{ productId: string; quantity: number }>;
+    expect(payload).toEqual([
+      expect.objectContaining({ productId: 'p1', quantity: 1 }),
+      expect.objectContaining({ productId: 'p2', quantity: 1 }),
+    ]);
   });
 
 });

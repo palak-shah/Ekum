@@ -4,15 +4,14 @@ import { API_URL } from '../../helpers/env';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 import { resetTradeLanesToMe } from '../../helpers/tradeLanes';
 
-test.describe('Your paths @functional @orders', () => {
-  test('Your paths patch is future-only; next place follows ticket', async ({ page }) => {
+test.describe('Direct links @functional @orders', () => {
+  test('legacy Your paths redirects; patch is locked; open tickets stay', async ({ page }) => {
     await loginAsRavi(page);
     const raviToken = await accessTokenFromPage(page);
     await resetTradeLanesToMe(page.request, raviToken);
 
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);
-    const meenaAuth = { authorization: `Bearer ${meenaToken}` };
     const created = await createOrder(page.request, meenaToken, {
       sellerCompanyId: 'seed-company-ravi',
       orderPathPreference: 'handle',
@@ -23,30 +22,21 @@ test.describe('Your paths @functional @orders', () => {
     const raviToken2 = await accessTokenFromPage(page);
     const auth2 = { authorization: `Bearer ${raviToken2}` };
 
-    const lanesRes = await page.request.get(`${API_URL}/trade-lanes`, { headers: auth2 });
-    expect(lanesRes.ok()).toBeTruthy();
-    const lanes = (await lanesRes.json()) as Array<{
-      id: string;
-      buyerCompanyId: string;
-      sellerCompanyId: string;
-      sellerName: string;
-      buyerName: string;
-      ticket: string;
-    }>;
-    const lane = lanes.find((row) => row.buyerCompanyId === 'seed-company-meena');
-    expect(lane).toBeTruthy();
-
     const openBefore = await page.request.get(`${API_URL}/orders/${created.id}`, {
       headers: auth2,
     });
     expect(((await openBefore.json()) as { tradeMode: string }).tradeMode).toBe('manage');
 
-    const patch = await page.request.patch(`${API_URL}/trade-lanes/${lane!.id}`, {
-      headers: auth2,
-      data: { ticket: 'mill', reveal: false },
-    });
-    expect(patch.ok()).toBeTruthy();
-    expect(((await patch.json()) as { ticket: string }).ticket).toBe('mill');
+    const lanesRes = await page.request.get(`${API_URL}/trade-lanes`, { headers: auth2 });
+    expect(lanesRes.ok()).toBeTruthy();
+    const lanes = (await lanesRes.json()) as Array<{ id: string }>;
+    if (lanes[0]) {
+      const patch = await page.request.patch(`${API_URL}/trade-lanes/${lanes[0].id}`, {
+        headers: auth2,
+        data: { ticket: 'me', reveal: false },
+      });
+      expect(patch.ok()).toBeFalsy();
+    }
 
     const stillOpen = await page.request.get(`${API_URL}/orders/${created.id}`, {
       headers: auth2,
@@ -55,55 +45,27 @@ test.describe('Your paths @functional @orders', () => {
     expect(still.tradeMode).toBe('manage');
     expect(still.status).not.toBe('cancelled');
 
-    const next = await createOrder(page.request, meenaToken, {
-      sellerCompanyId: 'seed-company-ravi',
-      orderPathPreference: 'handle',
-      items: [{ productId: 'seed-prod-fabric-1', quantity: 8 }],
-    });
-    const nextViewRes = await page.request.get(`${API_URL}/orders/${next.id}`, {
-      headers: meenaAuth,
-    });
-    expect(nextViewRes.ok()).toBeTruthy();
-    const nextView = (await nextViewRes.json()) as {
-      tradeMode: string;
-      sellerCompanyId: string;
-      facilitatorCompanyId: string | null;
-    };
-    expect(nextView.tradeMode).toBe('direct');
-    expect(nextView.sellerCompanyId).toBe(lane!.sellerCompanyId);
-    expect(nextView.facilitatorCompanyId).toBe('seed-company-ravi');
+    await page.goto('/settings/paths');
+    await expect(page).toHaveURL(/\/network\/direct-links/);
+    await expect(page.getByTestId('direct-links-page')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Direct links' })).toBeVisible();
 
-    await resetTradeLanesToMe(page.request, raviToken2);
+    await page.getByTestId('paths-new').click();
+    await expect(page.getByRole('heading', { name: 'New Direct link' })).toBeVisible();
+    const autoRepost = page.getByTestId('paths-create-auto-repost');
+    await expect(autoRepost).toContainText('New supplier posts go to this buyer');
+    await expect(autoRepost).toContainText('On');
+
+    await page.goto('/settings/your-paths');
+    await expect(page).toHaveURL(/\/network\/direct-links/);
 
     await page.goto('/settings');
-    const tryAgain = page.getByRole('button', { name: 'Try again' });
-    for (let i = 0; i < 3; i += 1) {
-      if (await tryAgain.isVisible().catch(() => false)) {
-        await tryAgain.click();
-        await page.waitForTimeout(1_000);
-      } else {
-        break;
-      }
-    }
-    if (await page.getByRole('heading', { name: 'Settings' }).isVisible().catch(() => false)) {
-      await expect(page.getByRole('link', { name: /Your paths/i })).toBeVisible();
-      await page.getByRole('link', { name: /Your paths/i }).click();
-      await expect(page.getByTestId('your-paths-page')).toBeVisible({ timeout: 15_000 });
-      await page.getByTestId('paths-help').click();
-      await expect(page.getByTestId('paths-help-pop')).toContainText('Next orders only');
-      await expect(page.getByTestId(`path-row-${lane!.id}`)).toBeVisible();
-      await expect(page.getByTestId(`path-ticket-${lane!.id}`)).toContainText('You');
-      await page.getByTestId(`path-ticket-${lane!.id}`).click();
-      await expect(page.getByTestId(`path-ticket-${lane!.id}-me`)).toBeVisible();
-      await expect(page.getByTestId(`path-reveal-${lane!.id}`)).toBeVisible();
-    }
+    await expect(page.getByRole('link', { name: /Your paths/i })).toHaveCount(0);
 
     await page.goto('/settings/profile');
     await expect(page.getByRole('heading', { name: /Business profile/i })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText('When buyers order from what I share')).toHaveCount(0);
-    await expect(page.getByText('I trade on Ekum')).toHaveCount(0);
-    await expect(page.getByText('Trade on Ekum')).toHaveCount(0);
   });
 });

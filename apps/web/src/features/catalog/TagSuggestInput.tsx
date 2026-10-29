@@ -4,13 +4,35 @@ import { CloseIcon } from '@/ui/icons';
 import { InfoHint, TextInput, cx } from '@/ui/kit';
 
 const MAX_TAGS = 20;
-const LIST_MAX_H = 160;
+const LIST_MAX_H = 240;
 /** Sticky PageHeader. */
 const TOP_CLEAR = 56;
-/** Bottom nav + Update/Create dock. */
-const BOTTOM_CLEAR = 136;
+/** Bottom nav + Update/Create dock when the keyboard is closed. */
+const DOCK_BOTTOM_CLEAR = 136;
+/** Keyboard already covers the dock — keep a few px above the visual bottom. */
+const KEYBOARD_BOTTOM_CLEAR = 8;
+/** visualViewport vs innerHeight: below this ratio the keyboard is treated as open. */
+const KEYBOARD_HEIGHT_RATIO = 0.85;
 /** Finger travel that means scroll, not a tap. */
 export const TAG_SUGGEST_SCROLL_PX = 8;
+
+export function visualViewportBox(): { top: number; bottom: number; height: number } {
+  const viewport = window.visualViewport;
+  if (!viewport) {
+    return { top: 0, bottom: window.innerHeight, height: window.innerHeight };
+  }
+  return {
+    top: viewport.offsetTop,
+    bottom: viewport.offsetTop + viewport.height,
+    height: viewport.height,
+  };
+}
+
+export function tagSuggestBottomClear(innerHeight: number, visualHeight: number): number {
+  return visualHeight < innerHeight * KEYBOARD_HEIGHT_RATIO
+    ? KEYBOARD_BOTTOM_CLEAR
+    : DOCK_BOTTOM_CLEAR;
+}
 
 /** List overflow scroll must not re-anchor the portal (that jumps the list). */
 export function isTagSuggestListScroll(
@@ -108,7 +130,10 @@ export function TagSuggestInput({
       setAnchor({ top: r.top, bottom: r.bottom, left: r.left, width: r.width });
     };
     sync();
+    wrapRef.current?.scrollIntoView?.({ block: 'start', inline: 'nearest' });
     window.addEventListener('resize', sync);
+    window.visualViewport?.addEventListener('resize', sync);
+    window.visualViewport?.addEventListener('scroll', sync);
     const onScroll = (event: Event) => {
       if (isTagSuggestListScroll(event.target, listRef.current)) return;
       sync();
@@ -116,6 +141,8 @@ export function TagSuggestInput({
     document.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', sync);
+      window.visualViewport?.removeEventListener('resize', sync);
+      window.visualViewport?.removeEventListener('scroll', sync);
       document.removeEventListener('scroll', onScroll, true);
     };
   }, [showMenu, options.length]);
@@ -158,11 +185,15 @@ export function TagSuggestInput({
     onChange(values.filter((row) => row.toLowerCase() !== tag.toLowerCase()));
   };
 
-  const spaceBelow = anchor
-    ? window.innerHeight - anchor.bottom - BOTTOM_CLEAR
-    : 0;
-  const spaceAbove = anchor ? anchor.top - TOP_CLEAR : 0;
-  const flipUp = Boolean(anchor) && spaceBelow < 128 && spaceAbove > spaceBelow;
+  const viewport = visualViewportBox();
+  const bottomClear = tagSuggestBottomClear(window.innerHeight, viewport.height);
+  const spaceBelow = anchor ? viewport.bottom - anchor.bottom - bottomClear : 0;
+  const spaceAbove = anchor ? anchor.top - viewport.top - TOP_CLEAR : 0;
+  const flipUp =
+    Boolean(anchor) &&
+    values.length === 0 &&
+    spaceBelow < 128 &&
+    spaceAbove > spaceBelow;
 
   const menu =
     showMenu && anchor
@@ -295,7 +326,12 @@ export function TagSuggestInput({
           aria-expanded={showMenu}
           aria-controls={listId}
           aria-autocomplete="list"
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            requestAnimationFrame(() => {
+              wrapRef.current?.scrollIntoView?.({ block: 'start', inline: 'nearest' });
+            });
+          }}
           onClick={() => setOpen(true)}
           onBlur={(event) => {
             const next = event.relatedTarget;

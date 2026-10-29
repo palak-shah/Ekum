@@ -4,6 +4,7 @@ import type { ConnectionView } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Card, EmptyState, LoadingBlock, StatusPill } from '@/ui/kit';
+import { useDirectLinkRevoke } from './useDirectLinkRevoke';
 
 function connectionSubtitle(status: string): string {
   if (status === 'paused') return 'Paused';
@@ -21,8 +22,15 @@ export function ConnectionsPage() {
   const connectionAction = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'resume' | 'block' | 'unblock' }) =>
       api.post(`/connections/${id}/${action}`, {}),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['connections'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+    },
   });
+  const revoke = useDirectLinkRevoke((companyId) => {
+    const row = connections.data?.find((item) => item.company.id === companyId);
+    if (row) connectionAction.mutate({ id: row.id, action: 'block' });
+  }, connectionAction.isPending);
 
   return (
     <div className="flex flex-col gap-4">
@@ -48,7 +56,13 @@ export function ConnectionsPage() {
               <StatusPill status={connection.status} />
               <ConnectionActions
                 connection={connection}
-                onAction={(action) => connectionAction.mutate({ id: connection.id, action })}
+                onAction={(action) => {
+                  if (action === 'block') {
+                    void revoke.maybeConfirm(connection.company.id);
+                    return;
+                  }
+                  connectionAction.mutate({ id: connection.id, action });
+                }}
               />
             </Card>
           ))}
@@ -59,6 +73,7 @@ export function ConnectionsPage() {
           message="Approve first chats in Chats → Requests, or invite suppliers and buyers to connect."
         />
       )}
+      {revoke.sheet}
     </div>
   );
 }

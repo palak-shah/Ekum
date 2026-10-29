@@ -9,6 +9,8 @@ import { MediaThumbnailBackfillHandler } from './handlers/media-thumbnail-backfi
 import { ReturnWindowHandler } from './handlers/return-window.handler';
 import { NotificationDigestHandler } from './handlers/notification-digest.handler';
 import { CollectionExpireHandler } from './handlers/collection-expire.handler';
+import { CollectionPropagateHandler } from './handlers/collection-propagate.handler';
+import { CatalogModule } from '../catalog/catalog.module';
 
 /**
  * The durable background-job backbone. The Postgres `Job` table is the queue;
@@ -17,7 +19,7 @@ import { CollectionExpireHandler } from './handlers/collection-expire.handler';
  */
 @Global()
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, CatalogModule],
   providers: [
     storageProvider,
     JobQueue,
@@ -27,6 +29,7 @@ import { CollectionExpireHandler } from './handlers/collection-expire.handler';
     ReturnWindowHandler,
     NotificationDigestHandler,
     CollectionExpireHandler,
+    CollectionPropagateHandler,
     {
       provide: JOB_HANDLERS,
       useFactory: (
@@ -35,13 +38,22 @@ import { CollectionExpireHandler } from './handlers/collection-expire.handler';
         returnWindow: ReturnWindowHandler,
         digest: NotificationDigestHandler,
         collectionExpire: CollectionExpireHandler,
-      ): JobHandler[] => [media, backfill, returnWindow, digest, collectionExpire],
+        collectionPropagate: CollectionPropagateHandler,
+      ): JobHandler[] => [
+        media,
+        backfill,
+        returnWindow,
+        digest,
+        collectionExpire,
+        collectionPropagate,
+      ],
       inject: [
         MediaThumbnailHandler,
         MediaThumbnailBackfillHandler,
         ReturnWindowHandler,
         NotificationDigestHandler,
         CollectionExpireHandler,
+        CollectionPropagateHandler,
       ],
     },
   ],

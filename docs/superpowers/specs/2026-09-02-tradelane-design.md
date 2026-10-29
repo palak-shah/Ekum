@@ -1,10 +1,10 @@
 # TradeLane — path, reveal, desk
 
 **Date:** 2026-09-02  
-**Status:** Shipped for Your paths + ticket Me/mill + reveal; Agent still out  
-**Client lock:** first pair order = I handle, no group; four outcomes via two wholesaler switches  
-**Shipped desk:** [I-handle desk](./2026-09-07-trader-i-handle-desk-design.md) = reveal Off; reveal On Completeness [2026-09-07-tradelane-reveal-on](../reviews/completeness/2026-09-07-tradelane-reveal-on-completeness.md); Your paths Completeness [2026-09-08-your-paths](../reviews/completeness/2026-09-08-your-paths-completeness.md)  
-**Redesign (approved direction):** Multi-supplier Place → always [main + linked lots](./2026-09-08-unified-main-linked-lots-design.md); Direct = transparent desk, not N batch tickets. Completeness Redesign `2026-09-08-unified-main-linked-lots` — no code until Proceed slice.  
+**Status:** Direct links under Network (2026-10-28). Ticket/reveal UI retired — a Direct Link **is** mill ticket + trio. Agent still out.  
+**Client lock:** no Direct Link = I handle, no group until Send; Direct Link = mill ticket + **one** mill–buyer–trader group (same three shops in any name order; create/reuse on Save; Place and trader mill Order for buyer join that thread — never a second trio). Mill own-catalog Order for buyer stays mill–buyer 1:1 (not the trio). Completeness: `2026-10-29-one-trio-collapse-completeness`.  
+**Shipped desk:** [I-handle desk](./2026-09-07-trader-i-handle-desk-design.md) for no-link mills. Completeness [2026-10-28-direct-links-network-completeness](../reviews/completeness/2026-10-28-direct-links-network-completeness.md). Mixed Place: `2026-10-28-direct-link-order-workflow-completeness`.  
+**Place routing:** eligible Direct Link → Direct mill ticket + trio at Place. No link → Manage parent + mill hops. Removing a Direct Link does not reroute open tickets. I-handle desk for remaining mills: [unified main + linked lots](./2026-09-08-unified-main-linked-lots-design.md).  
 **Supersedes for new pairs:** Profile-only Direct default and “always hide the other end” in [2026-08-21-direct-vs-handle-settings-design.md](./2026-08-21-direct-vs-handle-settings-design.md)  
 **Anchors:** [orders.md](../../features/orders.md), [settings.md](../../features/settings.md), [2026-09-02-trader-path-client-review.md](../reviews/2026-09-02-trader-path-client-review.md)
 
@@ -21,7 +21,7 @@ Traders need a quiet first order and a place to change “who the ticket is with
 | `ticket` | `me` (I handle) · `mill` (Direct) | `me` |
 | `reveal` | `false` · `true` | `false` |
 
-Four outcomes = those two fields. UI is **two switches**, never four radios.
+Four outcomes remain in storage. Product UI is **one bit**: Direct Link exists or not. Direct Link create always persists `ticket=mill`, `reveal=true`. No live ticket/reveal editing.
 
 | ticket | reveal | Chat | Order counterpart (buyer) |
 |--------|--------|------|---------------------------|
@@ -30,13 +30,15 @@ Four outcomes = those two fields. UI is **two switches**, never four radios.
 | `mill` | false | Buyer–seller 1:1; trader sees order on list | Seller |
 | `mill` | true | Same group of three | Seller |
 
-Reveal on ⇒ group exists (create once, reuse). Reveal off ⇒ no trio group. Group title = three **business** names; any of the three companies’ owners may rename (system line: who changed it). Team: each shop’s owners add staff to **this** group; roster change does not spawn a second group.
+Reveal on ⇒ group exists **after Send** (create once, reuse). Your paths PATCH must not create the trio while a hop is still Waiting. Reveal off ⇒ no trio group. Group title = three **business** names; any of the three companies’ owners may rename (system line: who changed it). Team: each shop’s owners add staff to **this** group; roster change does not spawn a second group.
+
+`TradeLane.behaviors` JSON: `directOrder` on for Direct Links. Auto-repost is **not** a per-lane toggle — eligibility is Direct Link + discoverable source + `allowForward`. Audience = **Selected** Direct Link buyers for that supplier (not the trader’s Followers). `showSourceShops` on (`From {shop}`). Creating the link does not copy live albums; only collections created after the link hop. One pack per trader × canonical root; existing pack gets source design adds in place. Manual Followers Repost reuses that pack. Completeness: `2026-10-28-auto-repost-selected-buyer-completeness`, `2026-10-28-auto-repost-future-only-supplier-completeness`. Direct Links UI: **Supplier** (not Mill). List is Supplier | Buyer | Remove (completeness `2026-10-28-direct-links-compact-list-completeness`). Locked On rows (including auto-repost last: **New supplier posts go to this buyer**) live on the ＋ sheet only (completeness `2026-10-28-direct-link-auto-repost-row-completeness`).
 
 ## When the lane is read
 
 1. **New pair** (no row): behave as `me` + `reveal=false`. Do not stamp Profile Direct onto the first ticket.
 2. **Existing pair:** next share/order/publish/curate through this trader for that seller+buyer uses the lane.
-3. **Writes:** More on the order/share sheet, **order detail**, **Your paths**. Same copy both places.
+3. **Writes:** Network **Direct links** create/remove (and follow-revoke cleanup). Order page has no ticket/reveal pick.
 
 ### Copy (wholesaler)
 
@@ -47,20 +49,21 @@ Reveal on ⇒ group exists (create once, reuse). Reveal off ⇒ no trio group. G
 
 Everyday Place / Send: **no** these controls.
 
-## Your paths
+## Direct links (Network)
 
-Route under **You** (Settings): `/settings/paths` (name in UI: **Your paths**).
+Route: `/network/direct-links`. Legacy `/settings/paths` and `/settings/your-paths` redirect here.
 
 - Search shop name.
-- List: supplier · buyer on each card; **inline** Me / {mill} and see-each-other Off/On (tap saves that row).
-- Empty: no pairs until a first middle-hop order exists.
-- Saves update `TradeLane` for **future** orders only. Changing ticket/reveal on a **live** order (order page) applies to that order and updates the lane.
+- List: mill · buyer. Locked mill ticket + trio (no ticket/reveal rows).
+- **＋** mill = shops I follow; buyer = shops that follow me.
+- Empty until they add a Direct Link.
+- Create/remove is **future** orders only (open tickets stay). Follow/unfollow that would drop a link confirms first; server deletes only affected lanes and closes that lane’s `groupThreadId`.
 
-Needs **I trade on Ekum**. Buy-only / sell-only without trading: no desk.
+Needs **I trade on Ekum**. Buy-only / sell-only without trading: no Direct links row.
 
 ## Profile
 
-**When buyers order from what I share** was removed. Path lives only on **Your paths** (and live order switches). New lane = I handle + no reveal.
+**When buyers order from what I share** was removed. Path lives on **Direct links**. No Direct Link = I handle + no reveal.
 
 ## Out of scope here
 
@@ -72,8 +75,8 @@ Needs **I trade on Ekum**. Buy-only / sell-only without trading: no desk.
 ## Tests (when built)
 
 - First middle-hop order creates lane `me`/`false`; no group. **Shipped.**
-- Order page mill card persists reveal; Your paths persists ticket + reveal for **future**. **Shipped.**
-- Reveal on creates or reuses one trio group after Send; Send-hold defers mill in group. **Shipped.**
-- Your paths search + edit. **Shipped.**
+- Live ticket/reveal editing retired; Direct Link create persists mill + trio. **Shipped.**
+- Direct Place opens mill–buyer–trader group immediately; I-handle stays private until Send. **Shipped.**
+- Network Direct links search + create/remove; follow-revoke confirm. **Shipped.**
 - Live ticket flip while Requested + no quote. **Shipped** (single mill).
 - Publish / share path radios removed. **Shipped.**

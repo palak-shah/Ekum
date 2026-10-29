@@ -40,6 +40,7 @@ import {
   type EditShipmentDto,
   type ListOrdersQuery,
   matchesOrderNeedsYou,
+  catalogWholeChatMeta,
   orderBillTotal,
   type OrderView,
   type QuoteOrderDto,
@@ -54,9 +55,9 @@ import {
   type SetLineQuantityDto,
   TradeLaneTicket,
 } from '@ekum/domain-types';
-import { matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
+import { claimParentItemId, matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
 import { buyerSafePassThroughSummary } from './i-handle-soft-hide';
-import { shouldRouteToTrio, effectivePathFromLane, isReleasedMillSubset, manageParentOpenChatThreadId } from './trade-lane';
+import { shouldRouteToTrio, effectivePathFromLane, isReleasedMillSubset, manageParentOpenChatThreadId, laneRoutesDirect, qtyChangeSummary, DEFAULT_LANE_BEHAVIORS, trioMillLaneWhere } from './trade-lane';
 import { millLaneVisibleToBuyer } from './mill-desk-visibility';
 import type { Env } from '../core/config/config.schema';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -74,8 +75,13 @@ import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
 import { isHeldFromSupplier } from './orderHold';
 import {
+  assertCatalogWholeDecisionTogether,
+  assertEqualWholeCatalogQuantities,
   assertExclusiveWholeCatalogComplete,
+  fanOutCatalogWholeLines,
   missingWholeCatalogMembers,
+  resolveCatalogWholeStamps,
+  type CatalogWholePackHint,
 } from './catalog-whole-order';
 import {
   primaryLrFromLegs,
@@ -116,6 +122,10 @@ type CreateOrderOptions = {
   skipLanePlace?: boolean;
   /** Trader/supplier logging How many each for this buyer (not the actor). */
   onBehalfBuyerCompanyId?: string;
+  /** Persist hop `sourceItemId` from dto items (never from public Place). */
+  allowSourceItemIds?: boolean;
+  /** From-pack whole catalog — stamp every line in this create. */
+  catalogWholePack?: CatalogWholePackHint | null;
 };
 
 /** Chat body for line decisions — omit zero counts; Order # lives on the card title. */
@@ -212,6 +222,8 @@ export class OrderService {
     );
     const items = await this.snapshotItems(dto, {
       allowForeignProducts: options.allowForeignProducts === true,
+      allowSourceItemIds: options.allowSourceItemIds === true,
+      catalogWholePack: options.catalogWholePack,
     });
 
     const resolvedOpts = await this.resolveFacilitatorOptions(
@@ -253,7 +265,14 @@ export class OrderService {
     let threadId: string | null = null;
     let livingMessageId: string | null = null;
     if (!held) {
-      threadId = await this.threads.ensureTradeThread(buyerCompanyId, dto.sellerCompanyId);
+      threadId =
+        tradeMode === OrderTradeMode.Direct && resolvedOpts.facilitatorCompanyId
+          ? await this.ensureDirectPlaceThread(
+              resolvedOpts.facilitatorCompanyId,
+              dto.sellerCompanyId,
+              buyerCompanyId,
+            )
+          : await this.threads.ensureTradeThread(buyerCompanyId, dto.sellerCompanyId);
       const orderLabel = shortOrderLabel(order.id, { inquiry });
       const loggedForBuyer = Boolean(options.onBehalfBuyerCompanyId);
       const logger = loggedForBuyer
@@ -277,7 +296,7 @@ export class OrderService {
         order.id,
         {
           status: order.status,
-          itemCount: order.items.length,
+          ...catalogWholeChatMeta(order.items),
           event,
           orderLabel,
           actorLabel,
@@ -523,32 +542,6 @@ export class OrderService {
 
     await this.tradeAccess.assertCanTrade(actorCompanyId, collection.companyId, { productIds });
 
-    // Manage via options only — do not stamp orderPathPreference: 'handle' or
-    // create() would also spawnHandleUpstreams and double every mill card.
-    const downstream = await this.create(
-      actorCompanyId,
-      userId,
-      {
-        sellerCompanyId: collection.companyId,
-        kind: dto.kind ?? OrderKind.Standard,
-        intent: dto.intent ?? OrderIntent.Order,
-        note: dto.note,
-        transporter: dto.transporter,
-        noteVoiceMediaId: dto.noteVoiceMediaId,
-        noteVoiceDurationMs: dto.noteVoiceDurationMs,
-        noteImageUrls: dto.noteImageUrls,
-        items: dto.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          images: item.images ?? [],
-          note: item.note,
-          unit: item.unit,
-          name: item.name,
-        })),
-      },
-      { tradeMode: OrderTradeMode.Manage, allowForeignProducts: true },
-    );
-
     const groups = new Map<
       string,
       { sellerName: string | null; items: CreateOrdersFromPackDto['items'] }
@@ -564,39 +557,110 @@ export class OrderService {
       groups.set(product.companyId, bucket);
     }
 
-    const upstreams: OrderView[] = [];
-    const failures: CreateOrdersFromPackResult['failures'] = [];
-    const shortId = downstream.id.slice(-6).toUpperCase();
+    const handleItems: CreateOrdersFromPackDto['items'] = [];
+    const directGroups: Array<[string, { sellerName: string | null; items: CreateOrdersFromPackDto['items'] }]> =
+      [];
+    const handleGroups: Array<[string, { sellerName: string | null; items: CreateOrdersFromPackDto['items'] }]> =
+      [];
 
     for (const [sellerCompanyId, group] of groups) {
+      if (sellerCompanyId === collection.companyId) {
+        handleItems.push(...group.items);
+        continue;
+      }
+      const lane = await this.prisma.tradeLane.findUnique({
+        where: {
+          traderCompanyId_sellerCompanyId_buyerCompanyId: {
+            traderCompanyId: collection.companyId,
+            sellerCompanyId,
+            buyerCompanyId: actorCompanyId,
+          },
+        },
+        select: { ticket: true, behaviors: true },
+      });
+      if (laneRoutesDirect({ ticket: lane?.ticket, behaviors: lane?.behaviors })) {
+        directGroups.push([sellerCompanyId, group]);
+      } else {
+        handleItems.push(...group.items);
+        handleGroups.push([sellerCompanyId, group]);
+      }
+    }
+
+    const toLine = (item: CreateOrdersFromPackDto['items'][number]) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      images: item.images ?? [],
+      note: item.note,
+      unit: item.unit,
+      name: item.name,
+    });
+
+    const shared = {
+      kind: dto.kind ?? OrderKind.Standard,
+      intent: dto.intent ?? OrderIntent.Order,
+      note: dto.note,
+      transporter: dto.transporter,
+      noteVoiceMediaId: dto.noteVoiceMediaId,
+      noteVoiceDurationMs: dto.noteVoiceDurationMs,
+      noteImageUrls: dto.noteImageUrls,
+    };
+
+    // Manage via options only — do not stamp orderPathPreference: 'handle' or
+    // create() would also spawnHandleUpstreams and double every mill card.
+    let downstream: OrderView | null = null;
+    if (handleItems.length > 0) {
+      downstream = await this.create(
+        actorCompanyId,
+        userId,
+        {
+          sellerCompanyId: collection.companyId,
+          ...shared,
+          items: handleItems.map(toLine),
+        },
+        {
+          tradeMode: OrderTradeMode.Manage,
+          allowForeignProducts: true,
+          catalogWholePack: {
+            id: collection.id,
+            name: collection.name,
+            kind: (collection as { kind?: string | null }).kind,
+            orderMode: (collection as { orderMode?: string | null }).orderMode,
+          },
+        },
+      );
+    }
+
+    const unusedParent = (downstream?.items ?? []).map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.name,
+    }));
+    const upstreams: OrderView[] = [];
+    const directs: OrderView[] = [];
+    const failures: CreateOrdersFromPackResult['failures'] = [];
+    const shortId = (downstream?.id ?? 'order').slice(-6).toUpperCase();
+
+    for (const [sellerCompanyId, group] of handleGroups) {
       try {
-        if (sellerCompanyId === actorCompanyId) continue;
-        await this.upsertTradeLane(
-          collection.companyId,
-          sellerCompanyId,
-          actorCompanyId,
-        );
+        await this.upsertTradeLane(collection.companyId, sellerCompanyId, actorCompanyId);
+        const hopItems = group.items.map((item) => ({
+          ...toLine(item),
+          sourceItemId: claimParentItemId(unusedParent, item) ?? undefined,
+        }));
         const upstream = await this.create(
           collection.companyId,
           userId,
           {
             sellerCompanyId,
-            kind: dto.kind ?? OrderKind.Standard,
-            intent: dto.intent ?? OrderIntent.Order,
+            ...shared,
             note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
-            noteVoiceMediaId: dto.noteVoiceMediaId,
-            noteVoiceDurationMs: dto.noteVoiceDurationMs,
-            noteImageUrls: dto.noteImageUrls,
-            items: group.items.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              images: item.images ?? [],
-              note: item.note,
-              unit: item.unit,
-              name: item.name,
-            })),
+            items: hopItems,
           },
-          { downstreamOrderId: downstream.id, holdUntilSend: true },
+          {
+            downstreamOrderId: downstream!.id,
+            holdUntilSend: true,
+            allowSourceItemIds: true,
+          },
         );
         upstreams.push(upstream);
       } catch (err) {
@@ -610,7 +674,50 @@ export class OrderService {
       }
     }
 
-    return { downstream, upstreams, failures };
+    for (const [sellerCompanyId, group] of directGroups) {
+      try {
+        await this.upsertTradeLane(
+          collection.companyId,
+          sellerCompanyId,
+          actorCompanyId,
+          { ticket: TradeLaneTicket.Mill },
+        );
+        const direct = await this.create(
+          actorCompanyId,
+          userId,
+          {
+            sellerCompanyId,
+            facilitatorCompanyId: collection.companyId,
+            ...shared,
+            items: group.items.map(toLine),
+          },
+          {
+            tradeMode: OrderTradeMode.Direct,
+            facilitatorCompanyId: collection.companyId,
+            allowForeignProducts: true,
+            skipLanePlace: true,
+          },
+        );
+        directs.push(direct);
+      } catch (err) {
+        failures.push({
+          sellerCompanyId,
+          sellerName: group.sellerName,
+          productIds: group.items.map((item) => item.productId),
+          code: exceptionCode(err),
+          message: exceptionMessage(err, 'Could not place the direct order.'),
+        });
+      }
+    }
+
+    if (!downstream && directs.length === 0) {
+      throw new BadRequestException({
+        code: 'ORDER_FAILED',
+        message: 'Could not place this order.',
+      });
+    }
+
+    return { downstream, upstreams, directs, failures };
   }
 
   /**
@@ -644,6 +751,10 @@ export class OrderService {
     }
 
     const inquiry = order.intent === OrderIntent.Inquiry;
+    await assertExclusiveWholeCatalogComplete(
+      this.prisma,
+      dto.items.map((item) => item.productId).filter((id): id is string => Boolean(id)),
+    );
     const snapshots = await this.snapshotItems(
       {
         sellerCompanyId: order.sellerCompanyId,
@@ -825,7 +936,7 @@ export class OrderService {
     const quotedIds = await this.orderIdsWithSellerQuote(rows);
     const needsQuotePassIds = await this.parentIdsNeedingQuotePass(rows, actorCompanyId, quotedIds);
     const linkedByParent = await this.linkedMillsByParent(rows, actorCompanyId);
-    const healedIds = await this.healManageParentsInList(rows);
+    const healedIds = await this.healOpenTicketsInList(rows);
     if (healedIds.size > 0) {
       const refreshed = await this.prisma.order.findMany({
         where: { id: { in: [...healedIds] } },
@@ -898,7 +1009,7 @@ export class OrderService {
     const quotedIds = await this.orderIdsWithSellerQuote(rows);
     const needsQuotePassIds = await this.parentIdsNeedingQuotePass(rows, actorCompanyId, quotedIds);
     const linkedByParent = await this.linkedMillsByParent(rows, actorCompanyId);
-    const healedIds = await this.healManageParentsInList(rows);
+    const healedIds = await this.healOpenTicketsInList(rows);
     if (healedIds.size > 0) {
       const refreshed = await this.prisma.order.findMany({
         where: { id: { in: [...healedIds] } },
@@ -928,16 +1039,15 @@ export class OrderService {
 
   async get(actorCompanyId: string, id: string): Promise<OrderView> {
     let order = await this.loadForParty(id, actorCompanyId, true);
+    if (await this.healMillLoggedDirect(order)) {
+      order = await this.loadForParty(id, actorCompanyId, true);
+    }
     if (await this.healManageParentIfSubsetsComplete(order)) {
       order = await this.loadForParty(id, actorCompanyId, true);
     }
     const millDesks = await this.buildMillDesks(order, actorCompanyId);
     const firstReveal = millDesks.find((desk) => desk.reveal && desk.revealThreadId)?.revealThreadId;
-    const directThreadId = await this.threads.findDirectThreadId(
-      order.buyerCompanyId,
-      order.sellerCompanyId,
-    );
-    const threadId = manageParentOpenChatThreadId(directThreadId, firstReveal);
+    const threadId = await this.threadIdForOpenChat(order, firstReveal);
     const view = await this.toOrderView(order, actorCompanyId, threadId);
     const sellerQuoted = await this.hasSellerQuote(order.id, order.sellerCompanyId);
     const relatedOrders = await this.buildRelatedOrders(order, actorCompanyId);
@@ -1138,6 +1248,9 @@ export class OrderService {
         },
       }),
     ]);
+    await this.stampConfirmedIfMissing(
+      order.items.filter((item) => openIds.includes(item.id)),
+    );
 
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
@@ -1220,6 +1333,7 @@ export class OrderService {
         },
       }),
     ]);
+    await this.stampConfirmedIfMissing(openWithRate);
 
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.buyer.name;
@@ -1462,8 +1576,10 @@ export class OrderService {
     const byId = new Map(order.items.map((item) => [item.id, item]));
     let confirmed = 0;
     let declined = 0;
+    assertCatalogWholeDecisionTogether(order.items, dto.items);
+    const decideItems = fanOutCatalogWholeLines(order.items, dto.items);
 
-    for (const line of dto.items) {
+    for (const line of decideItems) {
       const item = byId.get(line.orderItemId);
       if (!item) {
         throw new NotFoundException({
@@ -1507,6 +1623,8 @@ export class OrderService {
           quantity: nextQty,
           ...(nextRate != null ? { rate: nextRate } : {}),
           lineStatus: OrderLineStatus.Confirmed,
+          ...(item.confirmedQuantity == null ? { confirmedQuantity: nextQty } : {}),
+          ...(item.confirmedRate == null && nextRate != null ? { confirmedRate: nextRate } : {}),
         },
       });
       confirmed += 1;
@@ -1704,8 +1822,9 @@ export class OrderService {
     const byId = new Map(order.items.map((item) => [item.id, item]));
     const shippedByItem = this.shippedTotals(order);
     const changed: Array<{ name: string; cantSupply: boolean }> = [];
+    const supplyItems = fanOutCatalogWholeLines(order.items, dto.items);
 
-    for (const line of dto.items) {
+    for (const line of supplyItems) {
       const item = byId.get(line.orderItemId);
       if (!item) {
         throw new NotFoundException({
@@ -1738,7 +1857,12 @@ export class OrderService {
         changed.push({ name: item.name, cantSupply: true });
       } else {
         if (item.lineStatus !== OrderLineStatus.Declined) continue;
-        const restoreQty = item.requestedQuantity.toNumber();
+        const restoreQty =
+          item.confirmedQuantity != null
+            ? item.confirmedQuantity.toNumber()
+            : item.quantity.toNumber() > 0
+              ? item.quantity.toNumber()
+              : item.requestedQuantity.toNumber();
         await this.prisma.orderItem.update({
           where: { id: item.id },
           data: {
@@ -1838,6 +1962,7 @@ export class OrderService {
         itemCount: changed.length,
       },
     );
+    await this.passMillLinesToParent(id, actorCompanyId, userId);
     return this.emitAndGet(actorCompanyId, id, nextStatus);
   }
 
@@ -1877,9 +2002,11 @@ export class OrderService {
 
     const byId = new Map(order.items.map((item) => [item.id, item]));
     const shippedByItem = this.shippedTotals(order);
-    const changed: Array<{ name: string; quantity: number }> = [];
+    const changed: Array<{ name: string; quantity: number; before: number; orderItemId: string }> =
+      [];
+    const qtyItems = fanOutCatalogWholeLines(order.items, dto.items);
 
-    for (const line of dto.items) {
+    for (const line of qtyItems) {
       const item = byId.get(line.orderItemId);
       if (!item) {
         throw new NotFoundException({
@@ -1904,14 +2031,15 @@ export class OrderService {
           message: 'Can’t go below shipped.',
         });
       }
-      if (nextQty === item.quantity.toNumber()) continue;
+      const beforeQty = item.quantity.toNumber();
+      if (nextQty === beforeQty) continue;
       const nextLineStatus =
         shipped + 1e-9 >= nextQty ? OrderLineStatus.Dispatched : OrderLineStatus.Confirmed;
       await this.prisma.orderItem.update({
         where: { id: item.id },
         data: { quantity: nextQty, lineStatus: nextLineStatus },
       });
-      changed.push({ name: item.name, quantity: nextQty });
+      changed.push({ name: item.name, quantity: nextQty, before: beforeQty, orderItemId: item.id });
     }
 
     if (changed.length < 1) {
@@ -1954,7 +2082,9 @@ export class OrderService {
     const actorLabel = order.seller.name;
     const orderLabel = shortOrderLabel(id);
     const summary =
-      changed.length === 1 ? 'Updated qty' : `Updated qty · ${changed.length} designs`;
+      changed.length === 1
+        ? qtyChangeSummary(changed[0]!.before, changed[0]!.quantity)
+        : `Updated qty · ${changed.length} designs`;
     const detail = changed.map((row) => row.name).join(' · ');
     await this.trail.append({
       orderId: id,
@@ -1964,6 +2094,14 @@ export class OrderService {
       actorUserId: userId,
       summary,
       detail,
+      payload: {
+        items: changed.map((row) => ({
+          orderItemId: row.orderItemId,
+          field: 'quantity',
+          before: row.before,
+          after: row.quantity,
+        })),
+      },
     });
     await this.postOrderCard(
       order.buyerCompanyId,
@@ -1980,6 +2118,7 @@ export class OrderService {
         itemCount: changed.length,
       },
     );
+    await this.passMillLinesToParent(id, actorCompanyId, userId);
     return this.emitAndGet(actorCompanyId, id, nextStatus);
   }
 
@@ -2002,16 +2141,18 @@ export class OrderService {
     }
 
     const shippedByItem = this.shippedTotals(order);
-    const candidates =
+    const candidates = fanOutCatalogWholeLines(
+      order.items,
       dto.items ??
-      order.items
-        .filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
-        .map((item) => {
-          const shipped = shippedByItem.get(item.id) ?? 0;
-          const remaining = item.quantity.toNumber() - shipped;
-          return { orderItemId: item.id, quantity: remaining };
-        })
-        .filter((line) => line.quantity > 0);
+        order.items
+          .filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
+          .map((item) => {
+            const shipped = shippedByItem.get(item.id) ?? 0;
+            const remaining = item.quantity.toNumber() - shipped;
+            return { orderItemId: item.id, quantity: remaining };
+          })
+          .filter((line) => line.quantity > 0),
+    );
 
     if (candidates.length < 1) {
       throw new BadRequestException({
@@ -2464,7 +2605,8 @@ export class OrderService {
     const finalByItem = new Map<string, number>();
     if (dto.items?.length) {
       const shippableIds = new Set(shippable.map((item) => item.id));
-      for (const row of dto.items) {
+      const settleLines = fanOutCatalogWholeLines(order.items, dto.items);
+      for (const row of settleLines) {
         if (!shippableIds.has(row.orderItemId)) {
           throw new BadRequestException({
             code: 'INVALID_SETTLE_LINE',
@@ -2808,7 +2950,7 @@ export class OrderService {
         id,
         {
           status: OrderStatus.Declined,
-          itemCount: order.items.length,
+          ...catalogWholeChatMeta(order.items),
           event: OrderChatEvent.OrderDeclined,
           orderLabel,
           actorLabel,
@@ -2856,59 +2998,18 @@ export class OrderService {
     return this.get(actorCompanyId, id);
   }
 
-  /** TradeLane: mill and end buyer can see each other (trio group). */
+  /** Retired: trio is a Direct Link, not a live mill-desk switch. */
   async millReveal(
     actorCompanyId: string,
     _userId: string,
     id: string,
-    dto: MillRevealDto,
+    _dto: MillRevealDto,
   ): Promise<OrderView> {
-    const order = await this.loadForParty(id, actorCompanyId);
-    if (order.sellerCompanyId !== actorCompanyId || order.tradeMode !== OrderTradeMode.Manage) {
-      throw new ForbiddenException({
-        code: 'NOT_ALLOWED',
-        message: 'Only you can change this.',
-      });
-    }
-    const up = await this.prisma.order.findFirst({
-      where: { id: dto.upstreamOrderId, downstreamOrderId: id },
-      select: {
-        id: true,
-        sellerCompanyId: true,
-        upstreamReleasedAt: true,
-        seller: { select: { name: true } },
-      },
+    await this.loadForParty(id, actorCompanyId);
+    throw new BadRequestException({
+      code: 'PATH_LOCKED',
+      message: 'Share a group is a Direct Link. Add or remove it under Network.',
     });
-    if (!up) {
-      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Mill lot not found.' });
-    }
-    if (up.sellerCompanyId === order.buyerCompanyId) {
-      throw new BadRequestException({
-        code: 'SAME_SHOP',
-        message: 'Mill and buyer are the same shop — nothing to reveal.',
-      });
-    }
-    const lane = await this.upsertTradeLane(
-      actorCompanyId,
-      up.sellerCompanyId,
-      order.buyerCompanyId,
-      { reveal: dto.reveal },
-    );
-    if (dto.reveal && up.upstreamReleasedAt) {
-      const groupThreadId = await this.threads.ensureTradeLaneGroup(
-        lane.traderCompanyId,
-        lane.sellerCompanyId,
-        lane.buyerCompanyId,
-        lane.groupThreadId,
-      );
-      if (groupThreadId !== lane.groupThreadId) {
-        await this.prisma.tradeLane.update({
-          where: { id: lane.id },
-          data: { groupThreadId },
-        });
-      }
-    }
-    return this.get(actorCompanyId, id);
   }
 
   /**
@@ -2981,18 +3082,10 @@ export class OrderService {
       return this.get(actorCompanyId, id);
     }
 
-    if (dto.ticket !== TradeLaneTicket.Mill) {
-      return this.get(actorCompanyId, id);
-    }
-
-    // Mills = observe on the same main + linked lots (uniform; scales to many mills).
-    // Do not cancel / spawn N Directs — trader watches this card; Find sub → main.
-    for (const hop of ups) {
-      await this.upsertTradeLane(actorCompanyId, hop.sellerCompanyId, order.buyerCompanyId, {
-        ticket: TradeLaneTicket.Mill,
-      });
-    }
-    return this.get(actorCompanyId, id);
+    throw new BadRequestException({
+      code: 'PATH_LOCKED',
+      message: 'Direct mill orders are a Direct Link. Add it under Network.',
+    });
   }
 
   private async announceReleasedUpstream(orderId: string, actorCompanyId: string): Promise<void> {
@@ -3098,6 +3191,18 @@ export class OrderService {
       { tradeMode: OrderTradeMode.Manage, allowForeignProducts: true },
     );
 
+    const unusedParent = downstream.items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.name,
+    }));
+    const hopItems = lineItems
+      .filter((item) => item.productId || item.images?.length)
+      .map((item) => ({
+        ...item,
+        sourceItemId: claimParentItemId(unusedParent, item) ?? undefined,
+      }));
+
     const upstream = await this.create(
       actorCompanyId,
       userId,
@@ -3106,9 +3211,14 @@ export class OrderService {
         kind: order.kind as CreateOrderDto['kind'],
         intent: (order.intent as CreateOrderDto['intent']) ?? OrderIntent.Order,
         note: `Taken over · for #${downstream.id.slice(-6).toUpperCase()}`,
-        items: lineItems.filter((item) => item.productId),
+        items: hopItems,
       },
-      { downstreamOrderId: downstream.id, holdUntilSend: true },
+      {
+        downstreamOrderId: downstream.id,
+        holdUntilSend: true,
+        allowSourceItemIds: true,
+        allowForeignProducts: true,
+      },
     );
 
     await this.prisma.order.update({
@@ -3969,6 +4079,7 @@ export class OrderService {
       where: {
         downstreamOrderId: order.id,
         status: { not: OrderStatus.Cancelled },
+        tradeMode: { not: OrderTradeMode.Direct },
       },
       include: { seller: true, items: true },
     });
@@ -3983,17 +4094,27 @@ export class OrderService {
     const laneByMill = new Map(lanes.map((lane) => [lane.sellerCompanyId, lane]));
     const desks = await Promise.all(
       ups.map(async (up) => {
-        const byProduct = new Map(
-          up.items
-            .filter((item) => item.productId)
-            .map((item) => [item.productId as string, item]),
-        );
         const lines: OrderMillDeskView['lines'] = [];
         const itemIds: string[] = [];
+        const usedMill = new Set<string>();
         for (const parentItem of order.items) {
-          if (!parentItem.productId) continue;
-          const millItem = byProduct.get(parentItem.productId);
+          const millItem =
+            up.items.find(
+              (item) =>
+                (item as { sourceItemId?: string | null }).sourceItemId === parentItem.id,
+            ) ??
+            (() => {
+              if (!parentItem.productId) return undefined;
+              const hits = up.items.filter(
+                (item) =>
+                  !usedMill.has(item.id) &&
+                  !item.sourceItemId &&
+                  item.productId === parentItem.productId,
+              );
+              return hits.length === 1 ? hits[0] : undefined;
+            })();
           if (!millItem) continue;
+          usedMill.add(millItem.id);
           itemIds.push(parentItem.id);
           lines.push({
             parentItemId: parentItem.id,
@@ -4103,6 +4224,7 @@ export class OrderService {
           actorRole: 'buyer',
         },
       );
+      await this.stampConfirmedIfMissing(openWithRate);
     }
   }
 
@@ -4122,20 +4244,62 @@ export class OrderService {
     });
     if (!parent) return;
     let confirmed = 0;
+    let declined = 0;
+    let qtyChanged = 0;
+    const qtyPayload: Array<{ orderItemId: string; field: string; before: number; after: number }> =
+      [];
     for (const millItem of mill.items) {
-      if (millItem.lineStatus !== OrderLineStatus.Confirmed) continue;
       const parentItemId = matchParentItemId(parent.items, millItem);
       if (!parentItemId) continue;
+      const parentItem = parent.items.find((item) => item.id === parentItemId);
+      if (!parentItem) continue;
+      if (millItem.lineStatus === OrderLineStatus.Declined) {
+        if (parentItem.lineStatus === OrderLineStatus.Declined) continue;
+        await this.prisma.orderItem.update({
+          where: { id: parentItemId },
+          data: { lineStatus: OrderLineStatus.Declined },
+        });
+        declined += 1;
+        continue;
+      }
+      if (
+        millItem.lineStatus !== OrderLineStatus.Confirmed &&
+        millItem.lineStatus !== OrderLineStatus.Dispatched
+      ) {
+        continue;
+      }
+      const nextQty = millItem.quantity.toNumber();
+      const beforeQty = parentItem.quantity.toNumber();
+      const nextRate = millItem.rate != null ? millItem.rate.toNumber() : null;
       await this.prisma.orderItem.update({
         where: { id: parentItemId },
         data: {
           quantity: millItem.quantity,
-          lineStatus: OrderLineStatus.Confirmed,
+          ...(nextRate != null ? { rate: millItem.rate } : {}),
+          lineStatus:
+            millItem.lineStatus === OrderLineStatus.Dispatched
+              ? OrderLineStatus.Dispatched
+              : OrderLineStatus.Confirmed,
+          ...(parentItem.confirmedQuantity == null
+            ? { confirmedQuantity: millItem.confirmedQuantity ?? millItem.quantity }
+            : {}),
+          ...(parentItem.confirmedRate == null && millItem.confirmedRate != null
+            ? { confirmedRate: millItem.confirmedRate }
+            : {}),
         },
       });
-      confirmed += 1;
+      if (parentItem.lineStatus !== OrderLineStatus.Confirmed) confirmed += 1;
+      if (beforeQty !== nextQty) {
+        qtyChanged += 1;
+        qtyPayload.push({
+          orderItemId: parentItemId,
+          field: 'quantity',
+          before: beforeQty,
+          after: nextQty,
+        });
+      }
     }
-    if (confirmed === 0) return;
+    if (confirmed === 0 && declined === 0 && qtyChanged === 0) return;
     const refreshed = await this.prisma.order.findUnique({
       where: { id: parent.id },
       include: { items: true },
@@ -4157,14 +4321,34 @@ export class OrderService {
       });
     }
     // Soft-hide: never put mill shop names on the buyer↔trader ticket.
-    const summary = buyerSafePassThroughSummary('confirmed', parent.seller.name);
+    const summary =
+      qtyChanged > 0 && confirmed === 0 && declined === 0
+        ? qtyPayload.length === 1
+          ? qtyChangeSummary(qtyPayload[0]!.before, qtyPayload[0]!.after)
+          : `Updated qty · ${qtyPayload.length} designs`
+        : buyerSafePassThroughSummary(
+            declined > 0 && confirmed === 0 ? 'confirmed' : 'confirmed',
+            parent.seller.name,
+          );
     await this.trail.append({
       orderId: parent.id,
-      type: OrderTrailType.Confirmed,
+      type:
+        qtyChanged > 0 && confirmed === 0
+          ? OrderTrailType.Updated
+          : declined > 0 && confirmed === 0
+            ? OrderTrailType.Updated
+            : OrderTrailType.Confirmed,
       actorCompanyId: parent.sellerCompanyId,
       actorUserId: userId,
       summary,
-      detail: `${confirmed} design${confirmed === 1 ? '' : 's'}`,
+      detail:
+        qtyChanged > 0 && confirmed === 0
+          ? parent.items
+              .filter((item) => qtyPayload.some((row) => row.orderItemId === item.id))
+              .map((item) => item.name)
+              .join(' · ')
+          : `${confirmed} design${confirmed === 1 ? '' : 's'}`,
+      payload: qtyPayload.length > 0 ? { items: qtyPayload } : undefined,
     });
     await this.postOrderCard(
       parent.buyerCompanyId,
@@ -4174,8 +4358,11 @@ export class OrderService {
       parent.id,
       {
         status: stillOpen ? parent.status : OrderStatus.Confirmed,
-        itemCount: confirmed,
-        event: OrderChatEvent.LinesDecided,
+        itemCount: Math.max(confirmed, qtyChanged, declined),
+        event:
+          qtyChanged > 0 && confirmed === 0
+            ? OrderChatEvent.OrderUpdated
+            : OrderChatEvent.LinesDecided,
         orderLabel: shortOrderLabel(parent.id),
         actorLabel: parent.seller.name,
         actorRole: 'seller',
@@ -4323,18 +4510,61 @@ export class OrderService {
     const ups = await this.prisma.order.findMany({
       where: {
         downstreamOrderId: parentId,
-        upstreamReleasedAt: { not: null },
+        status: OrderStatus.Requested,
         passHeldAt: null,
       },
-      include: { items: true },
+      include: { items: true, seller: true },
     });
     for (const up of ups) {
+      const unusedParent = parent.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.name,
+      }));
+      const claimed = new Set<string>();
       for (const millItem of up.items) {
-        const parentItem = parent.items.find((item) => item.productId === millItem.productId);
-        if (!parentItem) continue;
+        const parentItemId = claimParentItemId(unusedParent, millItem);
+        if (!parentItemId) {
+          await this.prisma.orderItem.delete({ where: { id: millItem.id } });
+          continue;
+        }
+        claimed.add(parentItemId);
+        const parentItem = parent.items.find((item) => item.id === parentItemId)!;
         await this.prisma.orderItem.update({
           where: { id: millItem.id },
-          data: { quantity: parentItem.quantity, requestedQuantity: parentItem.quantity },
+          data: {
+            sourceItemId: parentItemId,
+            quantity: parentItem.quantity,
+            requestedQuantity: parentItem.quantity,
+            productId: parentItem.productId,
+            name: parentItem.name,
+          },
+        });
+      }
+      for (const parentItem of parent.items) {
+        if (claimed.has(parentItem.id) || !parentItem.productId) continue;
+        if (!unusedParent.some((row) => row.id === parentItem.id)) continue;
+        const productOwner = await this.prisma.product.findUnique({
+          where: { id: parentItem.productId },
+          select: { companyId: true },
+        });
+        if (productOwner?.companyId !== up.sellerCompanyId) continue;
+        await this.prisma.orderItem.create({
+          data: {
+            orderId: up.id,
+            productId: parentItem.productId,
+            name: parentItem.name,
+            sku: parentItem.sku,
+            rate: parentItem.rate,
+            unit: parentItem.unit,
+            image: parentItem.image,
+            images: parentItem.images,
+            quantity: parentItem.quantity,
+            requestedQuantity: parentItem.quantity,
+            lineStatus: OrderLineStatus.Open,
+            note: parentItem.note,
+            sourceItemId: parentItem.id,
+          },
         });
       }
     }
@@ -4487,6 +4717,82 @@ export class OrderService {
       if (await this.healManageParentIfSubsetsComplete(row)) healed.add(row.id);
     }
     return healed;
+  }
+
+  private async healOpenTicketsInList(
+    rows: Array<{
+      id: string;
+      tradeMode: string;
+      status: string;
+      createdByCompanyId?: string | null;
+      sellerCompanyId?: string;
+      buyerCompanyId?: string;
+    }>,
+  ): Promise<Set<string>> {
+    const healed = await this.healManageParentsInList(rows);
+    for (const row of rows) {
+      if (await this.healMillLoggedDirect(row)) healed.add(row.id);
+    }
+    return healed;
+  }
+
+  /** Mill own-catalog logs must never sit Direct Requested (no Confirm, no Dispatch). */
+  private async healMillLoggedDirect(order: {
+    id: string;
+    tradeMode: string;
+    status: string;
+    createdByCompanyId?: string | null;
+    sellerCompanyId?: string;
+    buyerCompanyId?: string;
+  }): Promise<boolean> {
+    if (
+      order.tradeMode !== OrderTradeMode.Direct ||
+      order.status !== OrderStatus.Requested ||
+      !order.sellerCompanyId ||
+      !order.buyerCompanyId ||
+      order.createdByCompanyId !== order.sellerCompanyId
+    ) {
+      return false;
+    }
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.orderItem.updateMany({
+        where: { orderId: order.id, lineStatus: OrderLineStatus.Open },
+        data: { lineStatus: OrderLineStatus.Confirmed },
+      }),
+      this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          tradeMode: OrderTradeMode.Bilateral,
+          facilitatorCompanyId: null,
+          status: OrderStatus.Confirmed,
+          confirmedAt: now,
+          confirmedByCompanyId: order.sellerCompanyId,
+        },
+      }),
+    ]);
+    const threadId = await this.threads.ensureTradeThread(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+    );
+    await this.prisma.message.updateMany({
+      where: {
+        referenceId: order.id,
+        type: { in: [MessageType.OrderCard, MessageType.Rate] },
+      },
+      data: { threadId },
+    });
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: now },
+    });
+    await this.trail.append({
+      orderId: order.id,
+      type: OrderTrailType.Confirmed,
+      actorCompanyId: order.sellerCompanyId,
+      detail: 'Logged for buyer',
+    });
+    return true;
   }
 
   /** Rewrite parent lines from mill qtys; settle parent when all released subsets are done. */
@@ -4672,14 +4978,23 @@ export class OrderService {
     const shortId = downstreamId.slice(-6).toUpperCase();
     const parent = await this.prisma.order.findUnique({
       where: { id: downstreamId },
-      select: { buyerCompanyId: true },
+      select: { buyerCompanyId: true, items: { select: { id: true, productId: true, name: true } } },
     });
+    const unusedParent = (parent?.items ?? []).map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.name,
+    }));
     for (const [sellerCompanyId, items] of groups) {
       try {
         if (parent) {
           if (sellerCompanyId === parent.buyerCompanyId) continue;
           await this.upsertTradeLane(handlerCompanyId, sellerCompanyId, parent.buyerCompanyId);
         }
+        const hopItems = items.map((item) => ({
+          ...item,
+          sourceItemId: claimParentItemId(unusedParent, item) ?? undefined,
+        }));
         await this.create(
           handlerCompanyId,
           userId,
@@ -4691,9 +5006,9 @@ export class OrderService {
             noteVoiceMediaId: dto.noteVoiceMediaId,
             noteVoiceDurationMs: dto.noteVoiceDurationMs,
             noteImageUrls: dto.noteImageUrls,
-            items,
+            items: hopItems,
           },
-          { downstreamOrderId: downstreamId, holdUntilSend: true },
+          { downstreamOrderId: downstreamId, holdUntilSend: true, allowSourceItemIds: true },
         );
       } catch {
         // Phase A: downstream stays; trader retries upstream later.
@@ -4733,6 +5048,12 @@ export class OrderService {
         buyerCompanyId,
         ticket: patch.ticket === TradeLaneTicket.Mill ? TradeLaneTicket.Mill : TradeLaneTicket.Me,
         reveal: patch.reveal ?? false,
+        ...withPrismaField(
+          'TradeLane',
+          'behaviors',
+          {},
+          { ...DEFAULT_LANE_BEHAVIORS },
+        ),
       },
       update: {
         ...(patch.reveal !== undefined ? { reveal: patch.reveal } : {}),
@@ -4811,6 +5132,65 @@ export class OrderService {
     return effectivePathFromLane(lane?.ticket);
   }
 
+  /** Direct mill ticket Open chat is the trio; I-handle parent stays buyer↔trader 1:1. */
+  private async threadIdForOpenChat(
+    order: {
+      id: string;
+      tradeMode: string;
+      facilitatorCompanyId?: string | null;
+      buyerCompanyId: string;
+      sellerCompanyId: string;
+    },
+    millRevealThreadId?: string | null,
+  ): Promise<string | null> {
+    if (order.tradeMode === OrderTradeMode.Direct && order.facilitatorCompanyId) {
+      return this.ensureDirectPlaceThread(
+        order.facilitatorCompanyId,
+        order.sellerCompanyId,
+        order.buyerCompanyId,
+      );
+    }
+    const directThreadId = await this.threads.findDirectThreadId(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+    );
+    return manageParentOpenChatThreadId(directThreadId, millRevealThreadId);
+  }
+
+  /** Direct Place: mill–buyer–trader group immediately. */
+  private async ensureDirectPlaceThread(
+    traderCompanyId: string,
+    sellerCompanyId: string,
+    buyerCompanyId: string,
+  ): Promise<string> {
+    const lane =
+      (await this.prisma.tradeLane.findUnique({
+        where: {
+          traderCompanyId_sellerCompanyId_buyerCompanyId: {
+            traderCompanyId,
+            sellerCompanyId,
+            buyerCompanyId,
+          },
+        },
+      })) ??
+      (await this.prisma.tradeLane.findFirst({
+        where: trioMillLaneWhere(traderCompanyId, sellerCompanyId, buyerCompanyId),
+      }));
+    const threadId = await this.threads.ensureTradeLaneGroup(
+      traderCompanyId,
+      sellerCompanyId,
+      buyerCompanyId,
+      lane?.groupThreadId,
+    );
+    if (lane && threadId !== lane.groupThreadId) {
+      await this.prisma.tradeLane.update({
+        where: { id: lane.id },
+        data: { groupThreadId: threadId },
+      });
+    }
+    return threadId;
+  }
+
   /** Prefer TradeLane trio for released mill subset cards when reveal On; main ticket never. */
   private async resolveOrderCardThread(
     buyerCompanyId: string,
@@ -4823,12 +5203,24 @@ export class OrderService {
         tradeMode: true,
         buyerCompanyId: true,
         sellerCompanyId: true,
+        facilitatorCompanyId: true,
         downstreamOrderId: true,
         upstreamReleasedAt: true,
       },
     });
     if (!order) {
       return this.threads.ensureTradeThread(buyerCompanyId, sellerCompanyId);
+    }
+
+    if (
+      order.tradeMode === OrderTradeMode.Direct &&
+      order.facilitatorCompanyId
+    ) {
+      return this.ensureDirectPlaceThread(
+        order.facilitatorCompanyId,
+        order.sellerCompanyId,
+        order.buyerCompanyId,
+      );
     }
 
     if (order.downstreamOrderId && order.upstreamReleasedAt) {
@@ -4875,34 +5267,73 @@ export class OrderService {
     return this.threads.ensureTradeThread(buyerCompanyId, sellerCompanyId);
   }
 
+  private async stampConfirmedIfMissing(
+    items: Array<{
+      id: string;
+      quantity: { toNumber: () => number } | number;
+      rate?: { toNumber: () => number } | number | null;
+      confirmedQuantity?: { toNumber: () => number } | number | null;
+    }>,
+  ): Promise<void> {
+    for (const item of items) {
+      if (item.confirmedQuantity != null) continue;
+      const qty =
+        typeof item.quantity === 'object' && item.quantity && 'toNumber' in item.quantity
+          ? item.quantity.toNumber()
+          : Number(item.quantity);
+      const rate =
+        item.rate == null
+          ? null
+          : typeof item.rate === 'object' && 'toNumber' in item.rate
+            ? item.rate.toNumber()
+            : Number(item.rate);
+      await this.prisma.orderItem.update({
+        where: { id: item.id },
+        data: {
+          confirmedQuantity: qty,
+          ...(rate != null ? { confirmedRate: rate } : {}),
+        },
+      });
+    }
+  }
+
   private async snapshotItems(
     dto: CreateOrderDto,
-    opts: { allowForeignProducts?: boolean } = {},
+    opts: {
+      allowForeignProducts?: boolean;
+      allowSourceItemIds?: boolean;
+      catalogWholePack?: CatalogWholePackHint | null;
+    } = {},
   ): Promise<Prisma.OrderItemCreateWithoutOrderInput[]> {
     if (dto.kind === OrderKind.Photo) {
       return dto.items.map((item) =>
         withPrismaField(
           'OrderItem',
-          'piecesPerPack',
+          'sourceItemId',
           withPrismaField(
             'OrderItem',
-            'dispatchUnit',
-            {
-              productId: null,
-              name: item.name ?? 'Photo request',
-              sku: null,
-              rate: null,
-              unit: item.unit ?? null,
-              image: item.images?.[0] ?? null,
-              images: item.images ?? [],
-              quantity: item.quantity,
-              requestedQuantity: item.quantity,
-              lineStatus: OrderLineStatus.Open,
-              note: item.note ?? null,
-            },
+            'piecesPerPack',
+            withPrismaField(
+              'OrderItem',
+              'dispatchUnit',
+              {
+                productId: null,
+                name: item.name ?? 'Photo request',
+                sku: null,
+                rate: null,
+                unit: item.unit ?? null,
+                image: item.images?.[0] ?? null,
+                images: item.images ?? [],
+                quantity: item.quantity,
+                requestedQuantity: item.quantity,
+                lineStatus: OrderLineStatus.Open,
+                note: item.note ?? null,
+              },
+              null,
+            ),
             null,
           ),
-          null,
+          opts.allowSourceItemIds ? (item.sourceItemId ?? null) : null,
         ),
       );
     }
@@ -4916,6 +5347,18 @@ export class OrderService {
         : { id: { in: productIds }, companyId: dto.sellerCompanyId },
     });
     const byId = new Map(products.map((product) => [product.id, product]));
+    const stamps =
+      opts.allowSourceItemIds === true
+        ? new Map()
+        : await resolveCatalogWholeStamps(
+            this.prisma,
+            productIds,
+            opts.catalogWholePack,
+          );
+    assertEqualWholeCatalogQuantities(
+      dto.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      stamps,
+    );
 
     return dto.items.map((item) => {
       const product = item.productId ? byId.get(item.productId) : undefined;
@@ -4927,33 +5370,54 @@ export class OrderService {
             : 'One or more products do not belong to this seller.',
         });
       }
+      const stamp = item.productId ? stamps.get(item.productId) : undefined;
       return withPrismaField(
         'OrderItem',
-        'catalogRateUnit',
+        'catalogWhole',
         withPrismaField(
           'OrderItem',
-          'piecesPerPack',
+          'catalogName',
           withPrismaField(
             'OrderItem',
-            'dispatchUnit',
-            {
-              productId: product.id,
-              name: product.name,
-              sku: product.sku,
-              rate: product.rate,
-              unit: product.unit ?? item.unit ?? null,
-              image: product.images[0] ?? null,
-              images: product.images,
-              quantity: item.quantity,
-              requestedQuantity: item.quantity,
-              lineStatus: OrderLineStatus.Open,
-              note: item.note ?? null,
-            },
-            (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+            'catalogCollectionId',
+            withPrismaField(
+              'OrderItem',
+              'sourceItemId',
+              withPrismaField(
+                'OrderItem',
+                'catalogRateUnit',
+                withPrismaField(
+                  'OrderItem',
+                  'piecesPerPack',
+                  withPrismaField(
+                    'OrderItem',
+                    'dispatchUnit',
+                    {
+                      productId: product.id,
+                      name: product.name,
+                      sku: product.sku,
+                      rate: product.rate,
+                      unit: product.unit ?? item.unit ?? null,
+                      image: product.images[0] ?? null,
+                      images: product.images,
+                      quantity: item.quantity,
+                      requestedQuantity: item.quantity,
+                      lineStatus: OrderLineStatus.Open,
+                      note: item.note ?? null,
+                    },
+                    (product as { dispatchUnit?: string | null }).dispatchUnit ?? null,
+                  ),
+                  (product as { piecesPerPack?: number | null }).piecesPerPack ?? null,
+                ),
+                (product as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
+              ),
+              opts.allowSourceItemIds ? (item.sourceItemId ?? null) : null,
+            ),
+            stamp?.catalogCollectionId ?? null,
           ),
-          (product as { piecesPerPack?: number | null }).piecesPerPack ?? null,
+          stamp?.catalogName ?? null,
         ),
-        (product as { catalogRateUnit?: string | null }).catalogRateUnit ?? null,
+        stamp?.catalogWhole ?? false,
       );
     });
   }

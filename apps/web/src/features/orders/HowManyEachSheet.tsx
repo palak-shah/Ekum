@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { MEDIA_VARIANT, type ExploreProductPreviewView, type ProductView } from '@ekum/domain-types';
+import {
+  catalogBunchBill,
+  collapseCatalogWholeLines,
+  lineBillAmount,
+  MEDIA_VARIANT,
+  type ExploreProductPreviewView,
+  type ProductView,
+} from '@ekum/domain-types';
 import { orderWhoMode } from '@/features/orders/orderWho';
 import { orderSheetTitle } from '@/features/orders/orderQtyUi';
 import {
@@ -15,6 +22,7 @@ import {
   HowManyQtyRow,
   HowManyRemoveButton,
 } from '@/features/orders/HowManyLineHeading';
+import { HowManyCatalogBlock, type HowManyCatalogProduct } from '@/features/orders/HowManyCatalogBlock';
 import { HowManyGroupedLines } from '@/features/orders/HowManyGroupedLines';
 import {
   howManyOrderFooterSummary,
@@ -58,6 +66,7 @@ export type HowManyLine = {
   productId: string;
   quantity: number;
   note?: string;
+  companyId?: string;
 };
 
 export type HowManyPlaceOpts = PlaceNoteAttach & {
@@ -75,20 +84,26 @@ export function HowManyEachSheet({
   onSendOrder,
   onAskRates,
   orderGoesToName,
+  collectionId,
   onRemoveProduct,
   lockedProductIds,
   sheetJob = 'order',
+  forBuyerProducts,
 }: {
   open: boolean;
   onClose: () => void;
   sellerId: string;
   products: ProductView[];
+  /** Mixed Place: Order for buyer uses remaining Direct + I-handle lines. */
+  forBuyerProducts?: ProductView[];
   submitting?: boolean;
   asking?: boolean;
   error?: string | null;
   onSendOrder: (lines: HowManyLine[], opts?: HowManyPlaceOpts) => void;
   onAskRates: (lines: HowManyLine[], opts?: HowManyPlaceOpts) => void;
   orderGoesToName?: string | null;
+  /** Curated pack Place / Order for buyer — same id as from-pack. */
+  collectionId?: string;
   /** × also updates traveling Selection (sr 42). */
   onRemoveProduct?: (productId: string) => void;
   /** Whole-catalog members cannot be dropped from How many. */
@@ -102,8 +117,10 @@ export function HowManyEachSheet({
   const { selling, trading } = useTradePresence();
   const me = useMyCompany();
   const { showToast } = useToast();
+  const detailProducts =
+    forBuyerProducts && forBuyerProducts.length > 0 ? forBuyerProducts : products;
   const details = useQueries({
-    queries: products.map((product) => ({
+    queries: detailProducts.map((product) => ({
       queryKey: ['explore-product', product.id],
       queryFn: () => api.get<ExploreProductPreviewView>(`/explore/products/${product.id}`),
       enabled: open && Boolean(product.id),
@@ -112,16 +129,17 @@ export function HowManyEachSheet({
     })),
   });
   const catalogProducts = useMemo(
-    () => products.map((product, index) => applyHowManyDetail(product, details[index]?.data)),
-    [products, details],
+    () =>
+      detailProducts.map((product, index) => applyHowManyDetail(product, details[index]?.data)),
+    [detailProducts, details],
   );
   const whoMode = orderWhoMode({
     canLogForBuyer: selling || trading,
     actorCompanyId: me.data?.id ?? '',
-    productCompanyIds: catalogProducts.map((product) => product.companyId),
+    sellerCompanyId: sellerId,
   });
   const canOrderForBuyer = whoMode !== 'hidden';
-  /** Own-catalog log path hides Place; foreign / pure-buyer keeps it. */
+  /** Own shop log path hides Place; peer pack / mill keeps it. */
   const showPlaceOrder = sheetJob === 'order' && whoMode !== 'buyer-only';
   const footerSlots = howManyFooterSlots({
     sheetJob,
@@ -178,10 +196,14 @@ export function HowManyEachSheet({
     if (whoMode === 'buyer-only') setForBuyer(true);
   }, [open, whoMode, productKey]);
 
-  const activeProducts = useMemo(
-    () => catalogProducts.filter((product) => !removed.has(product.id)),
-    [catalogProducts, removed],
-  );
+  const activeProducts = useMemo(() => {
+    const waveIds = new Set(products.map((product) => product.id));
+    const source =
+      forBuyer && (forBuyerProducts?.length ?? 0) > 0
+        ? catalogProducts
+        : catalogProducts.filter((product) => waveIds.has(product.id));
+    return source.filter((product) => !removed.has(product.id));
+  }, [catalogProducts, removed, forBuyer, forBuyerProducts, products]);
 
   const lines = useMemo(
     () =>
@@ -220,6 +242,7 @@ export function HowManyEachSheet({
             {
               productId: line.product.id,
               quantity: line.quantity,
+              ...(line.product.companyId ? { companyId: line.product.companyId } : {}),
               ...(line.note ? { note: line.note } : {}),
             },
           ]
@@ -254,7 +277,16 @@ export function HowManyEachSheet({
       ? howManySingleGoesTo(activeProducts, orderGoesToName)
       : orderGoesToName?.trim() || null;
   const multiShop = Boolean(splitBanner);
-  const sheetTitle = orderSheetTitle(activeProducts.length);
+  const displayRows = useMemo(
+    () => collapseCatalogWholeLines(activeProducts as HowManyCatalogProduct[]),
+    [activeProducts],
+  );
+  const catalogOnly =
+    displayRows.length === 1 && displayRows[0]?.kind === 'catalog';
+  const sheetTitle = orderSheetTitle(activeProducts.length, {
+    catalogOnly,
+    catalogName: catalogOnly && displayRows[0]?.kind === 'catalog' ? displayRows[0].catalogName : null,
+  });
   const lockedSet = useMemo(() => new Set(lockedProductIds ?? []), [lockedProductIds]);
   const photoGallery = useMemo(() => howManyGalleryUrls(activeProducts), [activeProducts]);
   const photoCaptions = useMemo(() => howManyGalleryCaptions(activeProducts), [activeProducts]);
@@ -301,18 +333,87 @@ export function HowManyEachSheet({
     setBuyerOpen(true);
   };
 
-  const footerSummary = howManyOrderFooterSummary(
-    lines.map(({ product, quantity }) => ({
-      quantity,
-      unit: product.unit,
-      piecesPerPack: product.piecesPerPack,
-      dispatchUnit: product.dispatchUnit,
-      rate: product.rate ?? null,
-    })),
-  );
+  const footerSummary = (() => {
+    const catalogRows = displayRows.filter((row) => row.kind === 'catalog');
+    const loose = displayRows.filter((row) => row.kind === 'line');
+    if (catalogRows.length === 0) {
+      return howManyOrderFooterSummary(
+        lines.map(({ product, quantity }) => ({
+          quantity,
+          unit: product.unit,
+          piecesPerPack: product.piecesPerPack,
+          dispatchUnit: product.dispatchUnit,
+          catalogRateUnit: product.catalogRateUnit,
+          rate: product.rate ?? null,
+        })),
+      );
+    }
+    const synthetic: Parameters<typeof howManyOrderFooterSummary>[0] = [];
+    let money: number | null = 0;
+    for (const row of catalogRows) {
+      if (row.kind !== 'catalog') continue;
+      const lead = row.items[0];
+      const qty = lines.find((line) => line.product.id === lead?.id)?.quantity ?? null;
+      if (qty == null || qty < 1 || !lead) {
+        money = null;
+        continue;
+      }
+      synthetic.push({
+        quantity: qty,
+        unit: lead.unit,
+        piecesPerPack: lead.piecesPerPack,
+        dispatchUnit: lead.dispatchUnit,
+        catalogRateUnit: lead.catalogRateUnit,
+        rate: lead.rate ?? null,
+      });
+      const bunch = catalogBunchBill({
+        quantity: qty,
+        rate: lead.rate ?? null,
+        unit: lead.unit,
+        catalogRateUnit: lead.catalogRateUnit,
+        piecesPerPack: lead.piecesPerPack,
+        memberCount: row.items.length,
+      });
+      if (bunch == null || money == null) money = null;
+      else money += bunch;
+    }
+    for (const row of loose) {
+      if (row.kind !== 'line') continue;
+      const line = lines.find((item) => item.product.id === row.item.id);
+      const qty = line?.quantity ?? null;
+      synthetic.push({
+        quantity: qty,
+        unit: row.item.unit,
+        piecesPerPack: row.item.piecesPerPack,
+        dispatchUnit: row.item.dispatchUnit,
+        catalogRateUnit: row.item.catalogRateUnit,
+        rate: row.item.rate ?? null,
+      });
+      if (qty == null || qty < 1) {
+        money = null;
+        continue;
+      }
+      const amount = lineBillAmount({
+        quantity: qty,
+        rate: row.item.rate ?? null,
+        unit: row.item.unit,
+        piecesPerPack: row.item.piecesPerPack,
+      });
+      if (amount == null || money == null) money = null;
+      else money += amount;
+    }
+    const base = howManyOrderFooterSummary(synthetic);
+    if (!base) return base;
+    if (money == null || money <= 0) return { rows: base.rows };
+    return { rows: base.rows, money: `₹${money.toLocaleString('en-IN')}` };
+  })();
   const packSizesDiffer = howManyPackSizesDiffer(activeProducts);
   const unitsMixed = howManyOrderUnitsMixed(activeProducts);
-  const showSameForAll = activeProducts.length > 1 && !unitsMixed;
+  const showSameForAll =
+    activeProducts.length > 1 && !unitsMixed && displayRows.every((row) => row.kind === 'line');
+  const looseLines = lines.filter((line) =>
+    displayRows.some((row) => row.kind === 'line' && row.item.id === line.product.id),
+  );
 
   const showTicketExtras =
     sheetJob === 'ask' ||
@@ -424,11 +525,35 @@ export function HowManyEachSheet({
             )
           ) : null}
 
+          <div className="flex flex-col gap-4" data-testid="how-many-lines">
+          {displayRows.map((row) => {
+            if (row.kind !== 'catalog') return null;
+            const qty =
+              lines.find((line) => line.product.id === row.items[0]?.id)?.quantity ?? sharedQty;
+            return (
+              <HowManyCatalogBlock
+                key={row.catalogCollectionId}
+                name={row.catalogName}
+                members={row.items}
+                quantity={qty}
+                disabled={busy}
+                onQty={(next) => {
+                  setOverrides((prev) => {
+                    const nextMap = { ...prev };
+                    for (const member of row.items) nextMap[member.id] = next;
+                    return nextMap;
+                  });
+                  if (next != null) persistQty(next);
+                }}
+              />
+            );
+          })}
+          {looseLines.length > 0 ? (
           <HowManyGroupedLines
-            items={lines}
+            items={looseLines}
             unitOf={(line) => line.product.unit}
             getKey={(line) => line.product.id}
-            testId="how-many-lines"
+            testId="how-many-loose-lines"
             lineTestId="how-many-line"
             renderLine={({ product, quantity }, _index, last) => {
               const thumbs = howManyPhotoUrls(product);
@@ -521,6 +646,8 @@ export function HowManyEachSheet({
               );
             }}
           />
+          ) : null}
+          </div>
 
           {showTicketExtras ? (
             <div
@@ -579,6 +706,7 @@ export function HowManyEachSheet({
         lines={payload()}
         productIds={activeProducts.map((product) => product.id)}
         transporter={transporter.trim() || undefined}
+        collectionId={collectionId}
         onInvite={(url) => {
           persistTransporter();
           setBuyerOpen(false);

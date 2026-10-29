@@ -2,6 +2,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CatalogOrderMode,
+  CollectionKind,
   CollectionStatus,
   ProductStatus,
   type CollectionView,
@@ -82,9 +84,13 @@ import {
 import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
+  CATALOG_WHOLE_SELECT_TOAST,
+  isExclusiveWholeCatalogMember,
+} from '@/features/browse/catalogWholeOrder';
+import {
   collectionIdForPackOrder,
-  packHandlerName,
 } from '@/features/browse/packOrderSource';
+import { packPlaceGoesToName } from '@/features/browse/packPlacePhases';
 import { partitionForTravelingSelection } from '@/features/browse/partitionForTravelingSelection';
 import {
   clearResumeAfterAlbumPick,
@@ -92,7 +98,7 @@ import {
 } from '@/features/browse/resumeAfterAlbumPick';
 import {
   entriesAsProducts,
-  sellerIdForEntries,
+  orderGoesToSellerId,
   useShortlistOrderFlow,
 } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
@@ -146,6 +152,7 @@ function toCatalogShortlistEntry(
     ...(product.catalogCollectionId
       ? { catalogCollectionId: product.catalogCollectionId }
       : {}),
+    ...(product.catalogOrderMode ? { catalogOrderMode: product.catalogOrderMode } : {}),
   };
 }
 
@@ -612,8 +619,28 @@ export function MyCatalogPage({
       const { published, toast } = partitionForTravelingSelection(selectedProducts);
       if (toast) showToast(toast);
       if (published.length < 1) return;
-      designs = published.map((row) => toCatalogShortlistEntry(row, myCompany));
-      addBrowseShortlistMany(designs);
+      const whole = published.filter(isExclusiveWholeCatalogMember);
+      const rest = published.filter((row) => !isExclusiveWholeCatalogMember(row));
+      designs = rest.map((row) => toCatalogShortlistEntry(row, myCompany));
+      if (intent === 'order' && whole.length > 0) {
+        showToast(CATALOG_WHOLE_SELECT_TOAST);
+        const byCatalog = new Map<string, ProductView>();
+        for (const row of whole) {
+          const id = row.catalogCollectionId?.trim();
+          if (id && !byCatalog.has(id)) byCatalog.set(id, row);
+        }
+        albums = [...byCatalog.entries()].map(([collectionId, row]) => ({
+          collectionId,
+          name: row.collectionNames[0]?.trim() || 'Catalog',
+          coverImage: row.images[0] ?? null,
+          companyId: myCompany.id,
+          companyName: myCompany.name,
+          kind: CollectionKind.Catalog,
+          orderMode: CatalogOrderMode.Whole,
+        }));
+        addAlbumMany(albums);
+      }
+      if (designs.length > 0) addBrowseShortlistMany(designs);
     } else {
       const { published, toast } = partitionForTravelingSelection(selectedCollections);
       if (toast) showToast(toast);
@@ -1422,19 +1449,24 @@ export function MyCatalogPage({
           setQtyEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={sellerIdForEntries(qtyEntries ?? shortlist.entries)}
-        products={entriesAsProducts(qtyEntries ?? shortlist.entries)}
+        sellerId={orderGoesToSellerId(orderFlow.waveEntries(qtyEntries ?? shortlist.entries))}
+        products={entriesAsProducts(orderFlow.waveEntries(qtyEntries ?? shortlist.entries))}
+        forBuyerProducts={entriesAsProducts(
+          orderFlow.remainingEntries(qtyEntries ?? shortlist.entries),
+        )}
         lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={packHandlerName(qtyEntries ?? shortlist.entries)}
+        orderGoesToName={packPlaceGoesToName(
+          orderFlow.waveEntries(qtyEntries ?? shortlist.entries),
+        )}
+        collectionId={collectionIdForPackOrder(qtyEntries ?? shortlist.entries)}
         sheetJob="order"
         onSendOrder={(lines, place) => {
-          const linesForPath = qtyEntries ?? shortlist.entries;
           orderFlow.sendOrder(lines, {
             ...place,
-            collectionId: collectionIdForPackOrder(linesForPath),
+            collectionId: collectionIdForPackOrder(qtyEntries ?? shortlist.entries),
           });
         }}
         onAskRates={() => undefined}

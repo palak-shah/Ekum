@@ -1,10 +1,10 @@
 # Unified main order + linked mill lots — redesign
 
 **Date:** 2026-09-08  
-**Status:** Approved; **Proceed slice shipping** (pack Place always main+lots; buyer mill cards when ticket=mill)  
-**Completeness:** Redesign `…-unified-main-linked-lots-completeness.md` · Proceed `…-unified-main-linked-lots-proceed.md`  
+**Status:** **Partially superseded 2026-10-28** for Place routing. I-handle remainder (one Manage parent + linked lots, Send-hold, soft-hide) still holds. Curated Place is **not** always one Manage parent: Direct-linked mills become Direct supplier tickets. See `docs/features/orders.md` Dual trade and Completeness `2026-10-28-direct-link-order-workflow-completeness`.  
+**Completeness:** Redesign `…-unified-main-linked-lots-completeness.md` · Proceed `…-unified-main-linked-lots-proceed.md` · mixed routing `2026-10-28-direct-link-order-workflow-completeness`  
 **Journey matrix:** `docs/superpowers/reviews/2026-09-08-multi-supplier-journey-matrix.md`  
-**Supersedes for curated / multi-supplier Place:** “Direct = N independent buyer orders via batch” as the primary story
+**Supersedes for curated / multi-supplier Place (2026-09-08):** “Direct = N independent buyer orders via batch” as the **only** story. **2026-10-28:** ticket mill + Direct routing = Direct tickets for those mills; remaining mills stay on this main+lots desk.
 
 ---
 

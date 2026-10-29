@@ -1,5 +1,5 @@
-import { Field, cx } from '@/ui/kit';
-import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
+import { Field } from '@/ui/kit';
+import { OptionSheetField } from '@/ui/OptionSheetField';
 
 export function MasterCategoryField({
   value,
@@ -32,24 +32,14 @@ export function MasterCategoryField({
           {selected?.label || 'From collection'}
         </div>
       ) : (
-        <select
-          data-testid={testId}
-          aria-label="Master category"
-          className={cx(
-            SELECT_FIELD_CLASS,
-            'h-10 w-full px-3 text-sm font-body',
-            value ? 'text-ink' : 'text-muted',
-          )}
+        <OptionSheetField
+          testId={testId}
+          sheetTitle="Category"
+          ariaLabel="Master category"
           value={value ?? ''}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value=""></option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id} className="text-sm font-body">
-              {option.label}
-            </option>
-          ))}
-        </select>
+          options={options.map((option) => ({ value: option.id, label: option.label }))}
+          onChange={onChange}
+        />
       )}
     </Field>
   );

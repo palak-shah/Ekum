@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   mergeShortlistWithProducts,
+  overlayShortlistEntries,
   orderResolveSummary,
   pickSelectionLabel,
   shouldShowAlbumSelectActions,
@@ -86,6 +87,39 @@ describe('mergeShortlistWithProducts', () => {
     const merged = mergeShortlistWithProducts(existing, fromAlbum);
     expect(merged.map((e) => e.productId)).toEqual(['p1', 'p2']);
     expect(merged[0]?.name).toBe('Keep');
+  });
+});
+
+describe('overlayShortlistEntries', () => {
+  it('stamps catalogWhole onto a design already in the shortlist', () => {
+    const existing: BrowseShortlistEntry[] = [
+      {
+        productId: 'p1',
+        name: 'Silk',
+        thumbUrl: null,
+        companyId: 'c1',
+        companyName: 'Shop',
+      },
+    ];
+    const incoming: BrowseShortlistEntry[] = [
+      {
+        productId: 'p1',
+        name: 'Silk',
+        thumbUrl: null,
+        companyId: 'c1',
+        companyName: 'Shop',
+        catalogWhole: true,
+        catalogName: 'Season',
+        catalogCollectionId: 'cat-1',
+      },
+    ];
+    const merged = overlayShortlistEntries(existing, incoming);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      productId: 'p1',
+      catalogWhole: true,
+      catalogName: 'Season',
+    });
   });
 });
 

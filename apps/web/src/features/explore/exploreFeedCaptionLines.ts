@@ -41,3 +41,24 @@ export function exploreFeedSourceLine(names: string[] | null | undefined): strin
   if (cleaned.length === 2) return `From ${cleaned[0]}, ${cleaned[1]}`;
   return `From ${cleaned.length} shops`;
 }
+
+/** Album mill credit: stamped names, else foreign member shops when Show supplier is on. */
+export function visitorPackSourceLine(input: {
+  showSourceShops: boolean;
+  sourceShopNames?: string[] | null;
+  packCompanyId: string;
+  products: Array<{ companyId?: string | null; companyName?: string | null }>;
+}): string | null {
+  if (!input.showSourceShops) return null;
+  const stamped = exploreFeedSourceLine(input.sourceShopNames);
+  if (stamped) return stamped;
+  const names = [
+    ...new Map(
+      input.products
+        .filter((row) => row.companyId && row.companyId !== input.packCompanyId)
+        .map((row) => [row.companyId!, row.companyName?.trim() ?? ''] as const)
+        .filter((entry) => entry[1]),
+    ).values(),
+  ];
+  return exploreFeedSourceLine(names);
+}

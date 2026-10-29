@@ -244,6 +244,47 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
     expect(created).toBe(0);
   });
 
+  it('reuses the active trio even when a leftover shop has left', async () => {
+    let created = 0;
+    const prisma = {
+      thread: {
+        findUnique: async () => null,
+        findMany: async () => [
+          {
+            id: 'trio-1',
+            type: 'group',
+            participants: [
+              { id: 'p1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'p2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'p3', companyId: 'buyer', leftAt: null, state: 'active' },
+              { id: 'p4', companyId: 'other', leftAt: new Date(), state: 'active' },
+            ],
+          },
+        ],
+        create: async () => {
+          created += 1;
+          return { id: 'new' };
+        },
+      },
+      threadParticipant: { update: async () => ({}) },
+      company: { findMany: async () => [] },
+      threadMember: { createMany: async () => ({}), findMany: async () => [] },
+      companyMembership: { findMany: async () => [] },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
+    );
+
+    const id = await service.ensureTradeLaneGroup('trader', 'mill', 'buyer', null);
+    expect(id).toBe('trio-1');
+    expect(created).toBe(0);
+  });
+
   it('returns stored groupThreadId when still a group', async () => {
     const prisma = {
       thread: {
@@ -276,6 +317,197 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
     await expect(service.ensureTradeLaneGroup('trader', 'mill', 'buyer', 'stored')).resolves.toBe(
       'stored',
     );
+  });
+
+  it('reuses the same trio when company args are in any order', async () => {
+    let created = 0;
+    const prisma = {
+      thread: {
+        findUnique: async () => null,
+        findMany: async () => [
+          {
+            id: 'trio-1',
+            type: 'group',
+            createdAt: new Date('2026-10-28T08:00:00Z'),
+            participants: [
+              { id: 'p1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'p2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'p3', companyId: 'buyer', leftAt: null, state: 'active' },
+            ],
+          },
+        ],
+        create: async () => {
+          created += 1;
+          return { id: 'new' };
+        },
+      },
+      threadParticipant: { update: async () => ({}) },
+      company: { findMany: async () => [] },
+      threadMember: { createMany: async () => ({}), findMany: async () => [] },
+      companyMembership: { findMany: async () => [] },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
+    );
+
+    await expect(service.ensureTradeLaneGroup('buyer', 'mill', 'trader', null)).resolves.toBe(
+      'trio-1',
+    );
+    await expect(service.ensureTradeLaneGroup('mill', 'trader', 'buyer', null)).resolves.toBe(
+      'trio-1',
+    );
+    expect(created).toBe(0);
+  });
+
+  it('keeps the oldest trio, closes clones, and moves living order cards', async () => {
+    const closed: string[] = [];
+    const moved: string[] = [];
+    const stamped: Array<{ where: unknown; data: unknown }> = [];
+    const prisma = {
+      thread: {
+        findUnique: async () => null,
+        findMany: async () => [
+          {
+            id: 'FRH3',
+            type: 'group',
+            createdAt: new Date('2026-10-28T08:00:00Z'),
+            participants: [
+              { id: 'p1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'p2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'p3', companyId: 'buyer', leftAt: null, state: 'active' },
+            ],
+          },
+          {
+            id: '9EX7',
+            type: 'group',
+            createdAt: new Date('2026-10-28T18:00:00Z'),
+            participants: [
+              { id: 'q1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'q2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'q3', companyId: 'buyer', leftAt: null, state: 'active' },
+            ],
+          },
+        ],
+        create: async () => ({ id: 'should-not' }),
+        update: async () => ({}),
+        updateMany: async (args: { where: { id: { in: string[] } } }) => {
+          closed.push(...args.where.id.in);
+          return { count: args.where.id.in.length };
+        },
+      },
+      threadParticipant: { update: async () => ({}) },
+      company: { findMany: async () => [] },
+      threadMember: { createMany: async () => ({}), findMany: async () => [] },
+      companyMembership: { findMany: async () => [] },
+      message: {
+        findMany: async (args: { where: { threadId: string | { in?: string[] } } }) => {
+          const ids = typeof args.where.threadId === 'string' ? [] : args.where.threadId.in ?? [];
+          if (ids.includes('9EX7')) {
+            return [{ id: 'card-9EX7', type: 'order_card', referenceId: 'o-9EX7' }];
+          }
+          return [];
+        },
+        updateMany: async (args: { where: { id: { in: string[] } }; data: { threadId: string } }) => {
+          moved.push(...args.where.id.in);
+          expect(args.data.threadId).toBe('FRH3');
+          return { count: args.where.id.in.length };
+        },
+      },
+      tradeLane: {
+        updateMany: async (args: { where: unknown; data: unknown }) => {
+          stamped.push(args);
+          return { count: 1 };
+        },
+      },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
+    );
+
+    await expect(service.ensureTradeLaneGroup('trader', 'mill', 'buyer', null)).resolves.toBe(
+      'FRH3',
+    );
+    expect(closed).toEqual(['9EX7']);
+    expect(moved).toEqual(['card-9EX7']);
+    expect(stamped).toHaveLength(1);
+  });
+
+  it('prefers the stamped groupThreadId when collapsing clones', async () => {
+    const closed: string[] = [];
+    const prisma = {
+      thread: {
+        findUnique: async () => ({
+          id: '9EX7',
+          type: 'group',
+          messagingClosedAt: null,
+          participants: [
+            { id: 'q1', companyId: 'trader', leftAt: null, state: 'active' },
+            { id: 'q2', companyId: 'mill', leftAt: null, state: 'active' },
+            { id: 'q3', companyId: 'buyer', leftAt: null, state: 'active' },
+          ],
+        }),
+        findMany: async () => [
+          {
+            id: 'FRH3',
+            type: 'group',
+            createdAt: new Date('2026-10-28T08:00:00Z'),
+            participants: [
+              { id: 'p1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'p2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'p3', companyId: 'buyer', leftAt: null, state: 'active' },
+            ],
+          },
+          {
+            id: '9EX7',
+            type: 'group',
+            createdAt: new Date('2026-10-28T18:00:00Z'),
+            participants: [
+              { id: 'q1', companyId: 'trader', leftAt: null, state: 'active' },
+              { id: 'q2', companyId: 'mill', leftAt: null, state: 'active' },
+              { id: 'q3', companyId: 'buyer', leftAt: null, state: 'active' },
+            ],
+          },
+        ],
+        create: async () => ({ id: 'should-not' }),
+        update: async () => ({}),
+        updateMany: async (args: { where: { id: { in: string[] } } }) => {
+          closed.push(...args.where.id.in);
+          return { count: args.where.id.in.length };
+        },
+      },
+      threadParticipant: { update: async () => ({}) },
+      company: { findMany: async () => [] },
+      threadMember: { createMany: async () => ({}), findMany: async () => [] },
+      companyMembership: { findMany: async () => [] },
+      message: {
+        findMany: async () => [],
+        updateMany: async () => ({ count: 0 }),
+      },
+      tradeLane: { updateMany: async () => ({ count: 0 }) },
+    } as unknown as PrismaService;
+
+    const service = new ThreadService(
+      prisma,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
+      { resolve: async () => new Map() } as ReferenceResolver,
+      accessStub(),
+    );
+
+    await expect(service.ensureTradeLaneGroup('trader', 'mill', 'buyer', '9EX7')).resolves.toBe(
+      '9EX7',
+    );
+    expect(closed).toEqual(['FRH3']);
   });
 });
 

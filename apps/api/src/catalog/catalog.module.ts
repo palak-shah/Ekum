@@ -13,6 +13,7 @@ import {
 } from './relist-request.controller';
 import { ProductService } from './product.service';
 import { CollectionService } from './collection.service';
+import { CollectionPropagateService } from './collection-propagate.service';
 import { ShareLinkService } from './share-link.service';
 import { CatalogTagService } from './catalog-tag.service';
 import { CatalogSerializer } from './catalog.serializer';
@@ -52,6 +53,7 @@ import {
   providers: [
     ProductService,
     CollectionService,
+    CollectionPropagateService,
     CatalogTagService,
     MasterDataService,
     ShareLinkService,
@@ -62,6 +64,8 @@ import {
   ],
   exports: [
     CatalogSerializer,
+    CollectionService,
+    CollectionPropagateService,
     CollectionViewRequestService,
     RelistRequestService,
     MasterDataService,

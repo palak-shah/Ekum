@@ -32,7 +32,7 @@ import { OrderSerializer } from './order.serializer';
 import { OrderService } from './order.service';
 import { OrderTrailService } from './order-trail.service';
 import { groupForBuyerLines } from './for-buyer-groups';
-import { effectivePathFromLane } from './trade-lane';
+import { effectivePathFromLane, trioMillLaneWhere } from './trade-lane';
 import { phoneDigits, phoneVariants } from './order-invite-claim';
 
 const INVITE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -86,14 +86,63 @@ export class BuyForBuyerService {
     const byId = new Map(products.map((row) => [row.id, row]));
 
     const buyer = await this.resolveBuyer(actorCompanyId, seller.city, dto);
+    await this.resolvePackOwner(dto.collectionId);
     const grouped = groupForBuyerLines(dto.items, products, actorCompanyId);
 
     let first: OrderView | null = null;
     let inviteOrderId: string | null = null;
+    let ownLines = grouped.own;
 
-    if (grouped.own.length > 0) {
+    const millHops: Array<{
+      millId: string;
+      millItems: typeof grouped.own;
+      path: 'handle' | 'direct';
+    }> = [];
+    for (const [millId, millItems] of grouped.byMill) {
+      millHops.push({
+        millId,
+        millItems,
+        path: await this.pathForPair(actorCompanyId, millId, buyer.companyId),
+      });
+    }
+    const directMills = millHops.filter((hop) => hop.path === 'direct');
+    const handleMills = millHops.filter((hop) => hop.path === 'handle');
+    const foldOwnIntoHandle =
+      ownLines.length > 0 && handleMills.length > 0 && directMills.length === 0;
+
+    if (foldOwnIntoHandle) {
+      const hopItems = [...ownLines, ...handleMills.flatMap((hop) => hop.millItems)].map(
+        (item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          rate: item.rate,
+        }),
+      );
+      first = await this.orders.create(
+        actorCompanyId,
+        userId,
+        {
+          sellerCompanyId: actorCompanyId,
+          kind: OrderKind.Standard,
+          intent: OrderIntent.Order,
+          orderPathPreference: 'handle',
+          note: dto.note,
+          transporter: dto.transporter,
+          items: hopItems,
+        },
+        {
+          onBehalfBuyerCompanyId: buyer.companyId,
+          skipLanePlace: true,
+          allowForeignProducts: true,
+          tradeMode: OrderTradeMode.Manage,
+        },
+      );
+      ownLines = [];
+    }
+
+    if (ownLines.length > 0) {
       const now = new Date();
-      const ownItems = grouped.own.map((item) => {
+      const ownItems = ownLines.map((item) => {
         const product = byId.get(item.productId)!;
         return {
           productId: product.id,
@@ -177,20 +226,22 @@ export class BuyForBuyerService {
       inviteOrderId = order.id;
     }
 
-    for (const [millId, millItems] of grouped.byMill) {
-      const path = await this.pathForPair(actorCompanyId, millId, buyer.companyId);
-      const hopItems = millItems.map((item) => ({
+    const millTickets = foldOwnIntoHandle
+      ? directMills
+      : [...directMills, ...handleMills];
+    for (const hop of millTickets) {
+      const hopItems = hop.millItems.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
         rate: item.rate,
       }));
       const view =
-        path === 'direct'
+        hop.path === 'direct'
           ? await this.orders.create(
               actorCompanyId,
               userId,
               {
-                sellerCompanyId: millId,
+                sellerCompanyId: hop.millId,
                 kind: OrderKind.Standard,
                 intent: OrderIntent.Order,
                 note: dto.note,
@@ -446,19 +497,28 @@ export class BuyForBuyerService {
     }
   }
 
+  private async resolvePackOwner(collectionId?: string): Promise<string | undefined> {
+    if (!collectionId) return undefined;
+    const collection = await this.prisma.collection.findUnique({
+      where: { id: collectionId },
+      select: { companyId: true },
+    });
+    if (!collection) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'This album is missing.',
+      });
+    }
+    return collection.companyId;
+  }
+
   private async pathForPair(
     traderCompanyId: string,
     millCompanyId: string,
     buyerCompanyId: string,
   ): Promise<'handle' | 'direct'> {
-    const lane = await this.prisma.tradeLane.findUnique({
-      where: {
-        traderCompanyId_sellerCompanyId_buyerCompanyId: {
-          traderCompanyId,
-          sellerCompanyId: millCompanyId,
-          buyerCompanyId,
-        },
-      },
+    const lane = await this.prisma.tradeLane.findFirst({
+      where: trioMillLaneWhere(traderCompanyId, millCompanyId, buyerCompanyId),
       select: { ticket: true },
     });
     return effectivePathFromLane(lane?.ticket);

@@ -6,9 +6,10 @@ import {
   type ProductView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { mergeShortlistWithProducts, type OrderAlbumChoice } from './albumSelectModel';
+import { overlayShortlistEntries, type OrderAlbumChoice } from './albumSelectModel';
 import type { BrowseAlbumEntry } from './browseAlbumPick';
 import type { BrowseShortlistEntry } from './browseShortlist';
+import { stampPackMillRoute } from './packPlacePhases';
 
 export type CatalogWholeOrderPreview = {
   id: string;
@@ -18,6 +19,7 @@ export type CatalogWholeOrderPreview = {
   allowForward?: boolean;
   company?: { id: string; name: string } | null;
   products: ProductView[] | null;
+  directMillCompanyIds?: string[];
 };
 
 /** Catalog Order as whole — missing mode never forces whole. */
@@ -26,6 +28,17 @@ export function isWholeCatalogOrder(input: {
   orderMode?: string | null;
 }): boolean {
   return input.kind === CollectionKind.Catalog && input.orderMode === CatalogOrderMode.Whole;
+}
+
+export const CATALOG_WHOLE_SELECT_TOAST = 'This catalog is ordered as a whole.';
+
+export function isExclusiveWholeCatalogMember(input: {
+  catalogCollectionId?: string | null;
+  catalogOrderMode?: string | null;
+}): boolean {
+  return Boolean(
+    input.catalogCollectionId?.trim() && input.catalogOrderMode === CatalogOrderMode.Whole,
+  );
 }
 
 /** True when any album still needs All / Choose (regular, pick, or unknown mode). */
@@ -48,7 +61,14 @@ export function publishedOrderMembers(
 export function productToOrderShortlistEntry(
   product: ProductView,
   fallbackCompany: { id: string; name: string },
-  pack?: { collectionId: string; path: string | null; allowForward?: boolean },
+  pack?: {
+    collectionId: string;
+    path: string | null;
+    allowForward?: boolean;
+    catalogWhole?: boolean;
+    catalogName?: string | null;
+    sourceDirect?: boolean;
+  },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
   return {
@@ -61,6 +81,7 @@ export function productToOrderShortlistEntry(
     categories: product.categories ?? [],
     unit: product.unit ?? null,
     dispatchUnit: product.dispatchUnit ?? null,
+    catalogRateUnit: product.catalogRateUnit ?? null,
     piecesPerPack: product.piecesPerPack ?? null,
     moq: product.moq ?? null,
     rate: product.rate ?? null,
@@ -69,15 +90,27 @@ export function productToOrderShortlistEntry(
     ...(product.catalogCollectionId
       ? { catalogCollectionId: product.catalogCollectionId }
       : {}),
+    ...(product.catalogOrderMode
+      ? { catalogOrderMode: product.catalogOrderMode }
+      : {}),
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
           sourceHandlerName: fallbackCompany.name,
+          sourceHandlerCompanyId: fallbackCompany.id,
           sourcePath: path,
+          ...(pack.sourceDirect ? { sourceDirect: true } : {}),
           sourcePackAllowForward: pack.allowForward !== false,
+          ...(pack.catalogWhole
+            ? { catalogWhole: true, catalogName: pack.catalogName ?? albumName(pack) }
+            : {}),
         }
       : {}),
   };
+}
+
+function albumName(pack: { catalogName?: string | null }): string | null {
+  return pack.catalogName?.trim() || null;
 }
 
 export function expandPreviewMembers(
@@ -86,20 +119,29 @@ export function expandPreviewMembers(
 ): BrowseShortlistEntry[] {
   const members = publishedOrderMembers(preview.products);
   if (members == null || members.length === 0) return [];
-  return members.map((product) =>
-    productToOrderShortlistEntry(
+  const whole = isWholeCatalogOrder(preview);
+  const packOwnerId = album.companyId || preview.company?.id || '';
+  return members.map((product) => {
+    const route = stampPackMillRoute({
+      millCompanyId: product.companyId,
+      packOwnerCompanyId: packOwnerId,
+      directMillCompanyIds: preview.directMillCompanyIds,
+    });
+    return productToOrderShortlistEntry(
       product,
       {
-        id: album.companyId || preview.company?.id || product.companyId,
+        id: packOwnerId || product.companyId,
         name: album.companyName || preview.company?.name || product.companyName || 'Shop',
       },
       {
         collectionId: album.collectionId,
-        path: 'handle',
+        path: route.sourcePath,
+        sourceDirect: route.sourceDirect,
         allowForward: album.allowForward ?? preview.allowForward,
+        ...(whole ? { catalogWhole: true, catalogName: preview.name } : {}),
       },
-    ),
-  );
+    );
+  });
 }
 
 export type CatalogOrderResolveResult = {
@@ -165,7 +207,7 @@ export async function expandWholeCatalogsInShortlist(
       allowForward: preview.allowForward,
       name: preview.name,
     });
-    next = mergeShortlistWithProducts(next, incoming);
+    next = overlayShortlistEntries(next, incoming);
     for (const member of members) locked.add(member.id);
   }
   return { shortlist: next, lockedProductIds: [...locked] };
@@ -207,7 +249,7 @@ export async function resolveCatalogOrderAlbums(input: {
       throw emptyCatalogError(album.name);
     }
     const incoming = expandPreviewMembers(preview, album);
-    shortlist = mergeShortlistWithProducts(shortlist, incoming);
+    shortlist = overlayShortlistEntries(shortlist, incoming);
     expandedAlbumNames.push(album.name);
     if (whole) {
       for (const member of members) lockedProductIds.add(member.id);

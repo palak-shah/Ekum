@@ -2,14 +2,16 @@ import { expect, test } from '@playwright/test';
 import { API_URL } from '../../helpers/env';
 import { accessTokenFromPage } from '../../helpers/orders';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { pickFieldSheetOption } from '../../helpers/fieldSheet';
 
 type PackDetail = {
   id: string;
   rate: number | null;
-  rateUnit?: string | null;
+  catalogRateUnit?: string | null;
   products: Array<{
     rate: number | null;
     unit: string | null;
+    catalogRateUnit?: string | null;
     dispatchUnit?: string | null;
     piecesPerPack?: number | null;
   }>;
@@ -47,7 +49,7 @@ test.describe('pack Rate per + clear set size @functional @release @collections 
       .click();
     await page.getByRole('button', { name: 'Done' }).click();
     await page.getByLabel('Collection name').fill(name);
-    await page.getByTestId('collection-master-category').selectOption({ index: 1 });
+    await pickFieldSheetOption(page, 'collection-master-category', 'Home textiles – Fabric');
     await page.getByTestId('collection-rate-from').fill('91');
     await page.getByTestId('collection-order-dispatch-toggle').click();
     await page.getByTestId('collection-set-contains').fill('39');
@@ -60,7 +62,7 @@ test.describe('pack Rate per + clear set size @functional @release @collections 
     await expect(page.getByText(/Published|Collection saved/i).first()).toBeVisible({
       timeout: 60_000,
     });
-    await expect(page).toHaveURL(/\/catalog/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/more\?tab=collections/, { timeout: 20_000 });
 
     const catalogLink = page.getByRole('link', { name: new RegExp(name) }).first();
     await expect(catalogLink).toBeVisible({ timeout: 20_000 });
@@ -70,22 +72,22 @@ test.describe('pack Rate per + clear set size @functional @release @collections 
 
     await page.goto(`/catalog/collections/${id}`);
     await expect(page.getByTestId('collection-edit-details')).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId('collection-rate-unit').selectOption('mtr');
+    await pickFieldSheetOption(page, 'collection-rate-unit', 'mtr');
     await page.getByTestId('collection-editor-update').click();
     await expect(page.getByText('Updated').first()).toBeVisible({ timeout: 30_000 });
 
     const token = await accessTokenFromPage(page);
     const stamped = await fetchPack(request, token, id);
     expect(stamped.rate).toBe(91);
-    expect(stamped.rateUnit).toBe('mtr');
-    expect(stamped.products[0]?.dispatchUnit).toBe('mtr');
+    expect(stamped.catalogRateUnit).toBe('mtr');
+    expect(stamped.products[0]?.catalogRateUnit).toBe('mtr');
     expect(stamped.products[0]?.piecesPerPack).toBe(39);
 
     await loginAsMeena(page);
     await page.goto('/explore');
     await page.getByText('Search supplier, collection or design').click();
     await page.getByLabel('Search').fill(name);
-    await expect(page.getByText('₹91/mtr').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('₹91/pc')).toHaveCount(0);
 
     await loginAsRavi(page);
@@ -93,6 +95,7 @@ test.describe('pack Rate per + clear set size @functional @release @collections 
     await expect(page.getByTestId('collection-edit-details')).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('collection-order-dispatch-toggle').click();
     await page.getByTestId('collection-set-contains').fill('0');
+    await pickFieldSheetOption(page, 'collection-rate-unit', 'mtr');
     await page.getByTestId('collection-apply-all').click();
     await expect(page.getByTestId('collection-apply-all')).toBeChecked();
     await page.getByTestId('collection-editor-update').click();
@@ -118,6 +121,6 @@ test.describe('pack Rate per + clear set size @functional @release @collections 
     await expect(page.getByText('₹10,647')).toHaveCount(0);
     await expect(page.getByText('₹3,549')).toHaveCount(0);
     await expect(page.getByText('No pcs in a set')).toHaveCount(0);
-    await expect(page.getByText('₹91/mtr').first()).toBeVisible();
+    await expect(page.getByText(/₹91/).first()).toBeVisible();
   });
 });

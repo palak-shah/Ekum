@@ -4,6 +4,7 @@ import { useToast } from '@/ui/Toast';
 import type { BrowseAlbumEntry } from './browseAlbumPick';
 import type { BrowseShortlistEntry } from './browseShortlist';
 import {
+  CATALOG_WHOLE_SELECT_TOAST,
   expandWholeCatalogsInShortlist,
   fetchCollectionOrderPreview,
   needsOrderResolveChoice,
@@ -25,6 +26,8 @@ export function usePrepareCatalogOrder() {
     async (input: {
       albums: BrowseAlbumEntry[];
       shortlist: BrowseShortlistEntry[];
+      /** DesignSheet Order already means the catalog — skip the remap toast. */
+      quiet?: boolean;
     }): Promise<PreparedCatalogOrder> => {
       setPreparing(true);
       try {
@@ -32,6 +35,13 @@ export function usePrepareCatalogOrder() {
           input.shortlist,
           fetchCollectionOrderPreview,
         );
+        const before = new Set(input.shortlist.map((entry) => entry.productId));
+        if (
+          !input.quiet &&
+          exclusive.shortlist.some((entry) => !before.has(entry.productId))
+        ) {
+          showToast(CATALOG_WHOLE_SELECT_TOAST);
+        }
         if (input.albums.length === 0) {
           return {
             kind: 'qty',

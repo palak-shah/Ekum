@@ -4,6 +4,7 @@ import {
   canDiscoverCollection,
   canViewCollectionProducts,
   effectivePublishAudience,
+  isBroadPublishAudience,
 } from './audience-visibility';
 
 describe('audience visibility', () => {
@@ -12,6 +13,9 @@ describe('audience visibility', () => {
     expect(effectivePublishAudience('connections')).toBe('followers');
     expect(effectivePublishAudience('followers')).toBe('followers');
     expect(effectivePublishAudience('selected')).toBe('selected');
+    expect(isBroadPublishAudience('followers')).toBe(true);
+    expect(isBroadPublishAudience('everyone')).toBe(true);
+    expect(isBroadPublishAudience('selected')).toBe(false);
   });
 
   it('keeps selected collections private to the list', () => {
@@ -54,6 +58,37 @@ describe('audience visibility', () => {
     expect(
       canDiscoverCollection('viewer', collection, { connected: true, following: false }),
     ).toBe(false);
+    expect(
+      canDiscoverCollection('viewer', collection, { connected: false, following: true }),
+    ).toBe(true);
+  });
+
+  it('hides Followers hops from Direct Link buyers already delivered', () => {
+    const collection = {
+      companyId: 'trader',
+      audience: 'followers',
+      audienceCompanyIds: ['buyer-1'],
+    };
+    expect(
+      canDiscoverCollection('buyer-1', collection, { connected: false, following: true }),
+    ).toBe(false);
+    expect(
+      canDiscoverCollection('buyer-2', collection, { connected: false, following: true }),
+    ).toBe(true);
+    expect(
+      canDiscoverCollection('buyer-2', collection, { connected: false, following: false }),
+    ).toBe(false);
+    expect(
+      canDiscoverCollection('trader', collection, { connected: false, following: false }),
+    ).toBe(true);
+  });
+
+  it('leaves ordinary Followers packs visible to all followers when ids are empty', () => {
+    const collection = {
+      companyId: 'owner',
+      audience: 'followers',
+      audienceCompanyIds: [],
+    };
     expect(
       canDiscoverCollection('viewer', collection, { connected: false, following: true }),
     ).toBe(true);
@@ -137,11 +172,16 @@ describe('audience visibility', () => {
         row !== null &&
         'audience' in row &&
         typeof (row as { audience: unknown }).audience === 'object',
-    ) as { company?: { followers?: { some?: { status?: string } } }; audience?: { in?: string[] } };
+    ) as {
+      company?: { followers?: { some?: { status?: string } } };
+      audience?: { in?: string[] };
+      NOT?: { audienceCompanyIds?: { has?: string } };
+    };
     expect(clause.company?.followers?.some?.status).toBe('allowed');
     expect(clause.audience?.in).toEqual(
       expect.arrayContaining(['followers', 'connections', 'everyone']),
     );
+    expect(clause.NOT?.audienceCompanyIds?.has).toBe('viewer');
   });
 
   it('includes the viewer’s own company so Followers packs stay on their Explore', () => {

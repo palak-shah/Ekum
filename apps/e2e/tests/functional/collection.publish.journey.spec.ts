@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { pickFieldSheetOption } from '../../helpers/fieldSheet';
 
 test.describe('seller collection publish @functional @release @collections', () => {
   test('add-and-go chrome; sticky dock; no bottom nav', async ({ page }) => {
@@ -27,6 +28,14 @@ test.describe('seller collection publish @functional @release @collections', () 
     await expect(page.getByText('Product details')).toBeVisible();
     await expect(page.getByTestId('collection-master-category')).toBeVisible();
     await expect(page.getByTestId('collection-master-category')).not.toContainText('Pick category');
+    const categoryValue = await page
+      .getByTestId('collection-master-category')
+      .getAttribute('data-value');
+    if (!categoryValue) {
+      await expect(page.getByTestId('collection-product-tags')).toHaveCount(0);
+      await pickFieldSheetOption(page, 'collection-master-category', 0);
+    }
+    await expect(page.getByTestId('collection-product-tags')).toBeVisible();
     const productDetailsOrder = await page.evaluate(() => {
       const root = document.querySelector('[data-testid="collection-product-details"]');
       if (!root) return null;
@@ -127,7 +136,7 @@ test.describe('seller collection publish @functional @release @collections', () 
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByLabel('Collection name').fill(collectionName);
-    await page.getByTestId('collection-master-category').selectOption({ index: 1 });
+    await pickFieldSheetOption(page, 'collection-master-category', 0);
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Create & Publish' }).click();
 
     await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });

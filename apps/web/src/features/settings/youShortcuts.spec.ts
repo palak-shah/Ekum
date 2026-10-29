@@ -12,10 +12,9 @@ describe('youShortcuts', () => {
     expect(youShortcutItems().find((item) => item.testId === 'my-designs')).toBeUndefined();
   });
 
-  it('puts Team and Your paths under Settings when trading', () => {
+  it('puts Team under Settings; Direct links live on Network', () => {
     expect(settingsBusinessRoleLinks(true).map((item) => item.to)).toEqual([
       '/team',
-      '/settings/paths',
       '/settings/catalog-defaults',
       '/settings/units',
     ]);

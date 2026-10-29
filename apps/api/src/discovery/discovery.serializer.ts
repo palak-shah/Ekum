@@ -152,6 +152,8 @@ export class DiscoverySerializer {
       categories: product.categories ?? [],
       postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
       allowForward: product.allowForward,
+      catalogCollectionId:
+        (product as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
       viewerReposted: opts?.viewerReposted === true,
       company: this.companySerializer.toPublicSummary(product.company),
     };

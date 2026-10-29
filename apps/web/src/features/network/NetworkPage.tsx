@@ -17,10 +17,19 @@ const TRADE_LINKS = [
 
 export function NetworkPage() {
   const navigate = useNavigate();
-  const { selling, canPublish } = useTradePresence();
+  const { selling, canPublish, trading } = useTradePresence();
 
   const links = [
     ...SEE_LINKS,
+    ...(trading
+      ? [
+          {
+            to: '/network/direct-links',
+            label: 'Direct links',
+            hint: 'Supplier and buyer who order together',
+          },
+        ]
+      : []),
     ...(selling && canPublish
       ? [
           {

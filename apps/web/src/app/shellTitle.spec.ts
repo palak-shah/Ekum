@@ -81,6 +81,7 @@ describe('isMainMenuPath', () => {
       '/network',
       '/network/following',
       '/network/followers',
+      '/network/direct-links',
       '/network/connections',
       '/broadcast',
       '/broadcast/new',

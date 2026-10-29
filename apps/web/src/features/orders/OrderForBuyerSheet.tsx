@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConnectionView, CreateForBuyerDto, CreateForBuyerResult } from '@ekum/domain-types';
+import type {
+  ConnectionView,
+  CreateForBuyerDto,
+  CreateForBuyerResult,
+  TradeLaneView,
+} from '@ekum/domain-types';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { forBuyerPlaceSubsets } from '@/features/browse/packPlacePhases';
 import { isTenDigitPhone, orderForBuyerLoggedToast } from '@/features/orders/orderWho';
 import { api, ApiError } from '@/lib/apiClient';
+import { useMyCompany } from '@/lib/queries';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { useToast } from '@/ui/Toast';
 import { Button, Field, Sheet, TextInput } from '@/ui/kit';
 
-type Line = { productId: string; quantity: number };
+type Line = { productId: string; quantity: number; companyId?: string };
 
 type Props = {
   open: boolean;
@@ -16,9 +23,17 @@ type Props = {
   lines: Line[];
   productIds: string[];
   transporter?: string;
+  collectionId?: string;
   onInvite: (url: string) => void;
   onDone: () => void;
 };
+
+function toDtoItems(orderLines: Line[]): CreateForBuyerDto['items'] {
+  return orderLines.map((line) => ({
+    productId: line.productId,
+    quantity: line.quantity,
+  }));
+}
 
 export function OrderForBuyerSheet({
   open,
@@ -26,11 +41,13 @@ export function OrderForBuyerSheet({
   lines,
   productIds,
   transporter,
+  collectionId,
   onInvite,
   onDone,
 }: Props) {
   const shortlist = useBrowseShortlist();
   const queryClient = useQueryClient();
+  const me = useMyCompany();
   const { showToast } = useToast();
   const [buyerId, setBuyerId] = useState<string | null>(null);
   const [offApp, setOffApp] = useState(false);
@@ -62,15 +79,49 @@ export function OrderForBuyerSheet({
     : Boolean(buyerId);
 
   const logForBuyer = useMutation({
-    mutationFn: (orderLines: Line[]) => {
-      const dto: CreateForBuyerDto = {
-        items: orderLines,
+    mutationFn: async (orderLines: Line[]) => {
+      const shared = {
         ...(transporter?.trim() ? { transporter: transporter.trim() } : {}),
+        ...(collectionId ? { collectionId } : {}),
         ...(offApp
           ? { buyerName: buyerName.trim(), buyerPhone: buyerPhone.trim() }
           : { buyerCompanyId: buyerId ?? undefined }),
       };
-      return api.post<CreateForBuyerResult>('/orders/for-buyer', dto);
+
+      const postSubset = (subset: Line[]) =>
+        api.post<CreateForBuyerResult>('/orders/for-buyer', {
+          ...shared,
+          items: toDtoItems(subset),
+        } satisfies CreateForBuyerDto);
+
+      if (offApp || !collectionId || !buyerId) {
+        return postSubset(orderLines);
+      }
+
+      let directMillCompanyIds: string[] = [];
+      try {
+        const lanes = await api.get<TradeLaneView[]>('/trade-lanes');
+        directMillCompanyIds = lanes
+          .filter(
+            (lane) =>
+              lane.buyerCompanyId === buyerId &&
+              lane.ticket === 'mill' &&
+              lane.behaviors.directOrder !== false,
+          )
+          .map((lane) => lane.sellerCompanyId);
+      } catch {
+        return postSubset(orderLines);
+      }
+
+      const { direct, handle } = forBuyerPlaceSubsets(orderLines, {
+        actorCompanyId: me.data?.id,
+        directMillCompanyIds,
+      });
+      let last: CreateForBuyerResult | null = null;
+      if (direct.length > 0) last = await postSubset(direct);
+      if (handle.length > 0) last = await postSubset(handle);
+      if (!last) return postSubset(orderLines);
+      return last;
     },
     onSuccess: (result) => {
       shortlist.removeIds(productIds);

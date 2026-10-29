@@ -3,11 +3,17 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   isTagSuggestListScroll,
+  tagSuggestBottomClear,
   tagSuggestGestureIsScroll,
   TagSuggestInput,
 } from './TagSuggestInput';
 
 describe('TagSuggestInput', () => {
+  it('drops dock clearance when the visual viewport shrinks for the keyboard', () => {
+    expect(tagSuggestBottomClear(800, 780)).toBe(136);
+    expect(tagSuggestBottomClear(800, 400)).toBe(8);
+  });
+
   it('keeps remaining suggestions after a pick; Escape blurs to exit', async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();

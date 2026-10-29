@@ -4,6 +4,7 @@ import {
   exploreFeedCategoryLine,
   exploreFeedRateLine,
   exploreFeedSourceLine,
+  visitorPackSourceLine,
 } from './exploreFeedCaptionLines';
 
 describe('exploreFeedRateLine', () => {
@@ -73,5 +74,54 @@ describe('exploreFeedSourceLine', () => {
   it('omits when empty', () => {
     expect(exploreFeedSourceLine([])).toBeNull();
     expect(exploreFeedSourceLine(null)).toBeNull();
+  });
+});
+
+describe('visitorPackSourceLine', () => {
+  it('uses stamped mill names', () => {
+    expect(
+      visitorPackSourceLine({
+        showSourceShops: true,
+        sourceShopNames: ['Ahmedabad Loom Co'],
+        packCompanyId: 'trader',
+        products: [],
+      }),
+    ).toBe('From Ahmedabad Loom Co');
+  });
+
+  it('falls back to foreign member shops when stamps are empty', () => {
+    expect(
+      visitorPackSourceLine({
+        showSourceShops: true,
+        sourceShopNames: [],
+        packCompanyId: 'trader',
+        products: [
+          { companyId: 'mill', companyName: 'Ahmedabad Loom Co' },
+          { companyId: 'trader', companyName: 'Jaipur Emporium' },
+        ],
+      }),
+    ).toBe('From Ahmedabad Loom Co');
+  });
+
+  it('omits when Show supplier is off', () => {
+    expect(
+      visitorPackSourceLine({
+        showSourceShops: false,
+        sourceShopNames: ['Ahmedabad Loom Co'],
+        packCompanyId: 'trader',
+        products: [{ companyId: 'mill', companyName: 'Ahmedabad Loom Co' }],
+      }),
+    ).toBeNull();
+  });
+
+  it('credits catalog packs the same as collections when Show supplier is on', () => {
+    expect(
+      visitorPackSourceLine({
+        showSourceShops: true,
+        sourceShopNames: ['Ahmedabad Loom Co'],
+        packCompanyId: 'trader',
+        products: [{ companyId: 'mill', companyName: 'Ahmedabad Loom Co' }],
+      }),
+    ).toBe('From Ahmedabad Loom Co');
   });
 });

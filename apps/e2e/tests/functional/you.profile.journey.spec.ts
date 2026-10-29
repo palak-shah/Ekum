@@ -85,7 +85,7 @@ test.describe('You profile @functional @settings', () => {
     await expect(page.getByTestId('settings-domain-dispatch')).toBeVisible();
     await expect(page.getByTestId('settings-domain-billing')).toBeVisible();
     await expect(page.getByRole('link', { name: /^Team/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Your paths/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Your paths/i })).toHaveCount(0);
     await page.getByRole('link', { name: /^Team/ }).click();
     await expect(page.getByRole('main').getByRole('heading', { name: 'Team' })).toBeVisible({
       timeout: 10_000,

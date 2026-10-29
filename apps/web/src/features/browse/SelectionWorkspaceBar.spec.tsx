@@ -63,9 +63,12 @@ vi.mock('@/features/browse/useShortlistOrderFlow', () => ({
     error: null,
     sendOrder: vi.fn(),
     askRates: vi.fn(),
+    waveEntries: (entries: unknown[]) => entries,
+    remainingEntries: (entries: unknown[]) => entries,
   }),
   entriesAsProducts: () => [],
   sellerIdForEntries: () => 'c1',
+  orderGoesToSellerId: () => 'c1',
 }));
 
 vi.mock('@/features/browse/OrderCollectionResolveSheet', () => ({

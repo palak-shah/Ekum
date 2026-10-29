@@ -517,6 +517,7 @@ export function CollectionEditorPage() {
   const isCatalog =
     (isCreate && searchParams.get('kind') === 'catalog') ||
     isCatalogCollection(existing.data?.kind);
+  const stampApplyToAll = isCatalog || applyToAll;
   const packKind = isCatalog ? 'catalog' : 'regular';
   const copyKind = existing.data?.kind ?? createKindFromFlag(isCatalog);
   const pickerDesigns = libraryDesignsForPicker(
@@ -729,10 +730,15 @@ export function CollectionEditorPage() {
   }, [existing.data]);
 
   useEffect(() => {
+    if (isCatalog) {
+      setApplyToAll(true);
+      applyToAllHydrated.current = true;
+      return;
+    }
     if (!company.data?.id || applyToAllHydrated.current) return;
     applyToAllHydrated.current = true;
     setApplyToAll(readCollectionApplyToAll(company.data.id));
-  }, [company.data?.id]);
+  }, [company.data?.id, isCatalog]);
 
   const setApplyToAllRemembered = (next: boolean) => {
     setApplyToAll(next);
@@ -975,7 +981,7 @@ export function CollectionEditorPage() {
             packRate,
           ),
           packRate,
-          applyToAll,
+          applyToAll: stampApplyToAll,
         });
         if (Object.keys(patch).length === 0) continue;
         await api.patch(`/products/${product.id}`, patch);
@@ -1608,7 +1614,7 @@ export function CollectionEditorPage() {
             categories,
           },
           packShared,
-          applyToAll,
+          stampApplyToAll,
         );
         const fields = productFieldsFromMember(stamped);
         const product = await api.post<ProductView>('/products', {
@@ -1657,7 +1663,7 @@ export function CollectionEditorPage() {
                 packRate,
               ) && !opts.keepRateIds.has(productId),
             packRate,
-            applyToAll,
+            applyToAll: stampApplyToAll,
           }),
         );
         if (Object.keys(patch).length === 0) continue;
@@ -2312,6 +2318,7 @@ export function CollectionEditorPage() {
       {isCreate && !isGeneral ? whoExpandable : null}
       {!isGeneral ? (
       <>
+      {isCatalog ? null : (
       <div className="flex flex-col gap-1">
         <div
           className={cx(
@@ -2350,6 +2357,7 @@ export function CollectionEditorPage() {
           </InfoHint>
         </div>
       </div>
+      )}
       <OrderDispatchAccordion
         orderUnit={sameForAll.unit || Unit.Set}
         piecesPerPack={sameForAll.piecesPerPack}

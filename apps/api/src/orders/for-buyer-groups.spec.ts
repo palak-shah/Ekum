@@ -22,4 +22,14 @@ describe('groupForBuyerLines', () => {
       { productId: 'mill-b', quantity: 5 },
     ]);
   });
+
+  it('keeps mill own designs as mill supply on a visitor pack', () => {
+    const grouped = groupForBuyerLines(
+      [{ productId: 'own-1', quantity: 5 }],
+      [{ id: 'own-1', companyId: 'mill' }],
+      'mill',
+    );
+    expect(grouped.own).toEqual([{ productId: 'own-1', quantity: 5 }]);
+    expect(grouped.byMill.size).toBe(0);
+  });
 });

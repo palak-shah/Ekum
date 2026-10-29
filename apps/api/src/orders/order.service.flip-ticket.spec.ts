@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import {
   OrderIntent,
@@ -29,7 +30,7 @@ function Decimal(n: number) {
 }
 
 describe('OrderService.flipTicket', () => {
-  it('D12: Mills → stay on main; stamp ticket mill on every hop (no Direct split)', async () => {
+  it('locks live mill-ticket flip — Direct Link lives on Network', async () => {
     const parent = {
       id: 'main-1',
       status: OrderStatus.Requested,
@@ -110,24 +111,15 @@ describe('OrderService.flipTicket', () => {
       millDesks: [{ sellerName: 'Surat' }, { sellerName: 'Ahmedabad' }],
     } as never);
 
-    const result = await service.flipTicket('trader', 'user-1', 'main-1', {
-      ticket: TradeLaneTicket.Mill,
-    });
-
+    await expect(
+      service.flipTicket('trader', 'user-1', 'main-1', { ticket: TradeLaneTicket.Mill }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.order.update).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
-    expect(upsertLane).toHaveBeenCalledTimes(2);
-    expect(upsertLane).toHaveBeenCalledWith('trader', 's1', 'buyer', {
-      ticket: TradeLaneTicket.Mill,
-    });
-    expect(upsertLane).toHaveBeenCalledWith('trader', 's2', 'buyer', {
-      ticket: TradeLaneTicket.Mill,
-    });
-    expect(result.id).toBe('main-1');
-    expect(result.tradeMode).toBe(OrderTradeMode.Manage);
+    expect(upsertLane).not.toHaveBeenCalled();
   });
 
-  it('D12: one mill Mills flip also stays on main (uniform)', async () => {
+  it('locks mill-ticket flip for a single mill hop', async () => {
     const parent = {
       id: 'main-1',
       status: OrderStatus.Requested,
@@ -182,12 +174,10 @@ describe('OrderService.flipTicket', () => {
       tradeMode: OrderTradeMode.Manage,
     } as never);
 
-    const result = await service.flipTicket('trader', 'user-1', 'main-1', {
-      ticket: TradeLaneTicket.Mill,
-    });
-
+    await expect(
+      service.flipTicket('trader', 'user-1', 'main-1', { ticket: TradeLaneTicket.Mill }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(create).not.toHaveBeenCalled();
     expect(prisma.order.update).not.toHaveBeenCalled();
-    expect(result.id).toBe('main-1');
   });
 });

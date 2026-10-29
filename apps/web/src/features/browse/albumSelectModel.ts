@@ -54,3 +54,16 @@ export function mergeShortlistWithProducts(
   }
   return [...byId.values()];
 }
+
+/** Incoming stamps (catalogWhole) overlay existing rows of the same design. */
+export function overlayShortlistEntries(
+  existing: BrowseShortlistEntry[],
+  incoming: BrowseShortlistEntry[],
+): BrowseShortlistEntry[] {
+  const byId = new Map(existing.map((row) => [row.productId, row]));
+  for (const entry of incoming) {
+    const prev = byId.get(entry.productId);
+    byId.set(entry.productId, prev ? { ...prev, ...entry } : entry);
+  }
+  return [...byId.values()];
+}

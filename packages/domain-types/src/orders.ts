@@ -43,6 +43,8 @@ export const orderItemInputSchema = z.object({
   unit: z.enum(unitValues).optional(),
   quantity,
   note: z.string().trim().max(500).optional(),
+  /** Internal hop mapping — ignored on public Place unless the service opts in. */
+  sourceItemId: z.string().min(1).optional(),
 });
 export type OrderItemInput = z.infer<typeof orderItemInputSchema>;
 
@@ -97,6 +99,8 @@ export const createForBuyerSchema = z
     buyerName: z.string().trim().min(1).max(200).optional(),
     buyerPhone: z.string().trim().min(8).max(20).optional(),
     note: z.string().trim().max(1000).optional(),
+    /** Visitor pack — Order for buyer hops to that shop, not own-catalog. */
+    collectionId: z.string().min(1).optional(),
     /** Optional preferred transporter (free text). */
     transporter: z.string().trim().max(120).optional(),
     items: z
@@ -161,8 +165,11 @@ export const createOrdersFromPackSchema = z.object({
 export type CreateOrdersFromPackDto = z.input<typeof createOrdersFromPackSchema>;
 
 export interface CreateOrdersFromPackResult {
-  downstream: OrderView;
+  /** Manage parent when any I-handle / trader-owned lines remain; else null. */
+  downstream: OrderView | null;
   upstreams: OrderView[];
+  /** Direct mill tickets from this checkout (facilitator = pack owner). */
+  directs: OrderView[];
   failures: CreateOrdersBatchFailure[];
 }
 
@@ -304,10 +311,40 @@ export const updateTradeLaneSchema = z
   });
 export type UpdateTradeLaneDto = z.infer<typeof updateTradeLaneSchema>;
 
+export const createTradeLaneSchema = z
+  .object({
+    sellerCompanyId: z.string().min(1),
+    buyerCompanyId: z.string().min(1),
+  })
+  .refine((row) => row.sellerCompanyId !== row.buyerCompanyId, {
+    message: 'Pick two different shops.',
+  });
+export type CreateTradeLaneDto = z.infer<typeof createTradeLaneSchema>;
+
+export const DEFAULT_TRADE_LANE_BEHAVIORS = {
+  directOrder: true,
+  /** Not a per-lane toggle — auto-repost is Direct Link + Relist eligibility. */
+  autoRepost: false,
+} as const;
+
+export interface TradeLaneBehaviors {
+  directOrder: boolean;
+  autoRepost: boolean;
+}
+
 export const listTradeLanesQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
 });
 export type ListTradeLanesQuery = z.infer<typeof listTradeLanesQuerySchema>;
+
+export const affectedTradeLanesQuerySchema = z.object({
+  companyId: z.string().min(1),
+});
+export type AffectedTradeLanesQuery = z.infer<typeof affectedTradeLanesQuerySchema>;
+
+export interface AffectedTradeLanesView {
+  lanes: TradeLaneView[];
+}
 
 export interface TradeLaneView {
   id: string;
@@ -318,6 +355,9 @@ export interface TradeLaneView {
   buyerName: string;
   ticket: 'me' | 'mill';
   reveal: boolean;
+  behaviors: TradeLaneBehaviors;
+  /** Always false in this slice — defaults are shown ticked, not editable. */
+  behaviorsEditable: boolean;
   updatedAt: string;
 }
 
@@ -655,6 +695,15 @@ export interface OrderItemView {
   quantity: number;
   /** Original buyer-requested quantity. */
   requestedQuantity: number;
+  /** First seller confirm qty; null until confirmed. */
+  confirmedQuantity?: number | null;
+  confirmedRate?: number | null;
+  /** Hop → parent line id when this is a mill subset item. */
+  sourceItemId?: string | null;
+  /** Whole-catalog group stamp — collapse How many / ticket; mill hops omit. */
+  catalogCollectionId?: string | null;
+  catalogName?: string | null;
+  catalogWhole?: boolean | null;
   lineStatus: OrderLineStatus;
   /** Qty already included in shipments (may exceed `quantity` when over-shipped). */
   shippedQuantity: number;

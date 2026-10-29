@@ -482,6 +482,12 @@ export class ReferenceResolver {
           available: Boolean(order),
           status: frozenStatus,
           itemCount: frozenItemCount ?? order?._count.items ?? null,
+          catalogCount:
+            typeof meta.catalogCount === 'number' ? meta.catalogCount : null,
+          catalogName:
+            typeof meta.catalogName === 'string' && meta.catalogName.trim()
+              ? meta.catalogName.trim()
+              : null,
           totalLabel,
           counterpartName,
           direction,

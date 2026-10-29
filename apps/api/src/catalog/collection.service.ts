@@ -12,6 +12,7 @@ import {
   FollowAccessKind,
   JobType,
   ProductStatus,
+  RepostOrigin,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
@@ -45,6 +46,11 @@ import {
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
 import { shouldBumpExploreOnPublish } from './explore-activity-bump';
+import {
+  audienceCompanyIdsForPublish,
+  resolveRepostRootId,
+  shouldReuseRepostChild,
+} from './collection-lineage';
 import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
 import { MasterDataService } from './master-data/master-data.service';
 import {
@@ -143,13 +149,15 @@ export class CollectionService {
     userId: string,
     dto: CreateCollectionDto,
   ): Promise<CollectionView> {
-    const name = await this.assertNameAvailable(companyId, dto.name);
     const startsAt = parseScheduleInstant(dto.startsAt, 'start');
     const endsAt = parseScheduleInstant(dto.endsAt, 'end');
     if (startsAt !== undefined || endsAt !== undefined) {
       assertValidLiveWindow(startsAt ?? null, endsAt ?? null);
     }
     const repostSource = await this.resolveRepostSource(companyId, dto);
+    const name = await this.assertNameAvailable(companyId, dto.name, {
+      excludeId: repostSource.reuseCollectionId,
+    });
     const masterCategoryId =
       prismaModelHasField('Collection', 'masterCategoryId') && this.masterData
         ? await this.masterData.resolveCategoryIdForCompany(
@@ -242,6 +250,7 @@ export class CollectionService {
         include: listInclude,
       });
       await ensureSellingEnabled(this.prisma, companyId);
+      await this.stampManualRepostLineage(collection.id, repostSource.repostSourceCollectionId);
       return this.serializer.toCollectionView(collection, 0);
     } catch (err) {
       if (
@@ -301,10 +310,10 @@ export class CollectionService {
           repostSourceCollectionId: source.id,
           status: { not: CollectionStatus.Archived },
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, audience: true, repostOrigin: true },
       });
       if (existing) {
-        if (existing.status === CollectionStatus.Draft) {
+        if (shouldReuseRepostChild(existing)) {
           return {
             repostSourceCollectionId: source.id,
             repostSourceProductId: null,
@@ -352,10 +361,10 @@ export class CollectionService {
         repostSourceProductId: source.id,
         status: { not: CollectionStatus.Archived },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, audience: true, repostOrigin: true },
     });
     if (existing) {
-      if (existing.status === CollectionStatus.Draft) {
+      if (shouldReuseRepostChild(existing)) {
         return {
           repostSourceCollectionId: null,
           repostSourceProductId: source.id,
@@ -581,8 +590,13 @@ export class CollectionService {
         await grantPublishCapability(this.prisma, companyId);
       }
     }
-    const audienceCompanyIds =
-      dto.audience === 'selected' ? [...new Set(dto.companyIds ?? [])] : [];
+    const audienceCompanyIds = audienceCompanyIdsForPublish({
+      nextAudience: dto.audience,
+      nextCompanyIds: dto.companyIds,
+      priorAudience: existing.audience,
+      repostOrigin: existing.repostOrigin,
+      priorCompanyIds: existing.audienceCompanyIds,
+    });
     const audienceGroupIds =
       dto.audience === 'selected'
         ? [...new Set(dto.groupIds?.length ? dto.groupIds : dto.groupId ? [dto.groupId] : [])]
@@ -706,6 +720,7 @@ export class CollectionService {
       await grantRelistCapability(this.prisma, companyId);
     }
     await this.scheduleExpire(id, collection.endsAt);
+    await this.enqueuePropagate(id);
     // Reload: scheduleExpire may have drafted immediately when endsAt is past.
     return this.toLatestCollectionView(id);
   }
@@ -767,6 +782,9 @@ export class CollectionService {
       },
       include: listInclude,
     });
+    if (hideFromMarket) {
+      await this.enqueuePropagate(id);
+    }
     return this.serializer.toCollectionView(collection);
   }
 
@@ -1209,6 +1227,9 @@ export class CollectionService {
       ]);
     }
 
+    if (shouldBumpExplore) {
+      await this.enqueuePropagate(id);
+    }
     return this.get(companyId, id);
   }
 
@@ -1432,5 +1453,26 @@ export class CollectionService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Collection not found.' });
     }
     return collection;
+  }
+
+  private async stampManualRepostLineage(
+    collectionId: string,
+    sourceCollectionId: string | null | undefined,
+  ): Promise<void> {
+    if (!sourceCollectionId || !prismaModelHasField('Collection', 'repostRootCollectionId')) {
+      return;
+    }
+    const rootId = await resolveRepostRootId(this.prisma, sourceCollectionId);
+    await this.prisma.collection.update({
+      where: { id: collectionId },
+      data: {
+        repostRootCollectionId: rootId,
+        repostOrigin: RepostOrigin.Manual,
+      },
+    });
+  }
+
+  private async enqueuePropagate(collectionId: string): Promise<void> {
+    await this.jobs.enqueue(JobType.CollectionPropagate, { collectionId });
   }
 }

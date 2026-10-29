@@ -40,7 +40,7 @@ import {
   publicCollectionKindWhere,
 } from '../catalog/general-collection';
 import { pinOwnRows, prependUniqueById } from './explore-own-pin';
-import { DiscoverySerializer } from './discovery.serializer';
+import { collectionSourceShopNames, DiscoverySerializer } from './discovery.serializer';
 import {
   canDiscoverCollection,
   canViewCollectionProducts,
@@ -67,6 +67,7 @@ import { audienceVisibilityOr, curatedSourceExcludeAnd } from '../catalog/audien
 import { productAccessibleViaCollection } from '../catalog/product-viewer-access';
 import { compareByMarketRelevance } from './feed-rank';
 import { viewerPackTicket } from '../orders/viewer-pack-ticket';
+import { laneRoutesDirect } from '../orders/trade-lane';
 import {
   categoryHasSomeWhere,
   cityEqualsWhere,
@@ -1160,6 +1161,7 @@ export class ExploreService {
       ),
     ];
     let viewerTicket: 'me' | 'mill' | null = null;
+    let directMillCompanyIds: string[] = [];
     if (!isOwner && millCompanyIds.length > 0) {
       const lanes = await this.prisma.tradeLane.findMany({
         where: {
@@ -1167,7 +1169,7 @@ export class ExploreService {
           buyerCompanyId: viewerCompanyId,
           sellerCompanyId: { in: millCompanyIds },
         },
-        select: { sellerCompanyId: true, ticket: true },
+        select: { sellerCompanyId: true, ticket: true, behaviors: true },
       });
       viewerTicket = viewerPackTicket({
         isOwner,
@@ -1177,9 +1179,27 @@ export class ExploreService {
           ticket: lane.ticket === 'mill' ? 'mill' : 'me',
         })),
       });
+      const laneByMill = new Map(lanes.map((lane) => [lane.sellerCompanyId, lane]));
+      directMillCompanyIds = millCompanyIds.filter((millId) => {
+        const lane = laneByMill.get(millId);
+        return laneRoutesDirect({ ticket: lane?.ticket, behaviors: lane?.behaviors });
+      });
     }
 
     const card = this.discovery.toCollectionCard(collection, { viewerCompanyId });
+    const sourceShopNames =
+      card.sourceShopNames.length > 0
+        ? card.sourceShopNames
+        : collectionSourceShopNames(
+            collection.companyId,
+            collection.showSourceShops === true,
+            (products ?? []).map((row) => ({
+              product: {
+                companyId: row.companyId,
+                company: { name: row.companyName?.trim() || '' },
+              },
+            })),
+          );
     const generalAlbum = isGeneralKind((collection as { kind?: string }).kind);
     // Album facts: pack rate first; else min–max priced designs. Owner always
     // sees the band; on_request hides it from other users only.
@@ -1202,6 +1222,7 @@ export class ExploreService {
     if (!showProducts) {
       return {
         ...card,
+        sourceShopNames,
         rateMin: albumRate.rateMin,
         rateMax: albumRate.rateMax,
         rateUnit: albumRate.rateUnit,
@@ -1212,10 +1233,12 @@ export class ExploreService {
         connected,
         products: null,
         viewerTicket: null,
+        directMillCompanyIds: [],
       };
     }
     return {
       ...card,
+      sourceShopNames,
       rateMin: albumRate.rateMin,
       rateMax: albumRate.rateMax,
       rateUnit: albumRate.rateUnit,
@@ -1224,6 +1247,7 @@ export class ExploreService {
       products,
       productCount: products?.length ?? 0,
       viewerTicket,
+      directMillCompanyIds,
     };
   }
 
@@ -1749,6 +1773,14 @@ export class ExploreService {
     const mine = await this.prisma.collection.findMany({
       where: {
         companyId: viewerCompanyId,
+        status: CollectionStatus.Published,
+        audience: {
+          in: [
+            PublishAudience.Followers,
+            PublishAudience.Connections,
+            PublishAudience.Everyone,
+          ],
+        },
         OR: [
           ...(collectionIds.length > 0
             ? [{ repostSourceCollectionId: { in: collectionIds } }]

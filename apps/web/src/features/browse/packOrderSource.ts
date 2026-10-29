@@ -1,6 +1,6 @@
 import type { BrowseShortlistEntry } from './browseShortlist';
 
-/** One curated pack on every line — always from-pack (main + linked lots). */
+/** One curated pack on every line — from-pack (Direct mills + Manage rest). */
 export function singleSourceCollectionId(
   entries: Array<Pick<BrowseShortlistEntry, 'sourceCollectionId'>>,
 ): string | null {
@@ -22,7 +22,7 @@ export function isHandlePackPath(path: string | null | undefined): boolean {
 }
 
 /**
- * Curated pack Place → from-pack (one main + linked mill lots).
+ * Curated pack Place → from-pack (per-mill Direct vs Manage parent + hops).
  * Direct/transparent is visibility on that desk, not batch Place.
  */
 export function collectionIdForPackOrder(

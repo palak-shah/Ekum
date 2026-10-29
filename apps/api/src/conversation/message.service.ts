@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, type Message } from '@prisma/client';
 import {
   MessageType,
@@ -75,6 +75,12 @@ export class MessageService {
       actor.role,
       actor.userId,
     );
+    if (mine.thread?.messagingClosedAt) {
+      throw new ForbiddenException({
+        code: 'CHAT_CLOSED',
+        message: 'This group is read-only. Use a 1:1 chat.',
+      });
+    }
     await this.validateReference(actorCompanyId, dto);
     await this.validateReplyTarget(
       threadId,

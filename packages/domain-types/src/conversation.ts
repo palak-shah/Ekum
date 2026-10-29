@@ -612,6 +612,9 @@ export interface MessageReference {
   /** Order/rate: line count. Collection: total designs (for +N overflow). */
   status?: string | null;
   itemCount?: number | null;
+  /** Whole-catalog groups on this card (collapsed). */
+  catalogCount?: number | null;
+  catalogName?: string | null;
   totalLabel?: string | null;
   /** Other party on the order, from the viewer's perspective. */
   counterpartName?: string | null;

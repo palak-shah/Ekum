@@ -26,6 +26,27 @@ vi.mock('@/lib/apiClient', () => ({
 }));
 
 describe('CascadeTagsFields', () => {
+  it('hides tag fields until a category is chosen', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <CascadeTagsFields
+          items={[]}
+          qualities={[]}
+          sizes={[]}
+          masterCategoryId={null}
+          onItems={() => undefined}
+          onQualities={() => undefined}
+          onSizes={() => undefined}
+        />
+      </QueryClientProvider>,
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('Item tags')).toBeNull();
+  });
+
   it('shows Item / Quality / Size tags labels', () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },

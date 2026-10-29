@@ -324,15 +324,15 @@ test.describe('demo journey PDFs', () => {
       await settle(page, 1200);
       await shot(page, dir, shots, '07-desk.png', 'Trader desk', 'Buyer ticket with mill subsets — Send / quote path.');
 
-      await softGoto(page, '/settings/paths');
+      await softGoto(page, '/network/direct-links');
       await settle(page, 1000);
-      await shot(page, dir, shots, '08-your-paths.png', 'Your paths', 'Default ticket path per buyer/seller pair (Me / Mill).');
+      await shot(page, dir, shots, '08-your-paths.png', 'Direct links', 'Supplier × buyer table — Remove on each row.');
 
       await softGoto(page, '/catalog');
       await shot(page, dir, shots, '09-catalog.png', 'Catalog', 'Trader also sells own Surat Silk House catalog.');
 
       await softGoto(page, '/more');
-      await shot(page, dir, shots, '10-you.png', 'You', 'Trader hub — paths, network, catalog, saved.');
+      await shot(page, dir, shots, '10-you.png', 'You', 'Trader hub — network, catalog, saved.');
 
       const pdfPage = await browser.newPage();
       await buildPdf(

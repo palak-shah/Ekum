@@ -259,7 +259,9 @@ model TradeLane {
   /// me | mill — this slice only writes me
   ticket           String   @default("me")
   reveal           Boolean  @default(false)
-  /// Reused trio group when reveal is on (null until first ensure).
+  /// Persisted Direct-link defaults (directOrder on). Auto-repost is eligibility, not this JSON.
+  behaviors        Json?
+  /// Reused trio group when this is a Direct Link (null until first ensure).
   groupThreadId    String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -398,6 +400,14 @@ model Collection {
    */
   repostSourceCollectionId String?
   repostSourceProductId    String?
+  /** Walk of repostSourceCollectionId to the mill original. */
+  repostRootCollectionId String?
+  /** manual (default, including historical Repost) | automatic */
+  repostOrigin String?
+  /** Last source exploreActivityAt successfully synced into this pack. */
+  repostSyncedSourceAt DateTime?
+  /** Source member product ids as of last successful sync (for removals). */
+  repostSyncedProductIds Json?
   /** Live window start (UTC). null = live as soon as published. */
   startsAt            DateTime?
   /** Live window end (UTC). null = evergreen. When passed → Hide to draft. */
@@ -427,6 +437,7 @@ model Collection {
   @@index([updatedByUserId])
   @@index([companyId, repostSourceCollectionId])
   @@index([companyId, repostSourceProductId])
+  @@index([companyId, repostRootCollectionId])
 }
 
 /// Spreadsheet Master Category (Section A). Stable slug is the product ID.
@@ -676,6 +687,8 @@ model Thread {
   inviteToken        String?  @unique
   createdByCompanyId String
   lastMessageAt      DateTime @default(now())
+  /** Set when a Direct Link trio is closed — history stays; new messages rejected. */
+  messagingClosedAt  DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -970,15 +983,28 @@ model OrderItem {
   images            String[] @default([])
   quantity          Decimal  @db.Decimal(12, 2)
   requestedQuantity Decimal  @db.Decimal(12, 2)
+  /// First seller confirm qty (operational qty later does not overwrite).
+  confirmedQuantity Decimal? @db.Decimal(12, 2)
+  confirmedRate     Decimal? @db.Decimal(12, 2)
+  /// Hop line → exact buyer-facing parent line (Manage). Null on Direct / historical unmapped.
+  sourceItemId      String?
+  /// Whole-catalog group — equal qty; ticket collapses. Null on mill hops / pick.
+  catalogCollectionId String?
+  catalogName         String?
+  catalogWhole        Boolean  @default(false)
   /// OrderLineStatus: open | declined | confirmed | dispatched | delivered
   lineStatus        String   @default("open")
   note              String?
   createdAt         DateTime @default(now())
 
   order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sourceItem     OrderItem?          @relation("OrderItemSource", fields: [sourceItemId], references: [id], onDelete: SetNull)
+  sourcedItems   OrderItem[]         @relation("OrderItemSource")
   shipmentItems  OrderShipmentItem[]
 
   @@index([orderId])
+  @@index([sourceItemId])
+  @@index([catalogCollectionId])
 }
 
 /// One physical dispatch (LR) against an order — supports split fulfillment.

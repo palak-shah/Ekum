@@ -156,6 +156,12 @@ function toggleExploreDesign(
     unit: product.unit ?? null,
     dispatchUnit: product.dispatchUnit ?? null,
     rate: product.rate ?? null,
+    ...(product.catalogCollectionId
+      ? { catalogCollectionId: product.catalogCollectionId }
+      : {}),
+    ...(product.catalogOrderMode
+      ? { catalogOrderMode: product.catalogOrderMode }
+      : {}),
   });
   exitExploreSelectIfEmpty(next.length + albumPick.count, shortlist, albumPick);
 }

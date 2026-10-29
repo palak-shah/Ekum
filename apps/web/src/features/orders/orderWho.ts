@@ -4,11 +4,14 @@ export type OrderWhoMode = 'hidden' | 'for-me-default' | 'buyer-only';
 export function orderWhoMode(options: {
   canLogForBuyer: boolean;
   actorCompanyId: string;
-  productCompanyIds: string[];
+  /** Who the order goes to — pack owner or mill shop, not mill SKU members. */
+  sellerCompanyId: string;
 }): OrderWhoMode {
   if (!options.canLogForBuyer || !options.actorCompanyId) return 'hidden';
-  const hasForeign = options.productCompanyIds.some((id) => id && id !== options.actorCompanyId);
-  return hasForeign ? 'for-me-default' : 'buyer-only';
+  if (!options.sellerCompanyId || options.sellerCompanyId === 'multi') {
+    return 'for-me-default';
+  }
+  return options.sellerCompanyId === options.actorCompanyId ? 'buyer-only' : 'for-me-default';
 }
 
 export function isTenDigitPhone(value: string): boolean {

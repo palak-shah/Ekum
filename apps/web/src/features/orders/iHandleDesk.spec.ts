@@ -395,6 +395,25 @@ describe('iHandleDesk', () => {
     });
   });
 
+  it('shows Dispatch after a seller-logged ticket is confirmed', () => {
+    expect(
+      orderActionDock({
+        isSeller: true,
+        status: 'confirmed',
+        createdBySeller: true,
+        sendQuote: false,
+        openForDispatch: true,
+        hasRemaining: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'fulfill',
+      dispatch: true,
+      dispatchMore: false,
+      settle: false,
+    });
+  });
+
   it('does not fold trader actions under More actions', () => {
     expect(
       traderActionsBehindTakeOver([{ sellerName: 'Ahmedabad Loom' }] as OrderView['millDesks']),

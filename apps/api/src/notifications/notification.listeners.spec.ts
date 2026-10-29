@@ -48,6 +48,25 @@ describe('NotificationListeners enriched copy', () => {
     );
   });
 
+  it('order created also notifies the facilitator on Direct tickets', async () => {
+    const { listeners, create } = makeListeners({ 'buyer-1': 'Jaipur Emporium' });
+    await listeners.onOrderCreated({
+      orderId: 'ord-abcd1234',
+      buyerCompanyId: 'buyer-1',
+      sellerCompanyId: 'seller-1',
+      facilitatorCompanyId: 'trader-1',
+    });
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        recipientCompanyId: 'trader-1',
+        body: 'Shared order',
+        refId: 'ord-abcd1234',
+      }),
+    );
+  });
+
   it('return requested deep-links to order with who/what copy', async () => {
     const { listeners, create } = makeListeners({ 'buyer-1': 'Meena Textiles' });
     await listeners.onReturnRequested({

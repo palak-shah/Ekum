@@ -245,9 +245,10 @@ export class ThreadService {
       state: query.state ?? ThreadParticipantState.Active,
       leftAt: null,
       inboxHiddenAt: query.inbox === 'hidden' ? { not: null } : null,
-      ...(viewerUserId
-        ? {
-            thread: {
+      thread: {
+        messagingClosedAt: null,
+        ...(viewerUserId
+          ? {
               members: {
                 some: {
                   userId: viewerUserId,
@@ -255,9 +256,9 @@ export class ThreadService {
                   state: ThreadMemberState.Active,
                 },
               },
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     };
 
     const q = query.q?.trim() || '';
@@ -1275,7 +1276,7 @@ export class ThreadService {
 
   /**
    * Find-or-create the TradeLane trio (trader + mill + end buyer).
-   * Reuses an existing group with the same three companies; does not throw SAME_CHAT.
+   * Same three shops are one group in any name order. Clones close; living cards move.
    */
   async ensureTradeLaneGroup(
     traderCompanyId: string,
@@ -1283,47 +1284,75 @@ export class ThreadService {
     buyerCompanyId: string,
     existingThreadId?: string | null,
   ): Promise<string> {
+    const wanted = [traderCompanyId, sellerCompanyId, buyerCompanyId];
+    const reused = await this.reuseExactTrio(wanted, existingThreadId);
+    if (reused) return reused;
+
+    try {
+      const created = await this.createTradeLaneGroup(
+        traderCompanyId,
+        sellerCompanyId,
+        buyerCompanyId,
+      );
+      const after = await this.reuseExactTrio(wanted, created);
+      return after ?? created;
+    } catch (err) {
+      const raced = await this.reuseExactTrio(wanted, existingThreadId);
+      if (raced) return raced;
+      throw err;
+    }
+  }
+
+  private async reuseExactTrio(
+    wanted: string[],
+    existingThreadId?: string | null,
+  ): Promise<string | null> {
+    let stored: {
+      id: string;
+      type: string;
+      messagingClosedAt: Date | null;
+      participants: Array<{
+        id: string;
+        companyId: string;
+        leftAt: Date | null;
+        state: string;
+        inboxHiddenAt: Date | null;
+      }>;
+    } | null = null;
     if (existingThreadId) {
       const existing = await this.prisma.thread.findUnique({
         where: { id: existingThreadId },
         include: { participants: true },
       });
-      if (existing?.type === ThreadType.Group) {
-        for (const participant of existing.participants) {
-          if (
-            participant.leftAt ||
-            participant.state === ThreadParticipantState.Archived ||
-            participant.state === ThreadParticipantState.Pending
-          ) {
-            await this.prisma.threadParticipant.update({
-              where: { id: participant.id },
-              data: { state: ThreadParticipantState.Active, leftAt: null },
-            });
-          }
-        }
-        return existing.id;
+      if (existing?.type === ThreadType.Group && !existing.messagingClosedAt) {
+        stored = existing;
       }
     }
 
+    const groups = await this.findExactTrioGroups(wanted);
+    const survivor = stored ?? groups[0] ?? null;
+    if (!survivor) return null;
+
+    const clones = groups.filter((row) => row.id !== survivor.id);
+    if (clones.length > 0) {
+      await this.collapseTrioClones(
+        survivor.id,
+        clones.map((row) => row.id),
+      );
+    }
+    await this.reactivateTrioParticipants(
+      survivor.participants,
+      new Set(wanted),
+    );
+    return survivor.id;
+  }
+
+  private async createTradeLaneGroup(
+    traderCompanyId: string,
+    sellerCompanyId: string,
+    buyerCompanyId: string,
+  ): Promise<string> {
     const wanted = [traderCompanyId, sellerCompanyId, buyerCompanyId];
-    const byCompanies = await this.findGroupByExactCompanies(wanted);
-    if (byCompanies) {
-      for (const participant of byCompanies.participants) {
-        if (
-          participant.leftAt ||
-          participant.state === ThreadParticipantState.Archived ||
-          participant.state === ThreadParticipantState.Pending ||
-          participant.inboxHiddenAt
-        ) {
-          await this.prisma.threadParticipant.update({
-            where: { id: participant.id },
-            data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
-          });
-        }
-      }
-      return byCompanies.id;
-    }
-
     const companies = await this.prisma.company.findMany({
       where: { id: { in: wanted } },
       select: { id: true, name: true },
@@ -1352,24 +1381,93 @@ export class ThreadService {
     return thread.id;
   }
 
-  private async findGroupByExactCompanies(companyIds: string[]) {
+  private async reactivateTrioParticipants(
+    participants: Array<{
+      id: string;
+      companyId: string;
+      leftAt: Date | null;
+      state: string;
+      inboxHiddenAt?: Date | null;
+    }>,
+    wanted: Set<string>,
+  ): Promise<void> {
+    for (const participant of participants) {
+      if (!wanted.has(participant.companyId)) continue;
+      if (
+        participant.leftAt ||
+        participant.state === ThreadParticipantState.Archived ||
+        participant.state === ThreadParticipantState.Pending ||
+        participant.inboxHiddenAt
+      ) {
+        await this.prisma.threadParticipant.update({
+          where: { id: participant.id },
+          data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
+        });
+      }
+    }
+  }
+
+  private async collapseTrioClones(survivorId: string, cloneIds: string[]): Promise<void> {
+    const closedAt = new Date();
+    const cards = await this.prisma.message.findMany({
+      where: {
+        threadId: { in: cloneIds },
+        type: { in: [MessageType.OrderCard, MessageType.Rate] },
+        referenceId: { not: null },
+      },
+      select: { id: true, type: true, referenceId: true },
+    });
+    const already = await this.prisma.message.findMany({
+      where: {
+        threadId: survivorId,
+        type: { in: [MessageType.OrderCard, MessageType.Rate] },
+        referenceId: { not: null },
+      },
+      select: { type: true, referenceId: true },
+    });
+    const have = new Set(already.map((row) => `${row.type}:${row.referenceId}`));
+    const moveIds = cards
+      .filter((row) => row.referenceId && !have.has(`${row.type}:${row.referenceId}`))
+      .map((row) => row.id);
+    if (moveIds.length > 0) {
+      await this.prisma.message.updateMany({
+        where: { id: { in: moveIds } },
+        data: { threadId: survivorId },
+      });
+      await this.prisma.thread.update({
+        where: { id: survivorId },
+        data: { lastMessageAt: closedAt },
+      });
+    }
+    await this.prisma.thread.updateMany({
+      where: { id: { in: cloneIds }, messagingClosedAt: null },
+      data: { messagingClosedAt: closedAt },
+    });
+    await this.prisma.tradeLane.updateMany({
+      where: { groupThreadId: { in: [survivorId, ...cloneIds] } },
+      data: { groupThreadId: survivorId },
+    });
+  }
+
+  private async findExactTrioGroups(companyIds: string[]) {
     const wanted = new Set(companyIds);
     const candidates = await this.prisma.thread.findMany({
       where: {
         type: ThreadType.Group,
+        messagingClosedAt: null,
         AND: [...wanted].map((companyId) => ({
-          participants: { some: { companyId } },
+          participants: { some: { companyId, leftAt: null } },
         })),
       },
       include: { participants: true },
+      orderBy: { createdAt: 'asc' },
     });
-    for (const candidate of candidates) {
-      const ids = new Set(candidate.participants.map((p) => p.companyId));
-      if (ids.size === wanted.size && [...wanted].every((id) => ids.has(id))) {
-        return candidate;
-      }
-    }
-    return null;
+    return candidates.filter((candidate) => {
+      const ids = new Set(
+        candidate.participants.filter((p) => !p.leftAt).map((p) => p.companyId),
+      );
+      return ids.size === wanted.size && [...wanted].every((id) => ids.has(id));
+    });
   }
 
   findDirectThreadId(a: string, b: string): Promise<string | null> {

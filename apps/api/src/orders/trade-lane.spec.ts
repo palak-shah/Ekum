@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   effectivePathFromLane,
   isReleasedMillSubset,
+  laneBehaviorsFromJson,
+  laneRoutesDirect,
   manageParentOpenChatThreadId,
+  qtyChangeSummary,
   shouldRouteToTrio,
+  trioMillLaneWhere,
 } from './trade-lane';
 
 describe('TradeLane reveal routing', () => {
@@ -53,5 +57,37 @@ describe('TradeLane place path', () => {
 
   it('maps mill ticket to direct', () => {
     expect(effectivePathFromLane('mill')).toBe('direct');
+  });
+
+  it('finds a mill lane for this buyer with mill and trader either way', () => {
+    expect(trioMillLaneWhere('al', 'je', 'ss')).toEqual({
+      ticket: 'mill',
+      buyerCompanyId: 'ss',
+      OR: [
+        { traderCompanyId: 'al', sellerCompanyId: 'je' },
+        { traderCompanyId: 'je', sellerCompanyId: 'al' },
+      ],
+    });
+  });
+
+  it('treats missing behaviors as Direct-order on and auto-repost off', () => {
+    expect(laneBehaviorsFromJson(null)).toEqual({ directOrder: true, autoRepost: false });
+    expect(laneBehaviorsFromJson({ directOrder: false })).toEqual({
+      directOrder: false,
+      autoRepost: false,
+    });
+    expect(laneBehaviorsFromJson({ autoRepost: true })).toEqual({
+      directOrder: true,
+      autoRepost: false,
+    });
+    expect(laneRoutesDirect({ ticket: 'mill' })).toBe(true);
+    expect(laneRoutesDirect({ ticket: 'me' })).toBe(false);
+    expect(laneRoutesDirect({ ticket: 'mill', behaviors: { directOrder: false } })).toBe(
+      false,
+    );
+  });
+
+  it('names qty before → after', () => {
+    expect(qtyChangeSummary(20, 12)).toBe('Updated qty · 20 → 12');
   });
 });

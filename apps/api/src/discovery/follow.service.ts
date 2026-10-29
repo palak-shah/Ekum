@@ -10,6 +10,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { DiscoverySerializer } from './discovery.serializer';
 import { allowedFollowWhere, FollowAccessKind, FollowStatus } from './follow-access';
+import { revokeAffectedDirectLinks } from '../orders/trade-lane-revoke';
 
 @Injectable()
 export class FollowService {
@@ -67,7 +68,10 @@ export class FollowService {
     followerCompanyId: string,
     followedCompanyId: string,
   ): Promise<FollowAskResult> {
-    await this.prisma.follow.deleteMany({ where: { followerCompanyId, followedCompanyId } });
+    await this.prisma.$transaction(async (tx) => {
+      await revokeAffectedDirectLinks(tx, followerCompanyId, followedCompanyId);
+      await tx.follow.deleteMany({ where: { followerCompanyId, followedCompanyId } });
+    });
     return { following: false, pending: false };
   }
 
@@ -145,9 +149,12 @@ export class FollowService {
       if (row.status !== FollowStatus.Allowed) {
         throw new NotFoundException({ code: 'NOT_FOUND', message: 'Ask not found.' });
       }
-      await this.prisma.follow.update({
-        where: { id: row.id },
-        data: { status: FollowStatus.Stopped, accessKind: null },
+      await this.prisma.$transaction(async (tx) => {
+        await revokeAffectedDirectLinks(tx, shopCompanyId, followerCompanyId);
+        await tx.follow.update({
+          where: { id: row.id },
+          data: { status: FollowStatus.Stopped, accessKind: null },
+        });
       });
       return { ok: true };
     }

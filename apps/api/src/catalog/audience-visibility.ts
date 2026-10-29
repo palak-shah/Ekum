@@ -27,6 +27,11 @@ export function effectivePublishAudience(audience: string): string {
   return audience;
 }
 
+/** Followers (and legacy everyone/connections) — not Selected. */
+export function isBroadPublishAudience(audience: string): boolean {
+  return effectivePublishAudience(audience) === PublishAudience.Followers;
+}
+
 /**
  * Whether a viewer may discover a published collection/design (explore, shop, search).
  * Audience is who can see it — publish means live for that audience.
@@ -50,6 +55,10 @@ export function canDiscoverCollection(
   }
   const audience = effectivePublishAudience(collection.audience);
   if (audience === PublishAudience.Followers) {
+    // Non-empty ids = Direct Link buyers already auto-delivered — skip on Explore.
+    if (collection.audienceCompanyIds.includes(viewerCompanyId)) {
+      return false;
+    }
     return ctx.following;
   }
   if (audience === PublishAudience.Selected) {
@@ -91,6 +100,7 @@ export function audienceVisibilityOr(viewerCompanyId: string): object[] {
       company: {
         followers: allowedFollowSome(viewerCompanyId),
       },
+      NOT: { audienceCompanyIds: { has: viewerCompanyId } },
     },
     {
       audience: PublishAudience.Selected,

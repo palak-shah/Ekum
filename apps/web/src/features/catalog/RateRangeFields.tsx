@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Unit, defaultRateUnit, unitValues } from '@ekum/domain-types';
 import { cx } from '@/lib/cx';
 import { Field, TextInput } from '@/ui/kit';
-import { SELECT_FIELD_CLASS } from '@/ui/fieldFill';
+import { OptionSheetField } from '@/ui/OptionSheetField';
 import { rateRangeCaption } from './rateRange';
 
 function RateAmountInput({
@@ -119,19 +119,15 @@ export function RateRangeFields({
         {unitSelect ? (
           <div className="flex w-full items-center gap-2">
             <span className="shrink-0 text-sm font-emphasis text-ink">Rate per</span>
-            <select
-              data-testid="collection-rate-unit"
-              aria-label="Rate unit"
+            <OptionSheetField
+              className="min-w-0 flex-1"
+              testId="collection-rate-unit"
+              sheetTitle="Rate per"
+              ariaLabel="Rate unit"
               value={selectedUnit}
-              onChange={(e) => onRateUnit?.(e.target.value)}
-              className={`min-h-10 min-w-0 flex-1 ${SELECT_FIELD_CLASS} px-3 text-sm text-ink`}
-            >
-              {unitOptions.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
+              options={unitOptions.map((u) => ({ value: u, label: u }))}
+              onChange={(next) => onRateUnit?.(next)}
+            />
           </div>
         ) : (
           <span className="text-sm font-emphasis text-ink">{label}</span>

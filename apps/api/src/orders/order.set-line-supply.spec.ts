@@ -80,6 +80,7 @@ describe('OrderService.setLineSupply', () => {
       postOrderCard,
       emitAndGet,
       shippedTotals,
+      passMillLinesToParent: vi.fn(async () => undefined),
       withActor: () => ({}),
     });
 
@@ -150,6 +151,7 @@ describe('OrderService.setLineSupply', () => {
       postOrderCard,
       emitAndGet,
       shippedTotals,
+      passMillLinesToParent: vi.fn(async () => undefined),
       withActor: () => ({}),
     });
 
@@ -175,6 +177,7 @@ describe('OrderService.setLineSupply', () => {
       lineStatus: OrderLineStatus.Declined,
       quantity: { toNumber: () => 20 },
       requestedQuantity: { toNumber: () => 50 },
+      confirmedQuantity: { toNumber: () => 30 },
     };
     const orderRow = {
       id: 'ord-1',
@@ -203,6 +206,7 @@ describe('OrderService.setLineSupply', () => {
       postOrderCard,
       emitAndGet,
       shippedTotals: vi.fn(() => new Map()),
+      passMillLinesToParent: vi.fn(async () => undefined),
       withActor: () => ({}),
     });
 
@@ -213,7 +217,7 @@ describe('OrderService.setLineSupply', () => {
     expect(orderItem.update).toHaveBeenCalledWith({
       where: { id: 'oi1' },
       data: {
-        quantity: 50,
+        quantity: 30,
         lineStatus: OrderLineStatus.Confirmed,
       },
     });

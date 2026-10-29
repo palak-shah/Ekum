@@ -108,4 +108,79 @@ describe('toCollectionCard', () => {
     expect(card.kind).toBe('catalog');
     expect(card.orderMode).toBe('whole');
   });
+
+  it('stamps mill names on From credit when Show supplier is on', () => {
+    const card = serializer.toCollectionCard(
+      pack({
+        companyId: 'trader',
+        showSourceShops: true,
+        products: [
+          {
+            product: {
+              images: [],
+              companyId: 'mill',
+              company: { name: 'Ahmedabad Loom Co' },
+              rate: 90,
+              unit: 'mtr',
+              dispatchUnit: 'mtr',
+              catalogRateUnit: 'mtr',
+              status: 'published',
+            },
+          },
+        ],
+      }),
+      { viewerCompanyId: 'buyer' },
+    );
+    expect(card.sourceShopNames).toEqual(['Ahmedabad Loom Co']);
+  });
+
+  it('honors Show supplier on catalog packs the same as collections', () => {
+    const on = serializer.toCollectionCard(
+      pack({
+        kind: 'catalog',
+        companyId: 'trader',
+        showSourceShops: true,
+        products: [
+          {
+            product: {
+              images: [],
+              companyId: 'mill',
+              company: { name: 'Ahmedabad Loom Co' },
+              rate: 90,
+              unit: 'mtr',
+              dispatchUnit: 'mtr',
+              catalogRateUnit: 'mtr',
+              status: 'published',
+            },
+          },
+        ],
+      }),
+      { viewerCompanyId: 'buyer' },
+    );
+    expect(on.sourceShopNames).toEqual(['Ahmedabad Loom Co']);
+
+    const off = serializer.toCollectionCard(
+      pack({
+        kind: 'catalog',
+        companyId: 'trader',
+        showSourceShops: false,
+        products: [
+          {
+            product: {
+              images: [],
+              companyId: 'mill',
+              company: { name: 'Ahmedabad Loom Co' },
+              rate: 90,
+              unit: 'mtr',
+              dispatchUnit: 'mtr',
+              catalogRateUnit: 'mtr',
+              status: 'published',
+            },
+          },
+        ],
+      }),
+      { viewerCompanyId: 'buyer' },
+    );
+    expect(off.sourceShopNames).toEqual([]);
+  });
 });

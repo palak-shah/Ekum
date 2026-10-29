@@ -1,4 +1,11 @@
-import { lineBillAmount, shortOrderLabel, type OrderItemView } from '@ekum/domain-types';
+import {
+  catalogBunchBill,
+  collapseCatalogWholeLines,
+  lineBillAmount,
+  shortOrderLabel,
+  type OrderItemView,
+} from '@ekum/domain-types';
+import { ticketBillItems } from '@/features/orders/orderCatalogDisplay';
 import { formatOrderQty } from '@/features/orders/orderLineBilling';
 import { orderRateText, ticketTotalSummary } from '@/features/orders/howManyLineMeta';
 import {
@@ -61,16 +68,29 @@ function formatBill(amount: number | null): string {
 
 /** Rows in ticket order. Qty is the order unit. Can’t-supply stays on the form. */
 export function orderFormRows(input: OrderFormInput): OrderFormRow[] {
-  return input.items.map((item) => {
+  return collapseCatalogWholeLines(input.items).map((row) => {
+    const item =
+      row.kind === 'line'
+        ? row.item
+        : { ...row.items[0]!, name: row.catalogName };
     const cantSupply = item.lineStatus === 'declined';
     const bill = cantSupply
       ? null
-      : lineBillAmount({
-          quantity: item.quantity,
-          rate: item.rate,
-          unit: item.unit,
-          piecesPerPack: item.piecesPerPack,
-        });
+      : row.kind === 'catalog'
+        ? catalogBunchBill({
+            quantity: item.quantity,
+            rate: item.rate,
+            unit: item.unit,
+            catalogRateUnit: item.catalogRateUnit,
+            piecesPerPack: item.piecesPerPack,
+            memberCount: row.items.length,
+          })
+        : lineBillAmount({
+            quantity: item.quantity,
+            rate: item.rate,
+            unit: item.unit,
+            piecesPerPack: item.piecesPerPack,
+          });
     return {
       quantity: cantSupply
         ? "Can't supply"
@@ -100,7 +120,7 @@ export type OrderFormTotalRow = {
 
 /** Ticket mill-bill: Total once, then qty+₹ per family, then All, then +cue. */
 export function orderFormTotalRows(input: OrderFormInput): OrderFormTotalRow[] {
-  const summary = ticketTotalSummary(input.items);
+  const summary = ticketTotalSummary(ticketBillItems(input.items));
   if (!summary) return [];
   const rows: OrderFormTotalRow[] = summary.units.map((row, index) => ({
     label: index === 0 ? 'Total' : '',

@@ -3,8 +3,8 @@ import { Field, TextInput } from '@/ui/kit';
 import {
   FIELD_FOCUS_WITHIN_FILL_CLASS,
   FIELD_IDLE_FILL_CLASS,
-  SELECT_FIELD_CLASS,
 } from '@/ui/fieldFill';
+import { OptionSheetField } from '@/ui/OptionSheetField';
 import {
   orderContentsUnit,
   orderDispatchPreview,
@@ -73,18 +73,13 @@ export function OrderDispatchFields({
         <h2 className="text-sm font-emphasis text-ink">Order and dispatch</h2>
       )}
       <Field label="Order taken in">
-        <select
-          data-testid="collection-order-unit"
+        <OptionSheetField
+          testId="collection-order-unit"
+          sheetTitle="Order taken in"
           value={order}
-          onChange={(e) => handleOrderUnit(e.target.value)}
-          className={`min-h-12 w-full ${SELECT_FIELD_CLASS} px-3 text-sm text-ink`}
-        >
-          {unitValues.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
+          options={unitValues.map((u) => ({ value: u, label: u }))}
+          onChange={handleOrderUnit}
+        />
       </Field>
       <Field label={containsLabel}>
         <div
@@ -117,18 +112,13 @@ export function OrderDispatchFields({
         </div>
       </Field>
       <Field label="Dispatch unit">
-        <select
-          data-testid="collection-dispatch-unit"
+        <OptionSheetField
+          testId="collection-dispatch-unit"
+          sheetTitle="Dispatch unit"
           value={dispatch}
-          onChange={(e) => onDispatchUnit(e.target.value)}
-          className={`min-h-12 w-full ${SELECT_FIELD_CLASS} px-3 text-sm text-ink`}
-        >
-          {unitValues.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
+          options={unitValues.map((u) => ({ value: u, label: u }))}
+          onChange={onDispatchUnit}
+        />
       </Field>
       <Field label="Minimum order">
         <TextInput

@@ -15,6 +15,7 @@ export * from './chat-mentions';
 export * from './chat-membership';
 export * from './orders';
 export * from './order-billing';
+export * from './catalog-whole-group';
 export * from './trade-needs-you';
 export * from './order-timeline';
 export * from './order-trail';

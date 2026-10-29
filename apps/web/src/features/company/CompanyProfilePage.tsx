@@ -53,8 +53,8 @@ import {
   writeResumeAfterAlbumPick,
 } from '@/features/browse/resumeAfterAlbumPick';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
-import { entriesAsProducts, sellerIdForEntries } from '@/features/browse/useShortlistOrderFlow';
-import { packHandlerName } from '@/features/browse/packOrderSource';
+import { entriesAsProducts, orderGoesToSellerId } from '@/features/browse/useShortlistOrderFlow';
+import { collectionIdForPackOrder, packHandlerName } from '@/features/browse/packOrderSource';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { SelectModeControls } from '@/features/browse/SelectModeControls';
@@ -106,6 +106,12 @@ function toShopShortlistEntry(
     unit: product.unit ?? null,
     dispatchUnit: product.dispatchUnit ?? null,
     rate: product.rate ?? null,
+    ...(product.catalogCollectionId
+      ? { catalogCollectionId: product.catalogCollectionId }
+      : {}),
+    ...(product.catalogOrderMode
+      ? { catalogOrderMode: product.catalogOrderMode }
+      : {}),
   };
 }
 
@@ -811,12 +817,13 @@ export function CompanyProfilePage() {
           setQtyEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={sellerIdForEntries(qtyEntries ?? shopEntries)}
+        sellerId={orderGoesToSellerId(qtyEntries ?? shopEntries)}
         products={entriesAsProducts(qtyEntries ?? shopEntries)}
         lockedProductIds={lockedProductIds}
         submitting={placeShopOrder.isPending}
         error={orderError}
         orderGoesToName={packHandlerName(qtyEntries ?? shopEntries) ?? company.name}
+        collectionId={collectionIdForPackOrder(qtyEntries ?? shopEntries)}
         sheetJob="order"
         onSendOrder={(lines, place) => {
           setOrderError(null);

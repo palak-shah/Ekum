@@ -10,6 +10,7 @@ export type BrowseShortlistEntry = {
   categories?: string[];
   unit?: string | null;
   dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
   piecesPerPack?: number | null;
   moq?: number | null;
   rate?: number | null;
@@ -17,12 +18,20 @@ export type BrowseShortlistEntry = {
   status?: string;
   /** Own catalog this design is exclusive to. */
   catalogCollectionId?: string | null;
+  catalogOrderMode?: string | null;
+  /** Whole-catalog How many: this line is a locked member. */
+  catalogWhole?: boolean;
+  catalogName?: string | null;
   /** Curated pack these lines were picked from (I handle → from-pack). */
   sourceCollectionId?: string;
   /** Desk publish allow-to-relist on that pack (Slice B desk chain). */
   sourcePackAllowForward?: boolean;
   sourceHandlerName?: string;
+  /** Pack owner company — who Place goes to, not mill SKU `companyId`. */
+  sourceHandlerCompanyId?: string;
   sourcePath?: 'direct' | 'handle';
+  /** This mill SKU Places as a Direct ticket for the viewing buyer. */
+  sourceDirect?: boolean;
 };
 
 type Listener = () => void;

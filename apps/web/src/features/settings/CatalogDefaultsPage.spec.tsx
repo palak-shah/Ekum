@@ -32,7 +32,10 @@ describe('CatalogDefaultsPage', () => {
       </QueryClientProvider>,
     );
     await waitFor(() => {
-      expect(screen.getByTestId('catalog-defaults-rate-unit')).toHaveValue('pc');
+      expect(screen.getByTestId('catalog-defaults-rate-unit')).toHaveAttribute(
+        'data-value',
+        'pc',
+      );
     });
     expect(screen.getByLabelText('Rate unit')).toBeTruthy();
   });

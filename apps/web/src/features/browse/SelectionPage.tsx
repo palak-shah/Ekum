@@ -51,9 +51,13 @@ import {
 } from '@/features/browse/selectionAvailability';
 import {
   collectionIdForPackOrder,
-  packHandlerName,
 } from '@/features/browse/packOrderSource';
-import { entriesAsProducts, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import { packPlaceGoesToName } from '@/features/browse/packPlacePhases';
+import {
+  entriesAsProducts,
+  orderGoesToSellerId,
+  useShortlistOrderFlow,
+} from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { SAVED_QUERY_KEY } from '@/features/saved/useSaveToggle';
 import { youSavedHref } from '@/features/saved/youSavedHref';
@@ -263,6 +267,7 @@ export function SelectionPage() {
 
   // While resolving, treat unknown as available so verbs aren't flash-disabled.
   const resolving = availability.isLoading || availability.isFetching;
+  const qtySource = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
   /** Pack-locked albums stay on the list but never enter Curate resolve / Pick designs. */
   const curatableAlbums = useMemo(() => {
     const source = resolving ? albumPick.entries : availableAlbums;
@@ -808,36 +813,26 @@ export function SelectionPage() {
           setQtyEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={
-          availableDesigns.length === 0
-            ? 'multi'
-            : availableDesigns.length === 1
-              ? availableDesigns[0]!.companyId
-              : availableDesigns.every((entry) => entry.companyId === availableDesigns[0]?.companyId)
-                ? availableDesigns[0]!.companyId
-                : 'multi'
-        }
-        products={entriesAsProducts(
-          qtyEntries ?? (resolving ? shortlist.entries : availableDesigns),
-        )}
+        sellerId={orderGoesToSellerId(orderFlow.waveEntries(qtySource))}
+        products={entriesAsProducts(orderFlow.waveEntries(qtySource))}
+        forBuyerProducts={entriesAsProducts(orderFlow.remainingEntries(qtySource))}
         lockedProductIds={lockedProductIds}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={packHandlerName(resolving ? shortlist.entries : availableDesigns)}
+        orderGoesToName={packPlaceGoesToName(orderFlow.waveEntries(qtySource))}
+        collectionId={collectionIdForPackOrder(qtySource)}
         onRemoveProduct={(productId) => shortlist.removeIds([productId])}
         onSendOrder={(lines, place) => {
-          const linesForPath = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
           orderFlow.sendOrder(lines, {
             ...place,
-            collectionId: collectionIdForPackOrder(linesForPath),
+            collectionId: collectionIdForPackOrder(qtySource),
           });
         }}
         onAskRates={(lines, place) => {
-          const linesForPath = qtyEntries ?? (resolving ? shortlist.entries : availableDesigns);
           orderFlow.askRates(lines, {
             ...place,
-            collectionId: collectionIdForPackOrder(linesForPath),
+            collectionId: collectionIdForPackOrder(qtySource),
           });
         }}
         sheetJob="order"

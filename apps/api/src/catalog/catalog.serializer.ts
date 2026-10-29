@@ -52,7 +52,15 @@ export const productActorInclude = {
     where: { collection: { status: { not: 'archived' } } },
     include: {
       collection: {
-        select: { id: true, name: true, status: true, categories: true, masterCategoryId: true },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          categories: true,
+          masterCategoryId: true,
+          kind: true,
+          orderMode: true,
+        },
       },
     },
   },
@@ -91,6 +99,12 @@ export class CatalogSerializer {
       status: product.status,
       catalogCollectionId:
         (product as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
+      catalogOrderMode: (() => {
+        const exclusive = (product as { catalogCollectionId?: string | null }).catalogCollectionId;
+        if (!exclusive) return null;
+        const pack = (product.collections ?? []).find((row) => row.collection.id === exclusive);
+        return (pack?.collection as { orderMode?: string | null } | undefined)?.orderMode ?? null;
+      })(),
       audience: product.audience ?? 'connections',
       rateVisibility: product.rateVisibility ?? 'on_request',
       audienceCompanyIds: product.audienceCompanyIds ?? [],

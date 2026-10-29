@@ -53,6 +53,12 @@ function setup(connection: ConnRow | null) {
           : null,
       update,
     },
+    tradeLane: {
+      findMany: vi.fn(async () => []),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
+    thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
   } as unknown as PrismaService;
   const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
   const serializer = {
@@ -147,6 +153,22 @@ describe('ConnectionService.applyOwnerAction', () => {
     });
     await expect(service.applyOwnerAction('co-a', 'conn-1', 'resume', actor)).rejects.toThrow();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('revokes affected Direct Links in the same transaction as block', async () => {
+    const { service, update } = setup({
+      id: 'conn-1',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
+      status: ConnectionStatus.Active,
+      statusSetByCompanyId: null,
+    });
+    await service.applyOwnerAction('co-a', 'conn-1', 'block', actor);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: ConnectionStatus.Blocked, statusSetByCompanyId: 'co-a' },
+      }),
+    );
   });
 
   it('hides connections the caller is not on', async () => {

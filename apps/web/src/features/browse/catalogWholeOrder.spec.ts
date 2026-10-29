@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   expandPreviewMembers,
   expandWholeCatalogsInShortlist,
+  isExclusiveWholeCatalogMember,
   isWholeCatalogOrder,
   needsOrderResolveChoice,
   publishedOrderMembers,
@@ -36,6 +37,29 @@ function preview(over: Partial<CatalogWholeOrderPreview> = {}): CatalogWholeOrde
     ...over,
   };
 }
+
+describe('isExclusiveWholeCatalogMember', () => {
+  it('is true only for exclusive members of a whole catalog', () => {
+    expect(
+      isExclusiveWholeCatalogMember({
+        catalogCollectionId: 'cat-1',
+        catalogOrderMode: CatalogOrderMode.Whole,
+      }),
+    ).toBe(true);
+    expect(
+      isExclusiveWholeCatalogMember({
+        catalogCollectionId: 'cat-1',
+        catalogOrderMode: CatalogOrderMode.Pick,
+      }),
+    ).toBe(false);
+    expect(
+      isExclusiveWholeCatalogMember({
+        catalogCollectionId: null,
+        catalogOrderMode: CatalogOrderMode.Whole,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('isWholeCatalogOrder', () => {
   it('is true only for catalog + whole', () => {
@@ -152,6 +176,7 @@ describe('expandWholeCatalogsInShortlist', () => {
     );
     expect(result.shortlist.map((row) => row.productId)).toEqual(['p1', 'p3']);
     expect(result.lockedProductIds).toEqual(['p1', 'p3']);
+    expect(result.shortlist.every((row) => row.catalogWhole === true)).toBe(true);
   });
 
   it('does not expand a pick catalog', async () => {
